@@ -20,11 +20,17 @@ export const insights = {
   lastTurnUsd: null as number | null,
 }
 
-export const resetInsights = (): void => {
+/** A new conversation (/clear, resume): its turns start over, but the
+ *  5-hour window is account-wide, so its pace carries on. */
+export const resetConversationInsights = (): void => {
   state.turnStartCost.clear()
+  insights.lastTurnUsd = null
+}
+
+export const resetInsights = (): void => {
+  resetConversationInsights()
   state.samples = []
   state.resetsAt = undefined
-  insights.lastTurnUsd = null
 }
 
 export const noteTurnStart = (turnId: string, costUsd: number | undefined): void => {

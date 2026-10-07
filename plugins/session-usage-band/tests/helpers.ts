@@ -121,3 +121,21 @@ export const rowCount = (tree: unknown): number => {
   const t = tree as Node
   return t.type === 'Box' ? (t.children ?? []).length : 0
 }
+
+/** Cells a drawn row needs, as the terminal lays it out: text, padding,
+ *  gaps and Button labels; hidden cards take none; an Svg meter counts 8. */
+export const widthOf = (n: unknown): number => {
+  if (typeof n === 'string' || typeof n === 'number') return [...String(n)].length
+  if (n === null || typeof n !== 'object') return 0
+  const node = n as Node
+  if (node.props?.position === 'absolute') return 0
+  if (node.type === 'Button') return [...String(node.props?.label ?? '')].length
+  if (node.type === 'Svg') return 8
+  const kids = (node.children ?? []).filter(k => k !== null && k !== undefined && k !== false)
+  const pad = typeof node.props?.paddingX === 'number' ? 2 * node.props.paddingX : 0
+  const gap = typeof node.props?.columnGap === 'number' ? node.props.columnGap * Math.max(0, kids.length - 1) : 0
+  return kids.map(widthOf).reduce((a, b) => a + b, 0) + pad + gap
+}
+
+/** The band's first row: the pills. */
+export const firstRow = (tree: unknown): unknown => ((tree as Node).children ?? [])[0]

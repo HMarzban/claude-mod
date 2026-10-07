@@ -1,9 +1,17 @@
 import { atom, read, update } from 'claude-code'
 import type { Register, Timer } from 'claude-code'
 import { drawBand } from './band'
-import { cache, hitRatio, msLeft, recordResponse, resetCache, resetConversation, reWarmUsd } from './cache'
+import { cache, hitRatio, msLeft, noteConversationStart, noteLedger, recordResponse, resetCache, resetConversation, reWarmUsd } from './cache'
 import { fmtCountdown, fmtEta } from './format'
-import { fiveHourEtaMs, insights, noteFiveHour, noteTurnEnd, noteTurnStart, resetInsights } from './insights'
+import {
+  fiveHourEtaMs,
+  insights,
+  noteFiveHour,
+  noteTurnEnd,
+  noteTurnStart,
+  resetConversationInsights,
+  resetInsights,
+} from './insights'
 import { DARK, resolvePalette } from './palette'
 import type { Palette } from './palette'
 
@@ -74,15 +82,19 @@ export const register: Register = on => {
   // session.start follows, so the next conversation starts from here.
   on('session.end', async ($, e, next) => {
     resetConversation((await $.session.usage()).cost?.usd ?? 0)
-    resetInsights()
-    warned.clear()
+    // The context warning is this conversation's; the 5-hour one is the
+    // account's, and /clear changes nothing about it.
+    resetConversationInsights()
+    warned.delete('context')
     lastPaintKey = ''
     $.ui.invalidate('ui.render')
     return next(e)
   })
 
   on('turn.start', async ($, e, next) => {
-    noteTurnStart(e.turnId, (await $.session.usage()).cost?.usd)
+    const cost = (await $.session.usage()).cost?.usd
+    noteTurnStart(e.turnId, cost)
+    if (cost !== undefined) noteConversationStart(cost)
     return next(e)
   })
 
@@ -101,6 +113,8 @@ export const register: Register = on => {
     const isMain = e.agentId === undefined
     if (result?.usage) {
       recordResponse(result.usage, await $.clock.now(), isMain)
+      const cost = (await $.session.usage()).cost?.usd
+      if (cost !== undefined) noteLedger(cost)
       $.ui.invalidate('ui.render')
     }
     if (isMain && result?.stopReason === 'compaction') {
@@ -190,6 +204,9 @@ export const register: Register = on => {
         contextPercent: usage.context.percent,
         fiveHour: five ? { percentUsed: five.percentUsed, resetsAt: five.resetsAt, etaMs: fiveHourEtaMs(now) } : undefined,
         sevenDay: seven ? { percentUsed: seven.percentUsed, resetsAt: seven.resetsAt } : undefined,
+        otherLimits: usage.rateLimits
+          .filter(l => l.kind !== 'five_hour' && l.kind !== 'seven_day')
+          .map(l => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: l.resetsAt })),
       },
       {
         toggleExpanded: async () => {

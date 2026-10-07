@@ -21,9 +21,12 @@ export const cache = {
   // the response, which is only written on the next request, never read.
   cached: 0,
   rebuilding: false,
-  // Session cost when this conversation began, so a /clear's earlier spend
-  // can't inflate the rate the re-warm price is solved from.
+  // The ledger when this conversation's first turn began, so spend from
+  // before it (a /clear, a resume, a reload) can't inflate the rate the
+  // re-warm price is solved from. Taken at the first turn.start after any
+  // reset, the ledger's value then is right whether or not it was reset.
   costBase: 0,
+  baselined: false,
 }
 
 export const resetCache = (): void => {
@@ -40,6 +43,20 @@ export const resetCache = (): void => {
   cache.cached = 0
   cache.rebuilding = false
   cache.costBase = 0
+  cache.baselined = false
+}
+
+/** The engine may reset the ledger on /clear: once it reads below the
+ *  baseline, it counts this conversation alone, so the baseline is 0. */
+export const noteLedger = (costNow: number): void => {
+  if (costNow < cache.costBase) cache.costBase = 0
+}
+
+/** The ledger as this conversation's first turn starts: its baseline. */
+export const noteConversationStart = (costNow: number): void => {
+  if (cache.baselined) return
+  cache.costBase = costNow
+  cache.baselined = true
 }
 
 /** A new conversation in the same process (/clear, resume): the billing
@@ -49,6 +66,7 @@ export const resetConversation = (costNow: number): void => {
   resetCache()
   cache.ttl = ttl
   cache.ttlPinned = ttlPinned
+  // Provisional until the next turn starts and takes the ledger then.
   cache.costBase = costNow
 }
 
@@ -118,9 +136,8 @@ export const reWarmUsd = (sessionCost: number | undefined): number | null => {
   const weighted =
     cache.uncached + WRITE_MULT * cache.written + READ_MULT * cache.read + OUTPUT_MULT * cache.output
   if (weighted <= 0) return null
-  // A ledger below the baseline was reset by the engine, so it already
-  // counts this conversation alone.
-  const billed = sessionCost >= cache.costBase ? sessionCost - cache.costBase : sessionCost
+  noteLedger(sessionCost)
+  const billed = sessionCost - cache.costBase
   if (billed <= 0) return null
   const rate = billed / weighted
   const usd = rate * WRITE_MULT * cache.window

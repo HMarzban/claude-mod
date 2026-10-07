@@ -352,3 +352,28 @@ Compared with the first draft:
 - The VS Code claim is dropped.
 - The write-multiplier limitation is stated.
 - The probe is defined, with acceptance criteria and fallbacks.
+
+## Post-review changes (final review, 2026-10-07)
+
+- **Cost baseline.** It's taken from the ledger at the first main-loop
+  `turn.start` after any reset (load, resume, reload, `/clear`), and set
+  to 0 for good the first time the ledger reads below it (a reset
+  ledger). This fixes a re-warm price that collapsed after `/clear`, and
+  one that was inflated after a resume or reload.
+- **`/clear` scope** amends §5. Only per-conversation state resets: last
+  turn's cost, turn starts and the context toast. The 5-hour samples, its
+  `resetsAt` and its toast are account-wide, so they carry on.
+- **The row always fits.** The band measures its first row in cells and
+  sheds pieces until it fits `bodyColumns`, least important first:
+  1. the context meter
+  2. `last $x`
+  3. the 5h meter
+  4. short wording, so `full in ~55m` becomes `~55m`
+  5. `ctx` in place of `context`
+  6. a calm context pill
+  
+  Escalated pills keep their words longest.
+- **Other limit windows,** such as a gateway's `spend_limit`, are listed
+  in the expanded line (`spend limit 92%, resets in 5h 00m`), as 0.1.1
+  showed them.
+
