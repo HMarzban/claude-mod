@@ -241,11 +241,29 @@ export const cards = (tree: unknown): Array<[string, Node]> => {
   return out
 }
 
-/** The unexpected-rebuild count in the expanded line, 0 when it's absent. */
-export const rebuilds = (tree: unknown): number => {
-  const m = textOf(tree).match(/(\d+) unexpected rebuild/)
-  return m ? Number(m[1]) : 0
+/** The value a card row shows for `label` in the expanded view. */
+export const fact = (tree: unknown, label: string): string | undefined => {
+  let found: string | undefined
+  walk(tree, n => {
+    if (found === undefined && n.type === 'Box' && n.props?.key === `fact:${label}`) {
+      const kids = n.children ?? []
+      found = textOf(kids[kids.length - 1])
+    }
+  })
+  return found
 }
+
+/** A card of the expanded view: cache, spend, context or limits. */
+export const cardOf = (tree: unknown, name: string): Node | undefined => {
+  let found: Node | undefined
+  walk(tree, n => {
+    if (found === undefined && n.type === 'Box' && n.props?.key === `card:${name}`) found = n
+  })
+  return found
+}
+
+/** The cache card's rebuild count, 0 when the row is absent. */
+export const rebuilds = (tree: unknown): number => Number(fact(tree, 'rebuilds') ?? 0)
 
 /** Text meters drawn: six cells of █, ░ and the ┃ tick. An empty meter's
  *  inner track Text is six cells too, so it's told apart by its colour. */

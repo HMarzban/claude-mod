@@ -14,11 +14,9 @@ import {
   fmtEta,
   fmtSmallCost,
   fmtTokens,
-  plural,
   resetIn,
   severityMark,
 } from './format'
-import type { ResetIn } from './format'
 import type { Palette } from './palette'
 
 export type LimitReading = Readonly<{ percentUsed: number; resetsAt: string | undefined }>
@@ -198,15 +196,6 @@ const LIMITS: Readonly<Record<LimitKey, LimitSpec>> = {
     amberReset: 'amberWeekReset',
     tint: p => ({ bg: p.weekBg, fg: p.weekFg, accent: p.weekAccent }),
   },
-}
-
-/** `, resets in 3h 00m`, `, resetting now`, or nothing without a time. */
-const resetTail = (r: ResetIn | undefined): string =>
-  r === undefined ? '' : r.kind === 'passed' ? ', resetting now' : `, resets in ${r.text}`
-
-const limitFact = (name: string, reading: LimitReading, now: number): string => {
-  const r = resetIn(reading.resetsAt, now)
-  return r?.kind === 'passed' ? `${name} limit reset` : `${name} limit ${Math.round(reading.percentUsed)}%${resetTail(r)}`
 }
 
 // ---- the cache ------------------------------------------------------------
@@ -568,32 +557,159 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     row = rowOf(buildPills(squeeze))
   }
 
-  // ---- the expanded line: every fact, in words ---------------------------
-  const facts: string[] = []
-  if (c.requests > 0 && c.hitRatio !== null) facts.push(`${Math.round(c.hitRatio * 100)}% of input served from cache`)
-  if (c.requests > 0) facts.push(`tokens: ${tokenBreakdown}`)
-  if (snap.lastTurnUsd !== null) facts.push(`last message ${fmtSmallCost(snap.lastTurnUsd)}`)
-  if (c.misses > 0) facts.push(plural(c.misses, 'unexpected rebuild'))
-  // Inference only ever moves an assumed hour to 5m, so an unpinned hour is the guess.
-  facts.push(`cache lifetime ${c.ttl}${!c.ttlPinned && c.ttl === '1h' ? ' (assumed)' : ''}`)
-  if (ctx.compactAt !== undefined) facts.push(`auto-compacts at ${fmtTokens(ctx.compactAt)}`)
-  if (snap.sevenDay) facts.push(limitFact('7d', snap.sevenDay, snap.now))
-  // The 5h percentage is here too, for when its calm chip gave way.
-  if (snap.fiveHour) facts.push(limitFact('5h', snap.fiveHour, snap.now))
-  for (const limit of snap.otherLimits) {
-    facts.push(limitFact(limit.kind === 'spend_limit' ? 'spend' : limit.kind.replace(/_/g, ' '), limit, snap.now))
+  // ---- the expanded view: four cards, every fact labelled ----------------
+  const factRow = (label: string, value: string) => (
+    <Box key={`fact:${label}`} flexDirection="row" justifyContent="space-between" columnGap={2}>
+      <Text color={palette.label}>{label}</Text>
+      <Text color={palette.value}>{value}</Text>
+    </Box>
+  )
+  const headline = (text: string, tone: Tone = 'calm') => (
+    <Text key="headline" color={onTone(tone, palette.value)} bold>
+      {text}
+    </Text>
+  )
+  const card = (name: string, title: string, body: RenderChildren[]) => (
+    <Box
+      key={`card:${name}`}
+      flexDirection="column"
+      flexGrow={1}
+      minWidth={24}
+      paddingX={1}
+      {...(palette.filled ? { backgroundColor: palette.cardBg } : { borderStyle: 'round', borderColor: palette.label })}
+    >
+      <Text color={palette.label}>{title}</Text>
+      {body}
+    </Box>
+  )
+
+  /** A bar split into parts, each its share of the whole, in its own colour. */
+  const splitBar = (parts: ReadonlyArray<readonly [number, string]>) => {
+    const total = parts.reduce((sum, [n]) => sum + n, 0)
+    if (total <= 0) return null
+    if (Svg) {
+      let x = 0
+      const rects = parts.map(([n, color]) => {
+        const w = (n / total) * METER_PX * 2
+        const rect = `<rect x="${x.toFixed(1)}" y="1" width="${w.toFixed(1)}" height="6" fill="${color}"/>`
+        x += w
+        return rect
+      })
+      const width = METER_PX * 2
+      const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="8" viewBox="0 0 ${width} 8"><clipPath id="r"><rect y="1" width="${width}" height="6" rx="3"/></clipPath><g clip-path="url(#r)">${rects.join('')}</g></svg>`
+      return <Svg key="split" source={source} alt="token split: sent, back, from cache" width={width} height={8} />
+    }
+    const cells = METER_CELLS * 2
+    let used = 0
+    return (
+      <Text key="split">
+        {parts.map(([n, color], i) => {
+          const count = i === parts.length - 1 ? cells - used : Math.round((n / total) * cells)
+          used += count
+          return (
+            <Text key={`s${i}`} color={color}>
+              {'█'.repeat(Math.max(0, count))}
+            </Text>
+          )
+        })}
+      </Text>
+    )
   }
-  if (c.requests > 0) facts.push(plural(c.requests, 'model call'))
+
+  const cacheView = card('cache', 'Cache', [
+    headline(
+      mood === 'warming'
+        ? 'warming'
+        : mood === 'cold'
+          ? 'cold'
+          : mood === 'warm' && snap.isWorking
+            ? 'warm'
+            : `${fmtCountdown(c.msLeft)} left`,
+      cacheTone,
+    ),
+    meter('cache', charge, cacheTone, palette.warm),
+    c.requests > 0 && c.hitRatio !== null ? factRow('served from cache', `${Math.round(c.hitRatio * 100)}%`) : null,
+    // Inference only ever moves an assumed hour to 5m, so an unpinned hour is the guess.
+    factRow('lifetime', `${c.ttl}${!c.ttlPinned && c.ttl === '1h' ? ' (assumed)' : ''}`),
+    c.misses > 0 ? factRow('rebuilds', String(c.misses)) : null,
+    mood === 'cold' ? factRow('next message', estimate) : null,
+    c.requests > 0 ? factRow('model calls', String(c.requests)) : null,
+  ])
+
+  const spendView = card('spend', 'Spend', [
+    headline(fmtCost(snap.costUsd)),
+    c.requests > 0
+      ? splitBar([
+          [c.tokens.sent, palette.meterFill],
+          [c.tokens.back, palette.coin],
+          [c.tokens.cached, palette.meterTrack],
+        ])
+      : null,
+    snap.lastTurnUsd !== null ? factRow('last message', fmtSmallCost(snap.lastTurnUsd)) : null,
+    c.requests > 0 ? factRow('sent', fmtTokens(c.tokens.sent)) : null,
+    c.requests > 0 ? factRow('back', fmtTokens(c.tokens.back)) : null,
+    c.requests > 0 ? factRow('from cache', fmtTokens(c.tokens.cached)) : null,
+  ])
+
+  const contextView = hasContext
+    ? card('context', 'Context', [
+        headline(
+          ctx.tokens === undefined ? `${Math.round(ctxFrac * 100)}%` : `${fmtTokens(ctx.tokens)} of ${fmtTokens(ctx.window)}`,
+          ctxTone,
+        ),
+        meter(
+          'context',
+          ctxFrac,
+          ctxTone,
+          palette.meterFill,
+          ctx.compactAt === undefined ? undefined : { at: ctx.compactAt / ctx.window, says: `compacts at ${fmtTokens(ctx.compactAt)}` },
+        ),
+        ctx.compactAt !== undefined ? factRow('auto-compacts at', fmtTokens(ctx.compactAt)) : null,
+        toCompact !== undefined ? factRow('to go', fmtTokens(toCompact)) : null,
+      ])
+    : null
+
+  /** One window of the limits card: its row and its bar, or `reset`. */
+  const limitRows = (name: string, reading: LimitReading, windowMs: number | undefined, accent: string): RenderChildren[] => {
+    const r = resetIn(reading.resetsAt, snap.now)
+    if (r?.kind === 'passed') return [factRow(name, 'reset')]
+    const frac = clamp01(reading.percentUsed / 100)
+    const tone: Tone = frac >= WARN_AT ? 'amber' : 'calm'
+    const gone =
+      windowMs === undefined || reading.resetsAt === undefined || r === undefined
+        ? undefined
+        : clamp01(1 - (Date.parse(reading.resetsAt) - snap.now) / windowMs)
+    return [
+      factRow(name, `${Math.round(reading.percentUsed)}%${severityMark(frac)}${r === undefined ? '' : ` · resets ${r.text}`}`),
+      <Box key={`bar:${name}`}>
+        {meter(name, frac, tone, accent, gone === undefined ? undefined : { at: gone, says: `${Math.round(gone * 100)}% of window gone` })}
+      </Box>,
+    ]
+  }
+  const limitParts: RenderChildren[] = [
+    ...(snap.fiveHour ? limitRows('5h', snap.fiveHour, LIMITS['5h'].windowMs, palette.fiveAccent) : []),
+    ...(snap.sevenDay ? limitRows('7d', snap.sevenDay, LIMITS['7d'].windowMs, palette.weekAccent) : []),
+    ...snap.otherLimits.flatMap(limit =>
+      limitRows(limit.kind === 'spend_limit' ? 'spend' : limit.kind.replace(/_/g, ' '), limit, undefined, palette.meterFill),
+    ),
+  ]
+  const limitsView = limitParts.length > 0 ? card('limits', 'Limits', limitParts) : null
 
   return (
     <Box flexDirection="column">
       {row}
       {snap.expanded ? (
-        <Box key="facts" flexDirection="row" flexWrap="wrap" columnGap={1}>
-          <Text color={palette.label} wrap="wrap">
-            {facts.join(' · ')}
-          </Text>
-          <Button key="hide" label="Hide" plain dimColor onPress={act.hide} />
+        <Box key="cards" flexDirection="row" flexWrap="wrap" columnGap={1} rowGap={1}>
+          {cacheView}
+          {spendView}
+          {contextView}
+          {limitsView}
+        </Box>
+      ) : null}
+      {snap.expanded ? (
+        <Box key="actions" flexDirection="row" justifyContent="flex-end" columnGap={1}>
+          <Button key="collapse" label="⌃ Collapse" variant="secondary" hotkey="c" onPress={act.toggleExpanded} />
+          <Button key="hide" label="Hide band" variant="primary" hotkey="h" onPress={act.hide} />
         </Box>
       ) : null}
     </Box>

@@ -23,6 +23,7 @@ import {
   shown,
   turn,
   pacing,
+  fact,
 } from './helpers'
 
 test('the collapsed band is one row', async ($, on) => {
@@ -92,7 +93,7 @@ test('cost, tokens and context drop their labels; the expanded line keeps last $
   expect(shown(pillOf(tree, 'tokens'))).not.toMatch(/tokens/)
   expect(shown(pillOf(tree, 'ctx'))).not.toMatch(/context/)
   await ui.press({ key: 'more' })
-  expect(textOf(await ui.drawn())).toMatch(/last message \$0\.41/)
+  expect(fact(await ui.drawn(), 'last message')).toBe('$0.41')
   await ui.unmount()
 })
 

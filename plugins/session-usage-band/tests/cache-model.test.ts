@@ -19,6 +19,8 @@ import {
   shown,
   rebuilds,
   engine,
+  fact,
+  cardOf,
 } from './helpers'
 
 test('an assumed hour is corrected to 5m when a gap past 5m rebuilt the cache', async ($, on) => {
@@ -33,7 +35,7 @@ test('an assumed hour is corrected to 5m when a gap past 5m rebuilt the cache', 
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
-  expect(textOf(tree)).toMatch(/cache lifetime 5m(?! \(assumed\))/)
+  expect(fact(tree, 'lifetime')).toBe('5m')
   expect(rebuilds(tree)).toBe(0)
   await ui.unmount()
 })
@@ -65,7 +67,7 @@ test('a warm follow-up to a long answer is not a rebuild', async ($, on) => {
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
-  expect(textOf(tree)).toMatch(/cache lifetime 1h/)
+  expect(fact(tree, 'lifetime')).toBe('1h')
   expect(rebuilds(tree)).toBe(0)
   await ui.unmount()
 })
@@ -130,9 +132,9 @@ test('a compaction is an expected rebuild', async ($, on) => {
 
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(160) })
   await ui.press({ key: 'more' })
-  const text = textOf(await ui.drawn())
-  expect(text).toMatch(/cache lifetime/)
-  expect(text).not.toMatch(/unexpected rebuild/)
+  const tree = await ui.drawn()
+  expect(cardOf(tree, 'cache')).toBeDefined()
+  expect(rebuilds(tree)).toBe(0)
   await ui.unmount()
 })
 
@@ -161,9 +163,9 @@ test('a model switch is an expected rebuild and keeps the assumed hour', async (
 
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(160) })
   await ui.press({ key: 'more' })
-  const text = textOf(await ui.drawn())
-  expect(text).toMatch(/cache lifetime 1h \(assumed\)/)
-  expect(text).not.toMatch(/unexpected rebuild/)
+  const tree = await ui.drawn()
+  expect(fact(tree, 'lifetime')).toBe('1h (assumed)')
+  expect(rebuilds(tree)).toBe(0)
   await ui.unmount()
 })
 

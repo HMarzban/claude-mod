@@ -31,15 +31,18 @@ you can tell them apart; that's a label, not a warning. Nothing is ever
 red: a cold cache or a full meter is a price, not an error. Colour is
 never the only signal, since escalation always adds words or `!` / `!!`.
 
-Hover any chip for a one-line explanation. `⋯` opens a second line with
-every fact in words:
-- how much input came from the cache
-- the token breakdown (sent, back, from cache)
-- what your last message cost
-- unexpected cache rebuilds
-- the cache lifetime and where auto-compaction runs
-- each limit and when it resets (a gateway's spend limit included)
-- the number of model calls
+Hover any chip for a one-line explanation. `⋯` opens four cards with
+every fact labelled:
+
+| Card | Shows |
+| --- | --- |
+| Cache | Time left on a bar, how much input came from the cache, the lifetime, unexpected rebuilds, model calls |
+| Spend | The session total, a bar of the token split, your last message, tokens sent, back and from cache |
+| Context | Used of the window on a bar with the compaction tick, where auto-compaction runs, tokens to go |
+| Limits | Each window (5h, 7d, a gateway's spend limit) with its usage, bar, pace tick and reset |
+
+The cards wrap onto two rows when the band is narrow. Below them, `⌃ Collapse`
+(key `c`) closes them and `Hide band` (key `h`) hides the band.
 
 ## When the band is narrow
 

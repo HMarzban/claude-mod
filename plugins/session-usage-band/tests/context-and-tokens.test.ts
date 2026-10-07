@@ -15,6 +15,7 @@ import {
   textOf,
   pillOf,
   breakdown,
+  fact,
 } from './helpers'
 
 test('the context chip shows tokens of the window', async ($, on) => {
@@ -113,7 +114,10 @@ test('the tokens chip totals every token and breaks them down', async ($, on) =>
   expect(textOf(tokens)).toMatch(/225k/)
   expect(textOf(tokens)).toMatch(/sent 120k · back 5\.0k · from cache 100k/) // its hover card
   await ui.press({ key: 'more' })
-  expect(textOf(await ui.drawn())).toMatch(/tokens: sent 120k · back 5\.0k · from cache 100k/)
+  const tree = await ui.drawn()
+  expect(fact(tree, 'sent')).toBe('120k')
+  expect(fact(tree, 'back')).toBe('5.0k')
+  expect(fact(tree, 'from cache')).toBe('100k')
   await ui.unmount()
 })
 

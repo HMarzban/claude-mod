@@ -23,6 +23,8 @@ import {
   svgsOf,
   breakdown,
   type Node,
+  fact,
+  cardOf,
 } from './helpers'
 
 test('the 5h and 7d chips show usage, a pace tick and the reset countdown', async ($, on) => {
@@ -135,7 +137,7 @@ test('a window past its reset shows as reset, not as stale usage', async ($, on)
   expect(shown(five)).not.toMatch(/92%/)
   expect(five?.props?.backgroundColor).toBe(DARK.fiveBg)
   await ui.press({ key: 'more' })
-  expect(textOf(await ui.drawn())).toMatch(/5h limit reset/)
+  expect(fact(await ui.drawn(), '5h')).toBe('reset')
   await ui.unmount()
 })
 
@@ -185,9 +187,9 @@ test('no rate limits: the band draws without the 5h pill or limit facts', async 
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
   expect(await ui.find({ type: 'Text', text: /^5h/ })).toBeUndefined()
   await ui.press({ key: 'more' })
-  const text = textOf(await ui.drawn())
-  expect(text).toMatch(/cache lifetime/)
-  expect(text).not.toMatch(/limit|resets in/)
+  const tree = await ui.drawn()
+  expect(cardOf(tree, 'cache')).toBeDefined()
+  expect(cardOf(tree, 'limits')).toBeUndefined()
   await ui.unmount()
 })
 
@@ -198,6 +200,6 @@ test('a gateway spend limit is listed in the expanded line', async ($, on) => {
   await $.session.start(START)
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
   await ui.press({ key: 'more' })
-  expect(textOf(await ui.drawn())).toMatch(/spend limit 92%, resets in 5h 00m/)
+  expect(fact(await ui.drawn(), 'spend')).toBe('92%! · resets 5h 00m') // past 80%: marked, never colour alone
   await ui.unmount()
 })

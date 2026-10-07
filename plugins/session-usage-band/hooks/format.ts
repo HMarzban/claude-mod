@@ -68,5 +68,3 @@ export const fmtEta = (ms: number): string => {
   const rest = quarter % 60
   return rest ? `~${hours}h ${rest}m` : `~${hours}h`
 }
-
-export const plural = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`
