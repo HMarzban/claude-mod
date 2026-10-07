@@ -88,6 +88,12 @@ const SHORT_BELOW = 68
 const METER_CELLS = 6
 const METER_PX = 44
 const ICON_PX = 16
+/** The narrowest a card of the expanded view gets: four fit 83 columns. */
+const CARD_MIN = 20
+
+/** A bar's length: px on desktop, cells elsewhere. */
+type BarSize = Readonly<{ px: number; cells: number }>
+const CHIP_BAR: BarSize = { px: METER_PX, cells: METER_CELLS }
 
 /** How a surface lays text out against its bodyColumns: the terminal one cell
  *  a character; the desktop's proportional font runs about three quarters of
@@ -279,27 +285,35 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
 
   /** A bar: `frac` filled, with a tick at `tick.at` (the compaction point, or
    *  the share of a window gone). `label` names it for a reader. */
-  const meter = (label: string, frac: number, tone: Tone, accent: string, tick?: Readonly<{ at: number; says: string }>) => {
+  const meter = (
+    label: string,
+    frac: number,
+    tone: Tone,
+    accent: string,
+    tick?: Readonly<{ at: number; says: string }>,
+    size: BarSize = CHIP_BAR,
+  ) => {
     const fill = onTone(tone, accent)
     if (Svg) {
       // Never name a local `h`: JSX compiles to the global h().
+      const width = size.px
       const height = 6
-      const fillWidth = Math.round(clamp01(frac) * METER_PX)
-      const tickX = tick === undefined ? null : Math.min(METER_PX - 1, Math.max(1, Math.round(clamp01(tick.at) * METER_PX)))
+      const fillWidth = Math.round(clamp01(frac) * width)
+      const tickX = tick === undefined ? null : Math.min(width - 1, Math.max(1, Math.round(clamp01(tick.at) * width)))
       const source =
-        `<svg xmlns="http://www.w3.org/2000/svg" width="${METER_PX}" height="${height + 2}" viewBox="0 0 ${METER_PX} ${height + 2}">` +
-        `<rect y="1" width="${METER_PX}" height="${height}" rx="3" fill="${palette.meterTrack}"/>` +
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height + 2}" viewBox="0 0 ${width} ${height + 2}">` +
+        `<rect y="1" width="${width}" height="${height}" rx="3" fill="${palette.meterTrack}"/>` +
         (fillWidth > 0 ? `<rect y="1" width="${fillWidth}" height="${height}" rx="3" fill="${fill}"/>` : '') +
         (tickX === null ? '' : `<rect class="tick" x="${tickX - 1}" y="0" width="2" height="${height + 2}" fill="${palette.value}" opacity=".7"/>`) +
         '</svg>'
       const alt = `${label} ${Math.round(clamp01(frac) * 100)}% used${tick === undefined ? '' : `, ${tick.says}`}`
-      return <Svg key="meter" source={source} alt={alt} width={METER_PX} height={height + 2} />
+      return <Svg key="meter" source={source} alt={alt} width={width} height={height + 2} />
     }
     // Two glyphs and a tick only: partial blocks jitter across fonts and read
     // as noise to a screen reader. The number beside a meter carries the value.
-    const filled = Math.round(clamp01(frac) * METER_CELLS)
-    const at = tick === undefined ? -1 : Math.min(METER_CELLS - 1, Math.floor(clamp01(tick.at) * METER_CELLS))
-    const cells = Array.from({ length: METER_CELLS }, (_, i) => (i === at ? '┃' : i < filled ? '█' : '░'))
+    const filled = Math.round(clamp01(frac) * size.cells)
+    const at = tick === undefined ? -1 : Math.min(size.cells - 1, Math.floor(clamp01(tick.at) * size.cells))
+    const cells = Array.from({ length: size.cells }, (_, i) => (i === at ? '┃' : i < filled ? '█' : '░'))
     const runs: RenderChildren[] = []
     for (let i = 0; i < cells.length; ) {
       const ch = cells[i]
@@ -569,12 +583,15 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       {text}
     </Text>
   )
+  // Four cards to a row: each bar runs the width a card gets, less its padding.
+  const cardCols = Math.max(CARD_MIN, Math.floor((snap.columns - 3) / 4)) - 2
+  const cardBar: BarSize = { px: cardCols * DESKTOP.pxPerCell, cells: cardCols }
   const card = (name: string, title: string, body: RenderChildren[]) => (
     <Box
       key={`card:${name}`}
       flexDirection="column"
       flexGrow={1}
-      minWidth={24}
+      minWidth={CARD_MIN}
       paddingX={1}
       {...(palette.filled ? { backgroundColor: palette.cardBg } : { borderStyle: 'round', borderColor: palette.label })}
     >
@@ -588,18 +605,18 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     const total = parts.reduce((sum, [n]) => sum + n, 0)
     if (total <= 0) return null
     if (Svg) {
+      const width = cardBar.px
       let x = 0
       const rects = parts.map(([n, color]) => {
-        const w = (n / total) * METER_PX * 2
+        const w = (n / total) * width
         const rect = `<rect x="${x.toFixed(1)}" y="1" width="${w.toFixed(1)}" height="6" fill="${color}"/>`
         x += w
         return rect
       })
-      const width = METER_PX * 2
       const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="8" viewBox="0 0 ${width} 8"><clipPath id="r"><rect y="1" width="${width}" height="6" rx="3"/></clipPath><g clip-path="url(#r)">${rects.join('')}</g></svg>`
       return <Svg key="split" source={source} alt="token split: sent, back, from cache" width={width} height={8} />
     }
-    const cells = METER_CELLS * 2
+    const cells = cardBar.cells
     let used = 0
     return (
       <Text key="split">
@@ -627,7 +644,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
             : `${fmtCountdown(c.msLeft)} left`,
       cacheTone,
     ),
-    meter('cache', charge, cacheTone, palette.warm),
+    meter('cache', charge, cacheTone, palette.warm, undefined, cardBar),
     c.requests > 0 && c.hitRatio !== null ? factRow('served from cache', `${Math.round(c.hitRatio * 100)}%`) : null,
     // Inference only ever moves an assumed hour to 5m, so an unpinned hour is the guess.
     factRow('lifetime', `${c.ttl}${!c.ttlPinned && c.ttl === '1h' ? ' (assumed)' : ''}`),
@@ -640,9 +657,10 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     headline(fmtCost(snap.costUsd)),
     c.requests > 0
       ? splitBar([
+          // Cache reads in the warm colour: cheap, and often most of the bar.
           [c.tokens.sent, palette.meterFill],
           [c.tokens.back, palette.coin],
-          [c.tokens.cached, palette.meterTrack],
+          [c.tokens.cached, palette.warm],
         ])
       : null,
     snap.lastTurnUsd !== null ? factRow('last message', fmtSmallCost(snap.lastTurnUsd)) : null,
@@ -663,6 +681,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
           ctxTone,
           palette.meterFill,
           ctx.compactAt === undefined ? undefined : { at: ctx.compactAt / ctx.window, says: `compacts at ${fmtTokens(ctx.compactAt)}` },
+          cardBar,
         ),
         ctx.compactAt !== undefined ? factRow('auto-compacts at', fmtTokens(ctx.compactAt)) : null,
         toCompact !== undefined ? factRow('to go', fmtTokens(toCompact)) : null,
@@ -682,7 +701,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     return [
       factRow(name, `${Math.round(reading.percentUsed)}%${severityMark(frac)}${r === undefined ? '' : ` · resets ${r.text}`}`),
       <Box key={`bar:${name}`}>
-        {meter(name, frac, tone, accent, gone === undefined ? undefined : { at: gone, says: `${Math.round(gone * 100)}% of window gone` })}
+        {meter(name, frac, tone, accent, gone === undefined ? undefined : { at: gone, says: `${Math.round(gone * 100)}% of window gone` }, cardBar)}
       </Box>,
     ]
   }
@@ -699,7 +718,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     <Box flexDirection="column">
       {row}
       {snap.expanded ? (
-        <Box key="cards" flexDirection="row" flexWrap="wrap" columnGap={1} rowGap={1}>
+        <Box key="cards" flexDirection="row" flexWrap="wrap" columnGap={1} rowGap={1} marginTop={1}>
           {cacheView}
           {spendView}
           {contextView}

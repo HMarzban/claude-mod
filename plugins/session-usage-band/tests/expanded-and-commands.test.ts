@@ -1,6 +1,7 @@
 // The expanded line, its buttons, /usage-band, and yielding to surveys.
 
 import { test, expect, mock } from 'claude-code/testing'
+import { DARK } from '../hooks/palette'
 import {
   PLUGIN,
   START,
@@ -21,6 +22,7 @@ import {
   breakdown,
   walk,
   type Node,
+  svgsOf,
 } from './helpers'
 
 test('⋯ toggles the expanded line, and Hide hides the band', async ($, on) => {
@@ -206,5 +208,71 @@ test('Collapse and Hide are real buttons with c and h hotkeys', async ($, on) =>
   await ui.press({ key: 'more' })
   await ui.press({ key: 'hide' })
   expect(await ui.find({ type: 'Text', text: /\$2\.41/ })).toBeUndefined()
+  await ui.unmount()
+})
+
+// ── card layout ────────────────────────────────────────────────────────
+
+test('the four cards share one row, with room to wrap when narrow', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  await $.session.start({ ...START, surface: 'desktop' })
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(95) })
+  await ui.press({ key: 'more' })
+  const tree = await ui.drawn()
+  const widths = ['cache', 'spend', 'context', 'limits'].map(n => Number(cardOf(tree, n)?.props?.minWidth))
+  // four cards and three gaps fit 95 columns
+  expect(widths.reduce((a, b) => a + b, 0) + 3).toBeLessThanOrEqual(95)
+  await ui.unmount()
+})
+
+test("a card's bar stretches across the card", async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  await $.session.start({ ...START, surface: 'desktop' })
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(95) })
+  await ui.press({ key: 'more' })
+  const bar = svgsOf(cardOf(await ui.drawn(), 'cache')).find(n => /used/.test(String(n.props?.alt)))
+  expect(Number(bar?.props?.width)).toBeGreaterThan(120)
+  await ui.unmount()
+
+  // still expanded: the open view is the session's, not the mount's
+  const term = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(120) })
+  const meter = shown(cardOf(await term.drawn(), 'cache')).match(/[█░┃]+/)?.[0] ?? ''
+  expect(meter.length).toBeGreaterThan(12)
+  await term.unmount()
+})
+
+test('the token split shows cache reads in the warm colour, so the bar never looks empty', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  await $.session.start({ ...START, surface: 'desktop' })
+  await respond(e => $.turn.step(e), resp(1_000, 0, 10_000, 200))
+  await respond(e => $.turn.step(e), resp(500, 900_000, 1_000, 200)) // nearly all from cache
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(95) })
+  await ui.press({ key: 'more' })
+  const split = svgsOf(cardOf(await ui.drawn(), 'spend'))[0]
+  expect(String(split?.props?.source)).toContain(DARK.warm)
+  expect(String(split?.props?.source)).not.toContain(`fill="${DARK.meterTrack}"`)
+  await ui.unmount()
+})
+
+test('a gap separates the cards from the row of chips', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  await $.session.start(START)
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  await ui.press({ key: 'more' })
+  let cards: Node | undefined
+  walk(await ui.drawn(), n => {
+    if (n.type === 'Box' && n.props?.key === 'cards') cards = n
+  })
+  expect(cards?.props?.marginTop).toBe(1)
   await ui.unmount()
 })
