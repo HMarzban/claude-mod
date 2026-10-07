@@ -523,7 +523,7 @@ test('⋯ toggles the expanded line, and Hide hides the band', async ($, on) => 
   expect(text).toMatch(/of input served from cache/)
   expect(text).toMatch(/cache lifetime 1h/)
   expect(text).toMatch(/7d limit 30%, resets in 2d 19h/)
-  expect(text).toMatch(/5h resets in 3h/)
+  expect(text).toMatch(/5h limit 4%, resets in 3h 00m/)
   expect(text).toMatch(/1 model call\b/)
 
   await ui.press({ key: 'more' })

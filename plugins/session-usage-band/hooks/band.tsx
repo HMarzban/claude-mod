@@ -287,8 +287,9 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
     facts.push(`7d limit ${Math.round(s.sevenDay.percentUsed)}%${r === null ? '' : r === 'now' ? ', resetting now' : `, resets in ${r}`}`)
   }
   if (s.fiveHour) {
+    // The percentage too: below 100 columns a calm 5h pill steps aside.
     const r = fmtResetsIn(s.fiveHour.resetsAt, s.now)
-    if (r !== null) facts.push(r === 'now' ? '5h resetting now' : `5h resets in ${r}`)
+    facts.push(`5h limit ${Math.round(s.fiveHour.percentUsed)}%${r === null ? '' : r === 'now' ? ', resetting now' : `, resets in ${r}`}`)
   }
   for (const limit of s.otherLimits) {
     const name = limit.kind === 'spend_limit' ? 'spend' : limit.kind.replace(/_/g, ' ')
