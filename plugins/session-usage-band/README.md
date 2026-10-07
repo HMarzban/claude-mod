@@ -43,11 +43,12 @@ every fact in words:
 
 ## When the band is narrow
 
-The row always fits on one line. As it narrows, pieces give way in this
+The row stays on one line. As it narrows, pieces give way in this
 order: the tokens chip, the 7d reset time, the 5h reset time, the context
 meter, a calm 7d chip, the limit bars, long wording, a calm context chip,
 then a calm 5h chip. An amber chip keeps its words longest; its reset time
-is the very last thing to go.
+is the very last thing to go. Below about 55 columns, with several chips
+amber at once, the end of the row is clipped rather than wrapped.
 
 ## The cache countdown
 

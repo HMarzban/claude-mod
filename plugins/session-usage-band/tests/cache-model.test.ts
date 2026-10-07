@@ -1,6 +1,7 @@
 // The cache model as the band shows it: TTL inference, rebuilds, subagents, the re-warm rate.
 
 import { test, expect, mock } from 'claude-code/testing'
+import type { Engine } from 'claude-code/testing'
 import {
   USAGE,
   PLUGIN,
@@ -17,6 +18,7 @@ import {
   pillOf,
   shown,
   rebuilds,
+  engine,
 } from './helpers'
 
 test('an assumed hour is corrected to 5m when a gap past 5m rebuilt the cache', async ($, on) => {
@@ -162,5 +164,84 @@ test('a model switch is an expected rebuild and keeps the assumed hour', async (
   const text = textOf(await ui.drawn())
   expect(text).toMatch(/cache lifetime 1h \(assumed\)/)
   expect(text).not.toMatch(/unexpected rebuild/)
+  await ui.unmount()
+})
+
+
+/** Rebuilds counted after a 150k prefix, a compaction, then a request that
+ *  reads nothing: 0 when the compaction was noted, 1 when it wasn't. */
+const rebuildsAfterCompaction = async (
+  $: Engine,
+  compact: { trigger?: 'manual' | 'auto' | 'precompute'; agentId?: string } = {},
+): Promise<number> => {
+  await $.session.start(START)
+  await respond(e => $.turn.step(e), resp(2_000, 0, 150_000, 1_000))
+  await $.session.compact({ trigger: 'manual', messages: SUMMARY, ...compact })
+  await respond(e => $.turn.step(e), resp(500, 0, 20_000, 300))
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(160) })
+  await ui.press({ key: 'more' })
+  const n = rebuilds(await ui.drawn())
+  await ui.unmount()
+  return n
+}
+
+test('a compaction result that carries an empty skip is still a compaction', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  engine.compact = { messages: SUMMARY, tokensAfter: 20_000, skip: undefined }
+  expect(await rebuildsAfterCompaction($)).toBe(0)
+})
+
+test('a skipped compaction rebuilds nothing, so a later miss still counts', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  engine.compact = { skip: 'nothing to compact' }
+  expect(await rebuildsAfterCompaction($)).toBe(1)
+})
+
+test('a precomputed compaction installs nothing yet', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  expect(await rebuildsAfterCompaction($, { trigger: 'precompute' })).toBe(1)
+})
+
+test("a subagent's compaction leaves the main cache alone", async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  expect(await rebuildsAfterCompaction($, { agentId: 'agent-1' })).toBe(1)
+})
+
+test('a step that stops for compaction makes the next rebuild expected', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  await $.session.start(START)
+  engine.stop = 'compaction'
+  await respond(e => $.turn.step(e), resp(2_000, 0, 150_000, 1_000))
+  engine.stop = 'end_turn'
+  await respond(e => $.turn.step(e), resp(500, 0, 20_000, 300))
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(160) })
+  await ui.press({ key: 'more' })
+  expect(rebuilds(await ui.drawn())).toBe(0)
+  await ui.unmount()
+})
+
+test('switching model and back within a pinned hour is no miss', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  await $.session.start(START)
+  await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
+  await clock.advance(30_000)
+  await respond(e => $.turn.step({ ...e, model: 'claude-sonnet-5-5' }), resp(82_500, 0, 82_500, 300))
+  await clock.advance(30_000)
+  await respond(e => $.turn.step(e), resp(500, 82_500, 1_000, 300))
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(160) })
+  await ui.press({ key: 'more' })
+  expect(rebuilds(await ui.drawn())).toBe(0)
   await ui.unmount()
 })

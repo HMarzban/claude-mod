@@ -116,3 +116,13 @@ test('the tokens chip totals every token and breaks them down', async ($, on) =>
   expect(textOf(await ui.drawn())).toMatch(/tokens: sent 120k · back 5\.0k · from cache 100k/)
   await ui.unmount()
 })
+
+
+test('auto-compaction on without a threshold gets the plain wording, not "off"', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on, { ...USAGE, context: { tokens: 164_000, window: 200_000, percent: 82, breakdown: breakdown({ isAutoCompactEnabled: true }) } })
+  await $.session.start(START)
+  await $.session.measure({ context: { tokens: 164_000, window: 200_000, percent: 82 }, rateLimits: [], changed: [] })
+  expect(toasts).toContain('Context is 82% full.')
+})

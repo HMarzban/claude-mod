@@ -5,11 +5,13 @@ import type {
   HookStream,
   ModelUsage,
   On,
+  SessionCompactResult,
   SessionContextBreakdown,
   SessionUsage,
   TurnStepChunk,
   TurnStepInput,
   TurnStepResult,
+  TurnStopReason,
 } from 'claude-code'
 import type { Engine, MockClock } from 'claude-code/testing'
 import { DARK } from '../hooks/palette'
@@ -52,6 +54,14 @@ export const COMPACTED_TO = 20_000
 /** A compacted conversation: the summary message alone. */
 export const SUMMARY = [{ role: 'user' as const, text: 'summary', toolUses: [] }]
 
+/** How the engine beneath answers, for tests that need it otherwise: what a
+ *  compaction returns, why a step stops, and a gate that holds a step open. */
+export const engine: { compact: SessionCompactResult; stop: TurnStopReason; gate: Promise<void> | undefined } = {
+  compact: { messages: SUMMARY, tokensAfter: COMPACTED_TO },
+  stop: 'end_turn',
+  gate: undefined,
+}
+
 /** Every toast the plugin raised since `base` ran. */
 export const toasts: string[] = []
 
@@ -63,6 +73,9 @@ export const base = (on: On, initial: SessionUsage = USAGE): void => {
   usage.breakdownFails = false
   toasts.length = 0
   nextUsage = null
+  engine.compact = { messages: SUMMARY, tokensAfter: COMPACTED_TO }
+  engine.stop = 'end_turn'
+  engine.gate = undefined
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.end', ($, e) => ({ sessionId: e.sessionId }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
@@ -70,7 +83,7 @@ export const base = (on: On, initial: SessionUsage = USAGE): void => {
     if (e.breakdown !== undefined && usage.breakdownFails) throw new Error('breakdown unavailable')
     return { value: usage.current }
   })
-  on('session.compact', () => ({ messages: SUMMARY, tokensAfter: COMPACTED_TO }))
+  on('session.compact', () => engine.compact)
   on('session.measure', ($, e) => ({ changed: e.changed }))
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: '' }))
@@ -80,12 +93,13 @@ export const base = (on: On, initial: SessionUsage = USAGE): void => {
   })
   on('ui.render', () => ({ type: 'Box' as const, children: [] }))
   on('turn.step', async function* ($, e) {
+    if (engine.gate !== undefined) await engine.gate
     return {
       turnId: e.turnId,
       index: e.index,
       answer: '',
       toolUses: [],
-      stopReason: 'end_turn' as const,
+      stopReason: engine.stop,
       usage: nextUsage === null ? null : { ...nextUsage, model: e.model },
     }
   })

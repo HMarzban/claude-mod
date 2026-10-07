@@ -235,3 +235,16 @@ test('the tokens chip is the first to give way on a narrower band', async ($, on
   expect(pillOf(await ui.drawn(), 'ctx')).toBeDefined()
   await ui.unmount()
 })
+
+
+test('a window whose reset has passed gives way like a calm one', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on, { ...USAGE, rateLimits: [{ kind: 'five_hour', percentUsed: 92, resetsAt: new Date(HOUR).toISOString() }] })
+  await $.session.start(START)
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await clock.advance(2 * HOUR)
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(30) })
+  expect(widthOf(firstRow(await ui.drawn()))).toBeLessThanOrEqual(30)
+  await ui.unmount()
+})

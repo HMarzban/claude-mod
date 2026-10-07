@@ -481,6 +481,9 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     }
   }
 
+  // A window past its reset is calm: its last reading is from before it.
+  const hasReset = (reading: LimitReading): boolean => resetIn(reading.resetsAt, snap.now)?.kind === 'passed'
+
   // ---- the row, at a given squeeze ---------------------------------------
   const buildPills = (squeeze: number): PillSpec[] => {
     const short = snap.columns < SHORT_BELOW || !keeps(squeeze, 'shortWording')
@@ -534,7 +537,8 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
 
     if (snap.fiveHour) {
       const eta = snap.fiveHour.etaMs
-      const tone: Tone = clamp01(snap.fiveHour.percentUsed / 100) >= WARN_AT || eta !== null ? 'amber' : 'calm'
+      const tone: Tone =
+        !hasReset(snap.fiveHour) && (clamp01(snap.fiveHour.percentUsed / 100) >= WARN_AT || eta !== null) ? 'amber' : 'calm'
       if (tone === 'amber' || keeps(squeeze, LIMITS['5h'].calm)) {
         const pace = eta === null ? '' : short ? ` ${fmtEta(eta)}` : ` full in ${fmtEta(eta)}`
         pills.push(limitChip('5h', snap.fiveHour, pace, tone, squeeze))
@@ -542,7 +546,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     }
 
     if (snap.sevenDay) {
-      const tone: Tone = clamp01(snap.sevenDay.percentUsed / 100) >= WARN_AT ? 'amber' : 'calm'
+      const tone: Tone = !hasReset(snap.sevenDay) && clamp01(snap.sevenDay.percentUsed / 100) >= WARN_AT ? 'amber' : 'calm'
       if (tone === 'amber' || keeps(squeeze, LIMITS['7d'].calm)) pills.push(limitChip('7d', snap.sevenDay, '', tone, squeeze))
     }
     return pills

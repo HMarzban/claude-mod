@@ -22,6 +22,7 @@ import {
   fillWidth,
   turn,
   type Node,
+  engine,
 } from './helpers'
 
 test('before the first response the band says warming rather than a false zero', async ($, on) => {
@@ -208,5 +209,27 @@ test('on desktop the cache pill is a rounded pill with a draining battery icon',
   tree = await ui.drawn()
   expect(String(batteryOf(tree)?.props?.alt)).toBe('cache battery empty')
   expect(fillWidth(batteryOf(tree))).toBe(0)
+  await ui.unmount()
+})
+
+
+test('the cache lifetime runs from when the request was sent, not when its reply ended', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on, { ...USAGE, cost: { usd: 0 } })
+  await $.session.start(START)
+  let open: () => void = () => undefined
+  engine.gate = new Promise<void>(resolve => {
+    open = resolve
+  })
+  const step = respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
+  for (let i = 0; i < 50; i++) await Promise.resolve() // let the request go out
+  await clock.advance(2 * MIN) // a two-minute reply
+  open()
+  await step
+  await clock.advance(59 * MIN) // 61m after sending, 59m after the reply
+
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(160) })
+  expect(shown(pillOf(await ui.drawn(), 'cache'))).toMatch(/cache cold/)
   await ui.unmount()
 })

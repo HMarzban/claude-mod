@@ -153,7 +153,7 @@ export const register: Register = on => {
   // A compaction of the main conversation rebuilds the cache on purpose.
   on('session.compact', async ($, e, next) => {
     const result = await next(e)
-    if (e.agentId === undefined && e.trigger !== 'precompute' && !('skip' in result)) {
+    if (e.agentId === undefined && e.trigger !== 'precompute' && result.skip === undefined) {
       noteCompaction(result.tokensAfter)
       $.ui.invalidate('ui.render')
     }
@@ -182,10 +182,12 @@ export const register: Register = on => {
     try {
       const breakdown = (await $.session.usage({ breakdown: 'summary' })).context.breakdown
       if (breakdown !== undefined) {
-        autoCompact =
-          breakdown.isAutoCompactEnabled && breakdown.autoCompactThreshold !== undefined
+        // On without a threshold says nothing about where: leave it unknown.
+        autoCompact = !breakdown.isAutoCompactEnabled
+          ? 'off'
+          : breakdown.autoCompactThreshold !== undefined
             ? { at: breakdown.autoCompactThreshold }
-            : 'off'
+            : undefined
       }
     } catch {
       // keep the last known setting
@@ -285,5 +287,5 @@ export const register: Register = on => {
         },
       },
     )
-  }).catch(($, e, next) => next(e))
+  })
 }
