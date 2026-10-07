@@ -24,7 +24,7 @@ test('every pill explains itself on hover, inside its own hover scope', async ($
   await turn($, 't1', 2.0, 2.41)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(120) })
   const found = cards(await ui.drawn())
   expect(found.map(([key]) => key).join(',')).toBe('cache,cost,tokens,ctx,5h,7d')
   for (const [, card] of found) {

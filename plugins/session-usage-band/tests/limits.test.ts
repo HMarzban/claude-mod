@@ -27,7 +27,7 @@ import {
   cardOf,
 } from './helpers'
 
-test('the 5h and 7d chips show usage on a plain bar and the reset countdown', async ($, on) => {
+test('the 5h and 7d chips show usage, a thumb at the end of the fill, and the reset countdown', async ($, on) => {
   mock.clock(on, { now: 0 })
   mock.env(on, HOUR_1)
   base(on) // 5h 4%, resets in 3h; 7d 30%, resets in 67h
@@ -42,10 +42,15 @@ test('the 5h and 7d chips show usage on a plain bar and the reset countdown', as
   expect(shown(week)).toMatch(/7d.*30%.*2d 19h/)
   expect(five?.props?.backgroundColor).toBe(DARK.fiveBg)
   expect(week?.props?.backgroundColor).toBe(DARK.weekBg)
-  // one bar, one number: a second mark on it read as misplaced
+  // the thumb marks where the fill ends, the number beside it, and nothing else
   for (const n of [five, week]) {
     const bar = svgsOf(n).find(s => /% used/.test(String(s.props?.alt)))
-    expect(String(bar?.props?.source)).not.toMatch(/class="(tick|notch)"/)
+    const source = String(bar?.props?.source)
+    expect(source).not.toMatch(/class="(tick|notch)"/)
+    const fillEnd = Number(source.match(/<rect class="fill" y="1" width="(\d+)"/)?.[1])
+    const thumb = source.match(/<rect class="thumb" x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)"/)
+    expect(Number(thumb?.[1]) + Number(thumb?.[3]) / 2).toBe(fillEnd) // centred on the fill's end
+    expect(Number(thumb?.[2]) + Number(thumb?.[4])).toBeLessThanOrEqual(Number(bar?.props?.height)) // inside the drawing
   }
   const alts = svgsOf(firstRow(tree)).map(s => String(s.props?.alt))
   expect(alts).toContain('five-hour')

@@ -344,3 +344,23 @@ test('every SVG id in an expanded desktop band is unique, so no bar clips to ano
   expect(new Set(ids).size).toBe(ids.length)
   await ui.unmount()
 })
+
+test('the desktop gets no whitespace-only strings, which it drops, so every gap is a spacer', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on, withCompaction(100_000))
+  await $.session.start({ ...START, surface: 'desktop' })
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await measureContext($, 100_000)
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(160) })
+  await ui.press({ key: 'more' })
+  const bare: string[] = []
+  walk(await ui.drawn(), n => {
+    for (const k of n.children ?? []) if (typeof k === 'string' && k.trim() === '') bare.push(`${n.type}:${String(n.props?.key)}`)
+  })
+  expect(bare).toEqual([])
+  // and the icons and bars still have air beside them
+  const five = pillOf(await ui.drawn(), '5h')
+  expect(((five?.children ?? []) as Node[]).filter(k => k?.type === 'Box' && k.props?.width === 1).length).toBeGreaterThanOrEqual(2)
+  await ui.unmount()
+})

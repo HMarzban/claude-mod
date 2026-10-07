@@ -128,6 +128,7 @@ const cellsOf = (n: RenderChildren, m: Measure): number => {
     case 'Box':
     case 'Text': {
       if (n.props?.position === 'absolute') return 0
+      if (n.type === 'Box' && typeof n.props?.width === 'number') return n.props.width
       const kids = (n.children ?? []).filter(k => k !== null && k !== undefined)
       const pad = typeof n.props?.paddingX === 'number' ? 2 * n.props.paddingX : 0
       const gap = typeof n.props?.columnGap === 'number' ? n.props.columnGap * Math.max(0, kids.length - 1) : 0
@@ -294,17 +295,21 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     )
   }
 
+  /** A column of air. The desktop drops a string child that is only spaces,
+   *  so there the gap is an empty Box; a text surface keeps its space. */
+  const gap = (key: string): RenderChildren => (Svg ? <Box key={key} width={1} flexShrink={0} /> : ' ')
+
   /** An icon and the gap after it: an Svg on desktop, a glyph elsewhere. */
   const icon = (name: Icon, color: string): RenderChildren[] => {
     if (Svg) {
       const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${ICON_PX}" height="${ICON_PX}" viewBox="0 0 16 16">${ICON_PATHS[name](color)}</svg>`
-      return [<Svg key={`i-${name}`} source={source} alt={ALT[name]} width={ICON_PX} height={ICON_PX} />, ' ']
+      return [<Svg key={`i-${name}`} source={source} alt={ALT[name]} width={ICON_PX} height={ICON_PX} />, gap(`g-${name}`)]
     }
     return GLYPH[name] ? [<Text key={`i-${name}`} color={color}>{`${GLYPH[name]} `}</Text>] : []
   }
 
-  /** A bar: `frac` filled, and nothing else on it, so its one number reads
-   *  true. `label` names it for a reader. A stretched bar has no width of its
+  /** A bar: `frac` filled, with a thumb where the fill ends, so the eye finds
+   *  the number's place on it at once. `label` names it for a reader. A stretched bar has no width of its
    *  own: drawn wider than any slot, the slot caps it, so it spans its card. */
   const meter = (label: string, frac: number, tone: Tone, accent: string, size: BarSize = CHIP_BAR, stretch = false) => {
     const fill = onTone(tone, accent)
@@ -322,7 +327,10 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       const source =
         `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${tall}" viewBox="0 0 ${width} ${tall}"${stretch ? ' preserveAspectRatio="none"' : ''}>` +
         `<rect x="${0.5 * k}" y="1.5" width="${width - k}" height="5" rx="${2.5 * k}" ry="2.5" fill="${palette.meterTrack}" stroke="${palette.trackStroke}"${stretch ? ' vector-effect="non-scaling-stroke"' : ''}/>` +
-        (fillWidth > 0 ? `<rect y="1" width="${fillWidth}" height="6" rx="${3 * k}" ry="3" fill="${fill}"/>` : '') +
+        (fillWidth > 0
+          ? `<rect class="fill" y="1" width="${fillWidth}" height="6" rx="${3 * k}" ry="3" fill="${fill}"/>` +
+            `<rect class="thumb" x="${Math.min(width - 2 * k, fillWidth - k)}" y="0" width="${2 * k}" height="${tall}" rx="${k}" ry="1" fill="${palette.value}"/>`
+          : '') +
         '</svg>'
       const alt = `${label} ${Math.round(clamp01(frac) * 100)}% used`
       return stretch ? (
@@ -477,7 +485,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     const fg = onTone(tone, tint.fg)
     const accent = onTone(tone, tint.accent)
     const frac = clamp01(reading.percentUsed / 100)
-    const bar = keeps(squeeze, 'limitBars') ? [' ', meter(key, frac, tone, tint.accent)] : []
+    const bar = keeps(squeeze, 'limitBars') ? [gap('g-bar'), meter(key, frac, tone, tint.accent)] : []
     const reset =
       r !== undefined && keeps(squeeze, tone === 'amber' ? spec.amberReset : spec.reset)
         ? [<Text key="d" color={palette.label}>{' │ '}</Text>, ...icon('reset', accent), <Text key="r" color={fg}>{r.text}</Text>]
@@ -555,7 +563,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         body: [
           ...icon('context', onTone(ctxTone, palette.label)),
           ...(keeps(squeeze, 'contextMeter')
-            ? [meter('context', ctxFrac, ctxTone, palette.meterFill), ' ']
+            ? [meter('context', ctxFrac, ctxTone, palette.meterFill), gap('g-bar')]
             : []),
           <Text key="v" color={onTone(ctxTone, palette.value)}>
             {`${amount}${mark}${countdown}`}

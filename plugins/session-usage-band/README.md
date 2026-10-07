@@ -18,11 +18,12 @@ drawn as SVG meters.
 | Cost | The session's total so far | Never |
 | Tokens | Every token this conversation used | Never |
 | Context | How full the conversation is toward auto-compaction (`63% full`), or of the model window when compaction is off | Near compaction: `95% full · compacts in ~8k`. Without auto-compaction: 80% (`!`), 95% (`!!`) |
-| 5h | Your 5-hour limit: usage on a bar, and the reset | 80%, or when your pace would fill it before it resets: `full in ~40m` |
+| 5h | Your 5-hour limit: usage on a bar with a thumb at the fill's end, and the reset | 80%, or when your pace would fill it before it resets: `full in ~40m` |
 | 7d | Your weekly limit, the same way | 80% |
 
-A bar carries one number, the one beside it: nothing else is marked on it.
-Pace is in words, on the chip when it matters and in the Limits card always.
+A bar carries one number, the one beside it, with a thumb where its fill
+ends. Pace is in words, on the chip when it matters and in the Limits card
+always.
 Once a window's reset time has passed, its chip says `reset` until the next
 reply brings a fresh reading.
 
