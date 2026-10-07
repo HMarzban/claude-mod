@@ -4,16 +4,17 @@ One calm row above the Claude Code prompt that answers: what is this
 session costing, and is there anything I should do about it right now?
 
 ```
-● cache 52m   $3.19 last $0.42   context ██░░░░ 16%   5h ░░░░░░ 4%            ⋯
+◷ cache 52m   $3.19 last $0.42   Σ 225k tokens   ◔ context ██░░░░ 76k / 200k   5h ░░░░░░ 4%   ⋯
 ```
 
 ## Reading it
 
 | Pill | Shows | Turns amber when |
 | --- | --- | --- |
-| Cache | Time until the prompt cache goes cold; `cache warm` while Claude is working | Its last minute: `0:47 left · re-warm ~$0.52` |
-| Cost | The session's total, and what your last message cost | Never |
-| Context | How full the conversation is | 80% (`!`), and 95% (`!!`) |
+| Cache | A battery that drains as the cache ages: time until it goes cold; `cache warm` while Claude is working | Its last minute: `0:47 left · re-warm ~$0.52` |
+| Cost | The session's total (with a coin on desktop), and what your last message cost | Never |
+| Tokens | Every token this conversation used; hover for sent, back and from cache | Never |
+| Context | Tokens in the window, with a tick where auto-compaction runs | Near compaction: `compacts in ~8k` (without auto-compaction: 80% `!`, 95% `!!`) |
 | 5h | Your 5-hour usage limit | 80%, or when your pace would fill it before it resets: `full in ~40m` |
 
 Everything else stays grey. Amber means act soon. Nothing is ever red,

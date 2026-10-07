@@ -15,6 +15,11 @@ export type Palette = {
   meterTrack: string
   meterFill: string
   cardBg: string
+  /** The cache battery's charge, calm and in its last minute. */
+  batteryFill: string
+  batteryAmber: string
+  /** The cost pill's coin. */
+  coin: string
 }
 
 export const DARK: Palette = {
@@ -29,6 +34,9 @@ export const DARK: Palette = {
   meterTrack: '#45454f',
   meterFill: '#b8b8c2',
   cardBg: '#1f1f25',
+  batteryFill: '#24402b',
+  batteryAmber: '#5a4719',
+  coin: '#c9a54a',
 }
 
 export const LIGHT: Palette = {
@@ -43,6 +51,9 @@ export const LIGHT: Palette = {
   meterTrack: '#d6d6de',
   meterFill: '#55555f',
   cardBg: '#ffffff',
+  batteryFill: '#cfe8d3',
+  batteryAmber: '#f3d9a0',
+  coin: '#9a7414',
 }
 
 // No backgrounds at all: every colour is a theme key, so it follows whatever
@@ -59,6 +70,9 @@ export const PLAIN: Palette = {
   meterTrack: 'subtle',
   meterFill: 'text',
   cardBg: '',
+  batteryFill: '',
+  batteryAmber: '',
+  coin: 'warning',
 }
 
 /** The palette CC_BAND_APPEARANCE names; NO_COLOR forces plain. */

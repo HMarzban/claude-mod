@@ -20,6 +20,10 @@ const isExpanded = atom({ plugin: 'session-usage-band', key: 'isExpanded' } as c
 
 let palette: Palette = DARK
 
+// Where auto-compaction runs, read from the context breakdown after each
+// turn rather than on every redraw.
+let compactAt: number | undefined
+
 // Toasts speak at the same points the pills turn amber, so the two agree.
 const TOAST_AT = 0.8
 const TOAST_AGAIN_AT = 0.95
@@ -138,6 +142,9 @@ export const register: Register = on => {
     if (e.context.percent !== undefined) {
       note('context', e.context.percent / 100, pct => `Context is ${pct}% full. Claude Code will summarize older messages soon.`)
     }
+    const breakdown = (await $.session.usage({ breakdown: 'summary' })).context.breakdown
+    compactAt = breakdown?.isAutoCompactEnabled ? breakdown.autoCompactThreshold : undefined
+
     for (const limit of e.rateLimits) {
       if (limit.kind !== 'five_hour') continue
       noteFiveHour(now, limit.percentUsed, limit.resetsAt)
@@ -198,10 +205,16 @@ export const register: Register = on => {
           hitRatio: hitRatio(),
           misses: cache.misses,
           reWarmUsd: reWarmUsd(usage.cost?.usd),
+          tokens: { sent: cache.uncached + cache.written, back: cache.output, cached: cache.read },
         },
         costUsd: usage.cost?.usd ?? 0,
         lastTurnUsd: insights.lastTurnUsd,
-        contextPercent: usage.context.percent,
+        context: {
+          tokens: usage.context.tokens,
+          window: usage.context.window,
+          percent: usage.context.percent,
+          compactAt,
+        },
         fiveHour: five ? { percentUsed: five.percentUsed, resetsAt: five.resetsAt, etaMs: fiveHourEtaMs(now) } : undefined,
         sevenDay: seven ? { percentUsed: seven.percentUsed, resetsAt: seven.resetsAt } : undefined,
         otherLimits: usage.rateLimits

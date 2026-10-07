@@ -130,7 +130,7 @@ export const widthOf = (n: unknown): number => {
   const node = n as Node
   if (node.props?.position === 'absolute') return 0
   if (node.type === 'Button') return [...String(node.props?.label ?? '')].length
-  if (node.type === 'Svg') return 8
+  if (node.type === 'Svg') return Math.ceil(Number(node.props?.width ?? 64) / 8)
   const kids = (node.children ?? []).filter(k => k !== null && k !== undefined && k !== false)
   const pad = typeof node.props?.paddingX === 'number' ? 2 * node.props.paddingX : 0
   const gap = typeof node.props?.columnGap === 'number' ? node.props.columnGap * Math.max(0, kids.length - 1) : 0

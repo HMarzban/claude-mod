@@ -58,7 +58,7 @@ test('the collapsed band is one row', async ($, on) => {
   expect(rowCount(await ui.drawn())).toBe(1)
   expect(await ui.find({ type: 'Text', text: /cache 1h 00m/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /\$2\.41/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /38%/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /76k \/ 200k/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /4%/ })).toBeDefined()
   await ui.unmount()
 })
@@ -179,7 +179,7 @@ test("while a turn runs, 'cache warm' replaces the calm countdown", async ($, on
   await respond(e => $.turn.step(e), resp(2_000, 0, 180_000, 5_000))
 
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110, true) })
-  expect(await ui.find({ type: 'Text', text: /^cache warm$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /◷ cache warm\s*$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /cache 1h/ })).toBeUndefined()
 
   await clock.advance(60 * 60_000 - 30_000) // a tool call outlasting the TTL
@@ -377,7 +377,7 @@ test('context and 5h escalate to amber at 80% and mark 95%', async ($, on) => {
   await $.session.start(START)
 
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
-  const ctx = await ui.find({ type: 'Text', text: /82%!$/ })
+  const ctx = await ui.find({ type: 'Text', text: /164k \/ 200k!$/ })
   expect(ctx?.props?.color).toBe(DARK.amberFg)
   const five = await ui.find({ type: 'Text', text: /96%!!/ })
   expect(five?.props?.color).toBe(DARK.amberFg)
@@ -469,7 +469,7 @@ test('narrow widths drop pills in priority order', async ($, on) => {
 
   ui = await at(75) // then the context meter, keeping its %
   expect(await textMeters(ui)).toBe(0)
-  expect(await ui.find({ type: 'Text', text: /38%/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /76k \/ 200k/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /last \$/ })).toBeDefined()
   await ui.unmount()
 
@@ -596,10 +596,10 @@ test('desktop draws SVG meters; the terminal and plain draw text ones', async ($
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
 
   const desk = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
-  const svgs = await desk.findAll({ type: 'Svg' })
+  const svgs = (await desk.findAll({ type: 'Svg' })).filter(n => /%$/.test(String(n.props?.alt)))
   expect(svgs).toHaveLength(2)
   expect(svgs[0]?.props?.width).toBe(44)
-  expect(svgs[0]?.props?.height).toBe(6)
+  expect(svgs[0]?.props?.height).toBe(8) // 6px bar plus room for the compaction tick
   expect(svgs[0]?.props?.alt).toBe('38%')
   expect(String(svgs[0]?.props?.source)).toContain(DARK.meterTrack)
   expect(await textMeters(desk)).toBe(0)
@@ -646,7 +646,7 @@ test('every pill explains itself on hover, inside its own hover scope', async ($
 
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
   const found = cards(await ui.drawn())
-  expect(found.map(([key]) => key).join(',')).toBe('cache,cost,ctx,5h')
+  expect(found.map(([key]) => key).join(',')).toBe('cache,cost,tokens,ctx,5h')
   for (const [, card] of found) {
     expect(card.props?.display).toBe('none')
     expect(card.hover?.display).toBe('flex')
@@ -654,11 +654,12 @@ test('every pill explains itself on hover, inside its own hover scope', async ($
     expect(textOf(card).length).toBeLessThan(60)
   }
   expect(found[0]?.[1].props?.left).toBe(0)
-  expect(found[3]?.[1].props?.right).toBe(0) // the rightmost opens leftward
+  expect(found[4]?.[1].props?.right).toBe(0) // the rightmost opens leftward
   expect(textOf(found[0]?.[1])).toBe('Warm cache bills input at 10%; expires 1h after a reply')
   expect(textOf(found[1]?.[1])).toBe('$0.41 spent during your last message, subagents included')
-  expect(textOf(found[2]?.[1])).toBe('Conversation fill; near full, older turns get summarized')
-  expect(textOf(found[3]?.[1])).toBe('5-hour limit across all your Claude use; resets in 3h 00m')
+  expect(textOf(found[2]?.[1])).toBe('sent 196k · back 12k · from cache 0')
+  expect(textOf(found[3]?.[1])).toBe('Conversation fill; near full, older turns get summarized')
+  expect(textOf(found[4]?.[1])).toBe('5-hour limit across all your Claude use; resets in 3h 00m')
   await ui.unmount()
 })
 
