@@ -10,21 +10,28 @@ const STALE_MS = 15 * 60_000
 // resetsAt readings of one window can differ by a few seconds.
 const SAME_RESET_MS = 60_000
 
-const state = {
-  turnStartCost: new Map<string, number>(),
-  samples: [] as Sample[],
-  resetsAt: undefined as string | undefined,
+type InsightState = {
+  turnStartCost: Map<string, number>
+  samples: Sample[]
+  resetsAt: string | undefined
 }
 
-export const insights = {
-  lastTurnUsd: null as number | null,
+const state: InsightState = {
+  turnStartCost: new Map(),
+  samples: [],
+  resetsAt: undefined,
 }
+
+const turns: { lastTurnUsd: number | null } = { lastTurnUsd: null }
+
+/** What the last main-loop turn cost, read-only: set by noteTurnEnd. */
+export const insights: Readonly<typeof turns> = turns
 
 /** A new conversation (/clear, resume): its turns start over, but the
  *  5-hour window is account-wide, so its pace carries on. */
 export const resetConversationInsights = (): void => {
   state.turnStartCost.clear()
-  insights.lastTurnUsd = null
+  turns.lastTurnUsd = null
 }
 
 export const resetInsights = (): void => {
@@ -44,7 +51,7 @@ export const noteTurnEnd = (turnId: string, costUsd: number | undefined): void =
   state.turnStartCost.delete(turnId)
   if (start === undefined || costUsd === undefined) return
   const spent = costUsd - start
-  insights.lastTurnUsd = spent > 0 ? spent : null
+  turns.lastTurnUsd = spent > 0 ? spent : null
 }
 
 const sameReset = (a: string | undefined, b: string | undefined): boolean => {

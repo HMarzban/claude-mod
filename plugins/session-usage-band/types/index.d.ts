@@ -3,7 +3,7 @@ declare module 'claude-code' {
     'session-usage-band': {
       /** Whether the band is showing at all. */
       isHidden: boolean
-      /** Whether the rate-limit and cache rows are open. */
+      /** Whether the expanded line of facts is open. */
       isExpanded: boolean
     }
   }

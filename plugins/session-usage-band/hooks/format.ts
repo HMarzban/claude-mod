@@ -1,7 +1,12 @@
-export const fmtEstimate = (usd: number): string => (usd < 0.01 ? '~<$0.01' : `~$${usd.toFixed(2)}`)
+// Numbers, times and escalation marks, as the band words them.
 
-// ── formatting ─────────────────────────────────────────────────────────
-// Widths are fixed: in a monospace row a changing digit count is motion.
+/** At this share a pill turns amber and gains `!`, and a toast speaks. */
+export const WARN_AT = 0.8
+/** At this share the mark becomes `!!`, and a toast speaks again. */
+export const SEVERE_AT = 0.95
+/** Within this share of the compaction point, context counts down to it. */
+export const COMPACT_NEAR = 0.9
+
 export const clamp01 = (n: number): number => (n < 0 ? 0 : n > 1 ? 1 : n)
 
 export const fmtTokens = (n: number): string => {
@@ -14,44 +19,54 @@ export const fmtTokens = (n: number): string => {
 
 export const fmtCost = (usd: number): string => (usd >= 1000 ? `$${Math.round(usd)}` : `$${usd.toFixed(2)}`)
 
-/** Above ten minutes, whole minutes; below, M:SS. The countdown is still for
- *  most of its life and only starts ticking when ticking means something. */
+/** A small figure honestly: under a cent is not $0.00. */
+export const fmtSmallCost = (usd: number): string => (usd < 0.01 ? '<$0.01' : fmtCost(usd))
+
+/** An estimate is always marked as one. */
+export const fmtEstimate = (usd: number): string => (usd < 0.01 ? '~<$0.01' : `~$${usd.toFixed(2)}`)
+
+/** From an hour, `1h 05m`; from ten minutes, whole minutes; below, `M:SS`.
+ *  The countdown is still for most of its life and ticks only when ticking
+ *  means something. */
 export const fmtCountdown = (ms: number): string => {
   const secs = Math.max(0, Math.round(ms / 1000))
   if (secs >= 3600) {
-    const h = Math.floor(secs / 3600)
-    return `${h}h ${String(Math.floor((secs % 3600) / 60)).padStart(2, '0')}m`
+    const hours = Math.floor(secs / 3600)
+    return `${hours}h ${String(Math.floor((secs % 3600) / 60)).padStart(2, '0')}m`
   }
   if (secs >= 600) return `${Math.floor(secs / 60)}m`
   return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
 }
 
-export const fmtResetsIn = (iso: string | undefined, now: number): string | null => {
-  if (!iso) return null
+/** How far off a reset is: the time left, or that it has already passed. */
+export type ResetIn = { kind: 'in'; text: string } | { kind: 'passed' }
+
+/** When `iso` comes, from `now`; undefined without a readable time. */
+export const resetIn = (iso: string | undefined, now: number): ResetIn | undefined => {
+  if (!iso) return undefined
   const at = Date.parse(iso)
-  if (Number.isNaN(at)) return null
-  const delta = Math.floor((at - now) / 1000)
-  if (delta <= 0) return 'now'
-  const h = Math.floor(delta / 3600)
-  const m = Math.floor((delta % 3600) / 60)
-  const d = Math.floor(h / 24)
-  if (d) return `${d}d ${h % 24}h`
-  if (h) return `${h}h ${String(m).padStart(2, '0')}m`
-  return `${m}m`
+  if (Number.isNaN(at)) return undefined
+  const secs = Math.floor((at - now) / 1000)
+  if (secs <= 0) return { kind: 'passed' }
+  const hours = Math.floor(secs / 3600)
+  const mins = Math.floor((secs % 3600) / 60)
+  const days = Math.floor(hours / 24)
+  if (days) return { kind: 'in', text: `${days}d ${hours % 24}h` }
+  if (hours) return { kind: 'in', text: `${hours}h ${String(mins).padStart(2, '0')}m` }
+  return { kind: 'in', text: `${mins}m` }
 }
 
 /** The words for escalation: colour is never the only signal. */
-export const severityMark = (frac: number): string => (frac >= 0.95 ? '!!' : frac >= 0.8 ? '!' : '')
+export const severityMark = (frac: number): string => (frac >= SEVERE_AT ? '!!' : frac >= WARN_AT ? '!' : '')
 
 /** A projection, never a countdown: 5-minute steps under an hour, 15 from one. */
 export const fmtEta = (ms: number): string => {
   const mins = Math.max(0, ms) / 60_000
   if (mins < 57.5) return `~${Math.max(5, Math.round(mins / 5) * 5)}m`
-  const q = Math.round(mins / 15) * 15
-  const h = Math.floor(q / 60)
-  const m = q % 60
-  return m ? `~${h}h ${m}m` : `~${h}h`
+  const quarter = Math.round(mins / 15) * 15
+  const hours = Math.floor(quarter / 60)
+  const rest = quarter % 60
+  return rest ? `~${hours}h ${rest}m` : `~${hours}h`
 }
 
-/** A small figure honestly: under a cent is not $0.00. */
-export const fmtSmallCost = (usd: number): string => (usd < 0.01 ? '<$0.01' : fmtCost(usd))
+export const plural = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`

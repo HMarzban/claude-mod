@@ -1,8 +1,24 @@
+// The hooks: the one place that touches `$`. Each reads what the engine knows
+// into the pure modules, and ui.render hands drawBand a snapshot of them.
+
 import { atom, read, update } from 'claude-code'
-import type { Register, Timer } from 'claude-code'
+import type { EngineInterface, Register, Timer } from 'claude-code'
 import { drawBand } from './band'
-import { cache, hitRatio, msLeft, noteConversationStart, noteLedger, recordResponse, resetCache, resetConversation, reWarmUsd } from './cache'
-import { fmtCountdown, fmtEta } from './format'
+import {
+  cache,
+  hitRatio,
+  msLeft,
+  noteCompaction,
+  noteConversationStart,
+  noteLedger,
+  pinTtl,
+  recordResponse,
+  resetCache,
+  resetConversation,
+  resolveTtl,
+  reWarmUsd,
+} from './cache'
+import { COMPACT_NEAR, SEVERE_AT, WARN_AT, fmtCountdown, fmtEta, fmtTokens } from './format'
 import {
   fiveHourEtaMs,
   insights,
@@ -18,19 +34,35 @@ import type { Palette } from './palette'
 const isHidden = atom({ plugin: 'session-usage-band', key: 'isHidden' } as const, false)
 const isExpanded = atom({ plugin: 'session-usage-band', key: 'isExpanded' } as const, false)
 
-let palette: Palette = DARK
+const FIVE_HOUR = 'five_hour'
+const SEVEN_DAY = 'seven_day'
 
-// Where auto-compaction runs, read from the context breakdown after each
-// turn rather than on every redraw.
-let compactAt: number | undefined
-
-// Toasts speak at the same points the pills turn amber, so the two agree.
-const TOAST_AT = 0.8
-const TOAST_AGAIN_AT = 0.95
+// A toast speaks once per threshold crossed and again only after the figure
+// falls back below this share.
 const TOAST_REARM_BELOW = 0.75
 
+let palette: Readonly<Palette> = DARK
+
+/** Auto-compaction as the context breakdown last reported it: where it runs,
+ *  or off. Read after each turn rather than on every redraw. */
+let autoCompact: { at: number } | 'off' | undefined
+
+/** What the session has cost so far, if the host keeps a ledger. */
+const ledgerUsd = async ($: EngineInterface): Promise<number | undefined> => (await $.session.usage()).cost?.usd
+
+type BandCommand = 'toggle' | 'more' | 'less' | 'show' | 'hide'
+
+const parseCommand = (args: string): BandCommand | undefined => {
+  const word = args.trim().toLowerCase()
+  if (word === '') return 'toggle'
+  return word === 'more' || word === 'less' || word === 'show' || word === 'hide' ? word : undefined
+}
+
+const SHOWN = 'Usage band shown. /usage-band more shows every fact.'
+const HIDDEN = 'Usage band hidden. /usage-band shows it again.'
+
 export const register: Register = on => {
-  // What the band last drew, so a timer only repaints when it would change.
+  // What the band last drew, so the timer repaints only when it would change.
   let lastPaintKey = ''
   const warned = new Map<string, number>()
   let tick: Timer | undefined
@@ -41,38 +73,29 @@ export const register: Register = on => {
     warned.clear()
     lastPaintKey = ''
 
-    const appearance = (await $.env.get('CC_BAND_APPEARANCE'))?.toLowerCase()
-    const noColor = await $.env.get('NO_COLOR')
-    palette = resolvePalette(appearance, noColor)
+    palette = resolvePalette((await $.env.get('CC_BAND_APPEARANCE'))?.toLowerCase(), await $.env.get('NO_COLOR'))
+    const pinned = resolveTtl({
+      force5m: await $.env.get('FORCE_PROMPT_CACHING_5M'),
+      chosen: await $.env.get('CLAUDE_CODE_PROMPT_CACHE_TTL'),
+      enable1h: await $.env.get('ENABLE_PROMPT_CACHING_1H'),
+    })
+    if (pinned !== undefined) pinTtl(pinned)
 
-    const force5m = await $.env.get('FORCE_PROMPT_CACHING_5M')
-    const chosen = await $.env.get('CLAUDE_CODE_PROMPT_CACHE_TTL')
-    const enable1h = await $.env.get('ENABLE_PROMPT_CACHING_1H')
-    if (force5m === '1') {
-      cache.ttl = '5m'
-      cache.ttlPinned = true
-    } else if (chosen === '5m' || chosen === '1h') {
-      cache.ttl = chosen
-      cache.ttlPinned = true
-    } else if (enable1h === '1') {
-      cache.ttl = '1h'
-      cache.ttlPinned = true
-    }
-
-    // One timer, but it only repaints when the text would actually differ, so
-    // the band is still for most of a warm cache and ticks in its last minute.
+    // One timer, repainting only when the drawing would differ: every minute
+    // (the battery, the reset countdowns, the pace tick), and every second of
+    // the cache's last ten minutes, when its countdown shows seconds.
     tick?.cancel()
     tick = $.clock.every(1000, () => {
       void (async () => {
         const now = await $.clock.now()
         const left = msLeft(now)
         const eta = fiveHourEtaMs(now)
-        const key = `${fmtCountdown(left)}|${left > 0}|${eta === null ? '-' : fmtEta(eta)}`
+        const key = `${Math.floor(now / 60_000)}|${fmtCountdown(left)}|${left > 0}|${eta === null ? '-' : fmtEta(eta)}`
         if (key !== lastPaintKey) {
           lastPaintKey = key
           $.ui.invalidate('ui.render')
         }
-      })()
+      })().catch(() => undefined)
     })
 
     $.command.register({
@@ -85,7 +108,7 @@ export const register: Register = on => {
   // /clear and resume end the conversation but not the process, and no
   // session.start follows, so the next conversation starts from here.
   on('session.end', async ($, e, next) => {
-    resetConversation((await $.session.usage()).cost?.usd ?? 0)
+    resetConversation((await ledgerUsd($).catch(() => undefined)) ?? 0)
     // The context warning is this conversation's; the 5-hour one is the
     // account's, and /clear changes nothing about it.
     resetConversationInsights()
@@ -96,7 +119,7 @@ export const register: Register = on => {
   })
 
   on('turn.start', async ($, e, next) => {
-    const cost = (await $.session.usage()).cost?.usd
+    const cost = await ledgerUsd($)
     noteTurnStart(e.turnId, cost)
     if (cost !== undefined) noteConversationStart(cost)
     return next(e)
@@ -106,31 +129,41 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId === undefined) {
-      noteTurnEnd(e.turnId, (await $.session.usage()).cost?.usd)
+      noteTurnEnd(e.turnId, await ledgerUsd($))
       $.ui.invalidate('ui.render')
     }
     return result
   })
 
   on('turn.step', async function* ($, e, next) {
+    // The cache's TTL runs from when the request is sent, not when its reply ends.
+    const sentAt = await $.clock.now()
     const result = yield* next(e)
     const isMain = e.agentId === undefined
     if (result?.usage) {
-      recordResponse(result.usage, await $.clock.now(), isMain)
-      const cost = (await $.session.usage()).cost?.usd
+      recordResponse(result.usage, sentAt, isMain, result.usage.model)
+      const cost = await ledgerUsd($)
       if (cost !== undefined) noteLedger(cost)
       $.ui.invalidate('ui.render')
     }
-    if (isMain && result?.stopReason === 'compaction') {
-      cache.rebuilding = true
+    if (isMain && result?.stopReason === 'compaction') noteCompaction(undefined)
+    return result
+  })
+
+  // A compaction of the main conversation rebuilds the cache on purpose.
+  on('session.compact', async ($, e, next) => {
+    const result = await next(e)
+    if (e.agentId === undefined && e.trigger !== 'precompute' && !('skip' in result)) {
+      noteCompaction(result.tokensAfter)
+      $.ui.invalidate('ui.render')
     }
     return result
   })
 
   on('session.measure', async ($, e, next) => {
     const now = await $.clock.now()
-    const note = (key: string, frac: number, text: (pct: number) => string): void => {
-      const level = frac >= TOAST_AGAIN_AT ? 2 : frac >= TOAST_AT ? 1 : 0
+    const note = (key: string, frac: number, levels: readonly number[], text: (pct: number) => string): void => {
+      const level = levels.filter(at => frac >= at).length
       if (level > (warned.get(key) ?? 0)) {
         warned.set(key, level)
         $.ui.toast(text(Math.round(frac * 100)))
@@ -139,16 +172,39 @@ export const register: Register = on => {
       }
     }
 
-    if (e.context.percent !== undefined) {
-      note('context', e.context.percent / 100, pct => `Context is ${pct}% full. Claude Code will summarize older messages soon.`)
-    }
-    const breakdown = (await $.session.usage({ breakdown: 'summary' })).context.breakdown
-    compactAt = breakdown?.isAutoCompactEnabled ? breakdown.autoCompactThreshold : undefined
-
     for (const limit of e.rateLimits) {
-      if (limit.kind !== 'five_hour') continue
+      if (limit.kind !== FIVE_HOUR) continue
       noteFiveHour(now, limit.percentUsed, limit.resetsAt)
-      note('five_hour', limit.percentUsed / 100, pct => `You've used ${pct}% of your 5-hour limit.`)
+      note(FIVE_HOUR, limit.percentUsed / 100, [WARN_AT, SEVERE_AT], pct => `You've used ${pct}% of your 5-hour limit.`)
+    }
+
+    // Local and token-free, but it can fail; the last answer stands until a new one.
+    try {
+      const breakdown = (await $.session.usage({ breakdown: 'summary' })).context.breakdown
+      if (breakdown !== undefined) {
+        autoCompact =
+          breakdown.isAutoCompactEnabled && breakdown.autoCompactThreshold !== undefined
+            ? { at: breakdown.autoCompactThreshold }
+            : 'off'
+      }
+    } catch {
+      // keep the last known setting
+    }
+
+    // The context toast speaks where the context pill turns amber.
+    const used = e.context.tokens ?? (e.context.percent === undefined ? undefined : (e.context.percent / 100) * e.context.window)
+    if (used !== undefined) {
+      if (autoCompact !== undefined && autoCompact !== 'off') {
+        const at = autoCompact.at
+        note('context', used / at, [COMPACT_NEAR], () => `Auto-compaction in ~${fmtTokens(Math.max(0, at - used))} tokens.`)
+      } else {
+        const off = autoCompact === 'off'
+        note('context', used / e.context.window, [WARN_AT, SEVERE_AT], pct =>
+          off
+            ? `Context is ${pct}% full and auto-compaction is off, so the conversation will run out of room.`
+            : `Context is ${pct}% full.`,
+        )
+      }
     }
 
     $.ui.invalidate('ui.render')
@@ -156,26 +212,24 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'usage-band' }, async ($, e, next) => {
-    const arg = e.args.trim().toLowerCase()
-
-    if (arg === 'more' || arg === 'less') {
-      const want = arg === 'more'
-      await update($, isExpanded, () => want)
-      await update($, isHidden, () => false)
-      return { text: want ? 'Usage band expanded.' : 'Usage band collapsed.' }
-    }
-
-    const hidden = await read($, isHidden)
-    if (arg === 'show' || arg === 'hide') {
-      await update($, isHidden, () => arg === 'hide')
-      return { text: arg === 'hide' ? 'Usage band hidden. /usage-band shows it again.' : 'Usage band shown.' }
-    }
-
-    await update($, isHidden, () => !hidden)
-    return {
-      text: hidden
-        ? 'Usage band shown. /usage-band more shows every row.'
-        : 'Usage band hidden. /usage-band shows it again.',
+    const command = parseCommand(e.args)
+    switch (command) {
+      case 'more':
+      case 'less':
+        await update($, isExpanded, () => command === 'more')
+        await update($, isHidden, () => false)
+        return { text: command === 'more' ? 'Usage band expanded.' : 'Usage band collapsed.' }
+      case 'show':
+      case 'hide':
+        await update($, isHidden, () => command === 'hide')
+        return { text: command === 'hide' ? HIDDEN : 'Usage band shown.' }
+      case 'toggle': {
+        const wasHidden = await read($, isHidden)
+        await update($, isHidden, () => !wasHidden)
+        return { text: wasHidden ? SHOWN : HIDDEN }
+      }
+      case undefined:
+        return { text: 'Usage: /usage-band [more | less | show | hide]' }
     }
   })
 
@@ -184,8 +238,9 @@ export const register: Register = on => {
 
     const usage = await $.session.usage()
     const now = await $.clock.now()
-    const five = usage.rateLimits.find(l => l.kind === 'five_hour')
-    const seven = usage.rateLimits.find(l => l.kind === 'seven_day')
+    const five = usage.rateLimits.find(l => l.kind === FIVE_HOUR)
+    const seven = usage.rateLimits.find(l => l.kind === SEVEN_DAY)
+    if (usage.cost !== undefined) noteLedger(usage.cost.usd)
 
     return drawBand(
       $.ui.resolve(e),
@@ -213,12 +268,12 @@ export const register: Register = on => {
           tokens: usage.context.tokens,
           window: usage.context.window,
           percent: usage.context.percent,
-          compactAt,
+          compactAt: autoCompact === undefined || autoCompact === 'off' ? undefined : autoCompact.at,
         },
         fiveHour: five ? { percentUsed: five.percentUsed, resetsAt: five.resetsAt, etaMs: fiveHourEtaMs(now) } : undefined,
         sevenDay: seven ? { percentUsed: seven.percentUsed, resetsAt: seven.resetsAt } : undefined,
         otherLimits: usage.rateLimits
-          .filter(l => l.kind !== 'five_hour' && l.kind !== 'seven_day')
+          .filter(l => l.kind !== FIVE_HOUR && l.kind !== SEVEN_DAY)
           .map(l => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: l.resetsAt })),
       },
       {
@@ -230,5 +285,5 @@ export const register: Register = on => {
         },
       },
     )
-  })
+  }).catch(($, e, next) => next(e))
 }

@@ -1,3 +1,5 @@
+// The insights' pure logic: last turn's cost and the 5h pace ETA.
+
 import { test, expect } from 'claude-code/testing'
 import { fmtEta } from '../hooks/format'
 import {
@@ -21,27 +23,38 @@ test("last turn's cost is the ledger's rise across one turn", () => {
   expect(cents(insights.lastTurnUsd)).toBe(41)
 })
 
-test('an unmatched turn, a missing ledger or no rise leaves nothing to show', () => {
+test('a turn that never started leaves nothing to show', () => {
   resetInsights()
   noteTurnEnd('never-started', 5)
   expect(insights.lastTurnUsd).toBe(null)
+})
+
+test('a turn without a ledger leaves nothing to show', () => {
+  resetInsights()
   noteTurnStart('t1', undefined)
   noteTurnEnd('t1', 3)
   expect(insights.lastTurnUsd).toBe(null)
+})
+
+test('a turn that spent nothing leaves nothing to show', () => {
+  resetInsights()
   noteTurnStart('t2', 3)
   noteTurnEnd('t2', 3)
   expect(insights.lastTurnUsd).toBe(null)
 })
 
-test('the ETA needs ten minutes and two points of evidence', () => {
+test('the ETA needs ten minutes of evidence', () => {
   resetInsights()
   noteFiveHour(0, 40, RESET_IN_3H)
   noteFiveHour(8 * MIN, 46, RESET_IN_3H)
-  expect(fiveHourEtaMs(8 * MIN)).toBe(null) // under 10 minutes
+  expect(fiveHourEtaMs(8 * MIN)).toBe(null)
+})
+
+test('the ETA needs a two-point rise', () => {
   resetInsights()
   noteFiveHour(0, 40, RESET_IN_3H)
   noteFiveHour(12 * MIN, 41, RESET_IN_3H)
-  expect(fiveHourEtaMs(12 * MIN)).toBe(null) // under 2 points
+  expect(fiveHourEtaMs(12 * MIN)).toBe(null)
 })
 
 test('the ETA projects the pace from the first to the newest sample', () => {

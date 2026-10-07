@@ -1,13 +1,51 @@
-// ── prompt cache ───────────────────────────────────────────────────────
-export type Ttl = '5m' | '1h'
-export const TTL_MS: Record<Ttl, number> = { '5m': 5 * 60_000, '1h': 60 * 60_000 }
+// The prompt cache, as the band models it from each response's token counts.
 
-const MISS_MIN_TOKENS = 2000
-const MISS_MIN_SHARE = 0.05
+import type { ModelUsage } from 'claude-code'
+
+export type Ttl = '5m' | '1h'
+export const TTL_MS: Readonly<Record<Ttl, number>> = { '5m': 5 * 60_000, '1h': 60 * 60_000 }
+
+/** The cache's last minute: the one span where acting changes the bill. */
 export const SOON_MS = 60_000
 
-export const cache = {
-  ttl: '1h' as Ttl,
+// A response that read this much less than the cache held, both in tokens and
+// as a share of it, missed the cache.
+const MISS_MIN_TOKENS = 2000
+const MISS_MIN_SHARE = 0.05
+
+type CacheState = {
+  ttl: Ttl
+  /** Set by the environment, so never inferred. */
+  ttlPinned: boolean
+  /** Main-loop requests this conversation. */
+  requests: number
+  // Every token since the conversation began, subagents included.
+  read: number
+  written: number
+  uncached: number
+  output: number
+  /** Requests that missed a cache that should have been warm. */
+  misses: number
+  /** When the last main-loop request was sent. */
+  lastAt: number
+  /** The last main-loop request's whole window, its response included. */
+  window: number
+  /** What that request left in the cache; the response is only written on
+   *  the next request, never read. */
+  cached: number
+  /** The next request rebuilds the cache on purpose (a compaction). */
+  rebuilding: boolean
+  /** The model the last main-loop request ran on; a switch rebuilds the cache. */
+  model: string | undefined
+  /** The ledger when this conversation's first turn began, so spend from
+   *  before it (a /clear, a resume, a reload) can't inflate the rate the
+   *  re-warm price is solved from. */
+  costBase: number
+  baselined: boolean
+}
+
+const INITIAL: Readonly<CacheState> = {
+  ttl: '1h',
   ttlPinned: false,
   requests: 0,
   read: 0,
@@ -17,138 +55,145 @@ export const cache = {
   misses: 0,
   lastAt: 0,
   window: 0,
-  // What the last main-loop request left in the cache. The window also holds
-  // the response, which is only written on the next request, never read.
   cached: 0,
   rebuilding: false,
-  // The ledger when this conversation's first turn began, so spend from
-  // before it (a /clear, a resume, a reload) can't inflate the rate the
-  // re-warm price is solved from. Taken at the first turn.start after any
-  // reset, the ledger's value then is right whether or not it was reset.
+  model: undefined,
   costBase: 0,
   baselined: false,
 }
 
+const state: CacheState = { ...INITIAL }
+
+/** The model, read-only: only this module's functions change it. */
+export const cache: Readonly<CacheState> = state
+
 export const resetCache = (): void => {
-  cache.ttl = '1h'
-  cache.ttlPinned = false
-  cache.requests = 0
-  cache.read = 0
-  cache.written = 0
-  cache.uncached = 0
-  cache.output = 0
-  cache.misses = 0
-  cache.lastAt = 0
-  cache.window = 0
-  cache.cached = 0
-  cache.rebuilding = false
-  cache.costBase = 0
-  cache.baselined = false
+  Object.assign(state, INITIAL)
+}
+
+/** A new conversation in the same process (/clear, resume): the billing mode
+ *  and its TTL carry over, everything measured starts again. The baseline is
+ *  provisional until the next turn starts and takes the ledger then. */
+export const resetConversation = (costNow: number): void => {
+  const { ttl, ttlPinned } = state
+  Object.assign(state, INITIAL, { ttl, ttlPinned, costBase: costNow })
+}
+
+/** The TTL the environment pins, if it pins one. */
+export const resolveTtl = (env: {
+  force5m: string | undefined
+  chosen: string | undefined
+  enable1h: string | undefined
+}): Ttl | undefined => {
+  if (env.force5m === '1') return '5m'
+  if (env.chosen === '5m' || env.chosen === '1h') return env.chosen
+  if (env.enable1h === '1') return '1h'
+  return undefined
+}
+
+export const pinTtl = (ttl: Ttl): void => {
+  state.ttl = ttl
+  state.ttlPinned = true
+}
+
+/** A compaction replaces the conversation with a summary: the next request
+ *  rebuilds the cache on purpose, at the summary's size. */
+export const noteCompaction = (sizeAfter: number | undefined): void => {
+  state.rebuilding = true
+  if (sizeAfter !== undefined) {
+    state.window = sizeAfter
+    state.cached = 0
+  }
 }
 
 /** The engine may reset the ledger on /clear: once it reads below the
  *  baseline, it counts this conversation alone, so the baseline is 0. */
 export const noteLedger = (costNow: number): void => {
-  if (costNow < cache.costBase) cache.costBase = 0
+  if (costNow < state.costBase) state.costBase = 0
 }
 
 /** The ledger as this conversation's first turn starts: its baseline. */
 export const noteConversationStart = (costNow: number): void => {
-  if (cache.baselined) return
-  cache.costBase = costNow
-  cache.baselined = true
-}
-
-/** A new conversation in the same process (/clear, resume): the billing
- *  mode and its TTL carry over, everything measured starts again. */
-export const resetConversation = (costNow: number): void => {
-  const { ttl, ttlPinned } = cache
-  resetCache()
-  cache.ttl = ttl
-  cache.ttlPinned = ttlPinned
-  // Provisional until the next turn starts and takes the ledger then.
-  cache.costBase = costNow
+  if (state.baselined) return
+  state.costBase = costNow
+  state.baselined = true
 }
 
 export const recordResponse = (
-  usage: {
-    input_tokens: number
-    output_tokens: number
-    cache_read_input_tokens: number
-    cache_creation_input_tokens: number
-  },
-  now: number,
+  usage: Pick<ModelUsage, 'input_tokens' | 'output_tokens' | 'cache_read_input_tokens' | 'cache_creation_input_tokens'>,
+  sentAt: number,
   isMain: boolean,
+  model: string | undefined,
 ): void => {
-  const read_ = usage.cache_read_input_tokens
+  const hit = usage.cache_read_input_tokens
   const written = usage.cache_creation_input_tokens
   const fresh = usage.input_tokens
 
   // The session's bill includes every subagent, so their tokens count toward
   // the totals the rate is solved from. Their prefixes are their own, though:
   // they say nothing about the main conversation's cache or its countdown.
-  cache.read += read_
-  cache.written += written
-  cache.uncached += fresh
-  cache.output += usage.output_tokens
+  state.read += hit
+  state.written += written
+  state.uncached += fresh
+  state.output += usage.output_tokens
   if (!isMain) return
 
-  const prefix = cache.cached
-  const gap = cache.requests > 0 ? now - cache.lastAt : 0
+  const prefix = state.cached
+  const gap = state.requests > 0 ? sentAt - state.lastAt : 0
+  // Another model has its own cache: reading nothing after a switch is no miss.
+  const switched = state.model !== undefined && model !== undefined && model !== state.model
 
-  if (prefix > 0 && !cache.rebuilding && gap <= TTL_MS[cache.ttl]) {
-    const shortfall = prefix - read_
+  if (prefix > 0 && !state.rebuilding && !switched && gap <= TTL_MS[state.ttl]) {
+    const shortfall = prefix - hit
     if (shortfall >= MISS_MIN_TOKENS && shortfall > prefix * MISS_MIN_SHARE) {
-      if (!cache.ttlPinned && cache.ttl === '1h' && read_ === 0 && gap > TTL_MS['5m']) {
-        cache.ttl = '5m'
+      // An assumed hour that read nothing after five idle minutes was five.
+      if (!state.ttlPinned && state.ttl === '1h' && hit === 0 && gap > TTL_MS['5m']) {
+        state.ttl = '5m'
       } else {
-        cache.misses += 1
+        state.misses += 1
       }
     }
   }
 
-  cache.requests += 1
-  cache.window = fresh + read_ + written + usage.output_tokens
-  cache.cached = read_ + written
-  cache.lastAt = now
-  cache.rebuilding = false
+  state.requests += 1
+  state.window = fresh + hit + written + usage.output_tokens
+  state.cached = hit + written
+  state.lastAt = sentAt
+  state.rebuilding = false
+  state.model = model ?? state.model
 }
 
-/** What a cold cache would cost, in dollars.
+// Anthropic models hold the same ratios between their four rates.
+const WRITE_MULT = 1.25
+const READ_MULT = 0.1
+const OUTPUT_MULT = 5
+
+/** What a cold cache would cost to rebuild, in dollars.
  *
  *  No pricing table is available to a mod, so the rate is solved from the
- *  session's own bill. Anthropic models hold the same ratios between the four
- *  rates — a cache write is 1.25x base input, a cache read 0.1x, output 5x —
- *  so one unknown remains:
+ *  session's own bill, which leaves one unknown:
  *
  *    cost = r * (uncached + 1.25*written + 0.1*read + 5*output)
  *
  *  Solve for r, then price the re-warm as a cache write of the whole window.
  *  It self-calibrates to whatever model and plan are in force, and it is an
  *  estimate on top of an estimate (the session cost is itself computed at list
- *  price), so it is always shown with a "~" and never without one. */
-const WRITE_MULT = 1.25
-const READ_MULT = 0.1
-const OUTPUT_MULT = 5
-
+ *  price), so it is always shown with a "~". Call noteLedger first. */
 export const reWarmUsd = (sessionCost: number | undefined): number | null => {
   if (!sessionCost || sessionCost <= 0) return null
   const weighted =
-    cache.uncached + WRITE_MULT * cache.written + READ_MULT * cache.read + OUTPUT_MULT * cache.output
+    state.uncached + WRITE_MULT * state.written + READ_MULT * state.read + OUTPUT_MULT * state.output
   if (weighted <= 0) return null
-  noteLedger(sessionCost)
-  const billed = sessionCost - cache.costBase
+  const billed = sessionCost - state.costBase
   if (billed <= 0) return null
-  const rate = billed / weighted
-  const usd = rate * WRITE_MULT * cache.window
+  const usd = (billed / weighted) * WRITE_MULT * state.window
   return Number.isFinite(usd) && usd > 0 ? usd : null
 }
 
-
 export const hitRatio = (): number | null => {
-  const total = cache.read + cache.written + cache.uncached
-  return total > 0 ? cache.read / total : null
+  const total = state.read + state.written + state.uncached
+  return total > 0 ? state.read / total : null
 }
 
 export const msLeft = (now: number): number =>
-  cache.requests === 0 ? TTL_MS[cache.ttl] : Math.max(0, cache.lastAt + TTL_MS[cache.ttl] - now)
+  state.requests === 0 ? TTL_MS[state.ttl] : Math.max(0, state.lastAt + TTL_MS[state.ttl] - now)

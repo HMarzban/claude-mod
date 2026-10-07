@@ -8,8 +8,10 @@ export type Palette = {
   surface: string
   value: string
   label: string
-  dotWarm: string
-  dotCold: string
+  /** A warm cache: the battery's charge, and the dot in plain appearance. */
+  warm: string
+  /** A cold cache's dot in plain appearance. */
+  cold: string
   amberBg: string
   amberFg: string
   meterTrack: string
@@ -29,13 +31,13 @@ export type Palette = {
   weekAccent: string
 }
 
-export const DARK: Palette = {
+export const DARK: Readonly<Palette> = {
   filled: true,
   surface: '#2b2b33',
   value: '#ececf2',
   label: '#8a8a94',
-  dotWarm: '#7fcf8a',
-  dotCold: '#6f6f7a',
+  warm: '#7fcf8a',
+  cold: '#6f6f7a',
   amberBg: '#3a2f17',
   amberFg: '#f0c969',
   meterTrack: '#45454f',
@@ -52,13 +54,13 @@ export const DARK: Palette = {
   weekAccent: '#a99cf0',
 }
 
-export const LIGHT: Palette = {
+export const LIGHT: Readonly<Palette> = {
   filled: true,
   surface: '#ededf2',
   value: '#1d1d22',
   label: '#6e6e7a',
-  dotWarm: '#2f8a45',
-  dotCold: '#a0a0aa',
+  warm: '#2f8a45',
+  cold: '#a0a0aa',
   amberBg: '#fbeccd',
   amberFg: '#7a4e06',
   meterTrack: '#d6d6de',
@@ -77,13 +79,13 @@ export const LIGHT: Palette = {
 
 // No backgrounds at all: every colour is a theme key, so it follows whatever
 // theme the user has. The safe fallback, and what NO_COLOR terminals want.
-export const PLAIN: Palette = {
+export const PLAIN: Readonly<Palette> = {
   filled: false,
   surface: '',
   value: 'text',
   label: 'subtle',
-  dotWarm: 'success',
-  dotCold: 'subtle',
+  warm: 'success',
+  cold: 'subtle',
   amberBg: '',
   amberFg: 'warning',
   meterTrack: 'subtle',
@@ -101,5 +103,5 @@ export const PLAIN: Palette = {
 }
 
 /** The palette CC_BAND_APPEARANCE names; NO_COLOR forces plain. */
-export const resolvePalette = (appearance: string | undefined, noColor: string | undefined): Palette =>
+export const resolvePalette = (appearance: string | undefined, noColor: string | undefined): Readonly<Palette> =>
   noColor ? PLAIN : appearance === 'light' ? LIGHT : appearance === 'plain' ? PLAIN : DARK

@@ -1,12 +1,18 @@
+// Shared fixtures and helpers for the band's tests: the engine beneath the
+// plugin, canned usage, and readers for the drawn tree.
+
 import type {
   HookStream,
   ModelUsage,
   On,
+  SessionContextBreakdown,
   SessionUsage,
   TurnStepChunk,
   TurnStepInput,
   TurnStepResult,
 } from 'claude-code'
+import type { Engine, MockClock } from 'claude-code/testing'
+import { DARK } from '../hooks/palette'
 
 export const PLUGIN = 'session-usage-band'
 
@@ -36,8 +42,15 @@ export const FRESH: SessionUsage = {
   cost: { usd: 0 },
 }
 
-/** What the engine reports right now; a test swaps `current` to move cost or limits. */
-export const usage: { current: SessionUsage } = { current: USAGE }
+/** What the engine reports right now; a test swaps `current` to move cost or
+ *  limits, or sets `breakdownFails` to make the context breakdown read throw. */
+export const usage: { current: SessionUsage; breakdownFails: boolean } = { current: USAGE, breakdownFails: false }
+
+/** The size the engine reports for the conversation after a compaction. */
+export const COMPACTED_TO = 20_000
+
+/** A compacted conversation: the summary message alone. */
+export const SUMMARY = [{ role: 'user' as const, text: 'summary', toolUses: [] }]
 
 /** Every toast the plugin raised since `base` ran. */
 export const toasts: string[] = []
@@ -47,11 +60,17 @@ let nextUsage: ModelUsage | null = null
 /** Everything beneath the plugin: the engine's own answers. */
 export const base = (on: On, initial: SessionUsage = USAGE): void => {
   usage.current = initial
+  usage.breakdownFails = false
   toasts.length = 0
+  nextUsage = null
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.end', ($, e) => ({ sessionId: e.sessionId }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
-  on('session.usage', () => ({ value: usage.current }))
+  on('session.usage', ($, e) => {
+    if (e.breakdown !== undefined && usage.breakdownFails) throw new Error('breakdown unavailable')
+    return { value: usage.current }
+  })
+  on('session.compact', () => ({ messages: SUMMARY, tokensAfter: COMPACTED_TO }))
   on('session.measure', ($, e) => ({ changed: e.changed }))
   on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: '' }))
@@ -122,8 +141,10 @@ export const rowCount = (tree: unknown): number => {
   return t.type === 'Box' ? (t.children ?? []).length : 0
 }
 
-/** Cells a drawn row needs, as the terminal lays it out: text, padding,
- *  gaps and Button labels; hidden cards take none; an Svg meter counts 8. */
+/** Cells a drawn row needs, as the terminal lays it out: text, padding, gaps
+ *  and Button labels; hidden cards take none; an Svg takes a cell per 8px.
+ *  Kept apart from band.tsx's own measure on purpose, so the fit tests check
+ *  the drawing against an independent count rather than against itself. */
 export const widthOf = (n: unknown): number => {
   if (typeof n === 'string' || typeof n === 'number') return [...String(n)].length
   if (n === null || typeof n !== 'object') return 0
@@ -139,3 +160,126 @@ export const widthOf = (n: unknown): number => {
 
 /** The band's first row: the pills. */
 export const firstRow = (tree: unknown): unknown => ((tree as Node).children ?? [])[0]
+
+// ── constants ──────────────────────────────────────────────────────────
+
+export const START = { cwd: '/tmp', surface: 'terminal', isInteractive: true } as const
+/** Pins the 1-hour TTL, so tests don't depend on the assumed one. */
+export const HOUR_1 = { ENABLE_PROMPT_CACHING_1H: '1' }
+export const MIN = 60_000
+export const HOUR = 60 * MIN
+export const CLEAR = { reason: 'clear', sessionId: 's1', resume: { id: 's1' } } as const
+
+// ── readers for the drawn tree ─────────────────────────────────────────
+
+/** The pill Box drawn under `key` in the first row. */
+export const pillOf = (tree: unknown, key: string): Node | undefined => {
+  let found: Node | undefined
+  walk(firstRow(tree), n => {
+    if (found === undefined && n.type === 'Box' && n.props?.key === key) found = n
+  })
+  return found
+}
+
+/** A node's visible text: hover cards, at any depth, left out. */
+export const shown = (n: unknown): string =>
+  typeof n === 'string' || typeof n === 'number'
+    ? String(n)
+    : n !== null && typeof n === 'object' && (n as Node).props?.position !== 'absolute'
+      ? ((n as Node).children ?? []).map(shown).join('')
+      : ''
+
+/** A text battery's segments: its own Texts that carry a background. */
+export const segments = (pill: Node | undefined): Array<{ text: string; bg: unknown }> =>
+  ((pill?.children ?? []) as Node[])
+    .filter(k => k?.type === 'Text' && k.props?.backgroundColor !== undefined)
+    .map(k => ({ text: textOf(k), bg: k.props?.backgroundColor }))
+
+export const svgsOf = (n: unknown): Node[] => {
+  const out: Node[] = []
+  walk(n, k => {
+    if (k.type === 'Svg') out.push(k)
+  })
+  return out
+}
+
+export const svgAlts = (tree: unknown): string[] => svgsOf(tree).map(n => String(n.props?.alt))
+
+/** The desktop battery icon in the cache pill. */
+export const batteryOf = (tree: unknown): Node | undefined =>
+  svgsOf(pillOf(tree, 'cache')).find(n => /battery|warming/.test(String(n.props?.alt)))
+
+/** The battery icon's charge bar width, in px. */
+export const fillWidth = (svg: Node | undefined): number => {
+  const m = String(svg?.props?.source).match(/<rect class="charge" [^>]*width="([\d.]+)"/)
+  return m ? Number(m[1]) : 0
+}
+
+/** Each pill's hidden hover card, as [pill key, card] pairs. */
+export const cards = (tree: unknown): Array<[string, Node]> => {
+  const out: Array<[string, Node]> = []
+  walk(tree, n => {
+    for (const k of n.children ?? []) {
+      const child = k as Node
+      if (child?.props?.position === 'absolute') out.push([String(n.props?.key), child])
+    }
+  })
+  return out
+}
+
+/** The unexpected-rebuild count in the expanded line, 0 when it's absent. */
+export const rebuilds = (tree: unknown): number => {
+  const m = textOf(tree).match(/(\d+) unexpected rebuild/)
+  return m ? Number(m[1]) : 0
+}
+
+/** Text meters drawn: six cells of █, ░ and the ┃ tick. An empty meter's
+ *  inner track Text is six cells too, so it's told apart by its colour. */
+const METER = /^[█░┃]{6}$/
+export const textMeters = async (ui: {
+  findAll: (q: { type: string; text: RegExp }) => Promise<Array<{ props?: Record<string, unknown> }>>
+}): Promise<number> => (await ui.findAll({ type: 'Text', text: METER })).filter(t => t.props?.color !== DARK.meterTrack).length
+
+// ── driving the engine ─────────────────────────────────────────────────
+
+/** One main-loop turn (or, with `agentId`, a subagent's) that moves the
+ *  ledger from `from` to `to`. */
+export const turn = async (
+  $: Engine,
+  id: string,
+  from: number,
+  to: number,
+  extra: { agentId?: string; isAborted?: boolean; reason?: 'answer' | 'aborted' | 'error' } = {},
+): Promise<void> => {
+  usage.current = { ...usage.current, cost: { usd: from } }
+  if (extra.agentId === undefined) await $.turn.start({ text: 'hi', turnId: id })
+  usage.current = { ...usage.current, cost: { usd: to } }
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: id, reason: 'answer', ...extra })
+}
+
+/** Starts the session and feeds a 5h pace: 40% then 50% twelve minutes on,
+ *  with 4h to the reset, at 60% context. */
+export const pacing = async ($: Engine, clock: MockClock): Promise<void> => {
+  const resetsAt = new Date(4 * HOUR).toISOString()
+  const at = (pct: number): SessionUsage => ({
+    ...USAGE,
+    context: { tokens: 120_000, window: 200_000, percent: 60 },
+    rateLimits: [{ kind: 'five_hour', percentUsed: pct, resetsAt }],
+  })
+  usage.current = at(40)
+  await $.session.start(START)
+  for (const [pct, wait] of [
+    [40, 12 * MIN],
+    [50, 0],
+  ] as const) {
+    usage.current = at(pct)
+    const u = usage.current
+    await $.session.measure({ context: u.context, rateLimits: u.rateLimits, cost: u.cost, changed: [] })
+    await clock.advance(wait)
+  }
+}
+
+/** A context breakdown carrying only what the band reads. The full type holds
+ *  the grid and every category, which no test here needs. */
+export const breakdown = (fields: Pick<SessionContextBreakdown, 'isAutoCompactEnabled'> & { autoCompactThreshold?: number }): SessionContextBreakdown =>
+  fields as SessionContextBreakdown
