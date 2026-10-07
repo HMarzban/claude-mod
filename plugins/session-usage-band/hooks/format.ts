@@ -62,3 +62,13 @@ export const severity = (frac: number): 'success' | 'warning' | 'error' =>
 
 /** A mark that survives red/green colour blindness and NO_COLOR alike. */
 export const severityMark = (frac: number): string => (frac >= 0.95 ? '!!' : frac >= 0.8 ? '!' : '')
+
+/** A projection, never a countdown: 5-minute steps under an hour, 15 from one. */
+export const fmtEta = (ms: number): string => {
+  const mins = Math.max(0, ms) / 60_000
+  if (mins < 57.5) return `~${Math.max(5, Math.round(mins / 5) * 5)}m`
+  const q = Math.round(mins / 15) * 15
+  const h = Math.floor(q / 60)
+  const m = q % 60
+  return m ? `~${h}h ${m}m` : `~${h}h`
+}
