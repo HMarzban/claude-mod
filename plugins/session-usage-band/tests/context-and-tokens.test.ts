@@ -112,12 +112,12 @@ test('the tokens chip totals every token and breaks them down', async ($, on) =>
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(140) })
   const tokens = pillOf(await ui.drawn(), 'tokens')
   expect(textOf(tokens)).toMatch(/225k/)
-  expect(textOf(tokens)).toMatch(/sent 120k · back 5\.0k · from cache 100k/) // its hover card
+  expect(textOf(tokens)).toMatch(/input 120k · output 5\.0k · cache reads 100k/) // its hover card
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
-  expect(fact(tree, 'sent')).toBe('120k')
-  expect(fact(tree, 'back')).toBe('5.0k')
-  expect(fact(tree, 'from cache')).toBe('100k')
+  expect(fact(tree, 'input')).toBe('120k')
+  expect(fact(tree, 'output')).toBe('5.0k')
+  expect(fact(tree, 'cache reads')).toBe('100k')
   await ui.unmount()
 })
 

@@ -105,13 +105,13 @@ test('the expanded view is four labelled cards', async ($, on) => {
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
-  for (const [name, title] of [['cache', 'Cache'], ['spend', 'Spend'], ['context', 'Context'], ['limits', 'Limits']] as const) {
+  for (const [name, title] of [['cache', 'CACHE'], ['spend', 'SPEND'], ['context', 'CONTEXT'], ['limits', 'LIMITS']] as const) {
     expect(shown(cardOf(tree, name))).toMatch(new RegExp(`^${title}`))
   }
   await ui.unmount()
 })
 
-test('the cache card: time left, hit rate, lifetime and calls', async ($, on) => {
+test('the cache card: time left, hit rate and expiry', async ($, on) => {
   mock.clock(on, { now: 0 })
   mock.env(on, HOUR_1)
   base(on)
@@ -122,10 +122,9 @@ test('the cache card: time left, hit rate, lifetime and calls', async ($, on) =>
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
   expect(shown(cardOf(tree, 'cache'))).toMatch(/1h 00m left/)
-  expect(fact(tree, 'served from cache')).toBe('45%') // 100k of 220k input
-  expect(fact(tree, 'lifetime')).toBe('1h')
-  expect(fact(tree, 'model calls')).toBe('2')
-  expect(fact(tree, 'rebuilds')).toBeUndefined() // shown only when there is one
+  expect(fact(tree, 'hit rate')).toBe('45%') // 100k of 220k input
+  expect(fact(tree, 'expires')).toBe('1h idle')
+  expect(fact(tree, 'unexpected rebuilds')).toBeUndefined() // shown only when there is one
   await ui.unmount()
 })
 
@@ -140,11 +139,11 @@ test('the spend card: session total, last message and the token split', async ($
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
-  expect(shown(cardOf(tree, 'spend'))).toMatch(/Spend\$2\.41/)
+  expect(shown(cardOf(tree, 'spend'))).toMatch(/^SPEND\$2\.41/)
   expect(fact(tree, 'last message')).toBe('$0.41')
-  expect(fact(tree, 'sent')).toBe('120k')
-  expect(fact(tree, 'back')).toBe('5.0k')
-  expect(fact(tree, 'from cache')).toBe('100k')
+  expect(fact(tree, 'input')).toBe('120k')
+  expect(fact(tree, 'output')).toBe('5.0k')
+  expect(fact(tree, 'cache reads')).toBe('100k')
   await ui.unmount()
 })
 
@@ -161,9 +160,9 @@ test('the context card: used of the window, and where compaction runs', async ($
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
-  expect(shown(cardOf(tree, 'context'))).toMatch(/152k of 200k/)
+  expect(shown(cardOf(tree, 'context'))).toMatch(/^CONTEXT95% full/)
   expect(fact(tree, 'auto-compacts at')).toBe('160k')
-  expect(fact(tree, 'to go')).toBe('8.0k')
+  expect(fact(tree, 'room left')).toBe('~8.0k')
   await ui.unmount()
 })
 
@@ -178,9 +177,10 @@ test('the limits card: each window with its usage and reset', async ($, on) => {
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
-  expect(fact(tree, '5h')).toBe('4% · resets 3h 00m')
-  expect(fact(tree, '7d')).toBe('30% · resets 2d 19h')
-  expect(fact(tree, 'spend')).toBe('92%! · resets 5h 00m') // past 80%: marked, never colour alone
+  expect(fact(tree, '5h')).toBe('4%')
+  expect(fact(tree, '7d')).toBe('30%')
+  expect(fact(tree, 'spend')).toBe('92%!') // past 80%: marked, never colour alone
+  expect(fact(tree, 'spend pace')).toBe('resets 5h 00m') // no window length, so no pace
   await ui.unmount()
 })
 
@@ -212,21 +212,6 @@ test('Collapse and Hide are real buttons with c and h hotkeys', async ($, on) =>
 })
 
 // ── card layout ────────────────────────────────────────────────────────
-
-test('the four cards share one row, with room to wrap when narrow', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
-  await $.session.start({ ...START, surface: 'desktop' })
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(95) })
-  await ui.press({ key: 'more' })
-  const tree = await ui.drawn()
-  const widths = ['cache', 'spend', 'context', 'limits'].map(n => Number(cardOf(tree, n)?.props?.minWidth))
-  // four cards and three gaps fit 95 columns
-  expect(widths.reduce((a, b) => a + b, 0) + 3).toBeLessThanOrEqual(95)
-  await ui.unmount()
-})
 
 test("a card's bar stretches across the card", async ($, on) => {
   mock.clock(on, { now: 0 })

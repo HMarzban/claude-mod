@@ -200,6 +200,8 @@ test('a gateway spend limit is listed in the expanded line', async ($, on) => {
   await $.session.start(START)
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
   await ui.press({ key: 'more' })
-  expect(fact(await ui.drawn(), 'spend')).toBe('92%! · resets 5h 00m') // past 80%: marked, never colour alone
+  const tree = await ui.drawn()
+  expect(fact(tree, 'spend')).toBe('92%!') // past 80%: marked, never colour alone
+  expect(fact(tree, 'spend pace')).toBe('resets 5h 00m')
   await ui.unmount()
 })

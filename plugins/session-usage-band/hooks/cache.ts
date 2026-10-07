@@ -42,6 +42,9 @@ type CacheState = {
    *  re-warm price is solved from. */
   costBase: number
   baselined: boolean
+  /** The conversation is known to start here (a new session, a /clear), so
+   *  its cache is warming; after a reload mid-conversation it is unmeasured. */
+  knownFresh: boolean
 }
 
 const INITIAL: Readonly<CacheState> = {
@@ -60,6 +63,7 @@ const INITIAL: Readonly<CacheState> = {
   model: undefined,
   costBase: 0,
   baselined: false,
+  knownFresh: false,
 }
 
 const state: CacheState = { ...INITIAL }
@@ -76,7 +80,12 @@ export const resetCache = (): void => {
  *  provisional until the next turn starts and takes the ledger then. */
 export const resetConversation = (costNow: number): void => {
   const { ttl, ttlPinned } = state
-  Object.assign(state, INITIAL, { ttl, ttlPinned, costBase: costNow })
+  Object.assign(state, INITIAL, { ttl, ttlPinned, costBase: costNow, knownFresh: true })
+}
+
+/** At load: a ledger that has spent nothing is a new conversation. */
+export const noteLoad = (costNow: number | undefined): void => {
+  state.knownFresh = !costNow
 }
 
 /** The TTL the environment pins, if it pins one. */
@@ -179,15 +188,27 @@ const OUTPUT_MULT = 5
  *  It self-calibrates to whatever model and plan are in force, and it is an
  *  estimate on top of an estimate (the session cost is itself computed at list
  *  price), so it is always shown with a "~". Call noteLedger first. */
-export const reWarmUsd = (sessionCost: number | undefined): number | null => {
+const ratePerToken = (sessionCost: number | undefined): number | null => {
   if (!sessionCost || sessionCost <= 0) return null
   const weighted =
     state.uncached + WRITE_MULT * state.written + READ_MULT * state.read + OUTPUT_MULT * state.output
   if (weighted <= 0) return null
   const billed = sessionCost - state.costBase
   if (billed <= 0) return null
-  const usd = (billed / weighted) * WRITE_MULT * state.window
-  return Number.isFinite(usd) && usd > 0 ? usd : null
+  const rate = billed / weighted
+  return Number.isFinite(rate) && rate > 0 ? rate : null
+}
+
+export const reWarmUsd = (sessionCost: number | undefined): number | null => {
+  const rate = ratePerToken(sessionCost)
+  return rate === null ? null : rate * WRITE_MULT * state.window
+}
+
+/** What reading from the cache saved against paying full input price for
+ *  the same tokens: 0.9 of the base rate on every cache read. */
+export const savedUsd = (sessionCost: number | undefined): number | null => {
+  const rate = ratePerToken(sessionCost)
+  return rate === null || state.read <= 0 ? null : rate * (1 - READ_MULT) * state.read
 }
 
 export const hitRatio = (): number | null => {

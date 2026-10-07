@@ -263,7 +263,7 @@ export const cardOf = (tree: unknown, name: string): Node | undefined => {
 }
 
 /** The cache card's rebuild count, 0 when the row is absent. */
-export const rebuilds = (tree: unknown): number => Number(fact(tree, 'rebuilds') ?? 0)
+export const rebuilds = (tree: unknown): number => Number(fact(tree, 'unexpected rebuilds') ?? 0)
 
 /** Text meters drawn: six cells of █, ░ and the ┃ tick. An empty meter's
  *  inner track Text is six cells too, so it's told apart by its colour. */

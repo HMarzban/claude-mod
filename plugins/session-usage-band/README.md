@@ -14,10 +14,10 @@ drawn as SVG meters.
 
 | Chip | Shows | Turns amber when |
 | --- | --- | --- |
-| Cache | A battery that drains as the cache ages, and the time until it goes cold; `cache warm` while Claude is working | Its last minute: `0:47 left · re-warm ~$0.52` |
+| Cache | A battery that drains as the cache ages, and the time until it goes cold; `cache warm` while Claude is working, `cache warming` before a new conversation's first reply, `cache –` when the band loaded mid-conversation and hasn't measured it yet | Its last minute: `0:47 left · re-warm ~$0.52` |
 | Cost | The session's total so far | Never |
 | Tokens | Every token this conversation used | Never |
-| Context | Tokens in the window, with a tick where auto-compaction runs | Near compaction: `compacts in ~8k`. Without auto-compaction: 80% (`!`), 95% (`!!`) |
+| Context | How full the conversation is toward auto-compaction (`63% full`), or of the model window when compaction is off | Near compaction: `95% full · compacts in ~8k`. Without auto-compaction: 80% (`!`), 95% (`!!`) |
 | 5h | Your 5-hour limit: usage, a tick at the share of the window gone, and the reset | 80%, or when your pace would fill it before it resets: `full in ~40m` |
 | 7d | Your weekly limit, the same way | 80% |
 
@@ -36,13 +36,15 @@ every fact labelled:
 
 | Card | Shows |
 | --- | --- |
-| Cache | Time left on a bar, how much input came from the cache, the lifetime, unexpected rebuilds, model calls |
-| Spend | The session total, a bar of the token split, your last message, tokens sent, back and from cache |
-| Context | Used of the window on a bar with the compaction tick, where auto-compaction runs, tokens to go |
-| Limits | Each window (5h, 7d, a gateway's spend limit) with its usage, bar, pace tick and reset |
+| Cache | Time left on a bar, what a re-warm would cost if it went cold, what the cache has saved, the hit rate, how long it lasts idle, unexpected rebuilds |
+| Spend | The session total, a bar of the token split with its legend (input, output, cache reads), your last message |
+| Context | How full toward auto-compaction, tokens in context, where compaction runs, room left, the model window |
+| Limits | The window closest to its limit, then each window (5h, 7d, a gateway's spend limit) with its bar and value, its reset and its pace in words: `on pace for ~50%` or `full before reset` |
 
-The cards wrap onto two rows when the band is narrow. Below them, `⌃ Collapse`
-(key `c`) closes them and `Hide band` (key `h`) hides the band.
+The cards sit four across when they fit, else in a 2×2 grid; on the desktop
+each has a visible border. Expanding never changes the chip row; only `⋯`
+turns to `⌃`. Below the cards, `Collapse` (key `c`) closes them and
+`Hide band` (key `h`) hides the band; `/usage-band` brings it back.
 
 ## When the band is narrow
 

@@ -11,12 +11,14 @@ import {
   noteCompaction,
   noteConversationStart,
   noteLedger,
+  noteLoad,
   pinTtl,
   recordResponse,
   resetCache,
   resetConversation,
   resolveTtl,
   reWarmUsd,
+  savedUsd,
 } from './cache'
 import { COMPACT_NEAR, SEVERE_AT, WARN_AT, fmtCountdown, fmtEta, fmtTokens } from './format'
 import {
@@ -72,6 +74,7 @@ export const register: Register = on => {
     resetInsights()
     warned.clear()
     lastPaintKey = ''
+    noteLoad(await ledgerUsd($).catch(() => undefined))
 
     palette = resolvePalette((await $.env.get('CC_BAND_APPEARANCE'))?.toLowerCase(), await $.env.get('NO_COLOR'))
     const pinned = resolveTtl({
@@ -262,6 +265,8 @@ export const register: Register = on => {
           hitRatio: hitRatio(),
           misses: cache.misses,
           reWarmUsd: reWarmUsd(usage.cost?.usd),
+          savedUsd: savedUsd(usage.cost?.usd),
+          fresh: cache.knownFresh,
           tokens: { sent: cache.uncached + cache.written, back: cache.output, cached: cache.read },
         },
         costUsd: usage.cost?.usd ?? 0,

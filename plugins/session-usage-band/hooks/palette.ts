@@ -16,7 +16,14 @@ export type Palette = {
   amberFg: string
   meterTrack: string
   meterFill: string
+  /** The expanded view's cards: fill, edge, and their values. */
   cardBg: string
+  cardBorder: string
+  cardValue: string
+  /** Hover explanations, a step above the cards. */
+  tooltipBg: string
+  /** A bar track's edge, so the track reads against any ground. */
+  trackStroke: string
   /** The cache battery's charge, calm and in its last minute. */
   batteryFill: string
   batteryAmber: string
@@ -35,14 +42,18 @@ export const DARK: Readonly<Palette> = {
   filled: true,
   surface: '#2b2b33',
   value: '#ececf2',
-  label: '#8a8a94',
+  label: '#9a9aa4',
   warm: '#7fcf8a',
   cold: '#6f6f7a',
   amberBg: '#3a2f17',
   amberFg: '#f0c969',
   meterTrack: '#45454f',
   meterFill: '#b8b8c2',
-  cardBg: '#1f1f25',
+  cardBg: '#2a2a31',
+  cardBorder: '#76767f',
+  cardValue: '#c4c4cc',
+  tooltipBg: '#303037',
+  trackStroke: '#7c7c86',
   batteryFill: '#24402b',
   batteryAmber: '#5a4719',
   coin: '#c9a54a',
@@ -65,7 +76,11 @@ export const LIGHT: Readonly<Palette> = {
   amberFg: '#7a4e06',
   meterTrack: '#d6d6de',
   meterFill: '#55555f',
-  cardBg: '#ffffff',
+  cardBg: '#f4f4f7',
+  cardBorder: '#9a9aa4',
+  cardValue: '#3a3a42',
+  tooltipBg: '#ffffff',
+  trackStroke: '#9a9aa4',
   batteryFill: '#cfe8d3',
   batteryAmber: '#f3d9a0',
   coin: '#9a7414',
@@ -91,6 +106,10 @@ export const PLAIN: Readonly<Palette> = {
   meterTrack: 'subtle',
   meterFill: 'text',
   cardBg: '',
+  cardBorder: 'subtle',
+  cardValue: 'text',
+  tooltipBg: '',
+  trackStroke: 'subtle',
   batteryFill: '',
   batteryAmber: '',
   coin: 'warning',
