@@ -2215,6 +2215,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `pill`, `BandSnapshot` and `palette.cardBg` from Task 5.
+- Constraint, found by the probe: the card Box must not carry a `key`. The
+  engine refuses a tree in which a keyed Box is drawn `display: "none"`.
 - Produces: nothing outside this file.
 
 - [ ] **Step 1: Append the failing tests**
@@ -2328,8 +2330,10 @@ In `band.tsx`, replace the `pill` function with:
     return (
       <Box key={key} backgroundColor={tone === 'amber' ? p.amberBg : p.surface} paddingX={1}>
         {body}
+        {/* No key: a keyed Box is its own hover scope, and a hidden one can
+            never be hovered, so the engine refuses it. Unkeyed, the card
+            answers to its pill's scope. */}
         <Box
-          key={`${key}-card`}
           position="absolute"
           top={0}
           {...(anchor === 'left' ? { left: 0 } : { right: 0 })}

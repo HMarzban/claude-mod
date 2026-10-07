@@ -257,6 +257,25 @@ Results are recorded in this spec. Fallbacks:
 
 The probe folder is deleted afterwards.
 
+### Probe results (2026-10-07, Claude desktop app, Claude Code 2.1.289)
+
+1. **Svg meter:** pass. It sits centred in the row with rounded ends and
+   doesn't change the row height.
+2. **Hover:** pass. The desktop draws the card as a floating tooltip above
+   the band rather than over the row, so the trade-off of a card covering
+   its neighbours doesn't arise on desktop. Found by the probe: a card Box
+   must not carry a `key`; the engine refuses a keyed Box drawn
+   `display: "none"`.
+3. **Width:** pass. `bodyColumns` ranged from 60 to 140 as the Code tab was
+   resized, covering the 68 / 84 / 100 breakpoints. `bodyColumns` stays the
+   width source.
+4. **Last turn's cost:** pass. It matched the `/cost` difference
+   (`$0.3394`).
+
+Also found: a band hook that answers without `next(e)` owns the
+`AbovePrompt` slot, so only one band plugin draws at a time. The installed
+band had to be hidden for the probe to show.
+
 ## 7. Testing
 
 **Deleted:** these assert removed UI and nothing else.
