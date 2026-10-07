@@ -221,8 +221,10 @@ test("a card's bar stretches across the card", async ($, on) => {
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(95) })
   await ui.press({ key: 'more' })
+  // no fixed width: the slot caps the drawing, so it spans whatever the card gets
   const bar = svgsOf(cardOf(await ui.drawn(), 'cache')).find(n => /used/.test(String(n.props?.alt)))
-  expect(Number(bar?.props?.width)).toBeGreaterThan(120)
+  expect(bar?.props?.width).toBeUndefined()
+  expect(String(bar?.props?.source)).toContain('preserveAspectRatio="none"')
   await ui.unmount()
 
   // still expanded: the open view is the session's, not the mount's

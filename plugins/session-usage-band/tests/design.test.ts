@@ -241,26 +241,59 @@ test('the limits card puts each value beside its bar and says the pace in words'
 
 // ── the grid and the buttons ───────────────────────────────────────────
 
-test('cards take explicit widths: four across when they fit, else a 2×2 grid', async ($, on) => {
+test('cards sit in lines that share the width equally: four across when they fit, else two by two', async ($, on) => {
   mock.clock(on, { now: 0 })
   mock.env(on, HOUR_1)
   base(on)
   await $.session.start({ ...START, surface: 'desktop' })
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
-  const widths = async (cols: number) => {
+  const lines = async (cols: number) => {
     const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(cols) })
-    const tree = await ui.drawn()
-    const w = ['cache', 'spend', 'context', 'limits'].map(n => cardOf(tree, n)?.props?.width)
+    let grid: Node | undefined
+    walk(await ui.drawn(), n => {
+      if (n.type === 'Box' && n.props?.key === 'cards') grid = n
+    })
     await ui.unmount()
-    return w
+    return ((grid?.children ?? []) as Node[]).map(line => {
+      expect(line.props?.flexWrap).not.toBe('wrap') // a line never wraps a card away
+      return ((line.children ?? []) as Node[]).map(k => {
+        expect(k.props?.flexGrow).toBe(1)
+        expect(k.props?.width).toBe(0) // equal shares, whatever the text
+        return String(k.props?.key).replace('card:', '')
+      })
+    })
   }
   await (async () => {
     const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(95) })
     await ui.press({ key: 'more' })
     await ui.unmount()
   })()
-  expect(await widths(95)).toEqual([47, 47, 47, 47]) // 2 × 47 + 1 gap
-  expect(await widths(140)).toEqual([34, 34, 34, 34]) // 4 × 34 + 3 gaps
+  expect(await lines(95)).toEqual([['cache', 'spend'], ['context', 'limits']])
+  expect(await lines(140)).toEqual([['cache', 'spend', 'context', 'limits']])
+})
+
+test('the expanded band fits the rows it is given: cards drop their least facts first', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on, withCompaction(100_000))
+  await $.session.start({ ...START, surface: 'desktop' })
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await measureContext($, 100_000)
+  const rowsOf = async (maxRows: number) => {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(95, false, maxRows) })
+    if (maxRows === 40) await ui.press({ key: 'more' })
+    const tree = await ui.drawn()
+    await ui.unmount()
+    // two lines of cards, each its tallest card plus its border; the chip row, a gap and the buttons
+    const tallest = (names: string[]) => Math.max(...names.map(n => (cardOf(tree, n)?.children ?? []).filter(Boolean).length)) + 2
+    return { total: 3 + tallest(['cache', 'spend']) + tallest(['context', 'limits']), tree }
+  }
+  const roomy = await rowsOf(40)
+  expect(fact(roomy.tree, 'model window')).toBe('200k')
+  const tight = await rowsOf(18)
+  expect(tight.total).toBeLessThanOrEqual(18)
+  expect(fact(tight.tree, 're-warm if cold')).toBeDefined() // the stake stays
+  expect(fact(tight.tree, 'model window')).toBeUndefined() // the least goes first
 })
 
 test('desktop cards have a visible rounded border; terminal cards a fill only', async ($, on) => {
@@ -295,21 +328,6 @@ test('the buttons: Collapse without a Ctrl-like glyph, Hide band, and how to bri
   })
   expect(labels).toEqual(['Collapse', 'Hide band'])
   expect(shown(await ui.drawn())).toMatch(/Bring it back with \/usage-band/)
-  await ui.unmount()
-})
-
-test("a limit chip's pace notch stays inside its bar", async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
-  await $.session.start({ ...START, surface: 'desktop' })
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(160) })
-  const bar = svgsOf(pillOf(await ui.drawn(), '5h')).find(n => /used/.test(String(n.props?.alt)))
-  const source = String(bar?.props?.source)
-  const height = Number(bar?.props?.height)
-  const tick = source.match(/<rect class="tick" [^>]*y="([\d.]+)"[^>]*height="([\d.]+)"/)
-  expect(Number(tick?.[1]) + Number(tick?.[2])).toBeLessThanOrEqual(height)
-  expect(source).toContain(DARK.trackStroke) // the track has a visible edge
   await ui.unmount()
 })
 

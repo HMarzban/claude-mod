@@ -18,13 +18,13 @@ drawn as SVG meters.
 | Cost | The session's total so far | Never |
 | Tokens | Every token this conversation used | Never |
 | Context | How full the conversation is toward auto-compaction (`63% full`), or of the model window when compaction is off | Near compaction: `95% full · compacts in ~8k`. Without auto-compaction: 80% (`!`), 95% (`!!`) |
-| 5h | Your 5-hour limit: usage, a tick at the share of the window gone, and the reset | 80%, or when your pace would fill it before it resets: `full in ~40m` |
+| 5h | Your 5-hour limit: usage on a bar, and the reset | 80%, or when your pace would fill it before it resets: `full in ~40m` |
 | 7d | Your weekly limit, the same way | 80% |
 
-The tick on a limit bar is the clock: a bar behind its tick is a pace that
-lasts the window, and a bar past it is one that runs out early. Once a
-window's reset time has passed, its chip says `reset` until the next reply
-brings a fresh reading.
+A bar carries one number, the one beside it: nothing else is marked on it.
+Pace is in words, on the chip when it matters and in the Limits card always.
+Once a window's reset time has passed, its chip says `reset` until the next
+reply brings a fresh reading.
 
 Amber means act soon. The 5h and 7d chips are tinted green and purple so
 you can tell them apart; that's a label, not a warning. Nothing is ever
@@ -41,10 +41,13 @@ every fact labelled:
 | Context | How full toward auto-compaction, tokens in context, where compaction runs, room left, the model window |
 | Limits | The window closest to its limit, then each window (5h, 7d, a gateway's spend limit) with its bar and value, its reset and its pace in words: `on pace for ~50%` or `full before reset` |
 
-The cards sit four across when they fit, else in a 2×2 grid; on the desktop
-each has a visible border. Expanding never changes the chip row; only `⋯`
-turns to `▴`. Below the cards, `Collapse` (key `c`) closes them and
-`Hide band` (key `h`) hides the band; `/usage-band` brings it back.
+The cards sit four across when they fit, else two by two, each line sharing
+its width equally; on the desktop each has a visible border. A card's title
+and headline share its first line, and when the band is short of rows each
+card drops its least important facts first, so the view never scrolls the
+buttons away. Expanding never changes the chip row; only `⋯` turns to `▴`.
+Below the cards, `Collapse` (key `c`) closes them and `Hide band` (key `h`)
+hides the band; `/usage-band` brings it back.
 
 ## When the band is narrow
 

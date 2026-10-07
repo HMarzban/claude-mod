@@ -62,7 +62,7 @@ test('desktop draws SVG meters; the terminal and plain draw text ones', async ($
   const svgs = (await desk.findAll({ type: 'Svg' })).filter(n => /% used/.test(String(n.props?.alt)))
   expect(svgs).toHaveLength(3) // context, 5h and 7d
   expect(svgs[0]?.props?.width).toBe(44)
-  expect(svgs[0]?.props?.height).toBe(8) // 6px bar plus room for the compaction tick
+  expect(svgs[0]?.props?.height).toBe(8) // a 6px bar with a pixel of air above and below
   expect(svgs[0]?.props?.alt).toBe('context 38% used')
   expect(String(svgs[0]?.props?.source)).toContain(DARK.meterTrack)
   expect(await textMeters(desk)).toBe(0)
@@ -115,19 +115,20 @@ test('the terminal draws the limit chips with text meters and a reset glyph', as
   await $.session.start(START)
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(160) })
   const tree = await ui.drawn()
-  expect(shown(pillOf(tree, '5h'))).toMatch(/5h [█░┃]{6} 4% │ ↻ 3h 00m/)
-  expect(shown(pillOf(tree, '7d'))).toMatch(/7d [█░┃]{6} 30% │ ↻ 2d 19h/)
+  expect(shown(pillOf(tree, '5h'))).toMatch(/5h [█░]{6} 4% │ ↻ 3h 00m/)
+  expect(shown(pillOf(tree, '7d'))).toMatch(/7d [█░]{6} 30% │ ↻ 2d 19h/)
   expect(svgsOf(tree)).toHaveLength(0)
   await ui.unmount()
 })
 
-test('terminal meters draw the tick too', async ($, on) => {
+test('terminal meters are fill and track alone', async ($, on) => {
   mock.clock(on, { now: 0 })
   mock.env(on, HOUR_1)
   base(on) // 5h: 2h of 5h gone
   await $.session.start(START)
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(160) })
   const meter = shown(pillOf(await ui.drawn(), '5h')).match(/[█░┃]{6}/)?.[0]
-  expect(meter?.indexOf('┃')).toBe(2) // floor(0.4 * 6)
+  expect(meter).toBe('░░░░░░') // 4% rounds to no cell
+  expect(meter).not.toContain('┃')
   await ui.unmount()
 })

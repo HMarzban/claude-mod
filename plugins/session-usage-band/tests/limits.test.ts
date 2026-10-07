@@ -27,7 +27,7 @@ import {
   cardOf,
 } from './helpers'
 
-test('the 5h and 7d chips show usage, a pace tick and the reset countdown', async ($, on) => {
+test('the 5h and 7d chips show usage on a plain bar and the reset countdown', async ($, on) => {
   mock.clock(on, { now: 0 })
   mock.env(on, HOUR_1)
   base(on) // 5h 4%, resets in 3h; 7d 30%, resets in 67h
@@ -42,10 +42,11 @@ test('the 5h and 7d chips show usage, a pace tick and the reset countdown', asyn
   expect(shown(week)).toMatch(/7d.*30%.*2d 19h/)
   expect(five?.props?.backgroundColor).toBe(DARK.fiveBg)
   expect(week?.props?.backgroundColor).toBe(DARK.weekBg)
-  // the tick marks the share of the window gone: 2h of 5h, 101h of 168h
-  const tickX = (n: Node | undefined) => Number(String(svgsOf(n).find(s => /% used/.test(String(s.props?.alt)))?.props?.source).match(/class="tick" x="(\d+)"/)?.[1])
-  expect(tickX(five)).toBe(Math.round(0.4 * 44) - 1)
-  expect(tickX(week)).toBe(Math.round((101 / 168) * 44) - 1)
+  // one bar, one number: a second mark on it read as misplaced
+  for (const n of [five, week]) {
+    const bar = svgsOf(n).find(s => /% used/.test(String(s.props?.alt)))
+    expect(String(bar?.props?.source)).not.toMatch(/class="(tick|notch)"/)
+  }
   const alts = svgsOf(firstRow(tree)).map(s => String(s.props?.alt))
   expect(alts).toContain('five-hour')
   expect(alts).toContain('week')

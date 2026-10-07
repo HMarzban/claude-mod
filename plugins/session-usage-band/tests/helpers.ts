@@ -18,12 +18,12 @@ import { DARK } from '../hooks/palette'
 
 export const PLUGIN = 'session-usage-band'
 
-export const props = (cols: number, isWorking = false) => ({
+export const props = (cols: number, isWorking = false, maxRows = 40) => ({
   hasSurvey: false,
   isWorking,
-  maxRows: 14,
+  maxRows,
   bodyColumns: cols,
-  scroll: { offset: 0, bodyRows: 14 },
+  scroll: { offset: 0, bodyRows: maxRows - 1 },
   view: {},
 })
 
@@ -265,9 +265,9 @@ export const cardOf = (tree: unknown, name: string): Node | undefined => {
 /** The cache card's rebuild count, 0 when the row is absent. */
 export const rebuilds = (tree: unknown): number => Number(fact(tree, 'unexpected rebuilds') ?? 0)
 
-/** Text meters drawn: six cells of █, ░ and the ┃ tick. An empty meter's
+/** Text meters drawn: six cells of █ and ░. An empty meter's
  *  inner track Text is six cells too, so it's told apart by its colour. */
-const METER = /^[█░┃]{6}$/
+const METER = /^[█░]{6}$/
 export const textMeters = async (ui: {
   findAll: (q: { type: string; text: RegExp }) => Promise<Array<{ props?: Record<string, unknown> }>>
 }): Promise<number> => (await ui.findAll({ type: 'Text', text: METER })).filter(t => t.props?.color !== DARK.meterTrack).length

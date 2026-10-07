@@ -252,6 +252,7 @@ export const register: Register = on => {
       {
         surface: e.surface,
         columns: e.props.bodyColumns,
+        maxRows: e.props.maxRows,
         isWorking: e.props.isWorking,
         expanded: await read($, isExpanded),
         palette,
