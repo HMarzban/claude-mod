@@ -1,6 +1,6 @@
 import { atom, read, update } from 'claude-code'
-import type { Register, RenderChildren } from 'claude-code'
-import { SOON_MS, cache, hitRatio, msLeft, recordResponse, resetCache, reWarmUsd } from './cache'
+import type { Register, RenderChildren, Timer } from 'claude-code'
+import { SOON_MS, cache, hitRatio, msLeft, recordResponse, resetCache, resetConversation, reWarmUsd } from './cache'
 import {
   WINDOW_LABEL,
   clamp01,
@@ -26,6 +26,7 @@ export const register: Register = on => {
   // What the band last drew, so a timer only repaints when it would change.
   let lastPaintKey = ''
   const warned = new Set<string>()
+  let tick: Timer | undefined
 
   on('session.start', async ($, e, next) => {
     resetCache()
@@ -50,7 +51,8 @@ export const register: Register = on => {
 
     // One timer, but it only repaints when the text would actually differ, so
     // the band is still for most of a warm cache and ticks in its last minute.
-    $.clock.every(1000, () => {
+    tick?.cancel()
+    tick = $.clock.every(1000, () => {
       void (async () => {
         const now = await $.clock.now()
         const left = msLeft(now)
@@ -66,6 +68,16 @@ export const register: Register = on => {
       name: 'usage-band',
       description: 'Show, hide, expand or collapse the session usage band',
     })
+    return next(e)
+  })
+
+  // /clear and resume end the conversation but not the process, and no
+  // session.start follows, so the next conversation starts from here.
+  on('session.end', async ($, e, next) => {
+    resetConversation((await $.session.usage()).cost?.usd ?? 0)
+    warned.clear()
+    lastPaintKey = ''
+    $.ui.invalidate('ui.render')
     return next(e)
   })
 

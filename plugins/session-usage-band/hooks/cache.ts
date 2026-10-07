@@ -21,6 +21,9 @@ export const cache = {
   // the response, which is only written on the next request, never read.
   cached: 0,
   rebuilding: false,
+  // Session cost when this conversation began, so a /clear's earlier spend
+  // can't inflate the rate the re-warm price is solved from.
+  costBase: 0,
 }
 
 export const resetCache = (): void => {
@@ -36,6 +39,17 @@ export const resetCache = (): void => {
   cache.window = 0
   cache.cached = 0
   cache.rebuilding = false
+  cache.costBase = 0
+}
+
+/** A new conversation in the same process (/clear, resume): the billing
+ *  mode and its TTL carry over, everything measured starts again. */
+export const resetConversation = (costNow: number): void => {
+  const { ttl, ttlPinned } = cache
+  resetCache()
+  cache.ttl = ttl
+  cache.ttlPinned = ttlPinned
+  cache.costBase = costNow
 }
 
 export const recordResponse = (
@@ -104,7 +118,11 @@ export const reWarmUsd = (sessionCost: number | undefined): number | null => {
   const weighted =
     cache.uncached + WRITE_MULT * cache.written + READ_MULT * cache.read + OUTPUT_MULT * cache.output
   if (weighted <= 0) return null
-  const rate = sessionCost / weighted
+  // A ledger below the baseline was reset by the engine, so it already
+  // counts this conversation alone.
+  const billed = sessionCost >= cache.costBase ? sessionCost - cache.costBase : sessionCost
+  if (billed <= 0) return null
+  const rate = billed / weighted
   const usd = rate * WRITE_MULT * cache.window
   return Number.isFinite(usd) && usd > 0 ? usd : null
 }
