@@ -43,7 +43,7 @@ every fact labelled:
 
 The cards sit four across when they fit, else in a 2×2 grid; on the desktop
 each has a visible border. Expanding never changes the chip row; only `⋯`
-turns to `⌃`. Below the cards, `Collapse` (key `c`) closes them and
+turns to `▴`. Below the cards, `Collapse` (key `c`) closes them and
 `Hide band` (key `h`) hides the band; `/usage-band` brings it back.
 
 ## When the band is narrow

@@ -1,6 +1,6 @@
 {
   "name": "session-usage-band",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "A calm band above the prompt: prompt-cache countdown, cost, tokens, context and 5h/7d limits.",
   "types": "./types/index.d.ts",
   "author": {

@@ -319,13 +319,14 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       const width = size.px
       const tall = 8
       // A sliver under 6px reads as a dot or nothing: any use shows as a nub.
+      // No clipPath: ids are document-wide where Svgs share a page, so a
+      // rounded fill draws its own ends.
       const fillWidth = frac > 0 ? Math.max(6, Math.round(clamp01(frac) * width)) : 0
       const tickX = tick === undefined ? null : Math.min(width - 2, Math.max(2, Math.round(clamp01(tick.at) * width)))
       const source =
         `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${tall}" viewBox="0 0 ${width} ${tall}">` +
-        `<clipPath id="t"><rect y="1" width="${width}" height="6" rx="3"/></clipPath>` +
         `<rect x=".5" y="1.5" width="${width - 1}" height="5" rx="2.5" fill="${palette.meterTrack}" stroke="${palette.trackStroke}"/>` +
-        (fillWidth > 0 ? `<rect clip-path="url(#t)" y="1" width="${fillWidth}" height="6" fill="${fill}"/>` : '') +
+        (fillWidth > 0 ? `<rect y="1" width="${fillWidth}" height="6" rx="3" fill="${fill}"/>` : '') +
         (tickX === null
           ? ''
           : `<rect class="notch" x="${tickX - 2}" y="1" width="4" height="6" fill="${ground}"/>` +
@@ -609,7 +610,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       {pills.map((spec, i) => pill(spec, i === pills.length - 1 ? 'right' : 'left'))}
       <Box flexGrow={1} />
       <Box flexShrink={0}>
-        <Button key="more" label={snap.expanded ? '⌃' : '⋯'} plain dimColor onPress={act.toggleExpanded} />
+        <Button key="more" label={snap.expanded ? '▴' : '⋯'} plain dimColor onPress={act.toggleExpanded} />
       </Box>
     </Box>
   )
@@ -681,7 +682,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         x += w
         return rect
       })
-      const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="8" viewBox="0 0 ${width} 8"><clipPath id="r"><rect y="1" width="${width}" height="6" rx="3"/></clipPath><g clip-path="url(#r)">${rects.join('')}</g></svg>`
+      const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="8" viewBox="0 0 ${width} 8"><clipPath id="band-split"><rect y="1" width="${width}" height="6" rx="3"/></clipPath><g clip-path="url(#band-split)">${rects.join('')}</g></svg>`
       return <Svg key="split" source={source} alt={label} width={width} height={8} />
     }
     const cells = cardBar.cells

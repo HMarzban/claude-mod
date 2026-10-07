@@ -78,7 +78,7 @@ test('chips never shrink, so their text never wraps', async ($, on) => {
   await ui.unmount()
 })
 
-test('expanding leaves the chip row exactly as it was; only the toggle turns to ⌃', async ($, on) => {
+test('expanding leaves the chip row exactly as it was; only the toggle turns to ▴, never a Control-key glyph', async ($, on) => {
   mock.clock(on, { now: 0 })
   mock.env(on, HOUR_1)
   base(on, withCompaction(152_000))
@@ -97,7 +97,7 @@ test('expanding leaves the chip row exactly as it was; only the toggle turns to 
   expect(await toggle()).toBe('⋯')
   await ui.press({ key: 'more' })
   expect(shown(firstRow(await ui.drawn()))).toBe(before)
-  expect(await toggle()).toBe('⌃')
+  expect(await toggle()).toBe('▴')
   await ui.unmount()
 })
 
@@ -310,5 +310,19 @@ test("a limit chip's pace notch stays inside its bar", async ($, on) => {
   const tick = source.match(/<rect class="tick" [^>]*y="([\d.]+)"[^>]*height="([\d.]+)"/)
   expect(Number(tick?.[1]) + Number(tick?.[2])).toBeLessThanOrEqual(height)
   expect(source).toContain(DARK.trackStroke) // the track has a visible edge
+  await ui.unmount()
+})
+
+test('every SVG id in an expanded desktop band is unique, so no bar clips to another', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on, withCompaction(100_000))
+  await $.session.start({ ...START, surface: 'desktop' })
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await measureContext($, 100_000)
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(140) })
+  await ui.press({ key: 'more' })
+  const ids = svgsOf(await ui.drawn()).flatMap(n => [...String(n.props?.source).matchAll(/ id="([^"]+)"/g)].map(m => m[1]))
+  expect(new Set(ids).size).toBe(ids.length)
   await ui.unmount()
 })
