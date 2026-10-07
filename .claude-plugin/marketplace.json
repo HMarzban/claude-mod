@@ -1,12 +1,14 @@
 {
   "name": "hossein-mods",
   "description": "Mods built for Hossein's Claude Code sessions.",
-  "owner": { "name": "Hossein" },
+  "owner": {
+    "name": "Hossein"
+  },
   "plugins": [
     {
       "name": "session-usage-band",
       "source": "./plugins/session-usage-band",
-      "description": "A live band above the prompt: context fill, cost, rate-limit windows, prompt-cache health and session token totals.",
+      "description": "A calm band above the prompt: prompt-cache countdown, cost, tokens, context and 5h/7d limits.",
       "category": "productivity"
     }
   ]

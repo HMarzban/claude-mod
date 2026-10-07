@@ -1,7 +1,7 @@
 {
   "name": "session-usage-band",
-  "version": "0.4.0",
-  "description": "A live band above the prompt showing this session's context fill, tokens, cost and rate-limit windows.",
+  "version": "0.5.0",
+  "description": "A calm band above the prompt: prompt-cache countdown, cost, tokens, context and 5h/7d limits.",
   "types": "./types/index.d.ts",
   "author": {
     "name": "Hossein"
