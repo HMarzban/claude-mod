@@ -14,14 +14,6 @@ export const fmtTokens = (n: number): string => {
 
 export const fmtCost = (usd: number): string => (usd >= 1000 ? `$${Math.round(usd)}` : `$${usd.toFixed(2)}`)
 
-export const fmtElapsed = (ms: number): string => {
-  const secs = Math.max(0, Math.floor(ms / 1000))
-  const h = Math.floor(secs / 3600)
-  const m = Math.floor((secs % 3600) / 60)
-  if (h) return `${h}h ${String(m).padStart(2, '0')}m`
-  return `${m}m`
-}
-
 /** Above ten minutes, whole minutes; below, M:SS. The countdown is still for
  *  most of its life and only starts ticking when ticking means something. */
 export const fmtCountdown = (ms: number): string => {
@@ -48,19 +40,7 @@ export const fmtResetsIn = (iso: string | undefined, now: number): string | null
   return `${m}m`
 }
 
-export const WINDOW_LABEL: Record<string, string> = {
-  five_hour: '5h',
-  seven_day: '7d',
-  spend_limit: 'spend',
-}
-
-// Three discrete theme-keyed bands, not a hex gradient: a gradient needs
-// 24-bit colour, cannot be contrast-checked at every stop, and carries
-// severity by hue alone.
-export const severity = (frac: number): 'success' | 'warning' | 'error' =>
-  frac >= 0.9 ? 'error' : frac >= 0.7 ? 'warning' : 'success'
-
-/** A mark that survives red/green colour blindness and NO_COLOR alike. */
+/** The words for escalation: colour is never the only signal. */
 export const severityMark = (frac: number): string => (frac >= 0.95 ? '!!' : frac >= 0.8 ? '!' : '')
 
 /** A projection, never a countdown: 5-minute steps under an hour, 15 from one. */
@@ -72,3 +52,6 @@ export const fmtEta = (ms: number): string => {
   const m = q % 60
   return m ? `~${h}h ${m}m` : `~${h}h`
 }
+
+/** A small figure honestly: under a cent is not $0.00. */
+export const fmtSmallCost = (usd: number): string => (usd < 0.01 ? '<$0.01' : fmtCost(usd))
