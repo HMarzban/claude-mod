@@ -169,6 +169,7 @@ export const register: Register = on => {
     return drawBand(
       $.ui.resolve(e),
       {
+        surface: e.surface,
         columns: e.props.bodyColumns,
         isWorking: e.props.isWorking,
         expanded: await read($, isExpanded),

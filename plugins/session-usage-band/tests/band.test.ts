@@ -584,3 +584,39 @@ test('the band draws on every surface that renders', async ($, on) => {
     await ui.unmount()
   }
 })
+
+// ── desktop meters ─────────────────────────────────────────────────────
+
+test('desktop draws SVG meters; the terminal and plain draw text ones', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  await $.session.start({ ...START, surface: 'desktop' })
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+
+  const desk = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
+  const svgs = await desk.findAll({ type: 'Svg' })
+  expect(svgs).toHaveLength(2)
+  expect(svgs[0]?.props?.width).toBe(44)
+  expect(svgs[0]?.props?.height).toBe(6)
+  expect(svgs[0]?.props?.alt).toBe('38%')
+  expect(String(svgs[0]?.props?.source)).toContain(DARK.meterTrack)
+  expect(await textMeters(desk)).toBe(0)
+  await desk.unmount()
+
+  const term = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  expect(await term.findAll({ type: 'Svg' })).toHaveLength(0)
+  expect(await textMeters(term)).toBe(2)
+  await term.unmount()
+})
+
+test('plain appearance keeps text meters on desktop', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, { CC_BAND_APPEARANCE: 'plain', ...HOUR_1 })
+  base(on)
+  await $.session.start({ ...START, surface: 'desktop' })
+
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
+  expect(await ui.findAll({ type: 'Svg' })).toHaveLength(0)
+  await ui.unmount()
+})

@@ -16,6 +16,7 @@ import type { Palette } from './palette'
 
 /** Everything the band shows, read by register.tsx; drawing never touches $. */
 export type BandSnapshot = {
+  surface: 'terminal' | 'desktop' | 'vscode' | 'mobile'
   columns: number
   isWorking: boolean
   expanded: boolean
@@ -57,6 +58,10 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
   const p = s.palette
   const c = s.cache
   const short = s.columns < SHOW_LAST_COST
+  // Svg draws on the desktop alone (other surfaces hold the element but drop
+  // it), and its markup takes hex: theme keys can't reach inside it, so plain
+  // appearance keeps the text meter.
+  const Svg = s.surface === 'desktop' && p.filled && 'Svg' in el ? el.Svg : undefined
 
   /** A pill carries its own foreground and background, never one of each. */
   const pill = (key: string, tone: Tone, body: RenderChildren[]) => {
@@ -74,12 +79,25 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
     )
   }
 
-  // Two glyphs only: partial blocks jitter across fonts and read as noise to
-  // a screen reader. The number beside a meter always carries the value.
   const meter = (key: string, frac: number, tone: Tone) => {
+    const fill = tone === 'amber' ? p.amberFg : p.meterFill
+    if (Svg) {
+      // Never name a local `h`: JSX compiles to the global h().
+      const width = 44
+      const height = 6
+      const fillWidth = Math.round(clamp01(frac) * width)
+      const source =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
+        `<rect width="${width}" height="${height}" rx="3" fill="${p.meterTrack}"/>` +
+        (fillWidth > 0 ? `<rect width="${fillWidth}" height="${height}" rx="3" fill="${fill}"/>` : '') +
+        '</svg>'
+      return <Svg key={key} source={source} alt={`${Math.round(clamp01(frac) * 100)}%`} width={width} height={height} />
+    }
+    // Two glyphs only: partial blocks jitter across fonts and read as noise to
+    // a screen reader. The number beside a meter always carries the value.
     const filled = Math.round(clamp01(frac) * METER_CELLS)
     return (
-      <Text key={key} color={tone === 'amber' ? p.amberFg : p.meterFill}>
+      <Text key={key} color={fill}>
         {'█'.repeat(filled)}
         <Text color={p.meterTrack}>{'░'.repeat(METER_CELLS - filled)}</Text>
       </Text>
