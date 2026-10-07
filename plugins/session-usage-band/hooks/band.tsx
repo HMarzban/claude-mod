@@ -54,19 +54,19 @@ export type BandActions = {
   hide: () => Promise<void>
 }
 
-// The minimum width, in bodyColumns, each optional piece needs.
-const SHOW_FIVE_HOUR = 100
-const SHOW_CONTEXT_METER = 84
-const SHOW_LAST_COST = 68
+// Below this, wording turns short. Everything else fits by measure (squeeze).
+const SHORT_BELOW = 68
+const FIVE_HOUR_MS = 5 * 3600_000
+const WEEK_MS = 7 * 24 * 3600_000
 const AMBER_AT = 0.8
 // Within this share of the compaction point, the context chip counts down.
 const COMPACT_NEAR = 0.9
 const METER_CELLS = 6
 
 type Tone = 'calm' | 'amber'
-type Icon = 'cost' | 'tokens' | 'context'
+type Icon = 'cost' | 'tokens' | 'context' | 'five' | 'week' | 'reset'
 
-const MAX_SQUEEZE = 7
+const MAX_SQUEEZE = 9
 
 /** How a surface lays text out against its bodyColumns: the terminal one
  *  cell a character; the desktop's proportional font runs narrower, about
@@ -100,7 +100,7 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
   // appearance keeps text.
   const Svg = s.surface === 'desktop' && p.filled && 'Svg' in el ? el.Svg : undefined
 
-  type PillSpec = { key: string; tone: Tone; body: RenderChildren[]; card: string; bare?: boolean }
+  type PillSpec = { key: string; tone: Tone; body: RenderChildren[]; card: string; bare?: boolean; bg?: string; fg?: string }
 
   // A pill carries its own foreground and background, never one of each.
   // Its card is a child, so the engine counts the pointer on the card as on
@@ -109,8 +109,8 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
   // hovered. One line, since a collapsed band is one row. Plain has no
   // background to cover the row with, so no cards; the expanded line says it.
   // A bare pill (the battery) paints its own background in its Texts.
-  const pill = ({ key, tone, body, card, bare }: PillSpec, anchor: 'left' | 'right') => {
-    const fg = tone === 'amber' ? p.amberFg : p.value
+  const pill = ({ key, tone, body, card, bare, bg, fg: tint }: PillSpec, anchor: 'left' | 'right') => {
+    const fg = tone === 'amber' ? p.amberFg : (tint ?? p.value)
     if (!p.filled) {
       return (
         <Box key={key}>
@@ -142,7 +142,7 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
         {cardBox}
       </Box>
     ) : (
-      <Box key={key} backgroundColor={tone === 'amber' ? p.amberBg : p.surface} paddingX={1}>
+      <Box key={key} backgroundColor={tone === 'amber' ? p.amberBg : (bg ?? p.surface)} paddingX={1}>
         {body}
         {cardBox}
       </Box>
@@ -162,12 +162,22 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
     context: color =>
       `<rect x="2.5" y="2.5" width="11" height="11" rx="2.5" fill="none" stroke="${color}" stroke-width="1.4"/>` +
       `<path d="M5.2 6h5.6M5.2 8.5h5.6M5.2 11h3.2" stroke="${color}" stroke-width="1.2" stroke-linecap="round"/>`,
+    five: color =>
+      `<path d="M2.5 11.5a5.5 5.5 0 1 1 11 0" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>` +
+      `<path d="M8 11.5l2.6-3.4" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>`,
+    week: color =>
+      `<rect x="2.5" y="3.5" width="11" height="10" rx="2" fill="none" stroke="${color}" stroke-width="1.4"/>` +
+      `<path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>`,
+    reset: color =>
+      `<circle cx="8" cy="8" r="5.6" fill="none" stroke="${color}" stroke-width="1.4"/>` +
+      `<path d="M8 5v3l2 1.4" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>`,
   }
-  const GLYPH: Record<Icon, string> = { cost: '', tokens: 'Σ ', context: '◔ ' }
+  const GLYPH: Record<Icon, string> = { cost: '', tokens: 'Σ ', context: '◔ ', five: '', week: '', reset: '↻ ' }
+  const ALT: Record<Icon, string> = { cost: 'cost', tokens: 'tokens', context: 'context', five: 'five-hour', week: 'week', reset: 'resets' }
   const icon = (name: Icon, color: string) => {
     if (Svg) {
       const source = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">${ICON_PATHS[name](color)}</svg>`
-      return <Svg key={`i-${name}`} source={source} alt={name} width={16} height={16} />
+      return <Svg key={`i-${name}`} source={source} alt={ALT[name]} width={16} height={16} />
     }
     return GLYPH[name] ? (
       <Text key={`i-${name}`} color={color}>
@@ -176,8 +186,8 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
     ) : null
   }
 
-  const meter = (key: string, frac: number, tone: Tone, tick?: number) => {
-    const fill = tone === 'amber' ? p.amberFg : p.meterFill
+  const meter = (key: string, frac: number, tone: Tone, tick?: number, accent?: string) => {
+    const fill = tone === 'amber' ? p.amberFg : (accent ?? p.meterFill)
     if (Svg) {
       // Never name a local `h`: JSX compiles to the global h().
       const width = 44
@@ -188,7 +198,7 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
         `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height + 2}" viewBox="0 0 ${width} ${height + 2}">` +
         `<rect y="1" width="${width}" height="${height}" rx="3" fill="${p.meterTrack}"/>` +
         (fillWidth > 0 ? `<rect y="1" width="${fillWidth}" height="${height}" rx="3" fill="${fill}"/>` : '') +
-        (tickX === null ? '' : `<rect x="${tickX - 1}" y="0" width="2" height="${height + 2}" fill="${p.value}" opacity=".7"/>`) +
+        (tickX === null ? '' : `<rect class="tick" x="${tickX - 1}" y="0" width="2" height="${height + 2}" fill="${p.value}" opacity=".7"/>`) +
         '</svg>'
       return <Svg key={key} source={source} alt={`${Math.round(clamp01(frac) * 100)}%`} width={width} height={height + 2} />
     }
@@ -206,8 +216,9 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
   // ---- the row's pieces, at a given degree of squeeze -------------------
   // Each level gives up one more piece, least important first, so the row
   // always fits on one line and an escalated pill is the last to lose words:
-  // 1 tokens chip · 2 context meter · 3 last $x · 4 5h meter · 5 short
-  // wording · 6 "ctx" for "context" · 7 a calm context pill.
+  // 1 tokens chip · 2 7d reset time · 3 5h reset time · 4 context meter ·
+  // 5 a calm 7d chip · 6 the limit bars · 7 short wording · 8 a calm
+  // context chip · 9 a calm 5h chip.
   const estimate = c.reWarmUsd !== null ? fmtEstimate(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`
   const warm = c.msLeft > 0
   const soon = c.requests > 0 && warm && c.msLeft <= SOON_MS
@@ -262,7 +273,7 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
 
   const buildPills = (squeeze: number): PillSpec[] => {
     const pills: PillSpec[] = []
-    const short = s.columns < SHOW_LAST_COST || squeeze >= 5
+    const short = s.columns < SHORT_BELOW || squeeze >= 7
 
     // ---- cache: the only pill that counts down ------------------------
     const charge = c.requests === 0 ? 0 : s.isWorking && !soon && warm ? 1 : c.msLeft / TTL_MS[c.ttl]
@@ -320,9 +331,6 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
         {`${Svg ? ' ' : ''}${fmtCost(s.costUsd)}`}
       </Text>,
     ]
-    if (s.lastTurnUsd !== null && s.columns >= SHOW_LAST_COST && squeeze < 3) {
-      costBody.push(<Text key="l" color={p.label}>{` last ${fmtSmallCost(s.lastTurnUsd)}`}</Text>)
-    }
     pills.push({
       key: 'cost',
       tone: 'calm',
@@ -344,9 +352,6 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
           <Text key="v" color={p.value}>
             {`${Svg ? ' ' : ''}${fmtTokens(tokenTotal)}`}
           </Text>,
-          <Text key="l" color={p.label}>
-            {' tokens'}
-          </Text>,
         ],
         card: tokenBreakdown,
       })
@@ -361,11 +366,11 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
       const toCompact = compactAt === undefined ? null : Math.max(0, compactAt - used)
       const near = compactAt !== undefined && used >= compactAt * COMPACT_NEAR
       const tone: Tone = near || (compactAt === undefined && frac >= AMBER_AT) ? 'amber' : 'calm'
-      if (tone === 'amber' || squeeze < 7) {
+      if (tone === 'amber' || squeeze < 8) {
         const fg = tone === 'amber' ? p.amberFg : p.value
-        const withMeter = s.columns >= SHOW_CONTEXT_METER && squeeze < 2
+        const withMeter = squeeze < 4
         const amount =
-          squeeze >= 5 || ctx.tokens === undefined
+          squeeze >= 7 || ctx.tokens === undefined
             ? `${Math.round(frac * 100)}%`
             : `${fmtTokens(ctx.tokens)} / ${fmtTokens(ctx.window)}`
         const mark = compactAt === undefined ? severityMark(frac) : ''
@@ -375,9 +380,7 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
           tone,
           body: [
             icon('context', tone === 'amber' ? p.amberFg : p.label),
-            <Text key="l" color={tone === 'amber' ? p.amberFg : p.label}>
-              {`${Svg ? ' ' : ''}${squeeze >= 6 ? 'ctx ' : 'context '}`}
-            </Text>,
+            Svg ? <Text key="sp"> </Text> : null,
             withMeter ? meter('m', frac, tone, compactAt === undefined ? undefined : compactAt / ctx.window) : null,
             <Text key="v" color={fg}>
               {`${withMeter ? ' ' : ''}${amount}${mark}${countdown}`}
@@ -391,33 +394,116 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
       }
     }
 
-    // ---- 5h limit -----------------------------------------------------
+    // ---- 5h and 7d limits ---------------------------------------------
+    // Each chip: its usage on a bar, a tick at the share of the window gone
+    // (the bar past the tick is a pace that fills it early), and the reset.
+    const limitChip = (o: {
+      key: '5h' | '7d'
+      name: string
+      icon: Icon
+      percentUsed: number
+      resetsAt: string | undefined
+      windowMs: number
+      tone: Tone
+      pace: string
+      showReset: boolean
+      bg: string
+      fg: string
+      accent: string
+      card: string
+    }): PillSpec => {
+      const frac = clamp01(o.percentUsed / 100)
+      const resetAt = o.resetsAt === undefined ? NaN : Date.parse(o.resetsAt)
+      const gone = Number.isNaN(resetAt) ? undefined : clamp01(1 - (resetAt - s.now) / o.windowMs)
+      const reset = fmtResetsIn(o.resetsAt, s.now)
+      const amber = o.tone === 'amber'
+      const fg = amber ? p.amberFg : o.fg
+      const accent = amber ? p.amberFg : o.accent
+      return {
+        key: o.key,
+        tone: o.tone,
+        bg: o.bg,
+        fg: o.fg,
+        body: [
+          icon(o.icon, accent),
+          <Text key="l" color={fg}>
+            {`${Svg ? ' ' : ''}${o.name} `}
+          </Text>,
+          squeeze >= 6 ? null : meter('m', frac, o.tone, gone, o.accent),
+          <Text key="v" color={fg} bold>
+            {` ${Math.round(o.percentUsed)}%${severityMark(frac)}${o.pace}`}
+          </Text>,
+          o.showReset && reset !== null ? (
+            <Text key="d" color={p.label}>
+              {' │ '}
+            </Text>
+          ) : null,
+          o.showReset && reset !== null ? icon('reset', accent) : null,
+          o.showReset && reset !== null ? (
+            <Text key="r" color={fg}>
+              {`${Svg ? ' ' : ''}${reset === 'now' ? 'now' : reset}`}
+            </Text>
+          ) : null,
+        ],
+        card: o.card,
+      }
+    }
+
     if (s.fiveHour) {
       const fiveHour = s.fiveHour
       const frac = clamp01(fiveHour.percentUsed / 100)
       const eta = fiveHour.etaMs
       const tone: Tone = frac >= AMBER_AT || eta !== null ? 'amber' : 'calm'
-      if (tone === 'amber' || s.columns >= SHOW_FIVE_HOUR) {
-        const fg = tone === 'amber' ? p.amberFg : p.value
+      if (tone === 'amber' || squeeze < 9) {
         const reset = fmtResetsIn(fiveHour.resetsAt, s.now)
-        const pace = eta === null ? '' : squeeze >= 5 ? ` ${fmtEta(eta)}` : ` full in ${fmtEta(eta)}`
-        pills.push({
-          key: '5h',
-          tone,
-          body: [
-            <Text key="l" color={tone === 'amber' ? p.amberFg : p.label}>
-              {squeeze >= 4 ? '5h' : '5h '}
-            </Text>,
-            squeeze >= 4 ? null : meter('m', frac, tone),
-            <Text key="v" color={fg}>
-              {` ${Math.round(fiveHour.percentUsed)}%${severityMark(frac)}${pace}`}
-            </Text>,
-          ],
-          card:
-            reset === null || reset === 'now'
-              ? 'Your 5-hour limit, across all your Claude use'
-              : `5-hour limit across all your Claude use; resets in ${reset}`,
-        })
+        pills.push(
+          limitChip({
+            key: '5h',
+            name: '5h',
+            icon: 'five',
+            percentUsed: fiveHour.percentUsed,
+            resetsAt: fiveHour.resetsAt,
+            windowMs: FIVE_HOUR_MS,
+            tone,
+            pace: eta === null ? '' : short ? ` ${fmtEta(eta)}` : ` full in ${fmtEta(eta)}`,
+            showReset: tone === 'amber' || squeeze < 3,
+            bg: p.fiveBg,
+            fg: p.fiveFg,
+            accent: p.fiveAccent,
+            card:
+              reset === null || reset === 'now'
+                ? 'Your 5-hour limit, across all your Claude use'
+                : `5-hour limit across all your Claude use; resets in ${reset}`,
+          }),
+        )
+      }
+    }
+
+    if (s.sevenDay) {
+      const sevenDay = s.sevenDay
+      const tone: Tone = clamp01(sevenDay.percentUsed / 100) >= AMBER_AT ? 'amber' : 'calm'
+      if (tone === 'amber' || squeeze < 5) {
+        const reset = fmtResetsIn(sevenDay.resetsAt, s.now)
+        pills.push(
+          limitChip({
+            key: '7d',
+            name: '7d',
+            icon: 'week',
+            percentUsed: sevenDay.percentUsed,
+            resetsAt: sevenDay.resetsAt,
+            windowMs: WEEK_MS,
+            tone,
+            pace: '',
+            showReset: tone === 'amber' || squeeze < 2,
+            bg: p.weekBg,
+            fg: p.weekFg,
+            accent: p.weekAccent,
+            card:
+              reset === null || reset === 'now'
+                ? 'Your weekly limit, across all your Claude use'
+                : `Weekly limit across all your Claude use; resets in ${reset}`,
+          }),
+        )
       }
     }
     return pills
@@ -441,6 +527,7 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
   const facts: string[] = []
   if (c.requests > 0 && c.hitRatio !== null) facts.push(`${Math.round(c.hitRatio * 100)}% of input served from cache`)
   if (c.requests > 0) facts.push(`tokens: ${tokenBreakdown}`)
+  if (s.lastTurnUsd !== null) facts.push(`last message ${fmtSmallCost(s.lastTurnUsd)}`)
   if (c.misses > 0) facts.push(`${c.misses} unexpected rebuild${c.misses === 1 ? '' : 's'}`)
   // Inference only ever moves an assumed hour to 5m, so an unpinned hour is the guess.
   facts.push(`cache lifetime ${c.ttl}${!c.ttlPinned && c.ttl === '1h' ? ' (assumed)' : ''}`)

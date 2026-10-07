@@ -20,6 +20,13 @@ export type Palette = {
   batteryAmber: string
   /** The cost pill's coin. */
   coin: string
+  /** The 5-hour and 7-day chips' tints: background, text, and bar and icons. */
+  fiveBg: string
+  fiveFg: string
+  fiveAccent: string
+  weekBg: string
+  weekFg: string
+  weekAccent: string
 }
 
 export const DARK: Palette = {
@@ -37,6 +44,12 @@ export const DARK: Palette = {
   batteryFill: '#24402b',
   batteryAmber: '#5a4719',
   coin: '#c9a54a',
+  fiveBg: '#1e3324',
+  fiveFg: '#cfe8d3',
+  fiveAccent: '#7fcf8a',
+  weekBg: '#2a2540',
+  weekFg: '#d9d3f5',
+  weekAccent: '#a99cf0',
 }
 
 export const LIGHT: Palette = {
@@ -54,6 +67,12 @@ export const LIGHT: Palette = {
   batteryFill: '#cfe8d3',
   batteryAmber: '#f3d9a0',
   coin: '#9a7414',
+  fiveBg: '#dff0e0',
+  fiveFg: '#1f5c2e',
+  fiveAccent: '#2f8a45',
+  weekBg: '#e8e4fa',
+  weekFg: '#3c3489',
+  weekAccent: '#6b5fd3',
 }
 
 // No backgrounds at all: every colour is a theme key, so it follows whatever
@@ -73,6 +92,12 @@ export const PLAIN: Palette = {
   batteryFill: '',
   batteryAmber: '',
   coin: 'warning',
+  fiveBg: '',
+  fiveFg: 'text',
+  fiveAccent: 'success',
+  weekBg: '',
+  weekFg: 'text',
+  weekAccent: 'text',
 }
 
 /** The palette CC_BAND_APPEARANCE names; NO_COLOR forces plain. */

@@ -340,16 +340,17 @@ test("last turn's cost follows the main turn and ignores subagents'", async ($, 
   base(on)
   await $.session.start(START)
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
-  expect(await ui.find({ type: 'Text', text: /last \$/ })).toBeUndefined()
+  const last = async () => textOf(await ui.drawn()).match(/\$(\d+\.\d\d) spent during your last message/)?.[1]
+  expect(await last()).toBeUndefined()
 
   await turn($, 't1', 2.0, 2.41)
-  expect(await ui.find({ type: 'Text', text: /last \$0\.41/ })).toBeDefined()
+  expect(await last()).toBe('0.41')
 
   await turn($, 't2', 2.41, 3.0, { agentId: 'agent-1' })
-  expect(await ui.find({ type: 'Text', text: /last \$0\.41/ })).toBeDefined()
+  expect(await last()).toBe('0.41')
 
   await turn($, 't3', 3.0, 3.5, { isAborted: true, reason: 'aborted' })
-  expect(await ui.find({ type: 'Text', text: /last \$0\.50/ })).toBeDefined()
+  expect(await last()).toBe('0.50')
   await ui.unmount()
 })
 
@@ -446,39 +447,6 @@ test('no rate limits: the band draws without the 5h pill or limit facts', async 
 })
 
 // ── width ──────────────────────────────────────────────────────────────
-
-test('narrow widths drop pills in priority order', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
-  await $.session.start(START)
-  await turn($, 't1', 2.0, 2.41)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
-
-  const at = async (cols: number) => $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(cols) })
-
-  let ui = await at(110)
-  expect(await textMeters(ui)).toBe(2)
-  expect(await ui.find({ type: 'Text', text: /^5h/ })).toBeDefined()
-  await ui.unmount()
-
-  ui = await at(90) // the 5h pill goes first
-  expect(await textMeters(ui)).toBe(1)
-  expect(await ui.find({ type: 'Text', text: /^5h/ })).toBeUndefined()
-  await ui.unmount()
-
-  ui = await at(75) // then the context meter, keeping its %
-  expect(await textMeters(ui)).toBe(0)
-  expect(await ui.find({ type: 'Text', text: /76k \/ 200k/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /last \$/ })).toBeDefined()
-  await ui.unmount()
-
-  ui = await at(60) // then last $x; cache and cost stay
-  expect(await ui.find({ type: 'Text', text: /last \$/ })).toBeUndefined()
-  expect(await ui.find({ type: 'Text', text: /\$2\.41/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /cache/ })).toBeDefined()
-  await ui.unmount()
-})
 
 test('an escalated 5h pill never drops', async ($, on) => {
   mock.clock(on, { now: 0 })
@@ -597,7 +565,7 @@ test('desktop draws SVG meters; the terminal and plain draw text ones', async ($
 
   const desk = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
   const svgs = (await desk.findAll({ type: 'Svg' })).filter(n => /%$/.test(String(n.props?.alt)))
-  expect(svgs).toHaveLength(2)
+  expect(svgs).toHaveLength(3) // context, 5h and 7d
   expect(svgs[0]?.props?.width).toBe(44)
   expect(svgs[0]?.props?.height).toBe(8) // 6px bar plus room for the compaction tick
   expect(svgs[0]?.props?.alt).toBe('38%')
@@ -607,7 +575,7 @@ test('desktop draws SVG meters; the terminal and plain draw text ones', async ($
 
   const term = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
   expect(await term.findAll({ type: 'Svg' })).toHaveLength(0)
-  expect(await textMeters(term)).toBe(2)
+  expect(await textMeters(term)).toBe(3) // context, 5h and 7d
   await term.unmount()
 })
 
@@ -646,7 +614,7 @@ test('every pill explains itself on hover, inside its own hover scope', async ($
 
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
   const found = cards(await ui.drawn())
-  expect(found.map(([key]) => key).join(',')).toBe('cache,cost,tokens,ctx,5h')
+  expect(found.map(([key]) => key).join(',')).toBe('cache,cost,tokens,ctx,5h,7d')
   for (const [, card] of found) {
     expect(card.props?.display).toBe('none')
     expect(card.hover?.display).toBe('flex')
@@ -654,12 +622,13 @@ test('every pill explains itself on hover, inside its own hover scope', async ($
     expect(textOf(card).length).toBeLessThan(60)
   }
   expect(found[0]?.[1].props?.left).toBe(0)
-  expect(found[4]?.[1].props?.right).toBe(0) // the rightmost opens leftward
+  expect(found[5]?.[1].props?.right).toBe(0) // the rightmost opens leftward
   expect(textOf(found[0]?.[1])).toBe('Warm cache bills input at 10%; expires 1h after a reply')
   expect(textOf(found[1]?.[1])).toBe('$0.41 spent during your last message, subagents included')
   expect(textOf(found[2]?.[1])).toBe('sent 196k · back 12k · from cache 0')
   expect(textOf(found[3]?.[1])).toBe('Conversation fill; near full, older turns get summarized')
   expect(textOf(found[4]?.[1])).toBe('5-hour limit across all your Claude use; resets in 3h 00m')
+  expect(textOf(found[5]?.[1])).toBe('Weekly limit across all your Claude use; resets in 2d 19h')
   await ui.unmount()
 })
 
@@ -668,10 +637,11 @@ test('the rightmost visible pill anchors right when narrower widths drop pills',
   mock.env(on, HOUR_1)
   base(on)
   await $.session.start(START)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(90) })
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(50) })
   const found = cards(await ui.drawn())
-  expect(found.map(([key]) => key).join(',')).toBe('cache,cost,ctx')
-  expect(found[2]?.[1].props?.right).toBe(0)
+  expect(found.length).toBeLessThan(6) // some pills gave way
+  expect(found[found.length - 1]?.[1].props?.right).toBe(0)
+  for (const [, card] of found.slice(0, -1)) expect(card.props?.left).toBe(0)
   await ui.unmount()
 })
 

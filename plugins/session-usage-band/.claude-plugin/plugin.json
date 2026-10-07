@@ -1,6 +1,6 @@
 {
   "name": "session-usage-band",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "A live band above the prompt showing this session's context fill, tokens, cost and rate-limit windows.",
   "types": "./types/index.d.ts",
   "author": {

@@ -119,7 +119,7 @@ test('the tokens chip totals every token and breaks them down', async ($, on) =>
 test('the tokens chip shows whenever it fits, even below 100 columns', async ($, on) => {
   mock.clock(on, { now: 0 })
   mock.env(on, HOUR_1)
-  base(on)
+  base(on, { ...USAGE, rateLimits: [] }) // room for it without the limit chips
   await $.session.start({ ...START, surface: 'desktop' })
   await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
   for (const surface of ['desktop', 'terminal'] as const) {
