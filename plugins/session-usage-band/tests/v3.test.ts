@@ -116,13 +116,26 @@ test('the tokens chip totals every token and breaks them down', async ($, on) =>
   await ui.unmount()
 })
 
+test('the tokens chip shows whenever it fits, even below 100 columns', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  await $.session.start({ ...START, surface: 'desktop' })
+  await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
+  for (const surface of ['desktop', 'terminal'] as const) {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: props(95) })
+    expect(textOf(pillOf(await ui.drawn(), 'tokens'))).toMatch(/112k/)
+    await ui.unmount()
+  }
+})
+
 test('the tokens chip is the first to give way on a narrower band', async ($, on) => {
   mock.clock(on, { now: 0 })
   mock.env(on, HOUR_1)
   base(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(90) })
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(62) })
   expect(pillOf(await ui.drawn(), 'tokens')).toBeUndefined()
   expect(pillOf(await ui.drawn(), 'ctx')).toBeDefined()
   await ui.unmount()
@@ -160,5 +173,52 @@ test('near auto-compaction the context chip turns amber and counts down', async 
   const ctx = await ui.find({ type: 'Text', text: /compacts in ~8\.0k/ })
   expect(ctx).toBeDefined()
   expect(ctx?.props?.color).toBe(DARK.amberFg)
+  await ui.unmount()
+})
+
+// ── the desktop battery ────────────────────────────────────────────────
+
+const batteryOf = (tree: unknown): Node | undefined => {
+  let found: Node | undefined
+  walk(pillOf(tree, 'cache'), n => {
+    if (found === undefined && n.type === 'Svg' && /^battery/.test(String(n.props?.alt))) found = n
+  })
+  return found
+}
+const fillWidth = (svg: Node | undefined): number => {
+  const m = String(svg?.props?.source).match(/<rect class="charge" [^>]*width="([\d.]+)"/)
+  return m ? Number(m[1]) : 0
+}
+
+test('on desktop the cache pill is a rounded pill with a draining battery icon', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  await $.session.start({ ...START, surface: 'desktop' })
+  await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
+
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
+  let tree = await ui.drawn()
+  expect(pillOf(tree, 'cache')?.props?.backgroundColor).toBe(DARK.surface) // a normal, rounded pill
+  expect(textOf(pillOf(tree, 'cache'))).toMatch(/cache 1h 00m/)
+  const full = fillWidth(batteryOf(tree))
+  expect(String(batteryOf(tree)?.props?.alt)).toBe('battery 100% left')
+  expect(String(batteryOf(tree)?.props?.source)).toContain(DARK.dotWarm)
+
+  await clock.advance(30 * MIN)
+  tree = await ui.drawn()
+  expect(fillWidth(batteryOf(tree))).toBeLessThan(full)
+  // redrawn when the countdown text changes, so up to a minute behind
+  expect(String(batteryOf(tree)?.props?.alt)).toMatch(/^battery 5[0-2]% left$/)
+
+  await clock.advance(30 * MIN - 30_000) // last minute: amber
+  tree = await ui.drawn()
+  expect(pillOf(tree, 'cache')?.props?.backgroundColor).toBe(DARK.amberBg)
+  expect(String(batteryOf(tree)?.props?.source)).toContain(DARK.amberFg)
+
+  await clock.advance(60_000) // cold: empty
+  tree = await ui.drawn()
+  expect(String(batteryOf(tree)?.props?.alt)).toBe('battery empty')
+  expect(fillWidth(batteryOf(tree))).toBe(0)
   await ui.unmount()
 })

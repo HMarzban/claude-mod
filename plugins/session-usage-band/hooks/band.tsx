@@ -55,7 +55,6 @@ export type BandActions = {
 }
 
 // The minimum width, in bodyColumns, each optional piece needs.
-const SHOW_TOKENS = 100
 const SHOW_FIVE_HOUR = 100
 const SHOW_CONTEXT_METER = 84
 const SHOW_LAST_COST = 68
@@ -69,20 +68,27 @@ type Icon = 'cost' | 'tokens' | 'context'
 
 const MAX_SQUEEZE = 7
 
-/** Cells a drawn row takes: text, padding, gaps and Button labels. Hidden
- *  cards take none; an Svg takes a cell per 8px of its width, rounded up. */
-const cellsOf = (n: RenderChildren): number => {
-  if (typeof n === 'string' || typeof n === 'number') return [...String(n)].length
+/** How a surface lays text out against its bodyColumns: the terminal one
+ *  cell a character; the desktop's proportional font runs narrower, about
+ *  three quarters of a column, at roughly 10px a column. */
+type Measure = { text: number; pxPerCell: number }
+const TERMINAL: Measure = { text: 1, pxPerCell: 8 }
+const DESKTOP: Measure = { text: 0.75, pxPerCell: 10 }
+
+/** Columns a drawn row takes: text, padding, gaps and Button labels. Hidden
+ *  cards take none; an Svg takes its width in columns, rounded up. */
+const cellsOf = (n: RenderChildren, m: Measure): number => {
+  if (typeof n === 'string' || typeof n === 'number') return [...String(n)].length * m.text
   if (n === null || n === undefined || typeof n === 'boolean') return 0
-  if (Array.isArray(n)) return n.reduce((sum: number, k: RenderChildren) => sum + cellsOf(k), 0)
+  if (Array.isArray(n)) return n.reduce((sum: number, k: RenderChildren) => sum + cellsOf(k, m), 0)
   const node = n as { type?: string; props?: Record<string, unknown>; children?: RenderChildren[] }
   if (node.props?.position === 'absolute') return 0
-  if (node.type === 'Button') return [...String(node.props?.label ?? '')].length
-  if (node.type === 'Svg') return Math.ceil(Number(node.props?.width ?? 64) / 8)
+  if (node.type === 'Button') return [...String(node.props?.label ?? '')].length * m.text
+  if (node.type === 'Svg') return Math.ceil(Number(node.props?.width ?? 64) / m.pxPerCell)
   const kids = (node.children ?? []).filter(k => k !== null && k !== undefined && k !== false)
   const pad = typeof node.props?.paddingX === 'number' ? 2 * node.props.paddingX : 0
   const gap = typeof node.props?.columnGap === 'number' ? node.props.columnGap * Math.max(0, kids.length - 1) : 0
-  return kids.reduce((sum: number, k) => sum + cellsOf(k), 0) + pad + gap
+  return kids.reduce((sum: number, k) => sum + cellsOf(k, m), 0) + pad + gap
 }
 
 export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): RenderElement => {
@@ -237,6 +243,23 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
     ]
   }
 
+  // The desktop's battery: an outline with a tip, its charge a bar inside.
+  const batteryIcon = (charge: number, tone: Tone) => {
+    if (!Svg) return null
+    const outline = tone === 'amber' ? p.amberFg : p.label
+    const fill = tone === 'amber' ? p.amberFg : p.dotWarm
+    const inner = 15
+    const width = Math.round(clamp01(charge) * inner * 10) / 10
+    const source =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="12" viewBox="0 0 22 12">' +
+      `<rect x="0.75" y="0.75" width="18.5" height="10.5" rx="3" fill="none" stroke="${outline}" stroke-width="1.5"/>` +
+      `<rect x="19.75" y="4" width="1.75" height="4" rx="0.8" fill="${outline}"/>` +
+      `<rect class="charge" x="2.5" y="2.5" width="${width}" height="7" rx="1.5" fill="${fill}"/>` +
+      '</svg>'
+    const alt = charge <= 0 ? 'battery empty' : `battery ${Math.round(clamp01(charge) * 100)}% left`
+    return <Svg key="battery" source={source} alt={alt} width={22} height={12} />
+  }
+
   const buildPills = (squeeze: number): PillSpec[] => {
     const pills: PillSpec[] = []
     const short = s.columns < SHOW_LAST_COST || squeeze >= 5
@@ -259,7 +282,21 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
       // Mid-turn every step restarts the TTL, so a countdown would only bounce.
       cacheText = s.isWorking ? 'cache warm' : `cache ${fmtCountdown(c.msLeft)}`
     }
-    if (p.filled) {
+    if (Svg) {
+      // Desktop: a normal rounded pill led by a battery icon that drains. The
+      // text-background battery below would paint a square-cornered block.
+      pills.push({
+        key: 'cache',
+        tone: cacheTone,
+        body: [
+          batteryIcon(charge, cacheTone),
+          <Text key="c" color={cacheTone === 'amber' ? p.amberFg : p.value}>
+            {` ${cacheText}`}
+          </Text>,
+        ],
+        card: cacheCard,
+      })
+    } else if (p.filled) {
       pills.push({ key: 'cache', tone: cacheTone, body: battery(`◷ ${cacheText}`, charge, cacheTone), card: cacheCard, bare: true })
     } else {
       const dot = (
@@ -297,7 +334,8 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
     })
 
     // ---- tokens -------------------------------------------------------
-    if (c.requests > 0 && s.columns >= SHOW_TOKENS && squeeze < 1) {
+    // No width floor: it shows whenever it fits, and is the first to go.
+    if (c.requests > 0 && squeeze < 1) {
       pills.push({
         key: 'tokens',
         tone: 'calm',
@@ -394,7 +432,8 @@ export const drawBand = (el: ElementTable, s: BandSnapshot, act: BandActions): R
   )
 
   let row = rowOf(buildPills(0))
-  for (let squeeze = 1; squeeze <= MAX_SQUEEZE && cellsOf(row) > s.columns; squeeze++) {
+  const measure = s.surface === 'desktop' ? DESKTOP : TERMINAL
+  for (let squeeze = 1; squeeze <= MAX_SQUEEZE && cellsOf(row, measure) > s.columns; squeeze++) {
     row = rowOf(buildPills(squeeze))
   }
 
