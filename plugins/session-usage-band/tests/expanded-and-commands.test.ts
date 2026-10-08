@@ -36,7 +36,7 @@ test('the toggle opens the cards, and Hide hides the band', async ($, on) => {
   expect(rowCount(await ui.drawn())).toBe(1)
 
   await ui.press({ key: 'more' })
-  expect(rowCount(await ui.drawn())).toBe(3) // the row, the cards, the buttons
+  expect(rowCount(await ui.drawn())).toBe(4) // the row, the workspace strip, the cards, the buttons
 
   await ui.press({ key: 'more' })
   expect(rowCount(await ui.drawn())).toBe(1)
@@ -249,17 +249,15 @@ test('the token split shows cache reads in the warm colour, so the bar never loo
   await ui.unmount()
 })
 
-test('a gap separates the cards from the row of chips', async ($, on) => {
+test('a gap separates the expanded view from the row of chips', async ($, on) => {
   mock.clock(on, { now: 0 })
   mock.env(on, HOUR_1)
   base(on)
   await $.session.start(START)
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
   await ui.press({ key: 'more' })
-  let cards: Node | undefined
-  walk(await ui.drawn(), n => {
-    if (n.type === 'Box' && n.props?.key === 'cards') cards = n
-  })
-  expect(cards?.props?.marginTop).toBe(1)
+  // whatever comes first under the chips, the strip or, without it, the cards
+  const under = ((await ui.drawn()) as Node).children?.filter(Boolean)[1] as Node | undefined
+  expect(under?.props?.marginTop).toBe(1)
   await ui.unmount()
 })

@@ -287,7 +287,11 @@ test('the expanded band fits the rows it is given: cards drop their least facts 
     // two lines of cards, each its tallest card plus its border, a row between
     // them; the chip row and the buttons, each with a row of air before the next
     const tallest = (names: string[]) => Math.max(...names.map(n => (cardOf(tree, n)?.children ?? []).filter(Boolean).length)) + 2
-    return { total: 5 + tallest(['cache', 'spend']) + tallest(['context', 'limits']), tree }
+    let strip = 0
+    walk(tree, n => {
+      if (n.type === 'Box' && n.props?.key === 'strip') strip = 1
+    })
+    return { total: 5 + strip + tallest(['cache', 'spend']) + tallest(['context', 'limits']), tree }
   }
   const roomy = await rowsOf(40)
   expect(fact(roomy.tree, 'model window')).toBe('200k')

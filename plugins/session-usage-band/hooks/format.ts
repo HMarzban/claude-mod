@@ -68,3 +68,13 @@ export const fmtEta = (ms: number): string => {
   const rest = quarter % 60
   return rest ? `~${hours}h ${rest}m` : `~${hours}h`
 }
+
+/** `text` at most `max` characters, cut in the middle: a branch keeps both
+ *  its prefix and its end, where names differ. */
+export const clipMiddle = (text: string, max: number): string => {
+  const chars = [...text]
+  if (chars.length <= max) return text
+  if (max <= 1) return '…'.slice(0, max)
+  const head = Math.ceil((max - 1) / 2)
+  return `${chars.slice(0, head).join('')}…${chars.slice(chars.length - (max - 1 - head)).join('')}`
+}

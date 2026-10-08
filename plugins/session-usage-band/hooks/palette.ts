@@ -69,7 +69,7 @@ export const LIGHT: Readonly<Palette> = {
   filled: true,
   surface: '#ededf2',
   value: '#1d1d22',
-  label: '#6e6e7a',
+  label: '#63636e',
   warm: '#2f8a45',
   cold: '#a0a0aa',
   amberBg: '#fbeccd',
@@ -124,3 +124,15 @@ export const PLAIN: Readonly<Palette> = {
 /** The palette CC_BAND_APPEARANCE names; NO_COLOR forces plain. */
 export const resolvePalette = (appearance: string | undefined, noColor: string | undefined): Readonly<Palette> =>
   noColor ? PLAIN : appearance === 'light' ? LIGHT : appearance === 'plain' ? PLAIN : DARK
+
+/** Colours for what sits on the band's bare ground, which is the host's and
+ *  may be dark or light whatever the palette says. Text there takes theme
+ *  keys; an icon needs hex, so these hold 3:1 on dark and light grounds
+ *  alike. The branch icon is the band's one blue: it means git, never a
+ *  status. */
+export const BARE = {
+  value: 'text',
+  label: 'subtle',
+  icon: '#80808a',
+  branch: '#5c85d6',
+} as const

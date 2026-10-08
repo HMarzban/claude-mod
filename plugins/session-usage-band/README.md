@@ -33,8 +33,28 @@ you can tell them apart; that's a label, not a warning. Nothing is ever
 red: a cold cache or a full meter is a price, not an error. Colour is
 never the only signal, since escalation always adds words or `!` / `!!`.
 
-Hover any chip for a one-line explanation. `▾` opens four cards with
-every fact labelled:
+Hover any chip for a one-line explanation. `▾` opens the expanded view.
+It starts with a line that says where you are:
+
+```
+~/workspace/claude-mod · on main                              3 changed · ↑2 ↓1
+```
+
+| Piece | Shows |
+| --- | --- |
+| Path | The project, home as `~`, its folder in bold |
+| Branch | The git branch, or `detached at <commit>` |
+| Worktree | `worktree of <repo>` in a linked worktree |
+| Changes | Files with uncommitted changes, or `clean` |
+| Ahead / behind | Commits to push (`↑`) and to pull (`↓`), only when there are any |
+
+On the desktop each piece has an icon and a hover explanation. As the line
+narrows, the path and branch shorten and the extras drop, least important
+first. Outside a repository, or if git is missing or slow, it shows the
+path alone. git is read when the session starts, after each of your
+messages and when you open the cards, never while the band draws.
+
+Then come four cards with every fact labelled:
 
 | Card | Shows |
 | --- | --- |

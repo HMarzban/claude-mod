@@ -8,6 +8,7 @@ import {
   COMPACT_NEAR,
   WARN_AT,
   clamp01,
+  clipMiddle,
   fmtCost,
   fmtCountdown,
   fmtEstimate,
@@ -17,7 +18,10 @@ import {
   resetIn,
   severityMark,
 } from './format'
+import { BARE } from './palette'
 import type { Palette } from './palette'
+import { gitSummary, splitPath } from './workspace'
+import type { GitState, Workspace } from './workspace'
 
 export type LimitReading = Readonly<{ percentUsed: number; resetsAt: string | undefined }>
 
@@ -61,6 +65,8 @@ export type BandSnapshot = Readonly<{
   sevenDay: LimitReading | undefined
   /** Any other window the engine reports, such as a gateway's spend_limit. */
   otherLimits: ReadonlyArray<LimitReading & { kind: string }>
+  /** The project, home-relative, and git there; undefined until first read. */
+  workspace: Workspace | undefined
 }>
 
 export type BandActions = Readonly<{
@@ -87,8 +93,31 @@ const GIVES_WAY = [
 ] as const
 type Piece = (typeof GIVES_WAY)[number]
 
-/** Whether the row, squeezed `squeeze` steps, still keeps `piece`. */
-const keeps = (squeeze: number, piece: Piece): boolean => squeeze <= GIVES_WAY.indexOf(piece)
+/** For a give-way order: whether a line squeezed `squeeze` steps still keeps `piece`. */
+const keepsIn =
+  <P extends string>(order: readonly P[]) =>
+  (squeeze: number, piece: P): boolean =>
+    squeeze <= order.indexOf(piece)
+
+const keeps = keepsIn<Piece>(GIVES_WAY)
+
+/** What the workspace strip gives up as it narrows, least important first.
+ *  The path, the branch and the change count's word shorten; the extras go
+ *  whole, and the path's hover card still says everything. Uncommitted
+ *  changes never go: they are what a narrow line must still say. */
+const STRIP_GIVES_WAY = [
+  'clean',
+  'parent',
+  'changedWord',
+  'branchLong',
+  'worktreeOf',
+  'aheadBehind',
+  'branchShort',
+  'worktree',
+  'nameLong',
+  'nameShort',
+] as const
+const stripKeeps = keepsIn<(typeof STRIP_GIVES_WAY)[number]>(STRIP_GIVES_WAY)
 
 /** Below this, the cache and context wording turns short whatever the squeeze. */
 const SHORT_BELOW = 68
@@ -135,7 +164,8 @@ const cellsOf = (n: RenderChildren, m: Measure): number => {
       const kids = (n.children ?? []).filter(k => k !== null && k !== undefined)
       const pad = typeof n.props?.paddingX === 'number' ? 2 * n.props.paddingX : 0
       const gap = typeof n.props?.columnGap === 'number' ? n.props.columnGap * Math.max(0, kids.length - 1) : 0
-      return kids.reduce((sum: number, k) => sum + cellsOf(k, m), 0) + pad + gap
+      const own = kids.reduce((sum: number, k) => sum + cellsOf(k, m), 0) + pad + gap
+      return n.type === 'Box' && typeof n.props?.minWidth === 'number' ? Math.max(n.props.minWidth, own) : own
     }
     default:
       return 0
@@ -144,7 +174,23 @@ const cellsOf = (n: RenderChildren, m: Measure): number => {
 
 // ---- icons ----------------------------------------------------------------
 
-type Icon = 'cost' | 'tokens' | 'context' | 'five' | 'week' | 'reset' | 'cache' | 'limits' | 'info'
+type Icon =
+  | 'cost'
+  | 'tokens'
+  | 'context'
+  | 'five'
+  | 'week'
+  | 'reset'
+  | 'cache'
+  | 'limits'
+  | 'info'
+  | 'folder'
+  | 'branch'
+  | 'commit'
+  | 'worktree'
+  | 'changes'
+  | 'ahead'
+  | 'behind'
 
 /** The 5-hour gauge, which also heads the Limits card. */
 const GAUGE = (color: string): string =>
@@ -172,6 +218,25 @@ const ICON_PATHS: Readonly<Record<Icon, (color: string) => string>> = {
     `<circle cx="8" cy="8" r="6.5" fill="none" stroke="${color}" stroke-width="1.4"/>` +
     `<path d="M8 7.3v4" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>` +
     `<circle cx="8" cy="4.9" r=".9" fill="${color}"/>`,
+  folder: color =>
+    `<path d="M2.5 4.5A1.5 1.5 0 0 1 4 3h2.3l1.5 1.6H12a1.5 1.5 0 0 1 1.5 1.5v5.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5z" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`,
+  branch: color =>
+    `<circle cx="4.75" cy="11.75" r="1.75" fill="none" stroke="${color}" stroke-width="1.4"/>` +
+    `<circle cx="11.25" cy="4.25" r="1.75" fill="none" stroke="${color}" stroke-width="1.4"/>` +
+    `<path d="M4.75 2.5V10M11.25 6c0 3-2.3 5.1-4.75 5.6" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>`,
+  commit: color =>
+    `<circle cx="8" cy="8" r="2.6" fill="none" stroke="${color}" stroke-width="1.4"/>` +
+    `<path d="M2.5 8h2.9M10.6 8h2.9" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>`,
+  // Rounded squares, where the branch has circles, so the two stay apart at 16px.
+  worktree: color =>
+    `<path d="M4 2.5v7.75a1.5 1.5 0 0 0 1.5 1.5H9M4 5h5" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>` +
+    `<rect x="9" y="3.25" width="4.5" height="3.5" rx="1.2" fill="none" stroke="${color}" stroke-width="1.4"/>` +
+    `<rect x="9" y="10" width="4.5" height="3.5" rx="1.2" fill="none" stroke="${color}" stroke-width="1.4"/>`,
+  changes: color => `<path d="M8 2.5v7M4.5 6h7M4.5 13h7" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>`,
+  ahead: color =>
+    `<path d="M8 13V3.5M4.5 7 8 3.5 11.5 7" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`,
+  behind: color =>
+    `<path d="M8 3v9.5M4.5 9 8 12.5 11.5 9" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`,
   week: color =>
     `<rect x="2.5" y="3.5" width="11" height="10" rx="2" fill="none" stroke="${color}" stroke-width="1.4"/>` +
     `<path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>`,
@@ -191,6 +256,14 @@ const GLYPH: Readonly<Record<Icon, string>> = {
   cache: '',
   limits: '',
   info: '',
+  // The text strip says these in words.
+  folder: '',
+  branch: '',
+  commit: '',
+  worktree: '',
+  changes: '',
+  ahead: '',
+  behind: '',
 }
 
 /** An icon's name for a reader that cannot see it. */
@@ -204,6 +277,14 @@ const ALT: Readonly<Record<Icon, string>> = {
   cache: 'cache',
   limits: 'limits',
   info: 'info',
+  // Each reads as a phrase with the text after it: "HEAD detached at a1b2c3d".
+  folder: 'folder',
+  branch: 'branch',
+  commit: 'HEAD',
+  worktree: 'linked',
+  changes: 'uncommitted',
+  ahead: 'ahead',
+  behind: 'behind',
 }
 
 // ---- limits ---------------------------------------------------------------
@@ -282,6 +363,27 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   const Svg = snap.surface === 'desktop' && palette.filled && 'Svg' in el ? el.Svg : undefined
   const onTone = (tone: Tone, calm: string, amber: string = palette.amberFg) => (tone === 'amber' ? amber : calm)
 
+  /** A one-line explanation shown while its keyed parent is hovered. It has
+   *  no key: a keyed Box is its own hover scope, and a hidden one could never
+   *  be hovered. Plain has no background to cover the row with, so none. */
+  const hoverCard = (text: string, anchor: 'left' | 'right'): RenderChildren =>
+    palette.filled ? (
+      <Box
+        position="absolute"
+        top={0}
+        {...(anchor === 'left' ? { left: 0 } : { right: 0 })}
+        width={Math.min(text.length + 2, snap.columns)}
+        display="none"
+        hover={{ display: 'flex' }}
+        backgroundColor={palette.tooltipBg}
+        paddingX={1}
+      >
+        <Text color={palette.value} wrap="truncate-end">
+          {text}
+        </Text>
+      </Box>
+    ) : null
+
   // A pill carries its own foreground and background, never one of each. Its
   // card is a child, so the engine counts the pointer on the card as on the
   // pill and reading it keeps the pill hovered. The card has no key: a keyed
@@ -304,20 +406,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     return (
       <Box key={key} flexShrink={0} {...fill}>
         {body}
-        <Box
-          position="absolute"
-          top={0}
-          {...(anchor === 'left' ? { left: 0 } : { right: 0 })}
-          width={Math.min(card.length + 2, snap.columns)}
-          display="none"
-          hover={{ display: 'flex' }}
-          backgroundColor={palette.tooltipBg}
-          paddingX={1}
-        >
-          <Text color={palette.value} wrap="truncate-end">
-            {card}
-          </Text>
-        </Box>
+        {hoverCard(card, anchor)}
       </Box>
     )
   }
@@ -327,10 +416,10 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   const gap = (key: string): RenderChildren => (Svg ? <Box key={key} width={1} flexShrink={0} /> : ' ')
 
   /** An icon and the gap after it: an Svg on desktop, a glyph elsewhere. */
-  const icon = (name: Icon, color: string): RenderChildren[] => {
+  const icon = (name: Icon, color: string, alt: string = ALT[name]): RenderChildren[] => {
     if (Svg) {
       const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${ICON_PX}" height="${ICON_PX}" viewBox="0 0 16 16">${ICON_PATHS[name](color)}</svg>`
-      return [<Svg key={`i-${name}`} source={source} alt={ALT[name]} width={ICON_PX} height={ICON_PX} />, gap(`g-${name}`)]
+      return [<Svg key={`i-${name}`} source={source} alt={alt} width={ICON_PX} height={ICON_PX} />, gap(`g-${name}`)]
     }
     return GLYPH[name] ? [<Text key={`i-${name}`} color={color}>{`${GLYPH[name]} `}</Text>] : []
   }
@@ -674,10 +763,14 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   const lineCount = Math.ceil(cardCount / perLine)
   const LINE_GAP = 1
   // The rows a card's body may take: the band's, less the chip row, the
-  // buttons and the row of air above each line of cards and the buttons,
-  // shared by the lines, less a card's edge and its header. A taller band
-  // would scroll, hiding the buttons.
-  const bodyRows = Math.max(1, Math.floor((snap.maxRows - 4 - LINE_GAP * (lineCount - 1)) / lineCount) - edge - 1)
+  // buttons, the row of air above each line of cards and the buttons and,
+  // when it shows, the workspace strip, shared by the lines, less a card's
+  // edge and its header. A taller band would scroll, hiding the buttons.
+  const bodyFor = (strip: number) =>
+    Math.floor((snap.maxRows - 4 - strip - LINE_GAP * (lineCount - 1)) / lineCount) - edge - 1
+  // The strip takes a row only when every card keeps one of its own.
+  const showStrip = snap.expanded && snap.workspace !== undefined && bodyFor(1) >= 1
+  const bodyRows = Math.max(1, bodyFor(showStrip ? 1 : 0))
   const inner = Math.max(4, Math.floor((snap.columns - (perLine - 1)) / perLine) - 2 - edge)
   const cardBar: BarSize = { px: inner * measure.pxPerCell, cells: inner }
   /** A card: its title and headline on one line, then as much of its body,
@@ -864,11 +957,152 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
 
   const cardViews = [cacheView, spendView, contextView, limitsView].filter(view => view !== null)
 
+  // ---- the workspace strip: where the session is ---------------------------
+  // A bare line, no border or fill: the panel's heading, not a fifth metric.
+  // Its text lines up with the cards' text. It sits on the host's own ground,
+  // so its text takes theme keys and its icons the BARE hexes. The desktop
+  // spaces pieces with gaps and icons; a text surface says them in words,
+  // between ` · `. One row always: nothing in it wraps.
+  const commits = (n: number) => `${n} commit${n === 1 ? '' : 's'}`
+  /** Push and pull in words, leaving out a side with nothing on it. */
+  const tracking = (g: GitState): string => {
+    if (g.ahead === undefined) return 'no upstream'
+    const sides = [g.ahead ? `${commits(g.ahead)} to push` : '', g.behind ? `${g.behind} to pull` : ''].filter(Boolean)
+    return sides.length === 0 ? 'up to date with its upstream' : sides.join(', ')
+  }
+  const stripAt = (ws: Workspace, squeeze: number): RenderElement => {
+    const kept = (piece: (typeof STRIP_GIVES_WAY)[number]) => stripKeeps(squeeze, piece)
+    const git = ws.git
+    const { parent, name: fullName } = splitPath(ws.path)
+    const name = clipMiddle(fullName, kept('nameLong') ? Infinity : kept('nameShort') ? 24 : 12)
+    const shortParent = parent === '' ? '' : parent.startsWith('~/') ? '~/…/' : '…/'
+    const parentShown = kept('parent') || shortParent.length >= parent.length ? parent : shortParent
+    const clipped = parentShown !== parent || name !== fullName
+    const joined = (side: string, pieces: RenderChildren[]): RenderChildren[] =>
+      pieces.flatMap((piece, i) =>
+        i === 0 || Svg ? [piece] : [<Text key={`${side}-sep${i}`} color={BARE.label}>{' · '}</Text>, piece],
+      )
+
+    const where: RenderChildren[] = [
+      <Box key="ws:path" flexDirection="row">
+        {Svg ? icon('folder', BARE.icon, clipped ? `folder ${ws.path}` : ALT.folder) : null}
+        {parentShown === '' ? null : <Text color={BARE.label} wrap="truncate-end">{parentShown}</Text>}
+        <Text color={BARE.value} bold wrap="truncate-end">
+          {name}
+        </Text>
+        {hoverCard(git === undefined ? ws.path : `${ws.path}: ${gitSummary(git)}`, 'left')}
+      </Box>,
+    ]
+    if (git?.branch !== undefined) {
+      const branch = clipMiddle(git.branch, kept('branchLong') ? Infinity : kept('branchShort') ? 24 : 12)
+      where.push(
+        <Box key="ws:head" flexDirection="row">
+          {Svg ? icon('branch', BARE.branch, branch === git.branch ? ALT.branch : `branch ${git.branch}`) : <Text color={BARE.label}>{'on '}</Text>}
+          <Text color={BARE.value} wrap="truncate-end">
+            {branch}
+          </Text>
+          {hoverCard(`Branch ${git.branch}${git.commit === undefined ? ', no commits yet' : ''}: ${tracking(git)}`, 'left')}
+        </Box>,
+      )
+    } else if (git !== undefined) {
+      where.push(
+        <Box key="ws:head" flexDirection="row">
+          {Svg ? icon('commit', BARE.icon) : null}
+          <Text color={BARE.label}>{git.commit === undefined ? 'detached' : 'detached at '}</Text>
+          {git.commit === undefined ? null : <Text color={BARE.value}>{git.commit}</Text>}
+          {hoverCard('HEAD is detached: new commits belong to no branch', 'left')}
+        </Box>,
+      )
+    }
+    if (git?.worktree !== undefined && kept('worktree')) {
+      const of = kept('worktreeOf') && ws.repoName !== undefined ? ws.repoName : undefined
+      where.push(
+        <Box key="ws:worktree" flexDirection="row">
+          {Svg ? icon('worktree', BARE.icon) : null}
+          <Text color={BARE.label}>
+            {of === undefined ? 'worktree' : 'worktree of '}
+            {of === undefined ? null : <Text key="of" color={BARE.value}>{of}</Text>}
+          </Text>
+          {hoverCard(
+            ws.repoName === undefined
+              ? 'A linked worktree: its own checkout of the repository'
+              : `A linked worktree: its own checkout, sharing ${ws.repoName}'s history`,
+            'left',
+          )}
+        </Box>,
+      )
+    }
+
+    const state: RenderChildren[] = []
+    if (git !== undefined && git.changed > 0) {
+      const word = kept('changedWord')
+      state.push(
+        <Box key="ws:changes" flexDirection="row">
+          {Svg ? icon('changes', BARE.icon) : null}
+          <Text color={BARE.value}>
+            {`${!word && !Svg ? '±' : ''}${git.changed}`}
+            {word ? <Text key="w" color={BARE.label}>{' changed'}</Text> : null}
+          </Text>
+          {hoverCard(`${git.changed} uncommitted change${git.changed === 1 ? '' : 's'}`, 'right')}
+        </Box>,
+      )
+    } else if (git !== undefined && kept('clean')) {
+      state.push(
+        <Text key="ws:clean" color={BARE.label}>
+          clean
+        </Text>,
+      )
+    }
+    if (git !== undefined && (git.ahead || git.behind) && kept('aheadBehind')) {
+      const card = hoverCard(tracking(git), 'right')
+      if (Svg) {
+        // Icons a reader names, "ahead 2, behind 1", where ↑ ↓ read as arrows.
+        for (const [side, n] of [['ahead', git.ahead], ['behind', git.behind]] as const) {
+          if (n)
+            state.push(
+              <Box key={`ws:${side}`} flexDirection="row">
+                {icon(side, BARE.icon)}
+                <Text color={BARE.value}>{String(n)}</Text>
+                {card}
+              </Box>,
+            )
+        }
+      } else {
+        state.push(
+          <Box key="ws:ab" flexDirection="row">
+            <Text color={BARE.value}>{[git.ahead ? `↑${git.ahead}` : '', git.behind ? `↓${git.behind}` : ''].filter(Boolean).join(' ')}</Text>
+            {card}
+          </Box>,
+        )
+      }
+    }
+
+    return (
+      <Box key="strip" flexDirection="row" flexWrap="nowrap" overflow="hidden" height={1} paddingX={1 + edge / 2} marginTop={1}>
+        <Box key="ws:where" flexDirection="row" columnGap={Svg ? 2 : 0} flexShrink={1} minWidth={0} overflow="hidden">
+          {joined('where', where)}
+        </Box>
+        <Box key="ws:fill" flexGrow={1} minWidth={2} />
+        <Box key="ws:state" flexDirection="row" columnGap={Svg ? 2 : 0} flexShrink={0}>
+          {joined('state', state)}
+        </Box>
+      </Box>
+    )
+  }
+  let strip: RenderElement | null = null
+  if (showStrip && snap.workspace !== undefined) {
+    strip = stripAt(snap.workspace, 0)
+    for (let squeeze = 1; squeeze <= STRIP_GIVES_WAY.length && cellsOf(strip, measure) > snap.columns - ROW_SLACK; squeeze++) {
+      strip = stripAt(snap.workspace, squeeze)
+    }
+  }
+
   return (
     <Box flexDirection="column">
       {row}
+      {snap.expanded ? strip : null}
       {snap.expanded ? (
-        <Box key="cards" flexDirection="column" rowGap={LINE_GAP} marginTop={1}>
+        <Box key="cards" flexDirection="column" rowGap={LINE_GAP} marginTop={strip === null ? 1 : 0}>
           {Array.from({ length: lineCount }, (_, i) => (
             <Box key={`cards:${i}`} flexDirection="row" columnGap={1}>
               {cardViews.slice(i * perLine, (i + 1) * perLine)}
@@ -879,8 +1113,8 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       {snap.expanded ? (
         <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>
           <Box key="hint" flexDirection="row">
-            {Svg ? icon('info', palette.label) : null}
-            <Text color={palette.label}>Bring it back with /usage-band</Text>
+            {Svg ? icon('info', BARE.icon) : null}
+            <Text color={BARE.label}>Bring it back with /usage-band</Text>
           </Box>
           <Box flexGrow={1} />
           <Button key="collapse" label="Collapse" variant="secondary" hotkey="c" onPress={act.toggleExpanded} />

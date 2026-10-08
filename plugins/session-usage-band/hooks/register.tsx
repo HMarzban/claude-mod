@@ -32,6 +32,8 @@ import {
 } from './insights'
 import { DARK, resolvePalette } from './palette'
 import type { Palette } from './palette'
+import { GIT_DIRS_ARGV, GIT_STATUS_ARGV, homeRelative, parseGitState, splitPath } from './workspace'
+import type { Workspace } from './workspace'
 
 const isHidden = atom({ plugin: 'session-usage-band', key: 'isHidden' } as const, false)
 const isExpanded = atom({ plugin: 'session-usage-band', key: 'isExpanded' } as const, false)
@@ -48,6 +50,51 @@ let palette: Readonly<Palette> = DARK
 /** Auto-compaction as the context breakdown last reported it: where it runs,
  *  or off. Read after each turn rather than on every redraw. */
 let autoCompact: { at: number } | 'off' | undefined
+
+/** Where the session is: its project, home-relative, and git there. Read
+ *  between redraws, never while drawing, since git takes a process. */
+let workspace: Workspace | undefined
+
+/** Reads begun, so one that ends after a newer one never overwrites it. */
+let reads = 0
+
+/** Long enough for a large repository's status, short enough that a hung
+ *  git never holds a read open for long. */
+const GIT_TIMEOUT_MS = 3000
+
+/** Reads the project and git into `workspace`, then redraws. It never throws:
+ *  outside a repository, or with git missing or slow, the band shows the
+ *  path alone. Callers don't wait on it. */
+const readWorkspace = async ($: EngineInterface): Promise<void> => {
+  const mine = ++reads
+  try {
+    const root = await $.session.root()
+    const home = await $.env.get('HOME')
+    const run = (argv: readonly string[]): Promise<string | undefined> =>
+      $.process.run(argv, { cwd: root, timeoutMs: GIT_TIMEOUT_MS }).then(
+        r => (r.exitCode === 0 ? r.stdout : undefined),
+        () => undefined,
+      )
+    const [status, dirs, repo] = await Promise.all([
+      run(GIT_STATUS_ARGV),
+      run(GIT_DIRS_ARGV),
+      $.session.repo().catch(() => null),
+    ])
+    if (mine !== reads) return
+    const path = homeRelative(root, home)
+    workspace = {
+      path,
+      // A status that failed or timed out keeps the last good reading of the
+      // same project, so a slow repository doesn't flicker to the path alone.
+      git: status === undefined ? (workspace?.path === path ? workspace.git : undefined) : parseGitState(status, dirs ?? ''),
+      // A linked worktree's main repository, by its folder's name.
+      repoName: repo === null ? undefined : splitPath(repo.root).name,
+    }
+    $.ui.invalidate('ui.render')
+  } catch {
+    // keep the last reading
+  }
+}
 
 /** What the session has cost so far, if the host keeps a ledger. */
 const ledgerUsd = async ($: EngineInterface): Promise<number | undefined> => (await $.session.usage()).cost?.usd
@@ -74,7 +121,10 @@ export const register: Register = on => {
     resetInsights()
     warned.clear()
     lastPaintKey = ''
+    workspace = undefined
+    reads++ // any read still out began before this load
     noteLoad(await ledgerUsd($).catch(() => undefined))
+    void readWorkspace($)
 
     palette = resolvePalette((await $.env.get('CC_BAND_APPEARANCE'))?.toLowerCase(), await $.env.get('NO_COLOR'))
     const pinned = resolveTtl({
@@ -117,6 +167,8 @@ export const register: Register = on => {
     resetConversationInsights()
     warned.delete('context')
     lastPaintKey = ''
+    // A resume may be another project.
+    void readWorkspace($)
     $.ui.invalidate('ui.render')
     return next(e)
   })
@@ -133,6 +185,8 @@ export const register: Register = on => {
     const result = await next(e)
     if (e.agentId === undefined) {
       noteTurnEnd(e.turnId, await ledgerUsd($))
+      // A turn may have switched branch, committed or moved the session.
+      void readWorkspace($)
       $.ui.invalidate('ui.render')
     }
     return result
@@ -223,6 +277,7 @@ export const register: Register = on => {
       case 'less':
         await update($, isExpanded, () => command === 'more')
         await update($, isHidden, () => false)
+        if (command === 'more') void readWorkspace($)
         return { text: command === 'more' ? 'Usage band expanded.' : 'Usage band collapsed.' }
       case 'show':
       case 'hide':
@@ -280,13 +335,15 @@ export const register: Register = on => {
         },
         fiveHour: five ? { percentUsed: five.percentUsed, resetsAt: five.resetsAt, etaMs: fiveHourEtaMs(now) } : undefined,
         sevenDay: seven ? { percentUsed: seven.percentUsed, resetsAt: seven.resetsAt } : undefined,
+        workspace,
         otherLimits: usage.rateLimits
           .filter(l => l.kind !== FIVE_HOUR && l.kind !== SEVEN_DAY)
           .map(l => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: l.resetsAt })),
       },
       {
         toggleExpanded: async () => {
-          await update($, isExpanded, current => !current)
+          // Opening reads git, so the cards never show a stale branch.
+          if (await update($, isExpanded, current => !current)) void readWorkspace($)
         },
         hide: async () => {
           await update($, isHidden, () => true)

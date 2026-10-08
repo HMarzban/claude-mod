@@ -54,9 +54,34 @@ export const COMPACTED_TO = 20_000
 /** A compacted conversation: the summary message alone. */
 export const SUMMARY = [{ role: 'user' as const, text: 'summary', toolUses: [] }]
 
+/** The project the tests run in, and git's answers for it. */
+export const PROJECT = '/Users/me/workspace/claude-mod'
+export const GIT_CLEAN = '# branch.oid 1a2b3c4d5e6f\n# branch.head main\n# branch.upstream origin/main\n# branch.ab +0 -0\n'
+export const GIT_MAIN_TREE = `${PROJECT}/.git\n${PROJECT}/.git\n${PROJECT}\n`
+
+/** What git answers: its two outputs, `none` outside a repository, or
+ *  `fail` when it can't run at all. */
+export type GitAnswer = { status: string; dirs: string } | 'none' | 'fail'
+
 /** How the engine beneath answers, for tests that need it otherwise: what a
- *  compaction returns, why a step stops, and a gate that holds a step open. */
-export const engine: { compact: SessionCompactResult; stop: TurnStopReason; gate: Promise<void> | undefined } = {
+ *  compaction returns, why a step stops, a gate that holds a step open, the
+ *  project root, and git, with every command the plugin ran. */
+export const engine: {
+  compact: SessionCompactResult
+  stop: TurnStopReason
+  gate: Promise<void> | undefined
+  root: string
+  repoRoot: string | undefined
+  git: GitAnswer
+  /** While set, git answers wait on it: its answer is the one at the call. */
+  hold: Promise<void> | undefined
+  ran: string[][]
+} = {
+  hold: undefined,
+  root: PROJECT,
+  repoRoot: PROJECT,
+  git: { status: GIT_CLEAN, dirs: GIT_MAIN_TREE },
+  ran: [],
   compact: { messages: SUMMARY, tokensAfter: COMPACTED_TO },
   stop: 'end_turn',
   gate: undefined,
@@ -76,6 +101,25 @@ export const base = (on: On, initial: SessionUsage = USAGE): void => {
   engine.compact = { messages: SUMMARY, tokensAfter: COMPACTED_TO }
   engine.stop = 'end_turn'
   engine.gate = undefined
+  engine.root = PROJECT
+  engine.repoRoot = PROJECT
+  engine.git = { status: GIT_CLEAN, dirs: GIT_MAIN_TREE }
+  engine.ran = []
+  engine.hold = undefined
+  on('session.root', () => ({ value: engine.root }))
+  on('session.repo', () => ({
+    value: engine.repoRoot === undefined ? null : { root: engine.repoRoot, remote: null, internal: false, name: null },
+  }))
+  on('process.run', async ($, e) => {
+    engine.ran.push([...e.argv])
+    const git = engine.git
+    const hold = engine.hold
+    if (hold !== undefined) await hold
+    if (git === 'fail') throw new Error('git: command not found')
+    const quiet = { stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
+    if (git === 'none') return { value: { ...quiet, exitCode: 128, stdout: '', stderr: 'fatal: not a git repository' } }
+    return { value: { ...quiet, exitCode: 0, stdout: e.argv.includes('status') ? git.status : git.dirs } }
+  })
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.end', ($, e) => ({ sessionId: e.sessionId }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
@@ -315,3 +359,9 @@ export const pacing = async ($: Engine, clock: MockClock): Promise<void> => {
  *  the grid and every category, which no test here needs. */
 export const breakdown = (fields: Pick<SessionContextBreakdown, 'isAutoCompactEnabled'> & { autoCompactThreshold?: number }): SessionContextBreakdown =>
   fields as SessionContextBreakdown
+
+/** Lets work the plugin started without waiting on it, such as a git read,
+ *  run to its end. */
+export const settle = async (): Promise<void> => {
+  for (let i = 0; i < 50; i++) await Promise.resolve()
+}

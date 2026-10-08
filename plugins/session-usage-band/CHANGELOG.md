@@ -5,6 +5,30 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.10.0] - 2026-10-08
+
+### Added
+- A workspace strip opens the expanded view. It shows the project path,
+  with home as `~` and the project's folder in bold, then the git branch,
+  or `detached at <commit>`. It also shows `worktree of <repo>` in a linked
+  worktree, the uncommitted change count or `clean`, and ahead/behind
+  (`↑2 ↓1`). It has icons on the desktop and words in the terminal, and
+  each piece has a hover explanation.
+- When the strip is narrow, the path and branch shorten and the extras
+  drop, least important first. When the band is short of rows, the strip
+  is dropped before the cards lose their last fact.
+- git is read at session start, after each of your messages and when you
+  open the cards, never while drawing. With no repository, or git missing
+  or slow, the strip shows the path alone. Only the newest read lands, and
+  a read that fails keeps the last good one.
+
+### Fixed
+- The light palette's label colour now holds 4.5:1 on its own surfaces.
+- The hint under the cards takes the host theme's colours, since it sits
+  on the band's bare ground.
+- The expand toggle is atomic again: two quick presses leave the cards as
+  they were.
+
 ## [0.9.1] - 2026-10-08
 
 ### Changed
