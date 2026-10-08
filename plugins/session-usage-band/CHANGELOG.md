@@ -5,6 +5,13 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.10.2] - 2026-10-08
+
+### Changed
+- The expand toggle shows full-height chevrons, `⌄` to open and `⌃` to
+  close, in place of small triangles that drew as specks in the desktop's
+  button. A Button holds only text, so its icon is a glyph.
+
 ## [0.10.1] - 2026-10-08
 
 ### Fixed
