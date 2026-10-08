@@ -180,13 +180,31 @@ for (const cols of [50, 70]) {
   })
 }
 
-test('a band too short for the strip and the cards drops the strip, never the cards', async ($, on) => {
+test('a band too short for a strip row puts it in the footer, in place of the hint', async ($, on) => {
   mock.clock(on, { now: 0 })
   mock.env(on, HOME)
   base(on)
   await $.session.start({ ...START, surface: 'desktop' })
-  expect(stripOf(await expanded($, 'desktop', 95, 11))).toBeUndefined()
-  expect(stripOf(await expanded($, 'desktop', 95, 40))).toBeDefined()
+  const footerOf = (tree: unknown): Node | undefined => {
+    let found: Node | undefined
+    walk(tree, n => {
+      if (n.type === 'Box' && n.props?.key === 'actions') found = n
+    })
+    return found
+  }
+  // 13 rows, as the desktop gives: each card keeps one fact, so no row is spare
+  const short = await expanded($, 'desktop', 95, 13)
+  const footer = footerOf(short)
+  expect(stripOf(footer)).toBeDefined()
+  expect(shown(stripOf(footer))).toMatch(/claude-mod.*main/)
+  expect(shown(footer)).not.toMatch(/Bring it back/)
+  // the footer strip leaves the buttons their room
+  expect(widthOf(stripOf(footer))).toBeLessThanOrEqual(95 - 30)
+  // with rows to spare it heads the view, and the hint is back
+  const tall = await expanded($, 'desktop', 95, 40)
+  expect(stripOf(footerOf(tall))).toBeUndefined()
+  expect(stripOf(tall)).toBeDefined()
+  expect(shown(footerOf(tall))).toMatch(/Bring it back/)
 })
 
 /** WCAG 2.x contrast ratio of two hex colours. */

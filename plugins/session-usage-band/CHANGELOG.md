@@ -5,6 +5,13 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.10.1] - 2026-10-08
+
+### Fixed
+- On a band too short to give the workspace strip its own row (the desktop
+  often gives about 13), the strip now takes the footer, in place of the
+  "Bring it back" hint, instead of not showing at all.
+
 ## [0.10.0] - 2026-10-08
 
 ### Added

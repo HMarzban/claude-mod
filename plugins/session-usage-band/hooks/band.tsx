@@ -129,6 +129,8 @@ const ICON_PX = 16
 const CARD_TEXT = 33
 /** Columns a framed Button's padding and edges take beyond its label. */
 const BUTTON_CHROME = 3
+/** Columns a Button's hotkey mark takes beside its label. */
+const HOTKEY_MARK = 2
 /** Room the band keeps free, so a row measured a little short never wraps. */
 const ROW_SLACK = 4
 
@@ -768,9 +770,11 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   // edge and its header. A taller band would scroll, hiding the buttons.
   const bodyFor = (strip: number) =>
     Math.floor((snap.maxRows - 4 - strip - LINE_GAP * (lineCount - 1)) / lineCount) - edge - 1
-  // The strip takes a row only when every card keeps one of its own.
-  const showStrip = snap.expanded && snap.workspace !== undefined && bodyFor(1) >= 1
-  const bodyRows = Math.max(1, bodyFor(showStrip ? 1 : 0))
+  // The strip heads the view when every card still keeps a fact of its own;
+  // short of that row it takes the footer's, in place of the hint.
+  const stripPlace: 'top' | 'footer' | undefined =
+    !snap.expanded || snap.workspace === undefined ? undefined : bodyFor(1) >= 1 ? 'top' : 'footer'
+  const bodyRows = Math.max(1, bodyFor(stripPlace === 'top' ? 1 : 0))
   const inner = Math.max(4, Math.floor((snap.columns - (perLine - 1)) / perLine) - 2 - edge)
   const cardBar: BarSize = { px: inner * measure.pxPerCell, cells: inner }
   /** A card: its title and headline on one line, then as much of its body,
@@ -970,7 +974,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     const sides = [g.ahead ? `${commits(g.ahead)} to push` : '', g.behind ? `${g.behind} to pull` : ''].filter(Boolean)
     return sides.length === 0 ? 'up to date with its upstream' : sides.join(', ')
   }
-  const stripAt = (ws: Workspace, squeeze: number): RenderElement => {
+  const stripAt = (ws: Workspace, squeeze: number, place: 'top' | 'footer'): RenderElement => {
     const kept = (piece: (typeof STRIP_GIVES_WAY)[number]) => stripKeeps(squeeze, piece)
     const git = ws.git
     const { parent, name: fullName } = splitPath(ws.path)
@@ -1078,7 +1082,14 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     }
 
     return (
-      <Box key="strip" flexDirection="row" flexWrap="nowrap" overflow="hidden" height={1} paddingX={1 + edge / 2} marginTop={1}>
+      <Box
+        key="strip"
+        flexDirection="row"
+        flexWrap="nowrap"
+        overflow="hidden"
+        height={1}
+        {...(place === 'top' ? { paddingX: 1 + edge / 2, marginTop: 1 } : { flexGrow: 1, flexShrink: 1, minWidth: 0 })}
+      >
         <Box key="ws:where" flexDirection="row" columnGap={Svg ? 2 : 0} flexShrink={1} minWidth={0} overflow="hidden">
           {joined('where', where)}
         </Box>
@@ -1089,20 +1100,27 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       </Box>
     )
   }
+  const buttons = [
+    <Button key="collapse" label="Collapse" variant="secondary" hotkey="c" onPress={act.toggleExpanded} />,
+    <Button key="hide" label="Hide band" variant="primary" hotkey="h" onPress={act.hide} />,
+  ]
   let strip: RenderElement | null = null
-  if (showStrip && snap.workspace !== undefined) {
-    strip = stripAt(snap.workspace, 0)
-    for (let squeeze = 1; squeeze <= STRIP_GIVES_WAY.length && cellsOf(strip, measure) > snap.columns - ROW_SLACK; squeeze++) {
-      strip = stripAt(snap.workspace, squeeze)
+  if (stripPlace !== undefined && snap.workspace !== undefined) {
+    // In the footer it shares the line with the buttons and their hotkey marks.
+    const room =
+      snap.columns - ROW_SLACK - (stripPlace === 'footer' ? cellsOf(buttons, measure) + 2 * HOTKEY_MARK + 2 : 0)
+    strip = stripAt(snap.workspace, 0, stripPlace)
+    for (let squeeze = 1; squeeze <= STRIP_GIVES_WAY.length && cellsOf(strip, measure) > room; squeeze++) {
+      strip = stripAt(snap.workspace, squeeze, stripPlace)
     }
   }
 
   return (
     <Box flexDirection="column">
       {row}
-      {snap.expanded ? strip : null}
+      {stripPlace === 'top' ? strip : null}
       {snap.expanded ? (
-        <Box key="cards" flexDirection="column" rowGap={LINE_GAP} marginTop={strip === null ? 1 : 0}>
+        <Box key="cards" flexDirection="column" rowGap={LINE_GAP} marginTop={stripPlace === 'top' ? 0 : 1}>
           {Array.from({ length: lineCount }, (_, i) => (
             <Box key={`cards:${i}`} flexDirection="row" columnGap={1}>
               {cardViews.slice(i * perLine, (i + 1) * perLine)}
@@ -1112,13 +1130,16 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       ) : null}
       {snap.expanded ? (
         <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>
-          <Box key="hint" flexDirection="row">
-            {Svg ? icon('info', BARE.icon) : null}
-            <Text color={BARE.label}>Bring it back with /usage-band</Text>
-          </Box>
+          {stripPlace === 'footer' ? (
+            strip
+          ) : (
+            <Box key="hint" flexDirection="row">
+              {Svg ? icon('info', BARE.icon) : null}
+              <Text color={BARE.label}>Bring it back with /usage-band</Text>
+            </Box>
+          )}
           <Box flexGrow={1} />
-          <Button key="collapse" label="Collapse" variant="secondary" hotkey="c" onPress={act.toggleExpanded} />
-          <Button key="hide" label="Hide band" variant="primary" hotkey="h" onPress={act.hide} />
+          {buttons}
         </Box>
       ) : null}
     </Box>

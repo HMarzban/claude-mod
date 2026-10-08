@@ -50,8 +50,9 @@ It starts with a line that says where you are:
 
 On the desktop each piece has an icon and a hover explanation. As the line
 narrows, the path and branch shorten and the extras drop, least important
-first. Outside a repository, or if git is missing or slow, it shows the
-path alone. git is read when the session starts, after each of your
+first. When the band is too short to give it a row of its own, it moves
+to the footer, beside the buttons, in place of the hint. Outside a
+repository, or if git is missing or slow, it shows the path alone. git is read when the session starts, after each of your
 messages and when you open the cards, never while the band draws.
 
 Then come four cards with every fact labelled:
