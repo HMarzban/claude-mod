@@ -4,7 +4,7 @@ One calm row above the Claude Code prompt that answers: is my cache still
 warm, what is this session costing, and am I close to a limit?
 
 ```
-◷ cache 52m   $3.19   Σ 225k   ◔ ██░░░░ 76k / 200k   5h ░░░░░░ 4% │ ↻ 3h 00m   7d ██░░░░ 30% │ ↻ 2d 19h   ⌄
+◷ cache 52m   $3.19   Σ 225k   ◔ ██░░░░ 76k / 200k   5h ░░░░░░ 4% │ ↻ 3h 00m   7d ██░░░░ 30% │ ↻ 2d 19h   ▿
 ```
 
 On the desktop app's Code tab the glyphs are small icons, and the bars are
@@ -33,7 +33,7 @@ you can tell them apart; that's a label, not a warning. Nothing is ever
 red: a cold cache or a full meter is a price, not an error. Colour is
 never the only signal, since escalation always adds words or `!` / `!!`.
 
-Hover any chip for a one-line explanation. `⌄` opens the expanded view.
+Hover any chip for a one-line explanation. `▿` opens the expanded view.
 It starts with a line that says where you are:
 
 ```
@@ -68,7 +68,7 @@ The cards sit four across when they fit, else two by two, each line sharing
 its width equally; on the desktop each has a visible border. A card's title
 and headline share its first line, and when the band is short of rows each
 card drops its least important facts first, so the view never scrolls the
-buttons away. Expanding never changes the chip row; only the toggle's chevron turns from `⌄` to `⌃`.
+buttons away. Expanding never changes the chip row; only the toggle's icon turns from `▿` to `▵`.
 Below the cards, `Collapse` (key `c`) closes them and `Hide band` (key `h`)
 hides the band; `/usage-band` brings it back.
 

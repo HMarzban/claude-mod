@@ -78,7 +78,7 @@ test('chips never shrink, so their text never wraps', async ($, on) => {
   await ui.unmount()
 })
 
-test("expanding leaves the chip row exactly as it was; only the toggle's chevron turns from ⌄ to ⌃", async ($, on) => {
+test("expanding leaves the chip row exactly as it was; only the toggle's icon turns from ▿ to ▵", async ($, on) => {
   mock.clock(on, { now: 0 })
   mock.env(on, HOUR_1)
   base(on, withCompaction(152_000))
@@ -94,10 +94,10 @@ test("expanding leaves the chip row exactly as it was; only the toggle's chevron
     return label
   }
   const before = shown(firstRow(await ui.drawn()))
-  expect(await toggle()).toBe('⌄')
+  expect(await toggle()).toBe('▿')
   await ui.press({ key: 'more' })
   expect(shown(firstRow(await ui.drawn()))).toBe(before)
-  expect(await toggle()).toBe('⌃')
+  expect(await toggle()).toBe('▵')
   await ui.unmount()
 })
 
@@ -434,5 +434,5 @@ test('the toggle is a framed native button on the desktop, a plain glyph in the 
   expect(desk?.props?.plain).toBeUndefined()
   const term = await toggleOf('terminal')
   expect(term?.props?.plain).toBe(true)
-  expect(term?.props?.label).toBe('⌄')
+  expect(term?.props?.label).toBe('▿')
 })

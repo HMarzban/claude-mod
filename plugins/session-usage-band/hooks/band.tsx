@@ -716,13 +716,14 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       {pills.map((spec, i) => pill(spec, i === pills.length - 1 ? 'right' : 'left'))}
       <Box flexGrow={1} />
       <Box flexShrink={0}>
-        {/* A Button holds text alone, so its icon is a glyph: the full-height
-            arrowhead chevrons, the platform's disclosure shape (the small
-            triangles drew as specks). On the desktop in a native frame like
-            Collapse's, in the terminal bare. */}
+        {/* A Button holds text alone, so its icon is a glyph. The outlined
+            triangles are measured centred in the line, within half a pixel,
+            and wider than tall like a disclosure icon; arrowhead chevrons sit
+            5 px low. On the desktop in a native frame like Collapse's, in the
+            terminal bare. */}
         <Button
           key="more"
-          label={snap.expanded ? '⌃' : '⌄'}
+          label={snap.expanded ? '▵' : '▿'}
           {...(Svg ? { variant: 'secondary' as const } : { plain: true as const, dimColor: true })}
           onPress={act.toggleExpanded}
         />

@@ -5,18 +5,18 @@ draw inside Claude Code itself, written with its function-hooks API.
 
 | Plugin | What it does | Version |
 | --- | --- | --- |
-| [session-usage-band](plugins/session-usage-band/README.md) | A calm band above the prompt: prompt-cache countdown, cost, tokens, context and your 5-hour and weekly limits, with an expanded view of four cards. | 0.10.2 |
+| [session-usage-band](plugins/session-usage-band/README.md) | A calm band above the prompt: prompt-cache countdown, cost, tokens, context and your 5-hour and weekly limits, with an expanded view of four cards. | 0.10.3 |
 
 ## session-usage-band at a glance
 
 In the terminal:
 
 ```
-◷ cache 52m   $3.19   Σ 225k   ◔ ██░░░░ 76k / 200k   5h ░░░░░░ 4% │ ↻ 3h 00m   7d ██░░░░ 30% │ ↻ 2d 19h   ⌄
+◷ cache 52m   $3.19   Σ 225k   ◔ ██░░░░ 76k / 200k   5h ░░░░░░ 4% │ ↻ 3h 00m   7d ██░░░░ 30% │ ↻ 2d 19h   ▿
 ```
 
 On the desktop app's Code tab the glyphs are icons and the bars are drawn
-meters. Press `⌄` for the expanded view: a line saying where you are (the
+meters. Press `▿` for the expanded view: a line saying where you are (the
 project, its git branch or worktree, uncommitted changes and ahead/behind),
 then four cards (Cache, Spend, Context and Limits) with every fact
 labelled. See the [plugin's README](plugins/session-usage-band/README.md)

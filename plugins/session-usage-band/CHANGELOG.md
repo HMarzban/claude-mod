@@ -5,6 +5,13 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.10.3] - 2026-10-08
+
+### Changed
+- The expand toggle shows outlined triangles, `▿` to open and `▵` to
+  close, measured centred in the button to within half a pixel. The `⌄ ⌃`
+  chevrons sat 5 px off the middle.
+
 ## [0.10.2] - 2026-10-08
 
 ### Changed
