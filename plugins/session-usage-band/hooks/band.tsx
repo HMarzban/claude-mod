@@ -630,7 +630,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   // Each line shares its width equally (a zero basis, grown alike), so the
   // cards align whatever their text and a line never wraps one away. A
   // desktop card has a visible edge; a terminal card is a fill, its border
-  // would cost two columns, so terminal lines keep a row between them.
+  // would cost two columns. Lines keep a row of air between them.
   const bordered = Svg !== undefined || !palette.filled
   const edge = bordered ? 2 : 0
   const minCard = Math.ceil(CARD_TEXT * measure.text) + 2 + edge
@@ -638,11 +638,12 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   const fits = (n: number) => n * minCard + (n - 1) <= snap.columns
   const perLine = [cardCount, Math.ceil(cardCount / 2)].find(fits) ?? 1
   const lineCount = Math.ceil(cardCount / perLine)
-  const lineGap = bordered ? 0 : 1
-  // The rows a card's body may take: the band's, less the chip row, the gap
-  // under it and the buttons, shared by the lines, less a card's edge and
-  // its header. A taller band would scroll, hiding the buttons.
-  const bodyRows = Math.max(1, Math.floor((snap.maxRows - 3 - lineGap * (lineCount - 1)) / lineCount) - edge - 1)
+  const LINE_GAP = 1
+  // The rows a card's body may take: the band's, less the chip row, the
+  // buttons and the row of air above each line of cards and the buttons,
+  // shared by the lines, less a card's edge and its header. A taller band
+  // would scroll, hiding the buttons.
+  const bodyRows = Math.max(1, Math.floor((snap.maxRows - 4 - LINE_GAP * (lineCount - 1)) / lineCount) - edge - 1)
   const inner = Math.max(4, Math.floor((snap.columns - (perLine - 1)) / perLine) - 2 - edge)
   const cardBar: BarSize = { px: inner * measure.pxPerCell, cells: inner }
   /** A card: its title and headline on one line, then as much of its body,
@@ -822,7 +823,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     <Box flexDirection="column">
       {row}
       {snap.expanded ? (
-        <Box key="cards" flexDirection="column" rowGap={lineGap} marginTop={1}>
+        <Box key="cards" flexDirection="column" rowGap={LINE_GAP} marginTop={1}>
           {Array.from({ length: lineCount }, (_, i) => (
             <Box key={`cards:${i}`} flexDirection="row" columnGap={1}>
               {cardViews.slice(i * perLine, (i + 1) * perLine)}
@@ -831,7 +832,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         </Box>
       ) : null}
       {snap.expanded ? (
-        <Box key="actions" flexDirection="row" columnGap={1}>
+        <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>
           <Text key="hint" color={palette.label}>
             Bring it back with /usage-band
           </Text>

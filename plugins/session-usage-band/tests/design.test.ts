@@ -284,9 +284,10 @@ test('the expanded band fits the rows it is given: cards drop their least facts 
     if (maxRows === 40) await ui.press({ key: 'more' })
     const tree = await ui.drawn()
     await ui.unmount()
-    // two lines of cards, each its tallest card plus its border; the chip row, a gap and the buttons
+    // two lines of cards, each its tallest card plus its border, a row between
+    // them; the chip row and the buttons, each with a row of air before the next
     const tallest = (names: string[]) => Math.max(...names.map(n => (cardOf(tree, n)?.children ?? []).filter(Boolean).length)) + 2
-    return { total: 3 + tallest(['cache', 'spend']) + tallest(['context', 'limits']), tree }
+    return { total: 5 + tallest(['cache', 'spend']) + tallest(['context', 'limits']), tree }
   }
   const roomy = await rowsOf(40)
   expect(fact(roomy.tree, 'model window')).toBe('200k')
@@ -363,4 +364,24 @@ test('the desktop gets no whitespace-only strings, which it drops, so every gap 
   const five = pillOf(await ui.drawn(), '5h')
   expect(((five?.children ?? []) as Node[]).filter(k => k?.type === 'Box' && k.props?.width === 1).length).toBeGreaterThanOrEqual(2)
   await ui.unmount()
+})
+
+test('card lines have a row of air between them, and the buttons a row above', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  await $.session.start({ ...START, surface: 'desktop' })
+  for (const surface of ['desktop', 'terminal'] as const) {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: props(95) })
+    if (surface === 'desktop') await ui.press({ key: 'more' })
+    let grid: Node | undefined
+    let actions: Node | undefined
+    walk(await ui.drawn(), n => {
+      if (n.type === 'Box' && n.props?.key === 'cards') grid = n
+      if (n.type === 'Box' && n.props?.key === 'actions') actions = n
+    })
+    expect(grid?.props?.rowGap).toBe(1)
+    expect(actions?.props?.marginTop).toBe(1)
+    await ui.unmount()
+  }
 })
