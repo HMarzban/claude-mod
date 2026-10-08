@@ -141,7 +141,12 @@ const cellsOf = (n: RenderChildren, m: Measure): number => {
 
 // ---- icons ----------------------------------------------------------------
 
-type Icon = 'cost' | 'tokens' | 'context' | 'five' | 'week' | 'reset'
+type Icon = 'cost' | 'tokens' | 'context' | 'five' | 'week' | 'reset' | 'cache' | 'limits' | 'info'
+
+/** The 5-hour gauge, which also heads the Limits card. */
+const GAUGE = (color: string): string =>
+  `<path d="M2.5 11.5a5.5 5.5 0 1 1 11 0" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>` +
+  `<path d="M8 11.5l2.6-3.4" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>`
 
 /** Desktop icons, as SVG bodies drawn in one colour. */
 const ICON_PATHS: Readonly<Record<Icon, (color: string) => string>> = {
@@ -155,9 +160,15 @@ const ICON_PATHS: Readonly<Record<Icon, (color: string) => string>> = {
   context: color =>
     `<rect x="2.5" y="2.5" width="11" height="11" rx="2.5" fill="none" stroke="${color}" stroke-width="1.4"/>` +
     `<path d="M5.2 6h5.6M5.2 8.5h5.6M5.2 11h3.2" stroke="${color}" stroke-width="1.2" stroke-linecap="round"/>`,
-  five: color =>
-    `<path d="M2.5 11.5a5.5 5.5 0 1 1 11 0" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>` +
-    `<path d="M8 11.5l2.6-3.4" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>`,
+  five: GAUGE,
+  limits: GAUGE,
+  // A bolt: the cache is what makes a warm reply fast and cheap.
+  cache: color =>
+    `<path d="M9.2 1.8 3.6 9h3.9l-.8 5.2L12.4 7H8.5z" fill="none" stroke="${color}" stroke-width="1.3" stroke-linejoin="round"/>`,
+  info: color =>
+    `<circle cx="8" cy="8" r="6.5" fill="none" stroke="${color}" stroke-width="1.4"/>` +
+    `<path d="M8 7.3v4" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>` +
+    `<circle cx="8" cy="4.9" r=".9" fill="${color}"/>`,
   week: color =>
     `<rect x="2.5" y="3.5" width="11" height="10" rx="2" fill="none" stroke="${color}" stroke-width="1.4"/>` +
     `<path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>`,
@@ -167,7 +178,17 @@ const ICON_PATHS: Readonly<Record<Icon, (color: string) => string>> = {
 }
 
 /** What stands in for an icon where there is no Svg; the cost keeps its `$`. */
-const GLYPH: Readonly<Record<Icon, string>> = { cost: '', tokens: 'Σ', context: '◔', five: '', week: '', reset: '↻' }
+const GLYPH: Readonly<Record<Icon, string>> = {
+  cost: '',
+  tokens: 'Σ',
+  context: '◔',
+  five: '',
+  week: '',
+  reset: '↻',
+  cache: '',
+  limits: '',
+  info: '',
+}
 
 /** An icon's name for a reader that cannot see it. */
 const ALT: Readonly<Record<Icon, string>> = {
@@ -177,6 +198,9 @@ const ALT: Readonly<Record<Icon, string>> = {
   five: 'five-hour',
   week: 'week',
   reset: 'resets',
+  cache: 'cache',
+  limits: 'limits',
+  info: 'info',
 }
 
 // ---- limits ---------------------------------------------------------------
@@ -648,6 +672,13 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   const cardBar: BarSize = { px: inner * measure.pxPerCell, cells: inner }
   /** A card: its title and headline on one line, then as much of its body,
    *  listed most important first, as the band has rows for. */
+  // Each card's mark: the chips' own icons, so the band speaks one language.
+  const CARD_ICON: Readonly<Record<string, readonly [Icon, string]>> = {
+    cache: ['cache', palette.warm],
+    spend: ['cost', palette.coin],
+    context: ['context', palette.label],
+    limits: ['limits', palette.fiveAccent],
+  }
   const card = (name: string, title: string, head: Readonly<{ text: string; tone?: Tone }>, body: RenderChildren[]) => (
     <Box
       key={`card:${name}`}
@@ -660,7 +691,11 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       {...(bordered ? { borderStyle: 'round', borderColor: palette.cardBorder } : {})}
     >
       <Box key="head" flexDirection="row" justifyContent="space-between" columnGap={1}>
-        <Text color={palette.label}>{title.toUpperCase()}</Text>
+        <Box key="title" flexDirection="row" flexShrink={0}>
+          {/* Desktop alone: a terminal title stays plain text. */}
+          {Svg && CARD_ICON[name] ? icon(...CARD_ICON[name]) : null}
+          <Text color={palette.label}>{title.toUpperCase()}</Text>
+        </Box>
         <Text color={onTone(head.tone ?? 'calm', palette.value)} bold wrap="truncate-end">
           {head.text}
         </Text>
@@ -833,9 +868,10 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       ) : null}
       {snap.expanded ? (
         <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>
-          <Text key="hint" color={palette.label}>
-            Bring it back with /usage-band
-          </Text>
+          <Box key="hint" flexDirection="row">
+            {Svg ? icon('info', palette.label) : null}
+            <Text color={palette.label}>Bring it back with /usage-band</Text>
+          </Box>
           <Box flexGrow={1} />
           <Button key="collapse" label="Collapse" variant="secondary" hotkey="c" onPress={act.toggleExpanded} />
           <Button key="hide" label="Hide band" variant="primary" hotkey="h" onPress={act.hide} />

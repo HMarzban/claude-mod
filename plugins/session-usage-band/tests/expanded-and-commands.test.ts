@@ -243,7 +243,7 @@ test('the token split shows cache reads in the warm colour, so the bar never loo
   await respond(e => $.turn.step(e), resp(500, 900_000, 1_000, 200)) // nearly all from cache
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(95) })
   await ui.press({ key: 'more' })
-  const split = svgsOf(cardOf(await ui.drawn(), 'spend'))[0]
+  const split = svgsOf(cardOf(await ui.drawn(), 'spend')).find(n => /token split/.test(String(n.props?.alt)))
   expect(String(split?.props?.source)).toContain(DARK.warm)
   expect(String(split?.props?.source)).not.toContain(`fill="${DARK.meterTrack}"`)
   await ui.unmount()

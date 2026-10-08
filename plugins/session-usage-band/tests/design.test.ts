@@ -385,3 +385,28 @@ test('card lines have a row of air between them, and the buttons a row above', a
     await ui.unmount()
   }
 })
+
+test('each desktop card title, and the hint, leads with an icon; terminal titles stay text', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  await $.session.start({ ...START, surface: 'desktop' })
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
+  await ui.press({ key: 'more' })
+  const tree = await ui.drawn()
+  const headOf = (name: string) => ((cardOf(tree, name)?.children ?? []) as Node[]).find(k => k?.props?.key === 'head')
+  const expected: Record<string, string> = { cache: 'cache', spend: 'cost', context: 'context', limits: 'limits' }
+  for (const [name, alt] of Object.entries(expected)) {
+    expect(svgsOf(headOf(name)).map(n => n.props?.alt)).toEqual([alt])
+  }
+  let actions: Node | undefined
+  walk(tree, n => {
+    if (n.type === 'Box' && n.props?.key === 'actions') actions = n
+  })
+  expect(svgsOf(actions).map(n => n.props?.alt)).toEqual(['info'])
+  await ui.unmount()
+
+  const term = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  expect(shown(cardOf(await term.drawn(), 'cache'))).toMatch(/^CACHE/)
+  await term.unmount()
+})
