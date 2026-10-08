@@ -25,7 +25,7 @@ import {
   svgsOf,
 } from './helpers'
 
-test('⋯ toggles the expanded line, and Hide hides the band', async ($, on) => {
+test('the toggle opens the cards, and Hide hides the band', async ($, on) => {
   mock.clock(on, { now: 0 })
   mock.env(on, HOUR_1)
   base(on)

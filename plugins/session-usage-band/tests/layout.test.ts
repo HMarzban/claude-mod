@@ -156,7 +156,7 @@ for (const cols of [60, 70, 84]) {
 }
 
 for (const cols of [60, 70]) {
-  test(`four amber chips still fit ${cols} columns and keep ⋯`, async ($, on) => {
+  test(`four amber chips still fit ${cols} columns and keep the toggle`, async ($, on) => {
     const clock = mock.clock(on, { now: 0 })
     mock.env(on, HOUR_1)
     base(on, {

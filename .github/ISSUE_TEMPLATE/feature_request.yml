@@ -1,0 +1,16 @@
+name: Idea
+description: Something the band could show or do better.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you're trying to do
+      description: The question you want the band to answer, or the moment it falls short.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+      description: How it might look or behave. A sketch or a screenshot helps.

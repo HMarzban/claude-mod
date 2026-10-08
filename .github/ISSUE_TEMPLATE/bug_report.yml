@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in the band is wrong, missing or broken.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What the band showed, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to reproduce
+      description: The steps, from a fresh session if you can.
+      placeholder: |
+        1. Start a session
+        2. Send a message
+        3. Click ▾
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: For anything visual, a screenshot of the band, collapsed and expanded.
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where
+      options:
+        - Desktop app (Code tab)
+        - Terminal
+    validations:
+      required: true
+  - type: dropdown
+    id: appearance
+    attributes:
+      label: Appearance
+      description: The value of CC_BAND_APPEARANCE, if you set it.
+      options:
+        - dark (default)
+        - light
+        - plain (or NO_COLOR)
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: From `claude plugin list`.
+      placeholder: "0.9.1"
+    validations:
+      required: true
+  - type: input
+    id: claude-version
+    attributes:
+      label: Claude Code version
+      description: From `claude --version`.
+      placeholder: "2.1.291"
+    validations:
+      required: true

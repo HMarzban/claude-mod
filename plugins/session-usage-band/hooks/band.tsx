@@ -98,6 +98,8 @@ const ICON_PX = 16
 /** The longest line a card holds unwrapped, in characters:
  *  `resets 2d 19h · full before reset`. */
 const CARD_TEXT = 33
+/** Columns a framed Button's padding and edges take beyond its label. */
+const BUTTON_CHROME = 3
 /** Room the band keeps free, so a row measured a little short never wraps. */
 const ROW_SLACK = 4
 
@@ -122,7 +124,8 @@ const cellsOf = (n: RenderChildren, m: Measure): number => {
   if (isList(n)) return n.reduce((sum: number, k: RenderChildren) => sum + cellsOf(k, m), 0)
   switch (n.type) {
     case 'Button':
-      return [...(n.props.label ?? '')].length * m.text
+      // A framed button's chrome: its padding and edges either side.
+      return [...(n.props.label ?? '')].length * m.text + (n.props.variant === undefined ? 0 : BUTTON_CHROME)
     case 'Svg':
       return Math.ceil((n.props.width ?? 64) / m.pxPerCell)
     case 'Box':
@@ -622,7 +625,14 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       {pills.map((spec, i) => pill(spec, i === pills.length - 1 ? 'right' : 'left'))}
       <Box flexGrow={1} />
       <Box flexShrink={0}>
-        <Button key="more" label={snap.expanded ? '▴' : '⋯'} plain dimColor onPress={act.toggleExpanded} />
+        {/* A Button holds text alone, so its icon is a chevron glyph: on the
+            desktop in a native frame like Collapse's, in the terminal bare. */}
+        <Button
+          key="more"
+          label={snap.expanded ? '▴' : '▾'}
+          {...(Svg ? { variant: 'secondary' as const } : { plain: true as const, dimColor: true })}
+          onPress={act.toggleExpanded}
+        />
       </Box>
     </Box>
   )

@@ -94,7 +94,7 @@ test('expanding leaves the chip row exactly as it was; only the toggle turns to 
     return label
   }
   const before = shown(firstRow(await ui.drawn()))
-  expect(await toggle()).toBe('⋯')
+  expect(await toggle()).toBe('▾')
   await ui.press({ key: 'more' })
   expect(shown(firstRow(await ui.drawn()))).toBe(before)
   expect(await toggle()).toBe('▴')
@@ -409,4 +409,26 @@ test('each desktop card title, and the hint, leads with an icon; terminal titles
   const term = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
   expect(shown(cardOf(await term.drawn(), 'cache'))).toMatch(/^CACHE/)
   await term.unmount()
+})
+
+test('the toggle is a framed native button on the desktop, a plain glyph in the terminal', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  await $.session.start(START)
+  const toggleOf = async (surface: 'desktop' | 'terminal') => {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: props(110) })
+    let found: Node | undefined
+    walk(firstRow(await ui.drawn()), n => {
+      if (n.type === 'Button' && n.props?.key === 'more') found = n
+    })
+    await ui.unmount()
+    return found
+  }
+  const desk = await toggleOf('desktop')
+  expect(desk?.props?.variant).toBe('secondary')
+  expect(desk?.props?.plain).toBeUndefined()
+  const term = await toggleOf('terminal')
+  expect(term?.props?.plain).toBe(true)
+  expect(term?.props?.label).toBe('▾')
 })

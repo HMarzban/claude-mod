@@ -1,6 +1,6 @@
 {
   "name": "hossein-mods",
-  "description": "Mods built for Hossein's Claude Code sessions.",
+  "description": "Claude Code mods: small plugins that draw inside Claude Code.",
   "owner": {
     "name": "Hossein"
   },

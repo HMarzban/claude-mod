@@ -4,11 +4,12 @@ One calm row above the Claude Code prompt that answers: is my cache still
 warm, what is this session costing, and am I close to a limit?
 
 ```
-◷ cache 52m   $3.19   Σ 225k   ◔ ██┃░░░ 76k / 200k   5h ░░┃░░░ 4% │ ↻ 3h 00m   7d ██░┃░░ 30% │ ↻ 2d 19h   ⋯
+◷ cache 52m   $3.19   Σ 225k   ◔ ██░░░░ 76k / 200k   5h ░░░░░░ 4% │ ↻ 3h 00m   7d ██░░░░ 30% │ ↻ 2d 19h   ▾
 ```
 
 On the desktop app's Code tab the glyphs are small icons, and the bars are
-drawn as SVG meters.
+drawn as SVG meters. See the [changelog](CHANGELOG.md) for what changed in
+each version.
 
 ## Reading it
 
@@ -32,7 +33,7 @@ you can tell them apart; that's a label, not a warning. Nothing is ever
 red: a cold cache or a full meter is a price, not an error. Colour is
 never the only signal, since escalation always adds words or `!` / `!!`.
 
-Hover any chip for a one-line explanation. `⋯` opens four cards with
+Hover any chip for a one-line explanation. `▾` opens four cards with
 every fact labelled:
 
 | Card | Shows |
@@ -46,7 +47,7 @@ The cards sit four across when they fit, else two by two, each line sharing
 its width equally; on the desktop each has a visible border. A card's title
 and headline share its first line, and when the band is short of rows each
 card drops its least important facts first, so the view never scrolls the
-buttons away. Expanding never changes the chip row; only `⋯` turns to `▴`.
+buttons away. Expanding never changes the chip row; only the toggle turns from `▾` to `▴`.
 Below the cards, `Collapse` (key `c`) closes them and `Hide band` (key `h`)
 hides the band; `/usage-band` brings it back.
 
@@ -121,21 +122,21 @@ CC_BAND_APPEARANCE=plain   # no backgrounds; every colour a theme key
 ```
 
 `NO_COLOR` forces `plain`. `plain` has no hover cards and no SVG icons, since
-the second line carries the same facts.
+the expanded cards carry the same facts.
 
 ## Commands
 
 | Command | Effect |
 | --- | --- |
 | `/usage-band` | Toggle visibility |
-| `/usage-band more` / `less` | Open or close the second line |
+| `/usage-band more` / `less` | Open or close the cards |
 | `/usage-band show` / `hide` | Set visibility explicitly |
 
 ## Cache lifetime
 
 The default lifetime depends on billing: an hour on a subscription within
 plan usage, five minutes on usage credits or an API key. A mod can't read
-which applies, so the band assumes an hour and says `(assumed)`. If it
+which applies, so the band assumes an hour and says `· assumed`. If it
 then sees the cache rebuild after a gap longer than five minutes, with the
 same model, it corrects itself to `5m`.
 
@@ -146,20 +147,28 @@ To remove the guess, set one of:
 
 ## Install
 
+From a clone of the repository:
+
 ```bash
-claude plugin marketplace add /path/to/claude-mod
+claude plugin marketplace add ./claude-mod
 claude plugin install session-usage-band@hossein-mods
 ```
 
-It draws in the terminal, the desktop app's Code tab, VS Code and mobile.
-WSL sessions don't load plugins.
+It needs Claude Code with mods (function-hooks plugins), and was tested on
+2.1.291. It draws in the terminal and the desktop app's Code tab, which are
+the surfaces with a band above the prompt. WSL sessions don't load plugins.
+The [repository README](../../README.md) covers updating and uninstalling.
 
 ## Developing
 
 ```bash
 claude plugin validate plugins/session-usage-band
 claude plugin test plugins/session-usage-band
+npx -p typescript@5 tsc -p plugins/session-usage-band
 ```
+
+[CONTRIBUTING.md](../../CONTRIBUTING.md) has the full loop and the rules the
+code follows.
 
 Only `hooks/register.tsx` touches the engine (`$`). It reads a snapshot for
 `hooks/band.tsx`, a pure drawing function. The cache model, insights,
