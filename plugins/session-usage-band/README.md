@@ -67,7 +67,7 @@ Then come four cards with every fact labelled:
 The cards sit four across when they fit, else two by two, each line sharing
 its width equally; on the desktop each has a visible border. A card's title
 and headline share its first line, and when the band is short of rows each
-card drops its least important facts first, so the view never scrolls the
+card drops its bar first (the chips already show it), then its least important facts, so the view never scrolls the
 buttons away. Expanding never changes the chip row; only the toggle's icon turns from `▿` to `▵`.
 Below the cards, `Collapse` (key `c`) closes them and `Hide band` (key `h`)
 hides the band; `/usage-band` brings it back.

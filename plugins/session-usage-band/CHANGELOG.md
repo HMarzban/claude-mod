@@ -5,6 +5,14 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.10.4] - 2026-10-08
+
+### Changed
+- A card short of rows gives up its bar before any fact: the bar repeats
+  what a chip already shows, so at the desktop's usual height the Context
+  card says how much is in context instead of drawing only its bar. The
+  bar returns once every fact fits beside it.
+
 ## [0.10.3] - 2026-10-08
 
 ### Changed

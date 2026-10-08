@@ -436,3 +436,30 @@ test('the toggle is a framed native button on the desktop, a plain glyph in the 
   expect(term?.props?.plain).toBe(true)
   expect(term?.props?.label).toBe('▿')
 })
+
+test('a card short of rows gives up its bar before a fact, since the chips already show it', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  await $.session.start({ ...START, surface: 'desktop' })
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  const contextAt = async (maxRows: number) => {
+    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(95, false, maxRows) })
+    let open = false
+    walk(await ui.drawn(), n => {
+      if (n.type === 'Box' && n.props?.key === 'cards') open = true
+    })
+    if (!open) await ui.press({ key: 'more' })
+    const tree = await ui.drawn()
+    await ui.unmount()
+    return tree
+  }
+  // 13 rows, as the desktop gives: one body row a card
+  const short = await contextAt(13)
+  expect(svgsOf(cardOf(short, 'context')).filter(n => /used/.test(String(n.props?.alt)))).toHaveLength(0)
+  expect(fact(short, 'in context')).toBe('76k')
+  expect(svgsOf(cardOf(short, 'spend')).filter(n => /token split/.test(String(n.props?.alt)))).toHaveLength(0)
+  // with rows to spare the bar is back, above the facts
+  const tall = await contextAt(40)
+  expect(svgsOf(cardOf(tall, 'context')).filter(n => /used/.test(String(n.props?.alt)))).toHaveLength(1)
+})

@@ -780,8 +780,13 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   const bodyRows = Math.max(1, bodyFor(stripPlace === 'top' ? 1 : 0))
   const inner = Math.max(4, Math.floor((snap.columns - (perLine - 1)) / perLine) - 2 - edge)
   const cardBar: BarSize = { px: inner * measure.pxPerCell, cells: inner }
-  /** A card: its title and headline on one line, then as much of its body,
-   *  listed most important first, as the band has rows for. */
+  /** As much of a card's body as the band has rows for, its facts listed
+   *  most important first. Its bar repeats a chip's, so it shows only when
+   *  every fact fits beside it; short of rows, a fact wins. */
+  const fitBody = (bar: RenderChildren, body: RenderChildren[]): RenderChildren[] => {
+    const facts = body.filter(part => part !== null && part !== undefined)
+    return bar !== null && facts.length < bodyRows ? [bar, ...facts] : facts.slice(0, bodyRows)
+  }
   // Each card's mark: the chips' own icons, so the band speaks one language.
   const CARD_ICON: Readonly<Record<string, readonly [Icon, string]>> = {
     cache: ['cache', palette.warm],
@@ -789,7 +794,14 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     context: ['context', palette.label],
     limits: ['limits', palette.fiveAccent],
   }
-  const card = (name: string, title: string, head: Readonly<{ text: string; tone?: Tone }>, body: RenderChildren[]) => (
+  /** A card: its title and headline on one line, then its bar and body. */
+  const card = (
+    name: string,
+    title: string,
+    head: Readonly<{ text: string; tone?: Tone }>,
+    bar: RenderChildren,
+    body: RenderChildren[],
+  ) => (
     <Box
       key={`card:${name}`}
       flexDirection="column"
@@ -810,7 +822,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
           {head.text}
         </Text>
       </Box>
-      {body.filter(part => part !== null && part !== undefined).slice(0, bodyRows)}
+      {fitBody(bar, body)}
     </Box>
   )
 
@@ -865,8 +877,8 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
                 : `${fmtCountdown(c.msLeft)} left`,
       tone: cacheTone,
     },
+    measured ? meter('cache', charge, cacheTone, palette.warm, cardBar, true) : null,
     [
-      measured ? meter('cache', charge, cacheTone, palette.warm, cardBar, true) : null,
       mood === 'unmeasured' ? note("Countdown starts with Claude's next reply.") : null,
       mood === 'warming' ? note('First message builds the cache.') : null,
       measured ? factRow(mood === 'cold' ? 'next message' : 're-warm if cold', estimate) : null,
@@ -884,20 +896,30 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     ['output', c.tokens.back, palette.coin],
     ['cache reads', c.tokens.cached, palette.warm],
   ]
-  const spendView = card('spend', 'Spend', { text: fmtCost(snap.costUsd) }, [
+  const spendView = card(
+    'spend',
+    'Spend',
+    { text: fmtCost(snap.costUsd) },
     measured ? splitBar('token split: input, output, cache reads', SPLIT.map(([, n, color]) => [n, color] as const)) : null,
+    [
     snap.lastTurnUsd !== null ? factRow('last message', fmtSmallCost(snap.lastTurnUsd)) : null,
     ...(measured ? SPLIT.map(([label, n, color]) => factRow(label, fmtTokens(n), color)) : [note('Breakdown counts from your next message.')]),
-  ])
+    ],
+  )
 
   const contextView = hasContext
-    ? card('context', 'Context', { text: `${ctxPct} full${ctx.compactAt === undefined ? severityMark(ctxFrac) : ''}`, tone: ctxTone }, [
+    ? card(
+        'context',
+        'Context',
+        { text: `${ctxPct} full${ctx.compactAt === undefined ? severityMark(ctxFrac) : ''}`, tone: ctxTone },
         meter('context', ctxFrac, ctxTone, palette.meterFill, cardBar, true),
+        [
         toCompact !== undefined ? factRow('room left', `~${fmtTokens(toCompact)}`) : null,
         ctx.compactAt !== undefined ? factRow('auto-compacts at', fmtTokens(ctx.compactAt)) : null,
         factRow('in context', fmtTokens(ctxUsed)),
         factRow('model window', fmtTokens(ctx.window)),
-      ])
+        ],
+      )
     : null
 
   type Window = Readonly<{ name: string; reading: LimitReading; windowMs: number | undefined; accent: string }>
@@ -953,7 +975,9 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
             text: worst === undefined ? 'all reset' : `${worst.name} ${valueOf(worst.reading)}`,
             tone: worst !== undefined && clamp01(worst.reading.percentUsed / 100) >= WARN_AT ? 'amber' : 'calm',
           },
-          // Short of rows, every window's bar before any pace line.
+          // Each window's bar is in its own row, so the card has none apart.
+          null,
+          // Short of rows, every window's row before any pace line.
           (() => {
             const rows = windows.map(limitRows)
             const lines = rows.flat().filter(part => part !== null)
