@@ -21,6 +21,7 @@ import {
   pillOf,
   shown,
   svgsOf,
+  svgRect,
   breakdown,
   type Node,
   fact,
@@ -47,10 +48,11 @@ test('the 5h and 7d chips show usage, a thumb at the end of the fill, and the re
     const bar = svgsOf(n).find(s => /% used/.test(String(s.props?.alt)))
     const source = String(bar?.props?.source)
     expect(source).not.toMatch(/class="(tick|notch)"/)
-    const fillEnd = Number(source.match(/<rect class="fill" y="1" width="(\d+)"/)?.[1])
-    const thumb = source.match(/<rect class="thumb" x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)"/)
-    expect(Number(thumb?.[1]) + Number(thumb?.[3]) / 2).toBe(fillEnd) // centred on the fill's end
-    expect(Number(thumb?.[2]) + Number(thumb?.[4])).toBeLessThanOrEqual(Number(bar?.props?.height)) // inside the drawing
+    const fill = svgRect(source, 'fill')
+    const thumb = svgRect(source, 'thumb')
+    expect(fill?.y).toBe(1)
+    expect(Number(thumb?.x) + Number(thumb?.width) / 2).toBe(fill?.width) // centred on the fill's end
+    expect(Number(thumb?.y) + Number(thumb?.height)).toBeLessThanOrEqual(Number(bar?.props?.height)) // inside the drawing
   }
   const alts = svgsOf(firstRow(tree)).map(s => String(s.props?.alt))
   expect(alts).toContain('five-hour')

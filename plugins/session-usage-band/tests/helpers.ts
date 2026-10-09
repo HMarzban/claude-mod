@@ -325,11 +325,20 @@ export const svgAlts = (tree: unknown): string[] => svgsOf(tree).map(n => String
 export const batteryOf = (tree: unknown): Node | undefined =>
   svgsOf(pillOf(tree, 'cache')).find(n => /battery|warming/.test(String(n.props?.alt)))
 
-/** The battery icon's charge bar width, in px. */
-export const fillWidth = (svg: Node | undefined): number => {
-  const m = String(svg?.props?.source).match(/<rect class="charge" [^>]*width="([\d.]+)"/)
-  return m ? Number(m[1]) : 0
+/** The first `<rect>` of class `cls` in an SVG's source: its numeric
+ *  attributes by name, read in whatever order they are written; undefined
+ *  when no rect has the class. */
+export const svgRect = (source: string, cls: string): Readonly<Record<string, number>> | undefined => {
+  for (const [rect] of source.matchAll(/<rect\b[^>]*>/g)) {
+    const attrs = [...rect.matchAll(/([\w-]+)="([^"]*)"/g)].map(([, name, value]) => [String(name), String(value)] as const)
+    if (!attrs.some(([name, value]) => name === 'class' && value.split(/\s+/).includes(cls))) continue
+    return Object.fromEntries(attrs.filter(([, value]) => value.trim() !== '' && Number.isFinite(Number(value))).map(([name, value]) => [name, Number(value)]))
+  }
+  return undefined
 }
+
+/** The battery icon's charge bar width, in px. */
+export const fillWidth = (svg: Node | undefined): number => svgRect(String(svg?.props?.source), 'charge')?.width ?? 0
 
 /** Each pill's hidden hover card, as [pill key, card] pairs. */
 export const cards = (tree: unknown): Array<[string, Node]> => {
