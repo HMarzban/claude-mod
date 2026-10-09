@@ -5,6 +5,25 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.11.4] - 2026-10-09
+
+### Fixed
+- Numbers at a unit's edge are written in the unit they round to: 9,999
+  tokens is `10k` (was `10.0k`), 999,999 is `1.0M` (was `1000k`), $999.995
+  is `$1000` (was `$1000.00`), and an estimate from $1000 is whole dollars.
+- A reset under a minute away reads `<1m`, not `0m`.
+- A transcript line that merely names `cost-state`, such as a prompt quoting
+  it, can no longer hide the real cost record, and an unreadable last record
+  falls back to the one before it.
+
+### Changed
+- Inside, not on screen: the toast rule is one pure function, the engine
+  side keeps its state in one object, and the shared helpers (a duration's
+  wording, trailing slashes, a transcript's backward scan) exist once. The
+  test suite starts each test with one `setup()`, draws with `mountBand()`,
+  finds nodes with one `byKey()`, settles on the mocked clock, and has unit
+  tests for the formatting, memory and toast modules: 255 tests, from 203.
+
 ## [0.11.3] - 2026-10-09
 
 ### Changed

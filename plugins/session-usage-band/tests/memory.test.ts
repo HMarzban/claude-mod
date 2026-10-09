@@ -140,3 +140,13 @@ test('no cost record, nothing spent or nothing counted is no rate', () => {
   expect(rateFromTranscript(jsonl({ type: 'cost-state', modelUsage: { 'claude-opus-5-5': { inputTokens: 1_000, costUSD: 0 } } }), 'claude-opus-5-5')).toBeNull()
   expect(rateFromTranscript(jsonl({ type: 'cost-state', modelUsage: { 'claude-opus-5-5': { costUSD: 3 } } }), 'claude-opus-5-5')).toBeNull()
 })
+
+test('a later line that merely names cost-state, such as a prompt quoting it, never hides the real record', () => {
+  const transcript = jsonl(costState('claude-opus-5-5'), { type: 'last-prompt', lastPrompt: 'cost-state' })
+  expect(near(rateFromTranscript(transcript, 'claude-opus-5-5'), 20 / 3_000_000)).toBe(true)
+})
+
+test('an unreadable last cost line falls back to the record before it', () => {
+  const transcript = jsonl(costState('claude-opus-5-5'), '{"type":"cost-state", broken')
+  expect(near(rateFromTranscript(transcript, 'claude-opus-5-5'), 20 / 3_000_000)).toBe(true)
+})

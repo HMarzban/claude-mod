@@ -14,19 +14,25 @@ export const clamp01 = (n: number): number => (n < 0 ? 0 : n > 1 ? 1 : n)
 
 export const fmtTokens = (n: number): string => {
   const v = Math.max(0, Math.round(n))
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
-  if (v >= 10_000) return `${Math.round(v / 1000)}k`
+  // Each unit from where the one below would round up to it: 9,999 is 10k,
+  // not 10.0k; 999,999 is 1.0M, not 1000k.
+  if (v >= 999_500) return `${(v / 1_000_000).toFixed(1)}M`
+  if (v >= 9_950) return `${Math.round(v / 1000)}k`
   if (v >= 1_000) return `${(v / 1000).toFixed(1)}k`
   return String(v)
 }
 
-export const fmtCost = (usd: number): string => (usd >= 1000 ? `$${Math.round(usd)}` : `$${usd.toFixed(2)}`)
+/** Whole dollars from $1000, and from what would round to it. */
+const WHOLE_FROM = 999.995
+
+export const fmtCost = (usd: number): string => (usd >= WHOLE_FROM ? `$${Math.round(usd)}` : `$${usd.toFixed(2)}`)
 
 /** A small figure honestly: under a cent is not $0.00. */
 export const fmtSmallCost = (usd: number): string => (usd < 0.01 ? '<$0.01' : fmtCost(usd))
 
 /** An estimate is always marked as one. */
-export const fmtEstimate = (usd: number): string => (usd < 0.01 ? '~<$0.01' : `~$${usd.toFixed(2)}`)
+export const fmtEstimate = (usd: number): string =>
+  usd < 0.01 ? '~<$0.01' : usd >= WHOLE_FROM ? `~$${Math.round(usd)}` : `~$${usd.toFixed(2)}`
 
 /** From an hour, `1h 05m`; from ten minutes, whole minutes; below, `M:SS`.
  *  The countdown is still for most of its life and ticks only when ticking
@@ -45,14 +51,14 @@ export const fmtCountdown = (ms: number): string => {
 export type ResetIn = { kind: 'in'; text: string } | { kind: 'passed' }
 
 /** When `iso` comes, from `now`; undefined without a readable time. */
-/** A span coarsely, to the minute: `2d 4h`, `3h 05m`, `12m`. */
+/** A span coarsely, to the minute: `2d 4h`, `3h 05m`, `12m`, `<1m`. */
 const fmtSpan = (ms: number): string => {
   const mins = Math.floor(Math.max(0, ms) / 60_000)
   const hours = Math.floor(mins / 60)
   const days = Math.floor(hours / 24)
   if (days) return `${days}d ${hours % 24}h`
   if (hours) return `${hours}h ${String(mins % 60).padStart(2, '0')}m`
-  return `${mins}m`
+  return mins > 0 ? `${mins}m` : '<1m'
 }
 
 export const resetIn = (iso: string | undefined, now: number): ResetIn | undefined => {

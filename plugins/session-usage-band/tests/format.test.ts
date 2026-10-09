@@ -160,3 +160,24 @@ test('the context in use prefers its token count, even a zero, to the percent', 
   expect(contextUsed({ percent: 40, window: 200_000 })).toBe(80_000)
   expect(contextUsed({ window: 200_000 })).toBeUndefined()
 })
+
+// ── rounding at a unit's edge ──────────────────────────────────────────
+
+test('a token count that rounds up to the next unit is written in it', () => {
+  expect(fmtTokens(9_949)).toBe('9.9k')
+  expect(fmtTokens(9_999)).toBe('10k') // not 10.0k, which the next unit already says
+  expect(fmtTokens(999_499)).toBe('999k')
+  expect(fmtTokens(999_999)).toBe('1.0M') // not 1000k
+})
+
+test('a cost that rounds to $1000 is written as whole dollars, as $1000 itself is', () => {
+  expect(fmtCost(999.994)).toBe('$999.99')
+  expect(fmtCost(999.995)).toBe('$1000')
+  expect(fmtEstimate(1234.5)).toBe('~$1235') // estimates switch at $1000 too
+  expect(fmtEstimate(12.344)).toBe('~$12.34')
+})
+
+test('a reset under a minute away says so, not 0m', () => {
+  expect(resetIn(new Date(30_000).toISOString(), 0)).toEqual({ kind: 'in', text: '<1m' })
+  expect(resetIn(new Date(60_000).toISOString(), 0)).toEqual({ kind: 'in', text: '1m' })
+})
