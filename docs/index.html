@@ -6,8 +6,9 @@
 <title>session-usage-band: see what your next Claude Code message costs</title>
 <meta name="description" content="A free, open-source Claude Code mod that shows the prompt-cache countdown, what a cold cache will cost to re-warm, your session spend, context fill and your 5-hour and weekly limits.">
 <link rel="canonical" href="https://hmarzban.github.io/claude-mod/">
-<meta name="theme-color" content="#141413">
-<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#faf9f5">
+<meta name="color-scheme" content="light dark">
+<script>try { if (localStorage.getItem('theme') === 'dark') document.documentElement.dataset.theme = 'dark' } catch {}</script>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 
 <meta property="og:type" content="website">
@@ -62,13 +63,21 @@
 
 <style>
   :root {
-    --bg: #141413; --bg-2: #1b1b1a; --bg-3: #232321; --line: #2f2e2b; --line-2: #3d3c38;
-    --text: #f2f0eb; --text-2: #b4b0a7; --text-3: #8a877f; --accent: #d97757; --amber: #e8b45a; --green: #7fcf8a;
+    --bg: #faf9f5; --bg-2: #ffffff; --bg-3: #f1efe8; --bg-4: #e9e6dc; --line: #e4e0d6; --line-2: #cfcabd;
+    --text: #1f1e1b; --text-2: #4f4c45; --text-3: #6b675e; --accent: #b4502c; --amber: #c98a1a; --good: #2e7a3c; --m: #8a5a00;
+    --t-warm: #b9dcc0; --t-amber: #f0cf8f; --t-cold: #d9d5ca; --frame: 0 18px 50px rgba(31,30,27,.16);
     --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    color-scheme: light;
+  }
+  :root[data-theme=dark] {
+    --bg: #141413; --bg-2: #1b1b1a; --bg-3: #232321; --bg-4: #2b2b28; --line: #2f2e2b; --line-2: #3d3c38;
+    --text: #f2f0eb; --text-2: #b4b0a7; --text-3: #8a877f; --accent: #d97757; --amber: #e8b45a; --good: #7fcf8a; --m: #e8b45a;
+    --t-warm: #2f5a3a; --t-amber: #6b5221; --t-cold: #3a3a3e; --frame: none;
+    color-scheme: dark;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
-  body { background: var(--bg); color: var(--text); font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  body { background: var(--bg); color: var(--text); transition: background .25s, color .25s; font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
   a { color: inherit; }
   .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
 
@@ -82,6 +91,11 @@
   .star:hover { border-color: var(--line-2); }
   .star svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; transition: transform .3s cubic-bezier(.3,1.6,.5,1), fill .2s; }
   .star:hover svg { transform: rotate(-14deg) scale(1.12); fill: var(--amber); stroke: var(--amber); }
+  .theme { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--text); cursor: pointer; }
+  .theme:hover { border-color: var(--line-2); }
+  .theme svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; transition: transform .45s cubic-bezier(.3,1.4,.5,1); }
+  .theme:active svg { transform: rotate(90deg) scale(.85); }
+  .theme .moon { display: none; } :root[data-theme=dark] .theme .moon { display: block; } :root[data-theme=dark] .theme .sun { display: none; }
   .star .count { color: var(--text-2); font-variant-numeric: tabular-nums; }
 
   /* hero */
@@ -95,9 +109,9 @@
   .install pre { flex: 1; font: 14.5px/1.75 var(--mono); padding: 12px 16px; overflow-x: auto; }
   .install pre span { color: var(--text-3); user-select: none; }
   .copy { flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; border: 0; border-left: 1px solid var(--line); background: var(--bg-3); color: var(--text); font: 600 14px -apple-system, system-ui, sans-serif; padding: 0 18px; cursor: pointer; transition: background .15s; }
-  .copy:hover { background: #2b2b28; }
+  .copy:hover { background: var(--bg-4); }
   .copy svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .copy .ok { display: none; color: var(--green); }
+  .copy .ok { display: none; color: var(--good); }
   .copy.done .ok { display: inline; animation: pop .35s cubic-bezier(.3,1.6,.5,1); }
   .copy.done .ic { display: none; }
   @keyframes pop { from { transform: scale(.4); opacity: 0 } to { transform: scale(1); opacity: 1 } }
@@ -108,7 +122,10 @@
 
   /* the live band */
   .live { margin-top: 44px; position: relative; }
-  .stagebox { background: #1a1a1a; border: 1px solid var(--line); border-radius: 18px; padding: 22px 18px 18px; overflow: hidden; }
+  .stagebox { background: #1a1a1a; border: 1px solid #2f2f2d; border-radius: 18px; padding: 22px 18px 18px; overflow: hidden; box-shadow: var(--frame); }
+  .scroller { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .scroller::-webkit-scrollbar { display: none; }
+  .swipe { display: none; font-size: 13px; color: #8f8c85; margin: 10px 4px 0; }
   .chatline { display: flex; justify-content: flex-end; margin: 0 6px 16px; }
   .chatline span { background: #2a2a28; border-radius: 14px; padding: 8px 14px; font-size: 15px; color: #d6d3cc; }
   .fit { position: relative; transform-origin: 0 0; }
@@ -152,8 +169,8 @@
   .slider .val { font: 600 15px var(--mono); color: var(--text); float: right; }
   input[type=range] { width: 100%; accent-color: var(--accent); }
   .timeline { position: relative; margin: 40px 6px 10px; height: 64px; }
-  .track { position: absolute; left: 0; right: 0; top: 30px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #2f5a3a 0 92%, #6b5221 92% 98.5%, #3a3a3e 98.5% 100%); }
-  .dot { position: absolute; top: 25px; left: 0; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 5px rgba(127,207,138,.18); }
+  .track { position: absolute; left: 0; right: 0; top: 30px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--t-warm) 0 92%, var(--t-amber) 92% 98.5%, var(--t-cold) 98.5% 100%); }
+  .dot { position: absolute; top: 25px; left: 0; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 5px color-mix(in srgb, var(--good) 22%, transparent); }
   .dot.amber { background: var(--amber); box-shadow: 0 0 0 5px rgba(232,180,90,.22); }
   .dot.cold { background: #8a877f; box-shadow: 0 0 0 5px rgba(138,135,127,.2); }
   .tick { position: absolute; top: 46px; font-size: 13px; color: var(--text-3); transform: translateX(-50%); white-space: nowrap; }
@@ -162,7 +179,7 @@
   .price { border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; background: var(--bg); }
   .price .k { font-size: 13px; color: var(--text-3); }
   .price .v { font: 700 30px/1.2 -apple-system, system-ui, sans-serif; letter-spacing: -0.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
-  .price.warm .v { color: var(--green); }
+  .price.warm .v { color: var(--good); }
   .price.cold .v { color: var(--accent); }
   .price.cold.land { animation: land .5s cubic-bezier(.3,1.6,.5,1); }
   @keyframes land { 0% { transform: scale(.94) } 60% { transform: scale(1.04) } 100% { transform: none } }
@@ -173,20 +190,21 @@
 
   /* film */
   .film { margin-top: 30px; }
-  .film video { display: block; width: 100%; height: auto; border-radius: 16px; border: 1px solid var(--line); background: #000; aspect-ratio: 16 / 9; }
+  .film video { display: block; width: 100%; height: auto; border-radius: 16px; border: 1px solid var(--line); background: #000; aspect-ratio: 16 / 9; box-shadow: var(--frame); }
   .film .cap { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 14px; color: var(--text-3); margin-top: 12px; }
   .film .cap button { font: 600 14px -apple-system, system-ui, sans-serif; color: var(--text-2); background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 
   /* what it shows */
   .anatomy { margin-top: 30px; }
-  .anatomy img { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); }
+  .anatomy { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 14px; box-shadow: var(--frame); }
+  .anatomy img { display: block; width: 100%; min-width: 0; height: auto; border-radius: 14px; }
   dl.facts { display: grid; grid-template-columns: 220px 1fr; gap: 14px 30px; margin-top: 30px; max-width: 860px; }
   dl.facts dt { font-weight: 650; }
   dl.facts dd { color: var(--text-2); }
 
   .formula { margin-top: 26px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; font: 15px/1.7 var(--mono); overflow-x: auto; white-space: nowrap; }
   .formula .r { color: var(--accent); }
-  .formula .m { color: var(--amber); }
+  .formula .m { color: var(--m); }
   ul.points { list-style: none; margin-top: 22px; display: grid; gap: 12px; max-width: 760px; }
   ul.points li { color: var(--text-2); padding-left: 24px; position: relative; }
   ul.points li::before { content: ""; position: absolute; left: 3px; top: 11px; width: 8px; height: 8px; border-radius: 2px; background: var(--accent); }
@@ -227,6 +245,17 @@
     .ratio { grid-column: 1 / -1; order: -1; }
     dl.facts { grid-template-columns: 1fr; gap: 4px; } dl.facts dd { margin-bottom: 12px; }
     .stagebox { padding: 14px 10px 10px; }
+    .swipe { display: block; }
+    .seg button { padding: 0 13px; min-height: 44px; }
+    .theme { width: 44px; height: 44px; }
+    .star { min-height: 44px; }
+    .replay { min-height: 44px; padding: 0 14px; }
+    .copy { min-height: 46px; }
+    nav .name { font-size: 15px; gap: 8px; }
+    nav .links { gap: 10px; }
+    input[type=range] { height: 32px; }
+    .anatomy img { min-width: 720px; }
+    .faq summary { font-size: 17px; }
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -241,6 +270,7 @@
     <div class="links">
       <a class="hide-sm" href="#lunch">The cost</a>
       <a class="hide-sm" href="#how">How it works</a>
+      <button class="theme" id="theme" type="button" aria-label="Switch light or dark"><svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></svg><svg class="moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" stroke-linejoin="round"/></svg></button>
       <a class="star" href="https://github.com/HMarzban/claude-mod" aria-label="Star on GitHub"><svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" stroke-linejoin="round"/></svg>Star<span class="count" id="stars"></span></a>
     </div>
   </nav>
@@ -261,7 +291,8 @@
     <div class="live" id="live">
       <div class="stagebox">
         <div class="chatline"><span>great, I'm grabbing lunch. back in an hour or so</span></div>
-        <div class="fit" id="fit"><div id="bandhost"></div><div class="prompt">Type / for commands</div></div>
+        <div class="scroller" id="scroller"><div id="fitbox"><div class="fit" id="fit"><div id="bandhost"></div><div class="prompt">Type / for commands</div></div></div></div>
+        <div class="swipe" id="swipe">Swipe to see the whole band →</div>
       </div>
       <div class="tip" id="tip"></div>
       <div class="livebar"><span><b>This is the real band</b>, counting down its last minute. Hover a chip, click <b>▿</b>, or try <b>Hide band</b>.</span><button class="replay" id="replay" type="button"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Run the last minute again</button></div>
@@ -384,6 +415,13 @@
 (() => {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
 
+  // ---- light or dark, remembered ----
+  document.getElementById('theme').addEventListener('click', () => {
+    const dark = document.documentElement.dataset.theme !== 'dark'
+    if (dark) document.documentElement.dataset.theme = 'dark'; else delete document.documentElement.dataset.theme
+    try { localStorage.setItem('theme', dark ? 'dark' : 'light') } catch {}
+  })
+
   // ---- copy buttons ----
   for (const b of document.querySelectorAll('.copy')) {
     b.addEventListener('click', async () => {
@@ -424,13 +462,15 @@
     scale()
   }
   function scale() {
-    const box = fit.parentElement, cs = getComputedStyle(box)
-    const w = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
-    const k = Math.min(1, w / 964)
-    fit.style.transform = `scale(${k})`
+    const sc = document.getElementById('scroller'), box = document.getElementById('fitbox')
+    const w = sc.clientWidth
+    // on a phone, keep the band readable and let it scroll sideways
+    const k = Math.max(w < 700 ? 0.7 : 0, Math.min(1, w / 964))
     fit.style.width = '964px'
-    fit.parentElement.style.height = ''
-    fit.style.marginBottom = `${(k - 1) * fit.offsetHeight}px`
+    fit.style.transform = `scale(${k})`
+    box.style.width = (964 * k) + 'px'
+    box.style.height = (fit.offsetHeight * k) + 'px'
+    document.getElementById('swipe').style.visibility = 964 * k > w + 2 ? 'visible' : 'hidden'
   }
   function tick() {
     if (S.secs > 0) {
@@ -453,11 +493,19 @@
     if (!el) { tip.classList.remove('on'); return }
     tip.textContent = el.dataset.tip
     const lr = live.getBoundingClientRect(), r = el.getBoundingClientRect()
-    tip.style.left = Math.max(0, Math.min(lr.width - 340, r.left - lr.left)) + 'px'
-    tip.style.top = (r.top - lr.top - tip.offsetHeight - 10) + 'px'
+    tip.style.left = Math.max(0, Math.min(lr.width - Math.min(340, lr.width), r.left - lr.left)) + 'px'
+    const above = r.top - lr.top - tip.offsetHeight - 10
+    tip.style.top = (above < 0 ? r.bottom - lr.top + 10 : above) + 'px'
     tip.classList.add('on')
   })
   live.addEventListener('mouseleave', () => tip.classList.remove('on'))
+  // touch screens have no hover: a tap on a chip shows its words, a tap elsewhere hides them
+  live.addEventListener('click', e => {
+    if (!matchMedia('(hover: none)').matches) return
+    const el = e.target.closest('[data-tip]')
+    if (el) el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); else tip.classList.remove('on')
+  })
+  document.getElementById('scroller').addEventListener('scroll', () => tip.classList.remove('on'))
   start()
 
   // ---- what a lunch break costs ----
@@ -476,7 +524,7 @@
   function animate() {
     cancelAnimationFrame(run); clearTimeout(fallback)
     const p = prices(); warmEl.textContent = money(p.warm)
-    const settle = () => { setStatic(); dot.style.left = '100%'; dot.className = 'dot cold'; now.style.left = '100%'; now.textContent = 'cold' }
+    const settle = () => { setStatic(); dot.style.left = '100%'; dot.className = 'dot cold'; now.style.left = '100%'; now.style.transform = 'translateX(-100%)'; now.textContent = 'cold' }
     if (reduce) { settle(); return }
     const t0 = performance.now(), D = 2600
     let landed = false
@@ -493,6 +541,7 @@
     const step = t => {
       const q = Math.min(1, (t - t0) / D), e = q < .5 ? 2 * q * q : 1 - (-2 * q + 2) ** 2 / 2
       dot.style.left = (e * 100) + '%'; now.style.left = (e * 100) + '%'
+      now.style.transform = e > 0.85 ? 'translateX(-100%)' : e < 0.12 ? 'none' : 'translateX(-50%)'
       now.textContent = e >= 0.985 ? 'cold' : e >= 0.92 ? 'last minute' : Math.round(e * 60) + ' min idle'
       dot.className = 'dot' + (e >= 0.985 ? ' cold' : e >= 0.92 ? ' amber' : '')
       if (q < 1) run = requestAnimationFrame(step)
