@@ -98,10 +98,10 @@ test("a subagent's tokens still count toward the rate the re-warm is solved from
   await respond(inAgent(e => $.turn.step(e)), resp(3_000, 20_000, 10_000, 4_000))
   await clock.advance(61 * 60_000)
 
-  // weighted = 13k + 1.25*110k + 0.1*20k + 5*6k = 182.5k; 1.25*112k*2.41/182.5k = 1.85
-  // (without the subagent's tokens it would be 2.33)
+  // reads at Opus 5.5's 0.05×: weighted = 13k + 1.25*110k + 0.05*20k + 5*6k = 181.5k;
+  // 1.25*112k*2.41/181.5k = 1.86 (without the subagent's tokens it would be 2.33)
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
-  expect(await ui.find({ type: 'Text', text: /~\$1\.85/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /~\$1\.86/ })).toBeDefined()
   await ui.unmount()
 })
 
@@ -115,9 +115,10 @@ test("the re-warm estimate is solved from every response's tokens", async ($, on
   await respond(e => $.turn.step(e), resp(1_000, 110_000, 2_000, 1_000))
   await clock.advance(61 * 60_000)
 
-  // weighted = 15k + 1.25*108k + 0.1*210k + 5*6k = 201k; 1.25*114k*2.41/201k = 1.71
+  // reads at Opus 5.5's 0.05×: weighted = 15k + 1.25*108k + 0.05*210k + 5*6k = 190.5k;
+  // 1.25*114k*2.41/190.5k = 1.80
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
-  expect(await ui.find({ type: 'Text', text: /~\$1\.71/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /~\$1\.80/ })).toBeDefined()
   await ui.unmount()
 })
 

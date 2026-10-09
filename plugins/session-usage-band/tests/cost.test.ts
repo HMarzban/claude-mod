@@ -115,9 +115,9 @@ test('a ledger reset on /clear keeps the re-warm price right after the new conve
   await respond(e => $.turn.step(e), resp(1_000, 112_000, 2_000, 1_000))
   await clock.advance(61 * MIN)
 
-  // all $3.00 is this conversation's: 1.25 * 116k * 3.00 / 164.7k = 2.64
+  // all $3.00 is this conversation's, reads at Opus 5.5's 0.05×: 1.25 * 116k * 3.00 / 159.1k = 2.73
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
-  expect(await ui.find({ type: 'Text', text: /~\$2\.64/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /~\$2\.73/ })).toBeDefined()
   await ui.unmount()
 })
 

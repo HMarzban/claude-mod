@@ -90,12 +90,15 @@ export const rateFromTranscript = (transcript: string, model: string): number | 
     const m = isRecord(usage) ? usage[model] : undefined
     if (!isRecord(m)) return null
     const n = (k: string) => (typeof m[k] === 'number' ? (m[k] as number) : 0)
-    const weighted = weightedTokens({
-      uncached: n('inputTokens'),
-      written: n('cacheCreationInputTokens'),
-      read: n('cacheReadInputTokens'),
-      output: n('outputTokens'),
-    })
+    const weighted = weightedTokens(
+      {
+        uncached: n('inputTokens'),
+        written: n('cacheCreationInputTokens'),
+        read: n('cacheReadInputTokens'),
+        output: n('outputTokens'),
+      },
+      model,
+    )
     const rate = weighted > 0 ? n('costUSD') / weighted : 0
     return Number.isFinite(rate) && rate > 0 ? rate : null
   }

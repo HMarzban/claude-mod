@@ -5,6 +5,18 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.11.1] - 2026-10-09
+
+### Fixed
+- Cache reads are priced for the model in force: 0.05× base input on
+  Opus 5.5, 0.025× on Fable and Mythos 5.1, 0.1× elsewhere. Solving the rate
+  with 0.1× everywhere put Opus 5.5's at $2.97 per million input tokens
+  where the list price is $4.00, so every re-warm estimate read about 26%
+  low. On a real session's totals the band now solves to $4.02.
+- Cache writes stay at 1.25×, as Claude Code's own ledger prices them,
+  1-hour writes included, so the band agrees with the cost it shows. The
+  README says when Anthropic's bill differs.
+
 ## [0.11.0] - 2026-10-09
 
 ### Added

@@ -115,21 +115,24 @@ it names the tokens instead. With nothing to recall, it stays at `cache –`.
 ## What a cold cache costs
 
 No pricing table is reachable from a mod, so the rate is solved from the
-session's own bill. Anthropic models hold fixed ratios between their rates
-(a cache write 1.25× base input, a cache read 0.1×, output 5×), which
-leaves one unknown:
+session's own bill. Each kind of token costs a fixed multiple of base input
+(a cache write 1.25×, output 5×, a cache read 0.1×, or 0.05× on Opus 5.5
+and 0.025× on Fable and Mythos 5.1), which leaves one unknown:
 
 ```
-cost = r × (uncached + 1.25×written + 0.1×read + 5×output)
+cost = r × (uncached + 1.25×written + read multiple×read + 5×output)
 ```
 
 Solve for `r`, then price the re-warm as a cache write of the whole
 conversation. After a compaction, it prices the summary instead. It's
 always shown with `~`.
 
-- **Known limitation:** a 1-hour cache bills writes at 2×, not 1.25×. The
-  estimate partly corrects itself through the solved rate, but it's still
-  an estimate on top of the client-side cost Claude Code computes.
+- **Writes at 1.25×, as Claude Code counts them.** Claude Code's cost
+  ledger prices every cache write at 1.25×, so the band does too and agrees
+  with the cost it shows. Anthropic bills a 1-hour cache write at 2×, so if
+  you pay per token on a 1-hour cache, the real re-warm is up to 1.6× the
+  estimate. Paying per token usually means the 5-minute cache, where 1.25×
+  is exact.
 - **After `/clear`, a resume or a reload,** the rate is solved from what
   the current conversation has spent, not the session's whole ledger.
 

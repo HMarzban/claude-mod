@@ -172,30 +172,53 @@ export const recordResponse = (
   state.model = model ?? state.model
 }
 
-// Anthropic models hold the same ratios between their four rates.
+// The price of each kind of token against base input. Writes and output hold
+// one ratio across Anthropic's models; reads do not. Claude Code's own ledger
+// prices every cache write at 1.25×, whatever its lifetime, so the band does
+// too, to agree with the cost it shows.
 const WRITE_MULT = 1.25
-const READ_MULT = 0.1
 const OUTPUT_MULT = 5
+/** A cache read against base input, by model; 0.1× elsewhere. Per Anthropic's
+ *  list prices as of 2026-10: Opus 5.5 reads at $0.20 on $4.00 input, Fable
+ *  and Mythos 5.1 at $0.25 on $10.00. */
+const READ_MULT_BY_MODEL: Readonly<Record<string, number>> = {
+  'claude-opus-5-5': 0.05,
+  'claude-fable-5-1': 0.025,
+  'claude-mythos-5-1': 0.025,
+}
+const DEFAULT_READ_MULT = 0.1
 
-/** What a cold cache would cost to rebuild, in dollars.
+/** What a cache read costs against base input on `model`. */
+export const readMultiplier = (model: string | undefined): number =>
+  (model === undefined ? undefined : READ_MULT_BY_MODEL[model]) ?? DEFAULT_READ_MULT
+
+/** The model the session's tokens are priced at: the one /model has in force. */
+let priceModel: string | undefined
+
+export const notePriceModel = (model: string | undefined): void => {
+  priceModel = model
+}
+
+/** Tokens weighted by their price against base input on `model`: the one
+ *  unknown left is the base rate itself. */
+export const weightedTokens = (
+  t: Readonly<{ uncached: number; written: number; read: number; output: number }>,
+  model: string | undefined,
+): number => t.uncached + WRITE_MULT * t.written + readMultiplier(model) * t.read + OUTPUT_MULT * t.output
+
+/** The base rate per token, in dollars.
  *
  *  No pricing table is available to a mod, so the rate is solved from the
  *  session's own bill, which leaves one unknown:
  *
- *    cost = r * (uncached + 1.25*written + 0.1*read + 5*output)
+ *    cost = r * (uncached + 1.25*written + read multiplier*read + 5*output)
  *
- *  Solve for r, then price the re-warm as a cache write of the whole window.
  *  It self-calibrates to whatever model and plan are in force, and it is an
  *  estimate on top of an estimate (the session cost is itself computed at list
- *  price), so it is always shown with a "~". Call noteLedger first. */
-/** Tokens weighted by their price relative to base input: the one unknown
- *  left is the base rate itself. */
-export const weightedTokens = (t: Readonly<{ uncached: number; written: number; read: number; output: number }>): number =>
-  t.uncached + WRITE_MULT * t.written + READ_MULT * t.read + OUTPUT_MULT * t.output
-
+ *  price), so what it prices is always shown with a "~". Call noteLedger first. */
 export const ratePerToken = (sessionCost: number | undefined): number | null => {
   if (!sessionCost || sessionCost <= 0) return null
-  const weighted = weightedTokens(state)
+  const weighted = weightedTokens(state, priceModel)
   if (weighted <= 0) return null
   const billed = sessionCost - state.costBase
   if (billed <= 0) return null
@@ -206,16 +229,17 @@ export const ratePerToken = (sessionCost: number | undefined): number | null => 
 /** What writing `tokens` to the cache costs at a base `rate` per token. */
 export const reWarmAt = (rate: number, tokens: number): number => rate * WRITE_MULT * tokens
 
+/** What a cold cache would cost to rebuild: a cache write of the whole window. */
 export const reWarmUsd = (sessionCost: number | undefined): number | null => {
   const rate = ratePerToken(sessionCost)
   return rate === null ? null : reWarmAt(rate, state.window)
 }
 
 /** What reading from the cache saved against paying full input price for
- *  the same tokens: 0.9 of the base rate on every cache read. */
+ *  the same tokens: the rest of the base rate on every cache read. */
 export const savedUsd = (sessionCost: number | undefined): number | null => {
   const rate = ratePerToken(sessionCost)
-  return rate === null || state.read <= 0 ? null : rate * (1 - READ_MULT) * state.read
+  return rate === null || state.read <= 0 ? null : rate * (1 - readMultiplier(priceModel)) * state.read
 }
 
 export const hitRatio = (): number | null => {

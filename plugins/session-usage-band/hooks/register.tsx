@@ -12,6 +12,7 @@ import {
   noteConversationStart,
   noteLedger,
   noteLoad,
+  notePriceModel,
   pinTtl,
   ratePerToken,
   recordResponse,
@@ -202,6 +203,7 @@ export const register: Register = on => {
     workspace = undefined
     reads++ // any read still out began before this load
     recall = undefined
+    notePriceModel(await $.session.model().catch(() => undefined))
     noteLoad(await ledgerUsd($).catch(() => undefined))
     void readWorkspace($)
     // Loaded mid-conversation, the band has seen no reply: recall the last.
@@ -257,6 +259,8 @@ export const register: Register = on => {
   })
 
   on('turn.start', async ($, e, next) => {
+    // /model may have switched what the session's tokens are priced at.
+    notePriceModel(await $.session.model().catch(() => undefined))
     const cost = await ledgerUsd($)
     noteTurnStart(e.turnId, cost)
     if (cost !== undefined) noteConversationStart(cost)

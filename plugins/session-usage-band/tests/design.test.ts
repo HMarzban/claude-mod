@@ -200,9 +200,9 @@ test('the cache card leads with the stake: re-warm cost, savings, hit rate, expi
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
   expect(shown(cardOf(tree, 'cache'))).toMatch(/^CACHE1h 00m left/)
-  // rate = 2.41 / (14k + 1.25*106k + 0.1*100k + 5*5k) = 2.41 / 181.5k
-  expect(fact(tree, 're-warm if cold')).toBe('~$1.88') // 1.25 * 113k * rate
-  expect(fact(tree, 'saved by cache')).toBe('~$1.20') // 0.9 * 100k * rate
+  // reads at Opus 5.5's 0.05×: rate = 2.41 / (14k + 1.25*106k + 0.05*100k + 5*5k) = 2.41 / 176.5k
+  expect(fact(tree, 're-warm if cold')).toBe('~$1.93') // 1.25 * 113k * rate
+  expect(fact(tree, 'saved by cache')).toBe('~$1.30') // 0.95 * 100k * rate
   expect(fact(tree, 'hit rate')).toBe('45%')
   expect(fact(tree, 'expires')).toBe('1h idle')
   await ui.unmount()

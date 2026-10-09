@@ -5,7 +5,7 @@ draw inside Claude Code itself, written with its function-hooks API.
 
 | Plugin | What it does | Version |
 | --- | --- | --- |
-| [session-usage-band](plugins/session-usage-band/README.md) | A calm band above the prompt: prompt-cache countdown, cost, tokens, context and your 5-hour and weekly limits, with an expanded view of four cards. | 0.11.0 |
+| [session-usage-band](plugins/session-usage-band/README.md) | A calm band above the prompt: prompt-cache countdown, cost, tokens, context and your 5-hour and weekly limits, with an expanded view of four cards. | 0.11.1 |
 
 ## session-usage-band at a glance
 

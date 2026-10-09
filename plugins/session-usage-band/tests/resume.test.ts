@@ -63,13 +63,14 @@ test("its price comes from the transcript's own cost record, per model", async (
   mock.clock(on, { now: 3 * HOUR })
   mock.env(on, ENV)
   base(on)
-  // $20 over 1M input + 1.25 × 400k written + 0.1 × 20M read + 5 × 100k output = 4M weighted tokens: $0.000005 a token
+  // Opus 5.5 reads its cache at 0.05× input: $20 over 1M input + 1.25 × 400k
+  // written + 0.05 × 20M read + 5 × 100k output = 3M weighted tokens
   engine.transcript = transcriptOf(0, {
     'claude-opus-5-5': { inputTokens: 1_000_000, cacheCreationInputTokens: 400_000, cacheReadInputTokens: 20_000_000, outputTokens: 100_000, costUSD: 20 },
   })
   await $.session.start(START)
-  // 1.25 × 76k × $0.000005
-  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/next message ~\$0\.48/)
+  // 1.25 × 76k × $20 / 3M
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/next message ~\$0\.63/)
 })
 
 test('a transcript of any size is read from its end, the last megabyte alone', async ($, on) => {
