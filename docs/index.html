@@ -185,14 +185,30 @@
   .prompt { margin: 12px 0 0; height: 48px; border: 1px solid #3a3a38; border-radius: 16px; display: flex; align-items: center; padding: 0 18px; color: #8f8c85; font-size: 16px; }
   .tip { position: absolute; z-index: 5; max-width: 340px; background: #303037; color: #ececf2; font-size: 13.5px; line-height: 1.45; padding: 8px 11px; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.45); pointer-events: none; opacity: 0; transform: translateY(4px); transition: opacity .12s, transform .12s var(--ease-out); }
   .tip.on { opacity: 1; transform: none; }
-  .states { display: flex; gap: 6px; margin: 0 auto var(--s3); padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; width: fit-content; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .states { position: relative; display: flex; gap: 6px; margin: 0 auto var(--s3); padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; width: fit-content; max-width: 100%; overflow-x: auto; scrollbar-width: none; scroll-behavior: smooth; }
+  .states .ind { position: absolute; z-index: 0; top: 4px; left: 0; height: calc(100% - 8px); border-radius: 10px; background: var(--ink); transition: transform .32s var(--ease-out), width .32s var(--ease-out); overflow: hidden; pointer-events: none; }
+  .states .ind i { position: absolute; left: 10px; right: 10px; bottom: 4px; height: 2px; border-radius: 1px; background: #e8936f; transform: scaleX(0); transform-origin: 0 50%; opacity: 0; }
+  .states.touring .ind i { opacity: 1; }
+  @keyframes fillbar { from { transform: scaleX(0) } to { transform: scaleX(1) } }
   .states::-webkit-scrollbar { display: none; }
-  .states button { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px; font: 600 14px -apple-system, system-ui, sans-serif; color: var(--text-2); background: transparent; border: 0; border-radius: 10px; padding: 8px 12px; cursor: pointer; transition: background .15s, color .15s; }
+  .states button { position: relative; z-index: 1; flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px; font: 600 14px -apple-system, system-ui, sans-serif; color: var(--text-2); background: transparent; border: 0; border-radius: 10px; padding: 8px 12px; cursor: pointer; transition: background .15s, color .15s; }
   .states button:hover { color: var(--text); background: var(--sunk); }
-  .states button[aria-selected=true] { color: var(--on-ink); background: var(--ink); }
+  .states button[aria-selected=true] { color: var(--on-ink); background: transparent; }
+  .states button[aria-selected=true]:hover { background: transparent; }
   .states .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .35; }
   .states button.amber .dot { background: var(--amber); opacity: 1; }
   .states button[aria-selected=true] .dot { opacity: 1; }
+  #fitbox { transition: height .36s var(--ease-out); overflow: hidden; }
+  .band [data-key] { transition: box-shadow .3s var(--ease-out); border-radius: 8px; }
+  .band .spot { box-shadow: inset 0 0 0 2px rgba(232,147,111,.95), inset 0 0 14px rgba(217,119,87,.28); }
+  .band .changed { animation: changed .9s var(--ease-out); }
+  @keyframes changed { 0% { box-shadow: inset 0 0 0 2px rgba(232,147,111,.9); filter: brightness(1.35) } 100% { box-shadow: inset 0 0 0 2px rgba(232,147,111,0); filter: none } }
+  .band .spot.changed { animation: none; }
+  .cd { display: inline-block; }
+  .cd.flip { animation: flip .26s var(--ease-out); }
+  @keyframes flip { from { opacity: .25; transform: translateY(-40%) } to { opacity: 1; transform: none } }
+  #note.fade { animation: notefade .3s var(--ease-out); }
+  @keyframes notefade { from { opacity: 0; transform: translateY(3px) } to { opacity: 1; transform: none } }
   .livebar { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); flex-wrap: wrap; margin-top: var(--s3); font-size: var(--t-sm); color: var(--text-3); }
   .livebar b { color: var(--text-2); font-weight: 650; }
   .livebar .hint { display: inline-flex; align-items: center; gap: var(--s2); }
@@ -429,7 +445,7 @@
     <div class="facts"><span><svg class="i"><use href="#i-monitor"/></svg>Desktop app and terminal</span><span><svg class="i"><use href="#i-offline"/></svg>No network, no tokens</span><span><svg class="i"><use href="#i-shield"/></svg>Free, MIT licensed</span></div>
 
     <div class="live" id="live">
-      <div class="states" role="tablist" aria-label="The band's states">
+      <div class="states" role="tablist" aria-label="The band's states"><span class="ind" aria-hidden="true"><i></i></span>
         <button type="button" role="tab" data-mode="calm" aria-selected="false"><span class="dot"></span>Calm</button>
         <button type="button" role="tab" data-mode="last" aria-selected="true" class="amber"><span class="dot"></span>Last minute</button>
         <button type="button" role="tab" data-mode="cold" aria-selected="false"><span class="dot"></span>Gone cold</button>
@@ -444,7 +460,7 @@
         <div class="swipe" id="swipe">Swipe to see the whole band →</div>
       </div>
       <div class="tip" id="tip"></div>
-      <div class="livebar"><span class="hint"><span class="pulse"></span><span id="note"><b>This is the real band</b>, counting down its last minute. Hover a chip, open ▿, or try Hide band.</span></span><button class="chip" id="replay" type="button"><svg class="i"><use href="#i-replay"/></svg>Run the last minute again</button></div>
+      <div class="livebar"><span class="hint"><span class="pulse"></span><span id="note"><b>This is the real band</b>, counting down its last minute. Hover a chip, open ▿, or try Hide band.</span></span><button class="chip" id="replay" type="button"><svg class="i"><use href="#i-replay"/></svg><span>Replay the tour</span></button></div>
     </div>
   </header>
 
@@ -614,10 +630,12 @@
     if (d && d.stargazers_count > 0) $('#stars').textContent = d.stargazers_count
   }).catch(() => {})
 
-  // ---- the live band: the band's real states, its countdown ticking ----
-  const host = $('#bandhost'), fit = $('#fit'), live = $('#live'), tip = $('#tip')
+  // ---- the live band: the band's real states, toured, then yours to explore ----
+  const host = $('#bandhost'), fit = $('#fit'), live = $('#live'), tip = $('#tip'), note = $('#note')
+  const tablist = $('.states'), ind = tablist.querySelector('.ind'), bar = ind.querySelector('i')
+  const tabs = [...tablist.querySelectorAll('button')]
   const tpl = id => document.getElementById('t-' + id).innerHTML
-  const S = { mode: 'last', secs: 15, open: false, hidden: false, timer: null }
+  const fmt = s => `0:${String(Math.max(0, s)).padStart(2, '0')}`
   const NOTES = {
     calm: '<b>Calm.</b> You just got a reply, so nothing needs you and nothing is amber.',
     last: '<b>The last minute.</b> The cache is about to expire, and the band names what letting it go cold will cost.',
@@ -627,17 +645,14 @@
     week: '<b>Weekly limit.</b> Past 80% it turns amber and adds a <b>!</b>, so colour is never the only signal.',
     all: '<b>A busy afternoon.</b> Everything that needs you, at once, still on one row.',
   }
-  const tabs = [...document.querySelectorAll('.states button')]
-  function setMode(mode) {
-    S.mode = mode; S.open = false; S.hidden = false; clearInterval(S.timer)
-    for (const t of tabs) t.setAttribute('aria-selected', t.dataset.mode === mode)
-    document.getElementById('note').innerHTML = NOTES[mode] + ' <span style="color:var(--text-3)">Hover a chip or open ▿.</span>'
-    if (mode === 'last') { S.secs = 15; draw(true); if (!reduce) S.timer = setInterval(tick, 1000) }
-    else { S.secs = mode === 'cold' ? 0 : 15; draw(true) }
-  }
-  for (const t of tabs) t.addEventListener('click', () => setMode(t.dataset.mode))
-  const fmt = s => `0:${String(Math.max(0, s)).padStart(2, '0')}`
+  // the chip each state is about, ringed so the note points somewhere
+  const SPOT = { calm: [], last: ['cache'], cold: ['cache'], compact: ['ctx'], pace: ['5h'], week: ['7d'], all: ['ctx', '5h', '7d'] }
+  const TOUR = ['last', 'cold', 'compact', 'pace', 'week', 'all', 'calm'], DWELL = 3600
+  const S = { mode: 'last', secs: 15, open: false, hidden: false, timer: null, touring: false, next: null }
+
+  const chipTexts = () => Object.fromEntries([...host.querySelectorAll('[data-key=row] > [data-key]')].map(c => [c.dataset.key, c.textContent]))
   function draw(animate) {
+    const before = chipTexts()
     if (S.hidden) {
       host.innerHTML = '<div class="hidden-note"><span>Band hidden. It comes back with</span><button type="button" id="back">/usage-band</button></div>'
       host.querySelector('#back').onclick = () => { S.hidden = false; draw(true) }
@@ -646,12 +661,15 @@
       const name = timed ? (cold ? 'cold' : 'amber') : S.mode
       host.innerHTML = `<div class="band${animate ? ' enter' : ''}${S.mode === 'last' && !cold && S.secs <= 10 ? ' alarm' : ''}">${tpl(name + (S.open ? 'Open' : ''))}</div>`
       for (const c of host.querySelectorAll('.cd')) c.textContent = fmt(S.secs)
+      for (const k of SPOT[S.mode] || []) host.querySelector(`[data-key=row] > [data-key="${k}"]`)?.classList.add('spot')
+      // what changed since the last state: one pulse each, so the eye goes there
+      if (animate && Object.keys(before).length) for (const [k, t] of Object.entries(chipTexts())) if (before[k] !== undefined && before[k] !== t) host.querySelector(`[data-key=row] > [data-key="${k}"]`)?.classList.add('changed')
       const more = host.querySelector('[data-key=more]')
-      if (more) more.onclick = () => { S.open = !S.open; draw(true) }
+      if (more) more.onclick = () => { stopTour(); S.open = !S.open; draw(true) }
       for (const b of host.querySelectorAll('.btn')) {
         const label = b.textContent.trim()
-        if (label.startsWith('Collapse')) b.onclick = () => { S.open = false; draw(true) }
-        if (label.startsWith('Hide band')) b.onclick = () => { S.hidden = true; S.open = false; draw(true) }
+        if (label.startsWith('Collapse')) b.onclick = () => { stopTour(); S.open = false; draw(true) }
+        if (label.startsWith('Hide band')) b.onclick = () => { stopTour(); S.hidden = true; S.open = false; draw(true) }
       }
     }
     scale()
@@ -664,18 +682,54 @@
     box.style.width = (964 * k) + 'px'; box.style.height = (fit.offsetHeight * k) + 'px'
     $('#swipe').style.visibility = 964 * k > w + 2 ? 'visible' : 'hidden'
   }
+  function moveIndicator() {
+    const t = tabs.find(b => b.dataset.mode === S.mode)
+    ind.style.width = t.offsetWidth + 'px'
+    ind.style.transform = `translateX(${t.offsetLeft}px)`
+    const l = t.offsetLeft, r = l + t.offsetWidth
+    if (l < tablist.scrollLeft || r > tablist.scrollLeft + tablist.clientWidth) tablist.scrollTo({ left: l - 12, behavior: reduce ? 'auto' : 'smooth' })
+  }
+  function progress(ms) {
+    bar.style.animation = 'none'; void bar.offsetWidth
+    if (ms) bar.style.animation = `fillbar ${ms}ms linear forwards`
+  }
+  function setMode(mode, opts = {}) {
+    S.mode = mode; S.open = false; S.hidden = false; clearInterval(S.timer); clearTimeout(S.next)
+    for (const t of tabs) { t.setAttribute('aria-selected', t.dataset.mode === mode); t.tabIndex = t.dataset.mode === mode ? 0 : -1 }
+    moveIndicator()
+    note.innerHTML = NOTES[mode] + ' <span style="color:var(--text-3)">Hover a chip or open ▿.</span>'
+    note.classList.remove('fade'); void note.offsetWidth; note.classList.add('fade')
+    if (mode === 'last') {
+      S.secs = S.touring ? 6 : 15; draw(true)
+      if (!reduce) S.timer = setInterval(tick, 1000)
+      progress(S.touring ? S.secs * 1000 : 0)
+    } else {
+      S.secs = mode === 'cold' ? 0 : 15; draw(true)
+      if (S.touring) { progress(DWELL); S.next = setTimeout(() => setMode(TOUR[(TOUR.indexOf(mode) + 1) % TOUR.length]), DWELL) }
+      else progress(0)
+    }
+  }
   function tick() {
     if (S.secs <= 0) return
     S.secs--
     if (S.hidden) return
     if (S.secs === 0) { setMode('cold'); return }
-    else for (const c of host.querySelectorAll('.cd')) c.textContent = fmt(S.secs)
-    const band = host.querySelector('.band')
-    if (band) band.classList.toggle('alarm', S.secs > 0 && S.secs <= 10)
+    for (const c of host.querySelectorAll('.cd')) { c.textContent = fmt(S.secs); c.classList.remove('flip'); void c.offsetWidth; c.classList.add('flip') }
+    host.querySelector('.band')?.classList.toggle('alarm', S.secs <= 10)
   }
-  function start() { setMode('last') }
-  $('#replay').onclick = () => setMode('last')
-  addEventListener('resize', scale)
+  function startTour() { if (reduce) return setMode('last'); S.touring = true; tablist.classList.add('touring'); setMode('last') }
+  function stopTour() { if (!S.touring) return; S.touring = false; tablist.classList.remove('touring'); clearTimeout(S.next); progress(0) }
+
+  for (const t of tabs) t.addEventListener('click', () => { stopTour(); setMode(t.dataset.mode) })
+  tablist.addEventListener('keydown', e => {
+    const i = tabs.findIndex(b => b.dataset.mode === S.mode)
+    const j = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : null
+    if (j === null) return
+    e.preventDefault(); stopTour()
+    const t = tabs[(j + tabs.length) % tabs.length]; setMode(t.dataset.mode); t.focus()
+  })
+  $('#replay').onclick = () => { stopTour(); startTour() }
+  addEventListener('resize', () => { scale(); moveIndicator() })
   live.addEventListener('mouseover', e => {
     const el = e.target.closest('[data-tip]')
     if (!el) { tip.classList.remove('on'); return }
@@ -694,7 +748,13 @@
     if (el) el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); else tip.classList.remove('on')
   })
   $('#scroller').addEventListener('scroll', () => tip.classList.remove('on'))
-  start()
+  setMode('last')
+  // the tour starts once the band is in view, and only once
+  let toured = false
+  const tourOnce = () => { if (toured || reduce) return; toured = true; startTour() }
+  new IntersectionObserver((es, o) => { if (es.some(e => e.isIntersecting)) { o.disconnect(); tourOnce() } }, { threshold: 0.5 }).observe(live)
+  // already on screen at load (the usual case on a laptop): start without waiting on the observer
+  setTimeout(() => { const r = live.getBoundingClientRect(); if (r.top < innerHeight * 0.8 && r.bottom > 0) tourOnce() }, 700)
 
   // ---- what a lunch break costs ----
   const size = $('#size'), tok = $('#tok'), modelSel = $('#model')
