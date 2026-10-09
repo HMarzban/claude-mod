@@ -8,8 +8,11 @@ warm, what is this session costing, and am I close to a limit?
 ```
 
 On the desktop app's Code tab the glyphs are small icons, and the bars are
-drawn as SVG meters. See the [changelog](CHANGELOG.md) for what changed in
-each version.
+drawn as SVG meters:
+
+![The band expanded on the desktop: chips for the cache, cost, context and the 5h and 7d limits, then the Cache, Spend, Context and Limits cards, the project path and branch, and the Collapse and Hide band buttons](../../docs/band-expanded.png)
+
+See the [changelog](CHANGELOG.md) for what changed in each version.
 
 ## Reading it
 

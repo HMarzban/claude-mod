@@ -13,6 +13,7 @@ import {
   noteLedger,
   noteLoad,
   noteRecall,
+  modelName,
   notePriceModel,
   pinTtl,
   ratePerToken,
@@ -123,7 +124,7 @@ const transcriptEnd = async ($: EngineInterface, path: string): Promise<string |
 const recallLastReply = async ($: EngineInterface): Promise<void> => {
   try {
     const id = await $.session.id()
-    const model = await $.session.model()
+    const model = modelName(await $.session.model())
     let lastAt = asSessions(await $.store.get(SESSIONS_KEY))[id]?.lastAt
     let rate = asRates(await $.store.get(RATES_KEY))[model] ?? null
     if (lastAt === undefined || rate === null) {
@@ -148,7 +149,7 @@ const rememberTurn = async ($: EngineInterface, costNow: number | undefined): Pr
     const id = await $.session.id()
     await $.store.set(SESSIONS_KEY, rememberReply(asSessions(await $.store.get(SESSIONS_KEY)), id, cache.lastAt))
     const rate = ratePerToken(costNow)
-    if (rate !== null) await $.store.set(RATES_KEY, { ...asRates(await $.store.get(RATES_KEY)), [await $.session.model()]: rate })
+    if (rate !== null) await $.store.set(RATES_KEY, { ...asRates(await $.store.get(RATES_KEY)), [modelName(await $.session.model())]: rate })
   } catch {
     // memory is a convenience; the band works without it
   }

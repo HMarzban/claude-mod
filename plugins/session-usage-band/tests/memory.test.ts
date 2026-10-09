@@ -135,6 +135,10 @@ test('a model the last cost record does not name has no rate, whatever an earlie
   expect(rateFromTranscript(jsonl(costState('claude-opus-5-5'), costState('claude-sonnet-5-5')), 'claude-opus-5-5')).toBeNull()
 })
 
+test('a model named with its context size finds its cost record, which names the model alone', () => {
+  expect(near(rateFromTranscript(jsonl(costState('claude-opus-5-5')), 'claude-opus-5-5[1m]'), 20 / 3_000_000)).toBe(true)
+})
+
 test('no cost record, nothing spent or nothing counted is no rate', () => {
   expect(rateFromTranscript(jsonl(prompt(1_000), reply(2_000)), 'claude-opus-5-5')).toBeNull()
   expect(rateFromTranscript(jsonl({ type: 'cost-state', modelUsage: { 'claude-opus-5-5': { inputTokens: 1_000, costUSD: 0 } } }), 'claude-opus-5-5')).toBeNull()

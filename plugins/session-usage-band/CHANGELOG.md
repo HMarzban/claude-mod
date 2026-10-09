@@ -5,6 +5,19 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.11.8] - 2026-10-09
+
+### Fixed
+- On a 1M-context session the re-warm price read about 30% low. `/model`
+  names such a model with its window, `claude-opus-5-5[1m]`, which matched
+  no read price, so cache reads were weighed at 0.1× rather than Opus 5.5's
+  0.05×. The band now prices the model behind the name: the re-warm, the
+  hover's read share, the rate it remembers and the rate it reads off a
+  reopened session's cost record, which names the model alone.
+
+### Changed
+- The READMEs show the band on the desktop, expanded.
+
 ## [0.11.7] - 2026-10-09
 
 ### Fixed

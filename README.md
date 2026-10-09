@@ -9,6 +9,10 @@ draw inside Claude Code itself, written with its function-hooks API.
 
 ## session-usage-band at a glance
 
+On the desktop app's Code tab, expanded:
+
+![The band expanded on the desktop: chips for the cache, cost, context and the 5h and 7d limits, then the Cache, Spend, Context and Limits cards, the project path and branch, and the Collapse and Hide band buttons](docs/band-expanded.png)
+
 In the terminal:
 
 ```

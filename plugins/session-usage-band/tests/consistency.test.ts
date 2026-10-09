@@ -9,6 +9,7 @@ import {
   START,
   byKey,
   cardOf,
+  engine,
   fact,
   pacing,
   pillOf,
@@ -46,6 +47,16 @@ test('the warm cache says what reading costs on the model in force', async ($, o
   const hover = textOf(pillOf(await ui.drawn(), 'cache'))
   expect(hover).toMatch(/bills input at 5%/)
   expect(hover).not.toMatch(/10%/)
+  await ui.unmount()
+})
+
+test('a model named with its context size, as /model shows a 1M window, is priced as the model', async ($, on) => {
+  setup(on)
+  engine.model = 'claude-opus-5-5[1m]'
+  await $.session.start(START)
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  const ui = await mountBand($, 'desktop', 160)
+  expect(textOf(pillOf(await ui.drawn(), 'cache'))).toMatch(/bills input at 5%/)
   await ui.unmount()
 })
 

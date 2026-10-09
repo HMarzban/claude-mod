@@ -3,7 +3,7 @@
 // them a reopened session, or a reload, says whether its cache is cold and
 // what the next message costs, before any reply of its own.
 
-import { weightedTokens } from './cache'
+import { modelName, weightedTokens } from './cache'
 import { stripTrailingSlashes } from './workspace'
 
 /** Store keys. */
@@ -94,7 +94,7 @@ export const rateFromTranscript = (transcript: string, model: string): number | 
   for (const entry of fromEnd(transcript, '"cost-state"')) {
     if (entry.type !== 'cost-state') continue
     const usage = entry.modelUsage
-    const m = isRecord(usage) ? usage[model] : undefined
+    const m = isRecord(usage) ? usage[modelName(model)] : undefined
     if (!isRecord(m)) return null
     const n = (k: string) => (typeof m[k] === 'number' ? (m[k] as number) : 0)
     const weighted = weightedTokens(

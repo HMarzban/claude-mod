@@ -206,8 +206,12 @@ const READ_MULT_BY_MODEL: Readonly<Record<string, number>> = {
 const DEFAULT_READ_MULT = 0.1
 
 /** What a cache read costs against base input on `model`. */
+/** The model a name bills as. `/model` names a 1M context window with a
+ *  suffix, `claude-opus-5-5[1m]`, and the cost record names the model alone. */
+export const modelName = (model: string): string => model.replace(/\[[^\]]*\]$/, '')
+
 export const readMultiplier = (model: string | undefined): number =>
-  (model === undefined ? undefined : READ_MULT_BY_MODEL[model]) ?? DEFAULT_READ_MULT
+  (model === undefined ? undefined : READ_MULT_BY_MODEL[modelName(model)]) ?? DEFAULT_READ_MULT
 
 export const notePriceModel = (model: string | undefined): void => {
   state.priceModel = model
