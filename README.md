@@ -3,11 +3,17 @@
 Mods for [Claude Code](https://claude.com/claude-code): small plugins that
 draw inside Claude Code itself, written with its function-hooks API.
 
+![session-usage-band: know what your next message costs. The band above the Claude Code prompt shows the cache countdown and the re-warm price, the session's spend, context and the 5h and 7d limits](docs/social-preview.png)
+
 | Plugin | What it does |
 | --- | --- |
 | [session-usage-band](plugins/session-usage-band/README.md) | A calm band above the prompt: prompt-cache countdown, cost, tokens, context and your 5-hour and weekly limits, with an expanded view of four cards. See its [changelog](plugins/session-usage-band/CHANGELOG.md) for the current version. |
 
 ## session-usage-band at a glance
+
+What each chip tells you:
+
+![The chip row, labelled: the cache countdown and what a re-warm will cost, the session cost, context toward auto-compaction, the 5-hour limit with its pace, the weekly limit and its reset, and the toggle that opens the cards](docs/band-anatomy.png)
 
 On the desktop app's Code tab, expanded:
 
@@ -70,13 +76,21 @@ plugins/session-usage-band/       the plugin: manifest, hooks, types, tests
 .github/                          issue and pull request templates, CI
 ```
 
-## Contributing
+## Found a bug? Have an idea?
 
-Bug reports, ideas and pull requests are welcome. See
-[CONTRIBUTING.md](CONTRIBUTING.md) for the development loop and the
-conventions the code follows. Everyone taking part agrees to the
-[Code of Conduct](CODE_OF_CONDUCT.md). To report a security issue, see
-[SECURITY.md](SECURITY.md).
+Reports from real sessions are what make the band better, so please tell
+us what you see.
+
+- **Something looks wrong**, such as a price that seems off, a chip that
+  wraps or a band that doesn't draw: [open a bug report](https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml). A
+  screenshot of the band helps most.
+- **Something you wish it showed:** [suggest a feature](https://github.com/HMarzban/claude-mod/issues/new?template=feature_request.yml).
+- **You'd like to fix it yourself:** pull requests are welcome.
+  [CONTRIBUTING.md](CONTRIBUTING.md) has the development loop and the rules
+  the code follows.
+
+Everyone taking part agrees to the [Code of Conduct](CODE_OF_CONDUCT.md).
+To report a security issue, see [SECURITY.md](SECURITY.md).
 
 ## License
 

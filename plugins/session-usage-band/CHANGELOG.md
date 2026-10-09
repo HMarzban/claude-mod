@@ -14,6 +14,10 @@ version may change how the band reads.
   it, and a reopened session at the model its last reply names in the
   transcript. The rate it remembers is filed under that model too.
 
+### Changed
+- The READMEs open with a picture of the band, label every chip in a
+  diagram, and say where to report a bug or suggest a feature.
+
 ## [0.11.9] - 2026-10-09
 
 ### Changed

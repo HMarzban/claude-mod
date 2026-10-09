@@ -12,9 +12,12 @@ drawn as SVG meters:
 
 ![The band expanded on the desktop: chips for the cache, cost, context and the 5h and 7d limits, then the Cache, Spend, Context and Limits cards, the project path and branch, and the Collapse and Hide band buttons](../../docs/band-expanded.png)
 
-See the [changelog](CHANGELOG.md) for what changed in each version.
+See the [changelog](CHANGELOG.md) for what changed in each version. Found
+something off? [Open an issue](https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml).
 
 ## Reading it
+
+![The chip row, labelled: the cache countdown and what a re-warm will cost, the session cost, context toward auto-compaction, the 5-hour limit with its pace, the weekly limit and its reset, and the toggle that opens the cards](../../docs/band-anatomy.png)
 
 | Chip | Shows | Turns amber when |
 | --- | --- | --- |
@@ -220,3 +223,9 @@ Only `hooks/register.tsx` touches the engine (`$`). It reads a snapshot for
 memory, formatting, workspace and palettes are plain modules. The tests
 drive the band through the engine's test kit, and test the plain modules
 directly.
+
+## Help make it better
+
+Seen a wrong number, a chip that wraps, or something you'd want the band
+to show? [Report a bug](https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml) or [suggest a feature](https://github.com/HMarzban/claude-mod/issues/new?template=feature_request.yml); a screenshot
+of the band helps most. Pull requests are welcome too.
