@@ -13,7 +13,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="session-usage-band">
 <meta property="og:title" content="Know what your next Claude Code message costs">
-<meta property="og:description" content="A band above the Claude Code prompt: the prompt-cache countdown, the re-warm price, session spend, context and your 5h / 7d limits. Free and open source.">
+<meta property="og:description" content="Step away and Claude Code's cache goes cold: re-reading your conversation then costs 25× more on Opus 5.5. This band shows the countdown and the price.">
 <meta property="og:url" content="https://hmarzban.github.io/claude-mod/">
 <meta property="og:image" content="https://hmarzban.github.io/claude-mod/social-preview.png">
 <meta property="og:image:width" content="2560">
@@ -47,7 +47,7 @@
   "@type": "FAQPage",
   "mainEntity": [
     { "@type": "Question", "name": "Why did my Claude Code message cost so much more than the others?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Most likely the prompt cache went cold. Claude Code caches your conversation for 5 minutes or an hour after the last request. After that, the next message writes the whole conversation to the cache again at 1.25 times the input price." } },
+      "acceptedAnswer": { "@type": "Answer", "text": "Most likely the prompt cache went cold. Claude Code caches your conversation for 5 minutes or an hour after the last request. After that, the next message writes the whole conversation to the cache again at 1.25 times the input price, which on Opus 5.5 is 25 times what re-reading it from a warm cache costs." } },
     { "@type": "Question", "name": "Does session-usage-band cost tokens?",
       "acceptedAnswer": { "@type": "Answer", "text": "No. It never calls a model, never sends data anywhere, and never suggests sending a message to keep the cache warm." } },
     { "@type": "Question", "name": "Is the re-warm price exact?",
@@ -62,105 +62,176 @@
 
 <style>
   :root {
-    --bg: #141413; --bg-2: #1b1b1a; --bg-3: #222220; --line: #2f2e2b;
-    --text: #f2f0eb; --text-2: #b4b0a7; --text-3: #8f8c85; --accent: #d97757;
+    --bg: #141413; --bg-2: #1b1b1a; --bg-3: #232321; --line: #2f2e2b; --line-2: #3d3c38;
+    --text: #f2f0eb; --text-2: #b4b0a7; --text-3: #8a877f; --accent: #d97757; --amber: #e8b45a; --green: #7fcf8a;
     --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html { -webkit-text-size-adjust: 100%; }
-  body {
-    background: var(--bg); color: var(--text);
-    font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    -webkit-font-smoothing: antialiased;
-  }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--text); font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
   a { color: inherit; }
   .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
   nav { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
   nav .name { font-weight: 650; text-decoration: none; display: flex; align-items: center; gap: 10px; }
   nav .name img { width: 22px; height: 22px; }
-  nav .links { display: flex; gap: 22px; font-size: 15px; color: var(--text-2); }
-  nav .links a { text-decoration: none; }
+  nav .links { display: flex; gap: 22px; align-items: center; font-size: 15px; color: var(--text-2); }
+  nav .links a { text-decoration: none; transition: color .15s; }
   nav .links a:hover { color: var(--text); }
+  .star { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; color: var(--text); }
+  .star:hover { border-color: var(--line-2); }
+  .star svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; transition: transform .3s cubic-bezier(.3,1.6,.5,1), fill .2s; }
+  .star:hover svg { transform: rotate(-14deg) scale(1.12); fill: var(--amber); stroke: var(--amber); }
+  .star .count { color: var(--text-2); font-variant-numeric: tabular-nums; }
 
-  .hero { padding: 56px 0 40px; text-align: center; }
-  .eyebrow { display: inline-block; font-size: 14px; color: var(--text-2); border: 1px solid var(--line); border-radius: 999px; padding: 5px 14px; margin-bottom: 26px; }
-  h1 { font-size: clamp(38px, 6.4vw, 68px); line-height: 1.03; letter-spacing: -0.035em; font-weight: 750; max-width: 900px; margin: 0 auto; }
-  h1 em { font-style: normal; color: var(--accent); }
-  .lede { font-size: clamp(18px, 2.2vw, 21px); color: var(--text-2); max-width: 680px; margin: 22px auto 0; }
-  .install { margin: 34px auto 0; max-width: 680px; display: flex; align-items: stretch; background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; text-align: left; }
-  .install pre { flex: 1; font: 15px/1.7 var(--mono); padding: 14px 18px; overflow-x: auto; color: var(--text); }
+  /* hero */
+  .hero { padding: 48px 0 0; }
+  h1 { font-size: clamp(40px, 6.6vw, 72px); line-height: 1.02; letter-spacing: -0.038em; font-weight: 760; max-width: 880px; }
+  h1 .hl { color: var(--accent); }
+  .lede { font-size: clamp(18px, 2.1vw, 21px); color: var(--text-2); max-width: 640px; margin-top: 20px; }
+  .lede b { color: var(--text); font-weight: 600; }
+  .row { display: flex; gap: 14px; align-items: stretch; flex-wrap: wrap; margin-top: 30px; }
+  .install { flex: 1 1 520px; display: flex; background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .install pre { flex: 1; font: 14.5px/1.75 var(--mono); padding: 12px 16px; overflow-x: auto; }
   .install pre span { color: var(--text-3); user-select: none; }
-  .install button { flex-shrink: 0; border: 0; border-left: 1px solid var(--line); background: var(--bg-3); color: var(--text); font: 600 14px -apple-system, system-ui, sans-serif; padding: 0 20px; cursor: pointer; }
-  .install button:hover { background: #2a2a27; }
-  .cta { display: flex; gap: 12px; justify-content: center; margin-top: 18px; flex-wrap: wrap; }
-  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 10px; font-weight: 600; font-size: 15px; text-decoration: none; border: 1px solid var(--line); background: var(--bg-2); }
-  .btn.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
-  .btn:hover { filter: brightness(1.08); }
-  .facts { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; margin-top: 22px; font-size: 14px; color: var(--text-3); }
+  .copy { flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; border: 0; border-left: 1px solid var(--line); background: var(--bg-3); color: var(--text); font: 600 14px -apple-system, system-ui, sans-serif; padding: 0 18px; cursor: pointer; transition: background .15s; }
+  .copy:hover { background: #2b2b28; }
+  .copy svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .copy .ok { display: none; color: var(--green); }
+  .copy.done .ok { display: inline; animation: pop .35s cubic-bezier(.3,1.6,.5,1); }
+  .copy.done .ic { display: none; }
+  @keyframes pop { from { transform: scale(.4); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+  .gh { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 20px; min-height: 52px; border-radius: 12px; font-weight: 650; font-size: 15px; text-decoration: none; background: var(--text); color: var(--bg); transition: transform .15s; }
+  .gh:hover { transform: translateY(-1px); }
+  .gh:active { transform: translateY(0) scale(.98); }
+  .fine { margin-top: 14px; font-size: 14px; color: var(--text-3); }
 
-  .film { margin: 36px 0 0; }
+  /* the live band */
+  .live { margin-top: 44px; position: relative; }
+  .stagebox { background: #1a1a1a; border: 1px solid var(--line); border-radius: 18px; padding: 22px 18px 18px; overflow: hidden; }
+  .chatline { display: flex; justify-content: flex-end; margin: 0 6px 16px; }
+  .chatline span { background: #2a2a28; border-radius: 14px; padding: 8px 14px; font-size: 15px; color: #d6d3cc; }
+  .fit { position: relative; transform-origin: 0 0; }
+  .band { width: 964px; background: #212121; border-radius: 16px; padding: 12px; font-size: 15px; line-height: 24px; color: #ececf2; white-space: pre; transition: box-shadow .4s; }
+  .band.alarm { box-shadow: 0 0 0 2px rgba(217,119,87,.55); }
+  .band .t { white-space: pre; } .band .svg { display: block; flex-shrink: 0; }
+  .band .toggle { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 28px; border-radius: 7px; background: #333336; color: #ececf2; font-size: 13px; cursor: pointer; transition: background .15s, transform .15s; }
+  .band .toggle:hover { background: #404044; } .band .toggle:active { transform: scale(.92); }
+  .band .btn { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 6px 0 12px; border-radius: 8px; background: #2e2e31; border: 1px solid #3c3c40; color: #ececf2; cursor: pointer; transition: background .15s, transform .15s; }
+  .band .btn:hover { background: #38383c; } .band .btn:active { transform: scale(.96); }
+  .band .key { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; border: 1px solid #55555e; border-radius: 5px; font-size: 12px; color: #b8b8c2; }
+  .band [data-tip] { cursor: help; }
+  .band.enter > div { animation: rise .35s ease-out; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+  .hidden-note { width: 964px; display: flex; align-items: center; justify-content: space-between; background: #212121; border-radius: 16px; padding: 14px 16px; color: #9a9aa4; font-size: 15px; }
+  .hidden-note button { font: 600 14px var(--mono); color: #ececf2; background: #2e2e31; border: 1px solid #3c3c40; border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  .prompt { margin: 12px 0 0; height: 48px; border: 1px solid #3a3a38; border-radius: 16px; display: flex; align-items: center; padding: 0 18px; color: #8f8c85; font-size: 16px; }
+  .tip { position: absolute; z-index: 5; max-width: 340px; background: #303037; color: #ececf2; font-size: 13.5px; line-height: 1.45; padding: 8px 11px; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.45); pointer-events: none; opacity: 0; transform: translateY(4px); transition: opacity .12s, transform .12s; }
+  .tip.on { opacity: 1; transform: none; }
+  .livebar { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 12px; font-size: 14px; color: var(--text-3); }
+  .livebar b { color: var(--text-2); font-weight: 600; }
+  .replay { font: 600 14px -apple-system, system-ui, sans-serif; color: var(--text); background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; display: inline-flex; gap: 7px; align-items: center; }
+  .replay:hover { border-color: var(--line-2); }
+  .replay svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; transition: transform .4s; }
+  .replay:hover svg { transform: rotate(-200deg); }
+
+  /* sections */
+  section { padding: 96px 0 0; }
+  h2 { font-size: clamp(30px, 3.8vw, 44px); line-height: 1.1; letter-spacing: -0.028em; font-weight: 730; max-width: 760px; }
+  .sub { color: var(--text-2); max-width: 680px; margin-top: 14px; font-size: 18px; }
+  .sub b { color: var(--text); font-weight: 600; }
+
+  /* the cost of a lunch break */
+  .calc { margin-top: 34px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 18px; padding: 26px; }
+  .controls { display: flex; gap: 26px; flex-wrap: wrap; align-items: end; }
+  .ctl label { display: block; font-size: 13px; color: var(--text-3); margin-bottom: 8px; }
+  .seg { display: inline-flex; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+  .seg button { font: 600 14px -apple-system, system-ui, sans-serif; color: var(--text-2); background: transparent; border: 0; border-radius: 7px; padding: 7px 13px; cursor: pointer; transition: background .15s, color .15s; }
+  .seg button[aria-pressed=true] { background: var(--bg-3); color: var(--text); box-shadow: 0 0 0 1px var(--line-2) inset; }
+  .slider { flex: 1 1 280px; }
+  .slider .val { font: 600 15px var(--mono); color: var(--text); float: right; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .timeline { position: relative; margin: 40px 6px 10px; height: 64px; }
+  .track { position: absolute; left: 0; right: 0; top: 30px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #2f5a3a 0 92%, #6b5221 92% 98.5%, #3a3a3e 98.5% 100%); }
+  .dot { position: absolute; top: 25px; left: 0; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 5px rgba(127,207,138,.18); }
+  .dot.amber { background: var(--amber); box-shadow: 0 0 0 5px rgba(232,180,90,.22); }
+  .dot.cold { background: #8a877f; box-shadow: 0 0 0 5px rgba(138,135,127,.2); }
+  .tick { position: absolute; top: 46px; font-size: 13px; color: var(--text-3); transform: translateX(-50%); white-space: nowrap; }
+  .now { position: absolute; top: 0; font: 600 13px var(--mono); color: var(--text-2); transform: translateX(-50%); white-space: nowrap; }
+  .outcome { display: grid; grid-template-columns: 1fr 1fr auto; gap: 18px; align-items: center; margin-top: 18px; }
+  .price { border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; background: var(--bg); }
+  .price .k { font-size: 13px; color: var(--text-3); }
+  .price .v { font: 700 30px/1.2 -apple-system, system-ui, sans-serif; letter-spacing: -0.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .price.warm .v { color: var(--green); }
+  .price.cold .v { color: var(--accent); }
+  .price.cold.land { animation: land .5s cubic-bezier(.3,1.6,.5,1); }
+  @keyframes land { 0% { transform: scale(.94) } 60% { transform: scale(1.04) } 100% { transform: none } }
+  .ratio { text-align: center; padding: 0 10px; }
+  .ratio .x { font: 800 54px/1 -apple-system, system-ui, sans-serif; letter-spacing: -0.04em; color: var(--text); font-variant-numeric: tabular-nums; }
+  .ratio .k { font-size: 13px; color: var(--text-3); margin-top: 6px; }
+  .note { margin-top: 18px; font-size: 13.5px; color: var(--text-3); max-width: 820px; }
+
+  /* film */
+  .film { margin-top: 30px; }
   .film video { display: block; width: 100%; height: auto; border-radius: 16px; border: 1px solid var(--line); background: #000; aspect-ratio: 16 / 9; }
-  .film figcaption { text-align: center; font-size: 14px; color: var(--text-3); margin-top: 12px; }
+  .film .cap { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 14px; color: var(--text-3); margin-top: 12px; }
+  .film .cap button { font: 600 14px -apple-system, system-ui, sans-serif; color: var(--text-2); background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 
-  section { padding: 76px 0 0; }
-  h2 { font-size: clamp(28px, 3.6vw, 40px); line-height: 1.12; letter-spacing: -0.025em; font-weight: 720; max-width: 760px; }
-  .kicker { font-size: 14px; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; }
-  .prose { max-width: 720px; color: var(--text-2); margin-top: 18px; }
-  .prose p + p { margin-top: 14px; }
-  .prose b { color: var(--text); font-weight: 600; }
-
-  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 30px; }
-  .step { background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
-  .step .n { font: 600 13px var(--mono); color: var(--text-3); }
-  .step h3 { font-size: 18px; margin: 8px 0 6px; }
-  .step p { font-size: 15px; color: var(--text-2); }
-  .step.hot { border-color: #6b3d2c; background: #1f1814; }
-  .step.hot h3 { color: var(--accent); }
-
+  /* what it shows */
   .anatomy { margin-top: 30px; }
   .anatomy img { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); }
-  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 18px; }
-  .card { background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; }
-  .card h3 { font-size: 18px; margin-bottom: 6px; }
-  .card p { font-size: 15px; color: var(--text-2); }
+  dl.facts { display: grid; grid-template-columns: 220px 1fr; gap: 14px 30px; margin-top: 30px; max-width: 860px; }
+  dl.facts dt { font-weight: 650; }
+  dl.facts dd { color: var(--text-2); }
 
-  .formula { margin-top: 26px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; font: 15px/1.7 var(--mono); overflow-x: auto; color: var(--text); }
-  .formula span { color: var(--accent); }
+  .formula { margin-top: 26px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; font: 15px/1.7 var(--mono); overflow-x: auto; white-space: nowrap; }
+  .formula .r { color: var(--accent); }
+  .formula .m { color: var(--amber); }
   ul.points { list-style: none; margin-top: 22px; display: grid; gap: 12px; max-width: 760px; }
-  ul.points li { color: var(--text-2); padding-left: 26px; position: relative; }
-  ul.points li::before { content: ""; position: absolute; left: 4px; top: 11px; width: 8px; height: 8px; border-radius: 2px; background: var(--accent); }
+  ul.points li { color: var(--text-2); padding-left: 24px; position: relative; }
+  ul.points li::before { content: ""; position: absolute; left: 3px; top: 11px; width: 8px; height: 8px; border-radius: 2px; background: var(--accent); }
   ul.points b { color: var(--text); font-weight: 600; }
-
-  .faq { margin-top: 26px; max-width: 820px; border-top: 1px solid var(--line); }
-  .faq details { border-bottom: 1px solid var(--line); padding: 18px 0; }
-  .faq summary { cursor: pointer; font-weight: 600; font-size: 18px; list-style: none; display: flex; justify-content: space-between; gap: 18px; }
-  .faq summary::-webkit-details-marker { display: none; }
-  .faq summary::after { content: "+"; color: var(--text-3); font-weight: 400; }
-  .faq details[open] summary::after { content: "–"; }
-  .faq details p { color: var(--text-2); margin-top: 10px; max-width: 720px; }
   code { font: 0.88em var(--mono); background: var(--bg-3); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; color: var(--text); }
 
-  .join { margin-top: 26px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-  .join a { text-decoration: none; }
-  .join .card:hover { border-color: #4a4945; }
+  .faq { margin-top: 26px; max-width: 820px; border-top: 1px solid var(--line); }
+  .faq details { border-bottom: 1px solid var(--line); }
+  .faq summary { cursor: pointer; font-weight: 600; font-size: 18px; list-style: none; display: flex; justify-content: space-between; gap: 18px; padding: 18px 0; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; color: var(--text-3); font-weight: 400; transition: transform .2s; }
+  .faq details[open] summary::after { transform: rotate(45deg); }
+  .faq details p { color: var(--text-2); padding: 0 0 18px; max-width: 720px; }
+  .faq details[open] p { animation: rise .25s ease-out; }
 
-  .final { text-align: center; padding: 96px 0 40px; }
-  .final h2 { margin: 0 auto; }
-  footer { border-top: 1px solid var(--line); margin-top: 60px; padding: 26px 0 40px; font-size: 14px; color: var(--text-3); display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+  .join { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 10px 26px; font-size: 17px; }
+  .join a { text-decoration: none; border-bottom: 1px solid var(--line-2); padding-bottom: 2px; transition: border-color .15s, color .15s; }
+  .join a:hover { border-color: var(--accent); color: var(--accent); }
+  .join a span { display: inline-block; transition: transform .15s; } .join a:hover span { transform: translateX(3px); }
+
+  .final { padding: 110px 0 30px; }
+  footer { border-top: 1px solid var(--line); margin-top: 70px; padding: 26px 0 40px; font-size: 14px; color: var(--text-3); display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+
+  .reveal { opacity: 0; transform: translateY(14px); transition: opacity .6s ease-out, transform .6s ease-out; }
+  .reveal.in { opacity: 1; transform: none; }
 
   @media (max-width: 760px) {
     .wrap { padding: 0 16px; }
     nav .links a.hide-sm { display: none; }
-    .hero { padding-top: 30px; }
-    .steps, .grid, .join { grid-template-columns: 1fr; }
-    .install { flex-direction: column; }
-    .install button { border-left: 0; border-top: 1px solid var(--line); padding: 12px; }
+    .hero { padding-top: 22px; }
+    .install { flex-direction: column; flex-basis: 100%; }
     .install pre { font-size: 12px; padding: 12px 14px; }
-    .facts { gap: 6px 16px; }
-    .facts .sep { display: none; }
-    section { padding-top: 56px; }
+    .copy { border-left: 0; border-top: 1px solid var(--line); padding: 12px; justify-content: center; }
+    .gh { flex: 1 1 100%; }
+    section { padding-top: 70px; }
+    .calc { padding: 18px; }
+    .outcome { grid-template-columns: 1fr 1fr; }
+    .ratio { grid-column: 1 / -1; order: -1; }
+    dl.facts { grid-template-columns: 1fr; gap: 4px; } dl.facts dd { margin-bottom: 12px; }
+    .stagebox { padding: 14px 10px 10px; }
   }
-  @media (prefers-reduced-motion: reduce) { .film video { display: none; } .film .still { display: block !important; } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .reveal { opacity: 1; transform: none; }
+  }
 </style>
 </head>
 <body>
@@ -168,65 +239,95 @@
   <nav>
     <a class="name" href="./"><img src="favicon.svg" alt="">session-usage-band</a>
     <div class="links">
+      <a class="hide-sm" href="#lunch">The cost</a>
       <a class="hide-sm" href="#how">How it works</a>
-      <a class="hide-sm" href="#faq">FAQ</a>
-      <a href="https://github.com/HMarzban/claude-mod">GitHub</a>
+      <a class="star" href="https://github.com/HMarzban/claude-mod" aria-label="Star on GitHub"><svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" stroke-linejoin="round"/></svg>Star<span class="count" id="stars"></span></a>
     </div>
   </nav>
 
   <header class="hero">
-    <span class="eyebrow">A free, open-source mod for Claude Code</span>
-    <h1>Know what your next Claude Code message <em>costs.</em></h1>
-    <p class="lede">A band above the prompt that counts down your prompt cache, tells you what letting it go cold will cost, and keeps your spend, context and 5-hour / weekly limits in view.</p>
-    <div class="install">
-      <pre id="cmd"><span>$ </span>claude plugin marketplace add HMarzban/claude-mod
+    <h1>Know what your next Claude Code message <span class="hl">costs.</span></h1>
+    <p class="lede">Step away for lunch and Claude Code's cache goes cold. Your next message then pays to rewrite the whole conversation: <b>25× what re-reading it costs</b> on Opus 5.5. This band shows the countdown and the price, right above the prompt.</p>
+    <div class="row">
+      <div class="install">
+        <pre><span>$ </span>claude plugin marketplace add HMarzban/claude-mod
 <span>$ </span>claude plugin install session-usage-band@hossein-mods</pre>
-      <button type="button" id="copy">Copy</button>
+        <button class="copy" type="button" data-copy="claude plugin marketplace add HMarzban/claude-mod&#10;claude plugin install session-usage-band@hossein-mods"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h9"/></svg><svg class="ok" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg><span class="lbl">Copy</span></button>
+      </div>
+      <a class="gh" href="https://github.com/HMarzban/claude-mod">View on GitHub</a>
     </div>
-    <div class="cta">
-      <a class="btn primary" href="https://github.com/HMarzban/claude-mod">View on GitHub</a>
-      <a class="btn" href="#how">How it works</a>
+    <p class="fine">Free and MIT licensed · desktop app and terminal · no network, no tokens spent</p>
+
+    <div class="live" id="live">
+      <div class="stagebox">
+        <div class="chatline"><span>great, I'm grabbing lunch. back in an hour or so</span></div>
+        <div class="fit" id="fit"><div id="bandhost"></div><div class="prompt">Type / for commands</div></div>
+      </div>
+      <div class="tip" id="tip"></div>
+      <div class="livebar"><span><b>This is the real band</b>, counting down its last minute. Hover a chip, click <b>▿</b>, or try <b>Hide band</b>.</span><button class="replay" id="replay" type="button"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Run the last minute again</button></div>
     </div>
-    <div class="facts"><span>Desktop app and terminal</span><span class="sep">·</span><span>No network, no tokens spent</span><span class="sep">·</span><span>MIT licensed</span></div>
   </header>
 
-  <figure class="film">
-    <video autoplay muted loop playsinline preload="metadata" poster="demo-poster.png" aria-label="The band in the Claude desktop app: the cache counts down through the lunch hour, turns amber in its last minute with the re-warm price, goes cold showing what the next message will cost, then opens its cards">
-      <source src="demo.mp4" type="video/mp4">
-    </video>
-    <img class="still" src="demo-poster.png" alt="The band in its last minute, with the re-warm price circled" style="display:none;width:100%;border-radius:16px">
-    <figcaption>Every band in this film is the mod's own output, with the clock moved forward.</figcaption>
-  </figure>
-
-  <section id="why">
-    <div class="kicker">The problem</div>
-    <h2>The cache keeps Claude Code cheap. Until you step away.</h2>
-    <div class="steps">
-      <div class="step"><div class="n">01</div><h3>Warm</h3><p>Each message re-reads your conversation from the cache, at a tenth of the input price or less.</p></div>
-      <div class="step"><div class="n">02</div><h3>Idle</h3><p>The cache lasts 5 minutes after your last request on API pricing, or an hour on a subscription.</p></div>
-      <div class="step hot"><div class="n">03</div><h3>Cold</h3><p>The next message writes the whole conversation again at 1.25× input. On 300k tokens of Opus 5.5, that's about $1.50.</p></div>
+  <section id="lunch" class="reveal">
+    <h2>What a lunch break costs.</h2>
+    <p class="sub">While the cache is warm, each message re-reads your conversation for a fraction of the price. Once it's cold, the next one writes all of it again. Pick a model and a conversation size.</p>
+    <div class="calc">
+      <div class="controls">
+        <div class="ctl"><label>Model</label>
+          <div class="seg" id="models">
+            <button type="button" data-p="4" data-r="0.05" aria-pressed="true">Opus 5.5</button>
+            <button type="button" data-p="2" data-r="0.1" aria-pressed="false">Sonnet 5.5</button>
+            <button type="button" data-p="10" data-r="0.025" aria-pressed="false">Fable 5.1</button>
+          </div>
+        </div>
+        <div class="ctl slider"><label for="size">Conversation in context <span class="val" id="sizev">340k tokens</span></label>
+          <input id="size" type="range" min="20" max="1000" step="10" value="340">
+        </div>
+      </div>
+      <div class="timeline" id="tl" aria-hidden="true">
+        <div class="track"></div>
+        <div class="now" id="now">just replied</div>
+        <div class="dot" id="dot"></div>
+        <div class="tick" style="left:0;transform:none">last reply</div>
+        <div class="tick" style="left:50%">30 min</div>
+        <div class="tick" style="left:100%;transform:translateX(-100%)">1 hour</div>
+      </div>
+      <div class="outcome">
+        <div class="price warm"><div class="k">Next message, cache warm</div><div class="v" id="warm">$0.07</div></div>
+        <div class="price cold" id="coldbox"><div class="k">Next message, cache cold</div><div class="v" id="cold">$1.70</div></div>
+        <div class="ratio"><div class="x" id="ratio">25×</div><div class="k">more for the same message</div></div>
+      </div>
+      <p class="note">The context part of the next message, at list prices per million input tokens: Opus 5.5 $4, Sonnet 5.5 $2, Fable 5.1 $10. A warm cache read costs 0.05×, 0.1× and 0.025× of that, and rewriting the cache 1.25×, as Claude Code's own cost display counts it. Anthropic bills a 1-hour cache write at 2×. On a subscription, the same tokens come out of your plan's usage limits instead.</p>
     </div>
-    <div class="prose"><p>Nothing in Claude Code warns you it's coming. <b>session-usage-band does</b>, with the countdown and the price, before you hit enter.</p></div>
   </section>
 
-  <section id="what">
-    <div class="kicker">What it shows</div>
+  <section id="film" class="reveal">
+    <h2>An hour, in seventeen seconds.</h2>
+    <p class="sub">Every band in this film is the mod's own output, with the clock moved forward.</p>
+    <figure class="film">
+      <video id="video" autoplay muted loop playsinline preload="metadata" poster="demo-poster.png" aria-label="The band in the Claude desktop app: the cache counts down through the lunch hour, turns amber in its last minute with the re-warm price, goes cold showing what the next message will cost, then opens its cards">
+        <source src="demo.mp4" type="video/mp4">
+      </video>
+      <figcaption class="cap"><span>Desktop app, Code tab. It draws in the terminal too, as text.</span><button type="button" id="vtoggle">Pause</button></figcaption>
+    </figure>
+  </section>
+
+  <section id="what" class="reveal">
     <h2>Every number that decides your bill, in one row.</h2>
     <div class="anatomy"><img src="band-anatomy.png" alt="The chip row, labelled: the cache countdown and what a re-warm will cost, the session cost, context toward auto-compaction, the 5-hour limit with its pace, the weekly limit and its reset, and the toggle that opens the cards" loading="lazy"></div>
-    <div class="grid">
-      <div class="card"><h3>Cache countdown</h3><p>A battery that drains as the cache ages. In its last minute it turns amber and names the re-warm price.</p></div>
-      <div class="card"><h3>Session spend</h3><p>The running total, and what your last message cost on its own.</p></div>
-      <div class="card"><h3>Context</h3><p>How full the conversation is, and how close auto-compaction is.</p></div>
-      <div class="card"><h3>5-hour and weekly limits</h3><p>Usage, the reset time, and a warning when your pace would run out before the reset.</p></div>
-    </div>
-    <div class="prose"><p>Click <b>▿</b> for four cards with every fact labelled, under a line that shows your project, git branch and uncommitted changes. Nothing is ever red: amber means act soon, and colour is never the only signal.</p></div>
+    <dl class="facts">
+      <dt>Cache countdown</dt><dd>A battery that drains as the cache ages. In its last minute it turns amber and names the re-warm price.</dd>
+      <dt>Session spend</dt><dd>The running total, and what your last message cost on its own.</dd>
+      <dt>Context</dt><dd>How full the conversation is, and how close auto-compaction is.</dd>
+      <dt>5-hour and weekly limits</dt><dd>Usage and the reset, with a warning when your pace would run out before it.</dd>
+      <dt>The cards</dt><dd>Click ▿ for every fact labelled, under a line with your project, git branch and uncommitted changes.</dd>
+    </dl>
   </section>
 
-  <section id="how">
-    <div class="kicker">How it works</div>
+  <section id="how" class="reveal">
     <h2>The price comes from your own bill.</h2>
-    <div class="prose"><p>A mod can't reach a pricing table, so the band solves the per-token rate from the session's cost and token counts. Every kind of token is a fixed multiple of base input, which leaves one unknown:</p></div>
-    <div class="formula">cost = <span>rate</span> × (uncached + 1.25 × written + read share × read + 5 × output)</div>
+    <p class="sub">A mod can't reach a pricing table, so the band solves the per-token rate from the session's cost and token counts. Each kind of token is a fixed multiple of base input, which leaves one unknown.</p>
+    <div class="formula">cost = <span class="r">rate</span> × (uncached + <span class="m">1.25</span> × written + <span class="m">read share</span> × read + <span class="m">5</span> × output)</div>
     <ul class="points">
       <li><b>A re-warm</b> is then the whole context written to the cache again, always shown with <code>~</code>.</li>
       <li><b>It remembers.</b> Reopen an old session and it recalls when the last reply was and what a token costs, or reads it once from the end of the transcript.</li>
@@ -235,11 +336,10 @@
     </ul>
   </section>
 
-  <section id="faq">
-    <div class="kicker">FAQ</div>
+  <section id="faq" class="reveal">
     <h2>Questions people ask.</h2>
     <div class="faq">
-      <details open><summary>Why did my Claude Code message cost so much more than the others?</summary><p>Most likely the prompt cache went cold. Claude Code caches your conversation for 5 minutes or an hour after the last request. After that, the next message writes the whole conversation to the cache again at 1.25× the input price.</p></details>
+      <details open><summary>Why did my Claude Code message cost so much more than the others?</summary><p>Most likely the prompt cache went cold. Claude Code caches your conversation for 5 minutes or an hour after the last request. After that, the next message writes the whole conversation to the cache again at 1.25× the input price: on Opus 5.5, 25× what re-reading it from a warm cache costs.</p></details>
       <details><summary>Does it cost tokens?</summary><p>No. It never calls a model, and it never suggests sending a message to keep the cache warm. That would mean burning tokens to avoid burning tokens.</p></details>
       <details><summary>Is the re-warm price exact?</summary><p>It's an estimate, shown with <code>~</code>. It follows Claude Code's own ledger, which prices every cache write at 1.25×. Anthropic bills a 1-hour cache write at 2×, so per-token API users on a 1-hour cache may pay up to 1.6× the estimate.</p></details>
       <details><summary>How does it know if my cache lasts 5 minutes or an hour?</summary><p>It can't read your billing, so it assumes an hour and corrects itself to 5 minutes if it sees the cache rebuild sooner. Set <code>CLAUDE_CODE_PROMPT_CACHE_TTL=5m</code> or <code>1h</code> to remove the guess.</p></details>
@@ -248,21 +348,24 @@
     </div>
   </section>
 
-  <section id="contribute">
-    <div class="kicker">Make it better</div>
-    <h2>It's brand new, and your sessions make it better.</h2>
+  <section id="contribute" class="reveal">
+    <h2>It's brand new. Tell me what you see.</h2>
+    <p class="sub">Reports from real sessions are what make the numbers right.</p>
     <div class="join">
-      <a href="https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml"><div class="card"><h3>Report a bug →</h3><p>A price that looks off, a chip that wraps. A screenshot helps most.</p></div></a>
-      <a href="https://github.com/HMarzban/claude-mod/issues/new?template=feature_request.yml"><div class="card"><h3>Suggest a feature →</h3><p>Something you wish the band showed you.</p></div></a>
-      <a href="https://github.com/HMarzban/claude-mod/blob/main/CONTRIBUTING.md"><div class="card"><h3>Send a pull request →</h3><p>Three commands to a working dev loop.</p></div></a>
+      <a href="https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml">Report a bug <span>→</span></a>
+      <a href="https://github.com/HMarzban/claude-mod/issues/new?template=feature_request.yml">Suggest a feature <span>→</span></a>
+      <a href="https://github.com/HMarzban/claude-mod/blob/main/CONTRIBUTING.md">Send a pull request <span>→</span></a>
     </div>
   </section>
 
-  <section class="final">
-    <h2>Stop guessing what the next message costs.</h2>
-    <div class="cta" style="margin-top:26px">
-      <a class="btn primary" href="https://github.com/HMarzban/claude-mod#install">Install in two commands</a>
-      <a class="btn" href="https://github.com/HMarzban/claude-mod">Star it on GitHub</a>
+  <section class="final reveal">
+    <h2>Two commands, and you'll never be surprised by a cold cache again.</h2>
+    <div class="row" style="max-width:860px">
+      <div class="install">
+        <pre><span>$ </span>claude plugin marketplace add HMarzban/claude-mod
+<span>$ </span>claude plugin install session-usage-band@hossein-mods</pre>
+        <button class="copy" type="button" data-copy="claude plugin marketplace add HMarzban/claude-mod&#10;claude plugin install session-usage-band@hossein-mods"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h9"/></svg><svg class="ok" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg><span class="lbl">Copy</span></button>
+      </div>
     </div>
   </section>
 
@@ -271,12 +374,148 @@
     <span>An independent community project, not affiliated with Anthropic.</span>
   </footer>
 </div>
+
+<template id="t-amber"><div style="display:flex;flex-direction:column"><div data-key="row" style="display:flex;flex-direction:row;align-items:center;flex-wrap:nowrap;column-gap:10px;overflow:hidden"><div data-key="cache" data-tip="Warm cache bills input at 5%; expires 1h after a reply" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;border-radius:8px;padding:0 10px;height:28px;background:#3a2f17"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMiIgaGVpZ2h0PSIxMiIgdmlld0JveD0iMCAwIDIyIDEyIj48cmVjdCB4PSIwLjc1IiB5PSIwLjc1IiB3aWR0aD0iMTguNSIgaGVpZ2h0PSIxMC41IiByeD0iMyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZjBjOTY5IiBzdHJva2Utd2lkdGg9IjEuNSIvPjxyZWN0IHg9IjE5Ljc1IiB5PSI0IiB3aWR0aD0iMS43NSIgaGVpZ2h0PSI0IiByeD0iMC44IiBmaWxsPSIjZjBjOTY5Ii8+PHJlY3QgY2xhc3M9ImNoYXJnZSIgeD0iMi41IiB5PSIyLjUiIHdpZHRoPSIwLjIiIGhlaWdodD0iNyIgcng9IjEuNSIgZmlsbD0iI2YwYzk2OSIvPjwvc3ZnPg==" style="width:22px;height:12px"><span class=t style="color:#f0c969"> <span class=cd>0:47</span> left · re-warm ~$1.66</span></div><div data-key="cost" data-tip="$1.70 spent during your last message, subagents included" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;border-radius:8px;padding:0 10px;height:28px;background:#2b2b33"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48Y2lyY2xlIGN4PSI4IiBjeT0iOCIgcj0iNi41IiBmaWxsPSJub25lIiBzdHJva2U9IiNjOWE1NGEiIHN0cm9rZS13aWR0aD0iMS40Ii8+PHBhdGggZD0iTTkuNiA1LjZjLS40LS41LTEtLjgtMS43LS44LTEgMC0xLjcuNi0xLjcgMS4zIDAgMS43IDMuNiAxIDMuNiAyLjkgMCAuOC0uOCAxLjQtMS45IDEuNC0uOCAwLTEuNS0uMy0xLjktLjlNOCAzLjl2MU04IDEwLjR2MS40IiBmaWxsPSJub25lIiBzdHJva2U9IiNjOWE1NGEiIHN0cm9rZS13aWR0aD0iMS4yIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=" style="width:16px;height:16px"><div data-key="g-cost" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#ececf2;font-weight:600">$163.70</span></div><div data-key="ctx" data-tip="Conversation fill; near full, older turns get summarized" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;border-radius:8px;padding:0 10px;height:28px;background:#2b2b33"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48cmVjdCB4PSIyLjUiIHk9IjIuNSIgd2lkdGg9IjExIiBoZWlnaHQ9IjExIiByeD0iMi41IiBmaWxsPSJub25lIiBzdHJva2U9IiM5YTlhYTQiIHN0cm9rZS13aWR0aD0iMS40Ii8+PHBhdGggZD0iTTUuMiA2aDUuNk01LjIgOC41aDUuNk01LjIgMTFoMy4yIiBzdHJva2U9IiM5YTlhYTQiIHN0cm9rZS13aWR0aD0iMS4yIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=" style="width:16px;height:16px"><div data-key="g-context" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#ececf2">341k / 1.0M</span></div><div data-key="5h" data-tip="5-hour limit across all your Claude use; resets in 2h 00m" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;border-radius:8px;padding:0 10px;height:28px;background:#1e3324"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48cGF0aCBkPSJNMi41IDExLjVhNS41IDUuNSAwIDEgMSAxMSAwIiBmaWxsPSJub25lIiBzdHJva2U9IiM3ZmNmOGEiIHN0cm9rZS13aWR0aD0iMS40IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJNOCAxMS41bDIuNi0zLjQiIHN0cm9rZT0iIzdmY2Y4YSIgc3Ryb2tlLXdpZHRoPSIxLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==" style="width:16px;height:16px"><div data-key="g-five" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#cfe8d3">5h</span><div data-key="g-bar" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NCIgaGVpZ2h0PSI4IiB2aWV3Qm94PSIwIDAgNDQgOCI+PHJlY3QgeD0iMC41IiB5PSIxLjUiIHdpZHRoPSI0MyIgaGVpZ2h0PSI1IiByeD0iMi41IiByeT0iMi41IiBmaWxsPSIjNDU0NTRmIiBzdHJva2U9IiM3YzdjODYiLz48cmVjdCBjbGFzcz0iZmlsbCIgeT0iMSIgd2lkdGg9IjI0IiBoZWlnaHQ9IjYiIHJ4PSIzIiByeT0iMyIgZmlsbD0iIzdmY2Y4YSIvPjxyZWN0IGNsYXNzPSJ0aHVtYiIgeD0iMjMiIHk9IjAiIHdpZHRoPSIyIiBoZWlnaHQ9IjgiIHJ4PSIxIiByeT0iMSIgZmlsbD0iI2VjZWNmMiIvPjwvc3ZnPg==" style="width:44px;height:8px"><span class=t style="color:#cfe8d3;font-weight:600"> 55%</span></div><div data-key="7d" data-tip="Weekly limit across all your Claude use; resets in 2d 23h" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;border-radius:8px;padding:0 10px;height:28px;background:#2a2540"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48cmVjdCB4PSIyLjUiIHk9IjMuNSIgd2lkdGg9IjExIiBoZWlnaHQ9IjEwIiByeD0iMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYTk5Y2YwIiBzdHJva2Utd2lkdGg9IjEuNCIvPjxwYXRoIGQ9Ik0yLjUgNi41aDExTTUuNSAydjNNMTAuNSAydjMiIHN0cm9rZT0iI2E5OWNmMCIgc3Ryb2tlLXdpZHRoPSIxLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==" style="width:16px;height:16px"><div data-key="g-week" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#d9d3f5">7d</span><div data-key="g-bar" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NCIgaGVpZ2h0PSI4IiB2aWV3Qm94PSIwIDAgNDQgOCI+PHJlY3QgeD0iMC41IiB5PSIxLjUiIHdpZHRoPSI0MyIgaGVpZ2h0PSI1IiByeD0iMi41IiByeT0iMi41IiBmaWxsPSIjNDU0NTRmIiBzdHJva2U9IiM3YzdjODYiLz48cmVjdCBjbGFzcz0iZmlsbCIgeT0iMSIgd2lkdGg9IjMxIiBoZWlnaHQ9IjYiIHJ4PSIzIiByeT0iMyIgZmlsbD0iI2E5OWNmMCIvPjxyZWN0IGNsYXNzPSJ0aHVtYiIgeD0iMzAiIHk9IjAiIHdpZHRoPSIyIiBoZWlnaHQ9IjgiIHJ4PSIxIiByeT0iMSIgZmlsbD0iI2VjZWNmMiIvPjwvc3ZnPg==" style="width:44px;height:8px"><span class=t style="color:#d9d3f5;font-weight:600"> 70%</span></div><div style="display:flex;flex-direction:row;align-items:center;flex-grow:1"></div><div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0"><span class=toggle data-key=more>▿</span></div></div></div></template>
+<template id="t-amberOpen"><div style="display:flex;flex-direction:column"><div data-key="row" style="display:flex;flex-direction:row;align-items:center;flex-wrap:nowrap;column-gap:10px;overflow:hidden"><div data-key="cache" data-tip="Warm cache bills input at 5%; expires 1h after a reply" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;border-radius:8px;padding:0 10px;height:28px;background:#3a2f17"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMiIgaGVpZ2h0PSIxMiIgdmlld0JveD0iMCAwIDIyIDEyIj48cmVjdCB4PSIwLjc1IiB5PSIwLjc1IiB3aWR0aD0iMTguNSIgaGVpZ2h0PSIxMC41IiByeD0iMyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZjBjOTY5IiBzdHJva2Utd2lkdGg9IjEuNSIvPjxyZWN0IHg9IjE5Ljc1IiB5PSI0IiB3aWR0aD0iMS43NSIgaGVpZ2h0PSI0IiByeD0iMC44IiBmaWxsPSIjZjBjOTY5Ii8+PHJlY3QgY2xhc3M9ImNoYXJnZSIgeD0iMi41IiB5PSIyLjUiIHdpZHRoPSIwLjIiIGhlaWdodD0iNyIgcng9IjEuNSIgZmlsbD0iI2YwYzk2OSIvPjwvc3ZnPg==" style="width:22px;height:12px"><span class=t style="color:#f0c969"> <span class=cd>0:47</span> left · re-warm ~$1.66</span></div><div data-key="cost" data-tip="$1.70 spent during your last message, subagents included" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;border-radius:8px;padding:0 10px;height:28px;background:#2b2b33"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48Y2lyY2xlIGN4PSI4IiBjeT0iOCIgcj0iNi41IiBmaWxsPSJub25lIiBzdHJva2U9IiNjOWE1NGEiIHN0cm9rZS13aWR0aD0iMS40Ii8+PHBhdGggZD0iTTkuNiA1LjZjLS40LS41LTEtLjgtMS43LS44LTEgMC0xLjcuNi0xLjcgMS4zIDAgMS43IDMuNiAxIDMuNiAyLjkgMCAuOC0uOCAxLjQtMS45IDEuNC0uOCAwLTEuNS0uMy0xLjktLjlNOCAzLjl2MU04IDEwLjR2MS40IiBmaWxsPSJub25lIiBzdHJva2U9IiNjOWE1NGEiIHN0cm9rZS13aWR0aD0iMS4yIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=" style="width:16px;height:16px"><div data-key="g-cost" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#ececf2;font-weight:600">$163.70</span></div><div data-key="ctx" data-tip="Conversation fill; near full, older turns get summarized" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;border-radius:8px;padding:0 10px;height:28px;background:#2b2b33"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48cmVjdCB4PSIyLjUiIHk9IjIuNSIgd2lkdGg9IjExIiBoZWlnaHQ9IjExIiByeD0iMi41IiBmaWxsPSJub25lIiBzdHJva2U9IiM5YTlhYTQiIHN0cm9rZS13aWR0aD0iMS40Ii8+PHBhdGggZD0iTTUuMiA2aDUuNk01LjIgOC41aDUuNk01LjIgMTFoMy4yIiBzdHJva2U9IiM5YTlhYTQiIHN0cm9rZS13aWR0aD0iMS4yIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=" style="width:16px;height:16px"><div data-key="g-context" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#ececf2">341k / 1.0M</span></div><div data-key="5h" data-tip="5-hour limit across all your Claude use; resets in 2h 00m" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;border-radius:8px;padding:0 10px;height:28px;background:#1e3324"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48cGF0aCBkPSJNMi41IDExLjVhNS41IDUuNSAwIDEgMSAxMSAwIiBmaWxsPSJub25lIiBzdHJva2U9IiM3ZmNmOGEiIHN0cm9rZS13aWR0aD0iMS40IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJNOCAxMS41bDIuNi0zLjQiIHN0cm9rZT0iIzdmY2Y4YSIgc3Ryb2tlLXdpZHRoPSIxLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==" style="width:16px;height:16px"><div data-key="g-five" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#cfe8d3">5h</span><div data-key="g-bar" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NCIgaGVpZ2h0PSI4IiB2aWV3Qm94PSIwIDAgNDQgOCI+PHJlY3QgeD0iMC41IiB5PSIxLjUiIHdpZHRoPSI0MyIgaGVpZ2h0PSI1IiByeD0iMi41IiByeT0iMi41IiBmaWxsPSIjNDU0NTRmIiBzdHJva2U9IiM3YzdjODYiLz48cmVjdCBjbGFzcz0iZmlsbCIgeT0iMSIgd2lkdGg9IjI0IiBoZWlnaHQ9IjYiIHJ4PSIzIiByeT0iMyIgZmlsbD0iIzdmY2Y4YSIvPjxyZWN0IGNsYXNzPSJ0aHVtYiIgeD0iMjMiIHk9IjAiIHdpZHRoPSIyIiBoZWlnaHQ9IjgiIHJ4PSIxIiByeT0iMSIgZmlsbD0iI2VjZWNmMiIvPjwvc3ZnPg==" style="width:44px;height:8px"><span class=t style="color:#cfe8d3;font-weight:600"> 55%</span></div><div data-key="7d" data-tip="Weekly limit across all your Claude use; resets in 2d 23h" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;border-radius:8px;padding:0 10px;height:28px;background:#2a2540"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48cmVjdCB4PSIyLjUiIHk9IjMuNSIgd2lkdGg9IjExIiBoZWlnaHQ9IjEwIiByeD0iMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYTk5Y2YwIiBzdHJva2Utd2lkdGg9IjEuNCIvPjxwYXRoIGQ9Ik0yLjUgNi41aDExTTUuNSAydjNNMTAuNSAydjMiIHN0cm9rZT0iI2E5OWNmMCIgc3Ryb2tlLXdpZHRoPSIxLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==" style="width:16px;height:16px"><div data-key="g-week" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#d9d3f5">7d</span><div data-key="g-bar" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NCIgaGVpZ2h0PSI4IiB2aWV3Qm94PSIwIDAgNDQgOCI+PHJlY3QgeD0iMC41IiB5PSIxLjUiIHdpZHRoPSI0MyIgaGVpZ2h0PSI1IiByeD0iMi41IiByeT0iMi41IiBmaWxsPSIjNDU0NTRmIiBzdHJva2U9IiM3YzdjODYiLz48cmVjdCBjbGFzcz0iZmlsbCIgeT0iMSIgd2lkdGg9IjMxIiBoZWlnaHQ9IjYiIHJ4PSIzIiByeT0iMyIgZmlsbD0iI2E5OWNmMCIvPjxyZWN0IGNsYXNzPSJ0aHVtYiIgeD0iMzAiIHk9IjAiIHdpZHRoPSIyIiBoZWlnaHQ9IjgiIHJ4PSIxIiByeT0iMSIgZmlsbD0iI2VjZWNmMiIvPjwvc3ZnPg==" style="width:44px;height:8px"><span class=t style="color:#d9d3f5;font-weight:600"> 70%</span></div><div style="display:flex;flex-direction:row;align-items:center;flex-grow:1"></div><div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0"><span class=toggle data-key=more>▵</span></div></div><div data-key="cards" style="display:flex;flex-direction:column;row-gap:12px;margin-top:12px"><div data-key="cards:0" style="display:flex;flex-direction:row;align-items:center;column-gap:10px"><div data-key="card:cache" style="display:flex;flex-direction:column;width:0px;min-width:0px;flex-grow:1;border:1px solid #76767f;border-radius:12px;padding:11px 10px;background:#2a2a31"><div data-key="head" style="display:flex;flex-direction:row;align-items:center;column-gap:10px;justify-content:space-between"><div data-key="title" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48cGF0aCBkPSJNOS4yIDEuOCAzLjYgOWgzLjlsLS44IDUuMkwxMi40IDdIOC41eiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjN2ZjZjhhIiBzdHJva2Utd2lkdGg9IjEuMyIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==" style="width:16px;height:16px"><div data-key="g-cache" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#9a9aa4">CACHE</span></div><span class=t style="color:#f0c969;font-weight:600"><span class=cd>0:47</span> left</span></div><div data-key="fact:re-warm if cold" style="display:flex;flex-direction:row;align-items:center;column-gap:20px;justify-content:space-between"><span class=t style="color:#9a9aa4">re-warm if cold</span><span class=t style="color:#c4c4cc">~$1.66</span></div></div><div data-key="card:spend" style="display:flex;flex-direction:column;width:0px;min-width:0px;flex-grow:1;border:1px solid #76767f;border-radius:12px;padding:11px 10px;background:#2a2a31"><div data-key="head" style="display:flex;flex-direction:row;align-items:center;column-gap:10px;justify-content:space-between"><div data-key="title" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48Y2lyY2xlIGN4PSI4IiBjeT0iOCIgcj0iNi41IiBmaWxsPSJub25lIiBzdHJva2U9IiNjOWE1NGEiIHN0cm9rZS13aWR0aD0iMS40Ii8+PHBhdGggZD0iTTkuNiA1LjZjLS40LS41LTEtLjgtMS43LS44LTEgMC0xLjcuNi0xLjcgMS4zIDAgMS43IDMuNiAxIDMuNiAyLjkgMCAuOC0uOCAxLjQtMS45IDEuNC0uOCAwLTEuNS0uMy0xLjktLjlNOCAzLjl2MU04IDEwLjR2MS40IiBmaWxsPSJub25lIiBzdHJva2U9IiNjOWE1NGEiIHN0cm9rZS13aWR0aD0iMS4yIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=" style="width:16px;height:16px"><div data-key="g-cost" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#9a9aa4">SPEND</span></div><span class=t style="color:#ececf2;font-weight:600">$163.70</span></div><div data-key="fact:last message" style="display:flex;flex-direction:row;align-items:center;column-gap:20px;justify-content:space-between"><span class=t style="color:#9a9aa4">last message</span><span class=t style="color:#c4c4cc">$1.70</span></div></div></div><div data-key="cards:1" style="display:flex;flex-direction:row;align-items:center;column-gap:10px"><div data-key="card:context" style="display:flex;flex-direction:column;width:0px;min-width:0px;flex-grow:1;border:1px solid #76767f;border-radius:12px;padding:11px 10px;background:#2a2a31"><div data-key="head" style="display:flex;flex-direction:row;align-items:center;column-gap:10px;justify-content:space-between"><div data-key="title" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48cmVjdCB4PSIyLjUiIHk9IjIuNSIgd2lkdGg9IjExIiBoZWlnaHQ9IjExIiByeD0iMi41IiBmaWxsPSJub25lIiBzdHJva2U9IiM5YTlhYTQiIHN0cm9rZS13aWR0aD0iMS40Ii8+PHBhdGggZD0iTTUuMiA2aDUuNk01LjIgOC41aDUuNk01LjIgMTFoMy4yIiBzdHJva2U9IiM5YTlhYTQiIHN0cm9rZS13aWR0aD0iMS4yIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=" style="width:16px;height:16px"><div data-key="g-context" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#9a9aa4">CONTEXT</span></div><span class=t style="color:#ececf2;font-weight:600">34% full</span></div><div data-key="fact:in context" style="display:flex;flex-direction:row;align-items:center;column-gap:20px;justify-content:space-between"><span class=t style="color:#9a9aa4">in context</span><span class=t style="color:#c4c4cc">341k</span></div></div><div data-key="card:limits" style="display:flex;flex-direction:column;width:0px;min-width:0px;flex-grow:1;border:1px solid #76767f;border-radius:12px;padding:11px 10px;background:#2a2a31"><div data-key="head" style="display:flex;flex-direction:row;align-items:center;column-gap:10px;justify-content:space-between"><div data-key="title" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48cGF0aCBkPSJNMi41IDExLjVhNS41IDUuNSAwIDEgMSAxMSAwIiBmaWxsPSJub25lIiBzdHJva2U9IiM3ZmNmOGEiIHN0cm9rZS13aWR0aD0iMS40IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJNOCAxMS41bDIuNi0zLjQiIHN0cm9rZT0iIzdmY2Y4YSIgc3Ryb2tlLXdpZHRoPSIxLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==" style="width:16px;height:16px"><div data-key="g-limits" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#9a9aa4">LIMITS</span></div><span class=t style="color:#ececf2;font-weight:600">7d 70%</span></div><div data-key="fact:5h" style="display:flex;flex-direction:row;align-items:center;column-gap:10px"><span class=t style="color:#9a9aa4">5h</span><div data-key="bar" style="display:flex;flex-direction:row;align-items:center;width:0px;min-width:0px;flex-grow:1"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI3MDAiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDcwMCA4IiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIj48cmVjdCB4PSIxIiB5PSIxLjUiIHdpZHRoPSI2OTgiIGhlaWdodD0iNSIgcng9IjUiIHJ5PSIyLjUiIGZpbGw9IiM0NTQ1NGYiIHN0cm9rZT0iIzdjN2M4NiIgdmVjdG9yLWVmZmVjdD0ibm9uLXNjYWxpbmctc3Ryb2tlIi8+PHJlY3QgY2xhc3M9ImZpbGwiIHk9IjEiIHdpZHRoPSIzODUiIGhlaWdodD0iNiIgcng9IjYiIHJ5PSIzIiBmaWxsPSIjN2ZjZjhhIi8+PHJlY3QgY2xhc3M9InRodW1iIiB4PSIzODMiIHk9IjAiIHdpZHRoPSI0IiBoZWlnaHQ9IjgiIHJ4PSIyIiByeT0iMSIgZmlsbD0iI2VjZWNmMiIvPjwvc3ZnPg==" style="flex:1;min-width:0;width:100%;height:8px"></div><span class=t style="color:#c4c4cc">55%</span></div></div></div></div><div data-key="actions" style="display:flex;flex-direction:row;align-items:center;column-gap:10px;margin-top:12px"><div data-key="strip" style="display:flex;flex-direction:row;align-items:center;flex-wrap:nowrap;min-width:0px;height:24px;flex-grow:1;flex-shrink:1;overflow:hidden"><div data-key="ws:where" style="display:flex;flex-direction:row;align-items:center;column-gap:20px;min-width:0px;flex-shrink:1;overflow:hidden"><div data-key="ws:path" data-tip="/Users/me/workspace/claude-mod: branch main, clean" style="display:flex;flex-direction:row;align-items:center"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48cGF0aCBkPSJNMi41IDQuNUExLjUgMS41IDAgMCAxIDQgM2gyLjNsMS41IDEuNkgxMmExLjUgMS41IDAgMCAxIDEuNSAxLjV2NS40QTEuNSAxLjUgMCAwIDEgMTIgMTNINGExLjUgMS41IDAgMCAxLTEuNS0xLjV6IiBmaWxsPSJub25lIiBzdHJva2U9IiM4MDgwOGEiIHN0cm9rZS13aWR0aD0iMS40IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz48L3N2Zz4=" style="width:16px;height:16px"><div data-key="g-folder" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:subtle">/Users/me/workspace/</span><span class=t style="color:text;font-weight:600">claude-mod</span></div><div data-key="ws:head" data-tip="Branch main: up to date with its upstream" style="display:flex;flex-direction:row;align-items:center"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48Y2lyY2xlIGN4PSI0Ljc1IiBjeT0iMTEuNzUiIHI9IjEuNzUiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzVjODVkNiIgc3Ryb2tlLXdpZHRoPSIxLjQiLz48Y2lyY2xlIGN4PSIxMS4yNSIgY3k9IjQuMjUiIHI9IjEuNzUiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzVjODVkNiIgc3Ryb2tlLXdpZHRoPSIxLjQiLz48cGF0aCBkPSJNNC43NSAyLjVWMTBNMTEuMjUgNmMwIDMtMi4zIDUuMS00Ljc1IDUuNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNWM4NWQ2IiBzdHJva2Utd2lkdGg9IjEuNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+" style="width:16px;height:16px"><div data-key="g-branch" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:text">main</span></div></div><div data-key="ws:fill" style="display:flex;flex-direction:row;align-items:center;min-width:20px;flex-grow:1"></div><div data-key="ws:state" style="display:flex;flex-direction:row;align-items:center;column-gap:20px;flex-shrink:0"><span class=t style="color:subtle">clean</span></div></div><div style="display:flex;flex-direction:row;align-items:center;flex-grow:1"></div><span class=btn>Collapse<span class=key>C</span></span><span class=btn>Hide band<span class=key>H</span></span></div></div></template>
+<template id="t-cold"><div style="display:flex;flex-direction:column"><div data-key="row" style="display:flex;flex-direction:row;align-items:center;flex-wrap:nowrap;column-gap:10px;overflow:hidden"><div data-key="cache" data-tip="Cold: next message rebuilds 341k tokens (~$1.66)" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;border-radius:8px;padding:0 10px;height:28px;background:#2b2b33"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMiIgaGVpZ2h0PSIxMiIgdmlld0JveD0iMCAwIDIyIDEyIj48cmVjdCB4PSIwLjc1IiB5PSIwLjc1IiB3aWR0aD0iMTguNSIgaGVpZ2h0PSIxMC41IiByeD0iMyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOWE5YWE0IiBzdHJva2Utd2lkdGg9IjEuNSIvPjxyZWN0IHg9IjE5Ljc1IiB5PSI0IiB3aWR0aD0iMS43NSIgaGVpZ2h0PSI0IiByeD0iMC44IiBmaWxsPSIjOWE5YWE0Ii8+PHJlY3QgY2xhc3M9ImNoYXJnZSIgeD0iMi41IiB5PSIyLjUiIHdpZHRoPSIwIiBoZWlnaHQ9IjciIHJ4PSIxLjUiIGZpbGw9IiM3ZmNmOGEiLz48L3N2Zz4=" style="width:22px;height:12px"><span class=t style="color:#ececf2"> cache cold · next message ~$1.66</span></div><div data-key="cost" data-tip="$1.70 spent during your last message, subagents included" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;border-radius:8px;padding:0 10px;height:28px;background:#2b2b33"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48Y2lyY2xlIGN4PSI4IiBjeT0iOCIgcj0iNi41IiBmaWxsPSJub25lIiBzdHJva2U9IiNjOWE1NGEiIHN0cm9rZS13aWR0aD0iMS40Ii8+PHBhdGggZD0iTTkuNiA1LjZjLS40LS41LTEtLjgtMS43LS44LTEgMC0xLjcuNi0xLjcgMS4zIDAgMS43IDMuNiAxIDMuNiAyLjkgMCAuOC0uOCAxLjQtMS45IDEuNC0uOCAwLTEuNS0uMy0xLjktLjlNOCAzLjl2MU04IDEwLjR2MS40IiBmaWxsPSJub25lIiBzdHJva2U9IiNjOWE1NGEiIHN0cm9rZS13aWR0aD0iMS4yIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=" style="width:16px;height:16px"><div data-key="g-cost" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#ececf2;font-weight:600">$163.70</span></div><div data-key="ctx" data-tip="Conversation fill; near full, older turns get summarized" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;border-radius:8px;padding:0 10px;height:28px;background:#2b2b33"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48cmVjdCB4PSIyLjUiIHk9IjIuNSIgd2lkdGg9IjExIiBoZWlnaHQ9IjExIiByeD0iMi41IiBmaWxsPSJub25lIiBzdHJva2U9IiM5YTlhYTQiIHN0cm9rZS13aWR0aD0iMS40Ii8+PHBhdGggZD0iTTUuMiA2aDUuNk01LjIgOC41aDUuNk01LjIgMTFoMy4yIiBzdHJva2U9IiM5YTlhYTQiIHN0cm9rZS13aWR0aD0iMS4yIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=" style="width:16px;height:16px"><div data-key="g-context" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#ececf2">341k / 1.0M</span></div><div data-key="5h" data-tip="5-hour limit across all your Claude use; resets in 2h 00m" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;border-radius:8px;padding:0 10px;height:28px;background:#1e3324"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48cGF0aCBkPSJNMi41IDExLjVhNS41IDUuNSAwIDEgMSAxMSAwIiBmaWxsPSJub25lIiBzdHJva2U9IiM3ZmNmOGEiIHN0cm9rZS13aWR0aD0iMS40IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJNOCAxMS41bDIuNi0zLjQiIHN0cm9rZT0iIzdmY2Y4YSIgc3Ryb2tlLXdpZHRoPSIxLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==" style="width:16px;height:16px"><div data-key="g-five" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#cfe8d3">5h</span><div data-key="g-bar" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NCIgaGVpZ2h0PSI4IiB2aWV3Qm94PSIwIDAgNDQgOCI+PHJlY3QgeD0iMC41IiB5PSIxLjUiIHdpZHRoPSI0MyIgaGVpZ2h0PSI1IiByeD0iMi41IiByeT0iMi41IiBmaWxsPSIjNDU0NTRmIiBzdHJva2U9IiM3YzdjODYiLz48cmVjdCBjbGFzcz0iZmlsbCIgeT0iMSIgd2lkdGg9IjI0IiBoZWlnaHQ9IjYiIHJ4PSIzIiByeT0iMyIgZmlsbD0iIzdmY2Y4YSIvPjxyZWN0IGNsYXNzPSJ0aHVtYiIgeD0iMjMiIHk9IjAiIHdpZHRoPSIyIiBoZWlnaHQ9IjgiIHJ4PSIxIiByeT0iMSIgZmlsbD0iI2VjZWNmMiIvPjwvc3ZnPg==" style="width:44px;height:8px"><span class=t style="color:#cfe8d3;font-weight:600"> 55%</span></div><div style="display:flex;flex-direction:row;align-items:center;flex-grow:1"></div><div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0"><span class=toggle data-key=more>▿</span></div></div></div></template>
+<template id="t-coldOpen"><div style="display:flex;flex-direction:column"><div data-key="row" style="display:flex;flex-direction:row;align-items:center;flex-wrap:nowrap;column-gap:10px;overflow:hidden"><div data-key="cache" data-tip="Cold: next message rebuilds 341k tokens (~$1.66)" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;border-radius:8px;padding:0 10px;height:28px;background:#2b2b33"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMiIgaGVpZ2h0PSIxMiIgdmlld0JveD0iMCAwIDIyIDEyIj48cmVjdCB4PSIwLjc1IiB5PSIwLjc1IiB3aWR0aD0iMTguNSIgaGVpZ2h0PSIxMC41IiByeD0iMyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOWE5YWE0IiBzdHJva2Utd2lkdGg9IjEuNSIvPjxyZWN0IHg9IjE5Ljc1IiB5PSI0IiB3aWR0aD0iMS43NSIgaGVpZ2h0PSI0IiByeD0iMC44IiBmaWxsPSIjOWE5YWE0Ii8+PHJlY3QgY2xhc3M9ImNoYXJnZSIgeD0iMi41IiB5PSIyLjUiIHdpZHRoPSIwIiBoZWlnaHQ9IjciIHJ4PSIxLjUiIGZpbGw9IiM3ZmNmOGEiLz48L3N2Zz4=" style="width:22px;height:12px"><span class=t style="color:#ececf2"> cache cold · next message ~$1.66</span></div><div data-key="cost" data-tip="$1.70 spent during your last message, subagents included" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;border-radius:8px;padding:0 10px;height:28px;background:#2b2b33"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48Y2lyY2xlIGN4PSI4IiBjeT0iOCIgcj0iNi41IiBmaWxsPSJub25lIiBzdHJva2U9IiNjOWE1NGEiIHN0cm9rZS13aWR0aD0iMS40Ii8+PHBhdGggZD0iTTkuNiA1LjZjLS40LS41LTEtLjgtMS43LS44LTEgMC0xLjcuNi0xLjcgMS4zIDAgMS43IDMuNiAxIDMuNiAyLjkgMCAuOC0uOCAxLjQtMS45IDEuNC0uOCAwLTEuNS0uMy0xLjktLjlNOCAzLjl2MU04IDEwLjR2MS40IiBmaWxsPSJub25lIiBzdHJva2U9IiNjOWE1NGEiIHN0cm9rZS13aWR0aD0iMS4yIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=" style="width:16px;height:16px"><div data-key="g-cost" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#ececf2;font-weight:600">$163.70</span></div><div data-key="ctx" data-tip="Conversation fill; near full, older turns get summarized" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;border-radius:8px;padding:0 10px;height:28px;background:#2b2b33"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48cmVjdCB4PSIyLjUiIHk9IjIuNSIgd2lkdGg9IjExIiBoZWlnaHQ9IjExIiByeD0iMi41IiBmaWxsPSJub25lIiBzdHJva2U9IiM5YTlhYTQiIHN0cm9rZS13aWR0aD0iMS40Ii8+PHBhdGggZD0iTTUuMiA2aDUuNk01LjIgOC41aDUuNk01LjIgMTFoMy4yIiBzdHJva2U9IiM5YTlhYTQiIHN0cm9rZS13aWR0aD0iMS4yIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=" style="width:16px;height:16px"><div data-key="g-context" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#ececf2">341k / 1.0M</span></div><div data-key="5h" data-tip="5-hour limit across all your Claude use; resets in 1h 59m" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0;border-radius:8px;padding:0 10px;height:28px;background:#1e3324"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48cGF0aCBkPSJNMi41IDExLjVhNS41IDUuNSAwIDEgMSAxMSAwIiBmaWxsPSJub25lIiBzdHJva2U9IiM3ZmNmOGEiIHN0cm9rZS13aWR0aD0iMS40IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJNOCAxMS41bDIuNi0zLjQiIHN0cm9rZT0iIzdmY2Y4YSIgc3Ryb2tlLXdpZHRoPSIxLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==" style="width:16px;height:16px"><div data-key="g-five" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#cfe8d3">5h</span><div data-key="g-bar" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NCIgaGVpZ2h0PSI4IiB2aWV3Qm94PSIwIDAgNDQgOCI+PHJlY3QgeD0iMC41IiB5PSIxLjUiIHdpZHRoPSI0MyIgaGVpZ2h0PSI1IiByeD0iMi41IiByeT0iMi41IiBmaWxsPSIjNDU0NTRmIiBzdHJva2U9IiM3YzdjODYiLz48cmVjdCBjbGFzcz0iZmlsbCIgeT0iMSIgd2lkdGg9IjI0IiBoZWlnaHQ9IjYiIHJ4PSIzIiByeT0iMyIgZmlsbD0iIzdmY2Y4YSIvPjxyZWN0IGNsYXNzPSJ0aHVtYiIgeD0iMjMiIHk9IjAiIHdpZHRoPSIyIiBoZWlnaHQ9IjgiIHJ4PSIxIiByeT0iMSIgZmlsbD0iI2VjZWNmMiIvPjwvc3ZnPg==" style="width:44px;height:8px"><span class=t style="color:#cfe8d3;font-weight:600"> 55%</span></div><div style="display:flex;flex-direction:row;align-items:center;flex-grow:1"></div><div style="display:flex;flex-direction:row;align-items:center;flex-shrink:0"><span class=toggle data-key=more>▵</span></div></div><div data-key="cards" style="display:flex;flex-direction:column;row-gap:12px;margin-top:12px"><div data-key="cards:0" style="display:flex;flex-direction:row;align-items:center;column-gap:10px"><div data-key="card:cache" style="display:flex;flex-direction:column;width:0px;min-width:0px;flex-grow:1;border:1px solid #76767f;border-radius:12px;padding:11px 10px;background:#2a2a31"><div data-key="head" style="display:flex;flex-direction:row;align-items:center;column-gap:10px;justify-content:space-between"><div data-key="title" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48cGF0aCBkPSJNOS4yIDEuOCAzLjYgOWgzLjlsLS44IDUuMkwxMi40IDdIOC41eiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjN2ZjZjhhIiBzdHJva2Utd2lkdGg9IjEuMyIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==" style="width:16px;height:16px"><div data-key="g-cache" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#9a9aa4">CACHE</span></div><span class=t style="color:#ececf2;font-weight:600">Cold</span></div><div data-key="fact:next message" style="display:flex;flex-direction:row;align-items:center;column-gap:20px;justify-content:space-between"><span class=t style="color:#9a9aa4">next message</span><span class=t style="color:#c4c4cc">~$1.66</span></div></div><div data-key="card:spend" style="display:flex;flex-direction:column;width:0px;min-width:0px;flex-grow:1;border:1px solid #76767f;border-radius:12px;padding:11px 10px;background:#2a2a31"><div data-key="head" style="display:flex;flex-direction:row;align-items:center;column-gap:10px;justify-content:space-between"><div data-key="title" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48Y2lyY2xlIGN4PSI4IiBjeT0iOCIgcj0iNi41IiBmaWxsPSJub25lIiBzdHJva2U9IiNjOWE1NGEiIHN0cm9rZS13aWR0aD0iMS40Ii8+PHBhdGggZD0iTTkuNiA1LjZjLS40LS41LTEtLjgtMS43LS44LTEgMC0xLjcuNi0xLjcgMS4zIDAgMS43IDMuNiAxIDMuNiAyLjkgMCAuOC0uOCAxLjQtMS45IDEuNC0uOCAwLTEuNS0uMy0xLjktLjlNOCAzLjl2MU04IDEwLjR2MS40IiBmaWxsPSJub25lIiBzdHJva2U9IiNjOWE1NGEiIHN0cm9rZS13aWR0aD0iMS4yIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=" style="width:16px;height:16px"><div data-key="g-cost" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#9a9aa4">SPEND</span></div><span class=t style="color:#ececf2;font-weight:600">$163.70</span></div><div data-key="fact:last message" style="display:flex;flex-direction:row;align-items:center;column-gap:20px;justify-content:space-between"><span class=t style="color:#9a9aa4">last message</span><span class=t style="color:#c4c4cc">$1.70</span></div></div></div><div data-key="cards:1" style="display:flex;flex-direction:row;align-items:center;column-gap:10px"><div data-key="card:context" style="display:flex;flex-direction:column;width:0px;min-width:0px;flex-grow:1;border:1px solid #76767f;border-radius:12px;padding:11px 10px;background:#2a2a31"><div data-key="head" style="display:flex;flex-direction:row;align-items:center;column-gap:10px;justify-content:space-between"><div data-key="title" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48cmVjdCB4PSIyLjUiIHk9IjIuNSIgd2lkdGg9IjExIiBoZWlnaHQ9IjExIiByeD0iMi41IiBmaWxsPSJub25lIiBzdHJva2U9IiM5YTlhYTQiIHN0cm9rZS13aWR0aD0iMS40Ii8+PHBhdGggZD0iTTUuMiA2aDUuNk01LjIgOC41aDUuNk01LjIgMTFoMy4yIiBzdHJva2U9IiM5YTlhYTQiIHN0cm9rZS13aWR0aD0iMS4yIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=" style="width:16px;height:16px"><div data-key="g-context" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#9a9aa4">CONTEXT</span></div><span class=t style="color:#ececf2;font-weight:600">34% full</span></div><div data-key="fact:in context" style="display:flex;flex-direction:row;align-items:center;column-gap:20px;justify-content:space-between"><span class=t style="color:#9a9aa4">in context</span><span class=t style="color:#c4c4cc">341k</span></div></div><div data-key="card:limits" style="display:flex;flex-direction:column;width:0px;min-width:0px;flex-grow:1;border:1px solid #76767f;border-radius:12px;padding:11px 10px;background:#2a2a31"><div data-key="head" style="display:flex;flex-direction:row;align-items:center;column-gap:10px;justify-content:space-between"><div data-key="title" style="display:flex;flex-direction:row;align-items:center;flex-shrink:0"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48cGF0aCBkPSJNMi41IDExLjVhNS41IDUuNSAwIDEgMSAxMSAwIiBmaWxsPSJub25lIiBzdHJva2U9IiM3ZmNmOGEiIHN0cm9rZS13aWR0aD0iMS40IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJNOCAxMS41bDIuNi0zLjQiIHN0cm9rZT0iIzdmY2Y4YSIgc3Ryb2tlLXdpZHRoPSIxLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==" style="width:16px;height:16px"><div data-key="g-limits" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:#9a9aa4">LIMITS</span></div><span class=t style="color:#ececf2;font-weight:600">7d 70%</span></div><div data-key="fact:5h" style="display:flex;flex-direction:row;align-items:center;column-gap:10px"><span class=t style="color:#9a9aa4">5h</span><div data-key="bar" style="display:flex;flex-direction:row;align-items:center;width:0px;min-width:0px;flex-grow:1"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI3MDAiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDcwMCA4IiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIj48cmVjdCB4PSIxIiB5PSIxLjUiIHdpZHRoPSI2OTgiIGhlaWdodD0iNSIgcng9IjUiIHJ5PSIyLjUiIGZpbGw9IiM0NTQ1NGYiIHN0cm9rZT0iIzdjN2M4NiIgdmVjdG9yLWVmZmVjdD0ibm9uLXNjYWxpbmctc3Ryb2tlIi8+PHJlY3QgY2xhc3M9ImZpbGwiIHk9IjEiIHdpZHRoPSIzODUiIGhlaWdodD0iNiIgcng9IjYiIHJ5PSIzIiBmaWxsPSIjN2ZjZjhhIi8+PHJlY3QgY2xhc3M9InRodW1iIiB4PSIzODMiIHk9IjAiIHdpZHRoPSI0IiBoZWlnaHQ9IjgiIHJ4PSIyIiByeT0iMSIgZmlsbD0iI2VjZWNmMiIvPjwvc3ZnPg==" style="flex:1;min-width:0;width:100%;height:8px"></div><span class=t style="color:#c4c4cc">55%</span></div></div></div></div><div data-key="actions" style="display:flex;flex-direction:row;align-items:center;column-gap:10px;margin-top:12px"><div data-key="strip" style="display:flex;flex-direction:row;align-items:center;flex-wrap:nowrap;min-width:0px;height:24px;flex-grow:1;flex-shrink:1;overflow:hidden"><div data-key="ws:where" style="display:flex;flex-direction:row;align-items:center;column-gap:20px;min-width:0px;flex-shrink:1;overflow:hidden"><div data-key="ws:path" data-tip="/Users/me/workspace/claude-mod: branch main, clean" style="display:flex;flex-direction:row;align-items:center"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48cGF0aCBkPSJNMi41IDQuNUExLjUgMS41IDAgMCAxIDQgM2gyLjNsMS41IDEuNkgxMmExLjUgMS41IDAgMCAxIDEuNSAxLjV2NS40QTEuNSAxLjUgMCAwIDEgMTIgMTNINGExLjUgMS41IDAgMCAxLTEuNS0xLjV6IiBmaWxsPSJub25lIiBzdHJva2U9IiM4MDgwOGEiIHN0cm9rZS13aWR0aD0iMS40IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz48L3N2Zz4=" style="width:16px;height:16px"><div data-key="g-folder" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:subtle">/Users/me/workspace/</span><span class=t style="color:text;font-weight:600">claude-mod</span></div><div data-key="ws:head" data-tip="Branch main: up to date with its upstream" style="display:flex;flex-direction:row;align-items:center"><img class=svg src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIxNiIgdmlld0JveD0iMCAwIDE2IDE2Ij48Y2lyY2xlIGN4PSI0Ljc1IiBjeT0iMTEuNzUiIHI9IjEuNzUiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzVjODVkNiIgc3Ryb2tlLXdpZHRoPSIxLjQiLz48Y2lyY2xlIGN4PSIxMS4yNSIgY3k9IjQuMjUiIHI9IjEuNzUiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzVjODVkNiIgc3Ryb2tlLXdpZHRoPSIxLjQiLz48cGF0aCBkPSJNNC43NSAyLjVWMTBNMTEuMjUgNmMwIDMtMi4zIDUuMS00Ljc1IDUuNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNWM4NWQ2IiBzdHJva2Utd2lkdGg9IjEuNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+" style="width:16px;height:16px"><div data-key="g-branch" style="display:flex;flex-direction:row;align-items:center;width:10px;flex-shrink:0"></div><span class=t style="color:text">main</span></div></div><div data-key="ws:fill" style="display:flex;flex-direction:row;align-items:center;min-width:20px;flex-grow:1"></div><div data-key="ws:state" style="display:flex;flex-direction:row;align-items:center;column-gap:20px;flex-shrink:0"><span class=t style="color:subtle">clean</span></div></div><div style="display:flex;flex-direction:row;align-items:center;flex-grow:1"></div><span class=btn>Collapse<span class=key>C</span></span><span class=btn>Hide band<span class=key>H</span></span></div></div></template>
+
 <script>
-  document.getElementById('copy').addEventListener('click', async (e) => {
-    const text = 'claude plugin marketplace add HMarzban/claude-mod\nclaude plugin install session-usage-band@hossein-mods'
-    try { await navigator.clipboard.writeText(text); e.target.textContent = 'Copied' } catch { e.target.textContent = 'Select and copy' }
-    setTimeout(() => { e.target.textContent = 'Copy' }, 1800)
+(() => {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  // ---- copy buttons ----
+  for (const b of document.querySelectorAll('.copy')) {
+    b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(b.dataset.copy) } catch { return }
+      b.classList.add('done'); b.querySelector('.lbl').textContent = 'Copied'
+      setTimeout(() => { b.classList.remove('done'); b.querySelector('.lbl').textContent = 'Copy' }, 1800)
+    })
+  }
+
+  // ---- live star count ----
+  fetch('https://api.github.com/repos/HMarzban/claude-mod').then(r => r.ok ? r.json() : null).then(d => {
+    if (d && d.stargazers_count > 0) document.getElementById('stars').textContent = d.stargazers_count
+  }).catch(() => {})
+
+  // ---- the live band: the band's real states, its countdown ticking ----
+  const host = document.getElementById('bandhost'), fit = document.getElementById('fit')
+  const live = document.getElementById('live'), tip = document.getElementById('tip')
+  const tpl = id => document.getElementById('t-' + id).innerHTML
+  const S = { secs: 15, open: false, hidden: false, timer: null }
+  const fmt = s => `0:${String(Math.max(0, s)).padStart(2, '0')}`
+
+  function draw(animate) {
+    if (S.hidden) {
+      host.innerHTML = '<div class="hidden-note"><span>Band hidden. It comes back with</span><button type="button" id="back">/usage-band</button></div>'
+      host.querySelector('#back').onclick = () => { S.hidden = false; draw(true) }
+    } else {
+      const cold = S.secs <= 0
+      host.innerHTML = `<div class="band${animate ? ' enter' : ''}${!cold && S.secs <= 10 ? ' alarm' : ''}">${tpl((cold ? 'cold' : 'amber') + (S.open ? 'Open' : ''))}</div>`
+      for (const c of host.querySelectorAll('.cd')) c.textContent = fmt(S.secs)
+      const more = host.querySelector('[data-key=more]')
+      if (more) more.onclick = () => { S.open = !S.open; draw(true) }
+      for (const b of host.querySelectorAll('.btn')) {
+        const label = b.textContent.trim()
+        if (label.startsWith('Collapse')) b.onclick = () => { S.open = false; draw(true) }
+        if (label.startsWith('Hide band')) b.onclick = () => { S.hidden = true; S.open = false; draw(true) }
+      }
+    }
+    scale()
+  }
+  function scale() {
+    const box = fit.parentElement, cs = getComputedStyle(box)
+    const w = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+    const k = Math.min(1, w / 964)
+    fit.style.transform = `scale(${k})`
+    fit.style.width = '964px'
+    fit.parentElement.style.height = ''
+    fit.style.marginBottom = `${(k - 1) * fit.offsetHeight}px`
+  }
+  function tick() {
+    if (S.secs > 0) {
+      S.secs--
+      if (!S.hidden) {
+        if (S.secs === 0) draw(true)
+        else for (const c of host.querySelectorAll('.cd')) c.textContent = fmt(S.secs)
+        const band = host.querySelector('.band')
+        if (band) band.classList.toggle('alarm', S.secs > 0 && S.secs <= 10)
+      }
+    }
+  }
+  function start() { clearInterval(S.timer); S.secs = 15; draw(true); if (!reduce) S.timer = setInterval(tick, 1000) }
+  document.getElementById('replay').onclick = () => { S.open = false; S.hidden = false; start() }
+  addEventListener('resize', scale)
+
+  // hover cards: the band's own words for each chip
+  live.addEventListener('mouseover', e => {
+    const el = e.target.closest('[data-tip]')
+    if (!el) { tip.classList.remove('on'); return }
+    tip.textContent = el.dataset.tip
+    const lr = live.getBoundingClientRect(), r = el.getBoundingClientRect()
+    tip.style.left = Math.max(0, Math.min(lr.width - 340, r.left - lr.left)) + 'px'
+    tip.style.top = (r.top - lr.top - tip.offsetHeight - 10) + 'px'
+    tip.classList.add('on')
   })
+  live.addEventListener('mouseleave', () => tip.classList.remove('on'))
+  start()
+
+  // ---- what a lunch break costs ----
+  const size = document.getElementById('size'), sizev = document.getElementById('sizev')
+  const warmEl = document.getElementById('warm'), coldEl = document.getElementById('cold'), ratioEl = document.getElementById('ratio')
+  const dot = document.getElementById('dot'), now = document.getElementById('now'), coldbox = document.getElementById('coldbox')
+  let model = { p: 4, r: 0.05 }, run = null
+  const money = v => v < 0.01 ? '<$0.01' : '$' + v.toFixed(2)
+  function prices() {
+    const k = Number(size.value) * 1000
+    sizev.textContent = (k >= 1e6 ? '1M' : Math.round(k / 1000) + 'k') + ' tokens'
+    return { warm: k * model.p * model.r / 1e6, cold: k * model.p * 1.25 / 1e6, x: 1.25 / model.r }
+  }
+  function setStatic() { const p = prices(); warmEl.textContent = money(p.warm); coldEl.textContent = money(p.cold); ratioEl.textContent = (Math.round(p.x * 10) / 10) + '×' }
+  let fallback = null
+  function animate() {
+    cancelAnimationFrame(run); clearTimeout(fallback)
+    const p = prices(); warmEl.textContent = money(p.warm)
+    const settle = () => { setStatic(); dot.style.left = '100%'; dot.className = 'dot cold'; now.style.left = '100%'; now.textContent = 'cold' }
+    if (reduce) { settle(); return }
+    const t0 = performance.now(), D = 2600
+    let landed = false
+    const land = () => {
+      if (landed) return; landed = true
+      coldEl.textContent = money(p.cold); coldbox.classList.remove('land'); void coldbox.offsetWidth; coldbox.classList.add('land')
+      const x0 = performance.now()
+      const count = t2 => { const c = Math.min(1, (t2 - x0) / 700); ratioEl.textContent = (Math.round((1 + (p.x - 1) * (1 - (1 - c) ** 3)) * 10) / 10) + '×'; if (c < 1) requestAnimationFrame(count) }
+      requestAnimationFrame(count)
+    }
+    // the numbers always land, even where a background tab slows the frames
+    fallback = setTimeout(() => { cancelAnimationFrame(run); settle(); landed = true }, D + 1200)
+    coldEl.textContent = '—'; ratioEl.textContent = '1×'
+    const step = t => {
+      const q = Math.min(1, (t - t0) / D), e = q < .5 ? 2 * q * q : 1 - (-2 * q + 2) ** 2 / 2
+      dot.style.left = (e * 100) + '%'; now.style.left = (e * 100) + '%'
+      now.textContent = e >= 0.985 ? 'cold' : e >= 0.92 ? 'last minute' : Math.round(e * 60) + ' min idle'
+      dot.className = 'dot' + (e >= 0.985 ? ' cold' : e >= 0.92 ? ' amber' : '')
+      if (q < 1) run = requestAnimationFrame(step)
+      else land()
+    }
+    run = requestAnimationFrame(step)
+  }
+  for (const b of document.querySelectorAll('#models button')) b.addEventListener('click', () => {
+    for (const o of document.querySelectorAll('#models button')) o.setAttribute('aria-pressed', o === b)
+    model = { p: Number(b.dataset.p), r: Number(b.dataset.r) }; animate()
+  })
+  let debounce; size.addEventListener('input', () => { setStatic(); clearTimeout(debounce); debounce = setTimeout(animate, 350) })
+  setStatic()
+
+  // ---- reveal on scroll, and run the timeline when it comes into view ----
+  const io = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { e.target.classList.add('in'); if (e.target.id === 'lunch') animate(); io.unobserve(e.target) } }, { threshold: 0.18 })
+  for (const s of document.querySelectorAll('.reveal')) io.observe(s)
+
+  // ---- film controls ----
+  const v = document.getElementById('video'), vt = document.getElementById('vtoggle')
+  vt.onclick = () => { if (v.paused) { v.play(); vt.textContent = 'Pause' } else { v.pause(); vt.textContent = 'Play' } }
+  if (reduce) { v.removeAttribute('autoplay'); v.pause(); vt.textContent = 'Play' }
+})()
 </script>
 </body>
 </html>
