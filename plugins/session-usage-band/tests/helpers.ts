@@ -14,6 +14,8 @@ import type {
   TurnStopReason,
 } from 'claude-code'
 import type { Engine, MockClock } from 'claude-code/testing'
+import { METER_CELLS } from '../hooks/layout'
+import { READ_LIMIT } from '../hooks/memory'
 import { DARK } from '../hooks/palette'
 
 export const PLUGIN = 'session-usage-band'
@@ -44,13 +46,13 @@ export const FRESH: SessionUsage = {
   cost: { usd: 0 },
 }
 
+/** How the usage read fails, if it does: `breakdownFails` makes the context
+ *  breakdown read throw, `fails` every usage read. Neither, to start. */
+const USAGE_FLAGS = { breakdownFails: false, fails: false }
+
 /** What the engine reports right now; a test swaps `current` to move cost or
- *  limits, or sets `breakdownFails` to make the context breakdown read throw. */
-export const usage: { current: SessionUsage; breakdownFails: boolean; fails: boolean } = {
-  current: USAGE,
-  breakdownFails: false,
-  fails: false,
-}
+ *  limits, or sets one of USAGE_FLAGS to make a read throw. */
+export const usage: { current: SessionUsage } & typeof USAGE_FLAGS = { current: USAGE, ...USAGE_FLAGS }
 
 /** The size the engine reports for the conversation after a compaction. */
 export const COMPACTED_TO = 20_000
@@ -70,7 +72,7 @@ export type GitAnswer = { status: string; dirs: string } | 'none' | 'fail'
 /** How the engine beneath answers, for tests that need it otherwise: what a
  *  compaction returns, why a step stops, a gate that holds a step open, the
  *  project root, and git, with every command the plugin ran. */
-export const engine: {
+type EngineFake = {
   compact: SessionCompactResult
   stop: TurnStopReason
   gate: Promise<void> | undefined
@@ -93,7 +95,11 @@ export const engine: {
   statted: string[]
   /** The plugin's own store, JSON in and out as the engine keeps it. */
   store: Record<string, unknown>
-} = {
+}
+
+/** Each test's engine, as `base` restores it: every default written once, so
+ *  a field added to EngineFake can't be left out of the reset. */
+const ENGINE_INITIAL: Readonly<EngineFake> = {
   store: {},
   hold: undefined,
   sessionId: 's1',
@@ -111,6 +117,11 @@ export const engine: {
   gate: undefined,
 }
 
+// Cloned, not spread: `ran` and `statted` are pushed to, and a shallow copy
+// would carry one test's pushes into the defaults. structuredClone keeps the
+// undefined fields too, which a JSON round-trip would drop from the reset.
+export const engine: EngineFake = structuredClone(ENGINE_INITIAL)
+
 /** Every toast the plugin raised since `base` ran. */
 export const toasts: string[] = []
 
@@ -118,25 +129,10 @@ let nextUsage: ModelUsage | null = null
 
 /** Everything beneath the plugin: the engine's own answers. */
 export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Record<string, unknown>> = {}): void => {
-  usage.current = initial
-  usage.breakdownFails = false
-  usage.fails = false
+  Object.assign(usage, USAGE_FLAGS, { current: initial })
   toasts.length = 0
   nextUsage = null
-  engine.compact = { messages: SUMMARY, tokensAfter: COMPACTED_TO }
-  engine.stop = 'end_turn'
-  engine.gate = undefined
-  engine.root = PROJECT
-  engine.repoRoot = PROJECT
-  engine.git = { status: GIT_CLEAN, dirs: GIT_MAIN_TREE }
-  engine.ran = []
-  engine.hold = undefined
-  engine.sessionId = 's1'
-  engine.model = 'claude-opus-5-5'
-  engine.transcript = undefined
-  engine.transcriptBytes = undefined
-  engine.tailFails = false
-  engine.statted = []
+  Object.assign(engine, structuredClone(ENGINE_INITIAL))
   engine.store = JSON.parse(JSON.stringify(store)) as Record<string, unknown>
   on('store.get', ($, e) => ({ value: engine.store[e.key] }))
   on('store.set', ($, e) => {
@@ -159,7 +155,7 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
   })
   on('fs.read', ($, e) => {
     if (engine.transcript === undefined) throw new Error(`ENOENT: ${e.path}`)
-    if ((engine.transcriptBytes ?? 0) > 4 * 1024 * 1024) throw new Error('over 4 MiB')
+    if ((engine.transcriptBytes ?? 0) > READ_LIMIT) throw new Error('over the read limit')
     return { value: engine.transcript }
   })
   on('session.root', () => ({ value: engine.root }))
@@ -168,17 +164,16 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
   }))
   on('process.run', async ($, e) => {
     engine.ran.push([...e.argv])
+    const quiet = { stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
     if (e.argv[0] === 'tail') {
-      const quietTail = { stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
-      if (engine.tailFails || engine.transcript === undefined) return { value: { ...quietTail, exitCode: 1, stdout: '', stderr: 'tail: no such file' } }
+      if (engine.tailFails || engine.transcript === undefined) return { value: { ...quiet, exitCode: 1, stdout: '', stderr: 'tail: no such file' } }
       const bytes = Number(e.argv[2])
-      return { value: { ...quietTail, exitCode: 0, stdout: engine.transcript.slice(-bytes) } }
+      return { value: { ...quiet, exitCode: 0, stdout: engine.transcript.slice(-bytes) } }
     }
     const git = engine.git
     const hold = engine.hold
     if (hold !== undefined) await hold
     if (git === 'fail') throw new Error('git: command not found')
-    const quiet = { stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
     if (git === 'none') return { value: { ...quiet, exitCode: 128, stdout: '', stderr: 'fatal: not a git repository' } }
     return { value: { ...quiet, exitCode: 0, stdout: e.argv.includes('status') ? git.status : git.dirs } }
   })
@@ -372,9 +367,9 @@ export const cardOf = (tree: unknown, name: string): Node | undefined => {
 /** The cache card's rebuild count, 0 when the row is absent. */
 export const rebuilds = (tree: unknown): number => Number(fact(tree, 'unexpected rebuilds') ?? 0)
 
-/** Text meters drawn: six cells of █ and ░. An empty meter's
- *  inner track Text is six cells too, so it's told apart by its colour. */
-const METER = /^[█░]{6}$/
+/** Text meters drawn: METER_CELLS cells of █ and ░. An empty meter's
+ *  inner track Text is as many cells too, so it's told apart by its colour. */
+const METER = new RegExp(`^[█░]{${METER_CELLS}}$`)
 export const textMeters = async (ui: {
   findAll: (q: { type: string; text: RegExp }) => Promise<Array<{ props?: Record<string, unknown> }>>
 }): Promise<number> => (await ui.findAll({ type: 'Text', text: METER })).filter(t => t.props?.color !== DARK.meterTrack).length
