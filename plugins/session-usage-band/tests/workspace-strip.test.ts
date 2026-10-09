@@ -14,6 +14,7 @@ import {
   DARK_HOSTS,
   LIGHT_HOSTS,
   base,
+  byKey,
   contrast,
   engine,
   props,
@@ -31,24 +32,14 @@ const DETACHED = `# branch.oid 1a2b3c4d5e6f\n# branch.head (detached)\n`
 const WORKTREE = '/Users/me/workspace/claude-mod/.claude/worktrees/band-strip'
 const WORKTREE_DIRS = `${PROJECT}/.git/worktrees/band-strip\n${PROJECT}/.git\n${WORKTREE}\n`
 
-const stripOf = (tree: unknown): Node | undefined => {
-  let found: Node | undefined
-  walk(tree, n => {
-    if (found === undefined && n.type === 'Box' && n.props?.key === 'strip') found = n
-  })
-  return found
-}
+const stripOf = (tree: unknown): Node | undefined => byKey(tree, 'strip', 'Box')
 
 /** The expanded band on `surface`, after the git read has settled. Opening
  *  is the session's, so it presses only when the cards are closed. */
 const expanded = async ($: Engine, surface: 'desktop' | 'terminal', cols = 120, maxRows = 40) => {
   await settle()
   const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: props(cols, false, maxRows) })
-  let open = false
-  walk(await ui.drawn(), n => {
-    if (n.type === 'Box' && n.props?.key === 'cards') open = true
-  })
-  if (!open) await ui.press({ key: 'more' })
+  if (byKey(await ui.drawn(), 'cards', 'Box') === undefined) await ui.press({ key: 'more' })
   await settle()
   const tree = await ui.drawn()
   await ui.unmount()
@@ -95,13 +86,7 @@ test('a dirty tree counts its changes, and ahead/behind shows only what differs'
   expect(strip).toMatch(/3 changed/)
   expect(strip).not.toMatch(/clean/)
   // on the desktop the arrows are icons a reader names: "ahead 2", "behind 1"
-  const piece = (key: string) => {
-    let found: Node | undefined
-    walk(tree, n => {
-      if (n.props?.key === key) found = n
-    })
-    return found
-  }
+  const piece = (key: string) => byKey(tree, key)
   expect(svgsOf(piece('ws:ahead')).map(n => n.props?.alt)).toEqual(['ahead'])
   expect(shown(piece('ws:ahead'))).toBe('2')
   expect(svgsOf(piece('ws:behind')).map(n => n.props?.alt)).toEqual(['behind'])
@@ -188,13 +173,7 @@ test('a band too short for a strip row puts it in the footer, in place of the hi
   mock.env(on, HOME)
   base(on)
   await $.session.start({ ...START, surface: 'desktop' })
-  const footerOf = (tree: unknown): Node | undefined => {
-    let found: Node | undefined
-    walk(tree, n => {
-      if (n.type === 'Box' && n.props?.key === 'actions') found = n
-    })
-    return found
-  }
+  const footerOf = (tree: unknown): Node | undefined => byKey(tree, 'actions', 'Box')
   // 13 rows, as the desktop gives: each card keeps one fact, so no row is spare
   const short = await expanded($, 'desktop', 95, 13)
   const footer = footerOf(short)
@@ -284,12 +263,8 @@ test("the path's hover card says the whole state, so nothing a narrow line drops
   engine.git = { status: DIRTY, dirs: GIT_MAIN_TREE }
   await $.session.start({ ...START, surface: 'desktop' })
   let card = ''
-  walk(stripOf(await expanded($, 'desktop')), n => {
-    if (n.props?.key === 'ws:path') {
-      walk(n, k => {
-        if (k.type === 'Box' && k.props?.position === 'absolute') card = String((k.children as Node[] | undefined)?.map(c => shown(c)).join(''))
-      })
-    }
+  walk(byKey(stripOf(await expanded($, 'desktop')), 'ws:path'), k => {
+    if (k.type === 'Box' && k.props?.position === 'absolute') card = String((k.children as Node[] | undefined)?.map(c => shown(c)).join(''))
   })
   expect(card).toBe('~/workspace/claude-mod: branch main, 3 changed, 2 ahead, 1 behind')
 })

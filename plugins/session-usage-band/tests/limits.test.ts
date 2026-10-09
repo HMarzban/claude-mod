@@ -23,7 +23,6 @@ import {
   svgsOf,
   svgRect,
   breakdown,
-  type Node,
   fact,
   cardOf,
 } from './helpers'

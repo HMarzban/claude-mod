@@ -9,6 +9,7 @@ import {
   PLUGIN,
   START,
   base,
+  byKey,
   cardOf,
   fact,
   pacing,
@@ -20,7 +21,6 @@ import {
   svgsOf,
   textOf,
   usage,
-  walk,
   type Node,
 } from './helpers'
 
@@ -35,10 +35,7 @@ test("the Limits card says the 5h chip's pace in the chip's own words, and in it
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
   expect(fact(tree, '5h pace')).toMatch(new RegExp(`full in ${eta}`))
-  let row: Node | undefined
-  walk(cardOf(tree, 'limits'), n => {
-    if (n.props?.key === 'fact:5h') row = n
-  })
+  const row = byKey(cardOf(tree, 'limits'), 'fact:5h')
   const value = (row?.children ?? []).filter(Boolean).at(-1) as Node | undefined
   expect(value?.props?.color).toBe(DARK.amberFg) // amber on the card, as on the chip
   await ui.unmount()

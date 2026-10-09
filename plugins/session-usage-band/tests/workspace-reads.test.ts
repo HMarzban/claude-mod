@@ -4,7 +4,7 @@
 import { test, expect, mock } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import { GIT_DIRS_ARGV, GIT_STATUS_ARGV } from '../hooks/workspace'
-import { CLEAR, GIT_CLEAN, GIT_MAIN_TREE, HOUR_1, PLUGIN, START, base, engine, props, settle, shown, turn, walk, type Node } from './helpers'
+import { CLEAR, GIT_CLEAN, GIT_MAIN_TREE, HOUR_1, PLUGIN, START, base, byKey, engine, props, settle, shown, turn } from './helpers'
 
 const gitRuns = () => engine.ran.filter(argv => argv[0] === 'git').length
 
@@ -80,10 +80,7 @@ const stripText = async ($: Engine, open = true): Promise<string> => {
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(140) })
   if (open) await ui.press({ key: 'more' })
   await settle()
-  let strip: Node | undefined
-  walk(await ui.drawn(), n => {
-    if (n.type === 'Box' && n.props?.key === 'strip') strip = n
-  })
+  const strip = byKey(await ui.drawn(), 'strip', 'Box')
   await ui.unmount()
   return shown(strip)
 }
@@ -128,11 +125,7 @@ test('two presses at once leave the cards as they were', async ($, on) => {
   await $.session.start(START)
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
   await Promise.all([ui.press({ key: 'more' }), ui.press({ key: 'more' })])
-  let open = false
-  walk(await ui.drawn(), n => {
-    if (n.type === 'Box' && n.props?.key === 'cards') open = true
-  })
-  expect(open).toBe(false)
+  expect(byKey(await ui.drawn(), 'cards', 'Box')).toBeUndefined()
   await ui.unmount()
 })
 

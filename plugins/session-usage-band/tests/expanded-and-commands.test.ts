@@ -7,6 +7,7 @@ import {
   START,
   HOUR_1,
   base,
+  byKey,
   props,
   resp,
   respond,
@@ -20,7 +21,6 @@ import {
   USAGE,
   HOUR,
   breakdown,
-  walk,
   type Node,
   svgsOf,
 } from './helpers'
@@ -191,12 +191,9 @@ test('Collapse and Hide are real buttons with c and h hotkeys', async ($, on) =>
   await $.session.start(START)
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
   await ui.press({ key: 'more' })
-  let collapse: Node | undefined
-  let hide: Node | undefined
-  walk(await ui.drawn(), n => {
-    if (n.type === 'Button' && n.props?.key === 'collapse') collapse = n
-    if (n.type === 'Button' && n.props?.key === 'hide') hide = n
-  })
+  const tree = await ui.drawn()
+  const collapse = byKey(tree, 'collapse', 'Button')
+  const hide = byKey(tree, 'hide', 'Button')
   expect(collapse?.props?.hotkey).toBe('c')
   expect(collapse?.props?.variant).toBe('secondary')
   expect(hide?.props?.hotkey).toBe('h')

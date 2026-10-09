@@ -251,6 +251,16 @@ export const walk = (n: unknown, visit: (node: Node) => void): void => {
   for (const k of (n as Node).children ?? []) walk(k, visit)
 }
 
+/** The first node beneath `tree`, in drawing order, whose key is `key` and,
+ *  when `type` is given, whose type is `type`. */
+export const byKey = (tree: unknown, key: string, type?: string): Node | undefined => {
+  let found: Node | undefined
+  walk(tree, n => {
+    if (found === undefined && n.props?.key === key && (type === undefined || n.type === type)) found = n
+  })
+  return found
+}
+
 /** Rows of the band: the root Box's children. */
 export const rowCount = (tree: unknown): number => {
   const t = tree as Node
@@ -289,13 +299,7 @@ export const CLEAR = { reason: 'clear', sessionId: 's1', resume: { id: 's1' } } 
 // ── readers for the drawn tree ─────────────────────────────────────────
 
 /** The pill Box drawn under `key` in the first row. */
-export const pillOf = (tree: unknown, key: string): Node | undefined => {
-  let found: Node | undefined
-  walk(firstRow(tree), n => {
-    if (found === undefined && n.type === 'Box' && n.props?.key === key) found = n
-  })
-  return found
-}
+export const pillOf = (tree: unknown, key: string): Node | undefined => byKey(firstRow(tree), key, 'Box')
 
 /** A node's visible text: hover cards, at any depth, left out. */
 export const shown = (n: unknown): string =>
@@ -354,24 +358,12 @@ export const cards = (tree: unknown): Array<[string, Node]> => {
 
 /** The value a card row shows for `label` in the expanded view. */
 export const fact = (tree: unknown, label: string): string | undefined => {
-  let found: string | undefined
-  walk(tree, n => {
-    if (found === undefined && n.type === 'Box' && n.props?.key === `fact:${label}`) {
-      const kids = n.children ?? []
-      found = textOf(kids[kids.length - 1])
-    }
-  })
-  return found
+  const row = byKey(tree, `fact:${label}`, 'Box')
+  return row === undefined ? undefined : textOf((row.children ?? []).at(-1))
 }
 
 /** A card of the expanded view: cache, spend, context or limits. */
-export const cardOf = (tree: unknown, name: string): Node | undefined => {
-  let found: Node | undefined
-  walk(tree, n => {
-    if (found === undefined && n.type === 'Box' && n.props?.key === `card:${name}`) found = n
-  })
-  return found
-}
+export const cardOf = (tree: unknown, name: string): Node | undefined => byKey(tree, `card:${name}`, 'Box')
 
 /** The cache card's rebuild count, 0 when the row is absent. */
 export const rebuilds = (tree: unknown): number => Number(fact(tree, 'unexpected rebuilds') ?? 0)

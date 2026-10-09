@@ -16,6 +16,7 @@ import {
   USAGE,
   base,
   breakdown,
+  byKey,
   cardOf,
   fact,
   firstRow,
@@ -81,13 +82,7 @@ test("expanding leaves the chip row exactly as it was; only the toggle's icon tu
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   await measureContext($, 152_000)
   const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(95) })
-  const toggle = async () => {
-    let label: unknown
-    walk(firstRow(await ui.drawn()), n => {
-      if (n.type === 'Button' && n.props?.key === 'more') label = n.props?.label
-    })
-    return label
-  }
+  const toggle = async () => byKey(firstRow(await ui.drawn()), 'more', 'Button')?.props?.label
   const before = shown(firstRow(await ui.drawn()))
   expect(await toggle()).toBe('▿')
   await ui.press({ key: 'more' })
@@ -244,10 +239,7 @@ test('cards sit in lines that share the width equally: four across when they fit
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   const lines = async (cols: number) => {
     const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(cols) })
-    let grid: Node | undefined
-    walk(await ui.drawn(), n => {
-      if (n.type === 'Box' && n.props?.key === 'cards') grid = n
-    })
+    const grid = byKey(await ui.drawn(), 'cards', 'Box')
     await ui.unmount()
     return ((grid?.children ?? []) as Node[]).map(line => {
       expect(line.props?.flexWrap).not.toBe('wrap') // a line never wraps a card away
@@ -282,10 +274,7 @@ test('the expanded band fits the rows it is given: cards drop their least facts 
     // two lines of cards, each its tallest card plus its border, a row between
     // them; the chip row and the buttons, each with a row of air before the next
     const tallest = (names: string[]) => Math.max(...names.map(n => (cardOf(tree, n)?.children ?? []).filter(Boolean).length)) + 2
-    let strip = 0
-    walk(tree, n => {
-      if (n.type === 'Box' && n.props?.key === 'strip') strip = 1
-    })
+    const strip = byKey(tree, 'strip', 'Box') === undefined ? 0 : 1
     return { total: 5 + strip + tallest(['cache', 'spend']) + tallest(['context', 'limits']), tree }
   }
   const roomy = await rowsOf(40)
@@ -373,12 +362,9 @@ test('card lines have a row of air between them, and the buttons a row above', a
   for (const surface of ['desktop', 'terminal'] as const) {
     const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: props(95) })
     if (surface === 'desktop') await ui.press({ key: 'more' })
-    let grid: Node | undefined
-    let actions: Node | undefined
-    walk(await ui.drawn(), n => {
-      if (n.type === 'Box' && n.props?.key === 'cards') grid = n
-      if (n.type === 'Box' && n.props?.key === 'actions') actions = n
-    })
+    const tree = await ui.drawn()
+    const grid = byKey(tree, 'cards', 'Box')
+    const actions = byKey(tree, 'actions', 'Box')
     expect(grid?.props?.rowGap).toBe(1)
     expect(actions?.props?.marginTop).toBe(1)
     await ui.unmount()
@@ -398,10 +384,7 @@ test('each desktop card title, and the hint, leads with an icon; terminal titles
   for (const [name, alt] of Object.entries(expected)) {
     expect(svgsOf(headOf(name)).map(n => n.props?.alt)).toEqual([alt])
   }
-  let actions: Node | undefined
-  walk(tree, n => {
-    if (n.type === 'Box' && n.props?.key === 'actions') actions = n
-  })
+  const actions = byKey(tree, 'actions', 'Box')
   expect(svgsOf(actions).map(n => n.props?.alt)).toEqual(['info'])
   await ui.unmount()
 
@@ -417,10 +400,7 @@ test('the toggle is a framed native button on the desktop, a plain glyph in the 
   await $.session.start(START)
   const toggleOf = async (surface: 'desktop' | 'terminal') => {
     const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: props(110) })
-    let found: Node | undefined
-    walk(firstRow(await ui.drawn()), n => {
-      if (n.type === 'Button' && n.props?.key === 'more') found = n
-    })
+    const found = byKey(firstRow(await ui.drawn()), 'more', 'Button')
     await ui.unmount()
     return found
   }
@@ -440,10 +420,7 @@ test('a card short of rows gives up its bar before a fact, since the chips alrea
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   const contextAt = async (maxRows: number) => {
     const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(95, false, maxRows) })
-    let open = false
-    walk(await ui.drawn(), n => {
-      if (n.type === 'Box' && n.props?.key === 'cards') open = true
-    })
+    const open = byKey(await ui.drawn(), 'cards', 'Box') !== undefined
     if (!open) await ui.press({ key: 'more' })
     const tree = await ui.drawn()
     await ui.unmount()
