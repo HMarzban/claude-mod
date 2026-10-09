@@ -3,7 +3,7 @@
 // sessions kept, where a transcript lives, its last reply and its rate.
 
 import { test, expect } from 'claude-code/testing'
-import { asRates, asSessions, lastReplyAt, rateFromTranscript, rememberReply, transcriptPath } from '../hooks/memory'
+import { asRates, asSessions, lastReplyAt, lastReplyModel, rateFromTranscript, rememberReply, transcriptPath } from '../hooks/memory'
 
 const iso = (ms: number): string => new Date(ms).toISOString()
 const jsonl = (...lines: unknown[]): string => lines.map(line => (typeof line === 'string' ? line : JSON.stringify(line))).join('\n') + '\n'
@@ -105,6 +105,12 @@ test('lines that are not assistant replies, even ones naming "assistant", are sk
 test('an unparseable line, or a reply with no readable time, is skipped', () => {
   const transcript = jsonl(reply(5_000), '{"type":"assistant", "timestamp": broken', { type: 'assistant', timestamp: 'not a time' }, { type: 'assistant', timestamp: 7_000 })
   expect(lastReplyAt(transcript)).toBe(5_000)
+})
+
+test("the last reply's model is the one the API billed it under, past lines that name none", () => {
+  const sonnet = { ...reply(1_000), message: { role: 'assistant', model: 'claude-sonnet-5-5', content: [] } }
+  expect(lastReplyModel(jsonl(sonnet, reply(2_000), prompt(3_000), { type: 'assistant', timestamp: iso(4_000), message: { role: 'assistant' } }))).toBe('claude-opus-5-5')
+  expect(lastReplyModel(jsonl(prompt(1_000)))).toBeUndefined()
 })
 
 test('a transcript with no reply has no last reply', () => {

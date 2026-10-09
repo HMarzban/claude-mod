@@ -63,6 +63,16 @@ test("its price comes from the transcript's own cost record, per model", async (
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/next message ~\$0\.63/)
 })
 
+test("reopened under an alias, the price is read for the model the last reply was billed under", async ($, on) => {
+  setup(on, { env: ENV, now: 3 * HOUR })
+  engine.model = 'opus[1m]'
+  engine.transcript = transcriptOf(0, {
+    'claude-opus-5-5': { inputTokens: 1_000_000, cacheCreationInputTokens: 400_000, cacheReadInputTokens: 20_000_000, outputTokens: 100_000, costUSD: 20 },
+  })
+  await $.session.start(START)
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/next message ~\$0\.63/)
+})
+
 test('a transcript of any size is read from its end, the last megabyte alone', async ($, on) => {
   setup(on, { env: ENV, now: 3 * HOUR })
   engine.transcript = transcriptOf(0)
@@ -113,6 +123,18 @@ test('after each turn the band remembers the reply and the rate it solved', asyn
 test('a rate solved on a 1M-context session is remembered under the model, for any window', async ($, on) => {
   const clock = setup(on, { env: ENV })
   engine.model = `${MODEL}[1m]`
+  await $.session.start(START)
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  usage.current = { ...usage.current, cost: { usd: 2.83 } }
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+  await clock.settle()
+  expect(Object.keys(engine.store.rates as Record<string, number>)).toEqual([MODEL])
+})
+
+test('a rate solved on a session named by an alias is remembered under the billed model', async ($, on) => {
+  const clock = setup(on, { env: ENV })
+  engine.model = 'opus[1m]'
   await $.session.start(START)
   await $.turn.start({ text: 'hi', turnId: 't1' })
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))

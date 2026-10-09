@@ -14,7 +14,9 @@ import {
   noteLoad,
   noteRecall,
   modelName,
+  noteBilledModel,
   notePriceModel,
+  pricedModel,
   pinTtl,
   ratePerToken,
   recordResponse,
@@ -42,6 +44,7 @@ import {
   asRates,
   asSessions,
   lastReplyAt,
+  lastReplyModel,
   rateFromTranscript,
   rememberReply,
   transcriptPath,
@@ -125,14 +128,18 @@ const recallLastReply = async ($: EngineInterface): Promise<void> => {
   try {
     const id = await $.session.id()
     const model = modelName(await $.session.model())
+    const rates = asRates(await $.store.get(RATES_KEY))
     let lastAt = asSessions(await $.store.get(SESSIONS_KEY))[id]?.lastAt
-    let rate = asRates(await $.store.get(RATES_KEY))[model] ?? null
+    let rate = rates[model] ?? null
     if (lastAt === undefined || rate === null) {
       const home = await $.env.get('HOME')
       const transcript = home ? await transcriptEnd($, transcriptPath(home, await $.session.root(), id)) : undefined
       if (transcript !== undefined) {
         lastAt ??= lastReplyAt(transcript)
-        rate ??= rateFromTranscript(transcript, model)
+        // /model may name an alias; the last reply names the model it was billed under.
+        const billed = lastReplyModel(transcript)
+        if (billed !== undefined) noteBilledModel(billed)
+        rate ??= billed === undefined ? rateFromTranscript(transcript, model) : (rates[billed] ?? rateFromTranscript(transcript, billed))
       }
     }
     if (lastAt !== undefined) noteRecall(lastAt, rate)
@@ -149,7 +156,7 @@ const rememberTurn = async ($: EngineInterface, costNow: number | undefined): Pr
     const id = await $.session.id()
     await $.store.set(SESSIONS_KEY, rememberReply(asSessions(await $.store.get(SESSIONS_KEY)), id, cache.lastAt))
     const rate = ratePerToken(costNow)
-    if (rate !== null) await $.store.set(RATES_KEY, { ...asRates(await $.store.get(RATES_KEY)), [modelName(await $.session.model())]: rate })
+    if (rate !== null) await $.store.set(RATES_KEY, { ...asRates(await $.store.get(RATES_KEY)), [pricedModel() ?? modelName(await $.session.model())]: rate })
   } catch {
     // memory is a convenience; the band works without it
   }
@@ -295,6 +302,7 @@ export const register: Register = on => {
     const result = yield* next(e)
     const isMain = e.agentId === undefined
     if (result?.usage) {
+      if (isMain && result.usage.model) noteBilledModel(result.usage.model)
       recordResponse(result.usage, sentAt, isMain, result.usage.model)
       const cost = await ledgerUsd($)
       if (cost !== undefined) noteLedger(cost)

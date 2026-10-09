@@ -5,6 +5,15 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.11.10] - 2026-10-09
+
+### Fixed
+- The re-warm price could still read about 30% low. `/model` may name the
+  model by an alias (`opus[1m]`), which matched no read price; the band now
+  prices tokens at the model each reply is billed under, as the API names
+  it, and a reopened session at the model its last reply names in the
+  transcript. The rate it remembers is filed under that model too.
+
 ## [0.11.9] - 2026-10-09
 
 ### Changed

@@ -60,6 +60,17 @@ test('a model named with its context size, as /model shows a 1M window, is price
   await ui.unmount()
 })
 
+test('a session named by an alias is priced at the model its replies are billed under', async ($, on) => {
+  setup(on)
+  engine.model = 'opus[1m]' // as /model may name it; each reply names the model itself
+  await $.session.start(START)
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  const ui = await mountBand($, 'desktop', 160)
+  expect(textOf(pillOf(await ui.drawn(), 'cache'))).toMatch(/bills input at 5%/)
+  await ui.unmount()
+})
+
 test('the context in use: tokens, else the percent of the window, else unknown', () => {
   expect(contextUsed({ tokens: 76_000, percent: 40, window: 200_000 })).toBe(76_000)
   expect(contextUsed({ tokens: undefined, percent: 40, window: 200_000 })).toBe(80_000)

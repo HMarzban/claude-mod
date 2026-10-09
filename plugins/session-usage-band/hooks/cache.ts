@@ -49,8 +49,11 @@ type CacheState = {
   /** Before this band's first reply: when the conversation's last reply was,
    *  and the base rate per token on its model, as recalled. */
   recall: Readonly<{ lastAt: number; rate: number | null }> | undefined
-  /** The model the session's tokens are priced at: the one /model has in force. */
+  /** The model /model has in force, as it names it: perhaps an alias. */
   priceModel: string | undefined
+  /** The model the main loop's last reply was billed under, as the API names
+   *  it. Where known, the tokens are priced at it. */
+  billedModel: string | undefined
 }
 
 const INITIAL: Readonly<CacheState> = {
@@ -72,6 +75,7 @@ const INITIAL: Readonly<CacheState> = {
   knownFresh: false,
   recall: undefined,
   priceModel: undefined,
+  billedModel: undefined,
 }
 
 const state: CacheState = { ...INITIAL }
@@ -87,8 +91,8 @@ export const resetCache = (): void => {
  *  and its TTL carry over, everything measured starts again. The baseline is
  *  provisional until the next turn starts and takes the ledger then. */
 export const resetConversation = (costNow: number): void => {
-  const { ttl, ttlPinned, priceModel } = state
-  Object.assign(state, INITIAL, { ttl, ttlPinned, priceModel, costBase: costNow, knownFresh: true })
+  const { ttl, ttlPinned, priceModel, billedModel } = state
+  Object.assign(state, INITIAL, { ttl, ttlPinned, priceModel, billedModel, costBase: costNow, knownFresh: true })
 }
 
 /** What the band recalls of the conversation's last reply, before its own. */
@@ -205,11 +209,11 @@ const READ_MULT_BY_MODEL: Readonly<Record<string, number>> = {
 }
 const DEFAULT_READ_MULT = 0.1
 
-/** What a cache read costs against base input on `model`. */
 /** The model a name bills as. `/model` names a 1M context window with a
  *  suffix, `claude-opus-5-5[1m]`, and the cost record names the model alone. */
 export const modelName = (model: string): string => model.replace(/\[[^\]]*\]$/, '')
 
+/** What a cache read costs against base input on `model`. */
 export const readMultiplier = (model: string | undefined): number =>
   (model === undefined ? undefined : READ_MULT_BY_MODEL[modelName(model)]) ?? DEFAULT_READ_MULT
 
@@ -217,8 +221,17 @@ export const notePriceModel = (model: string | undefined): void => {
   state.priceModel = model
 }
 
+export const noteBilledModel = (model: string): void => {
+  state.billedModel = model
+}
+
+/** The model the tokens are priced at: the one replies are billed under, else
+ *  what /model names, which may be an alias such as `opus[1m]`. */
+export const pricedModel = (): string | undefined =>
+  state.billedModel ?? (state.priceModel === undefined ? undefined : modelName(state.priceModel))
+
 /** A cache read's price against input, on the model in force. */
-export const readShare = (): number => readMultiplier(state.priceModel)
+export const readShare = (): number => readMultiplier(pricedModel())
 
 /** Tokens weighted by their price against base input on `model`: the one
  *  unknown left is the base rate itself. */
@@ -239,7 +252,7 @@ export const weightedTokens = (
  *  price), so what it prices is always shown with a "~". Call noteLedger first. */
 export const ratePerToken = (sessionCost: number | undefined): number | null => {
   if (!sessionCost || sessionCost <= 0) return null
-  const weighted = weightedTokens(state, state.priceModel)
+  const weighted = weightedTokens(state, pricedModel())
   if (weighted <= 0) return null
   const billed = sessionCost - state.costBase
   if (billed <= 0) return null
@@ -260,7 +273,7 @@ export const reWarmUsd = (sessionCost: number | undefined): number | null => {
  *  the same tokens: the rest of the base rate on every cache read. */
 export const savedUsd = (sessionCost: number | undefined): number | null => {
   const rate = ratePerToken(sessionCost)
-  return rate === null || state.read <= 0 ? null : rate * (1 - readMultiplier(state.priceModel)) * state.read
+  return rate === null || state.read <= 0 ? null : rate * (1 - readShare()) * state.read
 }
 
 export const hitRatio = (): number | null => {

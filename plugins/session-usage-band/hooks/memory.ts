@@ -88,6 +88,16 @@ export const lastReplyAt = (transcript: string): number | undefined => {
   return undefined
 }
 
+/** The model the transcript's last reply was billed under, as the API names it. */
+export const lastReplyModel = (transcript: string): string | undefined => {
+  for (const entry of fromEnd(transcript, '"assistant"')) {
+    if (entry.type !== 'assistant' || !isRecord(entry.message)) continue
+    const model = entry.message.model
+    if (typeof model === 'string' && model !== '') return model
+  }
+  return undefined
+}
+
 /** The base rate per token on `model`, solved from the transcript's last
  *  cost record: its dollars over its weighted tokens. */
 export const rateFromTranscript = (transcript: string, model: string): number | null => {
