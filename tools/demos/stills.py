@@ -37,14 +37,14 @@ h1{position:absolute;left:64px;top:104px;font-size:70px;line-height:1.02;font-we
 .chat{display:flex;justify-content:flex-end;margin-bottom:16px}
 .chat span{background:#2a2a28;border-radius:14px;padding:8px 14px;font-size:16px;color:#d6d3cc}
 .foot{position:absolute;left:64px;right:64px;bottom:36px;display:flex;justify-content:space-between;align-items:center;font-size:18px;color:#6b675e}
-.cmd{font:500 18px "SF Mono",ui-monospace,Menlo,monospace;color:#1f1e1b;background:#fff;border:1px solid #e4e0d6;border-radius:12px;padding:10px 16px}
+.cmd{font:500 17px "SF Mono",ui-monospace,Menlo,monospace;white-space:nowrap;color:#1f1e1b;background:#fff;border:1px solid #e4e0d6;border-radius:12px;padding:10px 16px}
 .cmd b{color:#6b675e;font-weight:500;margin-right:10px}
 ''' + BAND_CSS + '''</style></head><body>
 <div class="top"><span class="brand">''' + MARK.format(s=34) + '''session-usage-band</span><span>hmarzban.github.io/claude-mod</span></div>
 <h1>Know what your next message <span class="em">costs.</span></h1>
 <p class="sub">Step away and Claude Code's cache goes cold. The next message then costs <b>25× more</b> on Opus 5.5. This band shows the countdown and the price.</p>
 <div class="frame"><div class="zoom" id="z"><div class="chat"><span>great, I'm grabbing lunch. back in an hour or so</span></div><div class="band">{band}</div></div></div>
-<div class="foot"><span class="cmd"><b>$</b>claude plugin marketplace add HMarzban/claude-mod</span><span>Free · MIT · desktop app and terminal</span></div>
+<div class="foot"><span class="cmd"><b>$</b>claude plugin install session-usage-band --marketplace HMarzban/claude-mod</span><span>Free · MIT · desktop and terminal</span></div>
 <script>
 const z = document.getElementById('z'), c = document.querySelector('[data-key=cache]')
 const zr = z.getBoundingClientRect(), r = c.getBoundingClientRect(), k = 1.1, pad = 6

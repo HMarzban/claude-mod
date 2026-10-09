@@ -35,16 +35,53 @@ spend and limits in view while you work.
 
 ## Install
 
+One command, in any terminal:
+
+```bash
+claude plugin install session-usage-band --marketplace HMarzban/claude-mod
+```
+
+Then start a new session, or run `/reload-plugins` in an open one. The band
+draws in the terminal and in the desktop app's Code tab, and a plugin
+installed from either is available in the other.
+
+**Needs** Claude Code with mods (function-hooks plugins). Tested on 2.1.295
+in the terminal and the desktop app's bundled 2.1.289.
+
+<details>
+<summary>Inside a session, on an older Claude Code, or for a whole team</summary>
+
+**Inside a terminal session** (Claude Code 2.1.275 or later). It asks you to
+confirm adding the marketplace, then opens the plugin's details, where you
+pick a scope:
+
+```
+/plugin install session-usage-band --marketplace HMarzban/claude-mod
+```
+
+**Before Claude Code 2.1.292**, the one-line form isn't there. Use two steps:
+
 ```bash
 claude plugin marketplace add HMarzban/claude-mod
 claude plugin install session-usage-band@hossein-mods
 ```
 
-Then run `/reload-plugins`, or start a new session. It draws in the terminal
-and in the desktop app's Code tab.
+**For a team**, commit this to the repository's `.claude/settings.json`.
+Once a teammate trusts the folder, Claude Code fetches the marketplace in the
+background and turns the band on. It needs no install command, since the band
+loads straight from the marketplace. If it isn't showing yet, run
+`/reload-plugins`:
 
-**Needs** Claude Code with mods (function-hooks plugins). Tested on 2.1.295
-in the terminal and the desktop app's bundled 2.1.289.
+```json
+{
+  "extraKnownMarketplaces": {
+    "hossein-mods": { "source": { "source": "github", "repo": "HMarzban/claude-mod" } }
+  },
+  "enabledPlugins": { "session-usage-band@hossein-mods": true }
+}
+```
+
+</details>
 
 <details>
 <summary>Update or uninstall</summary>

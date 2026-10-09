@@ -202,14 +202,18 @@ To remove the guess, set one of:
 ## Install
 
 ```bash
-claude plugin marketplace add HMarzban/claude-mod
-claude plugin install session-usage-band@hossein-mods
+claude plugin install session-usage-band --marketplace HMarzban/claude-mod
 ```
+
+Then start a new session, or run `/reload-plugins` in an open one. Before
+Claude Code 2.1.292, add the marketplace first
+(`claude plugin marketplace add HMarzban/claude-mod`), then
+`claude plugin install session-usage-band@hossein-mods`.
 
 It needs Claude Code with mods (function-hooks plugins), and was tested on
 2.1.295 in the terminal and the desktop app's bundled 2.1.289. It draws in the terminal and the desktop app's Code tab, which are
 the surfaces with a band above the prompt. WSL sessions don't load plugins.
-The [repository README](https://github.com/HMarzban/claude-mod/blob/main/README.md) covers updating and uninstalling.
+The [repository README](https://github.com/HMarzban/claude-mod/blob/main/README.md) covers installing inside a session or for a whole team, updating and uninstalling.
 
 ## Developing
 

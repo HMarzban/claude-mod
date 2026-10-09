@@ -10,6 +10,10 @@ version may change how the band reads.
 ### Changed
 - The plugin README links the website, where every state of the band plays
   live, and names Fable and Mythos 5.1's cache-read share beside the others.
+- Installing is one command: `claude plugin install session-usage-band
+  --marketplace HMarzban/claude-mod`, which adds the marketplace on the way.
+  The repository README adds installing inside a terminal session and for a
+  whole team, and keeps the two-step form for Claude Code before 2.1.292.
 
 ## [0.11.12] - 2026-10-09
 

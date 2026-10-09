@@ -157,7 +157,7 @@ body{{font-family:-apple-system,system-ui,sans-serif;-webkit-font-smoothing:anti
 <div class="input">Type / for commands</div>
 </div></div>
 <div class="end" style="opacity:{end}"><h1>Know what your next message <em>costs.</em></h1>
-<div class="cmd"><b>$</b>claude plugin marketplace add HMarzban/claude-mod</div>
+<div class="cmd"><b>$</b>claude plugin install session-usage-band --marketplace HMarzban/claude-mod</div>
 <p><b>session-usage-band</b> · free and open source · github.com/HMarzban/claude-mod</p></div>
 <script>
 const P = {params};

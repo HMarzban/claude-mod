@@ -128,7 +128,7 @@ body{{font-family:-apple-system,system-ui,sans-serif;-webkit-font-smoothing:anti
 </div></div>
 <div class="chapters" style="opacity:{chrome}">{chapters}</div>
 <div class="end" style="opacity:{end}">{mark44}<h1>Know what your next message <span class="em hl" style="background-size:{esweep}% 100%">costs.</span></h1>
-<div class="cmd"><b>$</b>claude plugin marketplace add HMarzban/claude-mod</div>
+<div class="cmd"><b>$</b>claude plugin install session-usage-band --marketplace HMarzban/claude-mod</div>
 <p><b>session-usage-band</b> · free and open source · hmarzban.github.io/claude-mod</p></div>
 <script>
 const P = {params};

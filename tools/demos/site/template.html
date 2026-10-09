@@ -354,7 +354,7 @@
     .chip { min-height: 44px; } #theme { width: 44px; height: 44px; }
     .hero { padding-top: var(--s6); }
     .install { flex-direction: column; width: 100%; }
-    .install pre { font-size: 12px; }
+    .install pre { font-size: 11.5px; }
     .copy { border-left: 0; border-top: 1px solid var(--line); min-height: 48px; }
     .ghost { width: 100%; justify-content: center; }
     .stagebox { padding: 14px 10px 10px; }
@@ -436,9 +436,9 @@
     <p class="lede">Step away for lunch and Claude Code's cache goes cold. Your next message then pays to rewrite the whole conversation: <b class="mark" id="lede-mark">25× what re-reading it costs</b> on Opus 5.5. This band shows the countdown and the price, right above the prompt.</p>
     <div class="cta">
       <div class="install">
-        <pre><span>$ </span>claude plugin marketplace add HMarzban/claude-mod
-<span>$ </span>claude plugin install session-usage-band@hossein-mods</pre>
-        <button class="copy" type="button" data-copy="claude plugin marketplace add HMarzban/claude-mod&#10;claude plugin install session-usage-band@hossein-mods"><svg class="i ic"><use href="#i-copy"/></svg><svg class="i ok"><use href="#i-check"/></svg><span class="lbl">Copy install</span></button>
+        <pre><span>$ </span>claude plugin install session-usage-band \
+    --marketplace HMarzban/claude-mod</pre>
+        <button class="copy" type="button" data-copy="claude plugin install session-usage-band --marketplace HMarzban/claude-mod"><svg class="i ic"><use href="#i-copy"/></svg><svg class="i ok"><use href="#i-check"/></svg><span class="lbl">Copy install</span></button>
       </div>
       <a class="ghost" href="https://github.com/HMarzban/claude-mod"><svg class="i"><use href="#i-star"/></svg>Star on GitHub</a>
     </div>
@@ -468,7 +468,7 @@
     <div><span class="n">264</span><span class="l"><svg class="i"><use href="#i-flask"/></svg>tests, in CI on every push</span></div>
     <div><span class="n">0</span><span class="l"><svg class="i"><use href="#i-offline"/></svg>network calls</span></div>
     <div><span class="n">0</span><span class="l"><svg class="i"><use href="#i-token"/></svg>tokens spent</span></div>
-    <div><span class="n">2</span><span class="l"><svg class="i"><use href="#i-term"/></svg>commands to install</span></div>
+    <div><span class="n">1</span><span class="l"><svg class="i"><use href="#i-term"/></svg>command to install</span></div>
   </div>
 
   <section id="lunch" class="reveal">
@@ -563,12 +563,12 @@
 
   <div class="final reveal">
     <svg class="mark-ring" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="21" fill="none" stroke="#f2f0eb" stroke-width="5"/><circle cx="32" cy="32" r="21" fill="none" stroke="#d97757" stroke-width="5" stroke-linecap="round" stroke-dasharray="97 132" transform="rotate(-90 32 32)"/></svg>
-    <h2>Two commands, and a cold cache <span class="em">never surprises you</span> again.</h2>
+    <h2>One command, and a cold cache <span class="em">never surprises you</span> again.</h2>
     <p>Free and open source. Works in the Claude desktop app and the terminal.</p>
     <div class="install">
-      <pre><span>$ </span>claude plugin marketplace add HMarzban/claude-mod
-<span>$ </span>claude plugin install session-usage-band@hossein-mods</pre>
-      <button class="copy" type="button" data-copy="claude plugin marketplace add HMarzban/claude-mod&#10;claude plugin install session-usage-band@hossein-mods"><svg class="i ic"><use href="#i-copy"/></svg><svg class="i ok"><use href="#i-check"/></svg><span class="lbl">Copy install</span></button>
+      <pre><span>$ </span>claude plugin install session-usage-band \
+    --marketplace HMarzban/claude-mod</pre>
+      <button class="copy" type="button" data-copy="claude plugin install session-usage-band --marketplace HMarzban/claude-mod"><svg class="i ic"><use href="#i-copy"/></svg><svg class="i ok"><use href="#i-check"/></svg><span class="lbl">Copy install</span></button>
     </div>
   </div>
 
