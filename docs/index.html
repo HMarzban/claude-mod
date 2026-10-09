@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>session-usage-band: see what your next Claude Code message costs</title>
+<meta name="description" content="A free, open-source Claude Code mod that shows the prompt-cache countdown, what a cold cache will cost to re-warm, your session spend, context fill and your 5-hour and weekly limits.">
+<link rel="canonical" href="https://hmarzban.github.io/claude-mod/">
+<meta name="theme-color" content="#141413">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="session-usage-band">
+<meta property="og:title" content="Know what your next Claude Code message costs">
+<meta property="og:description" content="A band above the Claude Code prompt: the prompt-cache countdown, the re-warm price, session spend, context and your 5h / 7d limits. Free and open source.">
+<meta property="og:url" content="https://hmarzban.github.io/claude-mod/">
+<meta property="og:image" content="https://hmarzban.github.io/claude-mod/social-preview.png">
+<meta property="og:image:width" content="2560">
+<meta property="og:image:height" content="1280">
+<meta property="og:image:alt" content="The band above the Claude Code prompt, with the re-warm price circled">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Know what your next Claude Code message costs">
+<meta name="twitter:description" content="The prompt-cache countdown, the re-warm price, spend, context and limits, right above the Claude Code prompt.">
+<meta name="twitter:image" content="https://hmarzban.github.io/claude-mod/social-preview.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "session-usage-band",
+  "description": "A Claude Code mod that shows the prompt-cache countdown, what a cold cache will cost to re-warm, session spend, context fill and the 5-hour and weekly usage limits.",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "macOS, Linux, Windows",
+  "url": "https://hmarzban.github.io/claude-mod/",
+  "downloadUrl": "https://github.com/HMarzban/claude-mod",
+  "codeRepository": "https://github.com/HMarzban/claude-mod",
+  "license": "https://opensource.org/licenses/MIT",
+  "image": "https://hmarzban.github.io/claude-mod/social-preview.png",
+  "author": { "@type": "Person", "name": "Hossein Marzban", "url": "https://github.com/HMarzban" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "Why did my Claude Code message cost so much more than the others?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Most likely the prompt cache went cold. Claude Code caches your conversation for 5 minutes or an hour after the last request. After that, the next message writes the whole conversation to the cache again at 1.25 times the input price." } },
+    { "@type": "Question", "name": "Does session-usage-band cost tokens?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. It never calls a model, never sends data anywhere, and never suggests sending a message to keep the cache warm." } },
+    { "@type": "Question", "name": "Is the re-warm price exact?",
+      "acceptedAnswer": { "@type": "Answer", "text": "It is an estimate, shown with a tilde. The band solves the per-token rate from the session's own bill, the same ledger Claude Code shows, which prices every cache write at 1.25 times input." } },
+    { "@type": "Question", "name": "How do I see my Claude Code 5-hour and weekly limits?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Install session-usage-band. Its 5h and 7d chips show how much of each limit you have used and when it resets, and the 5h chip warns when your pace would run out before the reset." } },
+    { "@type": "Question", "name": "Does it work in the Claude desktop app?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. It draws in the desktop app's Code tab, with icons and meters, and in the terminal as text." } }
+  ]
+}
+</script>
+
+<style>
+  :root {
+    --bg: #141413; --bg-2: #1b1b1a; --bg-3: #222220; --line: #2f2e2b;
+    --text: #f2f0eb; --text-2: #b4b0a7; --text-3: #8f8c85; --accent: #d97757;
+    --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  nav { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
+  nav .name { font-weight: 650; text-decoration: none; display: flex; align-items: center; gap: 10px; }
+  nav .name img { width: 22px; height: 22px; }
+  nav .links { display: flex; gap: 22px; font-size: 15px; color: var(--text-2); }
+  nav .links a { text-decoration: none; }
+  nav .links a:hover { color: var(--text); }
+
+  .hero { padding: 56px 0 40px; text-align: center; }
+  .eyebrow { display: inline-block; font-size: 14px; color: var(--text-2); border: 1px solid var(--line); border-radius: 999px; padding: 5px 14px; margin-bottom: 26px; }
+  h1 { font-size: clamp(38px, 6.4vw, 68px); line-height: 1.03; letter-spacing: -0.035em; font-weight: 750; max-width: 900px; margin: 0 auto; }
+  h1 em { font-style: normal; color: var(--accent); }
+  .lede { font-size: clamp(18px, 2.2vw, 21px); color: var(--text-2); max-width: 680px; margin: 22px auto 0; }
+  .install { margin: 34px auto 0; max-width: 680px; display: flex; align-items: stretch; background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; text-align: left; }
+  .install pre { flex: 1; font: 15px/1.7 var(--mono); padding: 14px 18px; overflow-x: auto; color: var(--text); }
+  .install pre span { color: var(--text-3); user-select: none; }
+  .install button { flex-shrink: 0; border: 0; border-left: 1px solid var(--line); background: var(--bg-3); color: var(--text); font: 600 14px -apple-system, system-ui, sans-serif; padding: 0 20px; cursor: pointer; }
+  .install button:hover { background: #2a2a27; }
+  .cta { display: flex; gap: 12px; justify-content: center; margin-top: 18px; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 10px; font-weight: 600; font-size: 15px; text-decoration: none; border: 1px solid var(--line); background: var(--bg-2); }
+  .btn.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .btn:hover { filter: brightness(1.08); }
+  .facts { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; margin-top: 22px; font-size: 14px; color: var(--text-3); }
+
+  .film { margin: 36px 0 0; }
+  .film video { display: block; width: 100%; height: auto; border-radius: 16px; border: 1px solid var(--line); background: #000; aspect-ratio: 16 / 9; }
+  .film figcaption { text-align: center; font-size: 14px; color: var(--text-3); margin-top: 12px; }
+
+  section { padding: 76px 0 0; }
+  h2 { font-size: clamp(28px, 3.6vw, 40px); line-height: 1.12; letter-spacing: -0.025em; font-weight: 720; max-width: 760px; }
+  .kicker { font-size: 14px; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; }
+  .prose { max-width: 720px; color: var(--text-2); margin-top: 18px; }
+  .prose p + p { margin-top: 14px; }
+  .prose b { color: var(--text); font-weight: 600; }
+
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 30px; }
+  .step { background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  .step .n { font: 600 13px var(--mono); color: var(--text-3); }
+  .step h3 { font-size: 18px; margin: 8px 0 6px; }
+  .step p { font-size: 15px; color: var(--text-2); }
+  .step.hot { border-color: #6b3d2c; background: #1f1814; }
+  .step.hot h3 { color: var(--accent); }
+
+  .anatomy { margin-top: 30px; }
+  .anatomy img { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 18px; }
+  .card { background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; }
+  .card h3 { font-size: 18px; margin-bottom: 6px; }
+  .card p { font-size: 15px; color: var(--text-2); }
+
+  .formula { margin-top: 26px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; font: 15px/1.7 var(--mono); overflow-x: auto; color: var(--text); }
+  .formula span { color: var(--accent); }
+  ul.points { list-style: none; margin-top: 22px; display: grid; gap: 12px; max-width: 760px; }
+  ul.points li { color: var(--text-2); padding-left: 26px; position: relative; }
+  ul.points li::before { content: ""; position: absolute; left: 4px; top: 11px; width: 8px; height: 8px; border-radius: 2px; background: var(--accent); }
+  ul.points b { color: var(--text); font-weight: 600; }
+
+  .faq { margin-top: 26px; max-width: 820px; border-top: 1px solid var(--line); }
+  .faq details { border-bottom: 1px solid var(--line); padding: 18px 0; }
+  .faq summary { cursor: pointer; font-weight: 600; font-size: 18px; list-style: none; display: flex; justify-content: space-between; gap: 18px; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; color: var(--text-3); font-weight: 400; }
+  .faq details[open] summary::after { content: "–"; }
+  .faq details p { color: var(--text-2); margin-top: 10px; max-width: 720px; }
+  code { font: 0.88em var(--mono); background: var(--bg-3); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; color: var(--text); }
+
+  .join { margin-top: 26px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .join a { text-decoration: none; }
+  .join .card:hover { border-color: #4a4945; }
+
+  .final { text-align: center; padding: 96px 0 40px; }
+  .final h2 { margin: 0 auto; }
+  footer { border-top: 1px solid var(--line); margin-top: 60px; padding: 26px 0 40px; font-size: 14px; color: var(--text-3); display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+
+  @media (max-width: 760px) {
+    .wrap { padding: 0 16px; }
+    nav .links a.hide-sm { display: none; }
+    .hero { padding-top: 30px; }
+    .steps, .grid, .join { grid-template-columns: 1fr; }
+    .install { flex-direction: column; }
+    .install button { border-left: 0; border-top: 1px solid var(--line); padding: 12px; }
+    .install pre { font-size: 12px; padding: 12px 14px; }
+    .facts { gap: 6px 16px; }
+    .facts .sep { display: none; }
+    section { padding-top: 56px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .film video { display: none; } .film .still { display: block !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <a class="name" href="./"><img src="favicon.svg" alt="">session-usage-band</a>
+    <div class="links">
+      <a class="hide-sm" href="#how">How it works</a>
+      <a class="hide-sm" href="#faq">FAQ</a>
+      <a href="https://github.com/HMarzban/claude-mod">GitHub</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <span class="eyebrow">A free, open-source mod for Claude Code</span>
+    <h1>Know what your next Claude Code message <em>costs.</em></h1>
+    <p class="lede">A band above the prompt that counts down your prompt cache, tells you what letting it go cold will cost, and keeps your spend, context and 5-hour / weekly limits in view.</p>
+    <div class="install">
+      <pre id="cmd"><span>$ </span>claude plugin marketplace add HMarzban/claude-mod
+<span>$ </span>claude plugin install session-usage-band@hossein-mods</pre>
+      <button type="button" id="copy">Copy</button>
+    </div>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/HMarzban/claude-mod">View on GitHub</a>
+      <a class="btn" href="#how">How it works</a>
+    </div>
+    <div class="facts"><span>Desktop app and terminal</span><span class="sep">·</span><span>No network, no tokens spent</span><span class="sep">·</span><span>MIT licensed</span></div>
+  </header>
+
+  <figure class="film">
+    <video autoplay muted loop playsinline preload="metadata" poster="demo-poster.png" aria-label="The band in the Claude desktop app: the cache counts down through the lunch hour, turns amber in its last minute with the re-warm price, goes cold showing what the next message will cost, then opens its cards">
+      <source src="demo.mp4" type="video/mp4">
+    </video>
+    <img class="still" src="demo-poster.png" alt="The band in its last minute, with the re-warm price circled" style="display:none;width:100%;border-radius:16px">
+    <figcaption>Every band in this film is the mod's own output, with the clock moved forward.</figcaption>
+  </figure>
+
+  <section id="why">
+    <div class="kicker">The problem</div>
+    <h2>The cache keeps Claude Code cheap. Until you step away.</h2>
+    <div class="steps">
+      <div class="step"><div class="n">01</div><h3>Warm</h3><p>Each message re-reads your conversation from the cache, at a tenth of the input price or less.</p></div>
+      <div class="step"><div class="n">02</div><h3>Idle</h3><p>The cache lasts 5 minutes after your last request on API pricing, or an hour on a subscription.</p></div>
+      <div class="step hot"><div class="n">03</div><h3>Cold</h3><p>The next message writes the whole conversation again at 1.25× input. On 300k tokens of Opus 5.5, that's about $1.50.</p></div>
+    </div>
+    <div class="prose"><p>Nothing in Claude Code warns you it's coming. <b>session-usage-band does</b>, with the countdown and the price, before you hit enter.</p></div>
+  </section>
+
+  <section id="what">
+    <div class="kicker">What it shows</div>
+    <h2>Every number that decides your bill, in one row.</h2>
+    <div class="anatomy"><img src="band-anatomy.png" alt="The chip row, labelled: the cache countdown and what a re-warm will cost, the session cost, context toward auto-compaction, the 5-hour limit with its pace, the weekly limit and its reset, and the toggle that opens the cards" loading="lazy"></div>
+    <div class="grid">
+      <div class="card"><h3>Cache countdown</h3><p>A battery that drains as the cache ages. In its last minute it turns amber and names the re-warm price.</p></div>
+      <div class="card"><h3>Session spend</h3><p>The running total, and what your last message cost on its own.</p></div>
+      <div class="card"><h3>Context</h3><p>How full the conversation is, and how close auto-compaction is.</p></div>
+      <div class="card"><h3>5-hour and weekly limits</h3><p>Usage, the reset time, and a warning when your pace would run out before the reset.</p></div>
+    </div>
+    <div class="prose"><p>Click <b>▿</b> for four cards with every fact labelled, under a line that shows your project, git branch and uncommitted changes. Nothing is ever red: amber means act soon, and colour is never the only signal.</p></div>
+  </section>
+
+  <section id="how">
+    <div class="kicker">How it works</div>
+    <h2>The price comes from your own bill.</h2>
+    <div class="prose"><p>A mod can't reach a pricing table, so the band solves the per-token rate from the session's cost and token counts. Every kind of token is a fixed multiple of base input, which leaves one unknown:</p></div>
+    <div class="formula">cost = <span>rate</span> × (uncached + 1.25 × written + read share × read + 5 × output)</div>
+    <ul class="points">
+      <li><b>A re-warm</b> is then the whole context written to the cache again, always shown with <code>~</code>.</li>
+      <li><b>It remembers.</b> Reopen an old session and it recalls when the last reply was and what a token costs, or reads it once from the end of the transcript.</li>
+      <li><b>It stays out of your way.</b> It never calls a model, never writes files and never sends anything anywhere. Besides two read-only git commands, it runs only <code>tail</code>.</li>
+      <li><b>It's a mod,</b> written with Claude Code's function-hooks API: TypeScript and JSX, no dependencies, no build step, 260+ tests.</li>
+    </ul>
+  </section>
+
+  <section id="faq">
+    <div class="kicker">FAQ</div>
+    <h2>Questions people ask.</h2>
+    <div class="faq">
+      <details open><summary>Why did my Claude Code message cost so much more than the others?</summary><p>Most likely the prompt cache went cold. Claude Code caches your conversation for 5 minutes or an hour after the last request. After that, the next message writes the whole conversation to the cache again at 1.25× the input price.</p></details>
+      <details><summary>Does it cost tokens?</summary><p>No. It never calls a model, and it never suggests sending a message to keep the cache warm. That would mean burning tokens to avoid burning tokens.</p></details>
+      <details><summary>Is the re-warm price exact?</summary><p>It's an estimate, shown with <code>~</code>. It follows Claude Code's own ledger, which prices every cache write at 1.25×. Anthropic bills a 1-hour cache write at 2×, so per-token API users on a 1-hour cache may pay up to 1.6× the estimate.</p></details>
+      <details><summary>How does it know if my cache lasts 5 minutes or an hour?</summary><p>It can't read your billing, so it assumes an hour and corrects itself to 5 minutes if it sees the cache rebuild sooner. Set <code>CLAUDE_CODE_PROMPT_CACHE_TTL=5m</code> or <code>1h</code> to remove the guess.</p></details>
+      <details><summary>Does it work in the Claude desktop app?</summary><p>Yes. It draws in the desktop app's Code tab with icons and meters, and in the terminal as text. Tested on Claude Code 2.1.295.</p></details>
+      <details><summary>Does it work on light themes?</summary><p>Yes. Set <code>CC_BAND_APPEARANCE=light</code>, or <code>plain</code> for theme colours only. <code>NO_COLOR</code> is respected.</p></details>
+    </div>
+  </section>
+
+  <section id="contribute">
+    <div class="kicker">Make it better</div>
+    <h2>It's brand new, and your sessions make it better.</h2>
+    <div class="join">
+      <a href="https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml"><div class="card"><h3>Report a bug →</h3><p>A price that looks off, a chip that wraps. A screenshot helps most.</p></div></a>
+      <a href="https://github.com/HMarzban/claude-mod/issues/new?template=feature_request.yml"><div class="card"><h3>Suggest a feature →</h3><p>Something you wish the band showed you.</p></div></a>
+      <a href="https://github.com/HMarzban/claude-mod/blob/main/CONTRIBUTING.md"><div class="card"><h3>Send a pull request →</h3><p>Three commands to a working dev loop.</p></div></a>
+    </div>
+  </section>
+
+  <section class="final">
+    <h2>Stop guessing what the next message costs.</h2>
+    <div class="cta" style="margin-top:26px">
+      <a class="btn primary" href="https://github.com/HMarzban/claude-mod#install">Install in two commands</a>
+      <a class="btn" href="https://github.com/HMarzban/claude-mod">Star it on GitHub</a>
+    </div>
+  </section>
+
+  <footer>
+    <span>MIT © Hossein Marzban · <a href="https://github.com/HMarzban/claude-mod">github.com/HMarzban/claude-mod</a></span>
+    <span>An independent community project, not affiliated with Anthropic.</span>
+  </footer>
+</div>
+<script>
+  document.getElementById('copy').addEventListener('click', async (e) => {
+    const text = 'claude plugin marketplace add HMarzban/claude-mod\nclaude plugin install session-usage-band@hossein-mods'
+    try { await navigator.clipboard.writeText(text); e.target.textContent = 'Copied' } catch { e.target.textContent = 'Select and copy' }
+    setTimeout(() => { e.target.textContent = 'Copy' }, 1800)
+  })
+</script>
+</body>
+</html>

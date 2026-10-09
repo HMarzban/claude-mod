@@ -12,11 +12,11 @@ weekly limits.
 [![Release](https://img.shields.io/github/v/release/HMarzban/claude-mod?display_name=release&label=release)](https://github.com/HMarzban/claude-mod/releases/latest)
 [![License: MIT](https://img.shields.io/github/license/HMarzban/claude-mod)](LICENSE)
 
-[Install](#install) · [What it shows](#what-it-shows) · [How it works](#how-it-works) · [FAQ](#faq) · [Contributing](#contributing)
+[Website](https://hmarzban.github.io/claude-mod/) · [Install](#install) · [What it shows](#what-it-shows) · [How it works](#how-it-works) · [FAQ](#faq) · [Contributing](#contributing)
 
 </div>
 
-![The band in the Claude desktop app: after the last reply the cache counts down from an hour, turns amber in its last minute with the re-warm price, goes cold showing what the next message will cost, then opens its cards. Every frame is drawn from the band's own output, with the clock moved forward](docs/band-demo-desktop.gif)
+![The band in the Claude desktop app: after the last reply the cache counts down from an hour, turns amber in its last minute with the re-warm price, goes cold showing what the next message will cost, then opens its cards. Every frame is drawn from the band's own output, with the clock moved forward](docs/band-film.gif)
 
 ## Why
 
@@ -176,7 +176,7 @@ plugins/session-usage-band/
   hooks/*.ts(x)                     layout, readings, formatting, memory, git, palettes
   tests/                            one file per area, helpers in helpers.ts
   CHANGELOG.md                      what changed in each version
-docs/                               the images in this README
+docs/                               the website (GitHub Pages) and the images in this README
 .github/                            issue and pull request templates, CI
 ```
 
