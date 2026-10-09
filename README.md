@@ -16,7 +16,7 @@ weekly limits.
 
 </div>
 
-![session-usage-band: know what your next message costs. The band above the Claude Code prompt shows the cache countdown and the re-warm price, the session's spend, context and the 5h and 7d limits](docs/social-preview.png)
+![The band in a terminal session: the cache counts down from an hour, turns amber in its last minute with the re-warm price, goes cold showing what the next message will cost, then opens its cards. Every frame is the band's own output, with the clock moved forward](docs/band-demo.gif)
 
 ## Why
 
