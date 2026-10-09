@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>session-usage-band: see what your next Claude Code message costs</title>
+<meta name="description" content="A free, open-source Claude Code mod that shows the prompt-cache countdown, what a cold cache will cost to re-warm, your session spend, context fill and your 5-hour and weekly limits.">
+<link rel="canonical" href="https://hmarzban.github.io/claude-mod/">
+<meta name="theme-color" content="#faf9f5">
+<meta name="color-scheme" content="light dark">
+<script>try { if (localStorage.getItem('theme') === 'dark') document.documentElement.dataset.theme = 'dark' } catch {}</script>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="session-usage-band">
+<meta property="og:title" content="Know what your next Claude Code message costs">
+<meta property="og:description" content="Step away and Claude Code's cache goes cold: re-reading your conversation then costs 25× more on Opus 5.5. This band shows the countdown and the price.">
+<meta property="og:url" content="https://hmarzban.github.io/claude-mod/">
+<meta property="og:image" content="https://hmarzban.github.io/claude-mod/social-preview.png">
+<meta property="og:image:width" content="2560">
+<meta property="og:image:height" content="1280">
+<meta property="og:image:alt" content="The band above the Claude Code prompt, with the re-warm price circled">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Know what your next Claude Code message costs">
+<meta name="twitter:description" content="The prompt-cache countdown, the re-warm price, spend, context and limits, right above the Claude Code prompt.">
+<meta name="twitter:image" content="https://hmarzban.github.io/claude-mod/social-preview.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "session-usage-band",
+  "description": "A Claude Code mod that shows the prompt-cache countdown, what a cold cache will cost to re-warm, session spend, context fill and the 5-hour and weekly usage limits.",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "macOS, Linux, Windows",
+  "url": "https://hmarzban.github.io/claude-mod/",
+  "downloadUrl": "https://github.com/HMarzban/claude-mod",
+  "codeRepository": "https://github.com/HMarzban/claude-mod",
+  "license": "https://opensource.org/licenses/MIT",
+  "image": "https://hmarzban.github.io/claude-mod/social-preview.png",
+  "author": { "@type": "Person", "name": "Hossein Marzban", "url": "https://github.com/HMarzban" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "Why did my Claude Code message cost so much more than the others?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Most likely the prompt cache went cold. Claude Code caches your conversation for 5 minutes or an hour after the last request. After that, the next message writes the whole conversation to the cache again at 1.25 times the input price, which on Opus 5.5 is 25 times what re-reading it from a warm cache costs." } },
+    { "@type": "Question", "name": "Does session-usage-band cost tokens?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. It never calls a model, never sends data anywhere, and never suggests sending a message to keep the cache warm." } },
+    { "@type": "Question", "name": "Is the re-warm price exact?",
+      "acceptedAnswer": { "@type": "Answer", "text": "It is an estimate, shown with a tilde. The band solves the per-token rate from the session's own bill, the same ledger Claude Code shows, which prices every cache write at 1.25 times input." } },
+    { "@type": "Question", "name": "How do I see my Claude Code 5-hour and weekly limits?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Install session-usage-band. Its 5h and 7d chips show how much of each limit you have used and when it resets, and the 5h chip warns when your pace would run out before the reset." } },
+    { "@type": "Question", "name": "Does it work in the Claude desktop app?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. It draws in the desktop app's Code tab, with icons and meters, and in the terminal as text." } }
+  ]
+}
+</script>
+
+<style>
+  .band { width: 964px; background: #212121; border-radius: 16px; padding: 12px; font-size: 15px; line-height: 24px; color: #ececf2; white-space: pre; transition: box-shadow .4s; }
+  .band.alarm { box-shadow: 0 0 0 2px rgba(217,119,87,.55); }
+  .band .t { white-space: pre; } .band .svg { display: block; flex-shrink: 0; }
+  .band .toggle { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 28px; border-radius: 7px; background: #333336; color: #ececf2; font-size: 13px; cursor: pointer; transition: background .15s, transform .15s; }
+  .band .toggle:hover { background: #404044; } .band .toggle:active { transform: scale(.92); }
+  .band .btn { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 6px 0 12px; border-radius: 8px; background: #2e2e31; border: 1px solid #3c3c40; color: #ececf2; cursor: pointer; transition: background .15s, transform .15s; }
+  .band .btn:hover { background: #38383c; } .band .btn:active { transform: scale(.96); }
+  .band .key { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; border: 1px solid #55555e; border-radius: 5px; font-size: 12px; color: #b8b8c2; }
+  .band [data-tip] { cursor: help; }
+  .band.enter > div { animation: rise .35s ease-out; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+  .hidden-note { width: 964px; display: flex; align-items: center; justify-content: space-between; background: #212121; border-radius: 16px; padding: 14px 16px; color: #9a9aa4; font-size: 15px; }
+  .hidden-note button { font: 600 14px var(--mono); color: #ececf2; background: #2e2e31; border: 1px solid #3c3c40; border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  .prompt { margin: 12px 0 0; height: 48px; border: 1px solid #3a3a38; border-radius: 16px; display: flex; align-items: center; padding: 0 18px; color: #8f8c85; font-size: 16px; }
+  .tip { position: absolute; z-index: 5; max-width: 340px; background: #303037; color: #ececf2; font-size: 13.5px; line-height: 1.45; padding: 8px 11px; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.45); pointer-events: none; opacity: 0; transform: translateY(4px); transition: opacity .12s, transform .12s; }
+  .tip.on { opacity: 1; transform: none; }
+  /* ---- tokens: an 8-point space scale, one type scale, semantic colours ---- */
+  :root {
+    --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px; --s9: 96px; --s10: 128px;
+    --t-sm: 14px; --t-base: 17px; --t-lg: 19px; --t-xl: 22px;
+    --ease-out: cubic-bezier(.16, 1, .3, 1); --spring: cubic-bezier(.34, 1.56, .64, 1);
+    --bg: #faf9f5; --surface: #ffffff; --sunk: #f1efe8; --hover: #e9e6dc; --line: #e4e0d6; --line-2: #cfcabd;
+    --text: #1f1e1b; --text-2: #4f4c45; --text-3: #6b675e; --accent: #b4502c; --accent-soft: rgba(217,119,87,.22);
+    --good: #2e7a3c; --amber: #c98a1a; --m: #8a5a00; --ink: #1f1e1b; --on-ink: #f2f0eb;
+    --frame: 0 1px 2px rgba(31,30,27,.06), 0 24px 60px -12px rgba(31,30,27,.22);
+    --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    --serif: "Instrument Serif", Georgia, serif;
+    color-scheme: light;
+  }
+  :root[data-theme=dark] {
+    --bg: #141413; --surface: #1b1b1a; --sunk: #232321; --hover: #2b2b28; --line: #2f2e2b; --line-2: #3d3c38;
+    --text: #f2f0eb; --text-2: #b4b0a7; --text-3: #8a877f; --accent: #d97757; --accent-soft: rgba(217,119,87,.26);
+    --good: #7fcf8a; --amber: #e8b45a; --m: #e8b45a; --ink: #2a2926; --on-ink: #f2f0eb;
+    --frame: 0 0 0 1px #2f2e2b;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--text); font: 400 var(--t-base)/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; transition: background .25s, color .25s; }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 var(--s5); }
+  .narrow { max-width: 65ch; }
+  svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+  /* ---- type ---- */
+  h1 { font-size: clamp(42px, 7vw, 82px); line-height: 1.02; letter-spacing: -0.04em; font-weight: 760; }
+  h2 { font-size: clamp(30px, 4vw, 46px); line-height: 1.1; letter-spacing: -0.03em; font-weight: 760; max-width: 22ch; }
+  h1, h2, .lede, .sub, .final p, .verdict .w { text-wrap: balance; }
+  h3 { font-size: var(--t-lg); line-height: 1.3; font-weight: 650; }
+  .em { font-family: var(--serif); font-style: italic; font-weight: 400; letter-spacing: -0.01em; color: var(--accent); }
+  h1 .em { font-size: 1.12em; line-height: .9; }
+  h2 .em { font-size: 1.1em; }
+  .sub { color: var(--text-2); font-size: var(--t-lg); margin-top: var(--s4); max-width: 60ch; }
+  .sub b, .lede b { color: var(--text); font-weight: 650; }
+
+  /* the highlighter: a marker stroke that sweeps in under a phrase */
+  .mark { background-image: linear-gradient(transparent 58%, var(--accent-soft) 58%, var(--accent-soft) 92%, transparent 92%); background-repeat: no-repeat; background-size: 0% 100%; transition: background-size .9s var(--ease-out) .15s; padding: 0 .08em; margin: 0 -.08em; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+  .in .mark, .mark.in { background-size: 100% 100%; }
+  /* the hand-drawn underline under the headline's word */
+  .uline { position: relative; display: inline-block; }
+  .uline svg { position: absolute; left: -2%; bottom: -.14em; width: 104%; height: .3em; overflow: visible; }
+  .uline path { fill: none; stroke: var(--accent); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 420; stroke-dashoffset: 420; animation: draw 1.1s .45s var(--ease-out) forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0 } }
+
+  /* ---- nav ---- */
+  nav { display: flex; align-items: center; justify-content: space-between; padding: var(--s5) 0; }
+  nav .name { font-weight: 650; text-decoration: none; display: flex; align-items: center; gap: var(--s3); }
+  nav .name img { width: 30px; height: 30px; }
+  nav .links { display: flex; gap: var(--s5); align-items: center; font-size: 15px; color: var(--text-2); }
+  nav .links > a:not(.chip) { text-decoration: none; transition: color .15s; }
+  nav .links > a:not(.chip):hover { color: var(--text); }
+  .chip { display: inline-flex; align-items: center; gap: var(--s2); border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; color: var(--text); text-decoration: none; background: transparent; font: inherit; cursor: pointer; transition: border-color .15s, background .15s; }
+  .chip:hover { border-color: var(--line-2); background: var(--sunk); }
+  .chip .count { color: var(--text-3); font-variant-numeric: tabular-nums; }
+  .chip .i { width: 17px; height: 17px; }
+  .star .i { transition: transform .3s var(--spring), fill .2s; }
+  .star:hover .i { transform: rotate(-14deg) scale(1.12); fill: var(--amber); stroke: var(--amber); }
+  #theme { width: 40px; height: 40px; justify-content: center; padding: 0; }
+  #theme .i { transition: transform .45s var(--spring); }
+  #theme:active .i { transform: rotate(90deg) scale(.85); }
+  #theme .moon { display: none; } :root[data-theme=dark] #theme .moon { display: block; } :root[data-theme=dark] #theme .sun { display: none; }
+
+  /* ---- hero: centred, headline over the product ---- */
+  .hero { text-align: center; padding: var(--s8) 0 0; }
+  .eyebrow { display: inline-flex; align-items: center; gap: var(--s2); font-size: var(--t-sm); color: var(--text-2); text-decoration: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 14px 6px 8px; margin-bottom: var(--s5); transition: border-color .15s; }
+  .eyebrow b { font-weight: 650; color: var(--on-ink); background: var(--accent); border-radius: 999px; padding: 2px 9px; font-size: 12.5px; }
+  .eyebrow:hover { border-color: var(--line-2); }
+  .eyebrow .arr { transition: transform .15s; } .eyebrow:hover .arr { transform: translateX(3px); }
+  .hero h1 { max-width: 17ch; margin: 0 auto; }
+  .lede { font-size: clamp(18px, 2.1vw, var(--t-xl)); color: var(--text-2); max-width: 54ch; margin: var(--s5) auto 0; }
+  .cta { display: flex; gap: var(--s3); justify-content: center; flex-wrap: wrap; margin-top: var(--s6); }
+  .install { display: inline-flex; align-items: stretch; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; text-align: left; max-width: 100%; box-shadow: 0 1px 2px rgba(31,30,27,.05); }
+  .install pre { font: 14.5px/1.75 var(--mono); padding: var(--s3) var(--s4); overflow-x: auto; }
+  .install pre span { color: var(--text-3); user-select: none; }
+  .copy { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; gap: var(--s2); border: 0; border-left: 1px solid var(--line); background: var(--ink); color: var(--on-ink); font: 650 15px -apple-system, system-ui, sans-serif; padding: 0 var(--s5); cursor: pointer; transition: filter .15s, transform .15s; }
+  .copy:hover { filter: brightness(1.15); }
+  .copy:active { transform: scale(.97); }
+  .copy .ok { display: none; color: #7fcf8a; }
+  .copy.done .ok { display: block; animation: pop .35s var(--spring); }
+  .copy.done .ic { display: none; }
+  @keyframes pop { from { transform: scale(.4); opacity: 0 } to { transform: none; opacity: 1 } }
+  .ghost { display: inline-flex; align-items: center; gap: var(--s2); padding: 0 var(--s5); min-height: 56px; border-radius: 14px; border: 1px solid var(--line-2); text-decoration: none; font-weight: 650; font-size: 15px; transition: background .15s, transform .15s; }
+  .ghost:hover { background: var(--sunk); } .ghost:active { transform: scale(.98); }
+  .facts { display: flex; gap: var(--s2) var(--s5); justify-content: center; flex-wrap: wrap; margin-top: var(--s4); font-size: var(--t-sm); color: var(--text-3); }
+  .facts span { display: inline-flex; align-items: center; gap: 6px; }
+  .facts .i { width: 16px; height: 16px; }
+
+  /* ---- the live band ---- */
+  .live { margin: var(--s7) auto 0; max-width: 1040px; position: relative; text-align: left; }
+  .stagebox { background: #1a1a1a; border: 1px solid #2f2f2d; border-radius: 20px; padding: 22px 18px 18px; overflow: hidden; box-shadow: var(--frame); }
+  .chatline { display: flex; justify-content: flex-end; margin: 0 6px 16px; }
+  .chatline span { background: #2a2a28; border-radius: 14px; padding: 8px 14px; font-size: 15px; color: #d6d3cc; }
+  .scroller { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .scroller::-webkit-scrollbar { display: none; }
+  .swipe { display: none; font-size: 13px; color: #8f8c85; margin: 10px 4px 0; }
+  .fit { position: relative; transform-origin: 0 0; }
+  .prompt { margin: 12px 0 0; height: 48px; border: 1px solid #3a3a38; border-radius: 16px; display: flex; align-items: center; padding: 0 18px; color: #8f8c85; font-size: 16px; }
+  .tip { position: absolute; z-index: 5; max-width: 340px; background: #303037; color: #ececf2; font-size: 13.5px; line-height: 1.45; padding: 8px 11px; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.45); pointer-events: none; opacity: 0; transform: translateY(4px); transition: opacity .12s, transform .12s var(--ease-out); }
+  .tip.on { opacity: 1; transform: none; }
+  .states { display: flex; gap: 6px; margin: 0 auto var(--s3); padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; width: fit-content; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .states::-webkit-scrollbar { display: none; }
+  .states button { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px; font: 600 14px -apple-system, system-ui, sans-serif; color: var(--text-2); background: transparent; border: 0; border-radius: 10px; padding: 8px 12px; cursor: pointer; transition: background .15s, color .15s; }
+  .states button:hover { color: var(--text); background: var(--sunk); }
+  .states button[aria-selected=true] { color: var(--on-ink); background: var(--ink); }
+  .states .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .35; }
+  .states button.amber .dot { background: var(--amber); opacity: 1; }
+  .states button[aria-selected=true] .dot { opacity: 1; }
+  .livebar { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); flex-wrap: wrap; margin-top: var(--s3); font-size: var(--t-sm); color: var(--text-3); }
+  .livebar b { color: var(--text-2); font-weight: 650; }
+  .livebar .hint { display: inline-flex; align-items: center; gap: var(--s2); }
+  .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 0 var(--accent-soft); animation: ping 1.6s var(--ease-out) infinite; }
+  @keyframes ping { to { box-shadow: 0 0 0 8px transparent } }
+
+  /* ---- trust: big, true numbers ---- */
+  .trust { margin-top: var(--s8); display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 18px; background: var(--surface); overflow: hidden; }
+  .trust > div { padding: var(--s5); display: grid; gap: var(--s2); }
+  .trust > div + div { border-left: 1px solid var(--line); }
+  .trust .n { font: 400 italic 52px/1 var(--serif); color: var(--text); font-variant-numeric: tabular-nums; }
+  .trust .l { display: flex; align-items: center; gap: var(--s2); font-size: 15px; color: var(--text-2); }
+  .trust .i { color: var(--accent); }
+
+  /* ---- sections ---- */
+  section { padding-top: var(--s10); }
+  .badge { width: 44px; height: 44px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; background: var(--surface); border: 1px solid var(--line); color: var(--accent); margin-bottom: var(--s4); }
+  .badge .i { width: 22px; height: 22px; }
+
+  /* what a lunch break costs */
+  .calc { margin-top: var(--s6); background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: var(--s6) var(--s6) var(--s5); }
+  .story { font-size: clamp(19px, 2.3vw, 25px); line-height: 1.55; color: var(--text-2); max-width: 900px; }
+  .pick { position: relative; display: inline-flex; align-items: center; vertical-align: baseline; }
+  .pick select { appearance: none; -webkit-appearance: none; font: 650 1em -apple-system, system-ui, sans-serif; color: var(--text); background: var(--sunk); border: 1px solid var(--line-2); border-radius: 10px; padding: 1px 34px 3px 12px; cursor: pointer; transition: border-color .15s; }
+  .pick select:hover { border-color: var(--text-3); }
+  .pick::after { content: ""; position: absolute; right: 13px; top: 50%; width: 7px; height: 7px; border-right: 2px solid var(--text-2); border-bottom: 2px solid var(--text-2); transform: translateY(-70%) rotate(45deg); pointer-events: none; }
+  .tok { font: 650 .95em var(--mono); color: var(--text); background: var(--sunk); border: 1px solid var(--line-2); border-radius: 10px; padding: 1px 10px 3px; white-space: nowrap; }
+  .bars { margin-top: var(--s5); display: grid; gap: var(--s4); }
+  .barrow { display: grid; grid-template-columns: 250px 1fr 110px; gap: var(--s4); align-items: center; }
+  .barrow .lab { display: flex; align-items: center; gap: var(--s3); font-weight: 650; font-size: 16px; }
+  .barrow .lab small { display: block; font-weight: 400; color: var(--text-3); font-size: 13.5px; }
+  .barrow .ico { flex-shrink: 0; width: 38px; height: 38px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; }
+  .barrow.warm .ico { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--good); }
+  .barrow.cold .ico { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+  .barwrap { height: 18px; border-radius: 9px; background: var(--sunk); overflow: hidden; }
+  .bar { height: 100%; width: 100%; border-radius: 9px; transform: scaleX(0); transform-origin: 0 50%; transition: transform .9s var(--ease-out); }
+  .barrow.warm .bar { background: var(--good); }
+  .barrow.cold .bar { background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 70%, var(--amber)), var(--accent)); }
+  .amt { font: 750 28px/1 -apple-system, system-ui, sans-serif; letter-spacing: -0.02em; text-align: right; font-variant-numeric: tabular-nums; }
+  .barrow.warm .amt { color: var(--good); } .barrow.cold .amt { color: var(--accent); }
+  .verdict { margin-top: var(--s5); padding-top: var(--s5); border-top: 1px dashed var(--line-2); display: flex; align-items: baseline; gap: var(--s4); flex-wrap: wrap; }
+  .verdict .x { font: 400 italic clamp(60px, 7vw, 88px)/.9 var(--serif); color: var(--accent); font-variant-numeric: tabular-nums; }
+  .verdict .w { font-size: clamp(19px, 2.2vw, 23px); font-weight: 650; }
+  .verdict .w span { display: block; font-weight: 400; color: var(--text-3); font-size: 15px; }
+  .size { margin-top: var(--s5); display: grid; grid-template-columns: auto 1fr; gap: 6px var(--s4); align-items: center; }
+  .size label { font-size: var(--t-sm); color: var(--text-3); }
+  .size input { width: 100%; accent-color: var(--accent); }
+  .size .ticks { grid-column: 2; position: relative; height: 22px; font: 12.5px var(--mono); color: var(--text-3); }
+  .size .ticks button { position: absolute; transform: translateX(-50%); font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 2px 0; transition: color .15s; }
+  .size .ticks button:last-child { transform: translateX(-100%); }
+  .size .ticks button:hover { color: var(--text); }
+  .how { margin-top: var(--s4); }
+  .how summary { cursor: pointer; font-size: var(--t-sm); color: var(--text-3); list-style: none; display: inline-flex; gap: var(--s2); align-items: center; transition: color .15s; }
+  .how summary::-webkit-details-marker { display: none; }
+  .how summary:hover { color: var(--text); }
+  .how summary .i { width: 17px; height: 17px; }
+  .how p { margin-top: var(--s2); font-size: var(--t-sm); color: var(--text-3); max-width: 82ch; }
+  .how a { color: var(--text-2); }
+
+  /* film */
+  .film { margin-top: var(--s6); }
+  .film video { display: block; width: 100%; height: auto; border-radius: 18px; background: #000; aspect-ratio: 16 / 9; box-shadow: var(--frame); }
+  .film .cap { display: flex; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; font-size: var(--t-sm); color: var(--text-3); margin-top: var(--s3); }
+  .film .cap button { font: 650 var(--t-sm) -apple-system, system-ui, sans-serif; color: var(--text-2); background: none; border: 0; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+  .film .cap .i { width: 16px; height: 16px; }
+
+  /* every number in one row */
+  .anatomy { margin-top: var(--s6); overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 16px; box-shadow: var(--frame); }
+  .anatomy img { display: block; width: 100%; height: auto; border-radius: 16px; }
+  .bento { margin-top: var(--s5); display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--s3); }
+  .tile { grid-column: span 2; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: var(--s5); transition: transform .2s var(--ease-out), border-color .2s; }
+  .tile.wide { grid-column: span 3; }
+  .tile:hover { transform: translateY(-3px); border-color: var(--line-2); }
+  .tile .ti { width: 40px; height: 40px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; background: var(--sunk); color: var(--accent); margin-bottom: var(--s3); transition: transform .3s var(--spring); }
+  .tile:hover .ti { transform: rotate(-6deg) scale(1.06); }
+  .tile p { color: var(--text-2); font-size: 15.5px; margin-top: 6px; }
+
+  /* how it works */
+  .formula { margin-top: var(--s5); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: var(--s4) var(--s5); font: 15px/1.7 var(--mono); overflow-x: auto; white-space: nowrap; }
+  .formula .r { color: var(--accent); } .formula .k { color: var(--m); }
+  .points { list-style: none; margin-top: var(--s5); display: grid; grid-template-columns: 1fr 1fr; gap: var(--s4) var(--s6); }
+  .points li { display: grid; grid-template-columns: 40px 1fr; gap: var(--s3); align-items: start; color: var(--text-2); }
+  .points .pi { width: 40px; height: 40px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; background: var(--surface); border: 1px solid var(--line); color: var(--accent); }
+  .points b { color: var(--text); font-weight: 650; display: block; }
+  code { font: .88em var(--mono); background: var(--sunk); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; color: var(--text); }
+
+  /* faq */
+  .faq { margin-top: var(--s5); max-width: 860px; border-top: 1px solid var(--line); }
+  .faq details { border-bottom: 1px solid var(--line); }
+  .faq summary { cursor: pointer; font-weight: 650; font-size: 18px; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: var(--s4); padding: var(--s4) 0; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary .pl { flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; color: var(--text-3); transition: background .15s; }
+  .faq summary .pl .i { width: 16px; height: 16px; transition: transform .25s var(--ease-out); }
+  .faq summary:hover .pl { background: var(--sunk); }
+  .faq details[open] .pl .i { transform: rotate(45deg); }
+  .faq details p { color: var(--text-2); padding: 0 0 var(--s4); max-width: 70ch; }
+  .faq details[open] p { animation: rise .3s var(--ease-out); }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+
+  /* contribute */
+  .join { margin-top: var(--s5); display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s3); }
+  .join a { text-decoration: none; display: grid; grid-template-columns: 40px 1fr auto; gap: var(--s3); align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: var(--s4); transition: border-color .15s, transform .2s var(--ease-out); }
+  .join a:hover { border-color: var(--line-2); transform: translateY(-2px); }
+  .join .ji { width: 40px; height: 40px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; background: var(--sunk); color: var(--accent); }
+  .join small { display: block; color: var(--text-3); font-size: 13.5px; }
+  .join .go { color: var(--text-3); transition: transform .15s, color .15s; } .join a:hover .go { transform: translateX(3px); color: var(--accent); }
+
+  /* the final call to action: one block, one button */
+  .final { margin-top: var(--s10); background: var(--ink); color: var(--on-ink); border-radius: 28px; padding: var(--s8) var(--s6); text-align: center; position: relative; overflow: hidden; }
+  .final h2 { margin: 0 auto; max-width: 20ch; color: var(--on-ink); }
+  .final .em { color: #e8936f; }
+  .final p { color: #b4b0a7; margin: var(--s4) auto 0; max-width: 52ch; }
+  .final .install { margin-top: var(--s6); background: #2a2926; border-color: #3d3c38; }
+  .final .install pre { color: #f2f0eb; } .final .install pre span { color: #8a877f; }
+  .final .copy { background: #f2f0eb; color: #1f1e1b; border-left-color: #3d3c38; }
+  .final .copy .ok { color: #2e7a3c; }
+  .final .mark-ring { position: absolute; width: 520px; height: 520px; right: -160px; top: -200px; opacity: .08; pointer-events: none; }
+
+  footer { margin-top: var(--s8); padding: var(--s6) 0 var(--s7); border-top: 1px solid var(--line); display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: var(--s5); font-size: var(--t-sm); color: var(--text-3); }
+  footer h4 { font-size: var(--t-sm); color: var(--text); font-weight: 650; margin-bottom: var(--s2); }
+  footer ul { list-style: none; display: grid; gap: 6px; }
+  footer a { text-decoration: none; } footer a:hover { color: var(--text); }
+  footer .brand { display: flex; align-items: center; gap: var(--s2); color: var(--text); font-weight: 650; margin-bottom: var(--s2); }
+  footer .brand img { width: 24px; height: 24px; }
+
+  .reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s var(--ease-out), transform .6s var(--ease-out); }
+  .reveal.in { opacity: 1; transform: none; }
+
+  @media (max-width: 860px) {
+    .trust { grid-template-columns: 1fr 1fr; }
+    .trust > div:nth-child(3) { border-left: 0; }
+    .trust > div:nth-child(n+3) { border-top: 1px solid var(--line); }
+    .bento { grid-template-columns: 1fr 1fr; } .tile, .tile.wide { grid-column: span 1; } .tile.last { grid-column: span 2; }
+    .points { grid-template-columns: 1fr; }
+    .join { grid-template-columns: 1fr; }
+    footer { grid-template-columns: 1fr 1fr; } footer .about { grid-column: 1 / -1; }
+  }
+  @media (max-width: 640px) {
+    .wrap { padding: 0 var(--s4); }
+    nav .links > a.hide-sm { display: none; }
+    nav .links { gap: var(--s2); }
+    nav .name { font-size: 15px; }
+    .chip { min-height: 44px; } #theme { width: 44px; height: 44px; }
+    .hero { padding-top: var(--s6); }
+    .install { flex-direction: column; width: 100%; }
+    .install pre { font-size: 12px; }
+    .copy { border-left: 0; border-top: 1px solid var(--line); min-height: 48px; }
+    .ghost { width: 100%; justify-content: center; }
+    .stagebox { padding: 14px 10px 10px; }
+    .states { width: 100%; } .states button { min-height: 44px; }
+    .swipe { display: block; }
+    .trust .n { font-size: 42px; }
+    section { padding-top: var(--s9); }
+    .calc { padding: var(--s5) var(--s4) var(--s4); }
+    .barrow { grid-template-columns: 1fr auto; gap: var(--s2) var(--s3); }
+    .barrow .amt { grid-column: 2; grid-row: 1; font-size: 24px; }
+    .barwrap { grid-column: 1 / -1; }
+    .size { grid-template-columns: 1fr; } .size .ticks { grid-column: 1; } .size input { height: 32px; } .size .ticks button { min-height: 36px; }
+    .pick select { min-height: 40px; }
+    .anatomy img { min-width: 720px; }
+    .bento { grid-template-columns: 1fr; } .tile, .tile.wide, .tile.last { grid-column: span 1; }
+    .final { padding: var(--s7) var(--s4); border-radius: 22px; }
+    .film .cap button { min-height: 44px; padding: 0 var(--s2); }
+    .eyebrow { min-height: 44px; }
+    footer { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .reveal { opacity: 1; transform: none; }
+    .mark { background-size: 100% 100%; }
+    .uline path { stroke-dashoffset: 0; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5 12 7l2.5-2.5M9.5 19.5 12 17l2.5 2.5"/></symbol>
+  <symbol id="i-coin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M14.6 9.3c-.5-.9-1.5-1.4-2.6-1.4-1.5 0-2.6.8-2.6 2s1.2 1.7 2.7 2 2.8.8 2.8 2.1-1.2 2.1-2.8 2.1c-1.2 0-2.3-.6-2.8-1.6M12 6.2v1.6M12 16.2v1.6"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2.5"/><path d="M8.5 9h7M8.5 12.5h7M8.5 16h4"/></symbol>
+  <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4.5 16.5a7.5 7.5 0 1 1 15 0"/><path d="M12 16.5l3.6-4.6"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14" rx="2.5"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/></symbol>
+  <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3.5h6M10 3.5v5.2l-4.8 8.6a2.2 2.2 0 0 0 1.9 3.2h9.8a2.2 2.2 0 0 0 1.9-3.2L14 8.7V3.5"/><path d="M7.6 14h8.8"/></symbol>
+  <symbol id="i-offline" viewBox="0 0 24 24"><path d="M3 3l18 18M8.5 16.4a5 5 0 0 1 7 0M5 12.9a10 10 0 0 1 5.3-2.8M14.2 10.2A10 10 0 0 1 19 12.9M2 9.4a15 15 0 0 1 4.6-2.9M10.3 5A15 15 0 0 1 22 9.4"/><circle cx="12" cy="19.5" r=".6"/></symbol>
+  <symbol id="i-token" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 15.5l7-7M8.8 9h.01M15.2 15h.01"/></symbol>
+  <symbol id="i-term" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M7.5 10l2.5 2-2.5 2M12.5 14.5h4"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="12" rx="2"/><path d="M9 20h6M12 16.5V20"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3.5l7 3v5.2c0 4.3-3 7.6-7 8.8-4-1.2-7-4.5-7-8.8V6.5z"/><path d="M9 12l2.2 2.2L15.5 10"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4.5V8h3.5M12 8v4l2.5 1.5"/></symbol>
+  <symbol id="i-sigma" viewBox="0 0 24 24"><path d="M17 5H7l5.5 7L7 19h10"/></symbol>
+  <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 3.5v4M15 3.5v4M7 7.5h10v3.5a5 5 0 0 1-10 0zM12 16v4.5"/></symbol>
+  <symbol id="i-q" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.7M12 16.8v.2"/></symbol>
+  <symbol id="i-bug" viewBox="0 0 24 24"><rect x="7.5" y="8" width="9" height="11.5" rx="4.5"/><path d="M12 8v11.5M9.2 5.2l1.4 2.6M14.8 5.2l-1.4 2.6M4.5 11h3M16.5 11h3M4.5 16h3M16.5 16h3"/></symbol>
+  <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 17.5h6M10 20.5h4M12 3.5a6 6 0 0 0-3.5 10.9c.6.5 1 1.1 1 1.9v.2h5v-.2c0-.8.4-1.4 1-1.9A6 6 0 0 0 12 3.5z"/></symbol>
+  <symbol id="i-pr" viewBox="0 0 24 24"><circle cx="6.5" cy="6" r="2.2"/><circle cx="6.5" cy="18" r="2.2"/><circle cx="17.5" cy="18" r="2.2"/><path d="M6.5 8.2v7.6M17.5 15.8V10a3 3 0 0 0-3-3H11M12.8 5 10.8 7l2 2"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="M10 9.5v5l4.5-2.5z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 7v10M15 7v10"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h9"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+  <symbol id="i-replay" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8v.2"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></symbol>
+</svg>
+
+<div class="wrap">
+  <nav>
+    <a class="name" href="./"><img src="favicon.svg" alt="">session-usage-band</a>
+    <div class="links">
+      <a class="hide-sm" href="#lunch">The cost</a>
+      <a class="hide-sm" href="#how">How it works</a>
+      <a class="hide-sm" href="#faq">FAQ</a>
+      <button class="chip" id="theme" type="button" aria-label="Switch light or dark"><svg class="i sun"><use href="#i-sun"/></svg><svg class="i moon"><use href="#i-moon"/></svg></button>
+      <a class="chip star" href="https://github.com/HMarzban/claude-mod" aria-label="Star on GitHub"><svg class="i"><use href="#i-star"/></svg>Star<span class="count" id="stars"></span></a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <a class="eyebrow" href="https://github.com/HMarzban/claude-mod/releases/latest"><b>New</b>Now prices Sonnet 5.5's cache right <span class="arr">→</span></a>
+    <h1>Know what your next Claude Code message <span class="em uline">costs.<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M3 13 C 45 4, 90 18, 135 9 S 185 8, 197 6"/></svg></span></h1>
+    <p class="lede">Step away for lunch and Claude Code's cache goes cold. Your next message then pays to rewrite the whole conversation: <b class="mark" id="lede-mark">25× what re-reading it costs</b> on Opus 5.5. This band shows the countdown and the price, right above the prompt.</p>
+    <div class="cta">
+      <div class="install">
+        <pre><span>$ </span>claude plugin marketplace add HMarzban/claude-mod
+<span>$ </span>claude plugin install session-usage-band@hossein-mods</pre>
+        <button class="copy" type="button" data-copy="claude plugin marketplace add HMarzban/claude-mod&#10;claude plugin install session-usage-band@hossein-mods"><svg class="i ic"><use href="#i-copy"/></svg><svg class="i ok"><use href="#i-check"/></svg><span class="lbl">Copy install</span></button>
+      </div>
+      <a class="ghost" href="https://github.com/HMarzban/claude-mod"><svg class="i"><use href="#i-star"/></svg>Star on GitHub</a>
+    </div>
+    <div class="facts"><span><svg class="i"><use href="#i-monitor"/></svg>Desktop app and terminal</span><span><svg class="i"><use href="#i-offline"/></svg>No network, no tokens</span><span><svg class="i"><use href="#i-shield"/></svg>Free, MIT licensed</span></div>
+
+    <div class="live" id="live">
+      <div class="states" role="tablist" aria-label="The band's states">
+        <button type="button" role="tab" data-mode="calm" aria-selected="false"><span class="dot"></span>Calm</button>
+        <button type="button" role="tab" data-mode="last" aria-selected="true" class="amber"><span class="dot"></span>Last minute</button>
+        <button type="button" role="tab" data-mode="cold" aria-selected="false"><span class="dot"></span>Gone cold</button>
+        <button type="button" role="tab" data-mode="compact" aria-selected="false" class="amber"><span class="dot"></span>Near compaction</button>
+        <button type="button" role="tab" data-mode="pace" aria-selected="false" class="amber"><span class="dot"></span>Fast pace</button>
+        <button type="button" role="tab" data-mode="week" aria-selected="false" class="amber"><span class="dot"></span>Weekly limit</button>
+        <button type="button" role="tab" data-mode="all" aria-selected="false" class="amber"><span class="dot"></span>Everything at once</button>
+      </div>
+      <div class="stagebox">
+        <div class="chatline"><span>great, I'm grabbing lunch. back in an hour or so</span></div>
+        <div class="scroller" id="scroller"><div id="fitbox"><div class="fit" id="fit"><div id="bandhost"></div><div class="prompt">Type / for commands</div></div></div></div>
+        <div class="swipe" id="swipe">Swipe to see the whole band →</div>
+      </div>
+      <div class="tip" id="tip"></div>
+      <div class="livebar"><span class="hint"><span class="pulse"></span><span id="note"><b>This is the real band</b>, counting down its last minute. Hover a chip, open ▿, or try Hide band.</span></span><button class="chip" id="replay" type="button"><svg class="i"><use href="#i-replay"/></svg>Run the last minute again</button></div>
+    </div>
+  </header>
+
+  <div class="trust reveal" aria-label="At a glance">
+    <div><span class="n">264</span><span class="l"><svg class="i"><use href="#i-flask"/></svg>tests, in CI on every push</span></div>
+    <div><span class="n">0</span><span class="l"><svg class="i"><use href="#i-offline"/></svg>network calls</span></div>
+    <div><span class="n">0</span><span class="l"><svg class="i"><use href="#i-token"/></svg>tokens spent</span></div>
+    <div><span class="n">2</span><span class="l"><svg class="i"><use href="#i-term"/></svg>commands to install</span></div>
+  </div>
+
+  <section id="lunch" class="reveal">
+    <span class="badge"><svg class="i"><use href="#i-coin"/></svg></span>
+    <h2>What a lunch break <span class="em">costs</span>.</h2>
+    <p class="sub">Claude Code keeps your conversation in a cache. Come back in time and the next message re-reads it <span class="mark">for pennies</span>. Come back late and it pays to <span class="mark">write the whole thing again</span>.</p>
+    <div class="calc">
+      <p class="story">On <span class="pick"><select id="model" aria-label="Model"><option value="4|0.05" selected>Opus 5.5</option><option value="2|0.05">Sonnet 5.5</option><option value="10|0.025">Fable 5.1</option></select></span> with <span class="tok" id="tok">340k tokens</span> in context, your next message costs:</p>
+      <div class="bars">
+        <div class="barrow warm">
+          <div class="lab"><span class="ico"><svg class="i"><use href="#i-clock"/></svg></span><span>Back within the hour<small>the cache is still warm</small></span></div>
+          <div class="barwrap"><div class="bar" id="bwarm"></div></div>
+          <div class="amt" id="warm">$0.07</div>
+        </div>
+        <div class="barrow cold">
+          <div class="lab"><span class="ico"><svg class="i"><use href="#i-snow"/></svg></span><span>Back after lunch<small>the cache went cold</small></span></div>
+          <div class="barwrap"><div class="bar" id="bcold"></div></div>
+          <div class="amt" id="cold">$1.70</div>
+        </div>
+      </div>
+      <div class="verdict"><span class="x" id="ratio">25×</span><span class="w">more, for the very same message.<span>The band warns you in the cache's last minute, with this price.</span></span></div>
+      <div class="size">
+        <label for="size">Conversation size</label>
+        <input id="size" type="range" min="20" max="1000" step="10" value="340">
+        <div class="ticks"><button type="button" data-v="50" style="left:3.06%">50k</button><button type="button" data-v="250" style="left:23.47%">250k</button><button type="button" data-v="500" style="left:48.98%">500k</button><button type="button" data-v="1000" style="left:100.00%">1M</button></div>
+      </div>
+      <details class="how"><summary><svg class="i"><use href="#i-info"/></svg>Where these numbers come from</summary><p>The context part of the next message, at list prices per million input tokens: Opus 5.5 $4, Sonnet 5.5 $2, Fable 5.1 $10. A warm cache read costs 0.05× of that on Opus 5.5 and Sonnet 5.5 and 0.025× on Fable 5.1, and rewriting the cache 1.25×, as Claude Code's own cost display counts it. Anthropic bills a 1-hour cache write at 2×, and Claude Code uses the 1-hour cache on a subscription, where these tokens come out of your plan's usage limits rather than your card. Prices from <a href="https://platform.claude.com/docs/en/about-claude/pricing">Anthropic's pricing page</a>, October 2026.</p></details>
+    </div>
+  </section>
+
+  <section id="film" class="reveal">
+    <span class="badge"><svg class="i"><use href="#i-play"/></svg></span>
+    <h2>An hour, in <span class="em">seventeen</span> seconds.</h2>
+    <p class="sub">Every band in this film is <span class="mark">the mod's own output</span>, with the clock moved forward.</p>
+    <figure class="film">
+      <video id="video" autoplay muted loop playsinline preload="metadata" poster="demo-poster.png" aria-label="The band in the Claude desktop app: the cache counts down through the lunch hour, turns amber in its last minute with the re-warm price, goes cold showing what the next message will cost, then opens its cards">
+        <source src="demo.mp4" type="video/mp4">
+      </video>
+      <figcaption class="cap"><span>Desktop app, Code tab. It draws in the terminal too, as text.</span><button type="button" id="vtoggle"><svg class="i"><use href="#i-pause"/></svg><span>Pause</span></button></figcaption>
+    </figure>
+  </section>
+
+  <section id="what" class="reveal">
+    <span class="badge"><svg class="i"><use href="#i-grid"/></svg></span>
+    <h2>Every number that decides your bill, in <span class="em">one row</span>.</h2>
+    <div class="anatomy"><img src="band-anatomy.png" alt="The chip row, labelled: the cache countdown and what a re-warm will cost, the session cost, context toward auto-compaction, the 5-hour limit with its pace, the weekly limit and its reset, and the toggle that opens the cards" loading="lazy"></div>
+    <div class="bento">
+      <div class="tile wide"><span class="ti"><svg class="i"><use href="#i-clock"/></svg></span><h3>Cache countdown</h3><p>A battery that drains as the cache ages. In its last minute it turns amber and <span class="mark">names the re-warm price</span>.</p></div>
+      <div class="tile wide"><span class="ti"><svg class="i"><use href="#i-coin"/></svg></span><h3>Session spend</h3><p>The running total, and what your last message cost on its own.</p></div>
+      <div class="tile"><span class="ti"><svg class="i"><use href="#i-doc"/></svg></span><h3>Context</h3><p>How full the conversation is, and how close auto-compaction is.</p></div>
+      <div class="tile"><span class="ti"><svg class="i"><use href="#i-gauge"/></svg></span><h3>5-hour limit</h3><p>Usage and the reset, with a warning when <span class="mark">your pace would run out</span> first.</p></div>
+      <div class="tile last"><span class="ti"><svg class="i"><use href="#i-cal"/></svg></span><h3>Weekly limit</h3><p>Usage and when it resets. Open ▿ for every fact labelled, under your project and git branch.</p></div>
+    </div>
+  </section>
+
+  <section id="how" class="reveal">
+    <span class="badge"><svg class="i"><use href="#i-sigma"/></svg></span>
+    <h2>The price comes from <span class="em">your own</span> bill.</h2>
+    <p class="sub">A mod can't reach a pricing table, so the band solves the per-token rate from the session's cost and token counts. Each kind of token is a fixed multiple of base input, which leaves <span class="mark">one unknown</span>.</p>
+    <div class="formula">cost = <span class="r">rate</span> × (uncached + <span class="k">1.25</span> × written + <span class="k">read share</span> × read + <span class="k">5</span> × output)</div>
+    <ul class="points">
+      <li><span class="pi"><svg class="i"><use href="#i-snow"/></svg></span><span><b>A re-warm is the whole context, written again</b>always shown with <code>~</code>, since it's an estimate.</span></li>
+      <li><span class="pi"><svg class="i"><use href="#i-history"/></svg></span><span><b>It remembers old sessions</b>reopen one and it recalls the last reply and a token's price, or reads them once from the transcript.</span></li>
+      <li><span class="pi"><svg class="i"><use href="#i-shield"/></svg></span><span><b>It stays out of your way</b>it never calls a model, writes files or sends anything. Besides two read-only git commands, it runs only <code>tail</code>.</span></li>
+      <li><span class="pi"><svg class="i"><use href="#i-plug"/></svg></span><span><b>It's a mod, nothing to build</b>Claude Code's function-hooks API: TypeScript and JSX, no dependencies, 260+ tests.</span></li>
+    </ul>
+  </section>
+
+  <section id="faq" class="reveal">
+    <span class="badge"><svg class="i"><use href="#i-q"/></svg></span>
+    <h2>Questions people ask.</h2>
+    <div class="faq">
+      <details open><summary>Why did my Claude Code message cost so much more than the others?<span class="pl"><svg class="i"><use href="#i-plus"/></svg></span></summary><p>Most likely the prompt cache went cold. Claude Code caches your conversation for 5 minutes or an hour after the last request. After that, the next message writes the whole conversation to the cache again at 1.25× the input price: on Opus 5.5, 25× what re-reading it from a warm cache costs.</p></details>
+      <details><summary>Does it cost tokens?<span class="pl"><svg class="i"><use href="#i-plus"/></svg></span></summary><p>No. It never calls a model, and it never suggests sending a message to keep the cache warm. That would mean burning tokens to avoid burning tokens.</p></details>
+      <details><summary>Is the re-warm price exact?<span class="pl"><svg class="i"><use href="#i-plus"/></svg></span></summary><p>It's an estimate, shown with <code>~</code>. It follows Claude Code's own ledger, which prices every cache write at 1.25×. Anthropic bills a 1-hour cache write at 2×, so per-token API users on a 1-hour cache may pay up to 1.6× the estimate.</p></details>
+      <details><summary>How does it know if my cache lasts 5 minutes or an hour?<span class="pl"><svg class="i"><use href="#i-plus"/></svg></span></summary><p>Claude Code uses the hour on a subscription within your plan's usage and 5 minutes on an API key or usage credits. The band can't read your billing, so it assumes an hour and corrects itself to 5 minutes if it sees the cache rebuild sooner. Set <code>CLAUDE_CODE_PROMPT_CACHE_TTL=5m</code> or <code>1h</code> to remove the guess.</p></details>
+      <details><summary>Does it work in the Claude desktop app?<span class="pl"><svg class="i"><use href="#i-plus"/></svg></span></summary><p>Yes. It draws in the desktop app's Code tab with icons and meters, and in the terminal as text. Tested on Claude Code 2.1.295.</p></details>
+      <details><summary>Does it work on light themes?<span class="pl"><svg class="i"><use href="#i-plus"/></svg></span></summary><p>Yes. Set <code>CC_BAND_APPEARANCE=light</code>, or <code>plain</code> for theme colours only. <code>NO_COLOR</code> is respected.</p></details>
+    </div>
+  </section>
+
+  <section id="contribute" class="reveal">
+    <span class="badge"><svg class="i"><use href="#i-pr"/></svg></span>
+    <h2>It's brand new. <span class="em">Tell me</span> what you see.</h2>
+    <p class="sub">Reports from real sessions are what make the numbers right.</p>
+    <div class="join">
+      <a href="https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml"><span class="ji"><svg class="i"><use href="#i-bug"/></svg></span><span><b>Report a bug</b><small>a price that looks off, a chip that wraps</small></span><svg class="i go"><use href="#i-arrow"/></svg></a>
+      <a href="https://github.com/HMarzban/claude-mod/issues/new?template=feature_request.yml"><span class="ji"><svg class="i"><use href="#i-bulb"/></svg></span><span><b>Suggest a feature</b><small>something you wish it showed</small></span><svg class="i go"><use href="#i-arrow"/></svg></a>
+      <a href="https://github.com/HMarzban/claude-mod/blob/main/CONTRIBUTING.md"><span class="ji"><svg class="i"><use href="#i-pr"/></svg></span><span><b>Send a pull request</b><small>three commands to a dev loop</small></span><svg class="i go"><use href="#i-arrow"/></svg></a>
+    </div>
+  </section>
+
+  <div class="final reveal">
+    <svg class="mark-ring" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="21" fill="none" stroke="#f2f0eb" stroke-width="5"/><circle cx="32" cy="32" r="21" fill="none" stroke="#d97757" stroke-width="5" stroke-linecap="round" stroke-dasharray="97 132" transform="rotate(-90 32 32)"/></svg>
+    <h2>Two commands, and a cold cache <span class="em">never surprises you</span> again.</h2>
+    <p>Free and open source. Works in the Claude desktop app and the terminal.</p>
+    <div class="install">
+      <pre><span>$ </span>claude plugin marketplace add HMarzban/claude-mod
+<span>$ </span>claude plugin install session-usage-band@hossein-mods</pre>
+      <button class="copy" type="button" data-copy="claude plugin marketplace add HMarzban/claude-mod&#10;claude plugin install session-usage-band@hossein-mods"><svg class="i ic"><use href="#i-copy"/></svg><svg class="i ok"><use href="#i-check"/></svg><span class="lbl">Copy install</span></button>
+    </div>
+  </div>
+
+  <footer>
+    <div class="about"><div class="brand"><img src="favicon.svg" alt="">session-usage-band</div><p>MIT © Hossein Marzban. An independent community project, not affiliated with Anthropic.</p></div>
+    <div><h4>Project</h4><ul><li><a href="https://github.com/HMarzban/claude-mod">GitHub</a></li><li><a href="https://github.com/HMarzban/claude-mod/releases">Releases</a></li><li><a href="https://github.com/HMarzban/claude-mod/blob/main/plugins/session-usage-band/CHANGELOG.md">Changelog</a></li></ul></div>
+    <div><h4>Help</h4><ul><li><a href="https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml">Report a bug</a></li><li><a href="https://github.com/HMarzban/claude-mod/blob/main/CONTRIBUTING.md">Contributing</a></li><li><a href="https://github.com/HMarzban/claude-mod/blob/main/SECURITY.md">Security</a></li></ul></div>
+  </footer>
+</div>
+
+<template id="t-amber">{{amber}}</template>
+<template id="t-amberOpen">{{amberOpen}}</template>
+<template id="t-cold">{{cold}}</template>
+<template id="t-coldOpen">{{coldOpen}}</template>
+<template id="t-calm">{{calm}}</template>
+<template id="t-calmOpen">{{calmOpen}}</template>
+<template id="t-compact">{{compact}}</template>
+<template id="t-compactOpen">{{compactOpen}}</template>
+<template id="t-pace">{{pace}}</template>
+<template id="t-paceOpen">{{paceOpen}}</template>
+<template id="t-week">{{week}}</template>
+<template id="t-weekOpen">{{weekOpen}}</template>
+<template id="t-all">{{all}}</template>
+<template id="t-allOpen">{{allOpen}}</template>
+
+<script>
+(() => {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+  const $ = s => document.querySelector(s), $$ = s => document.querySelectorAll(s)
+
+  // ---- light or dark, remembered; the film follows ----
+  const video = $('#video')
+  function filmFor(dark) {
+    const src = dark ? 'demo-dark.mp4' : 'demo.mp4', poster = dark ? 'demo-poster-dark.png' : 'demo-poster.png'
+    if (video.getAttribute('poster') !== poster) video.setAttribute('poster', poster)
+    const s = video.querySelector('source')
+    if (s.getAttribute('src') !== src) { s.setAttribute('src', src); video.load(); if (!reduce) video.play().catch(() => {}) }
+  }
+  filmFor(document.documentElement.dataset.theme === 'dark')
+  $('#theme').addEventListener('click', () => {
+    const dark = document.documentElement.dataset.theme !== 'dark'
+    if (dark) document.documentElement.dataset.theme = 'dark'; else delete document.documentElement.dataset.theme
+    try { localStorage.setItem('theme', dark ? 'dark' : 'light') } catch {}
+    filmFor(dark)
+  })
+
+  // ---- copy buttons ----
+  for (const b of $$('.copy')) {
+    b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(b.dataset.copy) } catch { return }
+      const l = b.querySelector('.lbl'), was = l.textContent
+      b.classList.add('done'); l.textContent = 'Copied'
+      setTimeout(() => { b.classList.remove('done'); l.textContent = was }, 1800)
+    })
+  }
+
+  // ---- live star count ----
+  fetch('https://api.github.com/repos/HMarzban/claude-mod').then(r => r.ok ? r.json() : null).then(d => {
+    if (d && d.stargazers_count > 0) $('#stars').textContent = d.stargazers_count
+  }).catch(() => {})
+
+  // ---- the live band: the band's real states, its countdown ticking ----
+  const host = $('#bandhost'), fit = $('#fit'), live = $('#live'), tip = $('#tip')
+  const tpl = id => document.getElementById('t-' + id).innerHTML
+  const S = { mode: 'last', secs: 15, open: false, hidden: false, timer: null }
+  const NOTES = {
+    calm: '<b>Calm.</b> You just got a reply, so nothing needs you and nothing is amber.',
+    last: '<b>The last minute.</b> The cache is about to expire, and the band names what letting it go cold will cost.',
+    cold: '<b>Gone cold.</b> The price of your next message, before you send it.',
+    compact: '<b>Near auto-compaction.</b> How full the conversation is, and how much room is left before it gets summarised.',
+    pace: '<b>Fast pace.</b> At this rate your 5-hour limit runs out before it resets, and the chip says when.',
+    week: '<b>Weekly limit.</b> Past 80% it turns amber and adds a <b>!</b>, so colour is never the only signal.',
+    all: '<b>A busy afternoon.</b> Everything that needs you, at once, still on one row.',
+  }
+  const tabs = [...document.querySelectorAll('.states button')]
+  function setMode(mode) {
+    S.mode = mode; S.open = false; S.hidden = false; clearInterval(S.timer)
+    for (const t of tabs) t.setAttribute('aria-selected', t.dataset.mode === mode)
+    document.getElementById('note').innerHTML = NOTES[mode] + ' <span style="color:var(--text-3)">Hover a chip or open ▿.</span>'
+    if (mode === 'last') { S.secs = 15; draw(true); if (!reduce) S.timer = setInterval(tick, 1000) }
+    else { S.secs = mode === 'cold' ? 0 : 15; draw(true) }
+  }
+  for (const t of tabs) t.addEventListener('click', () => setMode(t.dataset.mode))
+  const fmt = s => `0:${String(Math.max(0, s)).padStart(2, '0')}`
+  function draw(animate) {
+    if (S.hidden) {
+      host.innerHTML = '<div class="hidden-note"><span>Band hidden. It comes back with</span><button type="button" id="back">/usage-band</button></div>'
+      host.querySelector('#back').onclick = () => { S.hidden = false; draw(true) }
+    } else {
+      const timed = S.mode === 'last' || S.mode === 'cold', cold = S.mode === 'cold' || (S.mode === 'last' && S.secs <= 0)
+      const name = timed ? (cold ? 'cold' : 'amber') : S.mode
+      host.innerHTML = `<div class="band${animate ? ' enter' : ''}${S.mode === 'last' && !cold && S.secs <= 10 ? ' alarm' : ''}">${tpl(name + (S.open ? 'Open' : ''))}</div>`
+      for (const c of host.querySelectorAll('.cd')) c.textContent = fmt(S.secs)
+      const more = host.querySelector('[data-key=more]')
+      if (more) more.onclick = () => { S.open = !S.open; draw(true) }
+      for (const b of host.querySelectorAll('.btn')) {
+        const label = b.textContent.trim()
+        if (label.startsWith('Collapse')) b.onclick = () => { S.open = false; draw(true) }
+        if (label.startsWith('Hide band')) b.onclick = () => { S.hidden = true; S.open = false; draw(true) }
+      }
+    }
+    scale()
+  }
+  function scale() {
+    const sc = $('#scroller'), box = $('#fitbox'), w = sc.clientWidth
+    // on a phone, keep the band readable and let it scroll sideways
+    const k = Math.max(w < 700 ? 0.7 : 0, Math.min(1, w / 964))
+    fit.style.width = '964px'; fit.style.transform = `scale(${k})`
+    box.style.width = (964 * k) + 'px'; box.style.height = (fit.offsetHeight * k) + 'px'
+    $('#swipe').style.visibility = 964 * k > w + 2 ? 'visible' : 'hidden'
+  }
+  function tick() {
+    if (S.secs <= 0) return
+    S.secs--
+    if (S.hidden) return
+    if (S.secs === 0) { setMode('cold'); return }
+    else for (const c of host.querySelectorAll('.cd')) c.textContent = fmt(S.secs)
+    const band = host.querySelector('.band')
+    if (band) band.classList.toggle('alarm', S.secs > 0 && S.secs <= 10)
+  }
+  function start() { setMode('last') }
+  $('#replay').onclick = () => setMode('last')
+  addEventListener('resize', scale)
+  live.addEventListener('mouseover', e => {
+    const el = e.target.closest('[data-tip]')
+    if (!el) { tip.classList.remove('on'); return }
+    tip.textContent = el.dataset.tip
+    const lr = live.getBoundingClientRect(), r = el.getBoundingClientRect()
+    tip.style.left = Math.max(0, Math.min(lr.width - Math.min(340, lr.width), r.left - lr.left)) + 'px'
+    const above = r.top - lr.top - tip.offsetHeight - 10
+    tip.style.top = (above < 0 ? r.bottom - lr.top + 10 : above) + 'px'
+    tip.classList.add('on')
+  })
+  live.addEventListener('mouseleave', () => tip.classList.remove('on'))
+  // touch screens have no hover: a tap on a chip shows its words, a tap elsewhere hides them
+  live.addEventListener('click', e => {
+    if (!matchMedia('(hover: none)').matches) return
+    const el = e.target.closest('[data-tip]')
+    if (el) el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); else tip.classList.remove('on')
+  })
+  $('#scroller').addEventListener('scroll', () => tip.classList.remove('on'))
+  start()
+
+  // ---- what a lunch break costs ----
+  const size = $('#size'), tok = $('#tok'), modelSel = $('#model')
+  const warmEl = $('#warm'), coldEl = $('#cold'), ratioEl = $('#ratio'), bwarm = $('#bwarm'), bcold = $('#bcold')
+  const money = v => v < 0.01 ? '<$0.01' : '$' + v.toFixed(2)
+  const shown = { warm: 0, cold: 0, x: 1 }
+  let seen = false, raf = null
+  function target() {
+    const [p, r] = modelSel.value.split('|').map(Number), k = Number(size.value) * 1000
+    tok.textContent = (k >= 1e6 ? '1M' : Math.round(k / 1000) + 'k') + ' tokens'
+    return { warm: k * p * r / 1e6, cold: k * p * 1.25 / 1e6, x: 1.25 / r }
+  }
+  function paint(v) { warmEl.textContent = money(v.warm); coldEl.textContent = money(v.cold); ratioEl.textContent = (Math.round(v.x * 10) / 10) + '×' }
+  function update() {
+    const t = target()
+    // the cold bar fills the track; the warm one is its true fraction, never invisible
+    bcold.style.transform = `scaleX(${seen ? 1 : 0})`
+    bwarm.style.transform = `scaleX(${seen ? Math.max(0.012, 1 / t.x) : 0})`
+    cancelAnimationFrame(raf)
+    if (reduce || !seen) { Object.assign(shown, t); paint(t); return }
+    const from = { ...shown }, t0 = performance.now(), D = 650
+    const step = now => {
+      const q = Math.min(1, (now - t0) / D), e = 1 - (1 - q) ** 3
+      for (const k of ['warm', 'cold', 'x']) shown[k] = from[k] + (t[k] - from[k]) * e
+      paint(shown); if (q < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    setTimeout(() => { if (shown.cold !== t.cold) { Object.assign(shown, t); paint(t) } }, D + 400)
+  }
+  function animate() { if (!seen) { seen = true; Object.assign(shown, { warm: 0, cold: 0, x: 1 }) } update() }
+  modelSel.addEventListener('change', update)
+  size.addEventListener('input', update)
+  for (const b of $$('.size .ticks button')) b.addEventListener('click', () => { size.value = b.dataset.v; update() })
+  paint(target())
+
+  // ---- reveal on scroll; the lede's mark sweeps once the page settles ----
+  setTimeout(() => $('#lede-mark').classList.add('in'), reduce ? 0 : 900)
+  const io = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { e.target.classList.add('in'); if (e.target.id === 'lunch') animate(); io.unobserve(e.target) } }, { threshold: 0.15 })
+  for (const s of $$('.reveal')) io.observe(s)
+
+  // ---- film controls ----
+  const vt = $('#vtoggle')
+  const setBtn = playing => { vt.querySelector('use').setAttribute('href', playing ? '#i-pause' : '#i-play'); vt.querySelector('span').textContent = playing ? 'Pause' : 'Play' }
+  vt.onclick = () => { if (video.paused) { video.play(); setBtn(true) } else { video.pause(); setBtn(false) } }
+  if (reduce) { video.removeAttribute('autoplay'); video.pause(); setBtn(false) }
+})()
+</script>
+</body>
+</html>

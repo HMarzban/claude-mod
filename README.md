@@ -65,6 +65,11 @@ claude plugin marketplace remove hossein-mods
 
 ![The chip row, labelled: the cache countdown and what a re-warm will cost, the session cost, context toward auto-compaction, the 5-hour limit with its pace, the weekly limit and its reset, and the toggle that opens the cards](docs/band-anatomy.png)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/band-states-dark.png">
+  <img alt="Four real states of the band: calm just after a reply; the cache's last minute with the re-warm price; near auto-compaction with the room left; and everything at once, with context, the 5-hour pace and the weekly limit all amber on one row" src="docs/band-states-light.png">
+</picture>
+
 A chip turns amber when it needs you: the cache's last minute, context near
 auto-compaction, a limit at 80% or a 5-hour pace that would run out before
 the reset. Nothing is ever red. Hover any chip for a one-line explanation.
@@ -183,6 +188,7 @@ plugins/session-usage-band/
   tests/                            one file per area, helpers in helpers.ts
   CHANGELOG.md                      what changed in each version
 docs/                               the website (GitHub Pages) and the images in this README
+tools/demos/                        rebuilds every demo and the site from the band's own output
 .github/                            issue and pull request templates, CI
 ```
 

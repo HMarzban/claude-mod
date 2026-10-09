@@ -85,6 +85,14 @@ Run `/reload-plugins` in your session afterwards.
   `LONG` budget from `helpers.ts`: the band ticks every second, and CI
   runners are several times slower than a laptop.
 
+## Demos and the website
+
+Every demo in `docs/` (the film, the GIFs, the landing page's live band, the
+social card) is drawn from the band's own output. After a change that alters
+how the band reads, rebuild them with `tools/demos/build.sh`; see
+[tools/demos/README.md](tools/demos/README.md). Edit the landing page in
+`tools/demos/site/template.html`, never in `docs/index.html`.
+
 ## Commits
 
 Commit subjects follow [Conventional Commits](https://www.conventionalcommits.org/):

@@ -1,0 +1,15 @@
+file 'reply.png'
+duration 1.8
+file 'm20.png'
+duration 1.0
+file 'm45.png'
+duration 1.0
+file 'last.png'
+duration 1.6
+file 'last2.png'
+duration 1.6
+file 'cold.png'
+duration 2.6
+file 'cards.png'
+duration 3.6
+file 'cards.png'
