@@ -10,14 +10,14 @@ warm, what is this session costing, and am I close to a limit?
 On the desktop app's Code tab the glyphs are small icons, and the bars are
 drawn as SVG meters:
 
-![The band expanded on the desktop: chips for the cache, cost, context and the 5h and 7d limits, then the Cache, Spend, Context and Limits cards, the project path and branch, and the Collapse and Hide band buttons](../../docs/band-expanded.png)
+![The band expanded on the desktop: chips for the cache, cost, context and the 5h and 7d limits, then the Cache, Spend, Context and Limits cards, the project path and branch, and the Collapse and Hide band buttons](https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-expanded.png)
 
 See the [changelog](CHANGELOG.md) for what changed in each version. Found
 something off? [Open an issue](https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml).
 
 ## Reading it
 
-![The chip row, labelled: the cache countdown and what a re-warm will cost, the session cost, context toward auto-compaction, the 5-hour limit with its pace, the weekly limit and its reset, and the toggle that opens the cards](../../docs/band-anatomy.png)
+![The chip row, labelled: the cache countdown and what a re-warm will cost, the session cost, context toward auto-compaction, the 5-hour limit with its pace, the weekly limit and its reset, and the toggle that opens the cards](https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-anatomy.png)
 
 | Chip | Shows | Turns amber when |
 | --- | --- | --- |
@@ -205,7 +205,7 @@ claude plugin install session-usage-band@hossein-mods
 It needs Claude Code with mods (function-hooks plugins), and was tested on
 2.1.295 in the terminal and the desktop app's bundled 2.1.289. It draws in the terminal and the desktop app's Code tab, which are
 the surfaces with a band above the prompt. WSL sessions don't load plugins.
-The [repository README](../../README.md) covers updating and uninstalling.
+The [repository README](https://github.com/HMarzban/claude-mod/blob/main/README.md) covers updating and uninstalling.
 
 ## Developing
 
@@ -215,7 +215,7 @@ claude plugin test plugins/session-usage-band
 npx -y -p typescript@5 tsc -p plugins/session-usage-band
 ```
 
-[CONTRIBUTING.md](../../CONTRIBUTING.md) has the full loop and the rules the
+[CONTRIBUTING.md](https://github.com/HMarzban/claude-mod/blob/main/CONTRIBUTING.md) has the full loop and the rules the
 code follows.
 
 Only `hooks/register.tsx` touches the engine (`$`). It reads a snapshot for
