@@ -16,7 +16,7 @@ weekly limits.
 
 </div>
 
-![The band in a terminal session: the cache counts down from an hour, turns amber in its last minute with the re-warm price, goes cold showing what the next message will cost, then opens its cards. Every frame is the band's own output, with the clock moved forward](docs/band-demo.gif)
+![The band in the Claude desktop app: after the last reply the cache counts down from an hour, turns amber in its last minute with the re-warm price, goes cold showing what the next message will cost, then opens its cards. Every frame is drawn from the band's own output, with the clock moved forward](docs/band-demo-desktop.gif)
 
 ## Why
 
@@ -74,9 +74,7 @@ and ahead/behind.
 
 In the terminal it's text, and it narrows gracefully as the window does:
 
-```
-◷ cache 52m   $3.19   Σ 225k   ◔ ██░░░░ 76k / 200k   5h ░░░░░░ 4% │ ↻ 3h 00m   7d ██░░░░ 30% │ ↻ 2d 19h   ▿
-```
+![The same story in a terminal: the countdown, the amber last minute, the cold cache and the cards, as text](docs/band-demo-terminal.gif)
 
 The [plugin's README](plugins/session-usage-band/README.md) covers every chip,
 card, command and setting.
