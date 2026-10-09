@@ -16,7 +16,10 @@ weekly limits.
 
 </div>
 
-![The band in the Claude desktop app: after the last reply the cache counts down from an hour, turns amber in its last minute with the re-warm price, goes cold showing what the next message will cost, then opens its cards. Every frame is drawn from the band's own output, with the clock moved forward](docs/band-film.gif)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/band-film-dark.gif">
+  <img alt="The band in the Claude desktop app: after the last reply the cache counts down from an hour, turns amber in its last minute with the re-warm price, goes cold showing what the next message will cost, then opens its cards. Every frame is drawn from the band's own output, with the clock moved forward" src="docs/band-film-light.gif">
+</picture>
 
 ## Why
 
@@ -74,7 +77,10 @@ and ahead/behind.
 
 In the terminal it's text, and it narrows gracefully as the window does:
 
-![The same story in a terminal: the countdown, the amber last minute, the cold cache and the cards, as text](docs/band-demo-terminal.gif)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/band-demo-terminal-dark.gif">
+  <img alt="The same story in a terminal: the countdown, the amber last minute, the cold cache and the cards, as text" src="docs/band-demo-terminal-light.gif">
+</picture>
 
 The [plugin's README](plugins/session-usage-band/README.md) covers every chip,
 card, command and setting.
