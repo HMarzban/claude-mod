@@ -76,8 +76,28 @@ export const engine: {
   /** While set, git answers wait on it: its answer is the one at the call. */
   hold: Promise<void> | undefined
   ran: string[][]
+  /** The session's id and model, as the engine names them. */
+  sessionId: string
+  model: string
+  /** The session's transcript as Claude Code writes it; undefined when it isn't there. */
+  transcript: string | undefined
+  /** Its size on disk, when a test needs it larger than its text. */
+  transcriptBytes: number | undefined
+  /** When set, `tail` can't run, as where the host has none. */
+  tailFails: boolean
+  /** Every path the plugin asked the file system about. */
+  statted: string[]
+  /** The plugin's own store, JSON in and out as the engine keeps it. */
+  store: Record<string, unknown>
 } = {
+  store: {},
   hold: undefined,
+  sessionId: 's1',
+  model: 'claude-opus-5-5',
+  transcript: undefined,
+  transcriptBytes: undefined,
+  tailFails: false,
+  statted: [],
   root: PROJECT,
   repoRoot: PROJECT,
   git: { status: GIT_CLEAN, dirs: GIT_MAIN_TREE },
@@ -93,7 +113,7 @@ export const toasts: string[] = []
 let nextUsage: ModelUsage | null = null
 
 /** Everything beneath the plugin: the engine's own answers. */
-export const base = (on: On, initial: SessionUsage = USAGE): void => {
+export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Record<string, unknown>> = {}): void => {
   usage.current = initial
   usage.breakdownFails = false
   toasts.length = 0
@@ -106,12 +126,49 @@ export const base = (on: On, initial: SessionUsage = USAGE): void => {
   engine.git = { status: GIT_CLEAN, dirs: GIT_MAIN_TREE }
   engine.ran = []
   engine.hold = undefined
+  engine.sessionId = 's1'
+  engine.model = 'claude-opus-5-5'
+  engine.transcript = undefined
+  engine.transcriptBytes = undefined
+  engine.tailFails = false
+  engine.statted = []
+  engine.store = JSON.parse(JSON.stringify(store)) as Record<string, unknown>
+  on('store.get', ($, e) => ({ value: engine.store[e.key] }))
+  on('store.set', ($, e) => {
+    engine.store[e.key] = JSON.parse(JSON.stringify(e.value)) as unknown
+    return { value: undefined }
+  })
+  on('store.delete', ($, e) => {
+    delete engine.store[e.key]
+    return { value: undefined }
+  })
+  on('store.keys', () => ({ value: Object.keys(engine.store) }))
+  on('session.id', () => ({ value: engine.sessionId }))
+  on('session.model', () => ({ value: engine.model }))
+  on('fs.stat', ($, e) => {
+    engine.statted.push(e.path)
+    if (engine.transcript === undefined) throw new Error(`ENOENT: ${e.path}`)
+    const size = engine.transcriptBytes ?? engine.transcript.length
+    // Claude Code touches a transcript when it opens it, so its time says nothing.
+    return { value: { kind: 'file' as const, size, mtimeMs: 9e15, isLink: false } }
+  })
+  on('fs.read', ($, e) => {
+    if (engine.transcript === undefined) throw new Error(`ENOENT: ${e.path}`)
+    if ((engine.transcriptBytes ?? 0) > 4 * 1024 * 1024) throw new Error('over 4 MiB')
+    return { value: engine.transcript }
+  })
   on('session.root', () => ({ value: engine.root }))
   on('session.repo', () => ({
     value: engine.repoRoot === undefined ? null : { root: engine.repoRoot, remote: null, internal: false, name: null },
   }))
   on('process.run', async ($, e) => {
     engine.ran.push([...e.argv])
+    if (e.argv[0] === 'tail') {
+      const quietTail = { stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
+      if (engine.tailFails || engine.transcript === undefined) return { value: { ...quietTail, exitCode: 1, stdout: '', stderr: 'tail: no such file' } }
+      const bytes = Number(e.argv[2])
+      return { value: { ...quietTail, exitCode: 0, stdout: engine.transcript.slice(-bytes) } }
+    }
     const git = engine.git
     const hold = engine.hold
     if (hold !== undefined) await hold
@@ -363,5 +420,17 @@ export const breakdown = (fields: Pick<SessionContextBreakdown, 'isAutoCompactEn
 /** Lets work the plugin started without waiting on it, such as a git read,
  *  run to its end. */
 export const settle = async (): Promise<void> => {
-  for (let i = 0; i < 50; i++) await Promise.resolve()
+  for (let i = 0; i < 500; i++) await Promise.resolve()
 }
+
+/** A transcript as Claude Code writes one: a user line, an assistant reply at
+ *  `replyAt`, and the cost-state line it adds when a session is opened. */
+export const transcriptOf = (replyAt: number, modelUsage: Record<string, Record<string, number>> = {}): string =>
+  [
+    { type: 'user', timestamp: new Date(replyAt - 5000).toISOString(), message: { role: 'user', content: 'hi' } },
+    { type: 'assistant', timestamp: new Date(replyAt).toISOString(), message: { role: 'assistant', model: 'claude-opus-5-5', content: [] } },
+    { type: 'last-prompt', lastPrompt: 'hi' },
+    { type: 'cost-state', totalCostUSD: 1, modelUsage },
+  ]
+    .map(line => JSON.stringify(line))
+    .join('\n') + '\n'

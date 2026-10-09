@@ -13,12 +13,15 @@ import {
   noteLedger,
   noteLoad,
   pinTtl,
+  ratePerToken,
   recordResponse,
+  reWarmAt,
   resetCache,
   resetConversation,
   resolveTtl,
   reWarmUsd,
   savedUsd,
+  TTL_MS,
 } from './cache'
 import { COMPACT_NEAR, SEVERE_AT, WARN_AT, fmtCountdown, fmtEta, fmtTokens } from './format'
 import {
@@ -32,6 +35,17 @@ import {
 } from './insights'
 import { DARK, resolvePalette } from './palette'
 import type { Palette } from './palette'
+import {
+  RATES_KEY,
+  READ_LIMIT,
+  SESSIONS_KEY,
+  asRates,
+  asSessions,
+  lastReplyAt,
+  rateFromTranscript,
+  rememberReply,
+  transcriptPath,
+} from './memory'
 import { GIT_DIRS_ARGV, GIT_STATUS_ARGV, homeRelative, parseGitState, splitPath } from './workspace'
 import type { Workspace } from './workspace'
 
@@ -55,12 +69,76 @@ let autoCompact: { at: number } | 'off' | undefined
  *  between redraws, never while drawing, since git takes a process. */
 let workspace: Workspace | undefined
 
+/** What the band recalls of a conversation it has seen no reply of yet: when
+ *  its last reply was, and the rate a token costs on its model, if known. */
+let recall: Readonly<{ lastAt: number; rate: number | null }> | undefined
+
+/** The cache's time left: measured once there is a reply, else recalled. */
+const cacheLeft = (now: number): number =>
+  cache.requests === 0 && recall !== undefined ? Math.max(0, recall.lastAt + TTL_MS[cache.ttl] - now) : msLeft(now)
+
+/** A transcript's end, where its last reply and cost record are: its last
+ *  megabyte by `tail`, whatever its size; failing that, the whole file if it
+ *  is small enough to read. */
+const transcriptEnd = async ($: EngineInterface, path: string): Promise<string | undefined> => {
+  const tail = await $.process
+    .run(['tail', '-c', String(TAIL_BYTES), path], { timeoutMs: PROCESS_TIMEOUT_MS })
+    .catch(() => undefined)
+  if (tail?.exitCode === 0) return tail.stdout
+  const stat = await $.fs.stat(path).catch(() => undefined)
+  if (stat === undefined || stat.size > READ_LIMIT) return undefined
+  const text = await $.fs.read(path).catch(() => undefined)
+  return typeof text === 'string' ? text : undefined
+}
+
+/** Recalls when this session last had a reply, and what a token costs on
+ *  its model: the band's own memory first; for a session from before the
+ *  band, its transcript's last reply and cost record, if it is small enough
+ *  to read. Read once at load, and only those two facts kept. Never throws:
+ *  unknown stays unknown. */
+const recallLastReply = async ($: EngineInterface): Promise<void> => {
+  try {
+    const id = await $.session.id()
+    const model = await $.session.model()
+    let lastAt = asSessions(await $.store.get(SESSIONS_KEY))[id]?.lastAt
+    let rate = asRates(await $.store.get(RATES_KEY))[model] ?? null
+    if (lastAt === undefined || rate === null) {
+      const home = await $.env.get('HOME')
+      const transcript = home ? await transcriptEnd($, transcriptPath(home, await $.session.root(), id)) : undefined
+      if (transcript !== undefined) {
+        lastAt ??= lastReplyAt(transcript)
+        rate ??= rateFromTranscript(transcript, model)
+      }
+    }
+    if (lastAt !== undefined) recall = { lastAt, rate }
+  } catch {
+    // nothing to recall
+  }
+}
+
+/** Remembers this session's last reply and the rate its bill solves to, for
+ *  when it is reopened or the band reloads. */
+const rememberTurn = async ($: EngineInterface, costNow: number | undefined): Promise<void> => {
+  if (cache.requests === 0) return
+  try {
+    const id = await $.session.id()
+    await $.store.set(SESSIONS_KEY, rememberReply(asSessions(await $.store.get(SESSIONS_KEY)), id, cache.lastAt))
+    const rate = ratePerToken(costNow)
+    if (rate !== null) await $.store.set(RATES_KEY, { ...asRates(await $.store.get(RATES_KEY)), [await $.session.model()]: rate })
+  } catch {
+    // memory is a convenience; the band works without it
+  }
+}
+
+/** How much of a transcript's end to read: room for a long last reply. */
+const TAIL_BYTES = 1024 * 1024
+
 /** Reads begun, so one that ends after a newer one never overwrites it. */
 let reads = 0
 
-/** Long enough for a large repository's status, short enough that a hung
- *  git never holds a read open for long. */
-const GIT_TIMEOUT_MS = 3000
+/** Long enough for a large repository's status or a transcript's tail,
+ *  short enough that a hung command never holds a read open for long. */
+const PROCESS_TIMEOUT_MS = 3000
 
 /** Reads the project and git into `workspace`, then redraws. It never throws:
  *  outside a repository, or with git missing or slow, the band shows the
@@ -71,7 +149,7 @@ const readWorkspace = async ($: EngineInterface): Promise<void> => {
     const root = await $.session.root()
     const home = await $.env.get('HOME')
     const run = (argv: readonly string[]): Promise<string | undefined> =>
-      $.process.run(argv, { cwd: root, timeoutMs: GIT_TIMEOUT_MS }).then(
+      $.process.run(argv, { cwd: root, timeoutMs: PROCESS_TIMEOUT_MS }).then(
         r => (r.exitCode === 0 ? r.stdout : undefined),
         () => undefined,
       )
@@ -123,8 +201,11 @@ export const register: Register = on => {
     lastPaintKey = ''
     workspace = undefined
     reads++ // any read still out began before this load
+    recall = undefined
     noteLoad(await ledgerUsd($).catch(() => undefined))
     void readWorkspace($)
+    // Loaded mid-conversation, the band has seen no reply: recall the last.
+    if (!cache.knownFresh) await recallLastReply($)
 
     palette = resolvePalette((await $.env.get('CC_BAND_APPEARANCE'))?.toLowerCase(), await $.env.get('NO_COLOR'))
     const pinned = resolveTtl({
@@ -141,7 +222,7 @@ export const register: Register = on => {
     tick = $.clock.every(1000, () => {
       void (async () => {
         const now = await $.clock.now()
-        const left = msLeft(now)
+        const left = cacheLeft(now)
         const eta = fiveHourEtaMs(now)
         const key = `${Math.floor(now / 60_000)}|${fmtCountdown(left)}|${left > 0}|${eta === null ? '-' : fmtEta(eta)}`
         if (key !== lastPaintKey) {
@@ -167,6 +248,8 @@ export const register: Register = on => {
     resetConversationInsights()
     warned.delete('context')
     lastPaintKey = ''
+    // The new conversation starts here: nothing from before stands for it.
+    recall = undefined
     // A resume may be another project.
     void readWorkspace($)
     $.ui.invalidate('ui.render')
@@ -184,7 +267,9 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId === undefined) {
-      noteTurnEnd(e.turnId, await ledgerUsd($))
+      const cost = await ledgerUsd($)
+      noteTurnEnd(e.turnId, cost)
+      void rememberTurn($, cost)
       // A turn may have switched branch, committed or moved the session.
       void readWorkspace($)
       $.ui.invalidate('ui.render')
@@ -301,6 +386,10 @@ export const register: Register = on => {
     const five = usage.rateLimits.find(l => l.kind === FIVE_HOUR)
     const seven = usage.rateLimits.find(l => l.kind === SEVEN_DAY)
     if (usage.cost !== undefined) noteLedger(usage.cost.usd)
+    // Before this conversation's first reply, what the band recalls stands in.
+    const recalled = cache.requests === 0 && !cache.knownFresh && recall !== undefined
+    const contextTokens =
+      usage.context.tokens ?? (usage.context.percent === undefined ? 0 : (usage.context.percent / 100) * usage.context.window)
 
     return drawBand(
       $.ui.resolve(e),
@@ -314,13 +403,16 @@ export const register: Register = on => {
         now,
         cache: {
           requests: cache.requests,
-          msLeft: msLeft(now),
+          msLeft: cacheLeft(now),
           ttl: cache.ttl,
           ttlPinned: cache.ttlPinned,
-          window: cache.window,
+          window: recalled ? contextTokens : cache.window,
           hitRatio: hitRatio(),
           misses: cache.misses,
-          reWarmUsd: reWarmUsd(usage.cost?.usd),
+          // Recalled, a cold cache rebuilds the context as it stands now.
+          reWarmUsd: recalled ? (recall?.rate == null ? null : reWarmAt(recall.rate, contextTokens)) : reWarmUsd(usage.cost?.usd),
+          recalled,
+          idleMs: recalled && recall !== undefined ? now - recall.lastAt : null,
           savedUsd: savedUsd(usage.cost?.usd),
           fresh: cache.knownFresh,
           tokens: { sent: cache.uncached + cache.written, back: cache.output, cached: cache.read },

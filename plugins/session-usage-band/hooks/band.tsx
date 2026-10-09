@@ -12,6 +12,7 @@ import {
   fmtCost,
   fmtCountdown,
   fmtEstimate,
+  fmtAgo,
   fmtEta,
   fmtSmallCost,
   fmtTokens,
@@ -49,6 +50,11 @@ export type BandSnapshot = Readonly<{
     /** The conversation is known to start here; else, before its first
      *  reply, the band has not measured the cache yet. */
     fresh: boolean
+    /** Before the first reply the band saw, the cache is as recalled: from
+     *  the session's last reply, remembered or read off its transcript. */
+    recalled: boolean
+    /** How long since that recalled reply. */
+    idleMs: number | null
     /** Every token since the conversation began, subagents included. */
     tokens: Readonly<{ sent: number; back: number; cached: number }>
   }>
@@ -331,7 +337,7 @@ const LIMITS: Readonly<Record<LimitKey, LimitSpec>> = {
 type CacheMood = 'unmeasured' | 'warming' | 'warm' | 'expiring' | 'cold'
 
 const cacheMood = (c: BandSnapshot['cache']): CacheMood =>
-  c.requests === 0
+  c.requests === 0 && !c.recalled
     ? c.fresh
       ? 'warming'
       : 'unmeasured'
@@ -861,6 +867,8 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   }
 
   const measured = c.requests > 0
+  // Measured, or recalled from the session's last reply: time and price known.
+  const known = measured || c.recalled
   const cacheView = card(
     'cache',
     'Cache',
@@ -877,11 +885,12 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
                 : `${fmtCountdown(c.msLeft)} left`,
       tone: cacheTone,
     },
-    measured ? meter('cache', charge, cacheTone, palette.warm, cardBar, true) : null,
+    known ? meter('cache', charge, cacheTone, palette.warm, cardBar, true) : null,
     [
       mood === 'unmeasured' ? note("Countdown starts with Claude's next reply.") : null,
       mood === 'warming' ? note('First message builds the cache.') : null,
-      measured ? factRow(mood === 'cold' ? 'next message' : 're-warm if cold', estimate) : null,
+      known ? factRow(mood === 'cold' ? 'next message' : 're-warm if cold', estimate) : null,
+      c.recalled && c.idleMs !== null ? factRow('idle for', fmtAgo(c.idleMs)) : null,
       c.misses > 0 ? factRow('unexpected rebuilds', String(c.misses)) : null,
       measured && c.savedUsd !== null ? factRow('saved by cache', fmtEstimate(c.savedUsd)) : null,
       measured && c.hitRatio !== null ? factRow('hit rate', `${Math.round(c.hitRatio * 100)}%`) : null,

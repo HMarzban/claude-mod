@@ -23,8 +23,15 @@ it:
   program a repository's own config names, and `--no-optional-locks` keeps
   it from taking the index lock. The plugin runs no other command, though
   git itself still honours the rest of your git configuration.
+- **Reads**, once when a session it has no memory of is reopened, that
+  session's own transcript in `~/.claude/projects/`, if it is under 4 MB.
+  It keeps two facts from it: when the last reply was, and the cost record's
+  dollars and token counts for the current model, to price a token. Nothing
+  else in the transcript is kept, shown or sent.
 - **Writes** two values to the session's own state: whether the band is
-  hidden, and whether it's expanded.
+  hidden, and whether it's expanded. In the plugin's own store it keeps,
+  across sessions, the time of each session's last reply (the newest 50) and
+  the price per token it solved for each model.
 - **Never** writes files, calls a model, or sends anything anywhere.
 
 `claude plugin validate plugins/session-usage-band` lists every read and

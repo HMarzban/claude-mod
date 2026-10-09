@@ -5,6 +5,21 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.11.0] - 2026-10-09
+
+### Added
+- A reopened session, or the band reloaded mid-session, knows its cache
+  before the first reply: `cache cold · next message ~$2.34` once the cache
+  has expired, or the countdown from the last reply while it is warm. The
+  Cache card adds how long the session has been idle.
+- To know it, the band remembers each session's last reply and the price
+  per token it solves for each model. For a session from before the band,
+  it reads the transcript once, if it is under 4 MB: the last reply's time
+  and the cost record's dollars and tokens. It never trusts the file's time,
+  since Claude Code writes to a transcript each time it opens a session.
+- With no price known for the model, it names the tokens the next message
+  rebuilds, never a guessed dollar figure.
+
 ## [0.10.4] - 2026-10-08
 
 ### Changed

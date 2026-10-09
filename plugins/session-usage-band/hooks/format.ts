@@ -78,3 +78,14 @@ export const clipMiddle = (text: string, max: number): string => {
   const head = Math.ceil((max - 1) / 2)
   return `${chars.slice(0, head).join('')}…${chars.slice(chars.length - (max - 1 - head)).join('')}`
 }
+
+/** How long ago, coarsely: `2d 4h`, `3h 05m`, `12m`; under a minute is `now`. */
+export const fmtAgo = (ms: number): string => {
+  const mins = Math.floor(Math.max(0, ms) / 60_000)
+  if (mins < 1) return 'now'
+  const hours = Math.floor(mins / 60)
+  const days = Math.floor(hours / 24)
+  if (days) return `${days}d ${hours % 24}h`
+  if (hours) return `${hours}h ${String(mins % 60).padStart(2, '0')}m`
+  return `${mins}m`
+}

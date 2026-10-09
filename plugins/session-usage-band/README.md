@@ -95,6 +95,23 @@ would mean burning tokens to avoid burning tokens.
 A compaction or a model switch rebuilds the cache on purpose, so neither
 counts as an unexpected rebuild.
 
+## Reopening an old session
+
+A session the band hasn't seen a reply in yet, because you reopened it or
+the band reloaded, still says what the cache is doing. It recalls when the
+session's last reply was and what a token costs on its model:
+
+- from its own memory, which keeps each session's last reply (the newest 50)
+  and the price per token it solved for each model
+- for a session from before the band, from that session's transcript, read
+  once if it is under 4 MB: the last reply's time and the cost record's
+  dollars and tokens
+
+Past the cache's lifetime it shows `cache cold · next message ~$2.34`, the
+cost of writing the whole context to the cache again. Within it, the
+countdown runs from the last reply. With no price known for the model yet,
+it names the tokens instead. With nothing to recall, it stays at `cache –`.
+
 ## What a cold cache costs
 
 No pricing table is reachable from a mod, so the rate is solved from the

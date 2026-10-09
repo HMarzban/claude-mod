@@ -188,10 +188,14 @@ const OUTPUT_MULT = 5
  *  It self-calibrates to whatever model and plan are in force, and it is an
  *  estimate on top of an estimate (the session cost is itself computed at list
  *  price), so it is always shown with a "~". Call noteLedger first. */
-const ratePerToken = (sessionCost: number | undefined): number | null => {
+/** Tokens weighted by their price relative to base input: the one unknown
+ *  left is the base rate itself. */
+export const weightedTokens = (t: Readonly<{ uncached: number; written: number; read: number; output: number }>): number =>
+  t.uncached + WRITE_MULT * t.written + READ_MULT * t.read + OUTPUT_MULT * t.output
+
+export const ratePerToken = (sessionCost: number | undefined): number | null => {
   if (!sessionCost || sessionCost <= 0) return null
-  const weighted =
-    state.uncached + WRITE_MULT * state.written + READ_MULT * state.read + OUTPUT_MULT * state.output
+  const weighted = weightedTokens(state)
   if (weighted <= 0) return null
   const billed = sessionCost - state.costBase
   if (billed <= 0) return null
@@ -199,9 +203,12 @@ const ratePerToken = (sessionCost: number | undefined): number | null => {
   return Number.isFinite(rate) && rate > 0 ? rate : null
 }
 
+/** What writing `tokens` to the cache costs at a base `rate` per token. */
+export const reWarmAt = (rate: number, tokens: number): number => rate * WRITE_MULT * tokens
+
 export const reWarmUsd = (sessionCost: number | undefined): number | null => {
   const rate = ratePerToken(sessionCost)
-  return rate === null ? null : rate * WRITE_MULT * state.window
+  return rate === null ? null : reWarmAt(rate, state.window)
 }
 
 /** What reading from the cache saved against paying full input price for
