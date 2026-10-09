@@ -3,6 +3,7 @@
 import { test, expect } from 'claude-code/testing'
 import { DARK } from '../hooks/palette'
 import {
+  LONG,
   START,
   resp,
   respond,
@@ -52,7 +53,7 @@ test('the rightmost visible pill anchors right when narrower widths drop pills',
   await ui.unmount()
 })
 
-test('a cold cache explains what the next message rebuilds', async ($, on) => {
+test('a cold cache explains what the next message rebuilds', LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))

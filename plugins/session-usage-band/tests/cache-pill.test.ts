@@ -3,6 +3,7 @@
 import { test, expect } from 'claude-code/testing'
 import { DARK } from '../hooks/palette'
 import {
+  LONG,
   USAGE,
   FRESH,
   START,
@@ -33,7 +34,7 @@ test('before the first response the band says warming rather than a false zero',
   await ui.unmount()
 })
 
-test('the countdown is still while warm, then names the stakes in its last minute', async ($, on) => {
+test('the countdown is still while warm, then names the stakes in its last minute', LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(2_000, 0, 180_000, 5_000))
@@ -55,7 +56,7 @@ test('the countdown is still while warm, then names the stakes in its last minut
   await ui.unmount()
 })
 
-test('a cold cache is neutral, never amber or red', async ($, on) => {
+test('a cold cache is neutral, never amber or red', LONG, async ($, on) => {
   const clock = setup(on, { env: { CLAUDE_CODE_PROMPT_CACHE_TTL: '5m' } })
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(2_000, 0, 180_000, 5_000))
@@ -69,7 +70,7 @@ test('a cold cache is neutral, never amber or red', async ($, on) => {
   await ui.unmount()
 })
 
-test("while a turn runs, 'cache warm' replaces the calm countdown", async ($, on) => {
+test("while a turn runs, 'cache warm' replaces the calm countdown", LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(2_000, 0, 180_000, 5_000))
@@ -83,7 +84,7 @@ test("while a turn runs, 'cache warm' replaces the calm countdown", async ($, on
   await ui.unmount()
 })
 
-test('the re-warm estimate appears only where it is actionable', async ($, on) => {
+test('the re-warm estimate appears only where it is actionable', LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
@@ -97,7 +98,7 @@ test('the re-warm estimate appears only where it is actionable', async ($, on) =
   await ui.unmount()
 })
 
-test('a narrow band shortens the wording but keeps the money', async ($, on) => {
+test('a narrow band shortens the wording but keeps the money', LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
@@ -110,7 +111,7 @@ test('a narrow band shortens the wording but keeps the money', async ($, on) => 
   await ui.unmount()
 })
 
-test('with nothing billed yet the cold pill names the tokens instead', async ($, on) => {
+test('with nothing billed yet the cold pill names the tokens instead', LONG, async ($, on) => {
   const clock = setup(on, { usage: { ...USAGE, cost: { usd: 0 } } })
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
@@ -122,7 +123,7 @@ test('with nothing billed yet the cold pill names the tokens instead', async ($,
   await ui.unmount()
 })
 
-test('the cache pill is a battery that drains with the hour', async ($, on) => {
+test('the cache pill is a battery that drains with the hour', LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
@@ -146,7 +147,7 @@ test('the cache pill is a battery that drains with the hour', async ($, on) => {
   await ui.unmount()
 })
 
-test('in its last minute the battery turns amber', async ($, on) => {
+test('in its last minute the battery turns amber', LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
@@ -159,7 +160,7 @@ test('in its last minute the battery turns amber', async ($, on) => {
   await ui.unmount()
 })
 
-test('on desktop the cache pill is a rounded pill with a draining battery icon', async ($, on) => {
+test('on desktop the cache pill is a rounded pill with a draining battery icon', LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start({ ...START, surface: 'desktop' })
   await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
@@ -191,7 +192,7 @@ test('on desktop the cache pill is a rounded pill with a draining battery icon',
 })
 
 
-test('the cache lifetime runs from when the request was sent, not when its reply ended', async ($, on) => {
+test('the cache lifetime runs from when the request was sent, not when its reply ended', LONG, async ($, on) => {
   const clock = setup(on, { usage: { ...USAGE, cost: { usd: 0 } } })
   await $.session.start(START)
   let open: () => void = () => undefined

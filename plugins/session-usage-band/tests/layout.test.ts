@@ -3,6 +3,7 @@
 import { test, expect } from 'claude-code/testing'
 import { DARK } from '../hooks/palette'
 import {
+  LONG,
   USAGE,
   START,
   MIN,
@@ -87,7 +88,7 @@ test('cost, tokens and context drop their labels; the expanded line keeps last $
   await ui.unmount()
 })
 
-test('a 30-column band fits one row with cache and cost', async ($, on) => {
+test('a 30-column band fits one row with cache and cost', LONG, async ($, on) => {
   setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
@@ -167,7 +168,7 @@ for (const cols of [60, 70]) {
   })
 }
 
-test('as the band narrows, pieces give way in the agreed order', async ($, on) => {
+test('as the band narrows, pieces give way in the agreed order', LONG, async ($, on) => {
   setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
@@ -218,7 +219,7 @@ test('the tokens chip is the first to give way on a narrower band', async ($, on
 })
 
 
-test('a window whose reset has passed gives way like a calm one', async ($, on) => {
+test('a window whose reset has passed gives way like a calm one', LONG, async ($, on) => {
   const clock = setup(on, { usage: { ...USAGE, rateLimits: [{ kind: 'five_hour', percentUsed: 92, resetsAt: new Date(HOUR).toISOString() }] } })
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))

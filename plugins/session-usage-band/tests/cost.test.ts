@@ -2,6 +2,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import {
+  LONG,
   USAGE,
   START,
   MIN,
@@ -57,7 +58,7 @@ test('/clear starts the band on a fresh conversation', async ($, on) => {
   await ui.unmount()
 })
 
-test('spend before a /clear does not inflate the re-warm estimate', async ($, on) => {
+test('spend before a /clear does not inflate the re-warm estimate', LONG, async ($, on) => {
   const clock = setup(on) // ledger at $2.41 when /clear runs
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
@@ -74,7 +75,7 @@ test('spend before a /clear does not inflate the re-warm estimate', async ($, on
   await ui.unmount()
 })
 
-test('a ledger the engine reset on /clear is used as it stands', async ($, on) => {
+test('a ledger the engine reset on /clear is used as it stands', LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
@@ -89,7 +90,7 @@ test('a ledger the engine reset on /clear is used as it stands', async ($, on) =
   await ui.unmount()
 })
 
-test('a ledger reset on /clear keeps the re-warm price right after the new conversation outspends the old', async ($, on) => {
+test('a ledger reset on /clear keeps the re-warm price right after the new conversation outspends the old', LONG, async ($, on) => {
   const clock = setup(on) // $2.41 when /clear runs
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
@@ -107,7 +108,7 @@ test('a ledger reset on /clear keeps the re-warm price right after the new conve
   await ui.unmount()
 })
 
-test('a session resumed or reloaded with spend on the ledger prices the re-warm from spend since', async ($, on) => {
+test('a session resumed or reloaded with spend on the ledger prices the re-warm from spend since', LONG, async ($, on) => {
   const clock = setup(on, { usage: { ...USAGE, cost: { usd: 20 } } }) // the ledger carries an earlier run's $20
   await $.session.start(START)
   await $.turn.start({ text: 'hi', turnId: 't1' })

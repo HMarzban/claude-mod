@@ -81,7 +81,9 @@ Run `/reload-plugins` in your session afterwards.
 - **Test first.** Write the failing test, watch it fail, then make it pass.
 - **Settle on the clock.** Work a hook starts without awaiting finishes
   under the mocked clock: `await clock.settle()`, never a spin of
-  microtasks.
+  microtasks. A test that walks the clock through many minutes takes the
+  `LONG` budget from `helpers.ts`: the band ticks every second, and CI
+  runners are several times slower than a laptop.
 
 ## Commits
 

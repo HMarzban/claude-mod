@@ -5,6 +5,14 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.11.7] - 2026-10-09
+
+### Fixed
+- Inside, not on screen: CI passes. The tests that walk the clock through
+  an hour (3,600 of the band's one-second ticks) take a 30-second budget,
+  since a shared runner outran the default 5 seconds where a laptop takes
+  under 2. CI runs on the current checkout and setup-node actions.
+
 ## [0.11.6] - 2026-10-09
 
 ### Fixed

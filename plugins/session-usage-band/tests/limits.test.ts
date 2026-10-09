@@ -3,6 +3,7 @@
 import { test, expect } from 'claude-code/testing'
 import { DARK } from '../hooks/palette'
 import {
+  LONG,
   USAGE,
   START,
   MIN,
@@ -84,7 +85,7 @@ test('the 7d chip turns amber at 80%', async ($, on) => {
   await ui.unmount()
 })
 
-test('the 5h pill shows your pace once there is enough evidence, and drops it when stale', async ($, on) => {
+test('the 5h pill shows your pace once there is enough evidence, and drops it when stale', LONG, async ($, on) => {
   const resetsAt = new Date(3 * 3600_000).toISOString()
   const at = (pct: number) => ({ ...USAGE, rateLimits: [{ kind: 'five_hour', percentUsed: pct, resetsAt }] })
   const clock = setup(on, { usage: at(40) })
@@ -108,7 +109,7 @@ test('the 5h pill shows your pace once there is enough evidence, and drops it wh
   await ui.unmount()
 })
 
-test('reset countdowns keep moving while the cache is cold', async ($, on) => {
+test('reset countdowns keep moving while the cache is cold', LONG, async ($, on) => {
   const clock = setup(on) // 5h resets at 3h
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
@@ -121,7 +122,7 @@ test('reset countdowns keep moving while the cache is cold', async ($, on) => {
   await ui.unmount()
 })
 
-test('a window past its reset shows as reset, not as stale usage', async ($, on) => {
+test('a window past its reset shows as reset, not as stale usage', LONG, async ($, on) => {
   const clock = setup(on, { usage: { ...USAGE, rateLimits: [{ kind: 'five_hour', percentUsed: 92, resetsAt: new Date(HOUR).toISOString() }] } })
   await $.session.start(START)
   await clock.advance(2 * HOUR)
@@ -136,7 +137,7 @@ test('a window past its reset shows as reset, not as stale usage', async ($, on)
   await ui.unmount()
 })
 
-test('/clear keeps the 5h pace and does not repeat its toast', async ($, on) => {
+test('/clear keeps the 5h pace and does not repeat its toast', LONG, async ($, on) => {
   const resetsAt = new Date(3 * 3600_000).toISOString()
   const at = (pct: number) => ({ ...USAGE, rateLimits: [{ kind: 'five_hour', percentUsed: pct, resetsAt }] })
   const clock = setup(on, { usage: at(80) })

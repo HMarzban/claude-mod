@@ -3,6 +3,7 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import {
+  LONG,
   USAGE,
   SUMMARY,
   START,
@@ -21,7 +22,7 @@ import {
   mountBand,
 } from './helpers'
 
-test('an assumed hour is corrected to 5m when a gap past 5m rebuilt the cache', async ($, on) => {
+test('an assumed hour is corrected to 5m when a gap past 5m rebuilt the cache', LONG, async ($, on) => {
   const clock = setup(on, { env: {} })
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
@@ -64,7 +65,7 @@ test('a warm follow-up to a long answer is not a rebuild', async ($, on) => {
   await ui.unmount()
 })
 
-test("a subagent's steps leave the main countdown and window alone", async ($, on) => {
+test("a subagent's steps leave the main countdown and window alone", LONG, async ($, on) => {
   const clock = setup(on, { usage: { ...USAGE, cost: { usd: 0 } } }) // no ledger: the pill names the window in tokens
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(2_000, 0, 150_000, 1_000))
@@ -79,7 +80,7 @@ test("a subagent's steps leave the main countdown and window alone", async ($, o
   await ui.unmount()
 })
 
-test("a subagent's tokens still count toward the rate the re-warm is solved from", async ($, on) => {
+test("a subagent's tokens still count toward the rate the re-warm is solved from", LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
@@ -93,7 +94,7 @@ test("a subagent's tokens still count toward the rate the re-warm is solved from
   await ui.unmount()
 })
 
-test("the re-warm estimate is solved from every response's tokens", async ($, on) => {
+test("the re-warm estimate is solved from every response's tokens", LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
@@ -123,7 +124,7 @@ test('a compaction is an expected rebuild', async ($, on) => {
   await ui.unmount()
 })
 
-test('after a compaction the cold price is for the compacted size', async ($, on) => {
+test('after a compaction the cold price is for the compacted size', LONG, async ($, on) => {
   const clock = setup(on, { usage: { ...USAGE, cost: { usd: 0 } } }) // no ledger: the pill names tokens
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(2_000, 0, 150_000, 1_000))

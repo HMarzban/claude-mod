@@ -5,6 +5,7 @@ import { test, expect } from 'claude-code/testing'
 import { contextUsed } from '../hooks/format'
 import { DARK } from '../hooks/palette'
 import {
+  LONG,
   START,
   byKey,
   cardOf,
@@ -22,7 +23,7 @@ import {
   mountBand,
 } from './helpers'
 
-test("the Limits card says the 5h chip's pace in the chip's own words, and in its colour", async ($, on) => {
+test("the Limits card says the 5h chip's pace in the chip's own words, and in its colour", LONG, async ($, on) => {
   const clock = setup(on)
   await pacing($, clock)
   const ui = await mountBand($, 'terminal', 160)
