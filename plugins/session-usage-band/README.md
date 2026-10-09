@@ -191,7 +191,7 @@ To remove the guess, set one of:
 
 ## Install
 
-From a clone of the repository:
+Clone the repository, then, from the folder that holds the clone:
 
 ```bash
 claude plugin marketplace add ./claude-mod
@@ -199,7 +199,7 @@ claude plugin install session-usage-band@hossein-mods
 ```
 
 It needs Claude Code with mods (function-hooks plugins), and was tested on
-2.1.291. It draws in the terminal and the desktop app's Code tab, which are
+2.1.295 in the terminal and the desktop app's bundled 2.1.289. It draws in the terminal and the desktop app's Code tab, which are
 the surfaces with a band above the prompt. WSL sessions don't load plugins.
 The [repository README](../../README.md) covers updating and uninstalling.
 
@@ -208,7 +208,7 @@ The [repository README](../../README.md) covers updating and uninstalling.
 ```bash
 claude plugin validate plugins/session-usage-band
 claude plugin test plugins/session-usage-band
-npx -p typescript@5 tsc -p plugins/session-usage-band
+npx -y -p typescript@5 tsc -p plugins/session-usage-band
 ```
 
 [CONTRIBUTING.md](../../CONTRIBUTING.md) has the full loop and the rules the
@@ -216,5 +216,6 @@ code follows.
 
 Only `hooks/register.tsx` touches the engine (`$`). It reads a snapshot for
 `hooks/band.tsx`, a pure drawing function. The cache model, insights,
-memory, formatting, workspace and palettes are plain modules, tested
-through the band and, where they parse or format, directly.
+memory, formatting, workspace and palettes are plain modules. The tests
+drive the band through the engine's test kit, and test the plain modules
+directly.

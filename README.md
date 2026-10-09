@@ -25,13 +25,13 @@ for how to read it.
 ## Requirements
 
 - Claude Code with mods (function-hooks plugins). Tested on Claude Code
-  2.1.291.
+  2.1.295 in the terminal, and on the desktop app with its bundled 2.1.289.
 - The terminal or the desktop app's Code tab. Those are the surfaces that
   draw a band above the prompt.
 
 ## Install
 
-From a clone of this repository:
+Clone this repository, then, from the folder that holds the clone:
 
 ```bash
 claude plugin marketplace add ./claude-mod

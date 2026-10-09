@@ -5,6 +5,15 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.11.5] - 2026-10-09
+
+### Changed
+- Documentation only, ready for the repository to go public: the READMEs
+  name the versions the band was tested on (Claude Code 2.1.295, and the
+  desktop app's bundled 2.1.289) and how to install from a clone;
+  CONTRIBUTING describes the test helpers and the clock rule; the bug
+  report form asks for current versions.
+
 ## [0.11.4] - 2026-10-09
 
 ### Fixed

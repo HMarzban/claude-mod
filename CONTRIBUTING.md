@@ -16,7 +16,7 @@ claude plugin validate plugins/session-usage-band
 claude plugin test plugins/session-usage-band
 
 # Type-check (after the engine has laid the types, see below)
-npx -p typescript@5 tsc -p plugins/session-usage-band
+npx -y -p typescript@5 tsc -p plugins/session-usage-band
 ```
 
 The type check reads the engine's API types from
@@ -56,7 +56,7 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/workspace.ts` | The workspace strip's git state and path, parsed from git's output. |
 | `hooks/memory.ts` | What the band remembers across sessions, and what it reads off a transcript's end. |
 | `types/index.d.ts` | The plugin's state contract. |
-| `tests/` | Tests, one file per area, with shared helpers in `helpers.ts`. |
+| `tests/` | Tests, one file per area, with shared helpers in `helpers.ts`: `setup()` starts a test from a fresh engine, `mountBand()` draws the band, `byKey()` finds a node. |
 
 ## Rules the code follows
 
@@ -79,6 +79,9 @@ Run `/reload-plugins` in your session afterwards.
   `!` / `!!`. Text meets WCAG AA contrast (4.5:1) and edges and tracks meet
   3:1, in every palette. The design tests check both, over every palette.
 - **Test first.** Write the failing test, watch it fail, then make it pass.
+- **Settle on the clock.** Work a hook starts without awaiting finishes
+  under the mocked clock: `await clock.settle()`, never a spin of
+  microtasks.
 
 ## Commits
 
