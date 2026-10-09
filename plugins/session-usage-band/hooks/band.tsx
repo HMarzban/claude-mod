@@ -9,6 +9,7 @@ import {
   WARN_AT,
   clamp01,
   clipMiddle,
+  contextUsed,
   fmtCost,
   fmtCountdown,
   fmtEstimate,
@@ -47,6 +48,8 @@ export type BandSnapshot = Readonly<{
     reWarmUsd: number | null
     /** What reading from the cache saved against full input price. */
     savedUsd: number | null
+    /** A cache read's price against input, on the model in force. */
+    readShare: number
     /** The conversation is known to start here; else, before its first
      *  reply, the band has not measured the cache yet. */
     fresh: boolean
@@ -477,14 +480,16 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   // ---- what the pills say, whatever the squeeze ----------------------------
   const mood = cacheMood(c)
   const estimate = c.reWarmUsd !== null ? fmtEstimate(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`
+  // What a warm read costs against input on the model in force: 5% on Opus 5.5.
+  const readPct = `${+(c.readShare * 100).toFixed(1)}%`
   const cacheCard =
     mood === 'unmeasured'
       ? "Not measured since the band loaded; the countdown starts with Claude's next reply"
       : mood === 'warming'
-        ? 'Your first message builds the cache; after that it bills input at 10%'
+        ? `Your first message builds the cache; after that it bills input at ${readPct}`
         : mood === 'cold'
           ? `Cold: next message rebuilds ${fmtTokens(c.window)} tokens${c.reWarmUsd === null ? '' : ` (${fmtEstimate(c.reWarmUsd)})`}`
-          : `Warm cache bills input at 10%; expires ${c.ttl} after a reply`
+          : `Warm cache bills input at ${readPct}; expires ${c.ttl} after a reply`
   const cacheTone: Tone = mood === 'expiring' ? 'amber' : 'calm'
   // The battery's charge is the share of the TTL left; full while Claude works.
   const charge = mood === 'unmeasured' || mood === 'warming' || mood === 'cold' ? 0 : mood === 'warm' && snap.isWorking ? 1 : c.msLeft / TTL_MS[c.ttl]
@@ -510,7 +515,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
 
   const ctx = snap.context
   const hasContext = ctx.percent !== undefined || ctx.tokens !== undefined
-  const ctxUsed = ctx.tokens ?? ((ctx.percent ?? 0) / 100) * ctx.window
+  const ctxUsed = contextUsed(ctx) ?? 0
   // Compaction is where the room runs out, so with it known the bar measures
   // toward it: full means compacting, and no tick is needed to show where.
   const ctxFrac = clamp01(ctxUsed / (ctx.compactAt ?? ctx.window))
@@ -645,6 +650,11 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   // A window past its reset is calm: its last reading is from before it.
   const hasReset = (reading: LimitReading): boolean => resetIn(reading.resetsAt, snap.now)?.kind === 'passed'
 
+  /** A limit's tone, the one rule chip and card share: amber at WARN_AT, or
+   *  when a pace (`etaMs`) would fill it before it resets; calm once reset. */
+  const limitTone = (reading: LimitReading, etaMs: number | null = null): Tone =>
+    !hasReset(reading) && (clamp01(reading.percentUsed / 100) >= WARN_AT || etaMs !== null) ? 'amber' : 'calm'
+
   // ---- the row, at a given squeeze ---------------------------------------
   const buildPills = (squeeze: number): PillSpec[] => {
     const short = snap.columns < SHORT_BELOW || !keeps(squeeze, 'shortWording')
@@ -702,8 +712,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
 
     if (snap.fiveHour) {
       const eta = snap.fiveHour.etaMs
-      const tone: Tone =
-        !hasReset(snap.fiveHour) && (clamp01(snap.fiveHour.percentUsed / 100) >= WARN_AT || eta !== null) ? 'amber' : 'calm'
+      const tone = limitTone(snap.fiveHour, eta)
       if (tone === 'amber' || keeps(squeeze, LIMITS['5h'].calm)) {
         const pace = eta === null ? '' : short ? ` ${fmtEta(eta)}` : ` full in ${fmtEta(eta)}`
         pills.push(limitChip('5h', snap.fiveHour, pace, tone, squeeze))
@@ -711,7 +720,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     }
 
     if (snap.sevenDay) {
-      const tone: Tone = !hasReset(snap.sevenDay) && clamp01(snap.sevenDay.percentUsed / 100) >= WARN_AT ? 'amber' : 'calm'
+      const tone = limitTone(snap.sevenDay)
       if (tone === 'amber' || keeps(squeeze, LIMITS['7d'].calm)) pills.push(limitChip('7d', snap.sevenDay, '', tone, squeeze))
     }
     return pills
@@ -838,15 +847,28 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     if (total <= 0) return null
     if (Svg) {
       // Drawn wider than any card and capped by it, like a stretched meter.
+      // No clipPath, whose id would be page-wide: the end segments draw their
+      // own rounded ends, as paths, the inner ones square.
       const width = cardBar.px * 2
+      const R = 6
+      const shown = parts.filter(([n]) => n > 0)
       let x = 0
-      const rects = parts.map(([n, color]) => {
-        const w = (n / total) * width
-        const rect = `<rect x="${x.toFixed(1)}" y="1" width="${w.toFixed(1)}" height="6" fill="${color}"/>`
-        x += w
-        return rect
+      const segments = shown.map(([n, color], i) => {
+        const x0 = x
+        const x1 = x + (n / total) * width
+        x = x1
+        const f = (v: number) => v.toFixed(1)
+        const first = i === 0
+        const last = i === shown.length - 1
+        if (x1 - x0 < 2 * R || (!first && !last)) {
+          return `<rect x="${f(x0)}" y="1" width="${f(x1 - x0)}" height="6"${first && last ? ` rx="${R}" ry="3"` : ''} fill="${color}"/>`
+        }
+        if (first && last) return `<rect x="${f(x0)}" y="1" width="${f(x1 - x0)}" height="6" rx="${R}" ry="3" fill="${color}"/>`
+        return first
+          ? `<path d="M${f(x0 + R)} 1H${f(x1)}V7H${f(x0 + R)}A${R} 3 0 0 1 ${f(x0 + R)} 1Z" fill="${color}"/>`
+          : `<path d="M${f(x0)} 1H${f(x1 - R)}A${R} 3 0 0 1 ${f(x1 - R)} 7H${f(x0)}Z" fill="${color}"/>`
       })
-      const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="8" viewBox="0 0 ${width} 8" preserveAspectRatio="none"><clipPath id="band-split"><rect y="1" width="${width}" height="6" rx="6" ry="3"/></clipPath><g clip-path="url(#band-split)">${rects.join('')}</g></svg>`
+      const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="8" viewBox="0 0 ${width} 8" preserveAspectRatio="none">${segments.join('')}</svg>`
       return <Svg key="split" source={source} alt={label} height={8} />
     }
     const cells = cardBar.cells
@@ -931,33 +953,51 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       )
     : null
 
-  type Window = Readonly<{ name: string; reading: LimitReading; windowMs: number | undefined; accent: string }>
+  /** A window of the Limits card. `etaMs` is the measured pace the 5h chip
+   *  shows, when there is one; the card says the same. */
+  type Window = Readonly<{
+    name: string
+    reading: LimitReading
+    windowMs: number | undefined
+    accent: string
+    etaMs: number | null
+  }>
   const windows: Window[] = [
-    ...(snap.fiveHour ? [{ name: '5h', reading: snap.fiveHour, windowMs: LIMITS['5h'].windowMs, accent: palette.fiveAccent }] : []),
-    ...(snap.sevenDay ? [{ name: '7d', reading: snap.sevenDay, windowMs: LIMITS['7d'].windowMs, accent: palette.weekAccent }] : []),
+    ...(snap.fiveHour
+      ? [{ name: '5h', reading: snap.fiveHour, windowMs: LIMITS['5h'].windowMs, accent: palette.fiveAccent, etaMs: snap.fiveHour.etaMs }]
+      : []),
+    ...(snap.sevenDay ? [{ name: '7d', reading: snap.sevenDay, windowMs: LIMITS['7d'].windowMs, accent: palette.weekAccent, etaMs: null }] : []),
     ...snap.otherLimits.map(limit => ({
       name: limit.kind === 'spend_limit' ? 'spend' : limit.kind.replace(/_/g, ' '),
       reading: limit,
       windowMs: undefined,
       accent: palette.meterFill,
+      etaMs: null,
     })),
   ]
   const live = windows.filter(w => !hasReset(w.reading))
   const valueOf = (reading: LimitReading) => `${Math.round(reading.percentUsed)}%${severityMark(clamp01(reading.percentUsed / 100))}`
 
   /** One window: its name, bar and value on a line, then its reset and pace in words. */
-  const limitRows = ({ name, reading, windowMs, accent }: Window): readonly [RenderChildren, RenderChildren] => {
+  const limitRows = ({ name, reading, windowMs, accent, etaMs }: Window): readonly [RenderChildren, RenderChildren] => {
     const r = resetIn(reading.resetsAt, snap.now)
     if (r?.kind === 'passed') return [factRow(name, 'reset'), null]
     const frac = clamp01(reading.percentUsed / 100)
-    const tone: Tone = frac >= WARN_AT ? 'amber' : 'calm'
+    const tone = limitTone(reading, etaMs)
     const gone = windowGone(reading, windowMs)
     const value = valueOf(reading)
     const room = Math.max(4, inner - [...name].length - [...value].length - 2)
-    // The pace says where this rate ends the window; too early to say, it waits.
+    // A measured pace, as the chip says it; else where the window's average
+    // rate ends it. Too early to say, it waits.
     const projected = gone === undefined || gone < 0.05 ? undefined : reading.percentUsed / gone
     const pace =
-      projected === undefined ? '' : projected >= 100 ? ' · full before reset' : ` · on pace for ~${Math.round(projected)}%`
+      etaMs !== null
+        ? ` · full in ${fmtEta(etaMs)}`
+        : projected === undefined
+          ? ''
+          : projected >= 100
+            ? ' · full before reset'
+            : ` · on pace for ~${Math.round(projected)}%`
     return [
       <Box key={`fact:${name}`} flexDirection="row" columnGap={1}>
         <Text color={palette.label}>{name}</Text>
@@ -982,7 +1022,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
           'Limits',
           {
             text: worst === undefined ? 'all reset' : `${worst.name} ${valueOf(worst.reading)}`,
-            tone: worst !== undefined && clamp01(worst.reading.percentUsed / 100) >= WARN_AT ? 'amber' : 'calm',
+            tone: worst === undefined ? 'calm' : limitTone(worst.reading, worst.etaMs),
           },
           // Each window's bar is in its own row, so the card has none apart.
           null,

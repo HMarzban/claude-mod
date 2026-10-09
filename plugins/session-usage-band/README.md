@@ -84,7 +84,8 @@ amber at once, the end of the row is clipped rather than wrapped.
 ## The cache countdown
 
 Claude Code caches the conversation server-side. While the cache is warm,
-re-reading the conversation costs a tenth of the normal input price. It
+re-reading the conversation costs a tenth of the normal input price or
+less, depending on the model (a twentieth on Opus 5.5). It
 stays warm for a lifetime (5 minutes or an hour) counted from the last
 request. Go idle past that, and the next message rebuilds the whole
 conversation at the cache-write price.
@@ -152,7 +153,9 @@ A toast speaks where a chip turns amber:
 - context within 10% of auto-compaction, or at 80% and 95% when
   auto-compaction is off
 
-Each fires once per crossing.
+Each fires once per crossing. The 5h chip also turns amber when your pace
+would fill it before it resets; that has no toast, since the projection
+moves with every reading.
 
 ## Appearance
 
@@ -213,4 +216,5 @@ code follows.
 
 Only `hooks/register.tsx` touches the engine (`$`). It reads a snapshot for
 `hooks/band.tsx`, a pure drawing function. The cache model, insights,
-formatting and palettes are plain modules with unit-level tests.
+memory, formatting, workspace and palettes are plain modules, tested
+through the band and, where they parse or format, directly.

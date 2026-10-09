@@ -3,9 +3,9 @@
 Mods for [Claude Code](https://claude.com/claude-code): small plugins that
 draw inside Claude Code itself, written with its function-hooks API.
 
-| Plugin | What it does | Version |
-| --- | --- | --- |
-| [session-usage-band](plugins/session-usage-band/README.md) | A calm band above the prompt: prompt-cache countdown, cost, tokens, context and your 5-hour and weekly limits, with an expanded view of four cards. | 0.11.1 |
+| Plugin | What it does |
+| --- | --- |
+| [session-usage-band](plugins/session-usage-band/README.md) | A calm band above the prompt: prompt-cache countdown, cost, tokens, context and your 5-hour and weekly limits, with an expanded view of four cards. See its [changelog](plugins/session-usage-band/CHANGELOG.md) for the current version. |
 
 ## session-usage-band at a glance
 

@@ -199,6 +199,9 @@ export const notePriceModel = (model: string | undefined): void => {
   priceModel = model
 }
 
+/** A cache read's price against input, on the model in force. */
+export const readShare = (): number => readMultiplier(priceModel)
+
 /** Tokens weighted by their price against base input on `model`: the one
  *  unknown left is the base rate itself. */
 export const weightedTokens = (

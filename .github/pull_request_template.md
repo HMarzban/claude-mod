@@ -11,6 +11,6 @@
 - [ ] A test fails without this change and passes with it
 - [ ] `claude plugin validate plugins/session-usage-band` passes
 - [ ] `claude plugin test plugins/session-usage-band` passes
-- [ ] `tsc -p plugins/session-usage-band` passes
+- [ ] `tsc -p plugins/session-usage-band` passes locally (CI can't run it; see CONTRIBUTING.md)
 - [ ] `version` bumped in `plugin.json` and an entry added to `CHANGELOG.md`
 - [ ] The plugin README updated, if the band reads differently

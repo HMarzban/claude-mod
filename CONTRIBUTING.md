@@ -23,7 +23,9 @@ The type check reads the engine's API types from
 `plugins/session-usage-band/.claude-plugin/types/`. The engine writes them
 the first time it loads the plugin from its folder, for example with
 `claude --plugin-dir plugins/session-usage-band`. They're generated, so
-they're git-ignored.
+they're git-ignored. Neither `claude plugin test` nor `validate` writes
+them, and loading needs a signed-in session, so CI can't type-check: run it
+locally before you open a pull request.
 
 To see a change live, install the plugin from your clone (see the
 [README](README.md#install)). Then, after each edit:
@@ -44,7 +46,9 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/cache.ts` | The prompt-cache model: TTL, misses, re-warm and savings estimates. |
 | `hooks/insights.ts` | Last message cost and the 5-hour pace. |
 | `hooks/format.ts` | Numbers, times, thresholds and escalation marks. |
-| `hooks/palette.ts` | The dark, light and plain palettes. |
+| `hooks/palette.ts` | The dark, light and plain palettes, and the colours for the band's bare ground. |
+| `hooks/workspace.ts` | The workspace strip's git state and path, parsed from git's output. |
+| `hooks/memory.ts` | What the band remembers across sessions, and what it reads off a transcript's end. |
 | `types/index.d.ts` | The plugin's state contract. |
 | `tests/` | Tests, one file per area, with shared helpers in `helpers.ts`. |
 
@@ -57,13 +61,17 @@ Run `/reload-plugins` in your session afterwards.
   a gap there is a spacer `Box`. Text surfaces keep their spaces.
 - **Svg is desktop-only.** Other surfaces hold the element but draw
   nothing, so every Svg sits behind the `surface === 'desktop'` check.
-- **SVG ids are unique per drawing.** Svgs can share a page, and a repeated
-  id resolves to the first.
+- **No SVG names an id.** Svgs can share a page, where a repeated id
+  resolves to the first, so a drawing rounds its own ends rather than clip.
 - **A hover card has no key.** A keyed Box is its own hover scope, and a
   hidden one could never be hovered.
+- **A Button holds text alone.** It has no icon prop and no children but its
+  label, so a button's icon is a glyph.
+- **Atoms are declared in `register.tsx`.** They are the band's state in the
+  engine's store, and they belong with the hooks that read and write them.
 - **Colour is never the only signal.** Escalation also adds words or
   `!` / `!!`. Text meets WCAG AA contrast (4.5:1) and edges and tracks meet
-  3:1. The design tests check both.
+  3:1, in every palette. The design tests check both, over every palette.
 - **Test first.** Write the failing test, watch it fail, then make it pass.
 
 ## Commits

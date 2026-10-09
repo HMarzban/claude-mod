@@ -11,7 +11,10 @@ import {
   PLUGIN,
   PROJECT,
   START,
+  DARK_HOSTS,
+  LIGHT_HOSTS,
   base,
+  contrast,
   engine,
   props,
   settle,
@@ -207,16 +210,6 @@ test('a band too short for a strip row puts it in the footer, in place of the hi
   expect(shown(footerOf(tall))).toMatch(/Bring it back/)
 })
 
-/** WCAG 2.x contrast ratio of two hex colours. */
-const contrast = (a: string, b: string): number => {
-  const lum = (hex: string): number => {
-    const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
-    return 0.2126 * (r ?? 0) + 0.7152 * (g ?? 0) + 0.0722 * (b ?? 0)
-  }
-  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
-  return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05)
-}
-
 test("the strip has no ground of its own, so its text takes the host theme's colours", async ($, on) => {
   mock.clock(on, { now: 0 })
   mock.env(on, HOME)
@@ -235,14 +228,14 @@ test("the strip has no ground of its own, so its text takes the host theme's col
 })
 
 test('its icons, which need hex, hold 3:1 on dark and light grounds alike', () => {
-  for (const ground of ['#212121', '#1e1e1e', '#000000', '#ffffff', '#faf9f5', '#f0eee6', '#ededf2']) {
+  for (const ground of [...DARK_HOSTS, ...LIGHT_HOSTS, '#ededf2']) {
     expect(contrast(BARE.icon, ground)).toBeGreaterThanOrEqual(3)
     expect(contrast(BARE.branch, ground)).toBeGreaterThanOrEqual(3)
   }
 })
 
 test('the light palette label holds 4.5:1 on every light surface', () => {
-  for (const ground of ['#ffffff', LIGHT.surface, LIGHT.cardBg, '#f0eee6']) expect(contrast(LIGHT.label, ground)).toBeGreaterThanOrEqual(4.5)
+  for (const ground of [...LIGHT_HOSTS, LIGHT.surface, LIGHT.cardBg]) expect(contrast(LIGHT.label, ground)).toBeGreaterThanOrEqual(4.5)
 })
 
 test('a folder name too long for the line shortens, and the strip stays one row', async ($, on) => {

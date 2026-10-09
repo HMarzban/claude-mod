@@ -89,3 +89,8 @@ export const fmtAgo = (ms: number): string => {
   if (hours) return `${hours}h ${String(mins % 60).padStart(2, '0')}m`
   return `${mins}m`
 }
+
+/** The context in use: its token count, else its percent of the window;
+ *  undefined when the engine reports neither. */
+export const contextUsed = (ctx: Readonly<{ tokens?: number; percent?: number; window: number }>): number | undefined =>
+  ctx.tokens ?? (ctx.percent === undefined ? undefined : (ctx.percent / 100) * ctx.window)

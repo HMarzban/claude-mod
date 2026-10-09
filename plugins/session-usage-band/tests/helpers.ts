@@ -46,7 +46,11 @@ export const FRESH: SessionUsage = {
 
 /** What the engine reports right now; a test swaps `current` to move cost or
  *  limits, or sets `breakdownFails` to make the context breakdown read throw. */
-export const usage: { current: SessionUsage; breakdownFails: boolean } = { current: USAGE, breakdownFails: false }
+export const usage: { current: SessionUsage; breakdownFails: boolean; fails: boolean } = {
+  current: USAGE,
+  breakdownFails: false,
+  fails: false,
+}
 
 /** The size the engine reports for the conversation after a compaction. */
 export const COMPACTED_TO = 20_000
@@ -116,6 +120,7 @@ let nextUsage: ModelUsage | null = null
 export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Record<string, unknown>> = {}): void => {
   usage.current = initial
   usage.breakdownFails = false
+  usage.fails = false
   toasts.length = 0
   nextUsage = null
   engine.compact = { messages: SUMMARY, tokensAfter: COMPACTED_TO }
@@ -181,6 +186,7 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
   on('session.end', ($, e) => ({ sessionId: e.sessionId }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
   on('session.usage', ($, e) => {
+    if (usage.fails) throw new Error('usage unavailable')
     if (e.breakdown !== undefined && usage.breakdownFails) throw new Error('breakdown unavailable')
     return { value: usage.current }
   })
@@ -434,3 +440,20 @@ export const transcriptOf = (replyAt: number, modelUsage: Record<string, Record<
   ]
     .map(line => JSON.stringify(line))
     .join('\n') + '\n'
+
+/** WCAG 2.x contrast ratio of two hex colours. */
+export const contrast = (a: string, b: string): number => {
+  const lum = (hex: string): number => {
+    const [r, g, b] = [1, 3, 5]
+      .map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+    return 0.2126 * (r ?? 0) + 0.7152 * (g ?? 0) + 0.0722 * (b ?? 0)
+  }
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
+  return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05)
+}
+
+/** Grounds a host paints behind the band: the desktop's dark one as measured
+ *  from screenshots, common dark terminals, and light ones. */
+export const DARK_HOSTS = ['#212121', '#1e1e1e', '#000000'] as const
+export const LIGHT_HOSTS = ['#ffffff', '#faf9f5', '#f0eee6'] as const

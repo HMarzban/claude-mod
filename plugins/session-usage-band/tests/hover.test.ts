@@ -35,7 +35,7 @@ test('every pill explains itself on hover, inside its own hover scope', async ($
   }
   expect(found[0]?.[1].props?.left).toBe(0)
   expect(found[5]?.[1].props?.right).toBe(0) // the rightmost opens leftward
-  expect(textOf(found[0]?.[1])).toBe('Warm cache bills input at 10%; expires 1h after a reply')
+  expect(textOf(found[0]?.[1])).toBe('Warm cache bills input at 5%; expires 1h after a reply')
   expect(textOf(found[1]?.[1])).toBe('$0.41 spent during your last message, subagents included')
   expect(textOf(found[2]?.[1])).toBe('input 196k · output 12k · cache reads 0')
   expect(textOf(found[3]?.[1])).toBe('Conversation fill; near full, older turns get summarized')

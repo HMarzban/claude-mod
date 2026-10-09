@@ -20,11 +20,12 @@ import {
   resetCache,
   resetConversation,
   resolveTtl,
+  readShare,
   reWarmUsd,
   savedUsd,
   TTL_MS,
 } from './cache'
-import { COMPACT_NEAR, SEVERE_AT, WARN_AT, fmtCountdown, fmtEta, fmtTokens } from './format'
+import { COMPACT_NEAR, SEVERE_AT, WARN_AT, contextUsed, fmtCountdown, fmtEta, fmtTokens } from './format'
 import {
   fiveHourEtaMs,
   insights,
@@ -175,8 +176,10 @@ const readWorkspace = async ($: EngineInterface): Promise<void> => {
   }
 }
 
-/** What the session has cost so far, if the host keeps a ledger. */
-const ledgerUsd = async ($: EngineInterface): Promise<number | undefined> => (await $.session.usage()).cost?.usd
+/** What the session has cost so far, if the host keeps a ledger; undefined
+ *  when it has none, or the read fails. */
+const ledgerUsd = async ($: EngineInterface): Promise<number | undefined> =>
+  (await $.session.usage().catch(() => undefined))?.cost?.usd
 
 type BandCommand = 'toggle' | 'more' | 'less' | 'show' | 'hide'
 
@@ -204,7 +207,7 @@ export const register: Register = on => {
     reads++ // any read still out began before this load
     recall = undefined
     notePriceModel(await $.session.model().catch(() => undefined))
-    noteLoad(await ledgerUsd($).catch(() => undefined))
+    noteLoad(await ledgerUsd($))
     void readWorkspace($)
     // Loaded mid-conversation, the band has seen no reply: recall the last.
     if (!cache.knownFresh) await recallLastReply($)
@@ -244,7 +247,7 @@ export const register: Register = on => {
   // /clear and resume end the conversation but not the process, and no
   // session.start follows, so the next conversation starts from here.
   on('session.end', async ($, e, next) => {
-    resetConversation((await ledgerUsd($).catch(() => undefined)) ?? 0)
+    resetConversation((await ledgerUsd($)) ?? 0)
     // The context warning is this conversation's; the 5-hour one is the
     // account's, and /clear changes nothing about it.
     resetConversationInsights()
@@ -304,7 +307,7 @@ export const register: Register = on => {
       $.ui.invalidate('ui.render')
     }
     return result
-  })
+  }).catch(($, e, next) => next(e)) // a failure here must never stop a compaction
 
   on('session.measure', async ($, e, next) => {
     const now = await $.clock.now()
@@ -340,7 +343,7 @@ export const register: Register = on => {
     }
 
     // The context toast speaks where the context pill turns amber.
-    const used = e.context.tokens ?? (e.context.percent === undefined ? undefined : (e.context.percent / 100) * e.context.window)
+    const used = contextUsed(e.context)
     if (used !== undefined) {
       if (autoCompact !== undefined && autoCompact !== 'off') {
         const at = autoCompact.at
@@ -392,8 +395,7 @@ export const register: Register = on => {
     if (usage.cost !== undefined) noteLedger(usage.cost.usd)
     // Before this conversation's first reply, what the band recalls stands in.
     const recalled = cache.requests === 0 && !cache.knownFresh && recall !== undefined
-    const contextTokens =
-      usage.context.tokens ?? (usage.context.percent === undefined ? 0 : (usage.context.percent / 100) * usage.context.window)
+    const contextTokens = contextUsed(usage.context) ?? 0
 
     return drawBand(
       $.ui.resolve(e),
@@ -418,6 +420,7 @@ export const register: Register = on => {
           recalled,
           idleMs: recalled && recall !== undefined ? now - recall.lastAt : null,
           savedUsd: savedUsd(usage.cost?.usd),
+          readShare: readShare(),
           fresh: cache.knownFresh,
           tokens: { sent: cache.uncached + cache.written, back: cache.output, cached: cache.read },
         },

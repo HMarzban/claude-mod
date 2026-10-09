@@ -3,10 +3,13 @@
 
 import { test, expect, mock } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import { DARK } from '../hooks/palette'
+import { DARK, LIGHT } from '../hooks/palette'
 import {
   CLEAR,
+  DARK_HOSTS,
   FRESH,
+  LIGHT_HOSTS,
+  contrast,
   HOUR_1,
   PLUGIN,
   START,
@@ -26,18 +29,6 @@ import {
   type Node,
 } from './helpers'
 
-/** WCAG 2.x contrast ratio of two hex colours. */
-const contrast = (a: string, b: string): number => {
-  const lum = (hex: string): number => {
-    const [r, g, bl] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
-    return 0.2126 * (r ?? 0) + 0.7152 * (g ?? 0) + 0.0722 * (bl ?? 0)
-  }
-  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
-  return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05)
-}
-/** What the desktop app paints behind the band, measured from screenshots. */
-const BAND = '#212121'
-
 const withCompaction = (tokens: number) => ({
   ...USAGE,
   context: { tokens, window: 200_000, percent: (tokens / 2000), breakdown: breakdown({ autoCompactThreshold: 160_000, isAutoCompactEnabled: true }) },
@@ -47,21 +38,25 @@ const measureContext = async ($: Engine, tokens: number) =>
 
 // ── contrast ───────────────────────────────────────────────────────────
 
-test('labels and values meet WCAG text contrast on every surface they sit on', () => {
-  for (const bg of [DARK.surface, DARK.amberBg, DARK.cardBg, DARK.fiveBg, DARK.weekBg]) {
-    expect(contrast(DARK.label, bg)).toBeGreaterThanOrEqual(4.5)
-  }
-  expect(contrast(DARK.cardValue, DARK.cardBg)).toBeGreaterThanOrEqual(4.5)
-  expect(contrast(DARK.value, DARK.cardBg)).toBeGreaterThanOrEqual(4.5)
-})
+// Both palettes, every pair: a palette added later is checked by adding it here.
+for (const [name, p, hosts] of [
+  ['dark', DARK, DARK_HOSTS],
+  ['light', LIGHT, LIGHT_HOSTS],
+] as const) {
+  const pillGrounds = [p.surface, p.amberBg, p.cardBg, p.fiveBg, p.weekBg]
 
-test('card edges and bar tracks meet WCAG non-text contrast', () => {
-  expect(contrast(DARK.cardBorder, BAND)).toBeGreaterThanOrEqual(3)
-  for (const bg of [DARK.surface, DARK.amberBg, DARK.cardBg, DARK.fiveBg, DARK.weekBg]) {
-    expect(contrast(DARK.trackStroke, bg)).toBeGreaterThanOrEqual(3)
-  }
-  expect(DARK.tooltipBg).not.toBe(DARK.cardBg) // hover cards stand above the cards
-})
+  test(`${name}: labels and values meet WCAG text contrast on every surface they sit on`, () => {
+    for (const bg of pillGrounds) expect(contrast(p.label, bg)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(p.cardValue, p.cardBg)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(p.value, p.cardBg)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  test(`${name}: card edges and bar tracks meet WCAG non-text contrast`, () => {
+    for (const host of hosts) expect(contrast(p.cardBorder, host)).toBeGreaterThanOrEqual(3)
+    for (const bg of pillGrounds) expect(contrast(p.trackStroke, bg)).toBeGreaterThanOrEqual(3)
+    expect(p.tooltipBg).not.toBe(p.cardBg) // hover cards stand above the cards
+  })
+}
 
 // ── the chip row ───────────────────────────────────────────────────────
 

@@ -5,6 +5,28 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.11.2] - 2026-10-09
+
+### Fixed
+- The light palette's card edges and bar tracks met only 2.2 to 2.8:1, under
+  the 3:1 a non-text edge needs; they now hold at least 3.58:1 on every light
+  surface. The contrast tests run over every palette, not only the dark one.
+- The Limits card says the 5h pace the chip shows (`full in ~1h`), in the
+  chip's amber; the two had projected from different spans and could
+  disagree. One rule now sets every limit's tone.
+- The cache's hover says what a warm read costs on the model in force
+  (`bills input at 5%` on Opus 5.5), not a fixed 10%.
+- The token split bar no longer names an SVG id, which a page shares: its
+  end segments draw their own rounded ends.
+- A failed usage read can't drop a turn's bookkeeping, and a failure in the
+  compaction hook never stops a compaction.
+
+### Changed
+- The context in use is worked out in one place, so the band, its toasts and
+  a recalled re-warm price always agree.
+- CONTRIBUTING lists every module and the engine's rules in full, and says
+  why CI can't type-check.
+
 ## [0.11.1] - 2026-10-09
 
 ### Fixed

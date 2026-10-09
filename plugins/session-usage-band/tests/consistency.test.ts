@@ -1,0 +1,92 @@
+// One source for each figure: a pace, a tone, a read price, the context in
+// use. Where the band says a thing twice, it says it the same way.
+
+import { test, expect, mock } from 'claude-code/testing'
+import { contextUsed } from '../hooks/format'
+import { DARK } from '../hooks/palette'
+import {
+  HOUR_1,
+  PLUGIN,
+  START,
+  base,
+  cardOf,
+  fact,
+  pacing,
+  pillOf,
+  props,
+  resp,
+  respond,
+  shown,
+  svgsOf,
+  textOf,
+  usage,
+  walk,
+  type Node,
+} from './helpers'
+
+test("the Limits card says the 5h chip's pace in the chip's own words, and in its colour", async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  await pacing($, clock)
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(160) })
+  const eta = shown(pillOf(await ui.drawn(), '5h')).match(/full in (~\d+[hm](?: \d+m)?)/)?.[1]
+  expect(eta).toBeDefined()
+  await ui.press({ key: 'more' })
+  const tree = await ui.drawn()
+  expect(fact(tree, '5h pace')).toMatch(new RegExp(`full in ${eta}`))
+  let row: Node | undefined
+  walk(cardOf(tree, 'limits'), n => {
+    if (n.props?.key === 'fact:5h') row = n
+  })
+  const value = (row?.children ?? []).filter(Boolean).at(-1) as Node | undefined
+  expect(value?.props?.color).toBe(DARK.amberFg) // amber on the card, as on the chip
+  await ui.unmount()
+})
+
+test('the warm cache says what reading costs on the model in force', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on) // claude-opus-5-5, which reads its cache at 5% of input
+  await $.session.start(START)
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(160) })
+  const hover = textOf(pillOf(await ui.drawn(), 'cache'))
+  expect(hover).toMatch(/bills input at 5%/)
+  expect(hover).not.toMatch(/10%/)
+  await ui.unmount()
+})
+
+test('the context in use: tokens, else the percent of the window, else unknown', () => {
+  expect(contextUsed({ tokens: 76_000, percent: 40, window: 200_000 })).toBe(76_000)
+  expect(contextUsed({ tokens: undefined, percent: 40, window: 200_000 })).toBe(80_000)
+  expect(contextUsed({ tokens: undefined, percent: undefined, window: 200_000 })).toBeUndefined()
+})
+
+test('a usage read that fails mid-turn never breaks the turn or the band', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  await $.session.start(START)
+  usage.fails = true
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+  usage.fails = false
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(140) })
+  expect(shown(pillOf(await ui.drawn(), 'cache'))).toMatch(/cache 1h 00m/)
+  await ui.unmount()
+})
+
+test('no drawing names an SVG id: ids are page-wide, and two bands could share a page', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  mock.env(on, HOUR_1)
+  base(on)
+  await $.session.start({ ...START, surface: 'desktop' })
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(160) })
+  await ui.press({ key: 'more' })
+  const named = svgsOf(await ui.drawn()).filter(n => / id="/.test(String(n.props?.source)))
+  expect(named.map(n => n.props?.alt)).toEqual([])
+  await ui.unmount()
+})
