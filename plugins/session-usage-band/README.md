@@ -103,8 +103,8 @@ session's last reply was and what a token costs on its model:
 
 - from its own memory, which keeps each session's last reply (the newest 50)
   and the price per token it solved for each model
-- for a session from before the band, from that session's transcript, read
-  once if it is under 4 MB: the last reply's time and the cost record's
+- for a session from before the band, from the end of that session's
+  transcript, read once: the last reply's time and the cost record's
   dollars and tokens
 
 Past the cache's lifetime it shows `cache cold · next message ~$2.34`, the

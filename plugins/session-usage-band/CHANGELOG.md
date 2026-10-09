@@ -14,9 +14,10 @@ version may change how the band reads.
   Cache card adds how long the session has been idle.
 - To know it, the band remembers each session's last reply and the price
   per token it solves for each model. For a session from before the band,
-  it reads the transcript once, if it is under 4 MB: the last reply's time
-  and the cost record's dollars and tokens. It never trusts the file's time,
-  since Claude Code writes to a transcript each time it opens a session.
+  it reads the end of the transcript once, its last megabyte by `tail`,
+  whatever its size: the last reply's time and the cost record's dollars
+  and tokens. It never trusts the file's time, since Claude Code writes to
+  a transcript each time it opens a session.
 - With no price known for the model, it names the tokens the next message
   rebuilds, never a guessed dollar figure.
 
