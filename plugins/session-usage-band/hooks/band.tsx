@@ -694,7 +694,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
 
     const buttons = [
       <Button key="collapse" label="Collapse" variant="secondary" hotkey="c" onPress={act.toggleExpanded} />,
-      <Button key="hide" label="Hide band" variant="primary" hotkey="h" onPress={act.hide} />,
+      <Button key="hide" label="Hide band" variant="secondary" hotkey="h" onPress={act.hide} />,
     ]
     let strip: RenderElement | null = null
     if (stripPlace !== undefined && snap.workspace !== undefined) {

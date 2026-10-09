@@ -179,7 +179,9 @@ test('Collapse and Hide are real buttons with c and h hotkeys', async ($, on) =>
   expect(collapse?.props?.hotkey).toBe('c')
   expect(collapse?.props?.variant).toBe('secondary')
   expect(hide?.props?.hotkey).toBe('h')
-  expect(hide?.props?.variant).toBe('primary')
+  // Neither is the one to press: the calm band marks no main action, least
+  // of all hiding itself.
+  expect(hide?.props?.variant).toBe('secondary')
   expect(String(hide?.props?.label)).toMatch(/Hide band/)
 
   await ui.press({ key: 'collapse' })

@@ -5,6 +5,13 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.11.9] - 2026-10-09
+
+### Changed
+- `Hide band` is drawn as a plain button, like `Collapse`, no longer as the
+  one to press: the calm band marks no main action, least of all hiding
+  itself.
+
 ## [0.11.8] - 2026-10-09
 
 ### Fixed
