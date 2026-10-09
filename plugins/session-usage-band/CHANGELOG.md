@@ -5,6 +5,13 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.11.12] - 2026-10-09
+
+### Fixed
+- Sonnet 5.5 reads its cache at 0.05× base input ($0.10 on $2), as
+  Anthropic's pricing page lists it; the band weighed its reads at 0.1×, so
+  on Sonnet 5.5 sessions the re-warm price read low and the hover said 10%.
+
 ## [0.11.11] - 2026-10-09
 
 ### Changed

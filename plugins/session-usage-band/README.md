@@ -91,7 +91,7 @@ amber at once, the end of the row is clipped rather than wrapped.
 
 Claude Code caches the conversation server-side. While the cache is warm,
 re-reading the conversation costs a tenth of the normal input price or
-less, depending on the model (a twentieth on Opus 5.5). It
+less, depending on the model (a twentieth on Opus 5.5 and Sonnet 5.5). It
 stays warm for a lifetime (5 minutes or an hour) counted from the last
 request. Go idle past that, and the next message rebuilds the whole
 conversation at the cache-write price.
@@ -124,7 +124,9 @@ it names the tokens instead. With nothing to recall, it stays at `cache –`.
 No pricing table is reachable from a mod, so the rate is solved from the
 session's own bill. Each kind of token costs a fixed multiple of base input
 (a cache write 1.25×, output 5×, a cache read 0.1×, or 0.05× on Opus 5.5
-and 0.025× on Fable and Mythos 5.1), which leaves one unknown:
+and Sonnet 5.5 and 0.025× on Fable and Mythos 5.1, per
+[Anthropic's pricing](https://platform.claude.com/docs/en/about-claude/pricing)),
+which leaves one unknown:
 
 ```
 cost = r × (uncached + 1.25×written + read multiple×read + 5×output)

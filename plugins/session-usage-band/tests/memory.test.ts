@@ -126,8 +126,13 @@ test("the rate is the cost record's dollars over its weighted tokens, reads at O
 })
 
 test('on a model without a read price of its own, reads weigh 0.1×', () => {
-  // 1M + 1.25 × 400k + 0.1 × 20M + 5 × 100k = 4M weighted tokens
-  expect(near(rateFromTranscript(jsonl(costState('claude-sonnet-5-5')), 'claude-sonnet-5-5'), 20 / 4_000_000)).toBe(true)
+  // Sonnet 5 reads at $0.20 on $2 input. 1M + 1.25 × 400k + 0.1 × 20M + 5 × 100k = 4M weighted tokens
+  expect(near(rateFromTranscript(jsonl(costState('claude-sonnet-5')), 'claude-sonnet-5'), 20 / 4_000_000)).toBe(true)
+})
+
+test("Sonnet 5.5 reads its cache at 0.05×, as Anthropic's pricing lists it ($0.10 on $2 input)", () => {
+  // 1M + 1.25 × 400k + 0.05 × 20M + 5 × 100k = 3M weighted tokens
+  expect(near(rateFromTranscript(jsonl(costState('claude-sonnet-5-5')), 'claude-sonnet-5-5'), 20 / 3_000_000)).toBe(true)
 })
 
 test('the last cost record is the one read', () => {

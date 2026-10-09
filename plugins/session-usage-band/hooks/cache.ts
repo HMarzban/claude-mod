@@ -200,10 +200,11 @@ export const recordResponse = (
 const WRITE_MULT = 1.25
 const OUTPUT_MULT = 5
 /** A cache read against base input, by model; 0.1× elsewhere. Per Anthropic's
- *  list prices as of 2026-10: Opus 5.5 reads at $0.20 on $4.00 input, Fable
- *  and Mythos 5.1 at $0.25 on $10.00. */
+ *  list prices as of 2026-10: Opus 5.5 reads at $0.20 on $4.00 input, Sonnet
+ *  5.5 at $0.10 on $2.00, Fable and Mythos 5.1 at $0.25 on $10.00. */
 const READ_MULT_BY_MODEL: Readonly<Record<string, number>> = {
   'claude-opus-5-5': 0.05,
+  'claude-sonnet-5-5': 0.05,
   'claude-fable-5-1': 0.025,
   'claude-mythos-5-1': 0.025,
 }
