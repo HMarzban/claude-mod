@@ -13,7 +13,9 @@ import type {
   TurnStepResult,
   TurnStopReason,
 } from 'claude-code'
-import type { Engine, MockClock } from 'claude-code/testing'
+import { mock, type Engine, type MockClock } from 'claude-code/testing'
+import { METER_CELLS } from '../hooks/layout'
+import { READ_LIMIT } from '../hooks/memory'
 import { DARK } from '../hooks/palette'
 
 export const PLUGIN = 'session-usage-band'
@@ -44,13 +46,13 @@ export const FRESH: SessionUsage = {
   cost: { usd: 0 },
 }
 
+/** How the usage read fails, if it does: `breakdownFails` makes the context
+ *  breakdown read throw, `fails` every usage read. Neither, to start. */
+const USAGE_FLAGS = { breakdownFails: false, fails: false }
+
 /** What the engine reports right now; a test swaps `current` to move cost or
- *  limits, or sets `breakdownFails` to make the context breakdown read throw. */
-export const usage: { current: SessionUsage; breakdownFails: boolean; fails: boolean } = {
-  current: USAGE,
-  breakdownFails: false,
-  fails: false,
-}
+ *  limits, or sets one of USAGE_FLAGS to make a read throw. */
+export const usage: { current: SessionUsage } & typeof USAGE_FLAGS = { current: USAGE, ...USAGE_FLAGS }
 
 /** The size the engine reports for the conversation after a compaction. */
 export const COMPACTED_TO = 20_000
@@ -70,7 +72,7 @@ export type GitAnswer = { status: string; dirs: string } | 'none' | 'fail'
 /** How the engine beneath answers, for tests that need it otherwise: what a
  *  compaction returns, why a step stops, a gate that holds a step open, the
  *  project root, and git, with every command the plugin ran. */
-export const engine: {
+type EngineFake = {
   compact: SessionCompactResult
   stop: TurnStopReason
   gate: Promise<void> | undefined
@@ -93,7 +95,11 @@ export const engine: {
   statted: string[]
   /** The plugin's own store, JSON in and out as the engine keeps it. */
   store: Record<string, unknown>
-} = {
+}
+
+/** Each test's engine, as `base` restores it: every default written once, so
+ *  a field added to EngineFake can't be left out of the reset. */
+const ENGINE_INITIAL: Readonly<EngineFake> = {
   store: {},
   hold: undefined,
   sessionId: 's1',
@@ -111,6 +117,11 @@ export const engine: {
   gate: undefined,
 }
 
+// Cloned, not spread: `ran` and `statted` are pushed to, and a shallow copy
+// would carry one test's pushes into the defaults. structuredClone keeps the
+// undefined fields too, which a JSON round-trip would drop from the reset.
+export const engine: EngineFake = structuredClone(ENGINE_INITIAL)
+
 /** Every toast the plugin raised since `base` ran. */
 export const toasts: string[] = []
 
@@ -118,25 +129,10 @@ let nextUsage: ModelUsage | null = null
 
 /** Everything beneath the plugin: the engine's own answers. */
 export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Record<string, unknown>> = {}): void => {
-  usage.current = initial
-  usage.breakdownFails = false
-  usage.fails = false
+  Object.assign(usage, USAGE_FLAGS, { current: initial })
   toasts.length = 0
   nextUsage = null
-  engine.compact = { messages: SUMMARY, tokensAfter: COMPACTED_TO }
-  engine.stop = 'end_turn'
-  engine.gate = undefined
-  engine.root = PROJECT
-  engine.repoRoot = PROJECT
-  engine.git = { status: GIT_CLEAN, dirs: GIT_MAIN_TREE }
-  engine.ran = []
-  engine.hold = undefined
-  engine.sessionId = 's1'
-  engine.model = 'claude-opus-5-5'
-  engine.transcript = undefined
-  engine.transcriptBytes = undefined
-  engine.tailFails = false
-  engine.statted = []
+  Object.assign(engine, structuredClone(ENGINE_INITIAL))
   engine.store = JSON.parse(JSON.stringify(store)) as Record<string, unknown>
   on('store.get', ($, e) => ({ value: engine.store[e.key] }))
   on('store.set', ($, e) => {
@@ -159,7 +155,7 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
   })
   on('fs.read', ($, e) => {
     if (engine.transcript === undefined) throw new Error(`ENOENT: ${e.path}`)
-    if ((engine.transcriptBytes ?? 0) > 4 * 1024 * 1024) throw new Error('over 4 MiB')
+    if ((engine.transcriptBytes ?? 0) > READ_LIMIT) throw new Error('over the read limit')
     return { value: engine.transcript }
   })
   on('session.root', () => ({ value: engine.root }))
@@ -168,17 +164,16 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
   }))
   on('process.run', async ($, e) => {
     engine.ran.push([...e.argv])
+    const quiet = { stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
     if (e.argv[0] === 'tail') {
-      const quietTail = { stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
-      if (engine.tailFails || engine.transcript === undefined) return { value: { ...quietTail, exitCode: 1, stdout: '', stderr: 'tail: no such file' } }
+      if (engine.tailFails || engine.transcript === undefined) return { value: { ...quiet, exitCode: 1, stdout: '', stderr: 'tail: no such file' } }
       const bytes = Number(e.argv[2])
-      return { value: { ...quietTail, exitCode: 0, stdout: engine.transcript.slice(-bytes) } }
+      return { value: { ...quiet, exitCode: 0, stdout: engine.transcript.slice(-bytes) } }
     }
     const git = engine.git
     const hold = engine.hold
     if (hold !== undefined) await hold
     if (git === 'fail') throw new Error('git: command not found')
-    const quiet = { stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
     if (git === 'none') return { value: { ...quiet, exitCode: 128, stdout: '', stderr: 'fatal: not a git repository' } }
     return { value: { ...quiet, exitCode: 0, stdout: e.argv.includes('status') ? git.status : git.dirs } }
   })
@@ -256,6 +251,16 @@ export const walk = (n: unknown, visit: (node: Node) => void): void => {
   for (const k of (n as Node).children ?? []) walk(k, visit)
 }
 
+/** The first node beneath `tree`, in drawing order, whose key is `key` and,
+ *  when `type` is given, whose type is `type`. */
+export const byKey = (tree: unknown, key: string, type?: string): Node | undefined => {
+  let found: Node | undefined
+  walk(tree, n => {
+    if (found === undefined && n.props?.key === key && (type === undefined || n.type === type)) found = n
+  })
+  return found
+}
+
 /** Rows of the band: the root Box's children. */
 export const rowCount = (tree: unknown): number => {
   const t = tree as Node
@@ -291,16 +296,33 @@ export const MIN = 60_000
 export const HOUR = 60 * MIN
 export const CLEAR = { reason: 'clear', sessionId: 's1', resume: { id: 's1' } } as const
 
+// ── setting a test up ──────────────────────────────────────────────────
+
+/** The world most tests start from: the clock at `now` (0 when not given),
+ *  the environment (HOUR_1 when not given) and the engine beneath, reporting
+ *  `usage` with `store` in the plugin's store. Returns the clock. */
+export const setup = (
+  on: On,
+  opts: { usage?: SessionUsage; env?: Record<string, string>; store?: Record<string, unknown>; now?: number } = {},
+): MockClock => {
+  const clock = mock.clock(on, { now: opts.now ?? 0 })
+  mock.env(on, opts.env ?? HOUR_1)
+  base(on, opts.usage, opts.store)
+  return clock
+}
+
+/** The band drawn above the prompt on `surface`, `cols` wide. */
+export const mountBand = <S extends 'terminal' | 'desktop'>(
+  $: Engine,
+  surface: S,
+  cols: number,
+  opts: { maxRows?: number; isWorking?: boolean } = {},
+) => $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: props(cols, opts.isWorking, opts.maxRows) })
+
 // ── readers for the drawn tree ─────────────────────────────────────────
 
 /** The pill Box drawn under `key` in the first row. */
-export const pillOf = (tree: unknown, key: string): Node | undefined => {
-  let found: Node | undefined
-  walk(firstRow(tree), n => {
-    if (found === undefined && n.type === 'Box' && n.props?.key === key) found = n
-  })
-  return found
-}
+export const pillOf = (tree: unknown, key: string): Node | undefined => byKey(firstRow(tree), key, 'Box')
 
 /** A node's visible text: hover cards, at any depth, left out. */
 export const shown = (n: unknown): string =>
@@ -330,11 +352,20 @@ export const svgAlts = (tree: unknown): string[] => svgsOf(tree).map(n => String
 export const batteryOf = (tree: unknown): Node | undefined =>
   svgsOf(pillOf(tree, 'cache')).find(n => /battery|warming/.test(String(n.props?.alt)))
 
-/** The battery icon's charge bar width, in px. */
-export const fillWidth = (svg: Node | undefined): number => {
-  const m = String(svg?.props?.source).match(/<rect class="charge" [^>]*width="([\d.]+)"/)
-  return m ? Number(m[1]) : 0
+/** The first `<rect>` of class `cls` in an SVG's source: its numeric
+ *  attributes by name, read in whatever order they are written; undefined
+ *  when no rect has the class. */
+export const svgRect = (source: string, cls: string): Readonly<Record<string, number>> | undefined => {
+  for (const [rect] of source.matchAll(/<rect\b[^>]*>/g)) {
+    const attrs = [...rect.matchAll(/([\w-]+)="([^"]*)"/g)].map(([, name, value]) => [String(name), String(value)] as const)
+    if (!attrs.some(([name, value]) => name === 'class' && value.split(/\s+/).includes(cls))) continue
+    return Object.fromEntries(attrs.filter(([, value]) => value.trim() !== '' && Number.isFinite(Number(value))).map(([name, value]) => [name, Number(value)]))
+  }
+  return undefined
 }
+
+/** The battery icon's charge bar width, in px. */
+export const fillWidth = (svg: Node | undefined): number => svgRect(String(svg?.props?.source), 'charge')?.width ?? 0
 
 /** Each pill's hidden hover card, as [pill key, card] pairs. */
 export const cards = (tree: unknown): Array<[string, Node]> => {
@@ -350,31 +381,19 @@ export const cards = (tree: unknown): Array<[string, Node]> => {
 
 /** The value a card row shows for `label` in the expanded view. */
 export const fact = (tree: unknown, label: string): string | undefined => {
-  let found: string | undefined
-  walk(tree, n => {
-    if (found === undefined && n.type === 'Box' && n.props?.key === `fact:${label}`) {
-      const kids = n.children ?? []
-      found = textOf(kids[kids.length - 1])
-    }
-  })
-  return found
+  const row = byKey(tree, `fact:${label}`, 'Box')
+  return row === undefined ? undefined : textOf((row.children ?? []).at(-1))
 }
 
 /** A card of the expanded view: cache, spend, context or limits. */
-export const cardOf = (tree: unknown, name: string): Node | undefined => {
-  let found: Node | undefined
-  walk(tree, n => {
-    if (found === undefined && n.type === 'Box' && n.props?.key === `card:${name}`) found = n
-  })
-  return found
-}
+export const cardOf = (tree: unknown, name: string): Node | undefined => byKey(tree, `card:${name}`, 'Box')
 
 /** The cache card's rebuild count, 0 when the row is absent. */
 export const rebuilds = (tree: unknown): number => Number(fact(tree, 'unexpected rebuilds') ?? 0)
 
-/** Text meters drawn: six cells of █ and ░. An empty meter's
- *  inner track Text is six cells too, so it's told apart by its colour. */
-const METER = /^[█░]{6}$/
+/** Text meters drawn: METER_CELLS cells of █ and ░. An empty meter's
+ *  inner track Text is as many cells too, so it's told apart by its colour. */
+const METER = new RegExp(`^[█░]{${METER_CELLS}}$`)
 export const textMeters = async (ui: {
   findAll: (q: { type: string; text: RegExp }) => Promise<Array<{ props?: Record<string, unknown> }>>
 }): Promise<number> => (await ui.findAll({ type: 'Text', text: METER })).filter(t => t.props?.color !== DARK.meterTrack).length
@@ -422,12 +441,6 @@ export const pacing = async ($: Engine, clock: MockClock): Promise<void> => {
  *  the grid and every category, which no test here needs. */
 export const breakdown = (fields: Pick<SessionContextBreakdown, 'isAutoCompactEnabled'> & { autoCompactThreshold?: number }): SessionContextBreakdown =>
   fields as SessionContextBreakdown
-
-/** Lets work the plugin started without waiting on it, such as a git read,
- *  run to its end. */
-export const settle = async (): Promise<void> => {
-  for (let i = 0; i < 500; i++) await Promise.resolve()
-}
 
 /** A transcript as Claude Code writes one: a user line, an assistant reply at
  *  `replyAt`, and the cost-state line it adds when a session is opened. */

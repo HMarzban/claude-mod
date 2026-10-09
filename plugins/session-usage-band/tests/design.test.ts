@@ -1,7 +1,7 @@
 // The pro-design pass: contrast, chips that never break, context toward
 // compaction, honest early states, a tidy card grid and clear card copy.
 
-import { test, expect, mock } from 'claude-code/testing'
+import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import { DARK, LIGHT } from '../hooks/palette'
 import {
@@ -10,23 +10,22 @@ import {
   FRESH,
   LIGHT_HOSTS,
   contrast,
-  HOUR_1,
-  PLUGIN,
   START,
   USAGE,
-  base,
   breakdown,
+  byKey,
   cardOf,
   fact,
   firstRow,
   pillOf,
-  props,
   resp,
   respond,
   shown,
   svgsOf,
   walk,
   type Node,
+  setup,
+  mountBand,
 } from './helpers'
 
 const withCompaction = (tokens: number) => ({
@@ -61,12 +60,10 @@ for (const [name, p, hosts] of [
 // ── the chip row ───────────────────────────────────────────────────────
 
 test('chips never shrink, so their text never wraps', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(95) })
+  const ui = await mountBand($, 'desktop', 95)
   const pills = ((firstRow(await ui.drawn()) as Node).children ?? []).filter(k => (k as Node).props?.key !== undefined && ['cache', 'cost', 'tokens', 'ctx', '5h', '7d'].includes(String((k as Node).props?.key)))
   expect(pills.length).toBeGreaterThan(3)
   for (const p of pills) expect((p as Node).props?.flexShrink).toBe(0)
@@ -74,20 +71,12 @@ test('chips never shrink, so their text never wraps', async ($, on) => {
 })
 
 test("expanding leaves the chip row exactly as it was; only the toggle's icon turns from ▿ to ▵", async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on, withCompaction(152_000))
+  setup(on, { usage: withCompaction(152_000) })
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   await measureContext($, 152_000)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(95) })
-  const toggle = async () => {
-    let label: unknown
-    walk(firstRow(await ui.drawn()), n => {
-      if (n.type === 'Button' && n.props?.key === 'more') label = n.props?.label
-    })
-    return label
-  }
+  const ui = await mountBand($, 'desktop', 95)
+  const toggle = async () => byKey(firstRow(await ui.drawn()), 'more', 'Button')?.props?.label
   const before = shown(firstRow(await ui.drawn()))
   expect(await toggle()).toBe('▿')
   await ui.press({ key: 'more' })
@@ -99,12 +88,10 @@ test("expanding leaves the chip row exactly as it was; only the toggle's icon tu
 // ── context toward compaction ──────────────────────────────────────────
 
 test('with compaction known, the context chip measures toward it, with no tick', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on, withCompaction(100_000))
+  setup(on, { usage: withCompaction(100_000) })
   await $.session.start({ ...START, surface: 'desktop' })
   await measureContext($, 100_000)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(140) })
+  const ui = await mountBand($, 'desktop', 140)
   const ctx = pillOf(await ui.drawn(), 'ctx')
   expect(shown(ctx)).toMatch(/63% full$/)
   const bar = svgsOf(ctx).find(n => /used/.test(String(n.props?.alt)))
@@ -114,23 +101,19 @@ test('with compaction known, the context chip measures toward it, with no tick',
 })
 
 test('near compaction the chip says how full and how far to go', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on, withCompaction(152_000))
+  setup(on, { usage: withCompaction(152_000) })
   await $.session.start(START)
   await measureContext($, 152_000)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(140) })
+  const ui = await mountBand($, 'terminal', 140)
   expect(shown(pillOf(await ui.drawn(), 'ctx'))).toMatch(/95% full · compacts in ~8\.0k/)
   await ui.unmount()
 })
 
 test('the context card leads with how full it is toward compaction', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on, withCompaction(152_000))
+  setup(on, { usage: withCompaction(152_000) })
   await $.session.start(START)
   await measureContext($, 152_000)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(140) })
+  const ui = await mountBand($, 'terminal', 140)
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
   expect(shown(cardOf(tree, 'context'))).toMatch(/^CONTEXT95% full/)
@@ -144,11 +127,9 @@ test('the context card leads with how full it is toward compaction', async ($, o
 // ── honest early states ────────────────────────────────────────────────
 
 test('after a reload with spend on the ledger, the cache is not measured yet, not warming', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on) // $2.41 already spent
+  setup(on) // $2.41 already spent
   await $.session.start(START)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(140) })
+  const ui = await mountBand($, 'terminal', 140)
   expect(shown(pillOf(await ui.drawn(), 'cache'))).toMatch(/cache –/)
   await ui.press({ key: 'more' })
   const card = shown(cardOf(await ui.drawn(), 'cache'))
@@ -159,11 +140,9 @@ test('after a reload with spend on the ledger, the cache is not measured yet, no
 })
 
 test('a brand-new session, or one after /clear, is warming', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on, FRESH)
+  setup(on, { usage: FRESH })
   await $.session.start(START)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(140) })
+  const ui = await mountBand($, 'terminal', 140)
   expect(shown(pillOf(await ui.drawn(), 'cache'))).toMatch(/cache warming/)
   await ui.press({ key: 'more' })
   expect(shown(cardOf(await ui.drawn(), 'cache'))).toMatch(/First message builds the cache/)
@@ -171,13 +150,11 @@ test('a brand-new session, or one after /clear, is warming', async ($, on) => {
 })
 
 test('after /clear the new conversation is warming even with spend on the ledger', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   await $.session.end(CLEAR)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(140) })
+  const ui = await mountBand($, 'terminal', 140)
   expect(shown(pillOf(await ui.drawn(), 'cache'))).toMatch(/cache warming/)
   await ui.unmount()
 })
@@ -185,13 +162,11 @@ test('after /clear the new conversation is warming even with spend on the ledger
 // ── card copy ──────────────────────────────────────────────────────────
 
 test('the cache card leads with the stake: re-warm cost, savings, hit rate, expiry', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
   await respond(e => $.turn.step(e), resp(4_000, 100_000, 6_000, 3_000))
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(140) })
+  const ui = await mountBand($, 'terminal', 140)
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
   expect(shown(cardOf(tree, 'cache'))).toMatch(/^CACHE1h 00m left/)
@@ -204,13 +179,11 @@ test('the cache card leads with the stake: re-warm cost, savings, hit rate, expi
 })
 
 test('the spend card names its split like a legend: input, output, cache reads', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
   await respond(e => $.turn.step(e), resp(4_000, 100_000, 6_000, 3_000))
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(140) })
+  const ui = await mountBand($, 'terminal', 140)
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
   expect(fact(tree, 'input')).toBe('120k')
@@ -220,11 +193,9 @@ test('the spend card names its split like a legend: input, output, cache reads',
 })
 
 test('the limits card puts each value beside its bar and says the pace in words', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on) // 5h 4%, 2h of 5h gone; 7d 30%, 101h of 168h gone
+  setup(on) // 5h 4%, 2h of 5h gone; 7d 30%, 101h of 168h gone
   await $.session.start(START)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(140) })
+  const ui = await mountBand($, 'terminal', 140)
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
   expect(shown(cardOf(tree, 'limits'))).toMatch(/^LIMITS7d 30%/) // the window closest to trouble
@@ -237,17 +208,12 @@ test('the limits card puts each value beside its bar and says the pace in words'
 // ── the grid and the buttons ───────────────────────────────────────────
 
 test('cards sit in lines that share the width equally: four across when they fit, else two by two', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start({ ...START, surface: 'desktop' })
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   const lines = async (cols: number) => {
-    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(cols) })
-    let grid: Node | undefined
-    walk(await ui.drawn(), n => {
-      if (n.type === 'Box' && n.props?.key === 'cards') grid = n
-    })
+    const ui = await mountBand($, 'desktop', cols)
+    const grid = byKey(await ui.drawn(), 'cards', 'Box')
     await ui.unmount()
     return ((grid?.children ?? []) as Node[]).map(line => {
       expect(line.props?.flexWrap).not.toBe('wrap') // a line never wraps a card away
@@ -259,7 +225,7 @@ test('cards sit in lines that share the width equally: four across when they fit
     })
   }
   await (async () => {
-    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(95) })
+    const ui = await mountBand($, 'desktop', 95)
     await ui.press({ key: 'more' })
     await ui.unmount()
   })()
@@ -268,24 +234,19 @@ test('cards sit in lines that share the width equally: four across when they fit
 })
 
 test('the expanded band fits the rows it is given: cards drop their least facts first', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on, withCompaction(100_000))
+  setup(on, { usage: withCompaction(100_000) })
   await $.session.start({ ...START, surface: 'desktop' })
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   await measureContext($, 100_000)
   const rowsOf = async (maxRows: number) => {
-    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(95, false, maxRows) })
+    const ui = await mountBand($, 'desktop', 95, { maxRows })
     if (maxRows === 40) await ui.press({ key: 'more' })
     const tree = await ui.drawn()
     await ui.unmount()
     // two lines of cards, each its tallest card plus its border, a row between
     // them; the chip row and the buttons, each with a row of air before the next
     const tallest = (names: string[]) => Math.max(...names.map(n => (cardOf(tree, n)?.children ?? []).filter(Boolean).length)) + 2
-    let strip = 0
-    walk(tree, n => {
-      if (n.type === 'Box' && n.props?.key === 'strip') strip = 1
-    })
+    const strip = byKey(tree, 'strip', 'Box') === undefined ? 0 : 1
     return { total: 5 + strip + tallest(['cache', 'spend']) + tallest(['context', 'limits']), tree }
   }
   const roomy = await rowsOf(40)
@@ -297,18 +258,16 @@ test('the expanded band fits the rows it is given: cards drop their least facts 
 })
 
 test('desktop cards have a visible rounded border; terminal cards a fill only', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start({ ...START, surface: 'desktop' })
-  const desk = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
+  const desk = await mountBand($, 'desktop', 110)
   await desk.press({ key: 'more' })
   const d = cardOf(await desk.drawn(), 'cache')
   expect(d?.props?.borderStyle).toBe('round')
   expect(d?.props?.borderColor).toBe(DARK.cardBorder)
   expect(d?.props?.backgroundColor).toBe(DARK.cardBg)
   await desk.unmount()
-  const term = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  const term = await mountBand($, 'terminal', 110)
   const t = cardOf(await term.drawn(), 'cache')
   expect(t?.props?.borderStyle).toBeUndefined()
   expect(t?.props?.backgroundColor).toBe(DARK.cardBg)
@@ -316,11 +275,9 @@ test('desktop cards have a visible rounded border; terminal cards a fill only', 
 })
 
 test('the buttons: Collapse without a Ctrl-like glyph, Hide band, and how to bring it back', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start(START)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'desktop', 110)
   await ui.press({ key: 'more' })
   const labels: string[] = []
   walk(await ui.drawn(), n => {
@@ -332,13 +289,11 @@ test('the buttons: Collapse without a Ctrl-like glyph, Hide band, and how to bri
 })
 
 test('every SVG id in an expanded desktop band is unique, so no bar clips to another', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on, withCompaction(100_000))
+  setup(on, { usage: withCompaction(100_000) })
   await $.session.start({ ...START, surface: 'desktop' })
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   await measureContext($, 100_000)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(140) })
+  const ui = await mountBand($, 'desktop', 140)
   await ui.press({ key: 'more' })
   const ids = svgsOf(await ui.drawn()).flatMap(n => [...String(n.props?.source).matchAll(/ id="([^"]+)"/g)].map(m => m[1]))
   expect(new Set(ids).size).toBe(ids.length)
@@ -346,13 +301,11 @@ test('every SVG id in an expanded desktop band is unique, so no bar clips to ano
 })
 
 test('the desktop gets no whitespace-only strings, which it drops, so every gap is a spacer', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on, withCompaction(100_000))
+  setup(on, { usage: withCompaction(100_000) })
   await $.session.start({ ...START, surface: 'desktop' })
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   await measureContext($, 100_000)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(160) })
+  const ui = await mountBand($, 'desktop', 160)
   await ui.press({ key: 'more' })
   const bare: string[] = []
   walk(await ui.drawn(), n => {
@@ -366,19 +319,14 @@ test('the desktop gets no whitespace-only strings, which it drops, so every gap 
 })
 
 test('card lines have a row of air between them, and the buttons a row above', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start({ ...START, surface: 'desktop' })
   for (const surface of ['desktop', 'terminal'] as const) {
-    const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: props(95) })
+    const ui = await mountBand($, surface, 95)
     if (surface === 'desktop') await ui.press({ key: 'more' })
-    let grid: Node | undefined
-    let actions: Node | undefined
-    walk(await ui.drawn(), n => {
-      if (n.type === 'Box' && n.props?.key === 'cards') grid = n
-      if (n.type === 'Box' && n.props?.key === 'actions') actions = n
-    })
+    const tree = await ui.drawn()
+    const grid = byKey(tree, 'cards', 'Box')
+    const actions = byKey(tree, 'actions', 'Box')
     expect(grid?.props?.rowGap).toBe(1)
     expect(actions?.props?.marginTop).toBe(1)
     await ui.unmount()
@@ -386,11 +334,9 @@ test('card lines have a row of air between them, and the buttons a row above', a
 })
 
 test('each desktop card title, and the hint, leads with an icon; terminal titles stay text', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start({ ...START, surface: 'desktop' })
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'desktop', 110)
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
   const headOf = (name: string) => ((cardOf(tree, name)?.children ?? []) as Node[]).find(k => k?.props?.key === 'head')
@@ -398,29 +344,21 @@ test('each desktop card title, and the hint, leads with an icon; terminal titles
   for (const [name, alt] of Object.entries(expected)) {
     expect(svgsOf(headOf(name)).map(n => n.props?.alt)).toEqual([alt])
   }
-  let actions: Node | undefined
-  walk(tree, n => {
-    if (n.type === 'Box' && n.props?.key === 'actions') actions = n
-  })
+  const actions = byKey(tree, 'actions', 'Box')
   expect(svgsOf(actions).map(n => n.props?.alt)).toEqual(['info'])
   await ui.unmount()
 
-  const term = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  const term = await mountBand($, 'terminal', 110)
   expect(shown(cardOf(await term.drawn(), 'cache'))).toMatch(/^CACHE/)
   await term.unmount()
 })
 
 test('the toggle is a framed native button on the desktop, a plain glyph in the terminal', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start(START)
   const toggleOf = async (surface: 'desktop' | 'terminal') => {
-    const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: props(110) })
-    let found: Node | undefined
-    walk(firstRow(await ui.drawn()), n => {
-      if (n.type === 'Button' && n.props?.key === 'more') found = n
-    })
+    const ui = await mountBand($, surface, 110)
+    const found = byKey(firstRow(await ui.drawn()), 'more', 'Button')
     await ui.unmount()
     return found
   }
@@ -433,17 +371,12 @@ test('the toggle is a framed native button on the desktop, a plain glyph in the 
 })
 
 test('a card short of rows gives up its bar before a fact, since the chips already show it', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start({ ...START, surface: 'desktop' })
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   const contextAt = async (maxRows: number) => {
-    const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(95, false, maxRows) })
-    let open = false
-    walk(await ui.drawn(), n => {
-      if (n.type === 'Box' && n.props?.key === 'cards') open = true
-    })
+    const ui = await mountBand($, 'desktop', 95, { maxRows })
+    const open = byKey(await ui.drawn(), 'cards', 'Box') !== undefined
     if (!open) await ui.press({ key: 'more' })
     const tree = await ui.drawn()
     await ui.unmount()

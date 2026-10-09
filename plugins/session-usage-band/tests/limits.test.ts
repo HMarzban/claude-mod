@@ -1,17 +1,13 @@
 // The 5h and 7d limit chips: usage, pace, resets and their toasts.
 
-import { test, expect, mock } from 'claude-code/testing'
+import { test, expect } from 'claude-code/testing'
 import { DARK } from '../hooks/palette'
 import {
   USAGE,
-  PLUGIN,
   START,
-  HOUR_1,
   MIN,
   HOUR,
   CLEAR,
-  base,
-  props,
   resp,
   respond,
   usage,
@@ -21,20 +17,20 @@ import {
   pillOf,
   shown,
   svgsOf,
+  svgRect,
   breakdown,
-  type Node,
   fact,
   cardOf,
+  setup,
+  mountBand,
 } from './helpers'
 
 test('the 5h and 7d chips show usage, a thumb at the end of the fill, and the reset countdown', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on) // 5h 4%, resets in 3h; 7d 30%, resets in 67h
+  setup(on) // 5h 4%, resets in 3h; 7d 30%, resets in 67h
   await $.session.start({ ...START, surface: 'desktop' })
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(160) })
+  const ui = await mountBand($, 'desktop', 160)
   const tree = await ui.drawn()
   const five = pillOf(tree, '5h')
   const week = pillOf(tree, '7d')
@@ -47,10 +43,11 @@ test('the 5h and 7d chips show usage, a thumb at the end of the fill, and the re
     const bar = svgsOf(n).find(s => /% used/.test(String(s.props?.alt)))
     const source = String(bar?.props?.source)
     expect(source).not.toMatch(/class="(tick|notch)"/)
-    const fillEnd = Number(source.match(/<rect class="fill" y="1" width="(\d+)"/)?.[1])
-    const thumb = source.match(/<rect class="thumb" x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)"/)
-    expect(Number(thumb?.[1]) + Number(thumb?.[3]) / 2).toBe(fillEnd) // centred on the fill's end
-    expect(Number(thumb?.[2]) + Number(thumb?.[4])).toBeLessThanOrEqual(Number(bar?.props?.height)) // inside the drawing
+    const fill = svgRect(source, 'fill')
+    const thumb = svgRect(source, 'thumb')
+    expect(fill?.y).toBe(1)
+    expect(Number(thumb?.x) + Number(thumb?.width) / 2).toBe(fill?.width) // centred on the fill's end
+    expect(Number(thumb?.y) + Number(thumb?.height)).toBeLessThanOrEqual(Number(bar?.props?.height)) // inside the drawing
   }
   const alts = svgsOf(firstRow(tree)).map(s => String(s.props?.alt))
   expect(alts).toContain('five-hour')
@@ -60,16 +57,16 @@ test('the 5h and 7d chips show usage, a thumb at the end of the fill, and the re
 })
 
 test('context and 5h escalate to amber at 80% and mark 95%', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on, {
-    ...USAGE,
-    context: { tokens: 164_000, window: 200_000, percent: 82 },
-    rateLimits: [{ kind: 'five_hour', percentUsed: 96, resetsAt: new Date(3600_000).toISOString() }],
+  setup(on, {
+    usage: {
+      ...USAGE,
+      context: { tokens: 164_000, window: 200_000, percent: 82 },
+      rateLimits: [{ kind: 'five_hour', percentUsed: 96, resetsAt: new Date(3600_000).toISOString() }],
+    },
   })
   await $.session.start(START)
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'terminal', 110)
   const ctx = await ui.find({ type: 'Text', text: /164k \/ 200k!$/ })
   expect(ctx?.props?.color).toBe(DARK.amberFg)
   const five = await ui.find({ type: 'Text', text: /96%!!/ })
@@ -78,11 +75,9 @@ test('context and 5h escalate to amber at 80% and mark 95%', async ($, on) => {
 })
 
 test('the 7d chip turns amber at 80%', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on, { ...USAGE, rateLimits: [{ kind: 'seven_day', percentUsed: 85, resetsAt: new Date(30 * 3600_000).toISOString() }] })
+  setup(on, { usage: { ...USAGE, rateLimits: [{ kind: 'seven_day', percentUsed: 85, resetsAt: new Date(30 * 3600_000).toISOString() }] } })
   await $.session.start(START)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(140) })
+  const ui = await mountBand($, 'terminal', 140)
   const week = pillOf(await ui.drawn(), '7d')
   expect(week?.props?.backgroundColor).toBe(DARK.amberBg)
   expect(shown(week)).toMatch(/85%!/)
@@ -90,11 +85,9 @@ test('the 7d chip turns amber at 80%', async ($, on) => {
 })
 
 test('the 5h pill shows your pace once there is enough evidence, and drops it when stale', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
   const resetsAt = new Date(3 * 3600_000).toISOString()
   const at = (pct: number) => ({ ...USAGE, rateLimits: [{ kind: 'five_hour', percentUsed: pct, resetsAt }] })
-  base(on, at(40))
+  const clock = setup(on, { usage: at(40) })
   await $.session.start(START)
   const measure = async (pct: number) => {
     usage.current = at(pct)
@@ -105,7 +98,7 @@ test('the 5h pill shows your pace once there is enough evidence, and drops it wh
   await clock.advance(12 * 60_000)
   await measure(46)
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'terminal', 110)
   const five = await ui.find({ type: 'Text', text: /full in ~1h 45m/ })
   expect(five).toBeDefined()
   expect(five?.props?.color).toBe(DARK.amberFg)
@@ -116,14 +109,12 @@ test('the 5h pill shows your pace once there is enough evidence, and drops it wh
 })
 
 test('reset countdowns keep moving while the cache is cold', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on) // 5h resets at 3h
+  const clock = setup(on) // 5h resets at 3h
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
   await clock.advance(70 * MIN) // cold
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(160) })
+  const ui = await mountBand($, 'terminal', 160)
   expect(shown(pillOf(await ui.drawn(), '5h'))).toMatch(/1h 50m/)
   await clock.advance(45 * MIN)
   expect(shown(pillOf(await ui.drawn(), '5h'))).toMatch(/1h 05m/)
@@ -131,13 +122,11 @@ test('reset countdowns keep moving while the cache is cold', async ($, on) => {
 })
 
 test('a window past its reset shows as reset, not as stale usage', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on, { ...USAGE, rateLimits: [{ kind: 'five_hour', percentUsed: 92, resetsAt: new Date(HOUR).toISOString() }] })
+  const clock = setup(on, { usage: { ...USAGE, rateLimits: [{ kind: 'five_hour', percentUsed: 92, resetsAt: new Date(HOUR).toISOString() }] } })
   await $.session.start(START)
   await clock.advance(2 * HOUR)
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(160) })
+  const ui = await mountBand($, 'terminal', 160)
   const five = pillOf(await ui.drawn(), '5h')
   expect(shown(five)).toMatch(/5h.*reset/)
   expect(shown(five)).not.toMatch(/92%/)
@@ -148,11 +137,9 @@ test('a window past its reset shows as reset, not as stale usage', async ($, on)
 })
 
 test('/clear keeps the 5h pace and does not repeat its toast', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
   const resetsAt = new Date(3 * 3600_000).toISOString()
   const at = (pct: number) => ({ ...USAGE, rateLimits: [{ kind: 'five_hour', percentUsed: pct, resetsAt }] })
-  base(on, at(80))
+  const clock = setup(on, { usage: at(80) })
   await $.session.start(START)
   const measure = async (pct: number) => {
     usage.current = at(pct)
@@ -167,16 +154,14 @@ test('/clear keeps the 5h pace and does not repeat its toast', async ($, on) => 
   await $.session.end(CLEAR)
   await measure(85)
   expect(toasts).toHaveLength(1)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'terminal', 110)
   expect(await ui.find({ type: 'Text', text: /85%! full in ~/ })).toBeDefined()
   await ui.unmount()
 })
 
 test('a failing breakdown read keeps the 5h toast', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
   const at85 = { ...USAGE, rateLimits: [{ kind: 'five_hour', percentUsed: 85, resetsAt: new Date(3 * HOUR).toISOString() }] }
-  base(on, at85)
+  setup(on, { usage: at85 })
   usage.breakdownFails = true
   await $.session.start(START)
   await $.session.measure({ context: at85.context, rateLimits: at85.rateLimits, cost: at85.cost, changed: [] })
@@ -184,13 +169,11 @@ test('a failing breakdown read keeps the 5h toast', async ($, on) => {
 })
 
 test('no rate limits: the band draws without the 5h pill or limit facts', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on, { ...USAGE, rateLimits: [] })
+  setup(on, { usage: { ...USAGE, rateLimits: [] } })
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'terminal', 110)
   expect(await ui.find({ type: 'Text', text: /^5h/ })).toBeUndefined()
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
@@ -200,11 +183,9 @@ test('no rate limits: the band draws without the 5h pill or limit facts', async 
 })
 
 test('a gateway spend limit is listed in the expanded line', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on, { ...USAGE, rateLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * 3600_000).toISOString() }] })
+  setup(on, { usage: { ...USAGE, rateLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * 3600_000).toISOString() }] } })
   await $.session.start(START)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'terminal', 110)
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
   expect(fact(tree, 'spend')).toBe('92%!') // past 80%: marked, never colour alone
