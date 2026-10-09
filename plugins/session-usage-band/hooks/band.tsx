@@ -1,17 +1,10 @@
 // The band, drawn: a pure function of the snapshot register.tsx reads.
 // It never sees `$`, so everything it shows arrives in the snapshot.
 
-import type { ElementTable, RenderChildren, RenderElement, RenderSurface } from 'claude-code'
-import { SOON_MS, TTL_MS } from './cache'
-import type { Ttl } from './cache'
+import type { ElementTable, RenderChildren, RenderElement } from 'claude-code'
 import {
-  COMPACT_NEAR,
-  WARN_AT,
   clamp01,
-  clipMiddle,
-  contextUsed,
   fmtCost,
-  fmtCountdown,
   fmtEstimate,
   fmtAgo,
   fmtEta,
@@ -20,283 +13,36 @@ import {
   resetIn,
   severityMark,
 } from './format'
+import type { Icon } from './icons'
+import { makeKit } from './kit'
+import {
+  CARD_TEXT,
+  CHIP_BAR,
+  GIVES_WAY,
+  HOTKEY_MARK,
+  ROW_SLACK,
+  SHORT_BELOW,
+  cellsOf,
+  keeps,
+  squeezeToFit,
+} from './layout'
+import type { BarSize, Piece } from './layout'
 import { BARE } from './palette'
 import type { Palette } from './palette'
-import { gitSummary, splitPath } from './workspace'
-import type { GitState, Workspace } from './workspace'
+import {
+  cacheCharge,
+  cacheCopy,
+  cacheMood,
+  contextReading,
+  hasReset as resetPassed,
+  limitTone as toneOf,
+  reWarmEstimate,
+  windowGone as goneOf,
+} from './reading'
+import type { Tone } from './reading'
+import type { BandActions, BandSnapshot, LimitReading } from './snapshot'
+import { drawStrip } from './strip'
 
-export type LimitReading = Readonly<{ percentUsed: number; resetsAt: string | undefined }>
-
-/** Everything the band shows, read by register.tsx. */
-export type BandSnapshot = Readonly<{
-  surface: RenderSurface
-  columns: number
-  /** Rows the band may take before it scrolls. */
-  maxRows: number
-  isWorking: boolean
-  expanded: boolean
-  palette: Readonly<Palette>
-  now: number
-  cache: Readonly<{
-    requests: number
-    msLeft: number
-    ttl: Ttl
-    ttlPinned: boolean
-    window: number
-    hitRatio: number | null
-    misses: number
-    reWarmUsd: number | null
-    /** What reading from the cache saved against full input price. */
-    savedUsd: number | null
-    /** A cache read's price against input, on the model in force. */
-    readShare: number
-    /** The conversation is known to start here; else, before its first
-     *  reply, the band has not measured the cache yet. */
-    fresh: boolean
-    /** Before the first reply the band saw, the cache is as recalled: from
-     *  the session's last reply, remembered or read off its transcript. */
-    recalled: boolean
-    /** How long since that recalled reply. */
-    idleMs: number | null
-    /** Every token since the conversation began, subagents included. */
-    tokens: Readonly<{ sent: number; back: number; cached: number }>
-  }>
-  costUsd: number
-  lastTurnUsd: number | null
-  context: Readonly<{
-    tokens: number | undefined
-    window: number
-    percent: number | undefined
-    /** Where auto-compaction runs, when it is on. */
-    compactAt: number | undefined
-  }>
-  fiveHour: (LimitReading & { etaMs: number | null }) | undefined
-  sevenDay: LimitReading | undefined
-  /** Any other window the engine reports, such as a gateway's spend_limit. */
-  otherLimits: ReadonlyArray<LimitReading & { kind: string }>
-  /** The project, home-relative, and git there; undefined until first read. */
-  workspace: Workspace | undefined
-}>
-
-export type BandActions = Readonly<{
-  toggleExpanded: () => Promise<void>
-  hide: () => Promise<void>
-}>
-
-// ---- layout ---------------------------------------------------------------
-
-/** What the row gives up as it narrows, least important first. The row is
- *  measured after each step; an amber piece holds out until the end. */
-const GIVES_WAY = [
-  'tokens',
-  'weekReset',
-  'fiveReset',
-  'contextMeter',
-  'calmWeek',
-  'limitBars',
-  'shortWording',
-  'calmContext',
-  'calmFive',
-  'amberWeekReset',
-  'amberFiveReset',
-] as const
-type Piece = (typeof GIVES_WAY)[number]
-
-/** For a give-way order: whether a line squeezed `squeeze` steps still keeps `piece`. */
-const keepsIn =
-  <P extends string>(order: readonly P[]) =>
-  (squeeze: number, piece: P): boolean =>
-    squeeze <= order.indexOf(piece)
-
-const keeps = keepsIn<Piece>(GIVES_WAY)
-
-/** What the workspace strip gives up as it narrows, least important first.
- *  The path, the branch and the change count's word shorten; the extras go
- *  whole, and the path's hover card still says everything. Uncommitted
- *  changes never go: they are what a narrow line must still say. */
-const STRIP_GIVES_WAY = [
-  'clean',
-  'parent',
-  'changedWord',
-  'branchLong',
-  'worktreeOf',
-  'aheadBehind',
-  'branchShort',
-  'worktree',
-  'nameLong',
-  'nameShort',
-] as const
-const stripKeeps = keepsIn<(typeof STRIP_GIVES_WAY)[number]>(STRIP_GIVES_WAY)
-
-/** Below this, the cache and context wording turns short whatever the squeeze. */
-const SHORT_BELOW = 68
-const METER_CELLS = 6
-const METER_PX = 44
-const ICON_PX = 16
-/** The longest line a card holds unwrapped, in characters:
- *  `resets 2d 19h · full before reset`. */
-const CARD_TEXT = 33
-/** Columns a framed Button's padding and edges take beyond its label. */
-const BUTTON_CHROME = 3
-/** Columns a Button's hotkey mark takes beside its label. */
-const HOTKEY_MARK = 2
-/** Room the band keeps free, so a row measured a little short never wraps. */
-const ROW_SLACK = 4
-
-/** A bar's length: px on desktop, cells elsewhere. */
-type BarSize = Readonly<{ px: number; cells: number }>
-const CHIP_BAR: BarSize = { px: METER_PX, cells: METER_CELLS }
-
-/** How a surface lays text out against its bodyColumns: the terminal one cell
- *  a character; the desktop's proportional font runs about three quarters of
- *  a column, at roughly 10px a column. */
-type Measure = Readonly<{ text: number; pxPerCell: number }>
-const TERMINAL: Measure = { text: 1, pxPerCell: 8 }
-const DESKTOP: Measure = { text: 0.75, pxPerCell: 10 }
-
-const isList = (n: RenderChildren): n is readonly RenderChildren[] => Array.isArray(n)
-
-/** Columns a drawn tree takes: text, padding, gaps and Button labels. Hidden
- *  cards take none; an Svg takes its width in columns, rounded up. */
-const cellsOf = (n: RenderChildren, m: Measure): number => {
-  if (n === null || n === undefined || typeof n === 'boolean') return 0
-  if (typeof n === 'string' || typeof n === 'number') return [...String(n)].length * m.text
-  if (isList(n)) return n.reduce((sum: number, k: RenderChildren) => sum + cellsOf(k, m), 0)
-  switch (n.type) {
-    case 'Button':
-      // A framed button's chrome: its padding and edges either side.
-      return [...(n.props.label ?? '')].length * m.text + (n.props.variant === undefined ? 0 : BUTTON_CHROME)
-    case 'Svg':
-      return Math.ceil((n.props.width ?? 64) / m.pxPerCell)
-    case 'Box':
-    case 'Text': {
-      if (n.props?.position === 'absolute') return 0
-      if (n.type === 'Box' && typeof n.props?.width === 'number') return n.props.width
-      const kids = (n.children ?? []).filter(k => k !== null && k !== undefined)
-      const pad = typeof n.props?.paddingX === 'number' ? 2 * n.props.paddingX : 0
-      const gap = typeof n.props?.columnGap === 'number' ? n.props.columnGap * Math.max(0, kids.length - 1) : 0
-      const own = kids.reduce((sum: number, k) => sum + cellsOf(k, m), 0) + pad + gap
-      return n.type === 'Box' && typeof n.props?.minWidth === 'number' ? Math.max(n.props.minWidth, own) : own
-    }
-    default:
-      return 0
-  }
-}
-
-// ---- icons ----------------------------------------------------------------
-
-type Icon =
-  | 'cost'
-  | 'tokens'
-  | 'context'
-  | 'five'
-  | 'week'
-  | 'reset'
-  | 'cache'
-  | 'limits'
-  | 'info'
-  | 'folder'
-  | 'branch'
-  | 'commit'
-  | 'worktree'
-  | 'changes'
-  | 'ahead'
-  | 'behind'
-
-/** The 5-hour gauge, which also heads the Limits card. */
-const GAUGE = (color: string): string =>
-  `<path d="M2.5 11.5a5.5 5.5 0 1 1 11 0" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>` +
-  `<path d="M8 11.5l2.6-3.4" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>`
-
-/** Desktop icons, as SVG bodies drawn in one colour. */
-const ICON_PATHS: Readonly<Record<Icon, (color: string) => string>> = {
-  cost: color =>
-    `<circle cx="8" cy="8" r="6.5" fill="none" stroke="${color}" stroke-width="1.4"/>` +
-    `<path d="M9.6 5.6c-.4-.5-1-.8-1.7-.8-1 0-1.7.6-1.7 1.3 0 1.7 3.6 1 3.6 2.9 0 .8-.8 1.4-1.9 1.4-.8 0-1.5-.3-1.9-.9M8 3.9v1M8 10.4v1.4" fill="none" stroke="${color}" stroke-width="1.2" stroke-linecap="round"/>`,
-  tokens: color =>
-    `<rect x="2.5" y="3" width="11" height="2.4" rx="1.2" fill="${color}"/>` +
-    `<rect x="2.5" y="6.8" width="11" height="2.4" rx="1.2" fill="${color}" opacity=".75"/>` +
-    `<rect x="2.5" y="10.6" width="11" height="2.4" rx="1.2" fill="${color}" opacity=".5"/>`,
-  context: color =>
-    `<rect x="2.5" y="2.5" width="11" height="11" rx="2.5" fill="none" stroke="${color}" stroke-width="1.4"/>` +
-    `<path d="M5.2 6h5.6M5.2 8.5h5.6M5.2 11h3.2" stroke="${color}" stroke-width="1.2" stroke-linecap="round"/>`,
-  five: GAUGE,
-  limits: GAUGE,
-  // A bolt: the cache is what makes a warm reply fast and cheap.
-  cache: color =>
-    `<path d="M9.2 1.8 3.6 9h3.9l-.8 5.2L12.4 7H8.5z" fill="none" stroke="${color}" stroke-width="1.3" stroke-linejoin="round"/>`,
-  info: color =>
-    `<circle cx="8" cy="8" r="6.5" fill="none" stroke="${color}" stroke-width="1.4"/>` +
-    `<path d="M8 7.3v4" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>` +
-    `<circle cx="8" cy="4.9" r=".9" fill="${color}"/>`,
-  folder: color =>
-    `<path d="M2.5 4.5A1.5 1.5 0 0 1 4 3h2.3l1.5 1.6H12a1.5 1.5 0 0 1 1.5 1.5v5.4A1.5 1.5 0 0 1 12 13H4a1.5 1.5 0 0 1-1.5-1.5z" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`,
-  branch: color =>
-    `<circle cx="4.75" cy="11.75" r="1.75" fill="none" stroke="${color}" stroke-width="1.4"/>` +
-    `<circle cx="11.25" cy="4.25" r="1.75" fill="none" stroke="${color}" stroke-width="1.4"/>` +
-    `<path d="M4.75 2.5V10M11.25 6c0 3-2.3 5.1-4.75 5.6" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>`,
-  commit: color =>
-    `<circle cx="8" cy="8" r="2.6" fill="none" stroke="${color}" stroke-width="1.4"/>` +
-    `<path d="M2.5 8h2.9M10.6 8h2.9" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>`,
-  // Rounded squares, where the branch has circles, so the two stay apart at 16px.
-  worktree: color =>
-    `<path d="M4 2.5v7.75a1.5 1.5 0 0 0 1.5 1.5H9M4 5h5" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>` +
-    `<rect x="9" y="3.25" width="4.5" height="3.5" rx="1.2" fill="none" stroke="${color}" stroke-width="1.4"/>` +
-    `<rect x="9" y="10" width="4.5" height="3.5" rx="1.2" fill="none" stroke="${color}" stroke-width="1.4"/>`,
-  changes: color => `<path d="M8 2.5v7M4.5 6h7M4.5 13h7" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>`,
-  ahead: color =>
-    `<path d="M8 13V3.5M4.5 7 8 3.5 11.5 7" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`,
-  behind: color =>
-    `<path d="M8 3v9.5M4.5 9 8 12.5 11.5 9" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`,
-  week: color =>
-    `<rect x="2.5" y="3.5" width="11" height="10" rx="2" fill="none" stroke="${color}" stroke-width="1.4"/>` +
-    `<path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>`,
-  reset: color =>
-    `<circle cx="8" cy="8" r="5.6" fill="none" stroke="${color}" stroke-width="1.4"/>` +
-    `<path d="M8 5v3l2 1.4" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>`,
-}
-
-/** What stands in for an icon where there is no Svg; the cost keeps its `$`. */
-const GLYPH: Readonly<Record<Icon, string>> = {
-  cost: '',
-  tokens: 'Σ',
-  context: '◔',
-  five: '',
-  week: '',
-  reset: '↻',
-  cache: '',
-  limits: '',
-  info: '',
-  // The text strip says these in words.
-  folder: '',
-  branch: '',
-  commit: '',
-  worktree: '',
-  changes: '',
-  ahead: '',
-  behind: '',
-}
-
-/** An icon's name for a reader that cannot see it. */
-const ALT: Readonly<Record<Icon, string>> = {
-  cost: 'cost',
-  tokens: 'tokens',
-  context: 'context',
-  five: 'five-hour',
-  week: 'week',
-  reset: 'resets',
-  cache: 'cache',
-  limits: 'limits',
-  info: 'info',
-  // Each reads as a phrase with the text after it: "HEAD detached at a1b2c3d".
-  folder: 'folder',
-  branch: 'branch',
-  commit: 'HEAD',
-  worktree: 'linked',
-  changes: 'uncommitted',
-  ahead: 'ahead',
-  behind: 'behind',
-}
 
 // ---- limits ---------------------------------------------------------------
 
@@ -334,25 +80,7 @@ const LIMITS: Readonly<Record<LimitKey, LimitSpec>> = {
   },
 }
 
-// ---- the cache ------------------------------------------------------------
-
-/** Unmeasured: loaded mid-conversation, before its next reply. */
-type CacheMood = 'unmeasured' | 'warming' | 'warm' | 'expiring' | 'cold'
-
-const cacheMood = (c: BandSnapshot['cache']): CacheMood =>
-  c.requests === 0 && !c.recalled
-    ? c.fresh
-      ? 'warming'
-      : 'unmeasured'
-    : c.msLeft <= 0
-      ? 'cold'
-      : c.msLeft <= SOON_MS
-        ? 'expiring'
-        : 'warm'
-
 // ---- drawing --------------------------------------------------------------
-
-type Tone = 'calm' | 'amber'
 
 type PillSpec = Readonly<{
   key: string
@@ -365,36 +93,9 @@ type PillSpec = Readonly<{
 }>
 
 export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions): RenderElement => {
-  const { Box, Button, Text } = el
-  const palette = snap.palette
+  const kit = makeKit(el, snap)
+  const { Box, Button, Text, Svg, palette, measure, onTone, hoverCard, gap, icon } = kit
   const c = snap.cache
-  // Svg draws on the desktop alone (other surfaces hold the element but drop
-  // it), and its markup takes hex: theme keys can't reach inside it, so plain
-  // appearance keeps text.
-  const Svg = snap.surface === 'desktop' && palette.filled && 'Svg' in el ? el.Svg : undefined
-  const onTone = (tone: Tone, calm: string, amber: string = palette.amberFg) => (tone === 'amber' ? amber : calm)
-
-  /** A one-line explanation shown while its keyed parent is hovered. It has
-   *  no key: a keyed Box is its own hover scope, and a hidden one could never
-   *  be hovered. Plain has no background to cover the row with, so none. */
-  const hoverCard = (text: string, anchor: 'left' | 'right'): RenderChildren =>
-    palette.filled ? (
-      <Box
-        position="absolute"
-        top={0}
-        {...(anchor === 'left' ? { left: 0 } : { right: 0 })}
-        width={Math.min(text.length + 2, snap.columns)}
-        display="none"
-        hover={{ display: 'flex' }}
-        backgroundColor={palette.tooltipBg}
-        paddingX={1}
-      >
-        <Text color={palette.value} wrap="truncate-end">
-          {text}
-        </Text>
-      </Box>
-    ) : null
-
   // A pill carries its own foreground and background, never one of each. Its
   // card is a child, so the engine counts the pointer on the card as on the
   // pill and reading it keeps the pill hovered. The card has no key: a keyed
@@ -420,19 +121,6 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         {hoverCard(card, anchor)}
       </Box>
     )
-  }
-
-  /** A column of air. The desktop drops a string child that is only spaces,
-   *  so there the gap is an empty Box; a text surface keeps its space. */
-  const gap = (key: string): RenderChildren => (Svg ? <Box key={key} width={1} flexShrink={0} /> : ' ')
-
-  /** An icon and the gap after it: an Svg on desktop, a glyph elsewhere. */
-  const icon = (name: Icon, color: string, alt: string = ALT[name]): RenderChildren[] => {
-    if (Svg) {
-      const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${ICON_PX}" height="${ICON_PX}" viewBox="0 0 16 16">${ICON_PATHS[name](color)}</svg>`
-      return [<Svg key={`i-${name}`} source={source} alt={alt} width={ICON_PX} height={ICON_PX} />, gap(`g-${name}`)]
-    }
-    return GLYPH[name] ? [<Text key={`i-${name}`} color={color}>{`${GLYPH[name]} `}</Text>] : []
   }
 
   /** A bar: `frac` filled, with a thumb where the fill ends, so the eye finds
@@ -479,50 +167,24 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
 
   // ---- what the pills say, whatever the squeeze ----------------------------
   const mood = cacheMood(c)
-  const estimate = c.reWarmUsd !== null ? fmtEstimate(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`
-  // What a warm read costs against input on the model in force: 5% on Opus 5.5.
-  const readPct = `${+(c.readShare * 100).toFixed(1)}%`
-  const cacheCard =
-    mood === 'unmeasured'
-      ? "Not measured since the band loaded; the countdown starts with Claude's next reply"
-      : mood === 'warming'
-        ? `Your first message builds the cache; after that it bills input at ${readPct}`
-        : mood === 'cold'
-          ? `Cold: next message rebuilds ${fmtTokens(c.window)} tokens${c.reWarmUsd === null ? '' : ` (${fmtEstimate(c.reWarmUsd)})`}`
-          : `Warm cache bills input at ${readPct}; expires ${c.ttl} after a reply`
+  const copy = cacheCopy(c, mood, snap.isWorking)
+  const estimate = reWarmEstimate(c)
   const cacheTone: Tone = mood === 'expiring' ? 'amber' : 'calm'
-  // The battery's charge is the share of the TTL left; full while Claude works.
-  const charge = mood === 'unmeasured' || mood === 'warming' || mood === 'cold' ? 0 : mood === 'warm' && snap.isWorking ? 1 : c.msLeft / TTL_MS[c.ttl]
-  const cacheText = (short: boolean): string => {
-    switch (mood) {
-      case 'unmeasured':
-        return 'cache –'
-      case 'warming':
-        return 'cache warming'
-      case 'expiring':
-        return short ? `${fmtCountdown(c.msLeft)} ${estimate}` : `${fmtCountdown(c.msLeft)} left · re-warm ${estimate}`
-      case 'cold':
-        // Cold is a price, not an error: neutral, no hue, no alarm.
-        return short ? `cold ${estimate}` : `cache cold · next message ${estimate}`
-      case 'warm':
-        // Mid-turn every step restarts the TTL, so a countdown would only bounce.
-        return snap.isWorking ? 'cache warm' : `cache ${fmtCountdown(c.msLeft)}`
-    }
-  }
+  const charge = cacheCharge(c, mood, snap.isWorking)
 
   const tokenBreakdown = `input ${fmtTokens(c.tokens.sent)} · output ${fmtTokens(c.tokens.back)} · cache reads ${fmtTokens(c.tokens.cached)}`
   const tokenTotal = c.tokens.sent + c.tokens.back + c.tokens.cached
 
   const ctx = snap.context
-  const hasContext = ctx.percent !== undefined || ctx.tokens !== undefined
-  const ctxUsed = contextUsed(ctx) ?? 0
-  // Compaction is where the room runs out, so with it known the bar measures
-  // toward it: full means compacting, and no tick is needed to show where.
-  const ctxFrac = clamp01(ctxUsed / (ctx.compactAt ?? ctx.window))
-  const ctxPct = `${Math.round(ctxFrac * 100)}%`
-  const toCompact = ctx.compactAt === undefined ? undefined : Math.max(0, ctx.compactAt - ctxUsed)
-  const nearCompact = ctx.compactAt !== undefined && ctxFrac >= COMPACT_NEAR
-  const ctxTone: Tone = nearCompact || (ctx.compactAt === undefined && ctxFrac >= WARN_AT) ? 'amber' : 'calm'
+  const {
+    known: hasContext,
+    used: ctxUsed,
+    frac: ctxFrac,
+    pct: ctxPct,
+    toCompact,
+    nearCompact,
+    tone: ctxTone,
+  } = contextReading(ctx)
 
   // ---- the cache pill ----------------------------------------------------
   const batteryIcon = (): RenderChildren => {
@@ -536,14 +198,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       `<rect x="19.75" y="4" width="1.75" height="4" rx="0.8" fill="${outline}"/>` +
       `<rect class="charge" x="2.5" y="2.5" width="${width}" height="7" rx="1.5" fill="${fill}"/>` +
       '</svg>'
-    const alt =
-      mood === 'unmeasured'
-        ? 'cache not measured yet'
-        : mood === 'warming'
-          ? 'cache warming'
-          : charge <= 0
-          ? 'cache battery empty'
-          : `cache battery ${Math.round(clamp01(charge) * 100)}% left`
+    const alt = copy.alt
     return <Svg key="battery" source={source} alt={alt} width={22} height={12} />
   }
 
@@ -568,7 +223,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   }
 
   const cachePill = (short: boolean): PillSpec => {
-    const text = cacheText(short)
+    const text = copy.pill(short)
     if (Svg) {
       // A normal rounded pill led by a draining battery icon; the text-surface
       // battery would paint a square-cornered block here.
@@ -576,10 +231,10 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         key: 'cache',
         tone: cacheTone,
         body: [batteryIcon(), <Text key="c" color={onTone(cacheTone, palette.value)}>{` ${text}`}</Text>],
-        card: cacheCard,
+        card: copy.hover,
       }
     }
-    if (palette.filled) return { key: 'cache', tone: cacheTone, body: textBattery(`◷ ${text}`), card: cacheCard, paintsOwnBg: true }
+    if (palette.filled) return { key: 'cache', tone: cacheTone, body: textBattery(`◷ ${text}`), card: copy.hover, paintsOwnBg: true }
     const dot = mood === 'warm' || mood === 'expiring' ? palette.warm : palette.cold
     return {
       key: 'cache',
@@ -590,7 +245,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
           {cacheTone === 'amber' ? `◷ ${text}` : text}
         </Text>,
       ],
-      card: cacheCard,
+      card: copy.hover,
     }
   }
 
@@ -641,19 +296,9 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     }
   }
 
-  /** The share of a window gone, from its length and its reset. */
-  const windowGone = (reading: LimitReading, windowMs: number | undefined): number | undefined => {
-    const at = reading.resetsAt === undefined ? NaN : Date.parse(reading.resetsAt)
-    return windowMs === undefined || Number.isNaN(at) || at <= snap.now ? undefined : clamp01(1 - (at - snap.now) / windowMs)
-  }
-
-  // A window past its reset is calm: its last reading is from before it.
-  const hasReset = (reading: LimitReading): boolean => resetIn(reading.resetsAt, snap.now)?.kind === 'passed'
-
-  /** A limit's tone, the one rule chip and card share: amber at WARN_AT, or
-   *  when a pace (`etaMs`) would fill it before it resets; calm once reset. */
-  const limitTone = (reading: LimitReading, etaMs: number | null = null): Tone =>
-    !hasReset(reading) && (clamp01(reading.percentUsed / 100) >= WARN_AT || etaMs !== null) ? 'amber' : 'calm'
+  const windowGone = (reading: LimitReading, windowMs: number | undefined) => goneOf(reading, windowMs, snap.now)
+  const hasReset = (reading: LimitReading) => resetPassed(reading, snap.now)
+  const limitTone = (reading: LimitReading, etaMs: number | null = null) => toneOf(reading, snap.now, etaMs)
 
   // ---- the row, at a given squeeze ---------------------------------------
   const buildPills = (squeeze: number): PillSpec[] => {
@@ -746,478 +391,325 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     </Box>
   )
 
-  const measure = snap.surface === 'desktop' ? DESKTOP : TERMINAL
-  let row = rowOf(buildPills(0))
-  for (let squeeze = 1; squeeze <= GIVES_WAY.length && cellsOf(row, measure) > snap.columns - ROW_SLACK; squeeze++) {
-    row = rowOf(buildPills(squeeze))
-  }
+  const row = squeezeToFit(squeeze => rowOf(buildPills(squeeze)), GIVES_WAY.length, snap.columns - ROW_SLACK, measure)
 
   // ---- the expanded view: four cards, every fact labelled ----------------
-  /** A label and its value at either end of a line; `swatch` keys a legend. */
-  const factRow = (label: string, value: string, swatch?: string) => (
-    <Box key={`fact:${label}`} flexDirection="row" justifyContent="space-between" columnGap={2}>
-      <Text color={palette.label}>
-        {swatch === undefined ? null : <Text key="sw" color={swatch}>{'■ '}</Text>}
-        {label}
-      </Text>
-      <Text color={palette.cardValue}>{value}</Text>
-    </Box>
-  )
-  const note = (text: string) => (
-    <Text key="note" color={palette.label} wrap="wrap">
-      {text}
-    </Text>
-  )
-
-  // The grid: as many cards to a line as hold their text, else two, else one.
-  // Each line shares its width equally (a zero basis, grown alike), so the
-  // cards align whatever their text and a line never wraps one away. A
-  // desktop card has a visible edge; a terminal card is a fill, its border
-  // would cost two columns. Lines keep a row of air between them.
-  const bordered = Svg !== undefined || !palette.filled
-  const edge = bordered ? 2 : 0
-  const minCard = Math.ceil(CARD_TEXT * measure.text) + 2 + edge
-  const cardCount = 2 + (hasContext ? 1 : 0) + (snap.fiveHour || snap.sevenDay || snap.otherLimits.length > 0 ? 1 : 0)
-  const fits = (n: number) => n * minCard + (n - 1) <= snap.columns
-  const perLine = [cardCount, Math.ceil(cardCount / 2)].find(fits) ?? 1
-  const lineCount = Math.ceil(cardCount / perLine)
-  const LINE_GAP = 1
-  // The rows a card's body may take: the band's, less the chip row, the
-  // buttons, the row of air above each line of cards and the buttons and,
-  // when it shows, the workspace strip, shared by the lines, less a card's
-  // edge and its header. A taller band would scroll, hiding the buttons.
-  const bodyFor = (strip: number) =>
-    Math.floor((snap.maxRows - 4 - strip - LINE_GAP * (lineCount - 1)) / lineCount) - edge - 1
-  // The strip heads the view when every card still keeps a fact of its own;
-  // short of that row it takes the footer's, in place of the hint.
-  const stripPlace: 'top' | 'footer' | undefined =
-    !snap.expanded || snap.workspace === undefined ? undefined : bodyFor(1) >= 1 ? 'top' : 'footer'
-  const bodyRows = Math.max(1, bodyFor(stripPlace === 'top' ? 1 : 0))
-  const inner = Math.max(4, Math.floor((snap.columns - (perLine - 1)) / perLine) - 2 - edge)
-  const cardBar: BarSize = { px: inner * measure.pxPerCell, cells: inner }
-  /** As much of a card's body as the band has rows for, its facts listed
-   *  most important first. Its bar repeats a chip's, so it shows only when
-   *  every fact fits beside it; short of rows, a fact wins. */
-  const fitBody = (bar: RenderChildren, body: RenderChildren[]): RenderChildren[] => {
-    const facts = body.filter(part => part !== null && part !== undefined)
-    return bar !== null && facts.length < bodyRows ? [bar, ...facts] : facts.slice(0, bodyRows)
-  }
-  // Each card's mark: the chips' own icons, so the band speaks one language.
-  const CARD_ICON: Readonly<Record<string, readonly [Icon, string]>> = {
-    cache: ['cache', palette.warm],
-    spend: ['cost', palette.coin],
-    context: ['context', palette.label],
-    limits: ['limits', palette.fiveAccent],
-  }
-  /** A card: its title and headline on one line, then its bar and body. */
-  const card = (
-    name: string,
-    title: string,
-    head: Readonly<{ text: string; tone?: Tone }>,
-    bar: RenderChildren,
-    body: RenderChildren[],
-  ) => (
-    <Box
-      key={`card:${name}`}
-      flexDirection="column"
-      flexGrow={1}
-      width={0}
-      minWidth={0}
-      paddingX={1}
-      {...(palette.filled ? { backgroundColor: palette.cardBg } : {})}
-      {...(bordered ? { borderStyle: 'round', borderColor: palette.cardBorder } : {})}
-    >
-      <Box key="head" flexDirection="row" justifyContent="space-between" columnGap={1}>
-        <Box key="title" flexDirection="row" flexShrink={0}>
-          {/* Desktop alone: a terminal title stays plain text. */}
-          {Svg && CARD_ICON[name] ? icon(...CARD_ICON[name]) : null}
-          <Text color={palette.label}>{title.toUpperCase()}</Text>
-        </Box>
-        <Text color={onTone(head.tone ?? 'calm', palette.value)} bold wrap="truncate-end">
-          {head.text}
+  // Built only when open: a closed band draws the row alone.
+  const expandedView = (): RenderChildren[] => {
+    /** A label and its value at either end of a line; `swatch` keys a legend. */
+    const factRow = (label: string, value: string, swatch?: string) => (
+      <Box key={`fact:${label}`} flexDirection="row" justifyContent="space-between" columnGap={2}>
+        <Text color={palette.label}>
+          {swatch === undefined ? null : <Text key="sw" color={swatch}>{'■ '}</Text>}
+          {label}
         </Text>
+        <Text color={palette.cardValue}>{value}</Text>
       </Box>
-      {fitBody(bar, body)}
-    </Box>
-  )
-
-  /** A bar split into parts, each its share of the whole, in its own colour. */
-  const splitBar = (label: string, parts: ReadonlyArray<readonly [number, string]>) => {
-    const total = parts.reduce((sum, [n]) => sum + n, 0)
-    if (total <= 0) return null
-    if (Svg) {
-      // Drawn wider than any card and capped by it, like a stretched meter.
-      // No clipPath, whose id would be page-wide: the end segments draw their
-      // own rounded ends, as paths, the inner ones square.
-      const width = cardBar.px * 2
-      const R = 6
-      const shown = parts.filter(([n]) => n > 0)
-      let x = 0
-      const segments = shown.map(([n, color], i) => {
-        const x0 = x
-        const x1 = x + (n / total) * width
-        x = x1
-        const f = (v: number) => v.toFixed(1)
-        const first = i === 0
-        const last = i === shown.length - 1
-        if (x1 - x0 < 2 * R || (!first && !last)) {
-          return `<rect x="${f(x0)}" y="1" width="${f(x1 - x0)}" height="6"${first && last ? ` rx="${R}" ry="3"` : ''} fill="${color}"/>`
-        }
-        if (first && last) return `<rect x="${f(x0)}" y="1" width="${f(x1 - x0)}" height="6" rx="${R}" ry="3" fill="${color}"/>`
-        return first
-          ? `<path d="M${f(x0 + R)} 1H${f(x1)}V7H${f(x0 + R)}A${R} 3 0 0 1 ${f(x0 + R)} 1Z" fill="${color}"/>`
-          : `<path d="M${f(x0)} 1H${f(x1 - R)}A${R} 3 0 0 1 ${f(x1 - R)} 7H${f(x0)}Z" fill="${color}"/>`
-      })
-      const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="8" viewBox="0 0 ${width} 8" preserveAspectRatio="none">${segments.join('')}</svg>`
-      return <Svg key="split" source={source} alt={label} height={8} />
-    }
-    const cells = cardBar.cells
-    let used = 0
-    return (
-      <Text key="split">
-        {parts.map(([n, color], i) => {
-          const count = i === parts.length - 1 ? cells - used : Math.round((n / total) * cells)
-          used += count
-          return (
-            <Text key={`s${i}`} color={color}>
-              {'█'.repeat(Math.max(0, count))}
-            </Text>
-          )
-        })}
+    )
+    const note = (text: string) => (
+      <Text key="note" color={palette.label} wrap="wrap">
+        {text}
       </Text>
     )
-  }
 
-  const measured = c.requests > 0
-  // Measured, or recalled from the session's last reply: time and price known.
-  const known = measured || c.recalled
-  const cacheView = card(
-    'cache',
-    'Cache',
-    {
-      text:
-        mood === 'unmeasured'
-          ? 'Not measured yet'
-          : mood === 'warming'
-            ? 'Warming'
-            : mood === 'cold'
-              ? 'Cold'
-              : mood === 'warm' && snap.isWorking
-                ? 'Warm'
-                : `${fmtCountdown(c.msLeft)} left`,
-      tone: cacheTone,
-    },
-    known ? meter('cache', charge, cacheTone, palette.warm, cardBar, true) : null,
-    [
-      mood === 'unmeasured' ? note("Countdown starts with Claude's next reply.") : null,
-      mood === 'warming' ? note('First message builds the cache.') : null,
-      known ? factRow(mood === 'cold' ? 'next message' : 're-warm if cold', estimate) : null,
-      c.recalled && c.idleMs !== null ? factRow('idle for', fmtAgo(c.idleMs)) : null,
-      c.misses > 0 ? factRow('unexpected rebuilds', String(c.misses)) : null,
-      measured && c.savedUsd !== null ? factRow('saved by cache', fmtEstimate(c.savedUsd)) : null,
-      measured && c.hitRatio !== null ? factRow('hit rate', `${Math.round(c.hitRatio * 100)}%`) : null,
-      // Inference only ever moves an assumed hour to 5m, so an unpinned hour is the guess.
-      factRow('expires', `${c.ttl} idle${!c.ttlPinned && c.ttl === '1h' ? ' · assumed' : ''}`),
-    ],
-  )
+    // The grid: as many cards to a line as hold their text, else two, else one.
+    // Each line shares its width equally (a zero basis, grown alike), so the
+    // cards align whatever their text and a line never wraps one away. A
+    // desktop card has a visible edge; a terminal card is a fill, its border
+    // would cost two columns. Lines keep a row of air between them.
+    const bordered = Svg !== undefined || !palette.filled
+    const edge = bordered ? 2 : 0
+    const minCard = Math.ceil(CARD_TEXT * measure.text) + 2 + edge
+    const cardCount = 2 + (hasContext ? 1 : 0) + (snap.fiveHour || snap.sevenDay || snap.otherLimits.length > 0 ? 1 : 0)
+    const fits = (n: number) => n * minCard + (n - 1) <= snap.columns
+    const perLine = [cardCount, Math.ceil(cardCount / 2)].find(fits) ?? 1
+    const lineCount = Math.ceil(cardCount / perLine)
+    const LINE_GAP = 1
+    // The rows a card's body may take: the band's, less the chip row, the
+    // buttons, the row of air above each line of cards and the buttons and,
+    // when it shows, the workspace strip, shared by the lines, less a card's
+    // edge and its header. A taller band would scroll, hiding the buttons.
+    const bodyFor = (strip: number) =>
+      Math.floor((snap.maxRows - 4 - strip - LINE_GAP * (lineCount - 1)) / lineCount) - edge - 1
+    // The strip heads the view when every card still keeps a fact of its own;
+    // short of that row it takes the footer's, in place of the hint.
+    const stripPlace: 'top' | 'footer' | undefined =
+      snap.workspace === undefined ? undefined : bodyFor(1) >= 1 ? 'top' : 'footer'
+    const bodyRows = Math.max(1, bodyFor(stripPlace === 'top' ? 1 : 0))
+    const inner = Math.max(4, Math.floor((snap.columns - (perLine - 1)) / perLine) - 2 - edge)
+    const cardBar: BarSize = { px: inner * measure.pxPerCell, cells: inner }
+    /** As much of a card's body as the band has rows for, its facts listed
+     *  most important first. Its bar repeats a chip's, so it shows only when
+     *  every fact fits beside it; short of rows, a fact wins. */
+    const fitBody = (bar: RenderChildren, body: RenderChildren[]): RenderChildren[] => {
+      const facts = body.filter(part => part !== null && part !== undefined)
+      return bar !== null && facts.length < bodyRows ? [bar, ...facts] : facts.slice(0, bodyRows)
+    }
+    // Each card's mark: the chips' own icons, so the band speaks one language.
+    const CARD_ICON: Readonly<Record<string, readonly [Icon, string]>> = {
+      cache: ['cache', palette.warm],
+      spend: ['cost', palette.coin],
+      context: ['context', palette.label],
+      limits: ['limits', palette.fiveAccent],
+    }
+    /** A card: its title and headline on one line, then its bar and body. */
+    const card = (
+      name: string,
+      title: string,
+      head: Readonly<{ text: string; tone?: Tone }>,
+      bar: RenderChildren,
+      body: RenderChildren[],
+    ) => (
+      <Box
+        key={`card:${name}`}
+        flexDirection="column"
+        flexGrow={1}
+        width={0}
+        minWidth={0}
+        paddingX={1}
+        {...(palette.filled ? { backgroundColor: palette.cardBg } : {})}
+        {...(bordered ? { borderStyle: 'round', borderColor: palette.cardBorder } : {})}
+      >
+        <Box key="head" flexDirection="row" justifyContent="space-between" columnGap={1}>
+          <Box key="title" flexDirection="row" flexShrink={0}>
+            {/* Desktop alone: a terminal title stays plain text. */}
+            {Svg && CARD_ICON[name] ? icon(...CARD_ICON[name]) : null}
+            <Text color={palette.label}>{title.toUpperCase()}</Text>
+          </Box>
+          <Text color={onTone(head.tone ?? 'calm', palette.value)} bold wrap="truncate-end">
+            {head.text}
+          </Text>
+        </Box>
+        {fitBody(bar, body)}
+      </Box>
+    )
 
-  // Cache reads in the warm colour: cheap, and often most of the bar.
-  const SPLIT: ReadonlyArray<readonly [string, number, string]> = [
-    ['input', c.tokens.sent, palette.meterFill],
-    ['output', c.tokens.back, palette.coin],
-    ['cache reads', c.tokens.cached, palette.warm],
-  ]
-  const spendView = card(
-    'spend',
-    'Spend',
-    { text: fmtCost(snap.costUsd) },
-    measured ? splitBar('token split: input, output, cache reads', SPLIT.map(([, n, color]) => [n, color] as const)) : null,
-    [
-    snap.lastTurnUsd !== null ? factRow('last message', fmtSmallCost(snap.lastTurnUsd)) : null,
-    ...(measured ? SPLIT.map(([label, n, color]) => factRow(label, fmtTokens(n), color)) : [note('Breakdown counts from your next message.')]),
-    ],
-  )
-
-  const contextView = hasContext
-    ? card(
-        'context',
-        'Context',
-        { text: `${ctxPct} full${ctx.compactAt === undefined ? severityMark(ctxFrac) : ''}`, tone: ctxTone },
-        meter('context', ctxFrac, ctxTone, palette.meterFill, cardBar, true),
-        [
-        toCompact !== undefined ? factRow('room left', `~${fmtTokens(toCompact)}`) : null,
-        ctx.compactAt !== undefined ? factRow('auto-compacts at', fmtTokens(ctx.compactAt)) : null,
-        factRow('in context', fmtTokens(ctxUsed)),
-        factRow('model window', fmtTokens(ctx.window)),
-        ],
+    /** A bar split into parts, each its share of the whole, in its own colour. */
+    const splitBar = (label: string, parts: ReadonlyArray<readonly [number, string]>) => {
+      const total = parts.reduce((sum, [n]) => sum + n, 0)
+      if (total <= 0) return null
+      if (Svg) {
+        // Drawn wider than any card and capped by it, like a stretched meter.
+        // No clipPath, whose id would be page-wide: the end segments draw their
+        // own rounded ends, as paths, the inner ones square.
+        const width = cardBar.px * 2
+        const R = 6
+        const shown = parts.filter(([n]) => n > 0)
+        let x = 0
+        const segments = shown.map(([n, color], i) => {
+          const x0 = x
+          const x1 = x + (n / total) * width
+          x = x1
+          const f = (v: number) => v.toFixed(1)
+          const first = i === 0
+          const last = i === shown.length - 1
+          if (x1 - x0 < 2 * R || (!first && !last)) {
+            return `<rect x="${f(x0)}" y="1" width="${f(x1 - x0)}" height="6"${first && last ? ` rx="${R}" ry="3"` : ''} fill="${color}"/>`
+          }
+          if (first && last) return `<rect x="${f(x0)}" y="1" width="${f(x1 - x0)}" height="6" rx="${R}" ry="3" fill="${color}"/>`
+          return first
+            ? `<path d="M${f(x0 + R)} 1H${f(x1)}V7H${f(x0 + R)}A${R} 3 0 0 1 ${f(x0 + R)} 1Z" fill="${color}"/>`
+            : `<path d="M${f(x0)} 1H${f(x1 - R)}A${R} 3 0 0 1 ${f(x1 - R)} 7H${f(x0)}Z" fill="${color}"/>`
+        })
+        const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="8" viewBox="0 0 ${width} 8" preserveAspectRatio="none">${segments.join('')}</svg>`
+        return <Svg key="split" source={source} alt={label} height={8} />
+      }
+      const cells = cardBar.cells
+      let used = 0
+      return (
+        <Text key="split">
+          {parts.map(([n, color], i) => {
+            const count = i === parts.length - 1 ? cells - used : Math.round((n / total) * cells)
+            used += count
+            return (
+              <Text key={`s${i}`} color={color}>
+                {'█'.repeat(Math.max(0, count))}
+              </Text>
+            )
+          })}
+        </Text>
       )
-    : null
+    }
 
-  /** A window of the Limits card. `etaMs` is the measured pace the 5h chip
-   *  shows, when there is one; the card says the same. */
-  type Window = Readonly<{
-    name: string
-    reading: LimitReading
-    windowMs: number | undefined
-    accent: string
-    etaMs: number | null
-  }>
-  const windows: Window[] = [
-    ...(snap.fiveHour
-      ? [{ name: '5h', reading: snap.fiveHour, windowMs: LIMITS['5h'].windowMs, accent: palette.fiveAccent, etaMs: snap.fiveHour.etaMs }]
-      : []),
-    ...(snap.sevenDay ? [{ name: '7d', reading: snap.sevenDay, windowMs: LIMITS['7d'].windowMs, accent: palette.weekAccent, etaMs: null }] : []),
-    ...snap.otherLimits.map(limit => ({
-      name: limit.kind === 'spend_limit' ? 'spend' : limit.kind.replace(/_/g, ' '),
-      reading: limit,
-      windowMs: undefined,
-      accent: palette.meterFill,
-      etaMs: null,
-    })),
-  ]
-  const live = windows.filter(w => !hasReset(w.reading))
-  const valueOf = (reading: LimitReading) => `${Math.round(reading.percentUsed)}%${severityMark(clamp01(reading.percentUsed / 100))}`
+    const measured = c.requests > 0
+    // Measured, or recalled from the session's last reply: time and price known.
+    const known = measured || c.recalled
+    const cacheView = card(
+      'cache',
+      'Cache',
+      {
+        text: copy.head,
+        tone: cacheTone,
+      },
+      known ? meter('cache', charge, cacheTone, palette.warm, cardBar, true) : null,
+      [
+        copy.note === undefined ? null : note(copy.note),
+        known ? factRow(mood === 'cold' ? 'next message' : 're-warm if cold', estimate) : null,
+        c.recalled && c.idleMs !== null ? factRow('idle for', fmtAgo(c.idleMs)) : null,
+        c.misses > 0 ? factRow('unexpected rebuilds', String(c.misses)) : null,
+        measured && c.savedUsd !== null ? factRow('saved by cache', fmtEstimate(c.savedUsd)) : null,
+        measured && c.hitRatio !== null ? factRow('hit rate', `${Math.round(c.hitRatio * 100)}%`) : null,
+        // Inference only ever moves an assumed hour to 5m, so an unpinned hour is the guess.
+        factRow('expires', `${c.ttl} idle${!c.ttlPinned && c.ttl === '1h' ? ' · assumed' : ''}`),
+      ],
+    )
 
-  /** One window: its name, bar and value on a line, then its reset and pace in words. */
-  const limitRows = ({ name, reading, windowMs, accent, etaMs }: Window): readonly [RenderChildren, RenderChildren] => {
-    const r = resetIn(reading.resetsAt, snap.now)
-    if (r?.kind === 'passed') return [factRow(name, 'reset'), null]
-    const frac = clamp01(reading.percentUsed / 100)
-    const tone = limitTone(reading, etaMs)
-    const gone = windowGone(reading, windowMs)
-    const value = valueOf(reading)
-    const room = Math.max(4, inner - [...name].length - [...value].length - 2)
-    // A measured pace, as the chip says it; else where the window's average
-    // rate ends it. Too early to say, it waits.
-    const projected = gone === undefined || gone < 0.05 ? undefined : reading.percentUsed / gone
-    const pace =
-      etaMs !== null
-        ? ` · full in ${fmtEta(etaMs)}`
-        : projected === undefined
-          ? ''
-          : projected >= 100
-            ? ' · full before reset'
-            : ` · on pace for ~${Math.round(projected)}%`
-    return [
-      <Box key={`fact:${name}`} flexDirection="row" columnGap={1}>
-        <Text color={palette.label}>{name}</Text>
-        <Box key="bar" flexGrow={1} width={0} minWidth={0}>
-          {meter(name, frac, tone, accent, { px: room * measure.pxPerCell, cells: room }, true)}
-        </Box>
-        <Text color={onTone(tone, palette.cardValue)}>{value}</Text>
-      </Box>,
-      r === undefined ? null : (
-        <Box key={`fact:${name} pace`}>
-          <Text color={palette.label} wrap="truncate-end">{`resets ${r.text}${pace}`}</Text>
-        </Box>
-      ),
+    // Cache reads in the warm colour: cheap, and often most of the bar.
+    const SPLIT: ReadonlyArray<readonly [string, number, string]> = [
+      ['input', c.tokens.sent, palette.meterFill],
+      ['output', c.tokens.back, palette.coin],
+      ['cache reads', c.tokens.cached, palette.warm],
     ]
-  }
-  // The headline is the window closest to its limit.
-  const worst = live.reduce<Window | undefined>((top, w) => (top === undefined || w.reading.percentUsed > top.reading.percentUsed ? w : top), undefined)
-  const limitsView =
-    windows.length > 0
+    const spendView = card(
+      'spend',
+      'Spend',
+      { text: fmtCost(snap.costUsd) },
+      measured ? splitBar('token split: input, output, cache reads', SPLIT.map(([, n, color]) => [n, color] as const)) : null,
+      [
+      snap.lastTurnUsd !== null ? factRow('last message', fmtSmallCost(snap.lastTurnUsd)) : null,
+      ...(measured ? SPLIT.map(([label, n, color]) => factRow(label, fmtTokens(n), color)) : [note('Breakdown counts from your next message.')]),
+      ],
+    )
+
+    const contextView = hasContext
       ? card(
-          'limits',
-          'Limits',
-          {
-            text: worst === undefined ? 'all reset' : `${worst.name} ${valueOf(worst.reading)}`,
-            tone: worst === undefined ? 'calm' : limitTone(worst.reading, worst.etaMs),
-          },
-          // Each window's bar is in its own row, so the card has none apart.
-          null,
-          // Short of rows, every window's row before any pace line.
-          (() => {
-            const rows = windows.map(limitRows)
-            const lines = rows.flat().filter(part => part !== null)
-            return lines.length <= bodyRows ? lines : [...rows.map(([bar]) => bar), ...rows.map(([, pace]) => pace)]
-          })(),
+          'context',
+          'Context',
+          { text: `${ctxPct} full${ctx.compactAt === undefined ? severityMark(ctxFrac) : ''}`, tone: ctxTone },
+          meter('context', ctxFrac, ctxTone, palette.meterFill, cardBar, true),
+          [
+          toCompact !== undefined ? factRow('room left', `~${fmtTokens(toCompact)}`) : null,
+          ctx.compactAt !== undefined ? factRow('auto-compacts at', fmtTokens(ctx.compactAt)) : null,
+          factRow('in context', fmtTokens(ctxUsed)),
+          factRow('model window', fmtTokens(ctx.window)),
+          ],
         )
       : null
 
-  const cardViews = [cacheView, spendView, contextView, limitsView].filter(view => view !== null)
+    /** A window of the Limits card. `etaMs` is the measured pace the 5h chip
+     *  shows, when there is one; the card says the same. */
+    type Window = Readonly<{
+      name: string
+      reading: LimitReading
+      windowMs: number | undefined
+      accent: string
+      etaMs: number | null
+    }>
+    const windows: Window[] = [
+      ...(snap.fiveHour
+        ? [{ name: '5h', reading: snap.fiveHour, windowMs: LIMITS['5h'].windowMs, accent: palette.fiveAccent, etaMs: snap.fiveHour.etaMs }]
+        : []),
+      ...(snap.sevenDay ? [{ name: '7d', reading: snap.sevenDay, windowMs: LIMITS['7d'].windowMs, accent: palette.weekAccent, etaMs: null }] : []),
+      ...snap.otherLimits.map(limit => ({
+        name: limit.kind === 'spend_limit' ? 'spend' : limit.kind.replace(/_/g, ' '),
+        reading: limit,
+        windowMs: undefined,
+        accent: palette.meterFill,
+        etaMs: null,
+      })),
+    ]
+    const live = windows.filter(w => !hasReset(w.reading))
+    const valueOf = (reading: LimitReading) => `${Math.round(reading.percentUsed)}%${severityMark(clamp01(reading.percentUsed / 100))}`
 
-  // ---- the workspace strip: where the session is ---------------------------
-  // A bare line, no border or fill: the panel's heading, not a fifth metric.
-  // Its text lines up with the cards' text. It sits on the host's own ground,
-  // so its text takes theme keys and its icons the BARE hexes. The desktop
-  // spaces pieces with gaps and icons; a text surface says them in words,
-  // between ` · `. One row always: nothing in it wraps.
-  const commits = (n: number) => `${n} commit${n === 1 ? '' : 's'}`
-  /** Push and pull in words, leaving out a side with nothing on it. */
-  const tracking = (g: GitState): string => {
-    if (g.ahead === undefined) return 'no upstream'
-    const sides = [g.ahead ? `${commits(g.ahead)} to push` : '', g.behind ? `${g.behind} to pull` : ''].filter(Boolean)
-    return sides.length === 0 ? 'up to date with its upstream' : sides.join(', ')
-  }
-  const stripAt = (ws: Workspace, squeeze: number, place: 'top' | 'footer'): RenderElement => {
-    const kept = (piece: (typeof STRIP_GIVES_WAY)[number]) => stripKeeps(squeeze, piece)
-    const git = ws.git
-    const { parent, name: fullName } = splitPath(ws.path)
-    const name = clipMiddle(fullName, kept('nameLong') ? Infinity : kept('nameShort') ? 24 : 12)
-    const shortParent = parent === '' ? '' : parent.startsWith('~/') ? '~/…/' : '…/'
-    const parentShown = kept('parent') || shortParent.length >= parent.length ? parent : shortParent
-    const clipped = parentShown !== parent || name !== fullName
-    const joined = (side: string, pieces: RenderChildren[]): RenderChildren[] =>
-      pieces.flatMap((piece, i) =>
-        i === 0 || Svg ? [piece] : [<Text key={`${side}-sep${i}`} color={BARE.label}>{' · '}</Text>, piece],
-      )
+    /** One window: its name, bar and value on a line, then its reset and pace in words. */
+    const limitRows = ({ name, reading, windowMs, accent, etaMs }: Window): readonly [RenderChildren, RenderChildren] => {
+      const r = resetIn(reading.resetsAt, snap.now)
+      if (r?.kind === 'passed') return [factRow(name, 'reset'), null]
+      const frac = clamp01(reading.percentUsed / 100)
+      const tone = limitTone(reading, etaMs)
+      const gone = windowGone(reading, windowMs)
+      const value = valueOf(reading)
+      const room = Math.max(4, inner - [...name].length - [...value].length - 2)
+      // A measured pace, as the chip says it; else where the window's average
+      // rate ends it. Too early to say, it waits.
+      const projected = gone === undefined || gone < 0.05 ? undefined : reading.percentUsed / gone
+      const pace =
+        etaMs !== null
+          ? ` · full in ${fmtEta(etaMs)}`
+          : projected === undefined
+            ? ''
+            : projected >= 100
+              ? ' · full before reset'
+              : ` · on pace for ~${Math.round(projected)}%`
+      return [
+        <Box key={`fact:${name}`} flexDirection="row" columnGap={1}>
+          <Text color={palette.label}>{name}</Text>
+          <Box key="bar" flexGrow={1} width={0} minWidth={0}>
+            {meter(name, frac, tone, accent, { px: room * measure.pxPerCell, cells: room }, true)}
+          </Box>
+          <Text color={onTone(tone, palette.cardValue)}>{value}</Text>
+        </Box>,
+        r === undefined ? null : (
+          <Box key={`fact:${name} pace`}>
+            <Text color={palette.label} wrap="truncate-end">{`resets ${r.text}${pace}`}</Text>
+          </Box>
+        ),
+      ]
+    }
+    // The headline is the window closest to its limit.
+    const worst = live.reduce<Window | undefined>((top, w) => (top === undefined || w.reading.percentUsed > top.reading.percentUsed ? w : top), undefined)
+    const limitsView =
+      windows.length > 0
+        ? card(
+            'limits',
+            'Limits',
+            {
+              text: worst === undefined ? 'all reset' : `${worst.name} ${valueOf(worst.reading)}`,
+              tone: worst === undefined ? 'calm' : limitTone(worst.reading, worst.etaMs),
+            },
+            // Each window's bar is in its own row, so the card has none apart.
+            null,
+            // Short of rows, every window's row before any pace line.
+            (() => {
+              const rows = windows.map(limitRows)
+              const lines = rows.flat().filter(part => part !== null)
+              return lines.length <= bodyRows ? lines : [...rows.map(([bar]) => bar), ...rows.map(([, pace]) => pace)]
+            })(),
+          )
+        : null
 
-    const where: RenderChildren[] = [
-      <Box key="ws:path" flexDirection="row">
-        {Svg ? icon('folder', BARE.icon, clipped ? `folder ${ws.path}` : ALT.folder) : null}
-        {parentShown === '' ? null : <Text color={BARE.label} wrap="truncate-end">{parentShown}</Text>}
-        <Text color={BARE.value} bold wrap="truncate-end">
-          {name}
-        </Text>
-        {hoverCard(git === undefined ? ws.path : `${ws.path}: ${gitSummary(git)}`, 'left')}
+    const cardViews = [cacheView, spendView, contextView, limitsView].filter(view => view !== null)
+
+    const buttons = [
+      <Button key="collapse" label="Collapse" variant="secondary" hotkey="c" onPress={act.toggleExpanded} />,
+      <Button key="hide" label="Hide band" variant="primary" hotkey="h" onPress={act.hide} />,
+    ]
+    let strip: RenderElement | null = null
+    if (stripPlace !== undefined && snap.workspace !== undefined) {
+      // In the footer it shares the line with the buttons and their hotkey marks.
+      const room =
+        snap.columns - ROW_SLACK - (stripPlace === 'footer' ? cellsOf(buttons, measure) + 2 * HOTKEY_MARK + 2 : 0)
+      strip = drawStrip(kit, snap.workspace, stripPlace, edge, room)
+    }
+
+    return [
+      stripPlace === 'top' ? strip : null,
+      <Box key="cards" flexDirection="column" rowGap={LINE_GAP} marginTop={stripPlace === 'top' ? 0 : 1}>
+        {Array.from({ length: lineCount }, (_, i) => (
+          <Box key={`cards:${i}`} flexDirection="row" columnGap={1}>
+            {cardViews.slice(i * perLine, (i + 1) * perLine)}
+          </Box>
+        ))}
+      </Box>,
+      <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>
+        {stripPlace === 'footer' ? (
+          strip
+        ) : (
+          <Box key="hint" flexDirection="row">
+            {Svg ? icon('info', BARE.icon) : null}
+            <Text color={BARE.label}>Bring it back with /usage-band</Text>
+          </Box>
+        )}
+        <Box flexGrow={1} />
+        {buttons}
       </Box>,
     ]
-    if (git?.branch !== undefined) {
-      const branch = clipMiddle(git.branch, kept('branchLong') ? Infinity : kept('branchShort') ? 24 : 12)
-      where.push(
-        <Box key="ws:head" flexDirection="row">
-          {Svg ? icon('branch', BARE.branch, branch === git.branch ? ALT.branch : `branch ${git.branch}`) : <Text color={BARE.label}>{'on '}</Text>}
-          <Text color={BARE.value} wrap="truncate-end">
-            {branch}
-          </Text>
-          {hoverCard(`Branch ${git.branch}${git.commit === undefined ? ', no commits yet' : ''}: ${tracking(git)}`, 'left')}
-        </Box>,
-      )
-    } else if (git !== undefined) {
-      where.push(
-        <Box key="ws:head" flexDirection="row">
-          {Svg ? icon('commit', BARE.icon) : null}
-          <Text color={BARE.label}>{git.commit === undefined ? 'detached' : 'detached at '}</Text>
-          {git.commit === undefined ? null : <Text color={BARE.value}>{git.commit}</Text>}
-          {hoverCard('HEAD is detached: new commits belong to no branch', 'left')}
-        </Box>,
-      )
-    }
-    if (git?.worktree !== undefined && kept('worktree')) {
-      const of = kept('worktreeOf') && ws.repoName !== undefined ? ws.repoName : undefined
-      where.push(
-        <Box key="ws:worktree" flexDirection="row">
-          {Svg ? icon('worktree', BARE.icon) : null}
-          <Text color={BARE.label}>
-            {of === undefined ? 'worktree' : 'worktree of '}
-            {of === undefined ? null : <Text key="of" color={BARE.value}>{of}</Text>}
-          </Text>
-          {hoverCard(
-            ws.repoName === undefined
-              ? 'A linked worktree: its own checkout of the repository'
-              : `A linked worktree: its own checkout, sharing ${ws.repoName}'s history`,
-            'left',
-          )}
-        </Box>,
-      )
-    }
-
-    const state: RenderChildren[] = []
-    if (git !== undefined && git.changed > 0) {
-      const word = kept('changedWord')
-      state.push(
-        <Box key="ws:changes" flexDirection="row">
-          {Svg ? icon('changes', BARE.icon) : null}
-          <Text color={BARE.value}>
-            {`${!word && !Svg ? '±' : ''}${git.changed}`}
-            {word ? <Text key="w" color={BARE.label}>{' changed'}</Text> : null}
-          </Text>
-          {hoverCard(`${git.changed} uncommitted change${git.changed === 1 ? '' : 's'}`, 'right')}
-        </Box>,
-      )
-    } else if (git !== undefined && kept('clean')) {
-      state.push(
-        <Text key="ws:clean" color={BARE.label}>
-          clean
-        </Text>,
-      )
-    }
-    if (git !== undefined && (git.ahead || git.behind) && kept('aheadBehind')) {
-      const card = hoverCard(tracking(git), 'right')
-      if (Svg) {
-        // Icons a reader names, "ahead 2, behind 1", where ↑ ↓ read as arrows.
-        for (const [side, n] of [['ahead', git.ahead], ['behind', git.behind]] as const) {
-          if (n)
-            state.push(
-              <Box key={`ws:${side}`} flexDirection="row">
-                {icon(side, BARE.icon)}
-                <Text color={BARE.value}>{String(n)}</Text>
-                {card}
-              </Box>,
-            )
-        }
-      } else {
-        state.push(
-          <Box key="ws:ab" flexDirection="row">
-            <Text color={BARE.value}>{[git.ahead ? `↑${git.ahead}` : '', git.behind ? `↓${git.behind}` : ''].filter(Boolean).join(' ')}</Text>
-            {card}
-          </Box>,
-        )
-      }
-    }
-
-    return (
-      <Box
-        key="strip"
-        flexDirection="row"
-        flexWrap="nowrap"
-        overflow="hidden"
-        height={1}
-        {...(place === 'top' ? { paddingX: 1 + edge / 2, marginTop: 1 } : { flexGrow: 1, flexShrink: 1, minWidth: 0 })}
-      >
-        <Box key="ws:where" flexDirection="row" columnGap={Svg ? 2 : 0} flexShrink={1} minWidth={0} overflow="hidden">
-          {joined('where', where)}
-        </Box>
-        <Box key="ws:fill" flexGrow={1} minWidth={2} />
-        <Box key="ws:state" flexDirection="row" columnGap={Svg ? 2 : 0} flexShrink={0}>
-          {joined('state', state)}
-        </Box>
-      </Box>
-    )
-  }
-  const buttons = [
-    <Button key="collapse" label="Collapse" variant="secondary" hotkey="c" onPress={act.toggleExpanded} />,
-    <Button key="hide" label="Hide band" variant="primary" hotkey="h" onPress={act.hide} />,
-  ]
-  let strip: RenderElement | null = null
-  if (stripPlace !== undefined && snap.workspace !== undefined) {
-    // In the footer it shares the line with the buttons and their hotkey marks.
-    const room =
-      snap.columns - ROW_SLACK - (stripPlace === 'footer' ? cellsOf(buttons, measure) + 2 * HOTKEY_MARK + 2 : 0)
-    strip = stripAt(snap.workspace, 0, stripPlace)
-    for (let squeeze = 1; squeeze <= STRIP_GIVES_WAY.length && cellsOf(strip, measure) > room; squeeze++) {
-      strip = stripAt(snap.workspace, squeeze, stripPlace)
-    }
   }
 
   return (
     <Box flexDirection="column">
       {row}
-      {stripPlace === 'top' ? strip : null}
-      {snap.expanded ? (
-        <Box key="cards" flexDirection="column" rowGap={LINE_GAP} marginTop={stripPlace === 'top' ? 0 : 1}>
-          {Array.from({ length: lineCount }, (_, i) => (
-            <Box key={`cards:${i}`} flexDirection="row" columnGap={1}>
-              {cardViews.slice(i * perLine, (i + 1) * perLine)}
-            </Box>
-          ))}
-        </Box>
-      ) : null}
-      {snap.expanded ? (
-        <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>
-          {stripPlace === 'footer' ? (
-            strip
-          ) : (
-            <Box key="hint" flexDirection="row">
-              {Svg ? icon('info', BARE.icon) : null}
-              <Text color={BARE.label}>Bring it back with /usage-band</Text>
-            </Box>
-          )}
-          <Box flexGrow={1} />
-          {buttons}
-        </Box>
-      ) : null}
+      {snap.expanded ? expandedView() : null}
     </Box>
   )
 }
