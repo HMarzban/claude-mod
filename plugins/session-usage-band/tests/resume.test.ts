@@ -5,7 +5,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import { FRESH, HOUR, MIN, START, cardOf, engine, fact, pillOf, resp, respond, settle, shown, transcriptOf, usage, setup, mountBand } from './helpers'
+import { FRESH, HOUR, MIN, START, cardOf, engine, fact, pillOf, resp, respond, shown, transcriptOf, usage, setup, mountBand } from './helpers'
 
 const ENV = { ENABLE_PROMPT_CACHING_1H: '1', HOME: '/Users/me' }
 const MODEL = 'claude-opus-5-5'
@@ -103,7 +103,7 @@ test('after each turn the band remembers the reply and the rate it solved', asyn
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   usage.current = { ...usage.current, cost: { usd: 2.83 } } // the turn cost $0.42
   await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
-  await settle()
+  await clock.settle()
   const sessions = engine.store.sessions as Record<string, { lastAt: number }>
   expect(sessions.s1?.lastAt).toBe(5 * MIN)
   const rates = engine.store.rates as Record<string, number>
@@ -118,7 +118,7 @@ test('the band remembers at most 50 sessions, the oldest replies going first', a
   await $.turn.start({ text: 'hi', turnId: 't1' })
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
-  await settle()
+  await clock.settle()
   const kept = Object.keys(engine.store.sessions as Record<string, unknown>)
   expect(kept).toHaveLength(50)
   expect(kept).toContain('s1')

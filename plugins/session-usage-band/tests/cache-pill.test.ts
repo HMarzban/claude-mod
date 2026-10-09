@@ -199,7 +199,7 @@ test('the cache lifetime runs from when the request was sent, not when its reply
     open = resolve
   })
   const step = respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
-  for (let i = 0; i < 50; i++) await Promise.resolve() // let the request go out
+  await clock.settle() // let the request go out
   await clock.advance(2 * MIN) // a two-minute reply
   open()
   await step

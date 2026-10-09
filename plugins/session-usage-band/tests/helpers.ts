@@ -442,12 +442,6 @@ export const pacing = async ($: Engine, clock: MockClock): Promise<void> => {
 export const breakdown = (fields: Pick<SessionContextBreakdown, 'isAutoCompactEnabled'> & { autoCompactThreshold?: number }): SessionContextBreakdown =>
   fields as SessionContextBreakdown
 
-/** Lets work the plugin started without waiting on it, such as a git read,
- *  run to its end. */
-export const settle = async (): Promise<void> => {
-  for (let i = 0; i < 500; i++) await Promise.resolve()
-}
-
 /** A transcript as Claude Code writes one: a user line, an assistant reply at
  *  `replyAt`, and the cost-state line it adds when a session is opened. */
 export const transcriptOf = (replyAt: number, modelUsage: Record<string, Record<string, number>> = {}): string =>
