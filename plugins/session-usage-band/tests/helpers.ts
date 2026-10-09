@@ -13,7 +13,7 @@ import type {
   TurnStepResult,
   TurnStopReason,
 } from 'claude-code'
-import type { Engine, MockClock } from 'claude-code/testing'
+import { mock, type Engine, type MockClock } from 'claude-code/testing'
 import { METER_CELLS } from '../hooks/layout'
 import { READ_LIMIT } from '../hooks/memory'
 import { DARK } from '../hooks/palette'
@@ -295,6 +295,29 @@ export const HOUR_1 = { ENABLE_PROMPT_CACHING_1H: '1' }
 export const MIN = 60_000
 export const HOUR = 60 * MIN
 export const CLEAR = { reason: 'clear', sessionId: 's1', resume: { id: 's1' } } as const
+
+// ── setting a test up ──────────────────────────────────────────────────
+
+/** The world most tests start from: the clock at `now` (0 when not given),
+ *  the environment (HOUR_1 when not given) and the engine beneath, reporting
+ *  `usage` with `store` in the plugin's store. Returns the clock. */
+export const setup = (
+  on: On,
+  opts: { usage?: SessionUsage; env?: Record<string, string>; store?: Record<string, unknown>; now?: number } = {},
+): MockClock => {
+  const clock = mock.clock(on, { now: opts.now ?? 0 })
+  mock.env(on, opts.env ?? HOUR_1)
+  base(on, opts.usage, opts.store)
+  return clock
+}
+
+/** The band drawn above the prompt on `surface`, `cols` wide. */
+export const mountBand = <S extends 'terminal' | 'desktop'>(
+  $: Engine,
+  surface: S,
+  cols: number,
+  opts: { maxRows?: number; isWorking?: boolean } = {},
+) => $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: props(cols, opts.isWorking, opts.maxRows) })
 
 // ── readers for the drawn tree ─────────────────────────────────────────
 

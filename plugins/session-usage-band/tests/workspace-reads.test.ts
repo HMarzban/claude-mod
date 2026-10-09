@@ -1,17 +1,15 @@
 // When the band asks git: at start, after each main turn and on opening the
 // cards; never while it draws, and never in a way that can break the band.
 
-import { test, expect, mock } from 'claude-code/testing'
+import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import { GIT_DIRS_ARGV, GIT_STATUS_ARGV } from '../hooks/workspace'
-import { CLEAR, GIT_CLEAN, GIT_MAIN_TREE, HOUR_1, PLUGIN, START, base, byKey, engine, props, settle, shown, turn } from './helpers'
+import { CLEAR, GIT_CLEAN, GIT_MAIN_TREE, START, byKey, engine, settle, shown, turn, setup, mountBand } from './helpers'
 
 const gitRuns = () => engine.ran.filter(argv => argv[0] === 'git').length
 
 test('at start the band asks git twice: its status, and where its folders are', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start(START)
   await settle()
   expect(engine.ran).toContainEqual([...GIT_STATUS_ARGV])
@@ -19,22 +17,18 @@ test('at start the band asks git twice: its status, and where its folders are', 
 })
 
 test('drawing never runs git', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start(START)
   await settle()
   const before = gitRuns()
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'desktop', 110)
   for (let i = 0; i < 3; i++) await ui.drawn()
   expect(gitRuns()).toBe(before)
   await ui.unmount()
 })
 
 test("a main turn reads git again; a subagent's turn doesn't", async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start(START)
   await settle()
   const start = gitRuns()
@@ -47,11 +41,9 @@ test("a main turn reads git again; a subagent's turn doesn't", async ($, on) => 
 })
 
 test('opening the cards reads git again, so they never show a stale branch', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start(START)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'desktop', 110)
   await settle()
   const closed = gitRuns()
   await ui.press({ key: 'more' })
@@ -64,12 +56,10 @@ test('opening the cards reads git again, so they never show a stale branch', asy
 })
 
 test('git failing to run never breaks the band', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   engine.git = 'fail'
   await $.session.start(START)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'desktop', 110)
   await ui.press({ key: 'more' })
   expect(await ui.drawn()).toBeDefined()
   await ui.unmount()
@@ -77,7 +67,7 @@ test('git failing to run never breaks the band', async ($, on) => {
 
 /** The strip's text once the cards are open. */
 const stripText = async ($: Engine, open = true): Promise<string> => {
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(140) })
+  const ui = await mountBand($, 'terminal', 140)
   if (open) await ui.press({ key: 'more' })
   await settle()
   const strip = byKey(await ui.drawn(), 'strip', 'Box')
@@ -86,9 +76,7 @@ const stripText = async ($: Engine, open = true): Promise<string> => {
 }
 
 test('a slow read that ends after a newer one never overwrites it', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start(START)
   await settle()
   let release = (): void => undefined
@@ -107,9 +95,7 @@ test('a slow read that ends after a newer one never overwrites it', async ($, on
 })
 
 test('a read that fails keeps the last good git reading', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start(START)
   await settle()
   engine.git = 'fail'
@@ -119,20 +105,16 @@ test('a read that fails keeps the last good git reading', async ($, on) => {
 })
 
 test('two presses at once leave the cards as they were', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start(START)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'desktop', 110)
   await Promise.all([ui.press({ key: 'more' }), ui.press({ key: 'more' })])
   expect(byKey(await ui.drawn(), 'cards', 'Box')).toBeUndefined()
   await ui.unmount()
 })
 
 test('/usage-band more reads git, like the toggle', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start(START)
   await settle()
   const before = gitRuns()
@@ -142,9 +124,7 @@ test('/usage-band more reads git, like the toggle', async ($, on) => {
 })
 
 test('a new conversation reads git again, since a resume may be another project', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start(START)
   await settle()
   const before = gitRuns()

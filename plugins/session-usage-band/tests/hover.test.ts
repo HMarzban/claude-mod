@@ -1,30 +1,27 @@
 // Hover cards: one per pill, anchored inside the band.
 
-import { test, expect, mock } from 'claude-code/testing'
+import { test, expect } from 'claude-code/testing'
 import { DARK } from '../hooks/palette'
 import {
-  PLUGIN,
   START,
-  HOUR_1,
-  base,
-  props,
   resp,
   respond,
   textOf,
   cards,
   rebuilds,
   turn,
+  HOUR_1,
+  setup,
+  mountBand,
 } from './helpers'
 
 test('every pill explains itself on hover, inside its own hover scope', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start({ ...START, surface: 'desktop' })
   await turn($, 't1', 2.0, 2.41)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(120) })
+  const ui = await mountBand($, 'desktop', 120)
   const found = cards(await ui.drawn())
   expect(found.map(([key]) => key).join(',')).toBe('cache,cost,tokens,ctx,5h,7d')
   for (const [, card] of found) {
@@ -45,11 +42,9 @@ test('every pill explains itself on hover, inside its own hover scope', async ($
 })
 
 test('the rightmost visible pill anchors right when narrower widths drop pills', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  setup(on)
   await $.session.start(START)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(50) })
+  const ui = await mountBand($, 'terminal', 50)
   const found = cards(await ui.drawn())
   expect(found.length).toBeLessThan(6) // some pills gave way
   expect(found[found.length - 1]?.[1].props?.right).toBe(0)
@@ -58,24 +53,20 @@ test('the rightmost visible pill anchors right when narrower widths drop pills',
 })
 
 test('a cold cache explains what the next message rebuilds', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  const clock = setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
   await clock.advance(61 * 60_000)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'terminal', 110)
   const cache = cards(await ui.drawn()).find(([key]) => key === 'cache')
   expect(textOf(cache?.[1])).toMatch(/^Cold: next message rebuilds 112k tokens \(~\$\d+\.\d\d\)$/)
   await ui.unmount()
 })
 
 test('plain appearance draws no hover cards', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, { CC_BAND_APPEARANCE: 'plain', ...HOUR_1 })
-  base(on)
+  setup(on, { env: { CC_BAND_APPEARANCE: 'plain', ...HOUR_1 } })
   await $.session.start(START)
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'terminal', 110)
   expect(cards(await ui.drawn())).toHaveLength(0)
   await ui.unmount()
 })

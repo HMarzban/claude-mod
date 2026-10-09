@@ -3,9 +3,9 @@
 // cost on this model, and says whether the cache is cold and what the next
 // message will cost.
 
-import { test, expect, mock } from 'claude-code/testing'
+import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import { FRESH, HOUR, MIN, PLUGIN, START, base, cardOf, engine, fact, pillOf, props, resp, respond, settle, shown, transcriptOf, usage } from './helpers'
+import { FRESH, HOUR, MIN, START, cardOf, engine, fact, pillOf, resp, respond, settle, shown, transcriptOf, usage, setup, mountBand } from './helpers'
 
 const ENV = { ENABLE_PROMPT_CACHING_1H: '1', HOME: '/Users/me' }
 const MODEL = 'claude-opus-5-5'
@@ -13,7 +13,7 @@ const MODEL = 'claude-opus-5-5'
 const RATE = 0.00001
 
 const mounted = async ($: Engine, open = false) => {
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(140) })
+  const ui = await mountBand($, 'terminal', 140)
   if (open) await ui.press({ key: 'more' })
   const tree = await ui.drawn()
   await ui.unmount()
@@ -21,17 +21,13 @@ const mounted = async ($: Engine, open = false) => {
 }
 
 test('reloaded ten minutes after a reply, the band counts down from that reply', async ($, on) => {
-  mock.clock(on, { now: 10 * MIN })
-  mock.env(on, ENV)
-  base(on, undefined, { sessions: { s1: { lastAt: 0 } } })
+  setup(on, { env: ENV, store: { sessions: { s1: { lastAt: 0 } } }, now: 10 * MIN })
   await $.session.start(START)
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 50m/)
 })
 
 test('reopened two days later, the cache is cold and the next message has a price', async ($, on) => {
-  mock.clock(on, { now: 48 * HOUR })
-  mock.env(on, ENV)
-  base(on, undefined, { sessions: { s1: { lastAt: 0 } }, rates: { [MODEL]: RATE } })
+  setup(on, { env: ENV, store: { sessions: { s1: { lastAt: 0 } }, rates: { [MODEL]: RATE } }, now: 48 * HOUR })
   await $.session.start(START)
   // 1.25 × 76k tokens × the rate
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold · next message ~\$0\.95/)
@@ -42,17 +38,13 @@ test('reopened two days later, the cache is cold and the next message has a pric
 })
 
 test('with no rate known for the model yet, it names the tokens instead of guessing a price', async ($, on) => {
-  mock.clock(on, { now: 48 * HOUR })
-  mock.env(on, ENV)
-  base(on, undefined, { sessions: { s1: { lastAt: 0 } }, rates: { 'claude-sonnet-5-5': RATE } })
+  setup(on, { env: ENV, store: { sessions: { s1: { lastAt: 0 } }, rates: { 'claude-sonnet-5-5': RATE } }, now: 48 * HOUR })
   await $.session.start(START)
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold · next message 76k tokens/)
 })
 
 test('a session from before the band reads its last reply off its transcript, never the file time', async ($, on) => {
-  mock.clock(on, { now: 3 * HOUR })
-  mock.env(on, ENV)
-  base(on)
+  setup(on, { env: ENV, now: 3 * HOUR })
   engine.transcript = transcriptOf(0)
   await $.session.start(START)
   expect(engine.ran.find(argv => argv[0] === 'tail')?.at(-1)).toBe('/Users/me/.claude/projects/-Users-me-workspace-claude-mod/s1.jsonl')
@@ -60,9 +52,7 @@ test('a session from before the band reads its last reply off its transcript, ne
 })
 
 test("its price comes from the transcript's own cost record, per model", async ($, on) => {
-  mock.clock(on, { now: 3 * HOUR })
-  mock.env(on, ENV)
-  base(on)
+  setup(on, { env: ENV, now: 3 * HOUR })
   // Opus 5.5 reads its cache at 0.05× input: $20 over 1M input + 1.25 × 400k
   // written + 0.05 × 20M read + 5 × 100k output = 3M weighted tokens
   engine.transcript = transcriptOf(0, {
@@ -74,9 +64,7 @@ test("its price comes from the transcript's own cost record, per model", async (
 })
 
 test('a transcript of any size is read from its end, the last megabyte alone', async ($, on) => {
-  mock.clock(on, { now: 3 * HOUR })
-  mock.env(on, ENV)
-  base(on)
+  setup(on, { env: ENV, now: 3 * HOUR })
   engine.transcript = transcriptOf(0)
   engine.transcriptBytes = 40 * 1024 * 1024
   await $.session.start(START)
@@ -85,9 +73,7 @@ test('a transcript of any size is read from its end, the last megabyte alone', a
 })
 
 test('without tail, a small transcript is read whole; a big one leaves the cache unmeasured', async ($, on) => {
-  mock.clock(on, { now: 3 * HOUR })
-  mock.env(on, ENV)
-  base(on)
+  setup(on, { env: ENV, now: 3 * HOUR })
   engine.tailFails = true
   engine.transcript = transcriptOf(0)
   await $.session.start(START)
@@ -98,25 +84,19 @@ test('without tail, a small transcript is read whole; a big one leaves the cache
 })
 
 test('with nothing to recall, the cache stays unmeasured', async ($, on) => {
-  mock.clock(on, { now: 3 * HOUR })
-  mock.env(on, ENV)
-  base(on)
+  setup(on, { env: ENV, now: 3 * HOUR })
   await $.session.start(START)
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache –/)
 })
 
 test('a brand-new session ignores anything remembered', async ($, on) => {
-  mock.clock(on, { now: 10 * MIN })
-  mock.env(on, ENV)
-  base(on, FRESH, { sessions: { s1: { lastAt: 0 } } })
+  setup(on, { usage: FRESH, env: ENV, store: { sessions: { s1: { lastAt: 0 } } }, now: 10 * MIN })
   await $.session.start(START)
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache warming/)
 })
 
 test('after each turn the band remembers the reply and the rate it solved', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  mock.env(on, ENV)
-  base(on)
+  const clock = setup(on, { env: ENV })
   await $.session.start(START)
   await clock.advance(5 * MIN)
   await $.turn.start({ text: 'hi', turnId: 't1' })
@@ -131,10 +111,8 @@ test('after each turn the band remembers the reply and the rate it solved', asyn
 })
 
 test('the band remembers at most 50 sessions, the oldest replies going first', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  mock.env(on, ENV)
   const older = Object.fromEntries(Array.from({ length: 50 }, (_, i) => [`old${i}`, { lastAt: -1000 + i }]))
-  base(on, undefined, { sessions: older })
+  const clock = setup(on, { env: ENV, store: { sessions: older } })
   await $.session.start(START)
   await clock.advance(MIN)
   await $.turn.start({ text: 'hi', turnId: 't1' })

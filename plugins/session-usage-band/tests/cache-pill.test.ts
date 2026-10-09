@@ -1,16 +1,12 @@
 // The cache pill: countdown, battery, cold price, wording.
 
-import { test, expect, mock } from 'claude-code/testing'
+import { test, expect } from 'claude-code/testing'
 import { DARK } from '../hooks/palette'
 import {
   USAGE,
-  PLUGIN,
   FRESH,
   START,
-  HOUR_1,
   MIN,
-  base,
-  props,
   resp,
   respond,
   textOf,
@@ -23,28 +19,26 @@ import {
   turn,
   type Node,
   engine,
+  setup,
+  mountBand,
 } from './helpers'
 
 test('before the first response the band says warming rather than a false zero', async ($, on) => {
-  mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on, FRESH)
+  setup(on, { usage: FRESH })
   await $.session.start(START)
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'terminal', 110)
   expect(await ui.find({ type: 'Text', text: /cache warming/ })).toBeDefined()
   expect(shown(firstRow(await ui.drawn()) as Node)).not.toMatch(/\d%/) // no figure to show yet
   await ui.unmount()
 })
 
 test('the countdown is still while warm, then names the stakes in its last minute', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  const clock = setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(2_000, 0, 180_000, 5_000))
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'terminal', 110)
   expect(await ui.find({ type: 'Text', text: /cache 1h 00m/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /re-warm/ })).toBeUndefined()
 
@@ -62,14 +56,12 @@ test('the countdown is still while warm, then names the stakes in its last minut
 })
 
 test('a cold cache is neutral, never amber or red', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  mock.env(on, { CLAUDE_CODE_PROMPT_CACHE_TTL: '5m' })
-  base(on)
+  const clock = setup(on, { env: { CLAUDE_CODE_PROMPT_CACHE_TTL: '5m' } })
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(2_000, 0, 180_000, 5_000))
   await clock.advance(10 * 60_000)
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'terminal', 110)
   const cold = await ui.find({ type: 'Text', text: /cache cold/ })
   expect(cold).toBeDefined()
   expect(cold?.props?.color).not.toBe(DARK.amberFg)
@@ -78,13 +70,11 @@ test('a cold cache is neutral, never amber or red', async ($, on) => {
 })
 
 test("while a turn runs, 'cache warm' replaces the calm countdown", async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  const clock = setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(2_000, 0, 180_000, 5_000))
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110, true) })
+  const ui = await mountBand($, 'terminal', 110, { isWorking: true })
   expect(await ui.find({ type: 'Text', text: /◷ cache warm\s*$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /cache 1h/ })).toBeUndefined()
 
@@ -94,13 +84,11 @@ test("while a turn runs, 'cache warm' replaces the calm countdown", async ($, on
 })
 
 test('the re-warm estimate appears only where it is actionable', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  const clock = setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'terminal', 110)
   expect(await ui.find({ type: 'Text', text: /~\$/ })).toBeUndefined()
   await clock.advance(60 * 60_000 - 40_000)
   expect(await ui.find({ type: 'Text', text: /re-warm ~\$/ })).toBeDefined()
@@ -110,14 +98,12 @@ test('the re-warm estimate appears only where it is actionable', async ($, on) =
 })
 
 test('a narrow band shortens the wording but keeps the money', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  const clock = setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
   await clock.advance(60 * 60_000 - 40_000)
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(64) })
+  const ui = await mountBand($, 'terminal', 64)
   const pill = await ui.find({ type: 'Text', text: /~\$/ })
   expect(pill).toBeDefined()
   expect(pill?.text).not.toMatch(/re-warm/)
@@ -125,27 +111,23 @@ test('a narrow band shortens the wording but keeps the money', async ($, on) => 
 })
 
 test('with nothing billed yet the cold pill names the tokens instead', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on, { ...USAGE, cost: { usd: 0 } })
+  const clock = setup(on, { usage: { ...USAGE, cost: { usd: 0 } } })
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
   await clock.advance(61 * 60_000)
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'terminal', 110)
   expect(await ui.find({ type: 'Text', text: /cache cold · next message 112k tokens/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /~\$/ })).toBeUndefined()
   await ui.unmount()
 })
 
 test('the cache pill is a battery that drains with the hour', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  const clock = setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'terminal', 110)
   let seg = segments(pillOf(await ui.drawn(), 'cache'))
   expect(seg.map(x => x.text).join('')).toMatch(/◷ cache 1h 00m/)
   expect(seg[0]?.bg).toBe(DARK.batteryFill)
@@ -165,14 +147,12 @@ test('the cache pill is a battery that drains with the hour', async ($, on) => {
 })
 
 test('in its last minute the battery turns amber', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  const clock = setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
   await clock.advance(60 * MIN - 30_000)
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'terminal', 110)
   const seg = segments(pillOf(await ui.drawn(), 'cache'))
   expect(seg.map(x => x.text).join('')).toMatch(/0:30 left/)
   expect(seg.some(x => x.bg === DARK.amberBg)).toBe(true)
@@ -180,13 +160,11 @@ test('in its last minute the battery turns amber', async ($, on) => {
 })
 
 test('on desktop the cache pill is a rounded pill with a draining battery icon', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on)
+  const clock = setup(on)
   await $.session.start({ ...START, surface: 'desktop' })
   await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'desktop', component: 'AbovePrompt', props: props(110) })
+  const ui = await mountBand($, 'desktop', 110)
   let tree = await ui.drawn()
   expect(pillOf(tree, 'cache')?.props?.backgroundColor).toBe(DARK.surface) // a normal, rounded pill
   expect(textOf(pillOf(tree, 'cache'))).toMatch(/cache 1h 00m/)
@@ -214,9 +192,7 @@ test('on desktop the cache pill is a rounded pill with a draining battery icon',
 
 
 test('the cache lifetime runs from when the request was sent, not when its reply ended', async ($, on) => {
-  const clock = mock.clock(on, { now: 0 })
-  mock.env(on, HOUR_1)
-  base(on, { ...USAGE, cost: { usd: 0 } })
+  const clock = setup(on, { usage: { ...USAGE, cost: { usd: 0 } } })
   await $.session.start(START)
   let open: () => void = () => undefined
   engine.gate = new Promise<void>(resolve => {
@@ -229,7 +205,7 @@ test('the cache lifetime runs from when the request was sent, not when its reply
   await step
   await clock.advance(59 * MIN) // 61m after sending, 59m after the reply
 
-  const ui = await $.ui.mount({ plugin: PLUGIN, surface: 'terminal', component: 'AbovePrompt', props: props(160) })
+  const ui = await mountBand($, 'terminal', 160)
   expect(shown(pillOf(await ui.drawn(), 'cache'))).toMatch(/cache cold/)
   await ui.unmount()
 })
