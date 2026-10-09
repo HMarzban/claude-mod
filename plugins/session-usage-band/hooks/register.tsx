@@ -6,24 +6,20 @@ import type { EngineInterface, Register, Timer } from 'claude-code'
 import { drawBand } from './band'
 import {
   cache,
-  hitRatio,
+  cacheView,
   msLeft,
   noteCompaction,
   noteConversationStart,
   noteLedger,
   noteLoad,
+  noteRecall,
   notePriceModel,
   pinTtl,
   ratePerToken,
   recordResponse,
-  reWarmAt,
   resetCache,
   resetConversation,
   resolveTtl,
-  readShare,
-  reWarmUsd,
-  savedUsd,
-  TTL_MS,
 } from './cache'
 import { COMPACT_NEAR, SEVERE_AT, WARN_AT, contextUsed, fmtCountdown, fmtEta, fmtTokens } from './format'
 import {
@@ -71,14 +67,6 @@ let autoCompact: { at: number } | 'off' | undefined
  *  between redraws, never while drawing, since git takes a process. */
 let workspace: Workspace | undefined
 
-/** What the band recalls of a conversation it has seen no reply of yet: when
- *  its last reply was, and the rate a token costs on its model, if known. */
-let recall: Readonly<{ lastAt: number; rate: number | null }> | undefined
-
-/** The cache's time left: measured once there is a reply, else recalled. */
-const cacheLeft = (now: number): number =>
-  cache.requests === 0 && recall !== undefined ? Math.max(0, recall.lastAt + TTL_MS[cache.ttl] - now) : msLeft(now)
-
 /** A transcript's end, where its last reply and cost record are: its last
  *  megabyte by `tail`, whatever its size; failing that, the whole file if it
  *  is small enough to read. */
@@ -112,7 +100,7 @@ const recallLastReply = async ($: EngineInterface): Promise<void> => {
         rate ??= rateFromTranscript(transcript, model)
       }
     }
-    if (lastAt !== undefined) recall = { lastAt, rate }
+    if (lastAt !== undefined) noteRecall(lastAt, rate)
   } catch {
     // nothing to recall
   }
@@ -205,7 +193,6 @@ export const register: Register = on => {
     lastPaintKey = ''
     workspace = undefined
     reads++ // any read still out began before this load
-    recall = undefined
     notePriceModel(await $.session.model().catch(() => undefined))
     noteLoad(await ledgerUsd($))
     void readWorkspace($)
@@ -227,7 +214,7 @@ export const register: Register = on => {
     tick = $.clock.every(1000, () => {
       void (async () => {
         const now = await $.clock.now()
-        const left = cacheLeft(now)
+        const left = msLeft(now)
         const eta = fiveHourEtaMs(now)
         const key = `${Math.floor(now / 60_000)}|${fmtCountdown(left)}|${left > 0}|${eta === null ? '-' : fmtEta(eta)}`
         if (key !== lastPaintKey) {
@@ -253,8 +240,6 @@ export const register: Register = on => {
     resetConversationInsights()
     warned.delete('context')
     lastPaintKey = ''
-    // The new conversation starts here: nothing from before stands for it.
-    recall = undefined
     // A resume may be another project.
     void readWorkspace($)
     $.ui.invalidate('ui.render')
@@ -393,8 +378,6 @@ export const register: Register = on => {
     const five = usage.rateLimits.find(l => l.kind === FIVE_HOUR)
     const seven = usage.rateLimits.find(l => l.kind === SEVEN_DAY)
     if (usage.cost !== undefined) noteLedger(usage.cost.usd)
-    // Before this conversation's first reply, what the band recalls stands in.
-    const recalled = cache.requests === 0 && !cache.knownFresh && recall !== undefined
     const contextTokens = contextUsed(usage.context) ?? 0
 
     return drawBand(
@@ -407,23 +390,7 @@ export const register: Register = on => {
         expanded: await read($, isExpanded),
         palette,
         now,
-        cache: {
-          requests: cache.requests,
-          msLeft: cacheLeft(now),
-          ttl: cache.ttl,
-          ttlPinned: cache.ttlPinned,
-          window: recalled ? contextTokens : cache.window,
-          hitRatio: hitRatio(),
-          misses: cache.misses,
-          // Recalled, a cold cache rebuilds the context as it stands now.
-          reWarmUsd: recalled ? (recall?.rate == null ? null : reWarmAt(recall.rate, contextTokens)) : reWarmUsd(usage.cost?.usd),
-          recalled,
-          idleMs: recalled && recall !== undefined ? now - recall.lastAt : null,
-          savedUsd: savedUsd(usage.cost?.usd),
-          readShare: readShare(),
-          fresh: cache.knownFresh,
-          tokens: { sent: cache.uncached + cache.written, back: cache.output, cached: cache.read },
-        },
+        cache: cacheView(now, usage.cost?.usd, contextTokens),
         costUsd: usage.cost?.usd ?? 0,
         lastTurnUsd: insights.lastTurnUsd,
         context: {

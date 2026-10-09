@@ -5,6 +5,16 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.11.3] - 2026-10-09
+
+### Changed
+- Inside, not on screen: the drawing is split into focused modules (icons,
+  layout, the readings, the drawing kit, the workspace strip), every word
+  about the cache comes from one table, and the cache's view for the band,
+  recall included, is built in one place with one rule for "recalled". The
+  expanded view is drawn only while open. `band.tsx` went from 1,183 lines
+  to 715.
+
 ## [0.11.2] - 2026-10-09
 
 ### Fixed

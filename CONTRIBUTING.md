@@ -42,8 +42,14 @@ Run `/reload-plugins` in your session afterwards.
 | File | Role |
 | --- | --- |
 | `hooks/register.tsx` | The hooks. The only module that touches the engine (`$`). |
-| `hooks/band.tsx` | `drawBand(elements, snapshot, actions)`: a pure function from a snapshot to a tree. |
-| `hooks/cache.ts` | The prompt-cache model: TTL, misses, re-warm and savings estimates. |
+| `hooks/snapshot.ts` | The snapshot and actions: the one contract between `register.tsx` and the drawing. |
+| `hooks/band.tsx` | `drawBand(elements, snapshot, actions)`: a pure function from a snapshot to a tree; the chips and the cards. |
+| `hooks/kit.tsx` | The drawing kit made once per draw: elements, the Svg gate, palette, measure, hover cards, gaps, icons. |
+| `hooks/strip.tsx` | The workspace strip: project, branch or worktree, changes, ahead/behind. |
+| `hooks/reading.ts` | Pure readings of the snapshot: the cache's mood and every word about it, the context's fill, a limit's tone. |
+| `hooks/layout.ts` | Give-way orders, sizes, and how many columns a drawn tree takes. |
+| `hooks/icons.ts` | The icons' SVG bodies, glyphs and names. |
+| `hooks/cache.ts` | The prompt-cache model: TTL, misses, recall, re-warm and savings estimates, and the cache's view for the band. |
 | `hooks/insights.ts` | Last message cost and the 5-hour pace. |
 | `hooks/format.ts` | Numbers, times, thresholds and escalation marks. |
 | `hooks/palette.ts` | The dark, light and plain palettes, and the colours for the band's bare ground. |

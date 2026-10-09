@@ -1,6 +1,9 @@
 // The prompt cache, as the band models it from each response's token counts.
 
 import type { ModelUsage } from 'claude-code'
+import type { BandSnapshot } from './snapshot'
+
+type CacheView = BandSnapshot['cache']
 
 export type Ttl = '5m' | '1h'
 export const TTL_MS: Readonly<Record<Ttl, number>> = { '5m': 5 * 60_000, '1h': 60 * 60_000 }
@@ -45,6 +48,11 @@ type CacheState = {
   /** The conversation is known to start here (a new session, a /clear), so
    *  its cache is warming; after a reload mid-conversation it is unmeasured. */
   knownFresh: boolean
+  /** Before this band's first reply: when the conversation's last reply was,
+   *  and the base rate per token on its model, as recalled. */
+  recall: Readonly<{ lastAt: number; rate: number | null }> | undefined
+  /** The model the session's tokens are priced at: the one /model has in force. */
+  priceModel: string | undefined
 }
 
 const INITIAL: Readonly<CacheState> = {
@@ -64,6 +72,8 @@ const INITIAL: Readonly<CacheState> = {
   costBase: 0,
   baselined: false,
   knownFresh: false,
+  recall: undefined,
+  priceModel: undefined,
 }
 
 const state: CacheState = { ...INITIAL }
@@ -79,9 +89,18 @@ export const resetCache = (): void => {
  *  and its TTL carry over, everything measured starts again. The baseline is
  *  provisional until the next turn starts and takes the ledger then. */
 export const resetConversation = (costNow: number): void => {
-  const { ttl, ttlPinned } = state
-  Object.assign(state, INITIAL, { ttl, ttlPinned, costBase: costNow, knownFresh: true })
+  const { ttl, ttlPinned, priceModel } = state
+  Object.assign(state, INITIAL, { ttl, ttlPinned, priceModel, costBase: costNow, knownFresh: true })
 }
+
+/** What the band recalls of the conversation's last reply, before its own. */
+export const noteRecall = (lastAt: number, rate: number | null): void => {
+  state.recall = { lastAt, rate }
+}
+
+/** Whether the cache stands as recalled: no reply seen yet, a conversation
+ *  that didn't start here, and something to recall. */
+const isRecalled = (): boolean => state.requests === 0 && !state.knownFresh && state.recall !== undefined
 
 /** At load: a ledger that has spent nothing is a new conversation. */
 export const noteLoad = (costNow: number | undefined): void => {
@@ -192,15 +211,12 @@ const DEFAULT_READ_MULT = 0.1
 export const readMultiplier = (model: string | undefined): number =>
   (model === undefined ? undefined : READ_MULT_BY_MODEL[model]) ?? DEFAULT_READ_MULT
 
-/** The model the session's tokens are priced at: the one /model has in force. */
-let priceModel: string | undefined
-
 export const notePriceModel = (model: string | undefined): void => {
-  priceModel = model
+  state.priceModel = model
 }
 
 /** A cache read's price against input, on the model in force. */
-export const readShare = (): number => readMultiplier(priceModel)
+export const readShare = (): number => readMultiplier(state.priceModel)
 
 /** Tokens weighted by their price against base input on `model`: the one
  *  unknown left is the base rate itself. */
@@ -221,7 +237,7 @@ export const weightedTokens = (
  *  price), so what it prices is always shown with a "~". Call noteLedger first. */
 export const ratePerToken = (sessionCost: number | undefined): number | null => {
   if (!sessionCost || sessionCost <= 0) return null
-  const weighted = weightedTokens(state, priceModel)
+  const weighted = weightedTokens(state, state.priceModel)
   if (weighted <= 0) return null
   const billed = sessionCost - state.costBase
   if (billed <= 0) return null
@@ -242,7 +258,7 @@ export const reWarmUsd = (sessionCost: number | undefined): number | null => {
  *  the same tokens: the rest of the base rate on every cache read. */
 export const savedUsd = (sessionCost: number | undefined): number | null => {
   const rate = ratePerToken(sessionCost)
-  return rate === null || state.read <= 0 ? null : rate * (1 - readMultiplier(priceModel)) * state.read
+  return rate === null || state.read <= 0 ? null : rate * (1 - readMultiplier(state.priceModel)) * state.read
 }
 
 export const hitRatio = (): number | null => {
@@ -250,5 +266,33 @@ export const hitRatio = (): number | null => {
   return total > 0 ? state.read / total : null
 }
 
-export const msLeft = (now: number): number =>
-  state.requests === 0 ? TTL_MS[state.ttl] : Math.max(0, state.lastAt + TTL_MS[state.ttl] - now)
+/** The cache's time left: from the last reply this band saw, else the one
+ *  it recalls; a full lifetime before either. */
+export const msLeft = (now: number): number => {
+  const from = state.requests > 0 ? state.lastAt : isRecalled() ? state.recall?.lastAt : undefined
+  return from === undefined ? TTL_MS[state.ttl] : Math.max(0, from + TTL_MS[state.ttl] - now)
+}
+
+/** The cache as the band shows it, at `now`: measured once a reply has been
+ *  seen, recalled before that. `contextTokens` is the context as it stands,
+ *  which a recalled cold cache would rebuild. */
+export const cacheView = (now: number, sessionCost: number | undefined, contextTokens: number): CacheView => {
+  const recalled = isRecalled()
+  const rate = state.recall?.rate ?? null
+  return {
+    requests: state.requests,
+    msLeft: msLeft(now),
+    ttl: state.ttl,
+    ttlPinned: state.ttlPinned,
+    window: recalled ? contextTokens : state.window,
+    hitRatio: hitRatio(),
+    misses: state.misses,
+    reWarmUsd: recalled ? (rate === null ? null : reWarmAt(rate, contextTokens)) : reWarmUsd(sessionCost),
+    recalled,
+    idleMs: recalled && state.recall !== undefined ? now - state.recall.lastAt : null,
+    savedUsd: savedUsd(sessionCost),
+    readShare: readShare(),
+    fresh: state.knownFresh,
+    tokens: { sent: state.uncached + state.written, back: state.output, cached: state.read },
+  }
+}
