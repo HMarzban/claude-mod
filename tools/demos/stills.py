@@ -1,7 +1,8 @@
-"""The still images, drawn from the band's real desktop output (live.txt):
-the social preview card and the expanded band for the plugin README.
+"""The still images, drawn from the band's real desktop output (site.txt):
+the social preview card, the expanded band, and the states gallery in a light
+and a dark theme, for the READMEs.
 
-    python3 stills.py out/live.txt OUT_DIR
+    python3 stills.py out/site.txt OUT_DIR
 """
 import json
 import sys

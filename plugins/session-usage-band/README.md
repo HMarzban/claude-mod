@@ -12,7 +12,8 @@ drawn as SVG meters:
 
 ![The band expanded on the desktop: chips for the cache, cost, context and the 5h and 7d limits, then the Cache, Spend, Context and Limits cards, the project path and branch, and the Collapse and Hide band buttons](https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-expanded.png)
 
-See the [changelog](CHANGELOG.md) for what changed in each version. Found
+Try every state live on the [website](https://hmarzban.github.io/claude-mod/),
+and see the [changelog](CHANGELOG.md) for what changed in each version. Found
 something off? [Open an issue](https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml).
 
 ## Reading it
@@ -91,7 +92,8 @@ amber at once, the end of the row is clipped rather than wrapped.
 
 Claude Code caches the conversation server-side. While the cache is warm,
 re-reading the conversation costs a tenth of the normal input price or
-less, depending on the model (a twentieth on Opus 5.5 and Sonnet 5.5). It
+less, depending on the model (a twentieth on Opus 5.5 and Sonnet 5.5, a
+fortieth on Fable and Mythos 5.1). It
 stays warm for a lifetime (5 minutes or an hour) counted from the last
 request. Go idle past that, and the next message rebuilds the whole
 conversation at the cache-write price.

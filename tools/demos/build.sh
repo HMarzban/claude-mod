@@ -61,7 +61,8 @@ for th in light dark; do
   ffmpeg -y -loglevel error -framerate 30 -i "$OUT/film-$th/f%04d.png" \
     -vf "fps=15,scale=960:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=160:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" \
     -loop 0 "$DOCS/band-film-$th.gif"
-  sips -s format png -Z 1600 "$OUT/film-$th/f0250.png" --out "$DOCS/demo-poster$suffix.png" >/dev/null
+  python3 -c 'import sys; from PIL import Image; im = Image.open(sys.argv[1]); im.thumbnail((1600, 1600)); im.save(sys.argv[2])' \
+    "$OUT/film-$th/f0250.png" "$DOCS/demo-poster$suffix.png"
 done
 
 # ---- 4. the landing page, with the live band and its states ----------------

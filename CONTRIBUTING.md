@@ -87,8 +87,8 @@ Run `/reload-plugins` in your session afterwards.
 
 ## Demos and the website
 
-Every demo in `docs/` (the film, the GIFs, the landing page's live band, the
-social card) is drawn from the band's own output. After a change that alters
+Every demo in `docs/` (the film, the GIFs, the landing page's live band and
+its states, the social card, the states gallery) is drawn from the band's own output. After a change that alters
 how the band reads, rebuild them with `tools/demos/build.sh`; see
 [tools/demos/README.md](tools/demos/README.md). Edit the landing page in
 `tools/demos/site/template.html`, never in `docs/index.html`.

@@ -70,6 +70,9 @@ claude plugin marketplace remove hossein-mods
   <img alt="Four real states of the band: calm just after a reply; the cache's last minute with the re-warm price; near auto-compaction with the room left; and everything at once, with context, the 5-hour pace and the weekly limit all amber on one row" src="docs/band-states-light.png">
 </picture>
 
+These and three more play live, with a guided tour, on the
+[website](https://hmarzban.github.io/claude-mod/#live).
+
 A chip turns amber when it needs you: the cache's last minute, context near
 auto-compaction, a limit at 80% or a 5-hour pace that would run out before
 the reset. Nothing is ever red. Hover any chip for a one-line explanation.

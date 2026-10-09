@@ -5,6 +5,12 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [Unreleased]
+
+### Changed
+- The plugin README links the website, where every state of the band plays
+  live, and names Fable and Mythos 5.1's cache-read share beside the others.
+
 ## [0.11.12] - 2026-10-09
 
 ### Fixed
