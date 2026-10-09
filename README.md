@@ -31,12 +31,13 @@ for how to read it.
 
 ## Install
 
-Clone this repository, then, from the folder that holds the clone:
-
 ```bash
-claude plugin marketplace add ./claude-mod
+claude plugin marketplace add HMarzban/claude-mod
 claude plugin install session-usage-band@hossein-mods
 ```
+
+To work on it, add your clone instead: `claude plugin marketplace add
+./claude-mod`, from the folder that holds it.
 
 Then run `/reload-plugins` in a running session, or start a new one.
 

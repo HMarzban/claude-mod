@@ -192,6 +192,18 @@ test('Collapse and Hide are real buttons with c and h hotkeys', async ($, on) =>
 
 // ── card layout ────────────────────────────────────────────────────────
 
+test("the cache card's bar reads as the time left, as its battery does", async ($, on) => {
+  setup(on)
+  await $.session.start({ ...START, surface: 'desktop' })
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  const ui = await mountBand($, 'desktop', 95)
+  await ui.press({ key: 'more' })
+  const alts = svgsOf(cardOf(await ui.drawn(), 'cache')).map(n => String(n.props?.alt))
+  expect(alts).toContain('cache 100% left')
+  expect(alts.some(alt => /used/.test(alt))).toBe(false)
+  await ui.unmount()
+})
+
 test("a card's bar stretches across the card", async ($, on) => {
   setup(on)
   await $.session.start({ ...START, surface: 'desktop' })
@@ -199,7 +211,7 @@ test("a card's bar stretches across the card", async ($, on) => {
   const ui = await mountBand($, 'desktop', 95)
   await ui.press({ key: 'more' })
   // no fixed width: the slot caps the drawing, so it spans whatever the card gets
-  const bar = svgsOf(cardOf(await ui.drawn(), 'cache')).find(n => /used/.test(String(n.props?.alt)))
+  const bar = svgsOf(cardOf(await ui.drawn(), 'cache')).find(n => /left/.test(String(n.props?.alt)))
   expect(bar?.props?.width).toBeUndefined()
   expect(String(bar?.props?.source)).toContain('preserveAspectRatio="none"')
   await ui.unmount()

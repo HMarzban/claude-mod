@@ -2,7 +2,8 @@
   "name": "hossein-mods",
   "description": "Claude Code mods: small plugins that draw inside Claude Code.",
   "owner": {
-    "name": "Hossein"
+    "name": "Hossein Marzban",
+    "url": "https://github.com/HMarzban"
   },
   "plugins": [
     {

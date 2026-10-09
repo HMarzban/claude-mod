@@ -128,9 +128,18 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   }
 
   /** A bar: `frac` filled, with a thumb where the fill ends, so the eye finds
-   *  the number's place on it at once. `label` names it for a reader. A stretched bar has no width of its
+   *  the number's place on it at once. `label` names it for a reader, and
+   *  `reads` says whether the fill is what's used or what's left. A stretched bar has no width of its
    *  own: drawn wider than any slot, the slot caps it, so it spans its card. */
-  const meter = (label: string, frac: number, tone: Tone, accent: string, size: BarSize = CHIP_BAR, stretch = false) => {
+  const meter = (
+    label: string,
+    frac: number,
+    tone: Tone,
+    accent: string,
+    size: BarSize = CHIP_BAR,
+    stretch = false,
+    reads: 'used' | 'left' = 'used',
+  ) => {
     const fill = onTone(tone, accent)
     if (Svg) {
       // Never name a local `h`: JSX compiles to the global h().
@@ -151,7 +160,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
             `<rect class="thumb" x="${Math.min(width - 2 * k, fillWidth - k)}" y="0" width="${2 * k}" height="${tall}" rx="${k}" ry="1" fill="${palette.value}"/>`
           : '') +
         '</svg>'
-      const alt = `${label} ${Math.round(clamp01(frac) * 100)}% used`
+      const alt = `${label} ${Math.round(clamp01(frac) * 100)}% ${reads}`
       return stretch ? (
         <Svg key="meter" source={source} alt={alt} height={tall} />
       ) : (
@@ -552,7 +561,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         text: copy.head,
         tone: cacheTone,
       },
-      known ? meter('cache', charge, cacheTone, palette.warm, cardBar, true) : null,
+      known ? meter('cache', charge, cacheTone, palette.warm, cardBar, true, 'left') : null,
       [
         copy.note === undefined ? null : note(copy.note),
         known ? factRow(mood === 'cold' ? 'next message' : 're-warm if cold', estimate) : null,

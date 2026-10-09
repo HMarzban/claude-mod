@@ -46,7 +46,7 @@ Only the latest release gets fixes.
 
 ## Reporting a vulnerability
 
-Please don't open a public issue. Use your host's private vulnerability
-reporting for this repository, such as GitHub's "Report a vulnerability"
-on the Security tab. Include what you found, how to reproduce it, and the
+Please don't open a public issue. Report it privately on the repository's
+[Security tab](https://github.com/HMarzban/claude-mod/security/advisories/new)
+("Report a vulnerability"). Include what you found, how to reproduce it, and the
 plugin and Claude Code versions. You'll get a reply within a week.
