@@ -88,3 +88,16 @@ export const fiveHourEtaMs = (now: number): number | null => {
   }
   return Math.max(0, tFull - now)
 }
+
+/** A toast re-arms once its figure falls back below this share. */
+export const TOAST_REARM_BELOW = 0.75
+
+/** Whether a toast speaks, and the level to remember: it speaks once per
+ *  threshold crossed (at the highest reached), holds while the figure stays
+ *  up, and re-arms, back to level 0, once the figure falls under the re-arm
+ *  share. `prev` is the level remembered from before. */
+export const escalate = (prev: number, frac: number, levels: readonly number[]): Readonly<{ level: number; speak: boolean }> => {
+  const level = levels.filter(at => frac >= at).length
+  if (level > prev) return { level, speak: true }
+  return { level: frac < TOAST_REARM_BELOW ? 0 : prev, speak: false }
+}

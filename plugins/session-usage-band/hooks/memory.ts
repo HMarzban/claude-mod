@@ -4,6 +4,7 @@
 // what the next message costs, before any reply of its own.
 
 import { weightedTokens } from './cache'
+import { stripTrailingSlashes } from './workspace'
 
 /** Store keys. */
 export const SESSIONS_KEY = 'sessions'
@@ -50,7 +51,7 @@ export const rememberReply = (sessions: Sessions, id: string, lastAt: number): S
 /** Where Claude Code keeps a session's transcript: its project folder named
  *  for the project root, every character but a letter or digit a dash. */
 export const transcriptPath = (home: string, root: string, id: string): string =>
-  `${home.replace(/\/+$/, '')}/.claude/projects/${root.replace(/[^a-zA-Z0-9]/g, '-')}/${id}.jsonl`
+  `${stripTrailingSlashes(home)}/.claude/projects/${root.replace(/[^a-zA-Z0-9]/g, '-')}/${id}.jsonl`
 
 /** The most a mod may read in one go; a larger transcript stays unread. */
 export const READ_LIMIT = 4 * 1024 * 1024
@@ -64,15 +65,23 @@ const parsed = (line: string): Record<string, unknown> | undefined => {
   }
 }
 
-/** When a transcript's last assistant reply was. Its file time won't do:
- *  Claude Code writes a cost line each time it opens a session. */
-export const lastReplyAt = (transcript: string): number | undefined => {
+/** A transcript's lines from its end, parsed, the ones that name `marker`:
+ *  a cheap text test first, so most lines are never parsed. */
+function* fromEnd(transcript: string, marker: string): Generator<Record<string, unknown>> {
   const lines = transcript.split('\n')
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i] ?? ''
-    if (!line.includes('"assistant"')) continue
+    if (!line.includes(marker)) continue
     const entry = parsed(line)
-    if (entry?.type !== 'assistant' || typeof entry.timestamp !== 'string') continue
+    if (entry !== undefined) yield entry
+  }
+}
+
+/** When a transcript's last assistant reply was. Its file time won't do:
+ *  Claude Code writes a cost line each time it opens a session. */
+export const lastReplyAt = (transcript: string): number | undefined => {
+  for (const entry of fromEnd(transcript, '"assistant"')) {
+    if (entry.type !== 'assistant' || typeof entry.timestamp !== 'string') continue
     const at = Date.parse(entry.timestamp)
     if (Number.isFinite(at)) return at
   }
@@ -82,11 +91,9 @@ export const lastReplyAt = (transcript: string): number | undefined => {
 /** The base rate per token on `model`, solved from the transcript's last
  *  cost record: its dollars over its weighted tokens. */
 export const rateFromTranscript = (transcript: string, model: string): number | null => {
-  const lines = transcript.split('\n')
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i] ?? ''
-    if (!line.includes('"cost-state"')) continue
-    const usage = parsed(line)?.modelUsage
+  for (const entry of fromEnd(transcript, '"cost-state"')) {
+    if (entry.type !== 'cost-state') continue
+    const usage = entry.modelUsage
     const m = isRecord(usage) ? usage[model] : undefined
     if (!isRecord(m)) return null
     const n = (k: string) => (typeof m[k] === 'number' ? (m[k] as number) : 0)

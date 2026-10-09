@@ -1,5 +1,8 @@
 // Numbers, times and escalation marks, as the band words them.
 
+/** The cache's last minute: the one span where acting changes the bill. */
+export const SOON_MS = 60_000
+
 /** At this share a pill turns amber and gains `!`, and a toast speaks. */
 export const WARN_AT = 0.8
 /** At this share the mark becomes `!!`, and a toast speaks again. */
@@ -42,18 +45,22 @@ export const fmtCountdown = (ms: number): string => {
 export type ResetIn = { kind: 'in'; text: string } | { kind: 'passed' }
 
 /** When `iso` comes, from `now`; undefined without a readable time. */
+/** A span coarsely, to the minute: `2d 4h`, `3h 05m`, `12m`. */
+const fmtSpan = (ms: number): string => {
+  const mins = Math.floor(Math.max(0, ms) / 60_000)
+  const hours = Math.floor(mins / 60)
+  const days = Math.floor(hours / 24)
+  if (days) return `${days}d ${hours % 24}h`
+  if (hours) return `${hours}h ${String(mins % 60).padStart(2, '0')}m`
+  return `${mins}m`
+}
+
 export const resetIn = (iso: string | undefined, now: number): ResetIn | undefined => {
   if (!iso) return undefined
   const at = Date.parse(iso)
   if (Number.isNaN(at)) return undefined
   const secs = Math.floor((at - now) / 1000)
-  if (secs <= 0) return { kind: 'passed' }
-  const hours = Math.floor(secs / 3600)
-  const mins = Math.floor((secs % 3600) / 60)
-  const days = Math.floor(hours / 24)
-  if (days) return { kind: 'in', text: `${days}d ${hours % 24}h` }
-  if (hours) return { kind: 'in', text: `${hours}h ${String(mins).padStart(2, '0')}m` }
-  return { kind: 'in', text: `${mins}m` }
+  return secs <= 0 ? { kind: 'passed' } : { kind: 'in', text: fmtSpan(secs * 1000) }
 }
 
 /** The words for escalation: colour is never the only signal. */
@@ -80,15 +87,7 @@ export const clipMiddle = (text: string, max: number): string => {
 }
 
 /** How long ago, coarsely: `2d 4h`, `3h 05m`, `12m`; under a minute is `now`. */
-export const fmtAgo = (ms: number): string => {
-  const mins = Math.floor(Math.max(0, ms) / 60_000)
-  if (mins < 1) return 'now'
-  const hours = Math.floor(mins / 60)
-  const days = Math.floor(hours / 24)
-  if (days) return `${days}d ${hours % 24}h`
-  if (hours) return `${hours}h ${String(mins % 60).padStart(2, '0')}m`
-  return `${mins}m`
-}
+export const fmtAgo = (ms: number): string => (ms < 60_000 ? 'now' : fmtSpan(ms))
 
 /** The context in use: its token count, else its percent of the window;
  *  undefined when the engine reports neither. */

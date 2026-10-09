@@ -82,11 +82,15 @@ const LIMITS: Readonly<Record<LimitKey, LimitSpec>> = {
 
 // ---- drawing --------------------------------------------------------------
 
+/** The expanded view's cards, in the order they are drawn. */
+type CardName = 'cache' | 'spend' | 'context' | 'limits'
+
 type PillSpec = Readonly<{
   key: string
   tone: Tone
   body: RenderChildren[]
-  card: string
+  /** The one-line explanation shown while the pill is hovered. */
+  hover: string
   /** The terminal battery paints its own background in its Texts. */
   paintsOwnBg?: boolean
   bg?: string
@@ -103,7 +107,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   // line, since a collapsed band is one row. Plain has no background to cover
   // the row with, so no cards; the expanded line says it all. A pill never
   // shrinks: the squeeze drops pieces instead, so its text never wraps.
-  const pill = ({ key, tone, body, card, paintsOwnBg, bg }: PillSpec, anchor: 'left' | 'right') => {
+  const pill = ({ key, tone, body, hover, paintsOwnBg, bg }: PillSpec, anchor: 'left' | 'right') => {
     if (!palette.filled) {
       const fg = onTone(tone, palette.value)
       return (
@@ -118,7 +122,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     return (
       <Box key={key} flexShrink={0} {...fill}>
         {body}
-        {hoverCard(card, anchor)}
+        {hoverCard(hover, anchor)}
       </Box>
     )
   }
@@ -231,10 +235,10 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         key: 'cache',
         tone: cacheTone,
         body: [batteryIcon(), <Text key="c" color={onTone(cacheTone, palette.value)}>{` ${text}`}</Text>],
-        card: copy.hover,
+        hover: copy.hover,
       }
     }
-    if (palette.filled) return { key: 'cache', tone: cacheTone, body: textBattery(`◷ ${text}`), card: copy.hover, paintsOwnBg: true }
+    if (palette.filled) return { key: 'cache', tone: cacheTone, body: textBattery(`◷ ${text}`), hover: copy.hover, paintsOwnBg: true }
     const dot = mood === 'warm' || mood === 'expiring' ? palette.warm : palette.cold
     return {
       key: 'cache',
@@ -245,7 +249,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
           {cacheTone === 'amber' ? `◷ ${text}` : text}
         </Text>,
       ],
-      card: copy.hover,
+      hover: copy.hover,
     }
   }
 
@@ -263,7 +267,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         tone: 'calm',
         bg: tint.bg,
         body: [...icon(spec.icon, tint.accent), <Text key="l" color={tint.fg}>{`${key} reset`}</Text>],
-        card: `${spec.title} has reset; it updates after your next message`,
+        hover: `${spec.title} has reset; it updates after your next message`,
       }
     }
     const fg = onTone(tone, tint.fg)
@@ -289,7 +293,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         </Text>,
         ...reset,
       ],
-      card:
+      hover:
         r === undefined
           ? `Your ${spec.title.toLowerCase()}, across all your Claude use`
           : `${spec.title} across all your Claude use; resets in ${r.text}`,
@@ -309,7 +313,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         key: 'cost',
         tone: 'calm',
         body: [...icon('cost', palette.coin), <Text key="v" color={palette.value} bold>{fmtCost(snap.costUsd)}</Text>],
-        card:
+        hover:
           snap.lastTurnUsd === null
             ? 'What this session has cost so far'
             : `${fmtSmallCost(snap.lastTurnUsd)} spent during your last message, subagents included`,
@@ -321,7 +325,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         key: 'tokens',
         tone: 'calm',
         body: [...icon('tokens', palette.label), <Text key="v" color={palette.value}>{fmtTokens(tokenTotal)}</Text>],
-        card: tokenBreakdown,
+        hover: tokenBreakdown,
       })
     }
 
@@ -348,7 +352,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
             {`${amount}${mark}${countdown}`}
           </Text>,
         ],
-        card:
+        hover:
           ctx.compactAt === undefined || toCompact === undefined
             ? 'Conversation fill; near full, older turns get summarized'
             : `Full toward auto-compaction at ${fmtTokens(ctx.compactAt)}; ${fmtTokens(toCompact)} to go`,
@@ -420,17 +424,24 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     const bordered = Svg !== undefined || !palette.filled
     const edge = bordered ? 2 : 0
     const minCard = Math.ceil(CARD_TEXT * measure.text) + 2 + edge
-    const cardCount = 2 + (hasContext ? 1 : 0) + (snap.fiveHour || snap.sevenDay || snap.otherLimits.length > 0 ? 1 : 0)
+    // The cards present, which the grid lays out.
+    const present: readonly CardName[] = [
+      'cache',
+      'spend',
+      ...(hasContext ? (['context'] as const) : []),
+      ...(snap.fiveHour || snap.sevenDay || snap.otherLimits.length > 0 ? (['limits'] as const) : []),
+    ]
+    const cardCount = present.length
     const fits = (n: number) => n * minCard + (n - 1) <= snap.columns
     const perLine = [cardCount, Math.ceil(cardCount / 2)].find(fits) ?? 1
     const lineCount = Math.ceil(cardCount / perLine)
-    const LINE_GAP = 1
+    const lineGap = 1
     // The rows a card's body may take: the band's, less the chip row, the
     // buttons, the row of air above each line of cards and the buttons and,
     // when it shows, the workspace strip, shared by the lines, less a card's
     // edge and its header. A taller band would scroll, hiding the buttons.
     const bodyFor = (strip: number) =>
-      Math.floor((snap.maxRows - 4 - strip - LINE_GAP * (lineCount - 1)) / lineCount) - edge - 1
+      Math.floor((snap.maxRows - 4 - strip - lineGap * (lineCount - 1)) / lineCount) - edge - 1
     // The strip heads the view when every card still keeps a fact of its own;
     // short of that row it takes the footer's, in place of the hint.
     const stripPlace: 'top' | 'footer' | undefined =
@@ -446,15 +457,15 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       return bar !== null && facts.length < bodyRows ? [bar, ...facts] : facts.slice(0, bodyRows)
     }
     // Each card's mark: the chips' own icons, so the band speaks one language.
-    const CARD_ICON: Readonly<Record<string, readonly [Icon, string]>> = {
+    const cardIcon: Readonly<Record<CardName, readonly [Icon, string]>> = {
       cache: ['cache', palette.warm],
       spend: ['cost', palette.coin],
       context: ['context', palette.label],
-      limits: ['limits', palette.fiveAccent],
+      limits: ['limits', LIMITS['5h'].tint(palette).accent],
     }
     /** A card: its title and headline on one line, then its bar and body. */
     const card = (
-      name: string,
+      name: CardName,
       title: string,
       head: Readonly<{ text: string; tone?: Tone }>,
       bar: RenderChildren,
@@ -473,7 +484,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         <Box key="head" flexDirection="row" justifyContent="space-between" columnGap={1}>
           <Box key="title" flexDirection="row" flexShrink={0}>
             {/* Desktop alone: a terminal title stays plain text. */}
-            {Svg && CARD_ICON[name] ? icon(...CARD_ICON[name]) : null}
+            {Svg ? icon(...cardIcon[name]) : null}
             <Text color={palette.label}>{title.toUpperCase()}</Text>
           </Box>
           <Text color={onTone(head.tone ?? 'calm', palette.value)} bold wrap="truncate-end">
@@ -555,7 +566,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     )
 
     // Cache reads in the warm colour: cheap, and often most of the bar.
-    const SPLIT: ReadonlyArray<readonly [string, number, string]> = [
+    const tokenParts: ReadonlyArray<readonly [string, number, string]> = [
       ['input', c.tokens.sent, palette.meterFill],
       ['output', c.tokens.back, palette.coin],
       ['cache reads', c.tokens.cached, palette.warm],
@@ -564,10 +575,10 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       'spend',
       'Spend',
       { text: fmtCost(snap.costUsd) },
-      measured ? splitBar('token split: input, output, cache reads', SPLIT.map(([, n, color]) => [n, color] as const)) : null,
+      measured ? splitBar('token split: input, output, cache reads', tokenParts.map(([, n, color]) => [n, color] as const)) : null,
       [
       snap.lastTurnUsd !== null ? factRow('last message', fmtSmallCost(snap.lastTurnUsd)) : null,
-      ...(measured ? SPLIT.map(([label, n, color]) => factRow(label, fmtTokens(n), color)) : [note('Breakdown counts from your next message.')]),
+      ...(measured ? tokenParts.map(([label, n, color]) => factRow(label, fmtTokens(n), color)) : [note('Breakdown counts from your next message.')]),
       ],
     )
 
@@ -597,9 +608,9 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     }>
     const windows: Window[] = [
       ...(snap.fiveHour
-        ? [{ name: '5h', reading: snap.fiveHour, windowMs: LIMITS['5h'].windowMs, accent: palette.fiveAccent, etaMs: snap.fiveHour.etaMs }]
+        ? [{ name: '5h', reading: snap.fiveHour, windowMs: LIMITS['5h'].windowMs, accent: LIMITS['5h'].tint(palette).accent, etaMs: snap.fiveHour.etaMs }]
         : []),
-      ...(snap.sevenDay ? [{ name: '7d', reading: snap.sevenDay, windowMs: LIMITS['7d'].windowMs, accent: palette.weekAccent, etaMs: null }] : []),
+      ...(snap.sevenDay ? [{ name: '7d', reading: snap.sevenDay, windowMs: LIMITS['7d'].windowMs, accent: LIMITS['7d'].tint(palette).accent, etaMs: null }] : []),
       ...snap.otherLimits.map(limit => ({
         name: limit.kind === 'spend_limit' ? 'spend' : limit.kind.replace(/_/g, ' '),
         reading: limit,
@@ -646,6 +657,13 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         ),
       ]
     }
+    /** Every window's rows; short of rows, each window's bar row before any
+     *  pace line. */
+    const limitLines = (): RenderChildren[] => {
+      const rows = windows.map(limitRows)
+      const lines = rows.flat().filter(part => part !== null)
+      return lines.length <= bodyRows ? lines : [...rows.map(([bar]) => bar), ...rows.map(([, pace]) => pace)]
+    }
     // The headline is the window closest to its limit.
     const worst = live.reduce<Window | undefined>((top, w) => (top === undefined || w.reading.percentUsed > top.reading.percentUsed ? w : top), undefined)
     const limitsView =
@@ -659,12 +677,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
             },
             // Each window's bar is in its own row, so the card has none apart.
             null,
-            // Short of rows, every window's row before any pace line.
-            (() => {
-              const rows = windows.map(limitRows)
-              const lines = rows.flat().filter(part => part !== null)
-              return lines.length <= bodyRows ? lines : [...rows.map(([bar]) => bar), ...rows.map(([, pace]) => pace)]
-            })(),
+            limitLines(),
           )
         : null
 
@@ -684,7 +697,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
 
     return [
       stripPlace === 'top' ? strip : null,
-      <Box key="cards" flexDirection="column" rowGap={LINE_GAP} marginTop={stripPlace === 'top' ? 0 : 1}>
+      <Box key="cards" flexDirection="column" rowGap={lineGap} marginTop={stripPlace === 'top' ? 0 : 1}>
         {Array.from({ length: lineCount }, (_, i) => (
           <Box key={`cards:${i}`} flexDirection="row" columnGap={1}>
             {cardViews.slice(i * perLine, (i + 1) * perLine)}

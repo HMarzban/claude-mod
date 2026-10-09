@@ -2,8 +2,8 @@
 // mood and every word about it, the context's fill, a limit's tone and pace.
 // Pure, so each can be checked without mounting the band.
 
-import { SOON_MS, TTL_MS } from './cache'
-import { COMPACT_NEAR, WARN_AT, clamp01, contextUsed, fmtCountdown, fmtEstimate, fmtTokens, resetIn } from './format'
+import { TTL_MS } from './cache'
+import { COMPACT_NEAR, SOON_MS, WARN_AT, clamp01, contextUsed, fmtCountdown, fmtEstimate, fmtTokens, resetIn } from './format'
 import type { BandSnapshot, LimitReading } from './snapshot'
 
 export type Tone = 'calm' | 'amber'

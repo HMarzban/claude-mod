@@ -43,7 +43,11 @@ export const GIT_DIRS_ARGV: readonly string[] = [
 
 const lines = (text: string): string[] => text.split(/\r?\n/).map(line => line.replace(/\r$/, ''))
 
-const trimSlash = (p: string): string => (p.length > 1 ? p.replace(/\/+$/, '') : p)
+/** A path without its trailing slashes. */
+export const stripTrailingSlashes = (p: string): string => p.replace(/\/+$/, '')
+
+/** The same, keeping a lone `/`, which is a root, not a slash. */
+const trimSlash = (p: string): string => (p.length > 1 ? stripTrailingSlashes(p) : p)
 
 const basename = (p: string): string => trimSlash(p).split('/').pop() ?? ''
 
@@ -95,10 +99,10 @@ export const parseGitState = (status: string, dirs: string): GitState | undefine
 
 /** `~` for home and `~/…` under it; anything else unchanged. */
 export const homeRelative = (path: string, home: string | undefined): string => {
-  const h = home?.replace(/\/+$/, '')
-  if (!h) return path
-  if (path === h || path === `${h}/`) return '~'
-  return path.startsWith(`${h}/`) ? `~${path.slice(h.length)}` : path
+  const homeDir = home === undefined ? '' : stripTrailingSlashes(home)
+  if (!homeDir) return path
+  if (path === homeDir || path === `${homeDir}/`) return '~'
+  return path.startsWith(`${homeDir}/`) ? `~${path.slice(homeDir.length)}` : path
 }
 
 /** The parent keeps its trailing slash; a root is all name. */

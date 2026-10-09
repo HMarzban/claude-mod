@@ -28,6 +28,7 @@ import {
   noteFiveHour,
   noteTurnEnd,
   noteTurnStart,
+  escalate,
   resetConversationInsights,
   resetInsights,
 } from './insights'
@@ -53,19 +54,52 @@ const isExpanded = atom({ plugin: 'session-usage-band', key: 'isExpanded' } as c
 const FIVE_HOUR = 'five_hour'
 const SEVEN_DAY = 'seven_day'
 
-// A toast speaks once per threshold crossed and again only after the figure
-// falls back below this share.
-const TOAST_REARM_BELOW = 0.75
+/** How much of a transcript's end to read: room for a long last reply. */
+const TAIL_BYTES = 1024 * 1024
 
-let palette: Readonly<Palette> = DARK
+/** Long enough for a large repository's status or a transcript's tail,
+ *  short enough that a hung command never holds a read open for long. */
+const PROCESS_TIMEOUT_MS = 3000
 
-/** Auto-compaction as the context breakdown last reported it: where it runs,
- *  or off. Read after each turn rather than on every redraw. */
-let autoCompact: { at: number } | 'off' | undefined
+/** What /usage-band answers. */
+const REPLY = {
+  shown: 'Usage band shown.',
+  shownFirst: 'Usage band shown. /usage-band more shows every fact.',
+  hidden: 'Usage band hidden. /usage-band shows it again.',
+  expanded: 'Usage band expanded.',
+  collapsed: 'Usage band collapsed.',
+  usage: 'Usage: /usage-band [more | less | show | hide]',
+} as const
 
-/** Where the session is: its project, home-relative, and git there. Read
- *  between redraws, never while drawing, since git takes a process. */
-let workspace: Workspace | undefined
+/** Everything the band keeps between hooks, in one place. A reload starts it
+ *  over with the module; session.start resets the rest. */
+const band: {
+  palette: Readonly<Palette>
+  /** Where auto-compaction runs, as the context breakdown last said; read
+   *  after each turn, not on every redraw. Undefined when off or unknown. */
+  compactAt: number | undefined
+  /** The breakdown said auto-compaction is off. */
+  autoCompactOff: boolean
+  /** Where the session is: its project, home-relative, and git there. Read
+   *  between redraws, never while drawing, since git takes a process. */
+  workspace: Workspace | undefined
+  /** Reads begun, so one that ends after a newer one never overwrites it. */
+  reads: number
+  /** What the band last drew, so the timer repaints only when it would change. */
+  lastPaintKey: string
+  /** Each toast's level reached, so it speaks once per crossing. */
+  warned: Map<string, number>
+  tick: Timer | undefined
+} = {
+  palette: DARK,
+  compactAt: undefined,
+  autoCompactOff: false,
+  workspace: undefined,
+  reads: 0,
+  lastPaintKey: '',
+  warned: new Map(),
+  tick: undefined,
+}
 
 /** A transcript's end, where its last reply and cost record are: its last
  *  megabyte by `tail`, whatever its size; failing that, the whole file if it
@@ -120,21 +154,11 @@ const rememberTurn = async ($: EngineInterface, costNow: number | undefined): Pr
   }
 }
 
-/** How much of a transcript's end to read: room for a long last reply. */
-const TAIL_BYTES = 1024 * 1024
-
-/** Reads begun, so one that ends after a newer one never overwrites it. */
-let reads = 0
-
-/** Long enough for a large repository's status or a transcript's tail,
- *  short enough that a hung command never holds a read open for long. */
-const PROCESS_TIMEOUT_MS = 3000
-
-/** Reads the project and git into `workspace`, then redraws. It never throws:
+/** Reads the project and git into `band.workspace`, then redraws. It never throws:
  *  outside a repository, or with git missing or slow, the band shows the
  *  path alone. Callers don't wait on it. */
 const readWorkspace = async ($: EngineInterface): Promise<void> => {
-  const mine = ++reads
+  const mine = ++band.reads
   try {
     const root = await $.session.root()
     const home = await $.env.get('HOME')
@@ -148,13 +172,14 @@ const readWorkspace = async ($: EngineInterface): Promise<void> => {
       run(GIT_DIRS_ARGV),
       $.session.repo().catch(() => null),
     ])
-    if (mine !== reads) return
+    if (mine !== band.reads) return
     const path = homeRelative(root, home)
-    workspace = {
+    const last = band.workspace
+    band.workspace = {
       path,
       // A status that failed or timed out keeps the last good reading of the
       // same project, so a slow repository doesn't flicker to the path alone.
-      git: status === undefined ? (workspace?.path === path ? workspace.git : undefined) : parseGitState(status, dirs ?? ''),
+      git: status === undefined ? (last?.path === path ? last.git : undefined) : parseGitState(status, dirs ?? ''),
       // A linked worktree's main repository, by its folder's name.
       repoName: repo === null ? undefined : splitPath(repo.root).name,
     }
@@ -177,29 +202,23 @@ const parseCommand = (args: string): BandCommand | undefined => {
   return word === 'more' || word === 'less' || word === 'show' || word === 'hide' ? word : undefined
 }
 
-const SHOWN = 'Usage band shown. /usage-band more shows every fact.'
-const HIDDEN = 'Usage band hidden. /usage-band shows it again.'
 
 export const register: Register = on => {
-  // What the band last drew, so the timer repaints only when it would change.
-  let lastPaintKey = ''
-  const warned = new Map<string, number>()
-  let tick: Timer | undefined
 
   on('session.start', async ($, e, next) => {
     resetCache()
     resetInsights()
-    warned.clear()
-    lastPaintKey = ''
-    workspace = undefined
-    reads++ // any read still out began before this load
+    band.warned.clear()
+    band.lastPaintKey = ''
+    band.workspace = undefined
+    band.reads++ // any read still out began before this load
     notePriceModel(await $.session.model().catch(() => undefined))
     noteLoad(await ledgerUsd($))
     void readWorkspace($)
     // Loaded mid-conversation, the band has seen no reply: recall the last.
     if (!cache.knownFresh) await recallLastReply($)
 
-    palette = resolvePalette((await $.env.get('CC_BAND_APPEARANCE'))?.toLowerCase(), await $.env.get('NO_COLOR'))
+    band.palette = resolvePalette((await $.env.get('CC_BAND_APPEARANCE'))?.toLowerCase(), await $.env.get('NO_COLOR'))
     const pinned = resolveTtl({
       force5m: await $.env.get('FORCE_PROMPT_CACHING_5M'),
       chosen: await $.env.get('CLAUDE_CODE_PROMPT_CACHE_TTL'),
@@ -210,15 +229,15 @@ export const register: Register = on => {
     // One timer, repainting only when the drawing would differ: every minute
     // (the battery, the reset countdowns, the pace tick), and every second of
     // the cache's last ten minutes, when its countdown shows seconds.
-    tick?.cancel()
-    tick = $.clock.every(1000, () => {
+    band.tick?.cancel()
+    band.tick = $.clock.every(1000, () => {
       void (async () => {
         const now = await $.clock.now()
         const left = msLeft(now)
         const eta = fiveHourEtaMs(now)
         const key = `${Math.floor(now / 60_000)}|${fmtCountdown(left)}|${left > 0}|${eta === null ? '-' : fmtEta(eta)}`
-        if (key !== lastPaintKey) {
-          lastPaintKey = key
+        if (key !== band.lastPaintKey) {
+          band.lastPaintKey = key
           $.ui.invalidate('ui.render')
         }
       })().catch(() => undefined)
@@ -238,8 +257,8 @@ export const register: Register = on => {
     // The context warning is this conversation's; the 5-hour one is the
     // account's, and /clear changes nothing about it.
     resetConversationInsights()
-    warned.delete('context')
-    lastPaintKey = ''
+    band.warned.delete('context')
+    band.lastPaintKey = ''
     // A resume may be another project.
     void readWorkspace($)
     $.ui.invalidate('ui.render')
@@ -297,13 +316,9 @@ export const register: Register = on => {
   on('session.measure', async ($, e, next) => {
     const now = await $.clock.now()
     const note = (key: string, frac: number, levels: readonly number[], text: (pct: number) => string): void => {
-      const level = levels.filter(at => frac >= at).length
-      if (level > (warned.get(key) ?? 0)) {
-        warned.set(key, level)
-        $.ui.toast(text(Math.round(frac * 100)))
-      } else if (frac < TOAST_REARM_BELOW) {
-        warned.delete(key)
-      }
+      const { level, speak } = escalate(band.warned.get(key) ?? 0, frac, levels)
+      band.warned.set(key, level)
+      if (speak) $.ui.toast(text(Math.round(frac * 100)))
     }
 
     for (const limit of e.rateLimits) {
@@ -317,11 +332,8 @@ export const register: Register = on => {
       const breakdown = (await $.session.usage({ breakdown: 'summary' })).context.breakdown
       if (breakdown !== undefined) {
         // On without a threshold says nothing about where: leave it unknown.
-        autoCompact = !breakdown.isAutoCompactEnabled
-          ? 'off'
-          : breakdown.autoCompactThreshold !== undefined
-            ? { at: breakdown.autoCompactThreshold }
-            : undefined
+        band.autoCompactOff = !breakdown.isAutoCompactEnabled
+        band.compactAt = breakdown.isAutoCompactEnabled ? breakdown.autoCompactThreshold : undefined
       }
     } catch {
       // keep the last known setting
@@ -330,11 +342,11 @@ export const register: Register = on => {
     // The context toast speaks where the context pill turns amber.
     const used = contextUsed(e.context)
     if (used !== undefined) {
-      if (autoCompact !== undefined && autoCompact !== 'off') {
-        const at = autoCompact.at
+      const at = band.compactAt
+      if (at !== undefined) {
         note('context', used / at, [COMPACT_NEAR], () => `Auto-compaction in ~${fmtTokens(Math.max(0, at - used))} tokens.`)
       } else {
-        const off = autoCompact === 'off'
+        const off = band.autoCompactOff
         note('context', used / e.context.window, [WARN_AT, SEVERE_AT], pct =>
           off
             ? `Context is ${pct}% full and auto-compaction is off, so the conversation will run out of room.`
@@ -355,18 +367,18 @@ export const register: Register = on => {
         await update($, isExpanded, () => command === 'more')
         await update($, isHidden, () => false)
         if (command === 'more') void readWorkspace($)
-        return { text: command === 'more' ? 'Usage band expanded.' : 'Usage band collapsed.' }
+        return { text: command === 'more' ? REPLY.expanded : REPLY.collapsed }
       case 'show':
       case 'hide':
         await update($, isHidden, () => command === 'hide')
-        return { text: command === 'hide' ? HIDDEN : 'Usage band shown.' }
+        return { text: command === 'hide' ? REPLY.hidden : REPLY.shown }
       case 'toggle': {
         const wasHidden = await read($, isHidden)
         await update($, isHidden, () => !wasHidden)
-        return { text: wasHidden ? SHOWN : HIDDEN }
+        return { text: wasHidden ? REPLY.shownFirst : REPLY.hidden }
       }
       case undefined:
-        return { text: 'Usage: /usage-band [more | less | show | hide]' }
+        return { text: REPLY.usage }
     }
   })
 
@@ -388,7 +400,7 @@ export const register: Register = on => {
         maxRows: e.props.maxRows,
         isWorking: e.props.isWorking,
         expanded: await read($, isExpanded),
-        palette,
+        palette: band.palette,
         now,
         cache: cacheView(now, usage.cost?.usd, contextTokens),
         costUsd: usage.cost?.usd ?? 0,
@@ -397,11 +409,11 @@ export const register: Register = on => {
           tokens: usage.context.tokens,
           window: usage.context.window,
           percent: usage.context.percent,
-          compactAt: autoCompact === undefined || autoCompact === 'off' ? undefined : autoCompact.at,
+          compactAt: band.compactAt,
         },
         fiveHour: five ? { percentUsed: five.percentUsed, resetsAt: five.resetsAt, etaMs: fiveHourEtaMs(now) } : undefined,
         sevenDay: seven ? { percentUsed: seven.percentUsed, resetsAt: seven.resetsAt } : undefined,
-        workspace,
+        workspace: band.workspace,
         otherLimits: usage.rateLimits
           .filter(l => l.kind !== FIVE_HOUR && l.kind !== SEVEN_DAY)
           .map(l => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: l.resetsAt })),

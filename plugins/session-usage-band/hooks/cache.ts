@@ -8,8 +8,6 @@ type CacheView = BandSnapshot['cache']
 export type Ttl = '5m' | '1h'
 export const TTL_MS: Readonly<Record<Ttl, number>> = { '5m': 5 * 60_000, '1h': 60 * 60_000 }
 
-/** The cache's last minute: the one span where acting changes the bill. */
-export const SOON_MS = 60_000
 
 // A response that read this much less than the cache held, both in tokens and
 // as a share of it, missed the cache.
