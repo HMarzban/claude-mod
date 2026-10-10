@@ -46,7 +46,11 @@ test('open with no context, the section says so', async ($, on) => {
   expect(shown((await at($, on, 'warming')).open)).toMatch(/CONTEXT\s*not reported/)
 })
 test('open and short of rows, an amber limit keeps its words', async ($, on) => {
-  expect(shown((await at($, on, 'gatewaySpend', { surface: 'desktop', cols: 120, maxRows: 8 })).open)).toMatch(/! spend 92%, resets in 5h 00m/)
+  // Each mount leaves LIMITS one row under its title.
+  const mounts = ([[120, 7], [80, 7], [80, 10]] as const).flatMap(([cols, maxRows]) =>
+    (['terminal', 'desktop'] as const).map((surface): Mount => ({ surface, cols, maxRows })))
+  const trees = await drawCases($, on, { layout: 'ledger', scenario: 'gatewaySpend', appearance: 'dark', ttl: '1h' }, mounts)
+  for (const m of mounts) expect(`${caseKey(m, 'open')} ${shown(trees[caseKey(m, 'open')])}`).toMatch(/LIMITS\s*! spend 92%, resets in 5h 00m/)
 })
 test('open, an amber limit keeps its pace', async ($, on) => {
   expect(shown((await at($, on, 'limit80')).open)).toMatch(/! 5h 82%, resets in 3h 00m, full before reset/)

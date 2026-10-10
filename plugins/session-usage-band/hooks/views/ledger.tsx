@@ -20,8 +20,10 @@ const amberOr = (kit: Kit, key: string, amber: Amber | undefined, keeps: Keeps<P
 
 /** A limit: amber, its reason; calm, its value and its reset as the squeeze allows. */
 const limitPiece = (kit: Kit, l: LimitView, step: Piece, keeps: Keeps<Piece>): RenderChildren => {
+  if (l.amber !== undefined) return words(kit, l.name, [[keeps.amber(l.amber), 'amber']])
+  if (!keeps.has(step)) return null
   const reset = keeps.has('resetTimes') ? (keeps.has('resetWords') ? l.resetWords : l.resetGlyph) : undefined
-  return amberOr(kit, l.name, l.amber, keeps, keeps.has(step) ? words(kit, l.name, reset === undefined ? l.say : [...l.say, [`, ${reset}`, 'label']]) : null)
+  return words(kit, l.name, reset === undefined ? l.say : [...l.say, [`, ${reset}`, 'label']])
 }
 
 const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
@@ -79,10 +81,12 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       sentence('in', x.compactsAtText === undefined ? `${x.inContextText} in context` : `${x.inContextText} in context, compacts at ${x.compactsAtText}`),
       x.roomText === undefined ? null : sentence('room', `${x.roomText} room in a ${x.windowText} window`),
     ], room),
+    // What needs you leads, so a body short of rows keeps it; an amber
+    // closest limit is named by its own sentence.
     section(kit, 'limits', 'LIMITS', read.limits.length === 0 ? [sentence('none', EMPTY.limits)] : [
-      read.worstLimit === undefined ? null : sentence('closest', `closest is ${read.worstLimit.text}`),
-      // What needs you leads, so a body short of rows keeps it.
-      ...[...read.limits.filter(l => l.amber !== undefined), ...read.limits.filter(l => l.amber === undefined)].map(l => limitSentence(kit, l)),
+      ...read.limits.filter(l => l.amber !== undefined).map(l => limitSentence(kit, l)),
+      read.worstLimit === undefined || read.worstLimit.amber !== undefined ? null : sentence('closest', `closest is ${read.worstLimit.text}`),
+      ...read.limits.filter(l => l.amber === undefined).map(l => limitSentence(kit, l)),
     ], room),
   ], bodyRows)
 }
