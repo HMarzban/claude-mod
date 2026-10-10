@@ -351,7 +351,7 @@ type View = Readonly<{
   - 7d resets, only within 24 h.
 
   Each column has a time and condition (`now · warm`, `14:32 · cold`), with a detail row on the desktop (`52m left`, `re-warm ~$1.66`). Only the next event shows "in Xm". The terminal shows one row of columns split by `│`. "Cooling" is the `expiring` mood.
-- **Escalation:** now becomes `! cooling · 47s left`. `! 5h full` is placed in time order.
+- **Escalation:** now becomes `! cooling · 47s left`, with `re-warm ~$1.66` in its detail row on the desktop, or after it where there is no detail row; short, `! 47s` (§2.6). `! 5h full` is placed in time order.
 - **Give-way:**
   1. far events, 7d first;
   2. the "in Xm";

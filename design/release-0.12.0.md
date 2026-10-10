@@ -188,7 +188,7 @@ Open items cleared on `feat/layouts` after 0119b9a.
   - `matrix.ts` now fails an alt that says a share is used or left, or a landing without its figure. Against the hooks before the fixes, 85 of the gauges, rings and tiles suites' 105 cases fail it.
   - 1050 pass, 0 fail, 48 files. Golden is unchanged. These layouts are new in 0.12.0, so Added covers the change and the CHANGELOG has no line.
 - **Forecast and the phrasebook**, each test first, with its ruling in the ledger:
-  - Forecast's last minute on a text surface says its price (0aafad8, and its short form's follow-up). With no detail row, on the terminal and a plain desktop, now reads `! cooling · 30s left · re-warm ~$1.66`; at 40 columns, with nothing calm left, it turns short as every layout's cache does, `! 30s` (spec §2.6).
+  - Forecast's last minute on a text surface says its price (0aafad8, and its short form, 12e16ae). With no detail row, on the terminal and a plain desktop, now reads `! cooling · 30s left · re-warm ~$1.66`; at 40 columns, with nothing calm left, it turns short as every layout's cache does, `! 30s` (spec §2.6).
   - On the desktop it says `re-warm ~$X` once, beneath now (c87e9d8). The cold change, calm, draws its head alone. The gallery's forecast still in the last minute predates this.
   - `LimitWords.valueText`, `4%` or `reset`, replaces the copies in rings, tiles and forecast (85dc6d2).
   - Every new view draws its empty states in a label's ink, through one `emptySay()` in `parts.tsx` (5d78811, named so in Task C4); ledger, pulse, week and forecast drew some in `value`. Departures keeps its board's ink.
