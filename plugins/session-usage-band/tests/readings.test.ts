@@ -74,9 +74,11 @@ test('working, an expiring cache still counts down', () => {
   expect(c.amber).toBeDefined()
 })
 test('cold is a price', () => {
-  const c = readingsOf(snapOf({ cache: cacheAt(-MIN) })).cache
+  const c = readingsOf(snapOf({ cache: cacheAt(0), utcOffsetMin: 0 })).cache
   expect([c.text, c.textShort, c.reWarmText, c.board]).toEqual(['cache cold · re-warm ~$1.66', 'cold ~$1.66', 'next message ~$1.66', 'DEPARTED'])
   expect(c.alt).toBe('cache cold, re-warm about $1.66')
+  // A cold cache's time left is 0, so the snapshot doesn't say yet when it went cold.
+  expect(c.coldSinceClock).toBeUndefined()
 })
 test('an hour left is said in full, on the board and to a reader', () => {
   const c = readingsOf(snapOf({ cache: cacheAt(60 * MIN) })).cache
@@ -121,7 +123,7 @@ test('a passed window has no reset words', () => {
 })
 test('a passed window has no fill time', () => {
   const r = readingsOf(snapOf({ now: 4 * HOUR, fiveHour: { percentUsed: 84, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 0 } }))
-  expect([r.fiveHour?.fullIn, r.fiveHour?.fullAtClock]).toEqual([undefined, undefined])
+  expect([r.fiveHour?.fullIn, r.fiveHour?.fullAtClock, r.fiveHour?.projectedFrac]).toEqual([undefined, undefined, undefined])
   expect(r.fiveHour?.alt).not.toMatch(/full in/)
 })
 test('context speaks toward compaction, or of the window when it is off', () => {

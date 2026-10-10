@@ -206,7 +206,7 @@ export type LimitFacts = Readonly<{
   gone: number | undefined
   /** 100 when a 5h fill is measured; else the average's landing, once 5% of the window has gone. */
   projectedPct: number | undefined
-  /** `projectedPct` as a share, at most 1. */
+  /** `projectedPct` as a share, at most 1; undefined once passed. */
   projectedFrac: number | undefined
   /** Time to the reset; undefined once it has passed. */
   resetInMs: number | undefined
@@ -280,6 +280,7 @@ export const spendFacts = (snap: BandSnapshot): SpendFacts => {
 export const limitFacts = (snap: BandSnapshot): ChipsWindow[] => {
   const one = (name: string, key: LimitKey, reading: LimitReading, windowMs: number | undefined, etaMs: number | null): ChipsWindow => {
     const reset = resetIn(reading.resetsAt, snap.now)
+    const passed = reset?.kind === 'passed'
     const gone = windowGone(reading, windowMs, snap.now)
     // A measured fill lands it at 100, so the words and the amber agree; else
     // the average's landing, once 5% of the window has gone.
@@ -298,9 +299,9 @@ export const limitFacts = (snap: BandSnapshot): ChipsWindow[] => {
       frac: clamp01(reading.percentUsed / 100),
       tone: limitTone(reading, snap.now, etaMs),
       value: `${Math.round(reading.percentUsed)}%`,
-      passed: reset?.kind === 'passed',
+      passed,
       projectedPct,
-      projectedFrac: projectedPct === undefined ? undefined : clamp01(projectedPct / 100),
+      projectedFrac: passed || projectedPct === undefined ? undefined : clamp01(projectedPct / 100),
       resetInMs: reset?.kind === 'in' ? Date.parse(reading.resetsAt ?? '') - snap.now : undefined,
     }
   }
@@ -320,7 +321,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     maxRows: snap.maxRows,
     now: snap.now,
     isWorking: snap.isWorking,
-    glyphs: snap.glyphs ?? 'unicode',
+    glyphs: snap.glyphs,
     utcOffsetMin: snap.utcOffsetMin,
   }
   const cache = cacheFacts(snap)

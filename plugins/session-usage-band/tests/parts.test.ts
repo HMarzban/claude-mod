@@ -91,6 +91,6 @@ test("the layouts' cache pill speaks the readings' words, with no hover", () => 
   expect(cards(long)).toHaveLength(0)
 })
 test('in the ascii tier the cache pill draws its words in ascii', () => {
-  const snap = snapOf({ cache: { ...snapOf().cache, msLeft: -60_000 }, glyphs: 'ascii' })
+  const snap = snapOf({ cache: { ...snapOf().cache, msLeft: 0 }, glyphs: 'ascii' })
   expect(shown(layoutCachePill(makeKit(fakeEl, snap), readingsOf(snap), false))).toBe(' cache cold - re-warm ~$1.66 ')
 })

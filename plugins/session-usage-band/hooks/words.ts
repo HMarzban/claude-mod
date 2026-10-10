@@ -96,7 +96,8 @@ export type CacheWords = Readonly<{
   reWarmText: string | undefined
   /** When it goes cold, `14:32`, while counting and the offset is known. */
   coldAtClock: string | undefined
-  /** When it went cold, `13:28`, once cold and the offset is known. */
+  /** When it went cold, `13:28`: undefined until the snapshot carries that
+   *  time, since a cold cache's time left is 0. */
   coldSinceClock: string | undefined
   /** What the cache saved, `~$11.40`, and its hit rate, `96%`, once measured. */
   savedText: string | undefined
@@ -197,8 +198,6 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
   const left = counting ? fmtLeft(f.coldInMs) : ''
   const leftShort = counting ? fmtLeftShort(f.coldInMs) : ''
   const off = frame.utcOffsetMin
-  // Now plus the time left: when it goes cold while counting, when it went cold once cold.
-  const coldClock = off === undefined ? undefined : fmtClock(frame.now + c.msLeft, off)
   // Spoken, a price is never marked ~: the alt says "about".
   const price = c.reWarmUsd !== null ? fmtSmallCost(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`
   const value = f.mood === 'unmeasured' ? '–' : f.mood === 'warming' ? 'warming' : f.mood === 'cold' ? 'cold' : working ? 'warm' : left
@@ -221,8 +220,8 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     textShort: joined(sayShort),
     amber: f.mood === 'expiring' ? AMBER.cache(left, leftShort, f.estimate) : undefined,
     reWarmText: !f.known ? undefined : f.mood === 'cold' ? `next message ${f.estimate}` : `re-warm ${f.estimate} if it goes cold`,
-    coldAtClock: counting ? coldClock : undefined,
-    coldSinceClock: f.mood === 'cold' ? coldClock : undefined,
+    coldAtClock: counting && off !== undefined ? fmtClock(frame.now + f.coldInMs, off) : undefined,
+    coldSinceClock: undefined,
     savedText: f.measured && c.savedUsd !== null ? fmtEstimate(c.savedUsd) : undefined,
     hitText: f.hitFrac === undefined ? undefined : pct(f.hitFrac),
     // Inference only ever moves an assumed hour to 5m, so an unpinned hour is the guess.
