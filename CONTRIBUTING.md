@@ -1,7 +1,7 @@
 # Contributing
 
 Thanks for helping. This file covers the development loop, the rules the
-code follows, and how a change ships.
+code follows, and what a pull request needs.
 
 ## Development loop
 
@@ -9,11 +9,15 @@ You need Claude Code with mods (function-hooks plugins). Tests and checks
 run locally; nothing here needs network access or an API key.
 
 ```bash
-# Check the manifest and what the module hooks and calls
+# Check the marketplace index, then the plugin's manifest and what the module hooks and calls
+claude plugin validate .
 claude plugin validate plugins/session-usage-band
 
 # Run the tests
 claude plugin test plugins/session-usage-band
+
+# Run only some test files, by name glob (the red and green steps)
+tools/test-only.sh view-ledger 'golden-*'
 
 # Type-check (after the engine has laid the types, see below)
 npx -y -p typescript@5 tsc -p plugins/session-usage-band
@@ -30,8 +34,19 @@ they're git-ignored. Neither `claude plugin test` nor `validate` writes
 them, and loading needs a signed-in session, so CI can't type-check: run it
 locally before you open a pull request.
 
-To see a change live, install the plugin from your clone (see the
-[README](README.md#install)). Then, after each edit:
+To see a change live, add your clone as the marketplace and install from
+it. From the clone's parent folder:
+
+```bash
+claude plugin marketplace add ./claude-mod
+claude plugin install session-usage-band@hossein-mods
+```
+
+Then, after each edit, bump `version` in
+`plugins/session-usage-band/.claude-plugin/plugin.json` (an update at the
+same version doesn't reinstall; any higher number works locally, and you
+set the one [step 1](#before-you-open-a-pull-request) asks for before you
+open the pull request), and run:
 
 ```bash
 claude plugin marketplace update hossein-mods
@@ -70,7 +85,7 @@ Run `/reload-plugins` in your session afterwards.
 | `types/index.d.ts` | The plugin's state contract. |
 | `tests/` | Tests, one file per area, with shared helpers in `helpers.ts`: `setup()` starts a test from a fresh engine, `mountBand()` draws the band, `byKey()` finds a node. |
 | `tests/cases.ts`, `tests/matrix.ts` | The states every layout is drawn in and `drawCases`, which draws them; `snapOf` for pure tests, the invariant checks, and `viewSuite`, which every layout's test file runs. |
-| `tools/golden/capture.sh`, `tests/golden/` | Golden: chips' trees, captured from the band before the layouts work, with the 0.11.13 hover fix, which `golden-a` and `golden-b` hold chips to. |
+| `tools/golden/capture.sh`, `tests/golden/` | Chips' frozen trees and the tests that hold chips to them; see the rule below. |
 | `tools/test-only.sh` | Runs only the tests whose names match the globs given, against a scratch copy of the plugin. |
 | `tools/views-gate.sh` | The views gate, run in CI: fails when a layout's view formats or reads a raw fact. |
 
@@ -101,18 +116,33 @@ Run `/reload-plugins` in your session afterwards.
 - **Colour is never the only signal.** Escalation also adds words or
   `!` / `!!`. Text meets WCAG AA contrast (4.5:1) and edges and tracks meet
   3:1, in every palette. The design tests check both, over every palette.
-- **A new layout** is a name in `LAYOUT_NAMES`, one file in `views/` made
-  with `defineView`, one test file running `viewSuite`, and an entry in
-  `VIEWS`. It draws only words from `read`: outside `chips.tsx`,
-  `parts.tsx` and `frame.tsx`, no file in `views/` contains `.raw`,
-  `.reading.`, `Date.parse`, `.replace(`, `Math.round` or an import of
-  `../format`. `tools/views-gate.sh` checks.
-- **Test first.** Write the failing test, watch it fail, then make it pass.
+- **A new layout** is: its name in `LAYOUT_NAMES` (`hooks/snapshot.ts`);
+  `hooks/views/<name>.tsx`, made with `defineView`; an entry in `VIEWS`
+  (`hooks/views/index.ts`); and `tests/view-<name>.test.ts`, which calls
+  `viewSuite('<name>')`. It draws only words from `read`: outside
+  `chips.tsx`, `parts.tsx` and `frame.tsx`, no `.tsx` file in `views/`
+  contains `.raw`, `.reading.`, `Date.parse`, `.replace(`, `Math.round` or
+  an import of `../format`. `tools/views-gate.sh` checks. Then add it to the
+  Layouts table in the plugin README, add it to the layout names and count
+  in both READMEs (and the gallery's alt text) and to the list of layouts
+  in this file's table, and rebuild the
+  layouts gallery (`tools/demos/build.sh`).
+- **Test first.** Write the failing test, watch it fail
+  (`tools/test-only.sh <name>`), then make it pass, then run the whole
+  suite.
 - **Settle on the clock.** Work a hook starts without awaiting finishes
   under the mocked clock: `await clock.settle()`, never a spin of
   microtasks. A test that walks the clock through many minutes takes the
   `LONG` budget from `helpers.ts`: the band ticks every second, and CI
   runners are several times slower than a laptop.
+- **Chips' trees are frozen.** `golden-a` and `golden-b` hold chips to the
+  trees it drew before the layouts work, with the 0.11.13 hover fix: dark
+  and plain, desktop and terminal, at 40, 95 and 200 columns, shut and
+  open. `tools/golden/capture.sh` runs only on the hooks at `4882313`, so it
+  can't recapture a fix. If your change is meant to alter what chips draws,
+  update the failing keys in `tests/golden/chips.ts` to the hashes the
+  failures print, and the whole tree in `GOLDEN_TREES` for a key held there,
+  and say why in the pull request.
 
 ## Demos and the website
 
@@ -128,14 +158,16 @@ Commit subjects follow [Conventional Commits](https://www.conventionalcommits.or
 `feat:`, `fix:`, `style:`, `refactor:`, `docs:`, `test:`, `chore:`. The
 subject says what changed. The body, when there is one, says why.
 
-## Shipping a change
+## Before you open a pull request
 
 1. Bump `version` in `plugins/session-usage-band/.claude-plugin/plugin.json`,
    following [Semantic Versioning](https://semver.org/).
 2. Add an entry to `plugins/session-usage-band/CHANGELOG.md`.
 3. Update the plugin's README if the band reads differently.
 4. Make sure validate, test, the type check and the views gate all pass.
-5. Tag the release with `claude plugin tag plugins/session-usage-band`.
+
+After merge, the maintainer tags the release with
+`claude plugin tag plugins/session-usage-band`.
 
 ## Pull requests
 

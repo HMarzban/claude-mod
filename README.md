@@ -23,17 +23,22 @@ weekly limits.
 
 ## Why
 
-Claude Code caches your conversation on Anthropic's side, so each message
-re-reads it at a fraction of the input price. The cache lasts 5 minutes or
-an hour after the last request. Step away longer, and your next message
-writes the whole conversation to the cache again, at more than the full
-input price. On a long conversation that's a dollar or more, and nothing in
-Claude Code tells you it's coming.
+Step away from Claude Code longer than its prompt cache lasts (5 minutes or
+an hour after the last request) and your next message writes the whole
+conversation to the cache again, at more than the full input price. On a
+long conversation that's a dollar or more, and nothing in Claude Code tells
+you it's coming. While the cache is warm, each message re-reads the
+conversation on Anthropic's side at a fraction of the input price.
 
 **session-usage-band** shows the countdown and the price, and keeps your
 spend and limits in view while you work.
 
 ## Install
+
+**Needs** Claude Code 2.1.292 or later for the one-line install below
+(`claude --version`; on an older one, use the two steps underneath), outside
+WSL, which doesn't load plugins. Tested on 2.1.295 in the terminal and the
+desktop app's bundled 2.1.289.
 
 One command, in any terminal:
 
@@ -42,11 +47,15 @@ claude plugin install session-usage-band --marketplace HMarzban/claude-mod
 ```
 
 Then start a new session, or run `/reload-plugins` in an open one. The band
-draws in the terminal and in the desktop app's Code tab, and a plugin
-installed from either is available in the other.
+appears above the prompt. A new conversation reads `cache warming` until
+Claude's first reply, `cache warm` while Claude is replying, then counts
+down from `cache 1h 00m`. A session that was already open may read
+`cache –` until Claude's next reply. Hid it with `h`? `/usage-band` brings
+it back. Nothing above the prompt? Check the Needs line above (the version,
+and WSL), or [open a bug report](https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml).
 
-**Needs** Claude Code with mods (function-hooks plugins). Tested on 2.1.295
-in the terminal and the desktop app's bundled 2.1.289.
+The band draws in the terminal and in the desktop app's Code tab, and a
+plugin installed from either is available in the other.
 
 <details>
 <summary>Inside a session, on an older Claude Code, or for a whole team</summary>
@@ -102,6 +111,13 @@ claude plugin marketplace remove hossein-mods
 
 ![The chip row, labelled: the cache countdown and what a re-warm will cost, the session cost, context toward auto-compaction, the 5-hour limit with its pace, the weekly limit and its reset, and the toggle that opens the cards](docs/band-anatomy.png)
 
+- **Cache**: time until it goes cold, and the re-warm price in its last minute
+- **Cost**: the session's total
+- **Context**: how close auto-compaction is
+- **5h**: your 5-hour limit, and whether your pace runs out first
+- **7d**: your weekly limit and its reset
+- **▿**: opens every fact, labelled
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/band-states-dark.png">
   <img alt="Four real states of the band: calm just after a reply; the cache's last minute with the re-warm price; near auto-compaction with the room left; and everything at once, with context, the 5-hour pace and the weekly limit all amber on one row" src="docs/band-states-light.png">
@@ -112,8 +128,9 @@ These and three more play live, with a guided tour, on the
 
 Prefer another shape? `/usage-band layout <name>` draws the same readings
 in one of nine [layouts](plugins/session-usage-band/README.md#layouts):
-chips, as above, or bars, words alone, rings, trends, tiles, day cells, a
-split-flap board or a forecast.
+`chips` (as above), `gauges` (bars), `ledger` (words alone), `rings`,
+`pulse` (trends), `tiles`, `week` (day cells), `departures` (a split-flap
+board) or `forecast`.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/band-layouts-dark.png">
@@ -126,13 +143,8 @@ would run out before the reset. Nothing is ever red. On the desktop, hover
 any chip in chips for a one-line explanation.
 
 Resume or fork a session (`claude --resume`, `/resume`, or a past session
-opened in the desktop app) and the band doesn't read it as a new one. The countdown
-runs from how long Claude Code says the session has been idle, the cache
-reads cold when Claude Code says it has likely expired, and the re-warm
-price is Claude Code's own estimate where it gives one. The cost picks up
-from what the transcript records, or shows Claude Code's own total if that
-is larger; the two are never added.
-[More on reopening a session](plugins/session-usage-band/README.md#reopening-an-old-session).
+in the desktop app) and the band picks up its cache and spend where they
+were; [how](plugins/session-usage-band/README.md#reopening-an-old-session).
 
 Press `▿` to open every fact, under a line that says where you are: the
 project, its git branch or worktree, uncommitted changes and ahead/behind.
@@ -167,12 +179,9 @@ and no build step.
   ```
 
   A re-warm is then the whole context written to the cache again.
-- **It remembers across sessions.** Resume an old session, and it takes
-  Claude Code's word on its cache and reads what it spent from its
-  transcript; reopen one otherwise, and it recalls when the last reply was
-  and the rate it solved, or reads them once from the end of the
-  transcript. It also keeps the layout you chose, and your 5-hour and
-  weekly readings, at most one per 15 minutes, for the week layout's cells.
+- **It remembers across sessions:** the layout you chose, each session's
+  last reply, the rate it solved for each model, and a week of 5-hour and
+  weekly readings, so a reopened session still shows its cache and spend.
 - **It stays out of the way.** It never calls a model, never writes files
   and never sends anything anywhere. Besides two read-only git commands for
   the workspace line, it runs only `grep` and `tail`, to read an old
@@ -200,7 +209,9 @@ cache write says which until the band's first reply. Set
 across all your Claude use, so the pace counts every session and device.
 
 **Does it work on light themes?** Yes. Set `CC_BAND_APPEARANCE=light`, or
-`plain` for theme colours only. `NO_COLOR` is respected.
+`plain` for theme colours only. `NO_COLOR` is respected. Set it in the
+shell you start Claude Code from (`export CC_BAND_APPEARANCE=light`, then
+`claude`); the band reads it when a session starts.
 
 **The row runs past the edge of my terminal.** Some terminals draw the
 band's glyphs (`█ │ · Σ`) two columns wide. In a Japanese, Chinese or
@@ -222,28 +233,28 @@ see in your own sessions.
 
 ### Good places to start
 
-- **The tokens chip hides too early on the desktop.** The band's width
-  estimate for the 5h and 7d chips runs about 15px short, so it keeps a wide
-  safety margin. Calibrating it from screenshots would let the chip show.
+- **The tokens chip hides too early on the desktop.** Chips' row fits by
+  `squeezeToFit` against `columns - ROW_SLACK` (`hooks/views/chips.tsx`),
+  with text measured by `DESKTOP` in `hooks/layout.ts`, and the tokens chip
+  gives way first. Calibrating that measure from screenshots would let it
+  show.
 - **Screenshots** of the light palette, a narrow terminal or a cold cache
   for the docs.
 - **A new mod.** This repo is a marketplace: add your own plugin under
-  `plugins/` and list it in `.claude-plugin/marketplace.json`.
+  `plugins/` and list it in `.claude-plugin/marketplace.json`, then run
+  `claude plugin validate .` and the gates in
+  [CONTRIBUTING.md](CONTRIBUTING.md#development-loop) against your plugin's
+  folder.
 
 ### Development loop
 
 ```bash
 git clone https://github.com/HMarzban/claude-mod.git
 cd claude-mod
-claude plugin validate plugins/session-usage-band   # what the module hooks and calls
-claude plugin test plugins/session-usage-band       # the test suite
 ```
 
-To see a change live, add your clone as the marketplace
-(`claude plugin marketplace add ./claude-mod` from its parent folder),
-install, then `claude plugin update session-usage-band@hossein-mods` and
-`/reload-plugins` after each edit. [CONTRIBUTING.md](CONTRIBUTING.md) has the
-type check, the module map and the rules the code follows.
+[CONTRIBUTING.md](CONTRIBUTING.md) has the gates, the loop for seeing a
+change live, the module map and the rules the code follows.
 
 <details>
 <summary>Repository layout</summary>
@@ -251,17 +262,16 @@ type check, the module map and the rules the code follows.
 ```
 .claude-plugin/marketplace.json     the marketplace index (named hossein-mods)
 plugins/session-usage-band/
-  hooks/register.tsx                the hooks: the only module that touches the engine
-  hooks/band.tsx                    a pure function from a snapshot to the drawn band
-  hooks/views/                      the nine layouts, one file each, and the parts they share
-  hooks/cache.ts                    the prompt-cache model and the re-warm price
-  hooks/*.ts(x)                     readings, words, charts, glyphs, formatting, memory, git, palettes
-  tests/                            one file per area, helpers in helpers.ts
+  hooks/                            the band: the hooks, the readings and the nine layouts
+  tests/                            the test suite
   CHANGELOG.md                      what changed in each version
 docs/                               the website (GitHub Pages) and the images in this README
-tools/demos/                        rebuilds every demo and the site from the band's own output
+tools/                              the demo builder, the golden capture, the views gate, a single-test runner
 .github/                            issue and pull request templates, CI
 ```
+
+Every module, test helper and tool is in
+[CONTRIBUTING.md's module map](CONTRIBUTING.md#how-the-code-is-laid-out).
 
 </details>
 
