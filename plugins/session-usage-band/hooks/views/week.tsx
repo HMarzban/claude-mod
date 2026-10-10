@@ -46,20 +46,22 @@ const amberWords = (kit: Kit, key: string, amber: Amber, keeps: Keeps<Piece>): R
 const nameOf = (kit: Kit, w: Window): RenderElement =>
   words(kit, 'name', [[w.limit.name, w.limit.amber === undefined ? w.accent : 'amber']])
 
-/** Cells as numbers, for the ascii tier: each named, the current one in brackets. */
-const cellsText = (cells: readonly Cell[]): string =>
-  cells
-    .map(c => {
-      const said = [cellName(c), c.text].filter(t => t !== '').join(' ')
-      return isNow(c) ? `[${said}]` : said
-    })
-    .join(' ')
+/** A cell's words, the empty ones left out. */
+const spoken = (parts: readonly string[]): string => parts.filter(t => t !== '').join(' ')
+
+/** How a window's cells are drawn: their size, each cell's Svg label, and
+ *  its words, which a surface without Svgs says open (`inWords`). */
+type CellsForm = Readonly<{ cellPx: number; height: number; label: (c: Cell) => string; said: (c: Cell) => string; gap: string; inWords: boolean }>
+
+/** Cells in words: each said, the current one in brackets. */
+const cellsText = (cells: readonly Cell[], form: CellsForm): string =>
+  cells.map(c => (isNow(c) ? `[${form.said(c)}]` : form.said(c))).join(form.gap)
 
 /** A window's cells: day cells on the desktop, braille heights on a
- *  terminal, numbers in the ascii tier. */
-const cellsChart = (kit: Kit, read: Readings, w: Window, size: Readonly<{ cellPx: number; height: number; label: (c: Cell) => string }>): RenderChildren => {
+ *  terminal; words in the ascii tier, and open wherever Svgs don't draw. */
+const cellsChart = (kit: Kit, read: Readings, w: Window, form: CellsForm): RenderChildren => {
   const l = w.limit
-  if (read.frame.glyphs === 'ascii') return words(kit, 'cells', [[cellsText(w.cells), l.amber === undefined ? 'value' : 'amber']])
+  if (read.frame.glyphs === 'ascii' || (kit.Svg === undefined && form.inWords)) return words(kit, 'cells', [[cellsText(w.cells, form), l.amber === undefined ? 'value' : 'amber']])
   return dayCells(kit, {
     key: 'cells',
     alt: w.alt,
@@ -67,14 +69,16 @@ const cellsChart = (kit: Kit, read: Readings, w: Window, size: Readonly<{ cellPx
     guess: w.cells.map(c => c.guess),
     today: w.cells.findIndex(isNow),
     color: kit.onTone(l.tone, accentOf(kit, l)),
-    cellPx: size.cellPx,
-    height: size.height,
-    labels: w.cells.map(size.label),
+    cellPx: form.cellPx,
+    height: form.height,
+    labels: w.cells.map(form.label),
   })
 }
 
 /** Collapsed, a cell's label: its name, or `!` where the window fills. */
 const markOf = (c: Cell): string => (c.fullMark ? '!' : cellName(c))
+/** Collapsed cells, as tall as a row; in words, each its name and rise. */
+const SMALL: Omit<CellsForm, 'cellPx'> = { height: 16, label: markOf, said: c => spoken([cellName(c), c.text]), gap: ' ', inWords: false }
 
 /** The column of the first 7d cell on a terminal: `7d`, its gap, and the
  *  space `dayCells` leads with. It draws cell i two columns further on. */
@@ -100,7 +104,7 @@ const initialsOf = (kit: Kit, days: readonly DayCell[]): RenderElement => {
 const windowPiece = (kit: Kit, read: Readings, w: Window) => {
   const { Box } = kit
   const l = w.limit
-  const chart = read.week.empty || w.cells.length === 0 ? null : cellsChart(kit, read, w, { cellPx: w.cellPx, height: 16, label: markOf })
+  const chart = read.week.empty || w.cells.length === 0 ? null : cellsChart(kit, read, w, { ...SMALL, cellPx: w.cellPx })
   // Built once: the squeeze only picks among them. Beside its cells a window
   // says its value; without them, its name and value, as `say` has them.
   const name = nameOf(kit, w)
@@ -177,9 +181,9 @@ const limitSentence = (kit: Kit, l: LimitView): RenderElement => {
 }
 
 /** Open, a day cell's label is its initial, date and rise; an hour's, its clock hour and rise. */
-const bigLabel = (c: Cell): string => ('date' in c ? [c.initial, c.date, c.text] : [c.label, c.text]).filter(t => t !== '').join(' ')
-/** Open cells: two desktop rows tall, their labels included. */
-const BIG = { cellPx: 44, height: 35, label: bigLabel } as const
+const bigLabel = (c: Cell): string => spoken('date' in c ? [c.initial, c.date, c.text] : [c.label, c.text])
+/** Open cells: two desktop rows tall, their labels included; without Svgs, a row of words. */
+const BIG: CellsForm = { cellPx: 44, height: 35, label: bigLabel, said: bigLabel, gap: '  ', inWords: true }
 
 /** LIMITS, its cells over a summary per window, then the facts line. */
 const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {

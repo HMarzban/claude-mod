@@ -4,7 +4,7 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On, SessionUsage } from 'claude-code'
-import { DEFAULT_MAX_ROWS, HOUR, HOUR_1, LONG, START, USAGE, mountBand, setup, shown, svgAlts, svgsOf, type Node } from './helpers'
+import { DEFAULT_MAX_ROWS, HOUR, HOUR_1, LONG, START, USAGE, byKey, mountBand, setup, shown, svgAlts, svgsOf, type Node } from './helpers'
 import { caseKey, drawCases, invariantErrors, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
 
 viewSuite('week')
@@ -137,6 +137,21 @@ test('open: large day and hour cells, a summary per window, then the facts line'
   const days = svgsOf(open).filter(s => /^weekly limit by day/.test(String(s.props?.alt)))
   // Open, the days ahead show their guess.
   expect(days.map(s => String(s.props?.source)).some(source => /~10%/.test(source))).toBe(true)
+})
+/** Open without Svgs, the cells say their date and rise, today in brackets and the days ahead as a guess. */
+const expectCellsInWords = (open: Node | undefined) => {
+  const days = shown(byKey(open, '7d:cells'))
+  expect(days).toMatch(/\[\w \d+ \d+%\]/)
+  expect(days).toMatch(/~\d+%/)
+  expect(days).not.toMatch(BRAILLE)
+  // The hours by clock hour, the current one in brackets.
+  expect(shown(byKey(open, '5h:cells'))).toMatch(/\d{2} \d+%[\s\S]*\[\d{2}/)
+}
+test('open on a terminal, the cells say their date and rise', async ($, on) => {
+  expectCellsInWords((await oneWithHistory($, on, T160)).open)
+})
+test('open on a plain desktop, the cells say their date and rise', async ($, on) => {
+  expectCellsInWords((await oneWithHistory($, on, D160, { env: { CC_BAND_APPEARANCE: 'plain' } })).open)
 })
 test('open, an amber other limit leads LIMITS in its words', async ($, on) => {
   expect(shown((await at($, on, 'gatewaySpend')).open)).toMatch(/LIMITS\s*! spend 92%, resets in 5h 00m/)
