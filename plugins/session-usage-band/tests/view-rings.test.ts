@@ -4,7 +4,8 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { LONG, shown, svgsOf } from './helpers'
+import { DARK } from '../hooks/palette'
+import { byKey, LONG, shown, svgsOf } from './helpers'
 import { caseKey, drawCases, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
 
 viewSuite('rings')
@@ -28,8 +29,15 @@ test('the terminal shows a meter, the value and the label on one row', async ($,
 test('amber makes the label the reason', LONG, async ($, on) => {
   expect(shown((await at($, on, 'fiveHourAhead')).shut)).toMatch(/! 5h full in ~/)
 })
+test('amber turns the ring amber too, shut and open', async ($, on) => {
+  const { shut, open } = await at($, on, 'limit80', D160)
+  const fives = [shut, open].flatMap(t => svgsOf(t).filter(n => String(n.props?.alt).startsWith('5h ')))
+  // Shut, the line's; open, the line's and the panel's.
+  expect(fives.length).toBe(3)
+  for (const n of fives) expect(String(n.props?.source)).toContain(`stroke="${DARK.amberFg}"`)
+})
 test('open, the limits panel shows the 7d ring beside the 5h', async ($, on) => {
-  expect(ringAlts((await at($, on, 'calm', D160)).open).filter(a => a === '7d').length).toBeGreaterThanOrEqual(2)
+  expect(ringAlts(byKey((await at($, on, 'calm', D160)).open, 'rings'))).toEqual(['5h', '7d'])
 })
 test('open with no context, it says so and never "in context 0"', async ($, on) => {
   const t = shown((await at($, on, 'warming')).open)
