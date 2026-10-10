@@ -187,6 +187,13 @@ test('the 5h trail is drawn and spoken over the last hour, and since the window 
   const unknown = readingsOf(snapOf({ history: { costs: [], context: [], fiveHour }, fiveHour: undefined })).history
   expect(unknown.fiveHourWindow).toEqual([])
 })
+test('the context trail is spoken with where it compacts, when compaction is on', () => {
+  const history = { costs: [], context: [60_000, 50_000, 76_000], fiveHour: [] }
+  expect(readingsOf(snapOf({ history })).history.contextTrailAlt).toBe('context over the conversation, rising, compacts at 190k')
+  const off = readingsOf(snapOf({ history: { ...history, context: [90_000, 76_000] }, context: { tokens: 76_000, window: 200_000, percent: 38, compactAt: undefined } })).history
+  expect(off.contextTrailAlt).toBe('context over the conversation, falling')
+  expect(readingsOf(snapOf()).history.contextTrailAlt).toBe('context over the conversation, steady, compacts at 190k')
+})
 test('the history is read only when a view asks for it', () => {
   expect(typeof Object.getOwnPropertyDescriptor(readingsOf(snapOf()), 'history')?.get).toBe('function')
 })

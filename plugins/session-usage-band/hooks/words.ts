@@ -365,6 +365,8 @@ export type HistoryWords = Readonly<{
   trailAlt: string
   /** '5h usage this window, rising, full in about 40 minutes': the same since the window started. */
   fiveHourWindowAlt: string
+  /** 'context over the conversation, rising, compacts at 190k'; with compaction off, no compaction point. */
+  contextTrailAlt: string
 }>
 
 /** A message above this many times the warm average is rising; below the average divided by it, falling. */
@@ -386,7 +388,14 @@ export const thisWindowOf = (trail: readonly TrailPoint[], fiveHour: LimitView |
 const riseOf = (points: readonly TrailPoint[]): 'rising' | 'steady' =>
   points.length >= 2 && (points[points.length - 1]?.pct ?? 0) - (points[0]?.pct ?? 0) >= TRAIL_RISE ? 'rising' : 'steady'
 
-export const historyWords = (record: Trails, fiveHour: LimitView | undefined, now: number): HistoryWords => {
+/** The context trail's trend, first point to last: a compaction can leave it falling. */
+const contextTrendOf = (tokens: readonly number[]): 'rising' | 'falling' | 'steady' => {
+  const first = tokens[0]
+  const last = tokens[tokens.length - 1]
+  return first === undefined || last === undefined || last === first ? 'steady' : last > first ? 'rising' : 'falling'
+}
+
+export const historyWords = (record: Trails, fiveHour: LimitView | undefined, context: ContextFacts, now: number): HistoryWords => {
   const last = record.costs[record.costs.length - 1]
   const warm = record.costs.filter(e => !e.reWarm)
   const avg = warm.length === 0 ? undefined : warm.reduce((sum, e) => sum + e.usd, 0) / warm.length
@@ -408,6 +417,7 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, no
   }
   const fullIn = fiveHour === undefined || fiveHour.etaMs === null ? '' : `, full in ${fmtEtaSpoken(fiveHour.etaMs)}`
   const fiveHourAlt = (span: string, points: readonly TrailPoint[]): string => `5h usage ${span}, ${riseOf(points)}${fullIn}`
+  const compactsAt = context.compactAt === undefined ? '' : `, compacts at ${fmtTokens(context.compactAt)}`
   return {
     lastText,
     avgText,
@@ -418,6 +428,7 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, no
     costsAltOf,
     trailAlt: fiveHourAlt('over the last hour', lastHourOf(record.fiveHour, now)),
     fiveHourWindowAlt: fiveHourAlt('this window', thisWindowOf(record.fiveHour, fiveHour, now)),
+    contextTrailAlt: `context over the conversation, ${contextTrendOf(record.context)}${compactsAt}`,
   }
 }
 
