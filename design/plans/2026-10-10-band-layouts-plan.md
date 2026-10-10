@@ -2124,7 +2124,7 @@ export const accentOf: (kit: Kit, limit: Readonly<{ key: LimitKey }>) => string
 
 - **`fitLine` and amber.** A view's `ORDER` lists its calm, optional pieces only. `fitLine` appends the amber step itself, so an amber phrase is long until every calm piece has gone, then short. No view lists `'amberShort'`.
 - **`beforeLast`** is how an amber reading's chart is gated: by the amber step, never by a calm step.
-- **`grid`** lays sections four to a line from 100 columns, two below; and all on one line when two lines won't fit (`bodyRows < 3`), so no section goes missing. `gridRoom` is the facts each section holds under its title.
+- **`grid`** lays sections four to a line from 100 columns, two below; and all on one line until two lines each keep a row under their titles (`bodyRows < 5`), so no section goes missing or becomes a bare title. `gridRoom` is the facts each section holds under its title.
 - **`chartsIfRoom`** drops the charts first when rows run short, as chips' `fitBody` does. `chartRows` is what a chart takes (2 for a desktop chart of 36 px or more).
 
 - [ ] **Step 1: Write the failing tests**
@@ -2297,8 +2297,9 @@ export const section = (kit: Kit, key: string, title: string, rows: readonly Ren
   )
 }
 
-/** Sections to a line: all of them from 100 columns, or when two lines won't fit; else two. */
-const perLineOf = (kit: Kit, bodyRows: number, count: number): number => (kit.columns >= 100 || bodyRows < 3 ? count : Math.min(2, count))
+/** Sections to a line: all of them from 100 columns, or until two lines each
+ *  keep a row under their titles (5 rows, with the row of air); else two. */
+const perLineOf = (kit: Kit, bodyRows: number, count: number): number => (kit.columns >= 100 || bodyRows < 5 ? count : Math.min(2, count))
 
 /** Rows each section holds under its title, with a row of air between lines. */
 export const gridRoom = (kit: Kit, bodyRows: number, count = 4): number => {
@@ -3058,9 +3059,10 @@ The cases, one setup each:
 - calm and `lastMinute` in light, in plain and in the `ascii` tier, both surfaces at 120 (6 tests);
 - calm and `lastMinute` at every width `[40, 41, 50, 60, 67, 68, 80, 95, 120, 160, 200]`, one test per surface (4 tests);
 - the other amber scenarios, `fiveHourAhead`, `limit80` and `nearCompaction`, at 40, 50 and 60, both surfaces (3 tests);
-- calm at `maxRows` 4, 8, 13 and 40, both surfaces at 120 (1 test).
+- calm at `maxRows` 4, 8, 13 and 40, both surfaces at 120 (1 test);
+- `gatewaySpend`, whose amber is owed words only open, at `maxRows` 7, 8 and 10, both surfaces at 80 and 120 (1 test; added at the Task 16 review).
 
-That is 34 tests a view. `lastMinute` and `cold` use `ttl: '5m'`, so each walks 270 ticks instead of 3,600; golden keeps the hour-long walks. Every tree is checked shut and open.
+That is 35 tests a view. `lastMinute` and `cold` use `ttl: '5m'`, so each walks 270 ticks instead of 3,600; golden keeps the hour-long walks. Every tree is checked shut and open.
 
 **Ruling: `viewSuite`'s first run.** It can't run on chips or a stub: their rows and words are chips'. Its own test is `suiteCases`, a pure list; the pilot (Task 16) is the first real run of `viewSuite`, and any fix to `matrix.ts` it needs lands there, before the re-freeze.
 
@@ -3072,9 +3074,9 @@ import { test, expect } from 'claude-code/testing'
 import { SCENARIO_NAMES, suiteCases } from './matrix'
 
 const cases = suiteCases('ledger')
-test('34 cases, named apart', () => {
-  expect(cases).toHaveLength(34)
-  expect(new Set(cases.map(c => c.name)).size).toBe(34)
+test('35 cases, named apart', () => {
+  expect(cases).toHaveLength(35)
+  expect(new Set(cases.map(c => c.name)).size).toBe(35)
 })
 test('every scenario is drawn, on both surfaces', () => {
   for (const s of SCENARIO_NAMES) expect(cases.some(c => c.options.scenario === s && c.mounts.some(m => m.surface === 'terminal') && c.mounts.some(m => m.surface === 'desktop'))).toBe(true)
@@ -3086,6 +3088,8 @@ test('every width and every height is covered', () => {
   for (const cols of [40, 41, 50, 60, 67, 68, 80, 95, 120, 160, 200]) expect(cases.some(c => c.options.scenario === 'lastMinute' && c.mounts.some(m => m.cols === cols))).toBe(true)
   for (const maxRows of [4, 8, 13, 40]) expect(cases.some(c => c.mounts.some(m => m.maxRows === maxRows))).toBe(true)
   for (const s of ['fiveHourAhead', 'limit80', 'nearCompaction']) expect(cases.some(c => c.options.scenario === s && c.mounts.some(m => m.cols === 40))).toBe(true)
+  // The open-only amber, where a section keeps one or two rows, at both grids.
+  for (const cols of [80, 120]) for (const maxRows of [7, 8, 10]) expect(cases.some(c => c.options.scenario === 'gatewaySpend' && c.mounts.some(m => m.cols === cols && m.maxRows === maxRows))).toBe(true)
 })
 test('light, plain and the ascii tier are each drawn', () => {
   expect(cases.some(c => c.options.appearance === 'light')).toBe(true)
@@ -3123,6 +3127,7 @@ export const suiteCases = (layout: LayoutName): SuiteCase[] => {
     ]),
     ...(['fiveHourAhead', 'limit80', 'nearCompaction'] as const).map(scenario => ({ name: `${layout}: ${scenario}, narrow`, options: opts(scenario), mounts: [40, 50, 60].flatMap(cols => both(cols)) })),
     { name: `${layout}: calm, short of rows`, options: opts('calm'), mounts: [4, 8, 13, 40].flatMap(maxRows => both(120, maxRows)) },
+    { name: `${layout}: gatewaySpend, short of rows`, options: opts('gatewaySpend'), mounts: [80, 120].flatMap(cols => [7, 8, 10].flatMap(maxRows => both(cols, maxRows))) },
   ]
 }
 
@@ -4569,7 +4574,7 @@ test('open with no context, the section says so', async ($, on) => {
 - [ ] **Step 2: Run them and watch them fail**
 
 Run: `tools/test-only.sh view-ledger`
-Expected: FAIL. The stub draws chips, so the sentences and most of the 34 suite cases fail.
+Expected: FAIL. The stub draws chips, so the sentences and most of the 35 suite cases fail.
 
 - [ ] **Step 3: Implement `hooks/views/ledger.tsx`**
 
@@ -4670,7 +4675,7 @@ Change `views/index.ts` only if the stub's export name differs (it doesn't: `led
 - [ ] **Step 4: Run the tests until they pass**
 
 Run: `tools/test-only.sh view-ledger`
-Expected: PASS: the 34 suite cases and the eight tests above. If a suite case fails, read its message (`<case> <check>: <why>`) and fix the view. If the fix belongs in a shared file, Step 5 says how.
+Expected: PASS: the 35 suite cases and the eight tests above. If a suite case fails, read its message (`<case> <check>: <why>`) and fix the view. If the fix belongs in a shared file, Step 5 says how.
 
 - [ ] **Step 5: Land each shared-file change the pilot needs, on its own**
 
