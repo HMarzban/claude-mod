@@ -79,6 +79,7 @@ What the plan's steps record, in the order they happen.
 | the gauges layout (Task 18) (merged) | 650 pass, 0 fail, 40 files | `claude plugin test plugins/session-usage-band` |
 | the tiles layout (Task 17) (merged) | 700 pass, 0 fail, 41 files | `claude plugin test plugins/session-usage-band` |
 | the forecast layout (Task 21) (merged) | 757 pass, 0 fail, 42 files | `claude plugin test plugins/session-usage-band` |
+| the departures layout (Task 20) (merged) | 827 pass, 0 fail, 43 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
