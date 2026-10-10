@@ -38,9 +38,10 @@ type CacheState = {
   ttl: Ttl
   /** Set by the environment, so never inferred. */
   ttlPinned: boolean
-  /** Seen on the transcript's last cache write, so never inferred before
-   *  this band's first reply; the environment's pin still wins. */
-  ttlSeen: boolean
+  /** The TTL the transcript's last cache write was made at, until this
+   *  band's first reply: it speaks for the recalled cache, never for the next
+   *  request, and the environment's pin still wins. */
+  ttlSeen: Ttl | undefined
   /** Main-loop requests this conversation. */
   requests: number
   // Every token since the conversation began, subagents included.
@@ -91,7 +92,7 @@ type CacheState = {
 const INITIAL: Readonly<CacheState> = {
   ttl: '1h',
   ttlPinned: false,
-  ttlSeen: false,
+  ttlSeen: undefined,
   requests: 0,
   read: 0,
   written: 0,
@@ -174,13 +175,15 @@ export const notePrior = (spend: Spend): void => {
 /** The TTL the transcript's last cache write was made at: it speaks for
  *  the cache until this band's first reply. */
 export const noteTtlSeen = (ttl: Ttl): void => {
-  if (state.ttlPinned || state.requests > 0) return
-  state.ttl = ttl
-  state.ttlSeen = true
+  if (state.requests === 0) state.ttlSeen = ttl
 }
 
+/** The TTL the cache stands at: the pin, else one seen on the transcript,
+ *  else the one assumed or inferred. */
+const effectiveTtl = (): Ttl => (state.ttlPinned ? state.ttl : (state.ttlSeen ?? state.ttl))
+
 /** The TTL is known, not assumed: pinned, or seen on a cache write. */
-const isTtlKnown = (): boolean => state.ttlPinned || state.ttlSeen
+const isTtlKnown = (): boolean => state.ttlPinned || state.ttlSeen !== undefined
 
 /** What the session has cost, to show: the ledger, or for a resumed
  *  conversation the larger of the ledger and its transcript's total, with
@@ -278,7 +281,7 @@ export const recordResponse = (
 
   state.requests += 1
   // The next request's TTL follows the config in force, not the transcript's.
-  state.ttlSeen = false
+  state.ttlSeen = undefined
   state.window = fresh + hit + written + usage.output_tokens
   state.cached = hit + written
   state.lastAt = sentAt
@@ -381,7 +384,8 @@ export const hitRatio = (): number | null => {
 export const msLeft = (now: number): number => {
   if (isRecalled() && state.resumedCache?.expired === true) return 0
   const from = state.requests > 0 ? state.lastAt : isRecalled() ? recalledAt() : undefined
-  return from === undefined ? TTL_MS[state.ttl] : Math.max(0, from + TTL_MS[state.ttl] - now)
+  const ttlMs = TTL_MS[effectiveTtl()]
+  return from === undefined ? ttlMs : Math.max(0, from + ttlMs - now)
 }
 
 /** The cache as the band shows it, at `now`: measured once a reply has been
@@ -397,7 +401,7 @@ export const cacheView = (now: number, sessionCost: number | undefined, contextT
   return {
     requests: state.requests,
     msLeft: msLeft(now),
-    ttl: state.ttl,
+    ttl: effectiveTtl(),
     ttlPinned: isTtlKnown(),
     window: recalled ? contextTokens : state.window,
     hitRatio: hitRatio(),

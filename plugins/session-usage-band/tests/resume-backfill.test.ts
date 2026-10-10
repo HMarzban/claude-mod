@@ -388,6 +388,39 @@ test('an hour seen on a resumed transcript is assumed again after a /clear', asy
   expect(fact(await mounted($, true), 'expires')).toBe('1h idle · assumed')
 })
 
+test('five minutes seen on the transcript never outlive the first reply: the hour is assumed again', LONG, async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: UNPINNED, now: 3 * HOUR })
+  engine.transcript = jsonl(RECORD, ...wroteAt('msg_1', '5m'))
+  await $.session.start(START)
+  await resume($, 2 * MIN, { expired: false })
+  await clock.settle()
+  await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
+  await clock.advance(10 * MIN)
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 50m/)
+  expect(fact(await mounted($, true), 'expires')).toBe('1h idle · assumed')
+})
+
+test('five minutes seen on a resumed transcript are forgotten at a /clear', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: UNPINNED, now: 3 * HOUR })
+  engine.transcript = jsonl(RECORD, ...wroteAt('msg_1', '5m'))
+  await $.session.start(START)
+  await resume($, 2 * MIN, { expired: false })
+  await clock.settle()
+  await $.session.end(CLEAR)
+  expect(fact(await mounted($, true), 'expires')).toBe('1h idle · assumed')
+})
+
+test('the TTL the environment pins wins over one seen on the transcript, even one seen first', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = jsonl(RECORD, ...wroteAt('msg_1', '5m'))
+  await resume($, 2 * MIN, { expired: false })
+  await clock.settle()
+  await $.session.start(START)
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 58m/)
+  expect(fact(await mounted($, true), 'expires')).toBe('1h idle')
+})
+
 /** Whether `argv` reads a transcript's last megabyte. */
 const isEndRead = (argv: string[]): boolean => argv[0] === 'tail' && argv[2] === String(1024 * 1024)
 
