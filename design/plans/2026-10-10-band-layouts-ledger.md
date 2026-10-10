@@ -23,12 +23,14 @@ What the plan's steps record, in the order they happen.
 | Task 4 (review) | 346 pass, 0 fail, 25 files | `claude plugin test plugins/session-usage-band` |
 | Task 5 | 352 pass, 0 fail, 26 files | `claude plugin test plugins/session-usage-band` |
 | Task 5 (review) | 352 pass, 0 fail, 26 files | `claude plugin test plugins/session-usage-band` |
+| Task 7 | 367 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
 Ruling: `noWorkspace` keeps the held workspace read (`engine.hold` that never resolves) — the open draw after ▿ returns and the test passes, so no act waits on the held read — fallback (`rootFails`) not taken.
 Ruling: `forgetTurn` kept as a guard — index.d.ts:12643 says a subagent's run raises no turn.start, so no subagent entry is written today; 50eaa33 corrects 1987ba7's body — kept per plan, no fallback.
 Pending maintainer: whether a nested subagent's turn.complete can carry its parent's turnId (TurnStepInput.turnId's doc implies distinct ids but never says so); if it can, `forgetTurn` would drop the parent's start cost and 'last message' would go stale.
+Ruling: `fakeEl`'s `plainNode` kept as the plan writes it — the kit's `h` calls a function component with the JSX `key` in its props and the children under `children`, so `meter(makeKit(fakeEl, snapOf()), …)` keeps key `meter` and its `track` Text (charts.test.ts pins it); the `drawBand(fakeEl, …)` and `byKey(…, 'more', 'Button')` half of the check lands with `NO_ACT` in Task 10a — no adjustment needed.
 
 ## Freezes
 - P1 freeze (Task 14):

@@ -12,11 +12,11 @@ import {
   fmtTokens,
   severityMark,
 } from './format'
+import { meter } from './charts'
 import type { Icon } from './icons'
 import { makeKit } from './kit'
 import {
   CARD_TEXT,
-  CHIP_BAR,
   GIVES_WAY,
   HOTKEY_MARK,
   ROW_SLACK,
@@ -113,57 +113,6 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         {body}
         {hoverCard(hover, anchor)}
       </Box>
-    )
-  }
-
-  /** A bar: `frac` filled, with a thumb where the fill ends, so the eye finds
-   *  the number's place on it at once. `label` names it for a reader, and
-   *  `reads` says whether the fill is what's used or what's left. A stretched bar has no width of its
-   *  own: drawn wider than any slot, the slot caps it, so it spans its card. */
-  const meter = (
-    label: string,
-    frac: number,
-    tone: Tone,
-    accent: string,
-    size: BarSize = CHIP_BAR,
-    stretch = false,
-    reads: 'used' | 'left' = 'used',
-  ) => {
-    const fill = onTone(tone, accent)
-    if (Svg) {
-      // Never name a local `h`: JSX compiles to the global h().
-      const tall = 8
-      // Twice the estimate, so the slot always caps it; corners in kind, so
-      // they round true at the scale it lands on.
-      const k = stretch ? 2 : 1
-      const width = size.px * k
-      // A sliver under 6px reads as a dot or nothing: any use shows as a nub.
-      // No clipPath: ids are document-wide where Svgs share a page, so a
-      // rounded fill draws its own ends.
-      const fillWidth = frac > 0 ? Math.max(6 * k, Math.round(clamp01(frac) * width)) : 0
-      const source =
-        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${tall}" viewBox="0 0 ${width} ${tall}"${stretch ? ' preserveAspectRatio="none"' : ''}>` +
-        `<rect x="${0.5 * k}" y="1.5" width="${width - k}" height="5" rx="${2.5 * k}" ry="2.5" fill="${palette.meterTrack}" stroke="${palette.trackStroke}"${stretch ? ' vector-effect="non-scaling-stroke"' : ''}/>` +
-        (fillWidth > 0
-          ? `<rect class="fill" y="1" width="${fillWidth}" height="6" rx="${3 * k}" ry="3" fill="${fill}"/>` +
-            `<rect class="thumb" x="${Math.min(width - 2 * k, fillWidth - k)}" y="0" width="${2 * k}" height="${tall}" rx="${k}" ry="1" fill="${palette.value}"/>`
-          : '') +
-        '</svg>'
-      const alt = `${label} ${Math.round(clamp01(frac) * 100)}% ${reads}`
-      return stretch ? (
-        <Svg key="meter" source={source} alt={alt} height={tall} />
-      ) : (
-        <Svg key="meter" source={source} alt={alt} width={width} height={tall} />
-      )
-    }
-    // Two glyphs only: partial blocks jitter across fonts and read as noise to
-    // a screen reader. The number beside a meter carries the value.
-    const filled = Math.round(clamp01(frac) * size.cells)
-    return (
-      <Text key="meter" color={fill}>
-        {'█'.repeat(filled)}
-        {filled < size.cells ? <Text key="track" color={palette.meterTrack}>{'░'.repeat(size.cells - filled)}</Text> : null}
-      </Text>
     )
   }
 
@@ -264,7 +213,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     }
     const fg = onTone(tone, tint.fg)
     const accent = onTone(tone, tint.accent)
-    const bar = keeps(squeeze, 'limitBars') ? [gap('g-bar'), meter(key, frac, tone, tint.accent)] : []
+    const bar = keeps(squeeze, 'limitBars') ? [gap('g-bar'), meter(kit, { label: key, frac, tone, accent: tint.accent })] : []
     const reset =
       r !== undefined && keeps(squeeze, tone === 'amber' ? spec.amberReset : spec.reset)
         ? [<Text key="d" color={palette.label}>{' │ '}</Text>, ...icon('reset', accent), <Text key="r" color={fg}>{r.text}</Text>]
@@ -333,7 +282,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         body: [
           ...icon('context', onTone(ctxTone, palette.label)),
           ...(keeps(squeeze, 'contextMeter')
-            ? [meter('context', ctxFrac, ctxTone, palette.meterFill), gap('g-bar')]
+            ? [meter(kit, { label: 'context', frac: ctxFrac, tone: ctxTone, accent: palette.meterFill }), gap('g-bar')]
             : []),
           <Text key="v" color={onTone(ctxTone, palette.value)}>
             {`${amount}${mark}${countdown}`}
@@ -535,7 +484,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         text: copy.head,
         tone: cacheTone,
       },
-      known ? meter('cache', charge, cacheTone, palette.warm, cardBar, true, 'left') : null,
+      known ? meter(kit, { label: 'cache', frac: charge, tone: cacheTone, accent: palette.warm, size: cardBar, stretch: true, reads: 'left' }) : null,
       [
         copy.note === undefined ? null : note(copy.note),
         known ? factRow(mood === 'cold' ? 'next message' : 're-warm if cold', estimate) : null,
@@ -570,7 +519,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
           'context',
           'Context',
           { text: `${ctxPct} full${ctx.compactAt === undefined ? severityMark(ctxFrac) : ''}`, tone: ctxTone },
-          meter('context', ctxFrac, ctxTone, palette.meterFill, cardBar, true),
+          meter(kit, { label: 'context', frac: ctxFrac, tone: ctxTone, accent: palette.meterFill, size: cardBar, stretch: true }),
           [
           toCompact !== undefined ? factRow('room left', `~${fmtTokens(toCompact)}`) : null,
           ctx.compactAt !== undefined ? factRow('auto-compacts at', fmtTokens(ctx.compactAt)) : null,
@@ -596,7 +545,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         <Box key={`fact:${name}`} flexDirection="row" columnGap={1}>
           <Text color={palette.label}>{name}</Text>
           <Box key="bar" flexGrow={1} width={0} minWidth={0}>
-            {meter(name, frac, tone, accent, { px: room * measure.pxPerCell, cells: room }, true)}
+            {meter(kit, { label: name, frac, tone, accent, size: { px: room * measure.pxPerCell, cells: room }, stretch: true })}
           </Box>
           <Text color={onTone(tone, palette.cardValue)}>{value}</Text>
         </Box>,
