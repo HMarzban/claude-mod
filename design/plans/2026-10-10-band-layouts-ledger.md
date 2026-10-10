@@ -23,6 +23,7 @@ What the plan's steps record, in the order they happen.
 | Task 4 (review) | 346 pass, 0 fail, 25 files | `claude plugin test plugins/session-usage-band` |
 | Task 5 | 352 pass, 0 fail, 26 files | `claude plugin test plugins/session-usage-band` |
 | Task 5 (review) | 352 pass, 0 fail, 26 files | `claude plugin test plugins/session-usage-band` |
+| Task 10c | 356 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
@@ -36,3 +37,4 @@ Pending maintainer: whether a nested subagent's turn.complete can carry its pare
 
 ## Time zone
 - Kit, TZ=UTC: · kit, TZ=Asia/Tehran: · live session:
+- Task 10c, `tools/test-only.sh zone` (`ZONE offset=` at 2026-10-09T12:00Z): unset TZ 210 · `TZ=UTC` 210 · `TZ=Asia/Tehran` 210. The kit reports this machine's zone (+03:30) and ignores `TZ` in the environment it is started from.

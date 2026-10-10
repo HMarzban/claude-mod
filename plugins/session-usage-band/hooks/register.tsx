@@ -24,7 +24,7 @@ import {
   resetConversation,
   resolveTtl,
 } from './cache'
-import { COMPACT_NEAR, SEVERE_AT, WARN_AT, contextUsed, fmtCountdown, fmtEta, fmtTokens } from './format'
+import { COMPACT_NEAR, SEVERE_AT, WARN_AT, contextUsed, fmtCountdown, fmtEta, fmtTokens, utcOffsetOf } from './format'
 import {
   fiveHourEtaMs,
   forgetTurn,
@@ -85,6 +85,9 @@ const band: {
   compactAt: number | undefined
   /** The breakdown said auto-compaction is off. */
   autoCompactOff: boolean
+  /** The local zone's offset from UTC, east-positive minutes; read at load
+   *  and after each turn, so a change of zone shows by the next reply. */
+  utcOffsetMin: number | undefined
   /** Where the session is: its project, home-relative, and git there. Read
    *  between redraws, never while drawing, since git takes a process. */
   workspace: Workspace | undefined
@@ -99,6 +102,7 @@ const band: {
   palette: DARK,
   compactAt: undefined,
   autoCompactOff: false,
+  utcOffsetMin: undefined,
   workspace: undefined,
   reads: 0,
   lastPaintKey: '',
@@ -220,6 +224,7 @@ export const register: Register = on => {
     band.warned.clear()
     band.lastPaintKey = ''
     band.workspace = undefined
+    band.utcOffsetMin = utcOffsetOf(await $.clock.now())
     band.reads++ // any read still out began before this load
     notePriceModel(await $.session.model().catch(() => undefined))
     noteLoad(await ledgerUsd($))
@@ -291,6 +296,7 @@ export const register: Register = on => {
       const cost = await ledgerUsd($)
       noteTurnEnd(e.turnId, cost)
       void rememberTurn($, cost)
+      band.utcOffsetMin = utcOffsetOf(await $.clock.now())
       // A turn may have switched branch, committed or moved the session.
       void readWorkspace($)
       $.ui.invalidate('ui.render')
@@ -427,6 +433,7 @@ export const register: Register = on => {
         fiveHour: five ? { percentUsed: five.percentUsed, resetsAt: five.resetsAt, etaMs: fiveHourEtaMs(now) } : undefined,
         sevenDay: seven ? { percentUsed: seven.percentUsed, resetsAt: seven.resetsAt } : undefined,
         workspace: band.workspace,
+        utcOffsetMin: band.utcOffsetMin,
         otherLimits: usage.rateLimits
           .filter(l => l.kind !== FIVE_HOUR && l.kind !== SEVEN_DAY)
           .map(l => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: l.resetsAt })),

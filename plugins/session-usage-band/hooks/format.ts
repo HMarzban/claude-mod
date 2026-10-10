@@ -126,6 +126,14 @@ export const fmtDayClock = (ms: number, utcOffsetMin: number, now: number): stri
   return sameDay ? hhmm(wall) : `${DAYS[new Date(wall).getUTCDay()]} ${hhmm(wall)}`
 }
 
+/** This machine's offset from UTC at `now`, east-positive minutes; undefined
+ *  when the time can't be read. A real UTC offset of 0 can't be told from a
+ *  sandbox that reports no zone. */
+export const utcOffsetOf = (now: number): number | undefined => {
+  const offset = -new Date(now).getTimezoneOffset()
+  return Number.isFinite(offset) ? offset : undefined
+}
+
 /** Whole seconds left, never 0 while any remain. */
 const secondsLeft = (ms: number): number => Math.max(1, Math.ceil(ms / 1000))
 /** Whole minutes left: rounded up under ten minutes, then as `fmtCountdown`
