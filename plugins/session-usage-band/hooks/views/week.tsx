@@ -26,17 +26,21 @@ const isNow = (c: Cell): boolean => ('today' in c ? c.today : c.now)
  *  accent, and the collapsed cells' width and give-way step. */
 type WeekWindow = Readonly<{ limit: LimitView; cells: readonly Cell[]; alt: string; summary: string; accent: Role; cellPx: number; step: Piece }>
 
-/** The weekly window, then the 5-hour one, each as the engine reports it. */
+/** The weekly window, then the 5-hour one, each as the engine reports it.
+ *  A reported limit always has its summary. */
 const windowsOf = (read: Readings): WeekWindow[] => {
   const wk = read.week
   const seven = read.sevenDay
   const five = read.fiveHour
   const windows: Array<WeekWindow | undefined> = [
-    seven && { limit: seven, cells: wk.days, alt: wk.daysAlt, summary: wk.summary7 ?? seven.value, accent: 'accent7', cellPx: 16, step: 'calmSevenCells' },
-    five && { limit: five, cells: wk.hours, alt: wk.hoursAlt, summary: wk.summary5 ?? five.value, accent: 'accent5', cellPx: 11, step: 'calmFiveCells' },
+    seven && { limit: seven, cells: wk.days, alt: wk.daysAlt, summary: wk.summary7 ?? '', accent: 'accent7', cellPx: 16, step: 'calmSevenCells' },
+    five && { limit: five, cells: wk.hours, alt: wk.hoursAlt, summary: wk.summary5 ?? '', accent: 'accent5', cellPx: 11, step: 'calmFiveCells' },
   ]
   return windows.filter((w): w is WeekWindow => w !== undefined)
 }
+
+/** Whether a window has cells to draw: none without history, nor once it has passed. */
+const hasCells = (read: Readings, w: WeekWindow): boolean => !read.week.empty && w.cells.length > 0
 
 /** An amber reading's reason, long until every calm piece has gone. */
 const amberWords = (kit: Kit, key: string, amber: Amber, keeps: Keeps<Piece>): RenderElement =>
@@ -104,7 +108,7 @@ const initialsOf = (kit: Kit, days: readonly DayCell[]): RenderElement => {
 const windowPiece = (kit: Kit, read: Readings, w: WeekWindow) => {
   const { Box } = kit
   const l = w.limit
-  const chart = read.week.empty || w.cells.length === 0 ? null : cellsChart(kit, read, w, { ...SMALL, cellPx: w.cellPx })
+  const chart = hasCells(read, w) ? cellsChart(kit, read, w, { ...SMALL, cellPx: w.cellPx }) : null
   // Built once: the squeeze only picks among them. Beside its cells a window
   // says its value; without them, its name and value, as `say` has them.
   const name = nameOf(kit, w)
@@ -201,14 +205,14 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     [x.known ? `${x.valueText} ${x.towardText}` : EMPTY.context, 'value'],
   ])
   if (bodyRows < 2) return [facts]
-  const charts = read.week.empty
-    ? []
-    : windows.map(w => (
-        <Box key={`${w.limit.key}:cells`} flexDirection="row" columnGap={1}>
-          {nameOf(kit, w)}
-          {cellsChart(kit, read, w, BIG)}
-        </Box>
-      ))
+  const charts = windows
+    .filter(w => hasCells(read, w))
+    .map(w => (
+      <Box key={`${w.limit.key}:cells`} flexDirection="row" columnGap={1}>
+        {nameOf(kit, w)}
+        {cellsChart(kit, read, w, BIG)}
+      </Box>
+    ))
   // What needs you leads, so a body short of rows keeps it.
   const sentences = [
     ...windows.map(w => ({

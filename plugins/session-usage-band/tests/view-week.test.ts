@@ -204,3 +204,22 @@ test('open with history and short of rows, it still fits', LONG, async ($, on) =
     expect(`${key} ${errors.join('; ')}`).toBe(`${key} `)
   }
 })
+test('open once the 5h window has passed, only the 7d cells are drawn', LONG, async ($, on) => {
+  const usage: SessionUsage = {
+    ...USAGE,
+    rateLimits: [
+      { kind: 'five_hour', percentUsed: 4, resetsAt: new Date(-HOUR).toISOString() },
+      { kind: 'seven_day', percentUsed: 30, resetsAt: new Date(67 * HOUR).toISOString() },
+    ],
+  }
+  const d20: Mount = { ...D160, maxRows: 20 }
+  const d13: Mount = { ...D160, maxRows: 13 }
+  const trees = await withHistory($, on, [d20, d13, T160], { usage })
+  for (const m of [d20, d13]) {
+    const open = trees[caseKey(m, 'open')]
+    const charts = svgsOf(open).filter(s => /limit by/.test(String(s.props?.alt)))
+    expect(charts.every(s => /^weekly limit by day/.test(String(s.props?.alt)) && Number(s.props?.width) > 0)).toBe(true)
+    expect(svgAlts(byKey(open, '7d:cells'))).toEqual([expect.stringMatching(/^weekly limit by day/)])
+  }
+  expect(byKey(trees[caseKey(T160, 'open')], '5h:cells')).toBeUndefined()
+})
