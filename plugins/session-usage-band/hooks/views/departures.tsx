@@ -68,7 +68,7 @@ const limitInk = (l: LimitView): Ink => (l.key === '5h' ? 'five' : l.key === '7d
 /** A limit's flaps, built once: whole, without its calm projection, and as
  *  one flap; amber, its short reason for the amber step. */
 const limitEntries = (kit: Kit, l: LimitView) => {
-  const value = l.passed ? 'RESET' : l.value
+  const value = up(l.valueText)
   const name = flap(kit, 'name', up(l.name), limitInk(l))
   const valueFlap = flap(kit, 'value', value)
   const status = l.boardAmber !== undefined ? flap(kit, 'status', l.boardAmber, 'amber') : l.passed || l.boardShort === undefined ? null : flap(kit, 'status', l.boardShort, 'dim')

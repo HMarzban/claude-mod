@@ -10,7 +10,7 @@ import type { CacheReading, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber, type CacheCondition, type Say } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberWords, fitLine, line, lineRoom, separatedBy, words, type Keeps } from './parts'
+import { accentOf, amberWords, emptySay, fitLine, line, lineRoom, separatedBy, words, type Keeps } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last; `nextChange` is the narrow-width ruling's. Amber never does. */
@@ -47,7 +47,8 @@ type Change = Readonly<{
   /** An amber change's short form, `! 5h ~40m`; none for a calm one. */
   amberShort: string | undefined
   seven: boolean
-  detail: Detail
+  /** None when another column already says it. */
+  detail: Detail | undefined
 }>
 
 /** A limit's reset as a change ahead, when it comes within `withinMs`. */
@@ -81,7 +82,8 @@ const changesOf = (read: Readings): Change[] => {
           label: 'cold',
           amberShort: undefined,
           seven: false,
-          detail: { long: `re-warm ${c.estimate}`, short: c.estimate },
+          // In the last minute, now says the price.
+          detail: c.amber === undefined ? { long: `re-warm ${c.estimate}`, short: c.estimate } : undefined,
         }]
   const fill: Change[] =
     f?.fullIn === undefined || f.etaMs === null
@@ -107,8 +109,12 @@ const nowDetailOf = (c: CacheReading): Detail => {
   return { long: `lasts ${c.lastsText}`, short: c.lastsText }
 }
 
-/** The cache's last minute, as now says it: `! cooling · 47s left`, then the readings' short form. */
-const lastMinute = (c: CacheReading, amber: Amber): Amber => ({ long: `! cooling · ${c.left}`, short: amber.short })
+/** The cache's last minute, as now says it: `! cooling · 47s left`, its price
+ *  beneath, or with no detail row, after it; then the readings' short form. */
+const lastMinute = (kit: Kit, c: CacheReading, amber: Amber): Amber => ({
+  long: kit.Svg ? `! cooling · ${c.left}` : `! cooling · ${c.left} · re-warm ${c.estimate}`,
+  short: amber.short,
+})
 
 /** A change's head: its time, with how far off when it is the next, then what it is. */
 const changeHead = (kit: Kit, ch: Change, next: boolean, keeps: Keeps<Piece>): RenderElement => {
@@ -118,8 +124,8 @@ const changeHead = (kit: Kit, ch: Change, next: boolean, keeps: Keeps<Piece>): R
     : amberWords(kit, 'head', { long: `${when} · ${ch.label}`, short: ch.amberShort }, keeps)
 }
 
-/** A column: on the desktop its head, beside any icon, over its detail; on the terminal, the head alone. */
-const column = (kit: Kit, key: string, head: RenderElement, detail: string, icon: readonly RenderChildren[] = []): RenderElement => {
+/** A column: on the desktop its head, beside any icon, over any detail; on the terminal, the head alone. */
+const column = (kit: Kit, key: string, head: RenderElement, detail: string | undefined, icon: readonly RenderChildren[] = []): RenderElement => {
   const { Box, Svg } = kit
   return Svg ? (
     <Box key={key} flexDirection="column">
@@ -127,7 +133,7 @@ const column = (kit: Kit, key: string, head: RenderElement, detail: string, icon
         {icon}
         {head}
       </Box>
-      {words(kit, 'detail', [[detail, 'label']])}
+      {detail === undefined ? null : words(kit, 'detail', [[detail, 'label']])}
     </Box>
   ) : (
     head
@@ -144,6 +150,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const nowIcon = Svg && weather !== undefined ? icon(weather, onTone(c.tone, palette.warm), c.alt) : []
   const nowCalm = words(kit, 'head', [['now · ', 'label'], [c.condition, 'value']])
   const nowDetail = nowDetailOf(c)
+  const cooling = c.amber === undefined ? undefined : lastMinute(kit, c, c.amber)
   // No change ahead says these, so each says itself; a measured fill is a change.
   const triggers = [read.context.amber, read.fiveHour?.fullIn === undefined ? read.fiveHour?.amber : undefined, read.sevenDay?.amber].filter(
     (a): a is Amber => a !== undefined,
@@ -151,8 +158,8 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const separated = separatedBy(kit, '│', 6)
   return [
     fitLine(kit, ORDER, lineRoom(kit), keeps => {
-      const detail = (d: Detail): string => (keeps.has('detail') ? d.long : d.short)
-      const head = c.amber === undefined ? nowCalm : amberWords(kit, 'head', lastMinute(c, c.amber), keeps)
+      const detail = (d: Detail | undefined): string | undefined => (d === undefined ? undefined : keeps.has('detail') ? d.long : d.short)
+      const head = cooling === undefined ? nowCalm : amberWords(kit, 'head', cooling, keeps)
       // An amber change never gives way; the next one only once the rest have.
       const ahead = changes.filter((ch, i) => ch.amberShort !== undefined || keeps.has(i === 0 ? 'nextChange' : ch.seven ? 'farSeven' : 'farChanges'))
       const pieces = [
@@ -190,7 +197,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const outlook = (
     key: string,
     name: string,
-    now: string,
+    now: string | Say,
     o: Readonly<{ tone?: Tone; bar?: RenderChildren; reason?: string; outcome?: ReadonlyArray<string | undefined> }> = {},
   ): Outlook => {
     const amber = o.tone === 'amber'
@@ -206,7 +213,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
             {words(kit, 'name', [[name, 'label']], true)}
           </Box>
           <Box key="now" width={NOW_COLS} flexShrink={0}>
-            {words(kit, 'now', [[now, amber ? 'amber' : 'value']])}
+            {words(kit, 'now', typeof now === 'string' ? [[now, amber ? 'amber' : 'value']] : now)}
           </Box>
           {barred ? (
             <Box key="bar" width={OUTLOOK.cells} flexShrink={0}>
@@ -222,7 +229,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   // Counting down, when it goes cold and what then; else what the next message costs.
   const cacheOutcome = coldAt === undefined ? (c.reWarmText ?? `lasts ${c.lastsText}`) : c.amber !== undefined ? coldAt : `${coldAt}, then re-warm ${c.estimate}`
   const limit = (l: LimitView): Outlook =>
-    outlook(`limit ${l.name}`, l.name, l.passed ? 'reset' : l.value, {
+    outlook(`limit ${l.name}`, l.name, l.valueText, {
       tone: l.tone,
       bar: l.passed
         ? undefined
@@ -253,9 +260,9 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
                 ? [`compacts in ${x.roomText}, at ${x.compactsAtText}`, `${x.inContextText} in context`]
                 : [`${x.inContextText} in context, compacts at ${x.compactsAtText}`],
         })
-      : outlook('context', 'Context', EMPTY.context),
+      : outlook('context', 'Context', emptySay(EMPTY.context)),
     ...read.limits.filter(l => l.key !== 'other').map(limit),
-    ...(read.limits.length === 0 ? [outlook('limits', 'Limits', EMPTY.limits)] : []),
+    ...(read.limits.length === 0 ? [outlook('limits', 'Limits', emptySay(EMPTY.limits))] : []),
     outlook('spend', 'Spend', s.totalText, { outcome: [s.lastText === undefined ? undefined : `last ${s.lastText}`, `${s.tokensText} tokens: ${s.split.map(part => `${part.text} ${part.label}`).join(', ')}`] }),
     ...read.limits.filter(l => l.key === 'other').map(limit),
   ]

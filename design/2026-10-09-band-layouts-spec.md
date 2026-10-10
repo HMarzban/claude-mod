@@ -158,11 +158,11 @@ band.tsx: drawBand builds kit and readings once, calls VIEWS[layout].draw, and f
 
 | File | Role |
 | --- | --- |
-| `hooks/reading.ts` | Gains `readingsOf(snap): Readings`. Today's `drawBand` closures are **extracted, not rewritten**, into it. That covers cache, spend (with `avgWarmUsd`), context, each limit window (with `projectedPct`), `otherLimits`, `worstLimit`, the workspace and the alt strings. A fact that has a long and a short form carries both. |
+| `hooks/reading.ts` | Gains `readingsOf(snap): Readings`. Today's `drawBand` closures are **extracted, not rewritten**, into it. That covers cache, spend, context, each limit window (with `projectedPct`), `otherLimits`, `worstLimit`, the workspace and the alt strings. A fact that has a long and a short form carries both. |
 | `hooks/charts.tsx` | `meter` (hoisted from band.tsx), `ring`, `sparkline`, `barChart`, `dayCells` and `braille`. Each takes a `key`. |
-| `hooks/views/parts.tsx` | Pieces shared by several views, hoisted from band.tsx: `pill`, `batteryIcon`, `textBattery`, `cachePill`. `pill` takes an optional `hover`, and only chips passes one. |
+| `hooks/views/parts.tsx` | Pieces shared by several views, hoisted from band.tsx: `pill`, `batteryIcon` and `textBattery`, and `layoutCachePill`, the cache pill the new views share; chips keeps its own `cachePill`. `pill` takes an optional `hover`, and only chips passes one. |
 | `hooks/views/frame.tsx` | The expanded scaffold: where the strip goes, `bodyRows = max(0, maxRows − collapsedRows − 3 − stripRows)`, and the buttons row. At `bodyRows = 0` it draws only the buttons row, with the strip in the footer if it fits. A view may draw the strip in its own style; ledger, for example, draws it as a sentence. |
-| `hooks/views/index.ts` | `VIEWS: Readonly<Record<LayoutName, View>>`. The compiler rejects a missing view. The list reply comes from it. |
+| `hooks/views/index.ts` | `VIEWS: Readonly<Record<LayoutName, View>>`. The compiler rejects a missing view. The list reply comes from `LAYOUT_NAMES`, the names `VIEWS` is keyed by. |
 | `hooks/views/<name>.tsx` | `export const <name>View: View`. `chips.tsx` keeps `limitChip`, `buildPills` and its `GIVES_WAY`. Its existing `format.ts` calls move over unchanged, so it is exempt from the no-`format.ts` rule. |
 | `hooks/snapshot.ts` | `LAYOUT_NAMES`, `LayoutName`, `DEFAULT_LAYOUT = 'chips'`, plus the fields `layout`, `utcOffsetMin`, `glyphs` and the histories |
 | `hooks/memory.ts` | `LAYOUT_KEY`, `LIMIT_SAMPLES_KEY`, `asLayoutName(v: unknown)` (it trims and lowercases a string, and serves both the command and the store), `asLimitSamples` |
@@ -188,6 +188,7 @@ type View = Readonly<{
 | `/usage-band layout` | `Usage band layout: chips. Choose one: chips, gauges, ledger, rings, pulse, tiles, week, departures, forecast.` |
 | `/usage-band layout pulse` | `Usage band layout: pulse. /usage-band layout chips goes back.` For chips itself: `Usage band layout: chips.` |
 | An unknown name | `Unknown layout "<input, clipped to 20>". Choose one: …`. Nothing changes. |
+| A name the store can't save | The reply as above, then `It couldn't be saved, so it lasts until Claude's next reply.` |
 | Any other word | `Usage: /usage-band [more \| less \| show \| hide] · /usage-band layout <name>`. The bracket is unchanged, so the existing test holds. |
 
 - **Matching:** case and surrounding spaces are ignored.
@@ -215,7 +216,7 @@ type View = Readonly<{
 | --- | --- | --- | --- |
 | 5h and 7d `projectedPct` | gauges, rings, tiles, week, departures, forecast | Today's Limits card computes `percentUsed / gone`; it moves into `readingsOf`. With a measured 5h `etaMs` that fills before the reset, the 5h `projectedPct` is 100, so the words and amber agree. | — |
 | `reWarm` | pulse | `recordResponse` sets `cache.lastRebuilt` when a turn's first main-loop request rewrote the cache: TTL expired, a miss, a compaction, a model switch. Today's `misses` counts only unexpected misses, so it isn't enough. | — |
-| `costTrail` | pulse; forecast (`avgWarmUsd`) | `noteTurnEnd` pushes `{ usd, reWarm }` | 24; cleared on `session.end` and `session.start` |
+| `costTrail` | pulse | `noteTurnEnd` pushes `{ usd, reWarm }` | 24; cleared on `session.end` and `session.start` |
 | `contextTrail` | pulse (expanded) | `turn.complete` pushes the context used | 40; same clearing |
 | `fiveHourTrail` | pulse | A trail beside `insights` (whose 30-minute pace samples stay untouched), at most one reading a minute. It belongs to the account, so it clears on `session.start` only. | 300 (5 h) |
 | `limitSamples` | week (days and hours) | `$.store`, written on `turn.complete`, at most one per 15-minute bucket. `fivePct` is ignored when `fiveResetAt` differs from the current window, and `sevenPct` when `sevenResetAt` does. A day cell is that day's rise in `sevenPct`. The hour cells are the five hours before the 5h reset. | 672 (7 d × 96), about 67 KB, measured in a test |
@@ -350,12 +351,12 @@ type View = Readonly<{
   - 7d resets, only within 24 h.
 
   Each column has a time and condition (`now · warm`, `14:32 · cold`), with a detail row on the desktop (`52m left`, `re-warm ~$1.66`). Only the next event shows "in Xm". The terminal shows one row of columns split by `│`. "Cooling" is the `expiring` mood.
-- **Escalation:** now becomes `! cooling · 47s left`. `! 5h full` is placed in time order.
+- **Escalation:** now becomes `! cooling · 47s left`, with `re-warm ~$1.66` in its detail row on the desktop, or after it where there is no detail row; short, `! 47s` (§2.6). `! 5h full` is placed in time order.
 - **Give-way:**
   1. far events, 7d first;
   2. the "in Xm";
   3. the desktop detail text shortens.
-- **Expanded:** an outlook row for each of Cache, Context, 5h, 7d, Spend and `otherLimits`. Each row gives the value now, a range bar to where it lands (ring = now, dashed = ahead, tick = the line), and the outcome in words.
+- **Expanded:** an outlook row for each of Cache, Context, 5h, 7d, Spend and `otherLimits`. Each row gives the value now and the outcome in words, and every row but Spend's a range bar to where it lands (ring = now, dashed = ahead, tick = the line). Spend has nothing to land at, no line of its own (a gateway's budget is its own `otherLimits` row) and no count of messages ahead, so its row gives the total, the last message and the tokens.
 
 ## 7. Testing
 

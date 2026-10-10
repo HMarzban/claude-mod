@@ -80,10 +80,20 @@ test('setting a layout shows a hidden band and asks for a redraw', async ($, on)
   // The band shows again: this checks it draws, not which layout.
   expect(await drawnText($)).toMatch(/\$2\.41/)
 })
-test('a store that fails to write still switches the layout', async ($, on) => {
+test('a store that fails to write still switches the layout, and says until when', async ($, on) => {
   setup(on); engine.storeFails = true; await $.session.start(START)
-  expect(await run($, 'layout ledger')).toBe('Usage band layout: ledger. /usage-band layout chips goes back.')
+  expect(await run($, 'layout ledger')).toBe(
+    "Usage band layout: ledger. /usage-band layout chips goes back. It couldn't be saved, so it lasts until Claude's next reply.",
+  )
   expect(await run($, 'layout')).toMatch(/^Usage band layout: ledger\./)
+  // As it says: the next reply reads the store back, which holds none.
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await turn($, 'x', 2.41, 2.5)
+  expect(await run($, 'layout')).toMatch(/^Usage band layout: chips\./)
+})
+test('chips that fails to write says so too', async ($, on) => {
+  setup(on); engine.storeFails = true; await $.session.start(START)
+  expect(await run($, 'layout chips')).toBe("Usage band layout: chips. It couldn't be saved, so it lasts until Claude's next reply.")
 })
 test('the usage line keeps its bracket and adds the layout hint', async ($, on) => {
   setup(on); await $.session.start(START)

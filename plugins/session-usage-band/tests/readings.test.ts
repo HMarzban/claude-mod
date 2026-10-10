@@ -133,6 +133,10 @@ test('a passed window has no reset words', () => {
   const r = readingsOf(snapOf({ now: 4 * HOUR }))
   expect([r.fiveHour?.text, r.fiveHour?.resetWords, r.fiveHour?.resetGlyph, r.fiveHour?.boardShort]).toEqual(['5h reset', undefined, undefined, 'RESET'])
 })
+test('a limit reads its value, or once its window has passed, reset', () => {
+  expect(readingsOf(snapOf()).fiveHour?.valueText).toBe('4%')
+  expect(readingsOf(snapOf({ now: 4 * HOUR })).fiveHour?.valueText).toBe('reset')
+})
 test('a passed window has no fill time', () => {
   const r = readingsOf(snapOf({ now: 4 * HOUR, fiveHour: { percentUsed: 84, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 0 } }))
   expect([r.fiveHour?.fullIn, r.fiveHour?.fullAtClock, r.fiveHour?.projectedFrac]).toEqual([undefined, undefined, undefined])

@@ -17,12 +17,12 @@ Task 33, Steps 1 and 2, on `feat/layouts` at 0119b9a: the production gate (spec 
 | performance and memory within §9, with the numbers in the PR | met | every layout at most 1.11× chips; the soak's three tests pass |
 | an independent reviewer read the whole branch, every Critical or Important finding fixed test first | met | Task 29: nine fixes, each RED→GREEN in the ledger |
 | a final quality pass leaves no dead code, debug output, TODOs, commented-out code, names off §4.3, comments out of house style or typos | met | Task 30, and its greps re-run at 0119b9a (below) |
-| CHANGELOG `0.12.0`, under Added | met, one line short | 7aebb0a, a fix to chips, has no Fixed line (below) |
+| CHANGELOG `0.12.0`, under Added | met | with a Fixed line for 7aebb0a, a fix to chips (below) |
 | the version bump | met | `plugin.json` reads `0.12.0`; the marketplace pins no version |
 | the plugin README's Layouts section, with row counts and `CC_BAND_GLYPHS` | met | `plugins/session-usage-band/README.md`, "Layouts" |
 | the root README | met | the Layouts line and the gallery under "What it shows" |
 | the CONTRIBUTING file table | met | every new file, and the rule for a new layout |
-| the demos rebuilt | met for the gallery | the film, the terminal GIF and the site's live band predate 7aebb0a (below) |
+| the demos rebuilt | met for the gallery but one still | forecast's last-minute still predates c87e9d8; the film, the terminal GIF and the site's live band predate 7aebb0a (below) |
 | issue #1 updated | pending the go-ahead | draft below |
 | the maintainer checks each layout on the desktop and in a terminal, collapsed and expanded | pending | checkpoint 6, below |
 
@@ -135,7 +135,7 @@ Task 30 ran these before its last commits; they are run again here, on the tip. 
 
 ### The demos
 
-The layouts gallery (`docs/band-layouts-{light,dark}.png`, Task 32 at 8d74d20) is drawn from the collapsed calm and last-minute states. Captured again at 0119b9a in a scratch copy, those 18 trees are identical to 8d74d20's, with the Buttons' handles set aside. So the gallery is current.
+The layouts gallery (`docs/band-layouts-{light,dark}.png`, Task 32 at 8d74d20) is drawn from the collapsed calm and last-minute states. Captured again at 0119b9a in a scratch copy, those 18 trees are identical to 8d74d20's, with the Buttons' handles set aside. So the gallery is current, but for one still since: c87e9d8 drops the cold column's repeated `re-warm ~$X` from forecast in the last minute (see Done).
 
 The other captures differ:
 - Open departures no longer says `NO AUTO-COMPACTION` (fd0dd70).
@@ -154,7 +154,7 @@ The film, the terminal GIF and the site's live band are chips, and 7aebb0a's min
 
 These Task 29 fixes change what users see in a layout that is new in 0.12.0, so Added covers them: 8aa0f4b, ef6ec96, db0bdf5, 3da7087, 10a5107, 800ada3, fd0dd70, 716ca55 and beb41e8.
 
-7aebb0a fixes chips as 0.11 ships it, and the CHANGELOG has no line for it. Proposed under Fixed:
+7aebb0a fixes chips as 0.11 ships it, so Added doesn't cover it. Its line under Fixed (bbf20dc):
 
 ```
 - A reset countdown no longer stands a minute stale while the cache is
@@ -187,6 +187,15 @@ Open items cleared on `feat/layouts` after 0119b9a.
   - A sweep of every alt the views draw, on the desktop at 200 columns in all 20 scenarios, shut and open, found no other.
   - `matrix.ts` now fails an alt that says a share is used or left, or a landing without its figure. Against the hooks before the fixes, 85 of the gauges, rings and tiles suites' 105 cases fail it.
   - 1050 pass, 0 fail, 48 files. Golden is unchanged. These layouts are new in 0.12.0, so Added covers the change and the CHANGELOG has no line.
+- **Forecast and the phrasebook**, each test first, with its ruling in the ledger:
+  - Forecast's last minute on a text surface says its price (0aafad8, and its short form, 12e16ae). With no detail row, on the terminal and a plain desktop, now reads `! cooling · 30s left · re-warm ~$1.66`; at 40 columns, with nothing calm left, it turns short as every layout's cache does, `! 30s` (spec §2.6).
+  - On the desktop it says `re-warm ~$X` once, beneath now (c87e9d8). The cold change, calm, draws its head alone. The gallery's forecast still in the last minute predates this.
+  - `LimitWords.valueText`, `4%` or `reset`, replaces the copies in rings, tiles and forecast (85dc6d2).
+  - Every new view draws its empty states in a label's ink, through one `emptySay()` in `parts.tsx` (5d78811, named so in Task C4); ledger, pulse, week and forecast drew some in `value`. Departures keeps its board's ink.
+  - A layout the store can't save replies `It couldn't be saved, so it lasts until Claude's next reply.` after its usual words (d741e3e); spec §4.2 gains the row.
+  - The spec's errata (5b5a7a8): §4 names `layoutCachePill`, §4.1 says the list comes from `LAYOUT_NAMES`, and `avgWarmUsd`, which no reading builds, is ruled out of §4.1 and §5. §6 now says forecast's Spend row draws no bar, as it has nothing to land at (Task C4).
+  - The CHANGELOG gains its Fixed line for 7aebb0a (bbf20dc). The rest change layouts and a command new in 0.12.0, so Added covers them.
+  - 1052 pass, 0 fail, 48 files.
 
 ## Pending the maintainer
 
@@ -225,7 +234,6 @@ The ledger records no sign-off for any of these:
 ### Release decisions
 
 - **0.11.13.** Main is at 0.11.12. 0.11.13 (216ab96, "chore: release 0.11.13", and the hover fix to 4882313) exists only on this branch and has no tag. Tag it at 216ab96 first, or let 0.12.0 carry it.
-- **The CHANGELOG's Fixed line for 7aebb0a** (proposed above).
 - **The demos.** Run `tools/demos/build.sh` before the release (above), or ship the film and GIF as they are.
 - **Step 3, in order:**
   1. Push `feat/layouts`.
@@ -245,7 +253,6 @@ Each is a `Pending maintainer:` line, or Task 29's deferred findings, still open
 **Behaviour**
 - A layout chosen while the store fails to write lasts only until the next main-loop turn.
 - A `/usage-band layout X` landing while `turn.complete`'s read is out can be overwritten until the next turn.
-- A layout write that fails still replies as saved. The proposed reply adds "It couldn't be saved, so it lasts until Claude's next reply."
 - Whether a nested subagent's `turn.complete` can carry its parent's `turnId`. If it can, `forgetTurn` would drop the parent's start cost.
 
 **Give-way at narrow widths**
@@ -266,21 +273,15 @@ Each is a `Pending maintainer:` line, or Task 29's deferred findings, still open
 - `coldSinceClock` stays undefined until the snapshot holds when a measured cache went cold.
 
 **Words**
-- Empty states are drawn in `value` by ledger, pulse and week, and in `label` by gauges, rings, tiles and week's history.
 - `EMPTY.costsShort` reads `No costs.`, where the plan wrote `No costs yet.`.
 - In the ascii tier `…` maps to `.`, which can read as part of a path.
 - A view's own strip draws `workspaceText` whole and lets it clip. A short phrase (`workspaceShort`) would need a name outside spec §4.3.
-- Forecast says no re-warm price on a text surface when collapsed, against §2.2's table.
-- In the last minute, forecast's desktop detail says `re-warm ~$2.13` twice.
 - The ink of the sparkline's `level` rule (`trackStroke`).
 
 **The spec**
-- §4 lists `cachePill` under `views/parts.tsx`. It is chips' own; the layouts share `layoutCachePill`.
-- §4.1 and §5 name `avgWarmUsd`, which no reading builds. Build it, or rule it out.
-- §4.1 says "The list reply comes from it" of `VIEWS`. The command's list is built from `LAYOUT_NAMES`.
+- §6 asks open pulse for an average line on its costs and for a mark at now on the 5h window. Neither is built: the line needs the warm average as a number, which no reading holds, and the mark an x-scale in time. Until then the costs say the average in words (the ledger, Task 25's second round).
 
 **Deferred follow-ups (Task 29's minor findings)**
-- `LimitWords.valueText`, for the four `l.passed ? 'reset' : l.value` copies.
 - `cacheWords` taking the snapshot's cache, and `CacheFacts.estimate` and `LimitFacts.value` holding words: a pure move between the layers.
 
 ## The PR, draft

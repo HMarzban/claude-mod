@@ -36,8 +36,20 @@ test('a cold cache is no change ahead: the next one is the reset', async ($, on)
 test('the last minute is "! cooling" with seconds', LONG, async ($, on) => {
   expect(shown((await at($, on, 'lastMinute', T160, '5m')).shut)).toMatch(/^! cooling · 30s left/)
 })
-test('at 40 columns amber still leads, whole while a calm change gives way', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'lastMinute', { surface: 'terminal', cols: 40 }, '5m')).shut)).toMatch(/^! cooling · 30s left$/)
+test('at 40 columns amber still leads, short once the calm changes have given way', LONG, async ($, on) => {
+  expect(shown((await at($, on, 'lastMinute', { surface: 'terminal', cols: 40 }, '5m')).shut)).toMatch(/^! 30s$/)
+})
+test('in the terminal, the last minute says its price in its head', LONG, async ($, on) => {
+  expect(shown((await at($, on, 'lastMinute', T160, '5m')).shut)).toMatch(/^! cooling · 30s left · re-warm ~\$\S+\s*│/)
+})
+test('on a plain desktop, with no detail row, the last minute says its price in its head', LONG, async ($, on) => {
+  const plain = await drawCases($, on, { layout: 'forecast', scenario: 'lastMinute', appearance: 'plain', ttl: '5m' }, [D160])
+  expect(shown(plain[caseKey(D160, 'shut')])).toMatch(/^! cooling · 30s left · re-warm ~\$\S+\s*│/)
+})
+test('on the desktop, the last minute says its price once, beneath now', LONG, async ($, on) => {
+  const t = shown((await at($, on, 'lastMinute', D160, '5m')).shut)
+  expect(t).toMatch(/^! cooling · 30s left\s*re-warm ~\$\S+\s*│/)
+  expect(t.match(/re-warm/g)).toHaveLength(1)
 })
 test('a measured fill is a change before the reset', LONG, async ($, on) => {
   const t = shown((await at($, on, 'fiveHourAhead')).shut)
