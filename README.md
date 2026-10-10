@@ -35,10 +35,10 @@ spend and limits in view while you work.
 
 ## Install
 
-**Needs** Claude Code 2.1.292 or later for the one-line install below
-(`claude --version`; on an older one, use the two steps underneath), outside
-WSL, which doesn't load plugins. Tested on 2.1.295 in the terminal and the
-desktop app's bundled 2.1.289.
+**Needs** Claude Code with mods (function-hooks plugins), outside WSL, which
+doesn't load plugins. Tested on 2.1.295 in the terminal and the desktop app's
+bundled 2.1.289. The one-line install below needs 2.1.292 or later
+(`claude --version`); on an older one, use the two steps underneath.
 
 One command, in any terminal:
 
@@ -49,10 +49,11 @@ claude plugin install session-usage-band --marketplace HMarzban/claude-mod
 Then start a new session, or run `/reload-plugins` in an open one. The band
 appears above the prompt. A new conversation reads `cache warming` until
 Claude's first reply, `cache warm` while Claude is replying, then counts
-down from `cache 1h 00m`. A session that was already open may read
-`cache –` until Claude's next reply. Hid it with `h`? `/usage-band` brings
-it back. Nothing above the prompt? Check the Needs line above (the version,
-and WSL), or [open a bug report](https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml).
+down from `cache 1h 00m` (or `cache 5:00` on a five-minute cache). A session
+that was already open may read `cache –` until Claude's next reply. Hid it
+(`Hide band`, key `h`)? `/usage-band` brings it back. Nothing above the
+prompt? Check the Needs line above (mods, and WSL), or
+[open a bug report](https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml).
 
 The band draws in the terminal and in the desktop app's Code tab, and a
 plugin installed from either is available in the other.
@@ -116,7 +117,6 @@ claude plugin marketplace remove hossein-mods
 - **Context**: how close auto-compaction is
 - **5h**: your 5-hour limit, and whether your pace runs out first
 - **7d**: your weekly limit and its reset
-- **▿**: opens every fact, labelled
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/band-states-dark.png">
@@ -144,7 +144,7 @@ any chip in chips for a one-line explanation.
 
 Resume or fork a session (`claude --resume`, `/resume`, or a past session
 in the desktop app) and the band picks up its cache and spend where they
-were; [how](plugins/session-usage-band/README.md#reopening-an-old-session).
+were ([how it reads them](plugins/session-usage-band/README.md#reopening-an-old-session)).
 
 Press `▿` to open every fact, under a line that says where you are: the
 project, its git branch or worktree, uncommitted changes and ahead/behind.
@@ -178,10 +178,13 @@ and no build step.
   cost = rate × (uncached + 1.25 × written + read share × read + 5 × output)
   ```
 
+  where read share is the cache-read multiple: 0.1, lower on some models.
+
   A re-warm is then the whole context written to the cache again.
-- **It remembers across sessions:** the layout you chose, each session's
-  last reply, the rate it solved for each model, and a week of 5-hour and
-  weekly readings, so a reopened session still shows its cache and spend.
+- **It remembers across sessions:** the layout you chose, when each session
+  last had a reply, the rate it solved for each model, and a week of 5-hour
+  and weekly readings for the week layout. A reopened session reads what it
+  spent from its transcript.
 - **It stays out of the way.** It never calls a model, never writes files
   and never sends anything anywhere. Besides two read-only git commands for
   the workspace line, it runs only `grep` and `tail`, to read an old
@@ -234,17 +237,17 @@ see in your own sessions.
 ### Good places to start
 
 - **The tokens chip hides too early on the desktop.** Chips' row fits by
-  `squeezeToFit` against `columns - ROW_SLACK` (`hooks/views/chips.tsx`),
-  with text measured by `DESKTOP` in `hooks/layout.ts`, and the tokens chip
-  gives way first. Calibrating that measure from screenshots would let it
+  `squeezeToFit` against `columns - ROW_SLACK` (`hooks/views/chips.tsx`).
+  `DESKTOP` (`hooks/layout.ts`) estimates text width roughly, so the row
+  keeps `ROW_SLACK` spare and the tokens chip, first to give way, drops
+  before it has to. Calibrating that estimate from screenshots would let it
   show.
 - **Screenshots** of the light palette, a narrow terminal or a cold cache
   for the docs.
 - **A new mod.** This repo is a marketplace: add your own plugin under
   `plugins/` and list it in `.claude-plugin/marketplace.json`, then run
-  `claude plugin validate .` and the gates in
-  [CONTRIBUTING.md](CONTRIBUTING.md#development-loop) against your plugin's
-  folder.
+  `claude plugin validate .`, then `claude plugin validate` and
+  `claude plugin test` on your plugin's folder.
 
 ### Development loop
 

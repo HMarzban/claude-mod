@@ -9,7 +9,7 @@ You need Claude Code with mods (function-hooks plugins). Tests and checks
 run locally; nothing here needs network access or an API key.
 
 ```bash
-# Check the marketplace index, then the plugin's manifest and what the module hooks and calls
+# Check the marketplace index and the plugin
 claude plugin validate .
 claude plugin validate plugins/session-usage-band
 
@@ -43,10 +43,10 @@ claude plugin install session-usage-band@hossein-mods
 ```
 
 Then, after each edit, bump `version` in
-`plugins/session-usage-band/.claude-plugin/plugin.json` (an update at the
-same version doesn't reinstall; any higher number works locally, and you
-set the one [step 1](#before-you-open-a-pull-request) asks for before you
-open the pull request), and run:
+`plugins/session-usage-band/.claude-plugin/plugin.json`; an update at the
+same version doesn't reinstall. Any higher number works locally; set the
+real one ([step 1](#before-you-open-a-pull-request)) before you open the
+pull request. After each bump, run:
 
 ```bash
 claude plugin marketplace update hossein-mods
@@ -88,6 +88,7 @@ Run `/reload-plugins` in your session afterwards.
 | `tools/golden/capture.sh`, `tests/golden/` | Chips' frozen trees and the tests that hold chips to them; see the rule below. |
 | `tools/test-only.sh` | Runs only the tests whose names match the globs given, against a scratch copy of the plugin. |
 | `tools/views-gate.sh` | The views gate, run in CI: fails when a layout's view formats or reads a raw fact. |
+| `tools/demos/build.sh` | Rebuilds every demo and the site from the band's own output; see `tools/demos/README.md`. |
 
 ## Rules the code follows
 
@@ -141,8 +142,10 @@ Run `/reload-plugins` in your session afterwards.
   open. `tools/golden/capture.sh` runs only on the hooks at `4882313`, so it
   can't recapture a fix. If your change is meant to alter what chips draws,
   update the failing keys in `tests/golden/chips.ts` to the hashes the
-  failures print, and the whole tree in `GOLDEN_TREES` for a key held there,
-  and say why in the pull request.
+  failures print. For a key also held in `GOLDEN_TREES`, replace its whole
+  tree too: log `JSON.stringify(canon(tree))` for that key in
+  `tests/golden/suite.ts`, paste the output in, and drop the log. Say why in
+  the pull request.
 
 ## Demos and the website
 
