@@ -6,7 +6,7 @@ import type { Engine } from 'claude-code/testing'
 import type { On, RenderChildren } from 'claude-code'
 import { drawBand } from '../hooks/band'
 import { ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
-import { HOUR, LONG, byKey, fakeEl, shown, walk, widthOf, type Node } from './helpers'
+import { HOUR, LONG, MIN, byKey, fakeEl, shown, walk, widthOf, type Node } from './helpers'
 import { NO_ACT, caseKey, drawCases, snapOf, viewSuite, type Appearance, type Mount, type ScenarioName, type Ttl } from './matrix'
 
 viewSuite('departures')
@@ -156,8 +156,8 @@ test('open, an other limit\'s ITEM names it a limit, apart from the session\'s S
 /** The titles over the board's columns. */
 const titles = (open: unknown): string[] => ((byKey(open, 'head', 'Box')?.children ?? []) as Node[]).map(shown)
 test('open where TIME can\'t fit whole, the board drops the column and its words lead REMARKS', async ($, on) => {
-  // The terminal's fixed columns and their gaps take 45 cells: a lineRoom of 45 at 51 columns, 44 at 50.
-  const mounts = [51, 50].map((cols): Mount => ({ surface: 'terminal', cols }))
+  // The terminal's fixed columns and their gaps take 47 cells: a lineRoom of 47 at 53 columns, 46 at 52.
+  const mounts = [53, 52].map((cols): Mount => ({ surface: 'terminal', cols }))
   const trees = await drawCases($, on, { layout: 'departures', scenario: 'calm', appearance: 'dark', ttl: '1h' }, mounts)
   const [fits, narrow] = mounts.map(m => trees[caseKey(m, 'open')])
   expect(titles(fits)).toEqual(['ITEM', 'STATUS', 'TIME', 'REMARKS'])
@@ -195,6 +195,7 @@ for (const appearance of ['dark', 'plain'] as const)
 for (const [scenario, over, amber] of [
   ['limit80', { fiveHour: { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }, /! 5h 82%$/],
   ['nearCompaction', { context: { tokens: 150_000, window: 200_000, percent: 75, compactAt: 160_000, autoCompactOff: false } }, /! ctx \d+%$/],
+  ['fiveHourAhead', { fiveHour: { percentUsed: 40, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: HOUR } }, /! 5h ~1h$/],
 ] as const)
   test(`at 40 columns with no UTC offset, ${scenario} keeps its amber whole within the line's room`, () => {
     const line = byKey(drawBand(fakeEl, snapOf({ layout: 'departures', columns: 40, ...over }), NO_ACT), 'line', 'Box')
@@ -206,6 +207,18 @@ test('open with no UTC offset, a limit\'s TIME says its reset in minutes, as the
   expect(t).toMatch(/5H\s*~\d+% AT ↻\s*IN 3H 00 MIN/)
   expect(t).toMatch(/7D\s*~\d+% AT ↻\s*IN 67H 00 MIN/)
   expect(t).not.toMatch(SHORT_DURATION)
+})
+test('open with no UTC offset, a measured fill\'s STATUS says when in board minutes and fits its cell', () => {
+  // A fill lands before its 5h reset, so `~4H 45 MIN` is as wide as its projection gets.
+  const open = byKey(drawBand(fakeEl, snapOf({ layout: 'departures', columns: 160, expanded: true, fiveHour: { percentUsed: 40, resetsAt: new Date(5 * HOUR).toISOString(), etaMs: 285 * MIN } }), NO_ACT), 'body', 'Box')
+  expect(shown(open)).toMatch(/5H\s*! FULL IN ~4H 45 MIN/)
+  expect(shown(open)).not.toMatch(SHORT_DURATION)
+  expect(clipped(open)).toEqual([])
+})
+test('open, a 1M window\'s ! COMPACTS IN ~100K fits its STATUS cell', () => {
+  const open = byKey(drawBand(fakeEl, snapOf({ layout: 'departures', columns: 160, expanded: true, context: { tokens: 900_000, window: 1_000_000, percent: 90, compactAt: 1_000_000, autoCompactOff: false } }), NO_ACT), 'body', 'Box')
+  expect(shown(open)).toMatch(/CONTEXT\s*! COMPACTS IN ~100K/)
+  expect(clipped(open)).toEqual([])
 })
 test('open, compaction not known yet says nothing of it', LONG, async ($, on) => {
   // Calm reads no breakdown: compaction is unknown, not off.

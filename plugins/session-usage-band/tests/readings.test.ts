@@ -131,6 +131,10 @@ test('a measured fill is an estimate, with ~, in words and on the board', () => 
   expect(r.fiveHour?.amber).toEqual({ long: '! 5h full in ~40m', short: '! 5h ~40m' })
   expect(r.fiveHour?.alt).toBe('5h limit 84 percent used, needs attention, full in about 40 minutes')
 })
+test('with no UTC offset a measured fill says on the board when, in board minutes, never "~40M"', () => {
+  const boardAmber = (etaMs: number) => readingsOf(snapOf({ fiveHour: { percentUsed: 84, resetsAt: new Date(5 * HOUR).toISOString(), etaMs } })).fiveHour?.boardAmber
+  expect([40, 60, 75, 285].map(mins => boardAmber(mins * MIN))).toEqual(['! FULL IN ~40 MIN', '! FULL IN ~1H 00 MIN', '! FULL IN ~1H 15 MIN', '! FULL IN ~4H 45 MIN'])
+})
 test('a landing at or over 100% is full before reset, never ~112%', () => {
   const r = readingsOf(snapOf({ sevenDay: { percentUsed: 79, resetsAt: new Date(50 * HOUR).toISOString() } }))
   expect(r.sevenDay?.projectedPct ?? 0).toBeGreaterThan(100)

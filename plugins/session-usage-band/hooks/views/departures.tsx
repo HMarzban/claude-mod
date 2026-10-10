@@ -21,8 +21,10 @@ type Piece = (typeof ORDER)[number]
 const INK = { text: 'flapText', dim: 'flapDim', warm: 'flapWarm', amber: 'flapAmber', five: 'flapFive', week: 'flapWeek', coin: 'flapCoin' } as const
 type Ink = keyof typeof INK
 
-/** The board's fixed columns, ITEM (as wide as `SPEND LIMIT`), STATUS and TIME, in cells of text; REMARKS takes the rest. */
-const COLUMNS = [11, 18, 14] as const
+/** The board's fixed columns, in cells of text: ITEM, as wide as `SPEND LIMIT`;
+ *  STATUS, as wide as `! FULL IN ~4H 45 MIN`, which any fill before a 5h
+ *  reset is; and TIME. REMARKS takes the rest. */
+const COLUMNS = [11, 20, 14] as const
 
 const up = (text: string): string => text.toUpperCase()
 

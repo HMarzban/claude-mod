@@ -5,6 +5,7 @@
 import type { DayCell, HourCell, Week } from './calendar'
 import {
   FIVE_HOUR_MS,
+  fmtBoardEta,
   fmtBoardLeft,
   fmtClock,
   fmtCost,
@@ -186,7 +187,7 @@ export type LimitWords = Readonly<{
   fullAtClock: string | undefined
   /** `! 5h 82%`, or with a measured fill, `! 5h full in ~40m` / `! 5h ~40m`. */
   amber: Amber | undefined
-  /** `! NEAR LIMIT`, `! FULL ~14:20`, or without the offset, `! FULL IN ~40M`. */
+  /** `! NEAR LIMIT`, `! FULL ~14:20`, or without the offset, `! FULL IN ~40 MIN`. */
   boardAmber: string | undefined
   /** `~10% AT ↻`, `FULL BEFORE ↻`, or `RESET`; in the ascii tier, `~10% AT RESET`. */
   boardShort: string | undefined
@@ -346,11 +347,11 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     boardAmber:
       f.tone !== 'amber'
         ? undefined
-        : fullIn === undefined
+        : etaMs === null
           ? '! NEAR LIMIT'
           : fullAtClock !== undefined
             ? `! FULL ${fullAtClock}`
-            : `! FULL IN ${fullIn.toUpperCase()}`,
+            : `! FULL ${fmtBoardEta(etaMs)}`,
     boardShort: f.passed ? 'RESET' : fills ? `FULL BEFORE ${boardReset}` : projectedText !== undefined ? `${projectedText} AT ${boardReset}` : undefined,
     boardTime: resetClock !== undefined ? `↻ ${resetClock.toUpperCase()}` : f.resetInMs !== undefined ? fmtBoardLeft(f.resetInMs) : undefined,
     alt: altOf(

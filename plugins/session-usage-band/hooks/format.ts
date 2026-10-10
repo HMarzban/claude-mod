@@ -154,11 +154,15 @@ export const fmtLeftShort = (ms: number): string =>
 /** A countdown in words for the new layouts: `1h 00m left`, `52m left`, `10m left`, `47s left`. */
 export const fmtLeft = (ms: number): string => `${fmtLeftShort(ms)} left`
 
+/** Whole minutes as a departures board says them: `1H 00 MIN`, `52 MIN`. */
+const boardMinutes = (mins: number): string =>
+  mins >= 60 ? `${Math.floor(mins / 60)}H ${String(mins % 60).padStart(2, '0')} MIN` : `${mins} MIN`
+
 /** The countdown on a departures board: `IN 1H 00 MIN`, `IN 52 MIN`, never `52M`. */
-export const fmtBoardLeft = (ms: number): string => {
-  const mins = minutesLeft(ms)
-  return mins >= 60 ? `IN ${Math.floor(mins / 60)}H ${String(mins % 60).padStart(2, '0')} MIN` : `IN ${mins} MIN`
-}
+export const fmtBoardLeft = (ms: number): string => `IN ${boardMinutes(minutesLeft(ms))}`
+
+/** A projection on a departures board, rounded as `fmtEta` rounds it: `IN ~40 MIN`, `IN ~1H 15 MIN`. */
+export const fmtBoardEta = (ms: number): string => `IN ~${boardMinutes(etaMinutes(ms))}`
 
 const plural = (n: number, unit: string): string => `${n} ${unit}${n === 1 ? '' : 's'}`
 
