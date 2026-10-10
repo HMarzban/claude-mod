@@ -14,13 +14,17 @@ import { defineView } from './view'
 const ORDER = ['resetWords', 'resetTimes', 'calmSeven', 'calmContext', 'cost', 'calmFive'] as const
 type Piece = (typeof ORDER)[number]
 
+/** An amber reading's reason, long until every calm piece has gone. */
+const amberWords = (kit: Kit, key: string, amber: Amber, keeps: Keeps<Piece>): RenderElement =>
+  words(kit, key, [[keeps.amber(amber), 'amber']])
+
 /** A reading that can turn amber: its reason while amber, else its calm piece. */
 const amberOr = (kit: Kit, key: string, amber: Amber | undefined, keeps: Keeps<Piece>, calm: RenderChildren): RenderChildren =>
-  amber !== undefined ? words(kit, key, [[keeps.amber(amber), 'amber']]) : calm
+  amber !== undefined ? amberWords(kit, key, amber, keeps) : calm
 
 /** A limit: amber, its reason; calm, its value and its reset as the squeeze allows. */
 const limitPiece = (kit: Kit, l: LimitView, step: Piece, keeps: Keeps<Piece>): RenderChildren => {
-  if (l.amber !== undefined) return words(kit, l.name, [[keeps.amber(l.amber), 'amber']])
+  if (l.amber !== undefined) return amberWords(kit, l.name, l.amber, keeps)
   if (!keeps.has(step)) return null
   const reset = keeps.has('resetTimes') ? (keeps.has('resetWords') ? l.resetWords : l.resetGlyph) : undefined
   return words(kit, l.name, reset === undefined ? l.say : [...l.say, [`, ${reset}`, 'label']])
