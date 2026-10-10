@@ -1,10 +1,13 @@
-// The pieces several views draw: the pill a chip sits in, and the cache's
-// battery, as an icon on the desktop and as the pill itself in a terminal.
+// The pieces several views draw: the pill a chip sits in, the cache's
+// battery, as an icon on the desktop and as the pill itself in a terminal,
+// and the lines, sections and grid every new view is laid out with.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { clamp01 } from '../format'
 import type { Kit } from '../kit'
-import type { Tone } from '../reading'
+import { ROW_SLACK, keepsIn, squeezeToFit } from '../layout'
+import type { LimitKey, Tone } from '../reading'
+import type { Amber, Role, Say } from '../words'
 
 export type PillSpec = Readonly<{
   key: string
@@ -82,3 +85,133 @@ export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string):
     ) : null,
   ]
 }
+
+// ---- what every new view draws its lines and sections with ------------------
+
+/** What a line's build may ask at its squeeze. */
+export type Keeps<P extends string> = Readonly<{
+  /** Whether a calm, optional piece is still kept. */
+  has: (p: P) => boolean
+  /** Whether a piece of this tone is kept: an amber one always is. */
+  calm: (p: P, tone: Tone) => boolean
+  /** An amber reading's words: long until the last step, then short. */
+  amber: (a: Amber) => string
+}>
+
+/** The step `fitLine` appends to every order: amber turns short. */
+const AMBER_STEP = 'amberShort'
+/** Asks a `Keeps` which of an amber reading's forms it would pick. */
+const AMBER_PROBE: Amber = { long: 'long', short: 'short' }
+
+/** Whether a child draws anything: null, undefined and false draw nothing. */
+const isDrawn = (child: RenderChildren): boolean => child !== null && child !== undefined && child !== false
+
+/** Columns a collapsed line may take: the row's, less the slack and the panel's padding. */
+export const lineRoom = (kit: Kit): number => kit.columns - ROW_SLACK - 2
+
+/** One collapsed line: its pieces, each kept whole, then air, then the toggle
+ *  or nothing. Never wraps; past its room it clips, as chips' row does. */
+export const line = (kit: Kit, key: string, pieces: readonly RenderChildren[], end?: RenderChildren, gap = 2): RenderElement => {
+  const { Box } = kit
+  return (
+    <Box key={key} flexDirection="row" flexWrap="nowrap" overflow="hidden" columnGap={gap}>
+      {pieces.filter(isDrawn).map((piece, i) => (
+        <Box key={`p${i}`} flexShrink={0}>
+          {piece}
+        </Box>
+      ))}
+      <Box key="air" flexGrow={1} />
+      {end ?? null}
+    </Box>
+  )
+}
+
+/** A line squeezed by its give-way order: the smallest squeeze at which it
+ *  fits. The amber step is always last, so amber shortens only once every
+ *  calm piece has gone. */
+export const fitLine = <P extends string>(kit: Kit, order: readonly P[], room: number, build: (keeps: Keeps<P>) => RenderElement): RenderElement => {
+  const steps: ReadonlyArray<P | typeof AMBER_STEP> = [...order, AMBER_STEP]
+  const at = keepsIn(steps)
+  return squeezeToFit(
+    squeeze =>
+      build({
+        has: p => at(squeeze, p),
+        calm: (p, tone) => tone === 'amber' || at(squeeze, p),
+        amber: a => (at(squeeze, AMBER_STEP) ? a.long : a.short),
+      }),
+    steps.length,
+    room,
+    kit.measure,
+  )
+}
+
+/** True until the amber step: an amber reading's chart stays while this holds. */
+export const beforeLast = <P extends string>(keeps: Keeps<P>): boolean => keeps.amber(AMBER_PROBE) === AMBER_PROBE.long
+
+/** A phrase in its roles' colours, one Text, truncated rather than wrapped. */
+export const words = (kit: Kit, key: string, say: Say, bold = false): RenderElement => {
+  const { Text, palette } = kit
+  const color: Readonly<Record<Role, string>> = {
+    label: palette.label,
+    value: palette.value,
+    amber: palette.amberFg,
+    accent5: palette.fiveAccent,
+    accent7: palette.weekAccent,
+  }
+  return (
+    <Text key={key} bold={bold} wrap="truncate-end">
+      {say.map(([text, role], i) => (
+        <Text key={String(i)} color={color[role]}>
+          {text}
+        </Text>
+      ))}
+    </Text>
+  )
+}
+
+/** `label value`, or nothing while the value is unknown. */
+export const fact = (kit: Kit, key: string, label: string, value: string | undefined): RenderChildren =>
+  value === undefined ? null : words(kit, key, [[`${label} `, 'label'], [value, 'value']])
+
+/** A titled column: its title, then as many of its rows as `room` holds. */
+export const section = (kit: Kit, key: string, title: string, rows: readonly RenderChildren[], room: number): RenderElement => {
+  const { Box } = kit
+  return (
+    <Box key={key} flexDirection="column" flexGrow={1} width={0} minWidth={0}>
+      {words(kit, 'title', [[title, 'label']], true)}
+      {rows.filter(isDrawn).slice(0, Math.max(0, room))}
+    </Box>
+  )
+}
+
+/** Sections to a line: all of them from 100 columns, or when two lines won't fit; else two. */
+const perLineOf = (kit: Kit, bodyRows: number, count: number): number =>
+  kit.columns >= 100 || bodyRows < 3 ? count : Math.min(2, count)
+
+/** Rows each section holds under its title, with a row of air between lines. */
+export const gridRoom = (kit: Kit, bodyRows: number, count = 4): number => {
+  const lines = Math.ceil(count / perLineOf(kit, bodyRows, count))
+  return Math.max(0, Math.floor((bodyRows - (lines - 1)) / lines) - 1)
+}
+
+/** Sections laid out in lines, sharing each line's width equally. */
+export const grid = (kit: Kit, sections: readonly RenderElement[], bodyRows: number): RenderElement[] => {
+  const { Box } = kit
+  const perLine = perLineOf(kit, bodyRows, sections.length)
+  return Array.from({ length: Math.ceil(sections.length / perLine) }, (_, i) => (
+    <Box key={`line${i}`} flexDirection="row" columnGap={2} {...(i > 0 ? { marginTop: 1 } : {})}>
+      {sections.slice(i * perLine, (i + 1) * perLine)}
+    </Box>
+  ))
+}
+
+/** A section's rows with its charts first, when they fit; short of rows, facts win. */
+export const chartsIfRoom = (room: number, charts: readonly RenderChildren[], facts: readonly RenderChildren[], chartRows = 1): RenderChildren[] => {
+  const drawnCharts = charts.filter(isDrawn)
+  const drawnFacts = facts.filter(isDrawn)
+  return drawnCharts.length * chartRows + drawnFacts.length <= room ? [...drawnCharts, ...drawnFacts] : drawnFacts
+}
+
+/** A limit's accent: its window's, or the meter's for any other. */
+export const accentOf = (kit: Kit, limit: Readonly<{ key: LimitKey }>): string =>
+  limit.key === '5h' ? kit.palette.fiveAccent : limit.key === '7d' ? kit.palette.weekAccent : kit.palette.meterFill
