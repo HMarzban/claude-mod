@@ -131,3 +131,7 @@ test('in ascii, an outlook says when a limit resets in words', LONG, async ($, o
   const open = shown(trees[caseKey(T160, 'open')])
   expect(open).toMatch(/on pace for ~\d+%\s*-\s*resets \d{2}:\d{2}/)
 })
+test('open, an unmeasured cache draws no bar, so no alt says 0% left', LONG, async ($, on) => {
+  const trees = await drawCases($, on, { layout: 'forecast', scenario: 'unmeasured', appearance: 'dark', ttl: '1h' }, [D160])
+  expect(svgsOf(trees[caseKey(D160, 'open')]).map(n => String(n.props?.alt)).filter(a => /cache 0%/.test(a))).toEqual([])
+})

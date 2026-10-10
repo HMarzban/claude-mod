@@ -234,7 +234,8 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const rows: Outlook[] = [
     outlook('cache', 'Cache', c.left !== '' ? c.left : c.condition, {
       tone: c.tone,
-      bar: meter(kit, { key: 'bar', label: 'cache', frac: c.charge, tone: c.tone, accent: palette.warm, size: OUTLOOK, reads: 'left' }),
+      // A bar only while the timing is known: unmeasured is not 0% left.
+      bar: c.known ? meter(kit, { key: 'bar', label: 'cache', frac: c.charge, tone: c.tone, accent: palette.warm, size: OUTLOOK, reads: 'left' }) : undefined,
       reason: c.amber?.long,
       outcome: [cacheOutcome, c.savedText === undefined || c.hitText === undefined ? undefined : `saved ${c.savedText}, ${c.hitText} hit rate`],
     }),
