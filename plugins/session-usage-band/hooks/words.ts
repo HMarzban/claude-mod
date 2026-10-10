@@ -55,8 +55,6 @@ export const EMPTY = {
   history: 'History fills in as you use Claude.',
   context: 'not reported',
   limits: 'none reported',
-  /** A calendar with no cell measured or guessed. */
-  cells: 'not known yet',
 } as const
 
 /** A reset as a duration: words in sentences, the glyph on tight rows. */
@@ -417,7 +415,7 @@ export type WeekWords = Readonly<{
 const cellsSpoken = <C extends DayCell | HourCell>(title: string, cells: readonly C[], name: (c: C) => string): string => {
   // A guess's text is '~7%', said as 'about 7%'.
   const said = cells.filter(c => c.pct !== undefined).map(c => `${name(c)} ${c.guess ? `about ${c.text.slice(1)}` : c.text}`)
-  return `${title}: ${said.length === 0 ? EMPTY.cells : said.join(', ')}`
+  return `${title}: ${said.length === 0 ? 'not known yet' : said.join(', ')}`
 }
 
 /** A window's summary: its use and its pace, then the busiest day when given. */

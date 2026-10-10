@@ -43,8 +43,8 @@ test("a day cell is that day's rise in the weekly limit", () => {
   expect(wk.busiest).toBe('Thu')
 })
 test('a sample from another window is ignored', () => {
-  const stale = { ...s(10, 50), sevenResetAt: T0 - H }
-  const wk = weekOf({ samples: [stale, s(0, 0), s(20, 5)], seven: seven(5, 20), five: undefined, now: T0 + 20 * H, utcOffsetMin: 0 })
+  const stale = { ...s(15, 50), sevenResetAt: T0 - H }
+  const wk = weekOf({ samples: [s(0, 0), s(10, 5), stale], seven: seven(5, 20), five: undefined, now: T0 + 20 * H, utcOffsetMin: 0 })
   expect(Math.max(...wk.days.map(d => (d.guess ? 0 : (d.pct ?? 0))))).toBeLessThan(50)
 })
 test('no samples: every past cell is unknown, never 0%', () => {

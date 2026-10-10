@@ -75,6 +75,9 @@ const BUCKET_MS = 15 * 60_000
 /** The 15-minute bucket `at` falls in. */
 export const bucketOf = (at: number): number => Math.floor(at / BUCKET_MS)
 
+/** Whether two samples fall in one bucket. */
+export const sameBucket = (a: Sample, b: Sample): boolean => bucketOf(a.at) === bucketOf(b.at)
+
 /** Two lists as one: one per bucket, the later winning, sorted, capped. */
 export const mergeSamples = (a: readonly Sample[], b: readonly Sample[]): Sample[] => {
   const byBucket = new Map<number, Sample>()
@@ -91,7 +94,7 @@ export const mergeSamples = (a: readonly Sample[], b: readonly Sample[]): Sample
  *  mergeSamples. Capped. */
 export const addSample = (samples: Sample[], s: Sample): Sample[] => {
   const last = samples[samples.length - 1]
-  if (last !== undefined && bucketOf(last.at) === bucketOf(s.at)) samples[samples.length - 1] = s
+  if (last !== undefined && sameBucket(last, s)) samples[samples.length - 1] = s
   else if (last === undefined || s.at > last.at) samples.push(s)
   else return mergeSamples(samples, [s])
   if (samples.length > MAX_SAMPLES) samples.splice(0, samples.length - MAX_SAMPLES)

@@ -180,13 +180,17 @@ test('the week is read only when a view asks for it', () => {
 })
 test('the week names its cells in words, for a reader and a summary', () => {
   const now = 77 * HOUR
-  const T = (hours: number, seven: number) => ({ at: hours * HOUR, fivePct: 0, sevenPct: seven, fiveResetAt: 80 * HOUR, sevenResetAt: 168 * HOUR })
+  const T = (hours: number, seven: number, five = 0) => ({ at: hours * HOUR, fivePct: five, sevenPct: seven, fiveResetAt: 80 * HOUR, sevenResetAt: 168 * HOUR })
   const wk = readingsOf(snapOf({
     now, utcOffsetMin: 0,
-    samples: [T(0, 0), T(15, 6), T(39, 15), T(63, 26), T(77, 30)],
+    samples: [T(0, 0), T(15, 6), T(39, 15), T(63, 26), T(75.5, 28, 4), T(76.5, 29, 12), T(77, 30, 12)],
     sevenDay: { percentUsed: 30, resetsAt: new Date(168 * HOUR).toISOString() },
+    fiveHour: { percentUsed: 12, resetsAt: new Date(80 * HOUR).toISOString(), etaMs: null },
   })).week
   expect(wk.empty).toBe(false)
   expect(wk.daysAlt).toMatch(/^weekly limit by day: \w+day 6%, \w+day 9%/)
+  expect(wk.daysAlt).toMatch(/Monday about \d+%/)
+  expect(wk.hoursAlt).toMatch(/^5-hour limit by hour: \d{2}:00 4%, \d{2}:00 8%, \d{2}:00 about \d+%/)
+  expect(`${wk.daysAlt} ${wk.hoursAlt}`).not.toMatch(/[~↻]/)
   expect(wk.summary7).toMatch(/^30% used · on pace for ~\d+%/)
 })

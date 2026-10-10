@@ -357,7 +357,7 @@ export const historyFacts = (trails: Trails, fiveHour: LimitView | undefined, no
 })
 
 /** A window as the calendar reads it: its reset and a measured fill as times. */
-const windowNow = (l: LimitView | undefined, now: number): WindowNow | undefined =>
+const windowOf = (l: LimitView | undefined, now: number): WindowNow | undefined =>
   l === undefined
     ? undefined
     : {
@@ -372,8 +372,8 @@ const windowNow = (l: LimitView | undefined, now: number): WindowNow | undefined
 export const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour: LimitView | undefined): WeekReading => {
   const week = weekOf({
     samples: snap.samples,
-    seven: windowNow(sevenDay, snap.now),
-    five: windowNow(fiveHour, snap.now),
+    seven: windowOf(sevenDay, snap.now),
+    five: windowOf(fiveHour, snap.now),
     now: snap.now,
     utcOffsetMin: snap.utcOffsetMin ?? 0,
   })

@@ -62,13 +62,13 @@ import {
   asLimitSamples,
   asRates,
   asSessions,
-  bucketOf,
   lastReplyAt,
   lastReplyModel,
   lastWriteTtl,
   mergeSamples,
   rateFromTranscript,
   rememberReply,
+  sameBucket,
   sampleOf,
   sessionCostRecord,
   transcriptPath,
@@ -383,17 +383,20 @@ const readWorkspace = async ($: EngineInterface): Promise<void> => {
   }
 }
 
+/** The samples every session has stored; none when the read fails. */
+const storedSamples = async ($: EngineInterface): Promise<Sample[]> =>
+  asLimitSamples(await $.store.get(LIMIT_SAMPLES_KEY).catch(() => undefined))
+
 /** Keeps a limit sample: within the last one's bucket, in memory alone; at a
  *  new bucket, merged with what other sessions stored, then written once.
  *  Never throws: a store that fails leaves the samples in memory. */
 const noteSample = async ($: EngineInterface, sample: Sample): Promise<void> => {
   const last = band.samples[band.samples.length - 1]
-  if (last !== undefined && bucketOf(last.at) === bucketOf(sample.at)) {
+  if (last !== undefined && sameBucket(last, sample)) {
     band.samples = addSample(band.samples, sample)
     return
   }
-  const stored = asLimitSamples(await $.store.get(LIMIT_SAMPLES_KEY).catch(() => undefined))
-  band.samples = addSample(mergeSamples(band.samples, stored), sample)
+  band.samples = addSample(mergeSamples(band.samples, await storedSamples($)), sample)
   await $.store.set(LIMIT_SAMPLES_KEY, band.samples).catch(() => undefined)
 }
 
@@ -450,7 +453,7 @@ export const register: Register = on => {
     band.warned.clear()
     band.lastPaintKey = ''
     band.workspace = undefined
-    band.samples = asLimitSamples(await $.store.get(LIMIT_SAMPLES_KEY).catch(() => undefined))
+    band.samples = await storedSamples($)
     band.utcOffsetMin = utcOffsetOf(await $.clock.now())
     band.reads++ // any read still out began before this load
     await readLayout($)
