@@ -27,6 +27,7 @@ import {
 import { COMPACT_NEAR, SEVERE_AT, WARN_AT, contextUsed, fmtCountdown, fmtEta, fmtTokens } from './format'
 import {
   fiveHourEtaMs,
+  forgetTurn,
   insights,
   noteFiveHour,
   noteTurnEnd,
@@ -282,7 +283,8 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // Main-loop turns only: a subagent's run is part of the turn that spawned it.
+  // Main-loop turns only: a subagent's run is part of the turn that spawned it,
+  // so its own start cost is dropped.
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId === undefined) {
@@ -292,6 +294,8 @@ export const register: Register = on => {
       // A turn may have switched branch, committed or moved the session.
       void readWorkspace($)
       $.ui.invalidate('ui.render')
+    } else {
+      forgetTurn(e.turnId)
     }
     return result
   })

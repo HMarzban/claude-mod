@@ -54,6 +54,15 @@ export const noteTurnEnd = (turnId: string, costUsd: number | undefined): void =
   turns.lastTurnUsd = spent > 0 ? spent : null
 }
 
+/** A turn that ends outside the main loop: its start cost is dropped, so a
+ *  subagent's turns never build up. */
+export const forgetTurn = (turnId: string): void => {
+  state.turnStartCost.delete(turnId)
+}
+
+/** Turns started and not yet ended. */
+export const openTurns = (): number => state.turnStartCost.size
+
 const sameReset = (a: string | undefined, b: string | undefined): boolean => {
   if (a === b) return true
   if (a === undefined || b === undefined) return false

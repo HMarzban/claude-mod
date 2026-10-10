@@ -17,6 +17,7 @@ What the plan's steps record, in the order they happen.
 | Task 1 (before) | 264 pass, 0 fail, 20 files | `claude plugin test plugins/session-usage-band` |
 | Task 1 | 292 pass, 0 fail, 22 files | `claude plugin test plugins/session-usage-band` |
 | Task 2 | 333 pass, 0 fail, 24 files | `claude plugin test plugins/session-usage-band` |
+| Task 3 | 335 pass, 0 fail, 24 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
