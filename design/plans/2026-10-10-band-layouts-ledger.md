@@ -57,6 +57,7 @@ What the plan's steps record, in the order they happen.
 | Task 14 (P1, `TZ=Asia/Tehran`) | 456 pass, 0 fail, 35 files | `TZ=Asia/Tehran claude plugin test plugins/session-usage-band` |
 | P1 review | 468 pass, 0 fail, 35 files | `claude plugin test plugins/session-usage-band` |
 | Task 14b (second review) | 383 pass, 0 fail, 28 files | `claude plugin test plugins/session-usage-band` |
+| Task 14b (third review, on 61fded2) | 488 pass, 0 fail, 36 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
@@ -112,6 +113,12 @@ Ruling: Task 14b reads a resumed spend with `grep -b -F` for cost records, then 
 Ruling: Task 14b prices each reply after the record at its model's rate in that record, writes at 1.25× — that is how the record's own total counts them — the `ephemeral_5m`/`ephemeral_1h` split not used.
 Ruling: Task 14b shows `max(ledger, transcript total + ledger − costBase)` once the first turn baselines, `max(ledger, transcript total)` before — the host may restore the ledger after the SessionStart hooks start (`Jhe` after `H7`), so the ledger at the read is no baseline — no fallback.
 Ruling: Task 14b reads a resume's transcript end once, shared with the recall — two cases still read it twice (a load that recalled before the resume was said, and a no-idle-time SessionStart said before the load), since sharing them would hold the 1 MiB end for the session's life — not shared.
+Ruling: Task 14b is rebased onto feat/layouts at 61fded2 — its base, ed5cc12, was 53 commits behind; the ledger, `memory.ts`, `reading.ts` and `register.tsx` keep both sides, and `band.tsx` stays as feat/layouts has it, since chips' `expires` row now lives in `views/chips.tsx` — no fallback.
+Ruling: Task 14b keeps the snapshot's `ttlPinned`, whose doc now says it covers a TTL seen before this band's first reply — `words.ts` and `views/chips.tsx` read it, and every layout branch's view reads the snapshot, so a rename to `ttlKnown` would edit a view, against "views untouched", and break the branches merging in parallel — the plan no longer renames it.
+Ruling: Task 14b holds a seen TTL as an overlay (`ttlSeen: Ttl | undefined`, read through `effectiveTtl`: the pin, then the seen TTL, then `ttl`) — written into `ttl`, a seen 5m outlived the first reply and crossed /clear and /resume, since inference never moves 5m back to an hour — no fallback.
+Ruling: the fake engine reads what it answers from before its hold again — read after it, `workspace-reads`' stale-read test passed with `readWorkspace`'s guard deleted; with the guard deleted it now fails, and the unmutated suite passes — no fallback.
+Ruling: Task 14b seeds a resumed spend from grep's own record line and the tail past its first newline — ugrep's `-b` gives the match's offset, not the line's, which started the tail mid-line and lost the spend — no fallback.
+Ruling: `recallLastReply` returns what it recalls and its callers note it, and `readResumed` waits on it beside the transcript read under one guard — a recall started with `void` wrote the session left over a /resume to another — no fallback.
 
 ## Freezes
 - P1 freeze (Task 14), at dc28d40: these interfaces are frozen for P2. Gates green: `claude plugin validate .` and `claude plugin validate plugins/session-usage-band` pass, the suite passes in both zones (456 pass, 0 fail, 35 files), and `tsc` reports no errors.
