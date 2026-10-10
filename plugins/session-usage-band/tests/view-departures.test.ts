@@ -245,6 +245,11 @@ test('open, a 1M window\'s ! COMPACTS IN ~100K fits its STATUS cell', () => {
   expect(shown(open)).toMatch(/CONTEXT\s*! COMPACTS IN ~100K/)
   expect(clipped(open)).toEqual([])
 })
+test('open with a body of one row, the board drops its header for what needs you', async ($, on) => {
+  const open = shown((await at($, on, 'gatewaySpend', { surface: 'terminal', cols: 80, maxRows: 5 })).open)
+  expect(open).toMatch(/SPEND LIMIT\s*! NEAR LIMIT/)
+  expect(open).not.toMatch(/ITEM/)
+})
 test('open, compaction not known yet says nothing of it', LONG, async ($, on) => {
   // Calm reads no breakdown: compaction is unknown, not off.
   expect(shown((await at($, on, 'calm')).open)).not.toMatch(/AUTO-COMPACTION/)

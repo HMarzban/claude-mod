@@ -262,7 +262,9 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     ]),
     ...read.limits.filter(l => l.key === 'other').map(limitRow),
   ]
-  return [boardLine(kit, 'head', [head('item', 'ITEM'), head('status', 'STATUS'), timed ? head('time', 'TIME') : null, head('remarks', 'REMARKS')]), ...fitRows(rows, bodyRows - 1)]
+  const header = boardLine(kit, 'head', [head('item', 'ITEM'), head('status', 'STATUS'), timed ? head('time', 'TIME') : null, head('remarks', 'REMARKS')])
+  // With no row under the header, the header goes: each board row names itself in ITEM, and fitRows keeps an amber row first.
+  return bodyRows > 1 ? [header, ...fitRows(rows, bodyRows - 1)] : fitRows(rows, bodyRows)
 }
 
 /** Departures' own strip: the workspace on a flap, heading the board. */
