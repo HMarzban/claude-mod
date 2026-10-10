@@ -105,7 +105,10 @@ test('a store read that fails after a turn keeps the layout drawn', async ($, on
   await turn($, 'x', 2.41, 2.5)
   expect(await run($, 'layout')).toMatch(/^Usage band layout: ledger\./)
 })
-test('a store read that fails as the session starts draws chips', async ($, on) => {
-  setup(on); engine.storeReadFails = true; await $.session.start(START)
+test('a store read that fails as a new session starts draws chips, not the last session\'s layout', async ($, on) => {
+  setup(on); await $.session.start(START)
+  await run($, 'layout ledger')
+  engine.storeReadFails = true
+  await $.session.start(START)
   expect(await run($, 'layout')).toMatch(/^Usage band layout: chips\./)
 })

@@ -3,7 +3,8 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import type { On, SessionUsage } from 'claude-code'
+import type { On, RenderChildren, SessionUsage } from 'claude-code'
+import { ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { DEFAULT_MAX_ROWS, HOUR, HOUR_1, LONG, START, USAGE, byKey, mountBand, setup, shown, svgAlts, svgsOf, widthOf, type Node } from './helpers'
 import { caseKey, drawCases, expectInvariants, invariantErrors, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
 
@@ -224,3 +225,15 @@ test('open once the 5h window has passed, only the 7d cells are drawn', LONG, as
   }
   expect(byKey(trees[caseKey(T160, 'open')], '5h:cells')).toBeUndefined()
 })
+/** The ascii tier says `resets Mon 08:40` where unicode says `↻ Mon 08:40`: wider words the squeeze must still fit. */
+const T40: Mount = { surface: 'terminal', cols: 40 }
+for (const scenario of ['calm', 'limit80', 'nearCompaction'] as const)
+  test(`in ascii at 40 columns, ${scenario}'s rows stay within the line's room`, LONG, async ($, on) => {
+    const trees = await drawCases($, on, { layout: 'week', scenario, appearance: 'dark', ttl: '1h', env: { CC_BAND_GLYPHS: 'ascii' } }, [T40, T160])
+    expect(shown(trees[caseKey(T160, 'shut')])).toMatch(/resets \w{3} \d{2}:\d{2}/)
+    for (const key of ['r1', 'r2']) {
+      const row = byKey(trees[caseKey(T40, 'shut')], key, 'Box')
+      expect(row).toBeDefined()
+      expect(cellsOf(row as RenderChildren, TERMINAL)).toBeLessThanOrEqual(T40.cols - ROW_SLACK - 2)
+    }
+  })
