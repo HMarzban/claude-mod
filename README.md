@@ -117,7 +117,7 @@ split-flap board or a forecast.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/band-layouts-dark.png">
-  <img alt="The nine layouts, one row each, every one drawn from the band's own output: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" src="docs/band-layouts-light.png">
+  <img alt="The nine layouts, one panel each, drawn from the band's own output calm and then in the cache's last minute: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" src="docs/band-layouts-light.png">
 </picture>
 
 A chip turns amber when it needs you: the cache's last minute, context near

@@ -101,11 +101,14 @@ const sample = (at: number, five: number, seven: number, fiveResetAt: number, se
 
 /** A session some way in: four days of the weekly limit and the 5-hour
  *  window's first hour in the store, as earlier sessions left them, then
- *  sixteen replies, each billed at Opus 5.5's rates for its tokens. Drawn calm after the last reply, then in the cache's last minute,
- *  each collapsed and open. */
+ *  sixteen replies, each priced as Claude Code's ledger prices them: Opus
+ *  5.5's $4 input, writes at 1.25×, reads at 0.05×, output at 5×. Drawn
+ *  calm after the last reply, then in the cache's last minute, each
+ *  collapsed and open. */
 async function livedIn($: Engine, on: On, layout: LayoutName) {
-  // Sixteen replies five minutes apart, from 10:00 UTC.
-  const N = 16, GAP = 5 * MIN, T0 = 10 * 60 * MIN, END = T0 + (N - 1) * GAP
+  // Sixteen replies five minutes apart, from 10:00 UTC, with these outputs.
+  const OUTS = [4_000, 9_000, 2_500, 14_000, 6_000, 3_000, 22_000, 5_000, 8_000, 2_000, 11_000, 4_500, 16_000, 3_500, 7_000, 9_500]
+  const N = OUTS.length, GAP = 5 * MIN, T0 = 10 * 60 * MIN, END = T0 + (N - 1) * GAP
   const fiveAt = END + 150 * MIN, sevenAt = END + 67 * 60 * MIN
   const limits = (five: number, seven: number) => [
     { kind: 'five_hour' as const, percentUsed: five, resetsAt: new Date(fiveAt).toISOString() },
@@ -127,8 +130,7 @@ async function livedIn($: Engine, on: On, layout: LayoutName) {
   await $.session.start({ ...START, surface: 'desktop' })
   const RATE = 4 / 1e6
   let usd = 0, context = 0
-  for (let i = 0; i < N; i++) {
-    const out = [4_000, 9_000, 2_500, 14_000, 6_000, 3_000, 22_000, 5_000, 8_000, 2_000, 11_000, 4_500, 16_000, 3_500, 7_000, 9_500][i] ?? 5_000
+  for (const [i, out] of OUTS.entries()) {
     const write = i === 0 ? 90_000 : 6_000 + out
     const read = context
     usage.current = { ...usage.current, cost: { usd } }

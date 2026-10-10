@@ -296,6 +296,7 @@
   .laypick button, .seg button { font: 600 14px var(--mono); color: var(--text-2); background: transparent; border: 0; border-radius: 10px; padding: 8px 12px; cursor: pointer; transition: background .15s, color .15s; }
   .laypick button:hover, .seg button:hover { color: var(--text); background: var(--sunk); }
   .laypick button[aria-pressed=true], .seg button[aria-pressed=true] { color: var(--on-ink); background: var(--ink); box-shadow: inset 0 0 0 1px var(--line-2); }
+  :root[data-theme=dark] .laypick button[aria-pressed=true], :root[data-theme=dark] .seg button[aria-pressed=true] { background: var(--line-2); box-shadow: inset 0 0 0 1px var(--accent); }
   .seg { display: inline-flex; gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
   .seg button { font-family: -apple-system, system-ui, sans-serif; }
   .layfoot { display: grid; grid-template-columns: 1fr auto; gap: var(--s4) var(--s5); align-items: start; margin-top: var(--s4); }
@@ -573,7 +574,7 @@
       <div class="tip" id="ltip"></div>
       <div class="layfoot">
         <div>
-          <p class="what" id="laywhat" aria-live="polite"><b>chips</b>The row of chips, with four cards behind ▿. The default.<span class="rows">1 row on the desktop, 1 row in the terminal</span></p>
+          <p class="what" id="laywhat" aria-live="polite" data-name="chips"><b>chips</b>The row of chips, with four cards behind ▿. The default.<span class="rows">1 row on the desktop, 1 row in the terminal</span></p>
           <div class="install laycmd">
             <pre id="laycmd">/usage-band layout chips</pre>
             <button class="copy" type="button" id="laycopy" data-copy="/usage-band layout chips"><svg class="i ic"><use href="#i-copy"/></svg><svg class="i ok"><use href="#i-check"/></svg><span class="lbl">Copy</span></button>
@@ -586,8 +587,8 @@
       </div>
       <p class="livebar">The band's own drawings on the desktop, from one session sixteen replies in. Below 40 columns every layout draws chips.</p>
     </div>
-    <noscript><ul style="margin:24px 0 0 20px;color:var(--text-2)"><li><code>chips</code> The row of chips, with four cards behind ▿. The default.</li><li><code>gauges</code> Two rows of labelled bars: the cache's time left, context up to compaction, and the 5h and 7d limits, each with a tick for how much of its window has gone.</li><li><code>ledger</code> The band in words alone, <code>·</code>-separated, with <code>!</code> leading what needs you.</li><li><code>rings</code> A ring per reading, its value over its label, with a dot on each limit for how much of the window has gone. The terminal draws a bar.</li><li><code>pulse</code> Trends rather than totals: each message's cost as bars, and which way the 5-hour limit is heading.</li><li><code>tiles</code> Each reading as a bold value over a small label, with a thin underline on the desktop.</li><li><code>week</code> Where your limits went: the weekly limit as day cells, the 5-hour limit as hour cells.</li><li><code>departures</code> A split-flap board: the cache <code>DEPARTS</code> at its clock time, and its last minute is <code>LAST CALL</code>.</li><li><code>forecast</code> The band read like the weather: now, then up to three changes ahead at their clock times.</li></ul><picture><source media="(prefers-color-scheme: dark)" srcset="band-layouts-dark.png"><img src="band-layouts-light.png" alt="The nine layouts, one row each, calm and in the cache's last minute" style="display:block;width:100%;height:auto;margin-top:24px"></picture></noscript>
-    <details class="how gallery"><summary><svg class="i"><use href="#i-grid"/></svg>All nine at once</summary><img id="laygallery" src="band-layouts-light.png" alt="The nine layouts, one row each, drawn calm and then in the cache's last minute: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" loading="lazy"></details>
+    <noscript><ul style="margin:24px 0 0 20px;color:var(--text-2)"><li><code>chips</code> The row of chips, with four cards behind ▿. The default.</li><li><code>gauges</code> Two rows of labelled bars: the cache's time left, context up to compaction, and the 5h and 7d limits, each with a tick for how much of its window has gone.</li><li><code>ledger</code> The band in words alone, <code>·</code>-separated, with <code>!</code> leading what needs you.</li><li><code>rings</code> A ring per reading, its value over its label, with a dot on each limit for how much of the window has gone. The terminal draws a bar.</li><li><code>pulse</code> Trends rather than totals: each message's cost as bars, and which way the 5-hour limit is heading.</li><li><code>tiles</code> Each reading as a bold value over a small label, with a thin underline on the desktop.</li><li><code>week</code> Where your limits went: the weekly limit as day cells, the 5-hour limit as hour cells.</li><li><code>departures</code> A split-flap board: the cache <code>DEPARTS</code> at its clock time, and its last minute is <code>LAST CALL</code>.</li><li><code>forecast</code> The band read like the weather: now, then up to three changes ahead at their clock times.</li></ul><img src="band-layouts-light.png" alt="The nine layouts, one panel each, drawn calm and then in the cache's last minute: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" style="display:block;width:100%;height:auto;margin-top:24px"></noscript>
+    <details class="how gallery"><summary><svg class="i"><use href="#i-grid"/></svg>All nine at once</summary><img id="laygallery" src="band-layouts-light.png" alt="The nine layouts, one panel each, drawn calm and then in the cache's last minute: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" loading="lazy"></details>
   </section>
 
   <section id="how" class="reveal">
@@ -894,8 +895,13 @@
     for (const b of pick) b.setAttribute('aria-pressed', b.dataset.layout === L.name)
     for (const b of moment) b.setAttribute('aria-pressed', b.dataset.amber === String(L.amber))
     lopen.setAttribute('aria-pressed', L.open)
-    const [what, desk, term] = LAYOUTS[L.name]
-    $('#laywhat').innerHTML = `<b>${L.name}</b>${what}<span class="rows">${rows(desk)} on the desktop, ${rows(term)} in the terminal</span>`
+    // the line is a live region: rewrite it only when the layout changes
+    const whatEl = $('#laywhat')
+    if (whatEl.dataset.name !== L.name) {
+      const [what, desk, term] = LAYOUTS[L.name]
+      whatEl.innerHTML = `<b>${L.name}</b>${what}<span class="rows">${rows(desk)} on the desktop, ${rows(term)} in the terminal</span>`
+      whatEl.dataset.name = L.name
+    }
     $('#laycmd').textContent = $('#laycopy').dataset.copy = '/usage-band layout ' + L.name
     $('#ltip').classList.remove('on')
     lscale()
