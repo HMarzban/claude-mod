@@ -4,7 +4,7 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { LONG, START, engine, setup, shown, turn, resp, respond } from './helpers'
+import { LONG, START, engine, mountBand, setup, shown, turn, resp, respond } from './helpers'
 import { caseKey, drawCases, type Mount, type ScenarioName } from './matrix'
 import { treeHash } from './golden/hash'
 
@@ -33,7 +33,7 @@ reaches('compactionOff', /170k \/ 200k!/, /85% full!/)
 reaches('limit80', /82%!/)
 reaches('fiveHourAhead', /full in ~/)
 reaches('sevenFullBeforeReset', /7d/, /full before reset/)
-reaches('noLimits', /\$2\.41/, undefined, /LIMITS/)
+reaches('noLimits', /\$2\.41/, /CACHE/, /LIMITS/)
 reaches('gatewaySpend', /\$2\.41/, /spend/)
 reaches('resetPassed', /5h reset/)
 reaches('noWorkspace', /\$2\.41/, /CACHE/, /claude-mod/)
@@ -70,4 +70,7 @@ test('a failing store refuses every write, and the band carries on', async ($, o
   await clock.settle()
   expect(engine.storeSets).toContain('sessions')
   expect('sessions' in engine.store).toBe(false)
+  const ui = await mountBand($, 'terminal', 160)
+  expect(shown(await ui.drawn())).toMatch(/\$2\.62/)
+  await ui.unmount()
 })

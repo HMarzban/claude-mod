@@ -15,10 +15,16 @@ for shared in helpers.ts matrix.ts globals.d.ts; do
   if [ -f "$PLUGIN/tests/$shared" ]; then cp "$PLUGIN/tests/$shared" "$SCRATCH/tests/"; fi
 done
 if [ -d "$PLUGIN/tests/golden" ]; then cp -R "$PLUGIN/tests/golden" "$SCRATCH/tests/"; fi
-shopt -s nullglob
-picked=0
+if [ "$#" -eq 0 ]; then echo "no test globs given" >&2; exit 1; fi
+# Every glob must match at least one file, so a typo fails instead of
+# quietly running fewer tests.
 for glob in "$@"; do
-  for f in "$PLUGIN"/tests/$glob.test.ts; do cp "$f" "$SCRATCH/tests/"; picked=$((picked + 1)); done
+  matched=0
+  for f in "$PLUGIN"/tests/$glob.test.ts; do
+    [ -e "$f" ] || continue
+    cp "$f" "$SCRATCH/tests/"
+    matched=$((matched + 1))
+  done
+  if [ "$matched" -eq 0 ]; then echo "no test matches: $glob" >&2; exit 1; fi
 done
-if [ "$picked" -eq 0 ]; then echo "no test matches: $*" >&2; exit 1; fi
 claude plugin test "$SCRATCH"

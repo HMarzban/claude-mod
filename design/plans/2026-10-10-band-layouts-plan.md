@@ -184,12 +184,18 @@ for shared in helpers.ts matrix.ts globals.d.ts; do
   if [ -f "$PLUGIN/tests/$shared" ]; then cp "$PLUGIN/tests/$shared" "$SCRATCH/tests/"; fi
 done
 if [ -d "$PLUGIN/tests/golden" ]; then cp -R "$PLUGIN/tests/golden" "$SCRATCH/tests/"; fi
-shopt -s nullglob
-picked=0
+if [ "$#" -eq 0 ]; then echo "no test globs given" >&2; exit 1; fi
+# Every glob must match at least one file, so a typo fails instead of
+# quietly running fewer tests.
 for glob in "$@"; do
-  for f in "$PLUGIN"/tests/$glob.test.ts; do cp "$f" "$SCRATCH/tests/"; picked=$((picked + 1)); done
+  matched=0
+  for f in "$PLUGIN"/tests/$glob.test.ts; do
+    [ -e "$f" ] || continue
+    cp "$f" "$SCRATCH/tests/"
+    matched=$((matched + 1))
+  done
+  if [ "$matched" -eq 0 ]; then echo "no test matches: $glob" >&2; exit 1; fi
 done
-if [ "$picked" -eq 0 ]; then echo "no test matches: $*" >&2; exit 1; fi
 claude plugin test "$SCRATCH"
 ```
 
@@ -309,7 +315,7 @@ Each scenario gets one test of its own, which draws it shut and open on one moun
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { LONG, START, engine, setup, shown, turn, resp, respond } from './helpers'
+import { LONG, START, engine, mountBand, setup, shown, turn, resp, respond } from './helpers'
 import { caseKey, drawCases, type Mount, type ScenarioName } from './matrix'
 import { treeHash } from './golden/hash'
 
@@ -338,7 +344,7 @@ reaches('compactionOff', /170k \/ 200k!/, /85% full!/)
 reaches('limit80', /82%!/)
 reaches('fiveHourAhead', /full in ~/)
 reaches('sevenFullBeforeReset', /7d/, /full before reset/)
-reaches('noLimits', /\$2\.41/, undefined, /LIMITS/)
+reaches('noLimits', /\$2\.41/, /CACHE/, /LIMITS/)
 reaches('gatewaySpend', /\$2\.41/, /spend/)
 reaches('resetPassed', /5h reset/)
 reaches('noWorkspace', /\$2\.41/, /CACHE/, /claude-mod/)
@@ -375,6 +381,9 @@ test('a failing store refuses every write, and the band carries on', async ($, o
   await clock.settle()
   expect(engine.storeSets).toContain('sessions')
   expect('sessions' in engine.store).toBe(false)
+  const ui = await mountBand($, 'terminal', 160)
+  expect(shown(await ui.drawn())).toMatch(/\$2\.62/)
+  await ui.unmount()
 })
 ```
 
