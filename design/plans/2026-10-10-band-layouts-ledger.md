@@ -58,6 +58,7 @@ What the plan's steps record, in the order they happen.
 | P1 review | 468 pass, 0 fail, 35 files | `claude plugin test plugins/session-usage-band` |
 | Task 14b (second review) | 383 pass, 0 fail, 28 files | `claude plugin test plugins/session-usage-band` |
 | Task 14b (third review, on 61fded2) | 488 pass, 0 fail, 36 files | `claude plugin test plugins/session-usage-band` |
+| Task 14b (fourth review, on dcae029) | 506 pass, 0 fail, 36 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
@@ -119,6 +120,11 @@ Ruling: Task 14b holds a seen TTL as an overlay (`ttlSeen: Ttl | undefined`, rea
 Ruling: the fake engine reads what it answers from before its hold again — read after it, `workspace-reads`' stale-read test passed with `readWorkspace`'s guard deleted; with the guard deleted it now fails, and the unmutated suite passes — no fallback.
 Ruling: Task 14b seeds a resumed spend from grep's own record line and the tail past its first newline — ugrep's `-b` gives the match's offset, not the line's, which started the tail mid-line and lost the spend — no fallback.
 Ruling: `recallLastReply` returns what it recalls and its callers note it, and `readResumed` waits on it beside the transcript read under one guard — a recall started with `void` wrote the session left over a /resume to another — no fallback.
+Ruling: Task 14b is rebased onto feat/layouts at dcae029 — 61fded2 was 7 commits behind; only the ledger conflicted, both sides kept, and the branch's restated ascii-guard pending line dropped, since the P1 review resolved it; the merged tree ran 500 pass before the fourth review's tests — no fallback.
+Ruling: Task 14b's `session.start` reads the session id before its reset and drops a resume of another session in the same step — dropped after the awaits that follow the reset, a read of it that landed between them noted its spend ($30.27) and its seen TTL (5m) into the conversation just reset — no fallback.
+Ruling: Task 14b's grep runs with `-a` — in a UTF-8 locale GNU grep takes a line cut mid-character for a binary file, prints "Binary file … matches" in place of the lines and exits 0, so later cost records were missed and the read-whole fallback never ran; GNU, BSD, ugrep and busybox all accept `-a` — no fallback.
+Ruling: Task 14b's inference reads `ttlPinned` alone, as the base did — it needs a cached prefix, which only a main-loop reply leaves, and that reply clears `ttlSeen`, so a seen TTL never reaches it; the plan no longer says the seen TTL keeps inference off — no fallback.
+Ruling: Task 14b's SessionStart `.catch` has a test of its behaviour, not of the handler — the kit makes a failed hook absent and runs `next(e)` for it, so the test passes with the `.catch` deleted; the `.catch` stays, as `session.compact`'s does, to say so in the code — no fallback.
 
 ## Freezes
 - P1 freeze (Task 14), at dc28d40: these interfaces are frozen for P2. Gates green: `claude plugin validate .` and `claude plugin validate plugins/session-usage-band` pass, the suite passes in both zones (456 pass, 0 fail, 35 files), and `tsc` reports no errors.

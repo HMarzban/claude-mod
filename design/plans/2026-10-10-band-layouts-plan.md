@@ -3662,11 +3662,11 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - The transcript: `type: "assistant"` lines carry `message.id`, `message.model` and `message.usage`, repeated on every content block of one reply. `type: "cost-state"` lines carry `totalCostUSD` and `modelUsage[model]`. They are cumulative across reopens, include subagent spend, and usually close a run, but a run that didn't exit cleanly leaves replies after the last one. In a 67 MB transcript the last record sat about 1.4 MB from the end, past today's 1 MiB tail.
 
 **Decisions:**
-- **Order.** Nothing guarantees one. In the 2.1.296 binary the launch-resume loader starts the SessionStart hooks at load time (`"tail"` says only where their rows land, not when they run), and both they and `session.start` wait on the same plugin-hook load, so the two dispatches race: SessionStart may come first, last, or while `session.start` runs. The band holds the resume either way. `band.resume` keeps what the engine said (the session id, its cache facts, the transcript path) and, once read, what the transcript showed. `session.start`'s reset doesn't touch it: after the reset, `session.start` applies it again when its session id is the one loading, and drops it otherwise. `session.end` drops it. A transcript read lands only while `band.resume` is still the resume that started it, so a `/clear` or another resume drops it, and `session.start` can never drop it. In the test kit, module state carries across the tests of one file, so `band.resume` can outlive a test. A later test on the same session id then has it applied again at its `session.start`. Every resume test raises its own SessionStart, which replaces it, and applying it again runs no process.
+- **Order.** Nothing guarantees one. In the 2.1.296 binary the launch-resume loader starts the SessionStart hooks at load time (`"tail"` says only where their rows land, not when they run), and both they and `session.start` wait on the same plugin-hook load, so the two dispatches race: SessionStart may come first, last, or while `session.start` runs. The band holds the resume either way. `band.resume` keeps what the engine said (the session id, its cache facts, the transcript path) and, once read, what the transcript showed. `session.start`'s reset doesn't touch it. Instead, `session.start` reads the session id first and, in the same step as the reset, drops a resume of another session, so no read of that resume can land in between; after the reset it applies the one kept again. `session.end` drops it. A transcript read lands only while `band.resume` is still the resume that started it, so a `/clear` or another resume drops it, and `session.start` can never drop it. In the test kit, module state carries across the tests of one file, so `band.resume` can outlive a test. A later test on the same session id then has it applied again at its `session.start`. Every resume test raises its own SessionStart, which replaces it, and applying it again runs no process.
 - **Which session.** During an in-process `/resume`, the 2.1.296 `resume` handler runs `co = await H7(…)`, the SessionStart hooks, and only then calls `A_(xo, "resume" | "fork", …)`, which switches the session. `Mo = K()`, read after H7, is still the old id, so `$.session.id()` in the hook names the session being left. `t7r` builds the SessionStart input from `{ id: WS(r) }` and stamps `session_id` with the resumed id on purpose; at launch that is also the id the conversation continues under (`ut`). So the resume keys on `e.session_id || $.session.id()`, and its cost record, its store lookup and a transcript path the band builds all key on that id. The test kit stamps its own session id (a UUID) unless a test gives one, so the tests' `resume` helper passes `engine.sessionId`, and the in-process tests keep `engine.sessionId` at `'s1'` while SessionStart names `'s2'`.
 - **The one exemption.** `band.resume` is the one thing `session.start` doesn't reset, against the Global Constraints. In the kit, a resume said after the last test's load and one said before this test's load look the same to `session.start`: a resume with no load since. A claim flag can't tell them apart. Either the before-load case breaks, or the usual order (`session.start`, then SessionStart) still leaks. In production `session.start` runs once per module, so only the kit sees the leak. The tests stay independent of the order they run in. Every resume test raises its own SessionStart, which replaces a leaked resume. A test that counts reads counts only those after its SessionStart. "without the engine's idle time…" ends the same either way: a leaked resume with the engine's cache skips the load's recall, a $0 ledger skips it without one, and the test's own SessionStart, which has no idle time, recalls.
-- **The cache.** The engine's idle time becomes the recalled reply's time, and its re-caching price is the price shown. Both are kept as `resumedCache`, beside the band's own `recall`, and stand over it. `prompt_cache_likely_expired: true` makes the cache cold. It never sets the TTL, because the engine also sets the flag for a compaction with no cached reply after it, however short the idle. The TTL comes from where the engine takes it: the last main-loop reply's `usage.cache_creation` split, read from the transcript's tail. Any `ephemeral_1h_input_tokens` gives 1h; `ephemeral_5m_input_tokens` alone gives 5m. A reply that wrote nothing is passed over, and so is a subagent's (`isSidechain`). Until this band's first reply, a TTL seen there is known, not assumed (`ttlSeen`, shown through the snapshot's `ttlPinned`, which means pinned or seen), so inference leaves it alone. It describes the recalled period, as `resumedCache` does, so it is an overlay and never written into `ttl`: `effectiveTtl()` is the pin, else `ttlSeen`, else `ttl`, and `msLeft` and `cacheView` read it. The first main-loop reply clears it, a read that lands after that reply is ignored, and `switchConversation` doesn't carry it, because the next request's TTL follows the config in force, not the transcript. A seen 5m therefore never outlives the recalled period: after the first reply, or a /clear, the band assumes the hour again, as it would have without the transcript. The environment's pin wins in either order, since `effectiveTtl` reads it first. The snapshot's field keeps the name `ttlPinned`, since every layout's view reads it. With no idle time from the engine, the band recalls as before: its store's `lastAt`, then the transcript's tail.
-- **The read.** `grep -b -F '"type":"cost-state"' <path>` finds every cost record at any size; the output is small, one line per reopen. The session's own last record (by `sessionId`) gives the record and its byte offset, else the last well-formed record of any session (a fork's file may hold only its parent's). `tail -c +<offset + 1>` reads only what was logged after it. The record itself is grep's own line, and the replies are what the tail holds past its first newline: BSD and GNU grep give the offset where the line starts, but ugrep gives the match's, which starts the tail mid-line. The fallbacks:
+- **The cache.** The engine's idle time becomes the recalled reply's time, and its re-caching price is the price shown. Both are kept as `resumedCache`, beside the band's own `recall`, and stand over it. `prompt_cache_likely_expired: true` makes the cache cold. It never sets the TTL, because the engine also sets the flag for a compaction with no cached reply after it, however short the idle. The TTL comes from where the engine takes it: the last main-loop reply's `usage.cache_creation` split, read from the transcript's tail. Any `ephemeral_1h_input_tokens` gives 1h; `ephemeral_5m_input_tokens` alone gives 5m. A reply that wrote nothing is passed over, and so is a subagent's (`isSidechain`). Until this band's first reply, a TTL seen there is known, not assumed (`ttlSeen`, shown through the snapshot's `ttlPinned`, which means pinned or seen). Inference never meets it: it needs a cached prefix, which only a main-loop reply leaves, and that reply clears `ttlSeen`, so inference reads the pin alone. It describes the recalled period, as `resumedCache` does, so it is an overlay and never written into `ttl`: `effectiveTtl()` is the pin, else `ttlSeen`, else `ttl`, and `msLeft` and `cacheView` read it. The first main-loop reply clears it, a read that lands after that reply is ignored, and `switchConversation` doesn't carry it, because the next request's TTL follows the config in force, not the transcript. A seen 5m therefore never outlives the recalled period: after the first reply, or a /clear, the band assumes the hour again, as it would have without the transcript. The environment's pin wins in either order, since `effectiveTtl` reads it first. The snapshot's field keeps the name `ttlPinned`, since every layout's view reads it. With no idle time from the engine, the band recalls as before: its store's `lastAt`, then the transcript's tail.
+- **The read.** `grep -a -b -F '"type":"cost-state"' <path>` finds every cost record at any size; the output is small, one line per reopen. `-a` keeps a line cut mid-character from making the file binary to grep, which in a UTF-8 locale prints no lines and still exits 0. The session's own last record (by `sessionId`) gives the record and its byte offset, else the last well-formed record of any session (a fork's file may hold only its parent's). `tail -c +<offset + 1>` reads only what was logged after it. The record itself is grep's own line, and the replies are what the tail holds past its first newline: BSD and GNU grep give the offset where the line starts, but ugrep gives the match's, which starts the tail mid-line. The fallbacks:
   - grep exits 1: there is no record, so nothing is seeded.
   - grep can't run: the file is read whole if it is ≤ `READ_LIMIT`.
   - grep's output is truncated: the band gives up.
@@ -3680,7 +3680,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Modify: `hooks/memory.ts` (`COST_RECORD`, `sessionCostRecord`, `transcriptSpend`, `lastWriteTtl`; `rateFromTranscript` shares `recordRate`)
 - Modify: `hooks/register.tsx` (`classic.SessionStart` with its `.catch`, `resumeConversation`, `applyResume`, `readResumed`, `spendBefore`, `transcriptFile`, `readWhole`, `endOf`; `recallLastReply` takes the session id and a reader of its end, and returns a `RecalledReply` that `noteRecalled` notes; `band.resume`; `session.start` applies a resume again; `session.end` takes `resetForResume` on a resume; `costUsd: spentUsd(…)`)
 - Modify: `hooks/snapshot.ts` (`cache.recovered: boolean`; `ttlPinned`'s doc says it means pinned, or seen before this band's first reply), `hooks/reading.ts` (`measured` is `requests > 0 || recovered`)
-- Modify: `tests/helpers.ts` (`grep`, `tail -c +N`, `grepFails`, the bottom `classic.SessionStart`; every answer is the one at the call), `tests/matrix.ts` (`snapOf` gains `recovered: false`)
+- Modify: `tests/helpers.ts` (`grep`, `tail -c +N`, `sessionIdFails`, `grepFails`, `grepMatchOffsets`, `truncates`, the bottom `classic.SessionStart`; every answer is the one at the call), `tests/matrix.ts` (`snapOf` gains `recovered: false`)
 - Test: `tests/resume-backfill.test.ts` (new)
 
 **Interfaces:**
@@ -3689,10 +3689,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Extend the fake engine**
 
-In `tests/helpers.ts`, `grep` answers as `grep -b -F` would, `tail` takes `-c +N`, `grepFails` and `grepMatchOffsets` (each match's offset, as ugrep gives it) join `ENGINE_INITIAL`, and `base` gives `classic.SessionStart` its bottom handler (one handler per event, so tests never register it). Every answer is the one at the call: the fake reads what it answers from before the hold, so a held read answers with what it was called with:
+In `tests/helpers.ts`, `grep` answers as `grep -a -b -F` would, `tail` takes `-c +N`, `sessionIdFails`, `grepFails`, `grepMatchOffsets` (each match's offset, as ugrep gives it) and `truncates` (the command whose output runs past one read) join `ENGINE_INITIAL`, and `base` gives `classic.SessionStart` its bottom handler (one handler per event, so tests never register it). Every answer is the one at the call: the fake reads what it answers from before the hold, so a held read answers with what it was called with:
 
 ```diff
-@@ -80,7 +80,7 @@ type EngineFake = {
+@@ -83,18 +83,27 @@ type EngineFake = {
    root: string
    repoRoot: string | undefined
    git: GitAnswer
@@ -3701,7 +3701,13 @@ In `tests/helpers.ts`, `grep` answers as `grep -b -F` would, `tail` takes `-c +N
    hold: Promise<void> | undefined
    ran: string[][]
    /** The session's id and model, as the engine names them. */
-@@ -92,6 +92,11 @@ type EngineFake = {
+   sessionId: string
+   model: string
++  /** When set, the engine can't say the session's id. */
++  sessionIdFails: boolean
+   /** The session's transcript as Claude Code writes it; undefined when it isn't there. */
+   transcript: string | undefined
+   /** Its size on disk, when a test needs it larger than its text. */
    transcriptBytes: number | undefined
    /** When set, `tail` can't run, as where the host has none. */
    tailFails: boolean
@@ -3710,19 +3716,38 @@ In `tests/helpers.ts`, `grep` answers as `grep -b -F` would, `tail` takes `-c +N
 +  /** When set, `grep -b` gives each match's byte offset, as ugrep does, not
 +   *  its line's. */
 +  grepMatchOffsets: boolean
++  /** The command whose output runs past what one read holds, if any. */
++  truncates: 'grep' | 'tail' | undefined
    /** Every path the plugin asked the file system about. */
    statted: string[]
    /** The plugin's own store, JSON in and out as the engine keeps it. */
-@@ -120,6 +125,8 @@ const ENGINE_INITIAL: Readonly<EngineFake> = {
+@@ -120,9 +129,13 @@ const ENGINE_INITIAL: Readonly<EngineFake> = {
+   hold: undefined,
+   sessionId: 's1',
+   model: 'claude-opus-5-5',
++  sessionIdFails: false,
    transcript: undefined,
    transcriptBytes: undefined,
    tailFails: false,
 +  grepFails: false,
 +  grepMatchOffsets: false,
++  truncates: undefined,
    statted: [],
    root: PROJECT,
    repoRoot: PROJECT,
-@@ -186,18 +193,33 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
+@@ -166,7 +179,10 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
+     return { value: undefined }
+   })
+   on('store.keys', () => ({ value: Object.keys(engine.store) }))
+-  on('session.id', () => ({ value: engine.sessionId }))
++  on('session.id', () => {
++    if (engine.sessionIdFails) throw new Error('session id unavailable')
++    return { value: engine.sessionId }
++  })
+   on('session.model', () => ({ value: engine.model }))
+   on('fs.stat', ($, e) => {
+     engine.statted.push(e.path)
+@@ -189,18 +205,33 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
      const quiet = { stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
      if (e.argv[0] === 'tail') {
        if (engine.tailFails || engine.transcript === undefined) return { value: { ...quiet, exitCode: 1, stdout: '', stderr: 'tail: no such file' } }
@@ -3731,14 +3756,14 @@ In `tests/helpers.ts`, `grep` answers as `grep -b -F` would, `tail` takes `-c +N
 +      // `-c N` is the last N bytes, `-c +N` everything from byte N on.
 +      const count = String(e.argv[2])
 +      const stdout = count.startsWith('+') ? engine.transcript.slice(Number(count.slice(1)) - 1) : engine.transcript.slice(-Number(count))
-+      return { value: { ...quiet, exitCode: 0, stdout } }
++      return { value: { ...quiet, exitCode: 0, stdout, isStdoutTruncated: engine.truncates === 'tail' } }
      }
 -    const git = engine.git
 -    const hold = engine.hold
-+    const { git, transcript, grepFails, grepMatchOffsets, hold } = engine
++    const { git, transcript, grepFails, grepMatchOffsets, truncates, hold } = engine
      if (hold !== undefined) await hold
 +    if (e.argv[0] === 'grep') {
-+      // `grep -b -F pattern path`: each line holding the pattern, after its byte offset.
++      // `grep -a -b -F pattern path`: each line holding the pattern, after its byte offset.
 +      if (grepFails) throw new Error('grep: command not found')
 +      if (transcript === undefined) return { value: { ...quiet, exitCode: 2, stdout: '', stderr: 'grep: no such file' } }
 +      const pattern = String(e.argv.at(-2))
@@ -3748,7 +3773,7 @@ In `tests/helpers.ts`, `grep` answers as `grep -b -F` would, `tail` takes `-c +N
 +        if (line.includes(pattern)) found.push(`${grepMatchOffsets ? offset + line.indexOf(pattern) : offset}:${line}\n`)
 +        offset += line.length + 1
 +      }
-+      return { value: { ...quiet, exitCode: found.length > 0 ? 0 : 1, stdout: found.join('') } }
++      return { value: { ...quiet, exitCode: found.length > 0 ? 0 : 1, stdout: found.join(''), isStdoutTruncated: truncates === 'grep' } }
 +    }
      if (git === 'fail') throw new Error('git: command not found')
      if (git === 'none') return { value: { ...quiet, exitCode: 128, stdout: '', stderr: 'fatal: not a git repository' } }
@@ -3898,7 +3923,7 @@ test("a resumed session's spend and tokens start from its last cost record, each
   await $.session.start(START)
   await resume($, 10 * MIN)
   await clock.settle()
-  expect(engine.ran).toContainEqual(['grep', '-b', '-F', '"type":"cost-state"', PATH])
+  expect(engine.ran).toContainEqual(['grep', '-a', '-b', '-F', '"type":"cost-state"', PATH])
   // $30 + 2 × $0.135
   expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
   const tree = await mounted($, true)
@@ -3990,6 +4015,30 @@ test('without grep, a transcript too big to read leaves the ledger as it is', as
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 50m/)
 })
 
+test('a grep whose output runs past one read leaves the ledger as it is', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.truncates = 'grep'
+  engine.transcript = TRANSCRIPT
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$0\.00/)
+})
+
+test('a tail past the record that runs past one read counts the record alone', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.truncates = 'tail'
+  engine.transcript = TRANSCRIPT
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.00/)
+  const tree = await mounted($, true)
+  expect(fact(tree, 'input')).toBe('1.4M')
+  expect(fact(tree, 'output')).toBe('100k')
+  expect(fact(tree, 'cache reads')).toBe('20.0M')
+})
+
 test('a /clear while the transcript is read leaves the new conversation alone', async ($, on) => {
   const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
   engine.transcript = TRANSCRIPT
@@ -4064,6 +4113,25 @@ test('a new session and a /clear read nothing and stay warming', async ($, on) =
   expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$0\.00/)
 })
 
+test("a subagent's SessionStart reads nothing and leaves the conversation warming", async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = TRANSCRIPT
+  await $.session.start(START)
+  await $.classic.SessionStart({ source: 'resume', agent_id: 'a1', session_id: 's1', transcript_path: PATH })
+  await clock.settle()
+  expect(engine.ran.filter(argv => argv[0] === 'grep' || argv[0] === 'tail')).toEqual([])
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache warming/)
+})
+
+test('a SessionStart whose session the engine cannot name still lets the session start', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  await $.session.start(START)
+  engine.sessionIdFails = true
+  await $.classic.SessionStart({ source: 'resume', session_id: '' })
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$0\.00/)
+})
+
 test('a SessionStart that comes before session.start still resumes the conversation', async ($, on) => {
   const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
   engine.transcript = TRANSCRIPT
@@ -4081,6 +4149,16 @@ test('a SessionStart while session.start runs still resumes the conversation', a
   await clock.settle()
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold/)
   expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
+})
+
+test('a resume of another session said before the load never counts its spend in this one', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = TRANSCRIPT
+  await resume($, 48 * HOUR, { sessionId: 's9' })
+  await $.session.start(START)
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache warming/)
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$0\.00/)
 })
 
 test('a ledger the host restores after the transcript is read is never added to it', async ($, on) => {
@@ -4212,6 +4290,15 @@ test('the TTL the environment pins wins over one seen on the transcript, even on
   expect(fact(await mounted($, true), 'expires')).toBe('1h idle')
 })
 
+test('a TTL seen on another session resumed before the load is never this one', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: UNPINNED, now: 3 * HOUR })
+  engine.transcript = jsonl(RECORD, ...wroteAt('msg_1', '5m'))
+  await resume($, 2 * MIN, { expired: false, sessionId: 's9' })
+  await $.session.start(START)
+  await clock.settle()
+  expect(fact(await mounted($, true), 'expires')).toBe('1h idle · assumed')
+})
+
 /** Whether `argv` reads a transcript's last megabyte. */
 const isEndRead = (argv: string[]): boolean => argv[0] === 'tail' && argv[2] === String(1024 * 1024)
 
@@ -4232,7 +4319,7 @@ test("a resume without the engine's idle time reads its transcript's end once, f
 - [ ] **Step 3: Run them and watch them fail**
 
 Run: `tools/test-only.sh resume-backfill`
-Expected: of the first 16 tests, 12 FAIL, with "cache warming" and "$0.00" where a resumed session should be cold and priced. The four that cover the fallbacks and the new-session path already pass. The next six came from the review of the first fix. Against that fix they fail with " ◷ cache warming " (SessionStart first), "$0.00" (the two together), "$60.27" (the ledger restored late), "$50.00" (the fork), " ◷ cache 58m " and "1h idle · assumed" (the TTLs). The second review rewrote the in-process test and added five. Against the fix before them, they fail with "$12.40" (the session left, counted), " ◷ cache 59m " (its reply, recalled), "1h idle" twice (a seen TTL that outlived the first reply, or crossed a /clear), "5m idle" (one read after the first reply) and two end reads where one is expected. The third review added five. Against the fix before them, four fail: " ◷ cache cold · next message 83k tokens " (a seen 5m written into the TTL, outliving the first reply), "5m idle" (the same, carried across a /clear), "$0.00" (a grep that gives the match's offset, its tail parsed from there) and " ◷ cache 59m " (the session left, recalled late at a /resume). The pin's passes, and fails with " ◷ cache 3:00 " if `effectiveTtl` reads the seen TTL over the pin.
+Expected: of the first 16 tests, 12 FAIL, with "cache warming" and "$0.00" where a resumed session should be cold and priced. The four that cover the fallbacks and the new-session path already pass. The next six came from the review of the first fix. Against that fix they fail with " ◷ cache warming " (SessionStart first), "$0.00" (the two together), "$60.27" (the ledger restored late), "$50.00" (the fork), " ◷ cache 58m " and "1h idle · assumed" (the TTLs). The second review rewrote the in-process test and added five. Against the fix before them, they fail with "$12.40" (the session left, counted), " ◷ cache 59m " (its reply, recalled), "1h idle" twice (a seen TTL that outlived the first reply, or crossed a /clear), "5m idle" (one read after the first reply) and two end reads where one is expected. The third review added five. Against the fix before them, four fail: " ◷ cache cold · next message 83k tokens " (a seen 5m written into the TTL, outliving the first reply), "5m idle" (the same, carried across a /clear), "$0.00" (a grep that gives the match's offset, its tail parsed from there) and " ◷ cache 59m " (the session left, recalled late at a /resume). The pin's passes, and fails with " ◷ cache 3:00 " if `effectiveTtl` reads the seen TTL over the pin. The fourth review added six. Against the fix before them, the two that resume another session before the load fail with "$30.27" and "5m idle" (a read that landed between the reset and the drop), and the spend test, which now names `grep -a`, fails on its argv. The other four pass. Each fails if its guard is deleted: a truncated grep or tail shows "$30.27" without its `isStdoutTruncated` check, and a subagent's SessionStart runs grep without the `agent_id` filter. The one whose session id fails still passes with the `.catch` deleted, because the kit runs `next(e)` for a failed hook; it pins the behaviour, not the handler.
 
 - [ ] **Step 4: Implement**
 
@@ -4271,7 +4358,7 @@ export const spentUsd = (ledgerNow: number | undefined): number => {
 const allTokens = (): TokenCounts => (state.prior === undefined ? state : addTokens(state, state.prior.tokens))
 ```
 
-`recalledAt()` is `resumedCache?.lastAt ?? recall?.lastAt`, and `isRecalled`, `msLeft` and `cacheView`'s `idleMs` read it. `msLeft` returns 0 for a recalled cache with `resumedCache.expired === true`. `hitRatio`, `savedUsd` and `cacheView`'s `tokens` read `allTokens()`. A recalled `reWarmUsd` is `resumedCache?.reWarmUsd ?? (rate === null ? null : reWarmAt(rate, contextTokens))`. `cacheView` adds `recovered: state.prior !== undefined`; its `ttl` is `effectiveTtl()`, as `msLeft`'s lifetime is, and its `ttlPinned` is `ttlPinned || ttlSeen !== undefined`, which is also what keeps inference off the TTL. `recordResponse` clears `ttlSeen` on every main-loop reply. `resetConversation(costNow)` (a /clear, fresh) and `resetForResume(costNow)` (not fresh) share one private `switchConversation`, which carries the TTL but not `ttlSeen`.
+`recalledAt()` is `resumedCache?.lastAt ?? recall?.lastAt`, and `isRecalled`, `msLeft` and `cacheView`'s `idleMs` read it. `msLeft` returns 0 for a recalled cache with `resumedCache.expired === true`. `hitRatio`, `savedUsd` and `cacheView`'s `tokens` read `allTokens()`. A recalled `reWarmUsd` is `resumedCache?.reWarmUsd ?? (rate === null ? null : reWarmAt(rate, contextTokens))`. `cacheView` adds `recovered: state.prior !== undefined`; its `ttl` is `effectiveTtl()`, as `msLeft`'s lifetime is, and its `ttlPinned` is `ttlPinned || ttlSeen !== undefined`. Inference reads `ttlPinned` alone, since it runs only after a reply that has cleared `ttlSeen`. `recordResponse` clears `ttlSeen` on every main-loop reply. `resetConversation(costNow)` (a /clear, fresh) and `resetForResume(costNow)` (not fresh) share one private `switchConversation`, which carries the TTL but not `ttlSeen`.
 
 In `memory.ts`, `transcriptSpend(transcript, sessionId)` takes the session's own last cost record, else the last well-formed one. It sums every model's tokens in it, then adds each `assistant` line after it once by `message.id`, priced at `recordRate(modelUsage[modelName(model)], model)`. `sessionCostRecord` picks the same record from `grep -b` output, with its offset. `lastWriteTtl` walks the transcript from its end to the last main-loop reply whose `usage.cache_creation` wrote anything.
 
@@ -4284,7 +4371,7 @@ on('classic.SessionStart', async ($, e, next) => {
 }).catch(($, e, next) => next(e)) // a failure here must never stop a session starting
 ```
 
-`resumeConversation` builds a `Resume`: `e.session_id || $.session.id()`; the cache as `lastAt: now − seconds_since_last_response × 1000` with the engine's verdict and price, or `undefined` with no idle time; the transcript path (`''` is none); and no transcript facts yet. It keeps that in `band.resume` and applies it (`applyResume`: `noteResume`, then `notePrior` and `noteTtlSeen` from the facts once read). Then `void readResumed($, resume)`, and it invalidates. `readResumed` starts `transcriptEnd` once. With no idle time it runs `recallLastReply($, sessionId, () => end)` on that read. It runs `spendBefore` (grep, then `tail -c +N`, else `readWhole`) beside it, and waits on all three. It drops the results unless `band.resume` is still that resume. Otherwise it keeps the facts in `band.resume`, notes the recall and the facts, and invalidates. `session.start`, after its reset, applies `band.resume` again when its `sessionId` is `$.session.id()`, and drops it otherwise. It recalls the last reply only if the conversation isn't known fresh and the engine gave no `resumedCache`, reading its own end through `endOf`, and notes it with `noteRecalled`. `session.end` clears `band.resume`, then calls `resetForResume` for `reason: 'resume'` and `resetConversation` for anything else. The snapshot's `costUsd` is `spentUsd(usage.cost?.usd)`.
+`resumeConversation` builds a `Resume`: `e.session_id || $.session.id()`; the cache as `lastAt: now − seconds_since_last_response × 1000` with the engine's verdict and price, or `undefined` with no idle time; the transcript path (`''` is none); and no transcript facts yet. It keeps that in `band.resume` and applies it (`applyResume`: `noteResume`, then `notePrior` and `noteTtlSeen` from the facts once read). Then `void readResumed($, resume)`, and it invalidates. `readResumed` starts `transcriptEnd` once. With no idle time it runs `recallLastReply($, sessionId, () => end)` on that read. It runs `spendBefore` (`grep -a`, then `tail -c +N`, else `readWhole`) beside it, and waits on all three. It drops the results unless `band.resume` is still that resume. Otherwise it keeps the facts in `band.resume`, notes the recall and the facts, and invalidates. `session.start` reads `$.session.id()` first, then resets and, in the same step, drops `band.resume` unless its `sessionId` is that id; after the reset it applies the one kept again. It recalls the last reply only if the conversation isn't known fresh and the engine gave no `resumedCache`, reading its own end through `endOf`, and notes it with `noteRecalled`. `session.end` clears `band.resume`, then calls `resetForResume` for `reason: 'resume'` and `resetConversation` for anything else. The snapshot's `costUsd` is `spentUsd(usage.cost?.usd)`.
 
 - [ ] **Step 5: Run the tests**
 
