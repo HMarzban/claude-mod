@@ -7,16 +7,12 @@ import type { LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber } from '../words'
 import { toggleButton, type Strip } from './frame'
-import { fitLine, grid, gridRoom, line, lineRoom, section, words, type Keeps } from './parts'
+import { amberWords, fitLine, grid, gridRoom, limitSentence, line, lineRoom, section, separatedBy, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last. Amber never does. */
 const ORDER = ['resetWords', 'resetTimes', 'calmSeven', 'calmContext', 'cost', 'calmFive'] as const
 type Piece = (typeof ORDER)[number]
-
-/** An amber reading's reason, long until every calm piece has gone. */
-const amberWords = (kit: Kit, key: string, amber: Amber, keeps: Keeps<Piece>): RenderElement =>
-  words(kit, key, [[keeps.amber(amber), 'amber']])
 
 /** A reading that can turn amber: its reason while amber, else its calm piece. */
 const amberOr = (kit: Kit, key: string, amber: Amber | undefined, keeps: Keeps<Piece>, calm: RenderChildren): RenderChildren =>
@@ -38,7 +34,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const cost = words(kit, 'cost', [[read.spend.totalText, 'value']])
   const calmCache = words(kit, 'cache', c.say)
   const calmContext = words(kit, 'ctx', x.say)
-  const seps = [1, 2, 3, 4].map(i => words(kit, `sep${i}`, [['·', 'label']]))
+  const separated = separatedBy(kit, '·', 4)
   return [
     fitLine(kit, ORDER, lineRoom(kit), keeps => {
       const pieces = [
@@ -49,17 +45,13 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
         read.fiveHour === undefined ? null : limitPiece(kit, read.fiveHour, 'calmFive', keeps),
         read.sevenDay === undefined ? null : limitPiece(kit, read.sevenDay, 'calmSeven', keeps),
       ].filter((p): p is RenderElement => p !== null)
-      return line(kit, 'line', pieces.flatMap((p, i) => (i === 0 ? [p] : [seps[i - 1] ?? null, p])), toggle, 1)
+      return line(kit, 'line', separated(pieces), toggle, 1)
     }),
   ]
 }
 
-/** A limit as a sentence: its reason while amber, else its value; then its
- *  reset and its pace, unless the reason is a measured fill, which says it. */
-const limitSentence = (kit: Kit, l: LimitView): RenderElement => {
-  const tail = [l.resetWords, l.fullIn === undefined ? l.pace : undefined].filter((t): t is string => t !== undefined && t !== '')
-  return words(kit, l.name, [l.amber !== undefined ? [l.amber.long, 'amber'] : [l.text, 'value'], ...tail.map(t => [`, ${t}`, 'label'] as const)])
-}
+/** Ledger's limit sentences: `5h 4%, resets in 3h 00m, on pace for ~10%`. */
+const SENTENCE: SentenceStyle = { lead: 'text', reset: 'resetWords', sep: ', ' }
 
 /** The facts behind ▿: four columns of short sentences. */
 const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
@@ -88,9 +80,9 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     // What needs you leads, so a body short of rows keeps it; an amber
     // closest limit is named by its own sentence.
     section(kit, 'limits', 'LIMITS', read.limits.length === 0 ? [sentence('none', EMPTY.limits)] : [
-      ...read.limits.filter(l => l.amber !== undefined).map(l => limitSentence(kit, l)),
+      ...read.limits.filter(l => l.amber !== undefined).map(l => limitSentence(kit, l, SENTENCE)),
       read.worstLimit === undefined || read.worstLimit.amber !== undefined ? null : sentence('closest', `closest is ${read.worstLimit.text}`),
-      ...read.limits.filter(l => l.amber === undefined).map(l => limitSentence(kit, l)),
+      ...read.limits.filter(l => l.amber === undefined).map(l => limitSentence(kit, l, SENTENCE)),
     ], room),
   ], bodyRows)
 }

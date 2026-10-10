@@ -9,7 +9,7 @@ import type { CacheReading, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber, type Role, type Say } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, beforeLast, fitLine, grid, gridRoom, line, lineRoom, section, words, type Keeps } from './parts'
+import { accentOf, amberFirst, amberWords, beforeLast, fitLine, grid, gridRoom, line, lineRoom, section, words, type Keeps } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last. Amber never does.
@@ -60,7 +60,7 @@ type Tile = Readonly<{
 const drawTile = (kit: Kit, t: Tile, keeps: Keeps<Piece>): RenderChildren => {
   if (t.step !== undefined && !keeps.calm(t.step, t.tone)) return null
   return t.amber !== undefined
-    ? stack(kit, t.key, t.value, words(kit, 'l', [[keeps.amber(t.amber), 'amber']]), beforeLast(keeps) ? t.bar : null)
+    ? stack(kit, t.key, t.value, amberWords(kit, 'l', t.amber, keeps), beforeLast(keeps) ? t.bar : null)
     : stack(kit, t.key, t.value, t.label(keeps), keeps.has('underline') ? t.bar : null)
 }
 
@@ -142,7 +142,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const x = read.context
   const s = read.spend
   // What needs you leads, so a group short of rows keeps it.
-  const limits = [...read.limits.filter(l => l.amber !== undefined), ...read.limits.filter(l => l.amber === undefined)]
+  const limits = amberFirst(read.limits)
   const room = gridRoom(kit, bodyRows)
   // A pair is two lines tall: a group holds as many as fit under its title,
   // and short of one, says its headline in a line. A desktop pair's

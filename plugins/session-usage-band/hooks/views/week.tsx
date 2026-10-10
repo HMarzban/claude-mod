@@ -7,9 +7,9 @@ import { dayCells } from '../charts'
 import type { Kit } from '../kit'
 import type { DayCell, HourCell, LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
-import { EMPTY, type Amber, type Role, type Say } from '../words'
+import { EMPTY, type Role, type Say } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, beforeLast, chartsIfRoom, fitLine, grid, layoutCachePill, line, lineRoom, section, words, type Keeps } from './parts'
+import { accentOf, amberWords, beforeLast, chartsIfRoom, fitLine, grid, layoutCachePill, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the rows narrow, first to last. Amber never does. The
@@ -41,10 +41,6 @@ const windowsOf = (read: Readings): WeekWindow[] => {
 
 /** Whether a window has cells to draw: none without history, nor once it has passed. */
 const hasCells = (read: Readings, w: WeekWindow): boolean => !read.week.empty && w.cells.length > 0
-
-/** An amber reading's reason, long until every calm piece has gone. */
-const amberWords = (kit: Kit, key: string, amber: Amber, keeps: Keeps<Piece>): RenderElement =>
-  words(kit, key, [[keeps.amber(amber), 'amber']])
 
 /** A window's name, in its accent, or amber while it needs you. */
 const nameOf = (kit: Kit, w: WeekWindow): RenderElement =>
@@ -152,10 +148,9 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const seven = pieces.find(p => p.key === '7d')
   // On the desktop the cells carry their initials, and the ascii tier names each cell.
   const initials = Svg !== undefined || read.frame.glyphs === 'ascii' ? null : initialsOf(kit, wk.days)
-  let pillLong: RenderElement | undefined
-  let pillShort: RenderElement | undefined
-  const pill = (short: boolean): RenderElement =>
-    short ? (pillShort ??= layoutCachePill(kit, read, true)) : (pillLong ??= layoutCachePill(kit, read, false))
+  const pillLong = once(() => layoutCachePill(kit, read, false))
+  const pillShort = once(() => layoutCachePill(kit, read, true))
+  const pill = (short: boolean): RenderElement => (short ? pillShort() : pillLong())
   return [
     fitLine(kit, ORDER, lineRoom(kit), keeps => (
       <Box key="rows" flexDirection="column">
@@ -177,12 +172,8 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   ]
 }
 
-/** A limit as a sentence: its reason while amber, else its value; then its
- *  reset and its pace, unless the reason is a measured fill, which says it. */
-const limitSentence = (kit: Kit, l: LimitView): RenderElement => {
-  const tail = [l.resetWords, l.fullIn === undefined ? l.pace : undefined].filter((t): t is string => t !== undefined && t !== '')
-  return words(kit, l.name, [l.amber !== undefined ? [l.amber.long, 'amber'] : [l.text, 'value'], ...tail.map(t => [`, ${t}`, 'label'] as const)])
-}
+/** Week's limit sentences, as ledger writes them: `5h 4%, resets in 3h 00m`. */
+const SENTENCE: SentenceStyle = { lead: 'text', reset: 'resetWords', sep: ', ' }
 
 /** Open, a day cell's label is its initial, date and rise; an hour's, its clock hour and rise. */
 const bigLabel = (c: Cell): string => spoken('date' in c ? [c.initial, c.date, c.text] : [c.label, c.text])
@@ -217,9 +208,9 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const sentences = [
     ...windows.map(w => ({
       limit: w.limit,
-      row: w.limit.amber !== undefined ? limitSentence(kit, w.limit) : words(kit, w.limit.key, [[`${w.limit.name} `, 'label'], [w.summary, 'value']]),
+      row: w.limit.amber !== undefined ? limitSentence(kit, w.limit, SENTENCE) : words(kit, w.limit.key, [[`${w.limit.name} `, 'label'], [w.summary, 'value']]),
     })),
-    ...read.limits.filter(l => l.key === 'other').map(l => ({ limit: l, row: limitSentence(kit, l) })),
+    ...read.limits.filter(l => l.key === 'other').map(l => ({ limit: l, row: limitSentence(kit, l, SENTENCE) })),
   ]
   const rows = [
     ...sentences.filter(s => s.limit.amber !== undefined).map(s => s.row),

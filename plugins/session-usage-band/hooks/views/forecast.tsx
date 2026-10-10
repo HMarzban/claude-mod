@@ -10,7 +10,7 @@ import type { CacheReading, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber, type CacheCondition, type Say } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, fitLine, line, lineRoom, words, type Keeps } from './parts'
+import { accentOf, amberWords, fitLine, line, lineRoom, separatedBy, words, type Keeps } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last; `nextChange` is the narrow-width ruling's. Amber never does. */
@@ -115,7 +115,7 @@ const changeHead = (kit: Kit, ch: Change, next: boolean, keeps: Keeps<Piece>): R
   const when = ch.clock === undefined ? ch.soon : next ? `${ch.clock} · ${ch.soon}` : ch.clock
   return ch.amberShort === undefined
     ? words(kit, 'head', [[`${when} · `, 'label'], [ch.label, 'value']])
-    : words(kit, 'head', [[keeps.amber({ long: `${when} · ${ch.label}`, short: ch.amberShort }), 'amber']])
+    : amberWords(kit, 'head', { long: `${when} · ${ch.label}`, short: ch.amberShort }, keeps)
 }
 
 /** A column: on the desktop its head, beside any icon, over its detail; on the terminal, the head alone. */
@@ -148,19 +148,19 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const triggers = [read.context.amber, read.fiveHour?.fullIn === undefined ? read.fiveHour?.amber : undefined, read.sevenDay?.amber].filter(
     (a): a is Amber => a !== undefined,
   )
-  const seps = [1, 2, 3, 4, 5, 6].map(i => words(kit, `sep${i}`, [['│', 'label']]))
+  const separated = separatedBy(kit, '│', 6)
   return [
     fitLine(kit, ORDER, lineRoom(kit), keeps => {
       const detail = (d: Detail): string => (keeps.has('detail') ? d.long : d.short)
-      const head = c.amber === undefined ? nowCalm : words(kit, 'head', [[keeps.amber(lastMinute(c, c.amber)), 'amber']])
+      const head = c.amber === undefined ? nowCalm : amberWords(kit, 'head', lastMinute(c, c.amber), keeps)
       // An amber change never gives way; the next one only once the rest have.
       const ahead = changes.filter((ch, i) => ch.amberShort !== undefined || keeps.has(i === 0 ? 'nextChange' : ch.seven ? 'farSeven' : 'farChanges'))
       const pieces = [
         column(kit, 'now', head, detail(nowDetail), nowIcon),
         ...ahead.map(ch => column(kit, ch.key, changeHead(kit, ch, ch === changes[0] && keeps.has('inX'), keeps), detail(ch.detail))),
-        ...triggers.map((a, i) => words(kit, `amber${i}`, [[keeps.amber(a), 'amber']])),
+        ...triggers.map((a, i) => amberWords(kit, `amber${i}`, a, keeps)),
       ]
-      return line(kit, 'line', pieces.flatMap((p, i) => (i === 0 ? [p] : [seps[i - 1] ?? null, p])), toggle, 1)
+      return line(kit, 'line', separated(pieces), toggle, 1)
     }),
   ]
 }

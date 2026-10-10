@@ -7,9 +7,9 @@ import { meter, ring } from '../charts'
 import type { Kit } from '../kit'
 import type { CacheReading, ContextReading, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
-import { EMPTY, type Amber, type Say } from '../words'
+import { EMPTY, type Amber } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, beforeLast, chartsIfRoom, fact, fitLine, grid, gridRoom, line, lineRoom, section, words, type Keeps } from './parts'
+import { accentOf, amberFirst, amberSay, beforeLast, chartsIfRoom, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, section, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last; `marks` and
@@ -52,7 +52,7 @@ const valueWords = (kit: Kit, text: string, tone: Tone): RenderElement => words(
  *  until the amber step; calm, its ring gives way at `marks`. */
 const drawFigure = (kit: Kit, f: Figure, keeps: Keeps<Piece>): RenderElement => {
   const { Box, Svg } = kit
-  const label = words(kit, 'label', f.amber !== undefined ? [[keeps.amber(f.amber), 'amber']] : [[f.label(keeps), 'label']])
+  const label = words(kit, 'label', f.amber !== undefined ? amberSay(f.amber, keeps) : [[f.label(keeps), 'label']])
   const ringKept = f.amber !== undefined ? beforeLast(keeps) : keeps.has('marks')
   return (
     <Box key={f.key} flexDirection="row" columnGap={1} alignItems="center">
@@ -123,13 +123,8 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   ]
 }
 
-/** A limit as a row of its panel: its reason while amber, else its words;
- *  then its reset and its pace, unless the reason is a measured fill, which says it. */
-const limitRow = (kit: Kit, l: LimitView): RenderElement => {
-  const lead: Say = l.amber !== undefined ? [[l.amber.long, 'amber']] : l.say
-  const tail = [l.resetGlyph, l.fullIn === undefined ? l.pace : undefined].filter((t): t is string => t !== undefined && t !== '')
-  return words(kit, l.name, [...lead, ...tail.map(t => [` · ${t}`, 'label'] as const)])
-}
+/** A limit as a row of its panel: `5h 4% · ↻ in 3h 00m · on pace for ~10%`. */
+const SENTENCE: SentenceStyle = { lead: 'say', reset: 'resetGlyph', sep: ' · ' }
 
 /** The facts behind ▿: four panels, each with its big ring and its facts. */
 const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
@@ -172,8 +167,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     ], ringRows), room),
     // What needs you leads, so a panel short of rows keeps it.
     section(kit, 'limits', 'LIMITS', read.limits.length === 0 ? [none(EMPTY.limits)] : chartsIfRoom(room, [limitRings], [
-      ...read.limits.filter(l => l.amber !== undefined).map(l => limitRow(kit, l)),
-      ...read.limits.filter(l => l.amber === undefined).map(l => limitRow(kit, l)),
+      ...amberFirst(read.limits).map(l => limitSentence(kit, l, SENTENCE)),
     ], ringRows), room),
   ], bodyRows)
 }

@@ -9,7 +9,7 @@ import { asciiText } from '../glyphs'
 import type { Kit } from '../kit'
 import { ROW_SLACK, isDrawn, keepsIn, squeezeToFit } from '../layout'
 import type { Palette } from '../palette'
-import type { LimitKey, Readings, Tone } from '../reading'
+import type { LimitKey, LimitView, Readings, Tone } from '../reading'
 import type { Amber, Role, Say } from '../words'
 
 export type PillSpec = Readonly<{
@@ -162,6 +162,32 @@ export const fitLine = <P extends string>(kit: Kit, order: readonly P[], room: n
 /** True until the amber step: an amber reading's chart stays while this holds. */
 export const beforeLast = <P extends string>(keeps: Keeps<P>): boolean => keeps.amber(AMBER_PROBE) === AMBER_PROBE.long
 
+/** An amber reading's reason, long until every calm piece has gone. */
+export const amberSay = <P extends string>(amber: Amber, keeps: Keeps<P>): Say => [[keeps.amber(amber), 'amber']]
+
+/** The same reason as its own words. */
+export const amberWords = <P extends string>(kit: Kit, key: string, amber: Amber, keeps: Keeps<P>): RenderElement =>
+  words(kit, key, amberSay(amber, keeps))
+
+/** What needs you first: the amber items, then the calm, each in its order. */
+export const amberFirst = <T extends Readonly<{ amber: Amber | undefined }>>(items: readonly T[]): T[] => [
+  ...items.filter(i => i.amber !== undefined),
+  ...items.filter(i => i.amber === undefined),
+]
+
+/** Lays `glyph` between a line's pieces; the separators, up to `most`, are
+ *  built once, before the squeeze. */
+export const separatedBy = (kit: Kit, glyph: string, most: number): ((pieces: readonly RenderElement[]) => RenderChildren[]) => {
+  const seps = Array.from({ length: most }, (_, i) => words(kit, `sep${i + 1}`, [[glyph, 'label']]))
+  return pieces => pieces.flatMap((p, i) => (i === 0 ? [p] : [seps[i - 1] ?? null, p]))
+}
+
+/** A piece built the first time it is asked for, then kept. */
+export const once = <T,>(build: () => T): (() => T) => {
+  let built: T | undefined
+  return () => (built ??= build())
+}
+
 /** Each role's ink: text on the card ground. */
 export const ROLE_INK: Readonly<Record<Role, Exclude<keyof Palette, 'filled'>>> = {
   label: 'label',
@@ -183,6 +209,19 @@ export const words = (kit: Kit, key: string, say: Say, bold = false): RenderElem
       ))}
     </Text>
   )
+}
+
+/** How a view writes a limit's sentence: what leads it while calm, its
+ *  value alone (`5h 4%` in `value`) or its words (`5h` a label), which
+ *  reset phrase it says, and what joins the phrases. */
+export type SentenceStyle = Readonly<{ lead: 'text' | 'say'; reset: 'resetWords' | 'resetGlyph'; sep: ', ' | ' · ' }>
+
+/** A limit as a sentence: its reason while amber, else its value; then its
+ *  reset and its pace, unless the reason is a measured fill, which says it. */
+export const limitSentence = (kit: Kit, l: LimitView, style: SentenceStyle): RenderElement => {
+  const lead: Say = l.amber !== undefined ? [[l.amber.long, 'amber']] : style.lead === 'say' ? l.say : [[l.text, 'value']]
+  const tail = [l[style.reset], l.fullIn === undefined ? l.pace : undefined].filter((t): t is string => t !== undefined && t !== '')
+  return words(kit, l.name, [...lead, ...tail.map((t): Say[number] => [`${style.sep}${t}`, 'label'])])
 }
 
 /** `label value`, or nothing while the value is unknown. */

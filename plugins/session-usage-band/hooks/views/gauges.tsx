@@ -10,7 +10,7 @@ import type { ContextReading, LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber, type Say, type SpendSplit } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, beforeLast, chartsIfRoom, fact, fitLine, grid, gridRoom, line, lineRoom, section, words, type Keeps } from './parts'
+import { accentOf, amberFirst, amberSay, beforeLast, chartsIfRoom, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
 /** What gives way as each row narrows, first to last; `reWarm` is the
@@ -28,13 +28,10 @@ const SPLIT_INK: Readonly<Record<SpendSplit['label'], 'meterFill' | 'label' | 'v
 
 /** A bar in its full size and the small one, each built at most once, when first asked for. */
 const twoSizes = (full: BarSize, make: (size: BarSize) => RenderChildren): ((isFull: boolean) => RenderChildren) => {
-  let wide: RenderChildren | undefined
-  let small: RenderChildren | undefined
-  return isFull => (isFull ? (wide ??= make(full)) : (small ??= make(SMALL_BAR)))
+  const wide = once(() => make(full))
+  const small = once(() => make(SMALL_BAR))
+  return isFull => (isFull ? wide() : small())
 }
-
-/** An amber reading's reason, long until every calm piece has gone. */
-const amberSay = (amber: Amber, keeps: Keeps<Piece>): Say => [[keeps.amber(amber), 'amber']]
 
 /** Row one: the cache's name, its time-left bar once its timing is known, and
  *  its sentence, calm or amber, with the cost and the tokens on the right
@@ -147,13 +144,8 @@ const cellsRow = (kit: Kit, read: Readings, act: BandActions): RenderElement => 
 
 const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => [cacheRow(kit, read), cellsRow(kit, read, act)]
 
-/** A limit in its panel: its reason while amber, else its value; then when
- *  it resets, and its pace unless the reason is a measured fill, which says it. */
-const limitLine = (kit: Kit, l: LimitView): RenderElement => {
-  const lead: Say = l.amber !== undefined ? [[l.amber.long, 'amber']] : l.say
-  const tail = [l.resetWords, l.fullIn === undefined ? l.pace : undefined].filter((t): t is string => t !== undefined && t !== '')
-  return words(kit, l.name, [...lead, ...tail.map(t => [` · ${t}`, 'label'] as const)])
-}
+/** A limit in its panel: `5h 4% · resets in 3h 00m · on pace for ~10%`. */
+const SENTENCE: SentenceStyle = { lead: 'say', reset: 'resetWords', sep: ' · ' }
 
 /** The facts behind ▿: four panels, each its bars over its facts while they fit. */
 const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
@@ -166,7 +158,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     meter(kit, { key, label, frac, tone: 'calm', accent, size: CELL_BAR, ...more })
   const none = (text: string) => words(kit, 'none', [[text, 'label']])
   // What needs you leads, so a panel short of rows keeps it.
-  const limits = [...read.limits.filter(l => l.amber !== undefined), ...read.limits.filter(l => l.amber === undefined)]
+  const limits = amberFirst(read.limits)
   return grid(kit, [
     section(kit, 'cache', 'CACHE', chartsIfRoom(room, [c.hitFrac === undefined ? null : bar('hit:bar', 'hit rate', c.hitFrac, p.warm)], [
       fact(kit, 'hit', 'hit rate', c.hitText),
@@ -190,7 +182,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     section(kit, 'limits', 'LIMITS', limits.length === 0 ? [none(EMPTY.limits)] : chartsIfRoom(
       room,
       limits.map(l => bar(`${l.name}:bar`, l.name, l.frac, accentOf(kit, l), { tone: l.tone, tick: l.gone, projectTo: l.projectedFrac })),
-      limits.map(l => limitLine(kit, l)),
+      limits.map(l => limitSentence(kit, l, SENTENCE)),
     ), room),
   ], bodyRows)
 }

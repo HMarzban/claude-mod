@@ -8,15 +8,14 @@ import type { Kit } from '../kit'
 import { SHORT_BELOW } from '../layout'
 import type { HistoryReading, LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
-import { EMPTY, type Amber, type Say } from '../words'
+import { EMPTY, type Say } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, beforeLast, chartsIfRoom, fact, fitLine, grid, gridRoom, layoutCachePill, line, lineRoom, section, sectionCells, words, type Keeps } from './parts'
+import { accentOf, amberFirst, amberSay, beforeLast, chartsIfRoom, fact, fitLine, grid, gridRoom, layoutCachePill, limitSentence, line, lineRoom, once, section, sectionCells, words, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last; `costWords`, `pace`
  *  and `calmFive` are the narrow-width ruling's. Amber never does. */
 const ORDER = ['calmContext', 'calmSeven', 'resetText', 'barsMany', 'trailChart', 'barsChart', 'costWords', 'pace', 'calmFive'] as const
-type Piece = (typeof ORDER)[number]
 
 /** The bars drawn collapsed, before and after they give way. */
 const BARS_MANY = 14
@@ -36,15 +35,6 @@ const DOT = [' · ', 'label'] as const
 /** Phrases one after another, a dot between each; the empty ones left out. */
 const dotted = (...says: ReadonlyArray<Say | undefined>): Say =>
   says.filter((s): s is Say => s !== undefined && s.length > 0).flatMap((s, i) => (i === 0 ? s : [DOT, ...s]))
-
-/** A piece built the first time it is asked for, then kept. */
-const once = <T,>(build: () => T): (() => T) => {
-  let built: T | undefined
-  return () => (built ??= build())
-}
-
-/** An amber reading's reason, long until every calm piece has gone. */
-const amberSay = (amber: Amber, keeps: Keeps<Piece>): Say => [[keeps.amber(amber), 'amber']]
 
 /** The newest `count` costs as bars: the newest in `value`, a re-warm capped. */
 const costBars = (kit: Kit, hist: HistoryReading, count: number, height: number): RenderChildren => {
@@ -142,12 +132,8 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   ]
 }
 
-/** A limit as a sentence: its reason while amber, else its value; then its
- *  reset and its pace, unless the reason is a measured fill, which says it. */
-const limitSentence = (kit: Kit, l: LimitView): RenderElement => {
-  const tail = [l.resetWords, l.fullIn === undefined ? l.pace : undefined].filter((t): t is string => t !== undefined && t !== '')
-  return words(kit, l.name, dotted(l.amber !== undefined ? [[l.amber.long, 'amber']] : l.say, ...tail.map((t): Say => [[t, 'label']])))
-}
+/** Pulse's limit sentences: `5h 4% · resets in 3h 00m · on pace for ~10%`. */
+const SENTENCE: SentenceStyle = { lead: 'say', reset: 'resetWords', sep: ' · ' }
 
 /** The facts behind ▿: the cache, then each history with the facts beside it. */
 const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
@@ -202,8 +188,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     section(kit, 'limits', 'LIMITS', read.limits.length === 0 ? [sentence('none', EMPTY.limits)] : chartsIfRoom(room, [
       charts && f !== undefined && hist.fiveHourWindow.length > 1 ? fiveHourTrail(kit, f, hist.fiveHourWindow, hist.fiveHourWindowAlt, OPEN_TRAIL_PX, OPEN_CHART_PX, true, cells) : null,
     ], [
-      ...read.limits.filter(l => l.amber !== undefined).map(l => limitSentence(kit, l)),
-      ...read.limits.filter(l => l.amber === undefined).map(l => limitSentence(kit, l)),
+      ...amberFirst(read.limits).map(l => limitSentence(kit, l, SENTENCE)),
     ], chartRows), room),
   ], bodyRows)
 }

@@ -4,7 +4,7 @@ import { test, expect } from 'claude-code/testing'
 import { makeKit } from '../hooks/kit'
 import { DARK } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
-import { accentOf, beforeLast, chartsIfRoom, fact, fitLine, grid, gridRoom, layoutCachePill, line, lineRoom, section, words, type Keeps } from '../hooks/views/parts'
+import { accentOf, amberFirst, beforeLast, chartsIfRoom, fact, fitLine, grid, gridRoom, layoutCachePill, limitSentence, line, lineRoom, once, section, words, type Keeps } from '../hooks/views/parts'
 import type { Amber } from '../hooks/words'
 import { byKey, cards, fakeEl, shown, walk, type Node } from './helpers'
 import { snapOf } from './matrix'
@@ -102,4 +102,21 @@ test('in the ascii tier the cache pill draws its words in ascii', () => {
 test('off the terminal the ascii tier leaves the cache pill unmapped', () => {
   const snap = snapOf({ surface: 'mobile', cache: { ...snapOf().cache, msLeft: 0 }, glyphs: 'ascii' })
   expect(shown(layoutCachePill(makeKit(fakeEl, snap), readingsOf(snap), false))).toBe(' cache cold · re-warm ~$1.66 ')
+})
+test('a limit as a sentence: its value or its words, its reset, and its pace, in the style a view writes', () => {
+  const snap = snapOf()
+  const five = readingsOf(snap).fiveHour
+  const k = makeKit(fakeEl, snap)
+  if (five === undefined) throw new Error('no 5h limit')
+  expect(shown(limitSentence(k, five, { lead: 'text', reset: 'resetWords', sep: ', ' }))).toMatch(/^5h \d+%, resets in \S+ \S+(, on pace for ~\d+%)?$/)
+  expect(shown(limitSentence(k, five, { lead: 'say', reset: 'resetGlyph', sep: ' · ' }))).toMatch(/^5h \d+% · ↻ in \S+ \S+( · on pace for ~\d+%)?$/)
+  const amber = { ...five, amber: { long: '! 5h 82%', short: '! 5h' } }
+  expect(shown(limitSentence(k, amber, { lead: 'text', reset: 'resetWords', sep: ', ' }))).toMatch(/^! 5h 82%, resets in /)
+})
+test('what needs you comes first, each part in its order; a piece is built once', () => {
+  const items = [{ n: 1, amber: undefined }, { n: 2, amber: A }, { n: 3, amber: undefined }, { n: 4, amber: A }]
+  expect(amberFirst(items).map(i => i.n)).toEqual([2, 4, 1, 3])
+  let builds = 0
+  const piece = once(() => ++builds)
+  expect([piece(), piece(), builds]).toEqual([1, 1, 1])
 })
