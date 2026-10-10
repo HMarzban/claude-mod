@@ -404,7 +404,11 @@ const chooseLayout = async ($: EngineInterface, arg: string): Promise<string> =>
 export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
+    const id = await $.session.id().catch(() => undefined)
     resetCache()
+    // A resume of another session is no longer news. It is dropped in the
+    // same step as the reset, so no read of it can land in between.
+    if (band.resume?.sessionId !== id) band.resume = undefined
     resetInsights()
     band.warned.clear()
     band.lastPaintKey = ''
@@ -414,9 +418,7 @@ export const register: Register = on => {
     await readLayout($)
     notePriceModel(await $.session.model().catch(() => undefined))
     // A resume of this session, said before this load or while it runs, is
-    // noted again after the reset; one of another session is no longer news.
-    const id = await $.session.id().catch(() => undefined)
-    if (band.resume?.sessionId !== id) band.resume = undefined
+    // noted again after the reset.
     if (band.resume !== undefined) applyResume(band.resume)
     noteLoad(await ledgerUsd($))
     void readWorkspace($)

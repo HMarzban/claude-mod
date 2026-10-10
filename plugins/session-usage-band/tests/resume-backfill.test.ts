@@ -313,6 +313,16 @@ test('a SessionStart while session.start runs still resumes the conversation', a
   expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
 })
 
+test('a resume of another session said before the load never counts its spend in this one', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = TRANSCRIPT
+  await resume($, 48 * HOUR, { sessionId: 's9' })
+  await $.session.start(START)
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache warming/)
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$0\.00/)
+})
+
 test('a ledger the host restores after the transcript is read is never added to it', async ($, on) => {
   const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
   engine.transcript = TRANSCRIPT
@@ -440,6 +450,15 @@ test('the TTL the environment pins wins over one seen on the transcript, even on
   await clock.settle()
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 58m/)
   expect(fact(await mounted($, true), 'expires')).toBe('1h idle')
+})
+
+test('a TTL seen on another session resumed before the load is never this one', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: UNPINNED, now: 3 * HOUR })
+  engine.transcript = jsonl(RECORD, ...wroteAt('msg_1', '5m'))
+  await resume($, 2 * MIN, { expired: false, sessionId: 's9' })
+  await $.session.start(START)
+  await clock.settle()
+  expect(fact(await mounted($, true), 'expires')).toBe('1h idle · assumed')
 })
 
 /** Whether `argv` reads a transcript's last megabyte. */
