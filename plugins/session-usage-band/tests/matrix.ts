@@ -256,7 +256,7 @@ export const suiteCases = (layout: LayoutName): SuiteCase[] => {
       mounts: [40, 50, 60].flatMap(cols => bothSurfaces(cols)),
     })),
     { name: `${layout}: calm, short of rows`, options: optionsOf('calm'), mounts: [4, 8, 13, 40].flatMap(maxRows => bothSurfaces(120, maxRows)) },
-    // The open-only amber, where a section keeps one or two rows, at both grids.
+    // The open-only amber short of rows, on both grids.
     {
       name: `${layout}: gatewaySpend, short of rows`,
       options: optionsOf('gatewaySpend'),

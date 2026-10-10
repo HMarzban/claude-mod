@@ -19,7 +19,7 @@ test('every width and every height is covered', () => {
   for (const cols of [40, 41, 50, 60, 67, 68, 80, 95, 120, 160, 200]) expect(cases.some(c => c.options.scenario === 'lastMinute' && c.mounts.some(m => m.cols === cols))).toBe(true)
   for (const maxRows of [4, 8, 13, 40]) expect(cases.some(c => c.mounts.some(m => m.maxRows === maxRows))).toBe(true)
   for (const s of ['fiveHourAhead', 'limit80', 'nearCompaction']) expect(cases.some(c => c.options.scenario === s && c.mounts.some(m => m.cols === 40))).toBe(true)
-  // The open-only amber, where a section keeps one or two rows, at both grids.
+  // The open-only amber short of rows, on both grids.
   for (const cols of [80, 120]) for (const maxRows of [7, 8, 10]) expect(cases.some(c => c.options.scenario === 'gatewaySpend' && c.mounts.some(m => m.cols === cols && m.maxRows === maxRows))).toBe(true)
 })
 test('light, plain and the ascii tier are each drawn', () => {
