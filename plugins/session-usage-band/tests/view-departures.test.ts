@@ -191,6 +191,11 @@ for (const appearance of ['dark', 'plain'] as const)
     expect(shown(line)).toMatch(/^\[?CACHE\]?\[?DEPARTED\]?\[?RE-WARM ~\$\d+\.\d{2}\]?$/)
     expect(cellsOf(line as RenderChildren, TERMINAL)).toBeLessThanOrEqual(T40.cols - ROW_SLACK - 2)
   })
+test('cold, the 5h flap gives way before the time the cache went cold', LONG, async ($, on) => {
+  // The cold line keeps its clock while it fits, 38 cells of a lineRoom of 40 at 46 columns; with `5H 4%` it is 44.
+  const line = shown(byKey((await at($, on, 'cold', { surface: 'terminal', cols: 46 }, '5m')).shut, 'line', 'Box'))
+  expect(line).toMatch(/^CACHE\s*DEPARTED \d{2}:\d{2}\s*RE-WARM ~\$\d+\.\d{2}$/)
+})
 /** With no UTC offset there is no clock time, so the minutes give way at the last calm step instead. */
 for (const [scenario, over, amber] of [
   ['limit80', { fiveHour: { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }, /! 5h 82%$/],

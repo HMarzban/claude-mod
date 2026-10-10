@@ -14,7 +14,7 @@ import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last. Amber never does.
  *  Plain's brackets go first: they mark a flap's edges and say nothing. */
-const ORDER = ['brackets', 'fiveProjection', 'boardMinutes', 'calmSeven', 'calmFiveGroup', 'cost', 'calmFive'] as const
+const ORDER = ['brackets', 'fiveProjection', 'boardMinutes', 'calmSeven', 'calmFiveGroup', 'cost', 'calmFive', 'coldSince'] as const
 type Piece = (typeof ORDER)[number]
 
 /** Each ink a flap is drawn in, made for the flap ground. */
@@ -133,10 +133,10 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
         [
           group(kit, 'cache', [
             label,
-            // When it went cold gives way at the last calm step, so its price still fits.
-            keeps.has('calmFive') ? status : statusShort,
+            // When it went cold gives way last, after the 5h, so its price still fits.
+            keeps.has('coldSince') ? status : statusShort,
             // The minutes give way to the clock time alone; with no clock they
-            // stay until the last calm step, so an amber reason still fits.
+            // go with the 5h, at `calmFive`, so an amber reason still fits.
             // LAST CALL keeps its seconds.
             c.amber !== undefined || keeps.has(c.coldAtClock === undefined ? 'calmFive' : 'boardMinutes') ? left : null,
             c.amber === undefined || beforeLast(keeps) ? reWarm : null,
