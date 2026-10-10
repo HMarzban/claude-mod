@@ -128,7 +128,7 @@ test("a resumed session's spend and tokens start from its last cost record, each
   await $.session.start(START)
   await resume($, 10 * MIN)
   await clock.settle()
-  expect(engine.ran).toContainEqual(['grep', '-b', '-F', '"type":"cost-state"', PATH])
+  expect(engine.ran).toContainEqual(['grep', '-a', '-b', '-F', '"type":"cost-state"', PATH])
   // $30 + 2 × $0.135
   expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
   const tree = await mounted($, true)

@@ -194,7 +194,9 @@ const endOf = async ($: EngineInterface, sessionId: string, given: string | unde
  *  record, or no way to read one. */
 const spendBefore = async ($: EngineInterface, path: string, sessionId: string): Promise<Spend | undefined> => {
   const run = (argv: readonly string[]) => $.process.run(argv, { timeoutMs: PROCESS_TIMEOUT_MS }).catch(() => undefined)
-  const found = await run(['grep', '-b', '-F', COST_RECORD, path])
+  // `-a`: a line cut mid-character would otherwise make the file binary to
+  // grep, which then prints no lines and still exits 0.
+  const found = await run(['grep', '-a', '-b', '-F', COST_RECORD, path])
   // grep exits 1 when nothing matches, 2 when it fails.
   if (found?.exitCode === 1) return undefined
   if (found?.exitCode !== 0) {

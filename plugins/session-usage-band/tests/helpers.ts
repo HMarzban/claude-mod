@@ -213,7 +213,7 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
     const { git, transcript, grepFails, grepMatchOffsets, truncates, hold } = engine
     if (hold !== undefined) await hold
     if (e.argv[0] === 'grep') {
-      // `grep -b -F pattern path`: each line holding the pattern, after its byte offset.
+      // `grep -a -b -F pattern path`: each line holding the pattern, after its byte offset.
       if (grepFails) throw new Error('grep: command not found')
       if (transcript === undefined) return { value: { ...quiet, exitCode: 2, stdout: '', stderr: 'grep: no such file' } }
       const pattern = String(e.argv.at(-2))
