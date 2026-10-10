@@ -208,7 +208,11 @@ const spendBefore = async ($: EngineInterface, path: string, sessionId: string):
  *  band, its transcript's last reply and cost record, from the end
  *  `readEnd` reads. Recalled once per load or resume, and only those two
  *  facts kept. Never throws: unknown stays unknown. */
-const recallLastReply = async ($: EngineInterface, sessionId: string, readEnd: () => Promise<string | undefined>): Promise<void> => {
+const recallLastReply = async (
+  $: EngineInterface,
+  sessionId: string,
+  readEnd: () => Promise<string | undefined>,
+): Promise<void> => {
   try {
     const model = modelName(await $.session.model())
     const rates = asRates(await $.store.get(RATES_KEY))

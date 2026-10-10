@@ -159,10 +159,10 @@ export const noteLoad = (costNow: number | undefined): void => {
 /** A resumed conversation didn't start here, whatever the ledger says; what
  *  the engine knows of its cache, when it says, stands over anything
  *  recalled. A resume's facts replace any noted before them. */
-export const noteResume = (engine: ResumedCache | undefined): void => {
+export const noteResume = (said: ResumedCache | undefined): void => {
   state.knownFresh = false
   state.resumed = true
-  state.resumedCache = engine
+  state.resumedCache = said
   state.prior = undefined
 }
 
@@ -391,6 +391,8 @@ export const cacheView = (now: number, sessionCost: number | undefined, contextT
   const recalled = isRecalled()
   const lastAt = recalledAt()
   const rate = state.recall?.rate ?? null
+  // A resume's price is the engine's own; else it is solved from the rate recalled.
+  const recalledPrice = state.resumedCache?.reWarmUsd ?? (rate === null ? null : reWarmAt(rate, contextTokens))
   const tokens = allTokens()
   return {
     requests: state.requests,
@@ -400,8 +402,7 @@ export const cacheView = (now: number, sessionCost: number | undefined, contextT
     window: recalled ? contextTokens : state.window,
     hitRatio: hitRatio(),
     misses: state.misses,
-    // A resume's price is the engine's own; else it is solved from the rate recalled.
-    reWarmUsd: recalled ? (state.resumedCache?.reWarmUsd ?? (rate === null ? null : reWarmAt(rate, contextTokens))) : reWarmUsd(sessionCost),
+    reWarmUsd: recalled ? recalledPrice : reWarmUsd(sessionCost),
     recalled,
     idleMs: recalled && lastAt !== undefined ? now - lastAt : null,
     savedUsd: savedUsd(sessionCost),
