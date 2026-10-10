@@ -196,16 +196,16 @@ Open items cleared on `feat/layouts` after 0119b9a.
   - The spec's errata (5b5a7a8): §4 names `layoutCachePill`, §4.1 says the list comes from `LAYOUT_NAMES`, and `avgWarmUsd`, which no reading builds, is ruled out of §4.1 and §5. §6 now says forecast's Spend row draws no bar, as it has nothing to land at (Task C4).
   - The CHANGELOG gains its Fixed line for 7aebb0a (bbf20dc). The rest change layouts and a command new in 0.12.0, so Added covers them.
   - 1052 pass, 0 fail, 48 files.
-- **Departures polish** (C5), in 16deca8, 39e53b5, 8901dd6, 6d0b2db, 2387976, 25d6940, e47fe61 and 45660cd, each with its `Ruling (C5):` line in the ledger:
-  - Plain flaps are drawn in spec §3.1's `[ ]`. The brackets are the line's first give-way step, so a single amber reason still fits at 40 columns. The open board keeps them, and its headers sit one cell in.
-  - The give-way keeps its two steps past spec §6's four, `cost` and `calmFive`: without them an amber reason would clip at 40 columns while a calm piece stayed (spec §2.6). Ruled, no change.
+- **Departures polish** (C5), in 16deca8, 39e53b5, 8901dd6, 6d0b2db, 2387976, 25d6940, e47fe61 and 45660cd, and after review in 7ab8cc7, 52449d3, 5129a0b, 6629589, a1f4d5c and ba4d14e, each with its `Ruling (C5):` line in the ledger:
+  - Plain flaps are drawn in spec §3.1's `[ ]`. The brackets are the line's first give-way step, so a single amber reason still fits at 40 columns. The open board keeps them, and its headers sit one cell in. A flap that outgrows its cell truncates its text and keeps its `]`.
+  - The give-way keeps its steps past spec §6's four, `cost` and `calmFive`: without them an amber reason would clip at 40 columns while a calm piece stayed (spec §2.6). Ruled, no change. A third, `coldSince`, follows them (below).
   - An amber short form stays lower case (`! 5h 82%`), as spec §2.6 writes the short forms and §2.2 puts `47s` on the board. Upper case would make `! 5h ~1h` read `! 5H ~1H`, the short form §2.12 keeps off the board. Ruled, no change.
-  - Where the board can't hold TIME whole (below 51 columns on the terminal, 57 where a flap is padded or bracketed), TIME is dropped, and each row's time leads its REMARKS as TIME draws it (`30s` in the last minute).
-  - With no UTC offset, a limit's TIME reads `IN 3H 00 MIN` (7d `IN 67H 00 MIN`), from the new `LimitWords.boardTime`, which also holds the clock form `↻ 16:40`.
+  - Where the board can't hold TIME whole and still leave REMARKS 14 cells, a re-warm price's width (below 68 columns on the terminal, 76 where a flap is padded or bracketed), TIME is dropped, and each row's time leads its REMARKS as TIME draws it (`30s` in the last minute).
+  - With no UTC offset, a limit's TIME reads `IN 3H 00 MIN` (7d `IN 67H 00 MIN`), from the new `LimitWords.boardTime`, which also holds the clock form `↻ 16:40`. A measured fill's STATUS reads `! FULL IN ~1H 15 MIN`, not `! FULL IN ~1H 15M`, from the new `fmtBoardEta`. STATUS widens from 18 cells to 20 to hold it, so a 1M window's `! COMPACTS IN ~100K` fits too.
   - The board keeps spec §6's row order, CACHE first. Where the rows under the header can't hold CACHE and every amber row (at `gatewaySpend`, one row), an amber row takes CACHE's place, since amber is never cut while a calm piece stays. Pinned by a test, no change.
-  - An other limit's ITEM reads `SPEND LIMIT`, apart from the session's `SPEND`. ITEM widens from 10 cells to 11 to hold it.
-  - The snapshot holds when a measured cache went cold (`cache.coldAt`), so a cold cache reads `DEPARTED 13:28`. On the collapsed line the clock gives way at the last calm step. A recalled cache still reads `DEPARTED` alone.
-  - Shared files touched: `words.ts` (`boardTime`, and `coldSinceClock` reading `coldAt`), `snapshot.ts` and `cache.ts` (`coldAt`), and `tests/matrix.ts` (`coldAt: null` in `snapOf`). Golden is unchanged. 1057 pass, 0 fail, 48 files. These change a layout that is new in 0.12.0, so the CHANGELOG's Added line covers them.
+  - A gateway's spend limit's ITEM reads `SPEND LIMIT`, apart from the session's `SPEND`. ITEM widens from 10 cells to 11 to hold it. Any other limit keeps its own name.
+  - The snapshot holds when a measured cache went cold (`cache.coldAt`), so a cold cache reads `DEPARTED 13:28`. On the collapsed line the clock gives way last, after the 5H flap. A recalled cache still reads `DEPARTED` alone.
+  - Shared files touched: `words.ts` (`boardTime`, the no-offset fill's board minutes, and `coldSinceClock` reading `coldAt`), `format.ts` (`fmtBoardEta`), `snapshot.ts` and `cache.ts` (`coldAt`, from `measuredColdAt`), and `tests/matrix.ts` (`coldAt: null` in `snapOf`). Golden is unchanged. 1064 pass, 0 fail, 48 files. These change a layout that is new in 0.12.0, so the CHANGELOG's Added line covers them.
 
 ## Pending the maintainer
 
