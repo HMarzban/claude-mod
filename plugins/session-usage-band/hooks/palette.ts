@@ -36,6 +36,22 @@ export type Palette = {
   weekBg: string
   weekFg: string
   weekAccent: string
+  /** Departures' split-flap cell, near-black in every filled palette. */
+  flap: string
+  /** A flap's text. */
+  flapText: string
+  /** A flap's quieter labels. */
+  flapDim: string
+  /** A warm cache, on a flap. */
+  flapWarm: string
+  /** Amber words, on a flap. */
+  flapAmber: string
+  /** The 5-hour limit's accent, on a flap. */
+  flapFive: string
+  /** The 7-day limit's accent, on a flap. */
+  flapWeek: string
+  /** The coin, on a flap. */
+  flapCoin: string
 }
 
 export const DARK: Readonly<Palette> = {
@@ -63,6 +79,14 @@ export const DARK: Readonly<Palette> = {
   weekBg: '#2a2540',
   weekFg: '#d9d3f5',
   weekAccent: '#a99cf0',
+  flap: '#111113',
+  flapText: '#f2f2f5',
+  flapDim: '#a2a2ac',
+  flapWarm: '#7fcf8a',
+  flapAmber: '#f0c969',
+  flapFive: '#7fcf8a',
+  flapWeek: '#a99cf0',
+  flapCoin: '#c9a54a',
 }
 
 export const LIGHT: Readonly<Palette> = {
@@ -90,6 +114,14 @@ export const LIGHT: Readonly<Palette> = {
   weekBg: '#e8e4fa',
   weekFg: '#3c3489',
   weekAccent: '#6b5fd3',
+  flap: '#1d1d22',
+  flapText: '#f2f2f5',
+  flapDim: '#a8a8b2',
+  flapWarm: '#7fcf8a',
+  flapAmber: '#f0c969',
+  flapFive: '#7fcf8a',
+  flapWeek: '#b9aef5',
+  flapCoin: '#d9b45a',
 }
 
 // No backgrounds at all: every colour is a theme key, so it follows whatever
@@ -119,6 +151,14 @@ export const PLAIN: Readonly<Palette> = {
   weekBg: '',
   weekFg: 'text',
   weekAccent: 'text',
+  flap: '',
+  flapText: 'text',
+  flapDim: 'subtle',
+  flapWarm: 'success',
+  flapAmber: 'warning',
+  flapFive: 'success',
+  flapWeek: 'text',
+  flapCoin: 'warning',
 }
 
 /** The palette CC_BAND_APPEARANCE names; NO_COLOR forces plain. */
