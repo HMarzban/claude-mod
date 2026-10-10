@@ -191,6 +191,8 @@ export type LimitWords = Readonly<{
   boardAmber: string | undefined
   /** `~10% AT ↻`, `FULL BEFORE ↻`, or `RESET`; in the ascii tier, `~10% AT RESET`. */
   boardShort: string | undefined
+  /** The board's time of the reset: `↻ 16:40`, or without the offset `IN 3H 00 MIN`; undefined once passed. */
+  boardTime: string | undefined
   alt: string
 }>
 
@@ -351,6 +353,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
             ? `! FULL ${fullAtClock}`
             : `! FULL IN ${fullIn.toUpperCase()}`,
     boardShort: f.passed ? 'RESET' : fills ? `FULL BEFORE ${boardReset}` : projectedText !== undefined ? `${projectedText} AT ${boardReset}` : undefined,
+    boardTime: resetClock !== undefined ? `↻ ${resetClock.toUpperCase()}` : f.resetInMs !== undefined ? fmtBoardLeft(f.resetInMs) : undefined,
     alt: altOf(
       `${f.name} limit`,
       live ? `${Math.round(f.percentUsed)} percent used` : 'reset',

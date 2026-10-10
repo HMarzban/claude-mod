@@ -99,6 +99,14 @@ test('clock times appear only when the offset is known', () => {
   expect(r.cache.coldAtClock).toBe(fmtClock(now + 52 * MIN, 0))
   expect(r.fiveHour?.resetClock).toBe(fmtClock(now + 3 * HOUR, 0))
 })
+test('the board says a reset at its clock time, and without the offset in minutes, never "3H 00M"', () => {
+  const now = Date.UTC(2026, 9, 9, 13, 40)
+  const timed = readingsOf(snapOf({ now, utcOffsetMin: 0, fiveHour: { percentUsed: 4, resetsAt: new Date(now + 3 * HOUR).toISOString(), etaMs: null } }))
+  expect(timed.fiveHour?.boardTime).toBe(`↻ ${fmtClock(now + 3 * HOUR, 0)}`)
+  const r = readingsOf(snapOf())
+  expect([r.fiveHour?.boardTime, r.sevenDay?.boardTime]).toEqual(['IN 3H 00 MIN', 'IN 67H 00 MIN'])
+  expect(readingsOf(snapOf({ now: 4 * HOUR })).fiveHour?.boardTime).toBeUndefined()
+})
 test('limits speak in words, amber with one "! "', () => {
   const r = readingsOf(snapOf({ fiveHour: { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }))
   expect(r.fiveHour?.text).toBe('5h 82%')

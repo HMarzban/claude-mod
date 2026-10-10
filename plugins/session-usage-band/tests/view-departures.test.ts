@@ -178,6 +178,12 @@ for (const [scenario, over, amber] of [
     expect(shown(line)).toMatch(amber)
     expect(cellsOf(line as RenderChildren, TERMINAL)).toBeLessThanOrEqual(T40.cols - ROW_SLACK - 2)
   })
+test('open with no UTC offset, a limit\'s TIME says its reset in minutes, as the cache\'s does', () => {
+  const t = shown(byKey(drawBand(fakeEl, snapOf({ layout: 'departures', columns: 160, expanded: true }), NO_ACT), 'body', 'Box'))
+  expect(t).toMatch(/5H\s*~\d+% AT ↻\s*IN 3H 00 MIN/)
+  expect(t).toMatch(/7D\s*~\d+% AT ↻\s*IN 67H 00 MIN/)
+  expect(t).not.toMatch(SHORT_DURATION)
+})
 test('open, compaction not known yet says nothing of it', LONG, async ($, on) => {
   // Calm reads no breakdown: compaction is unknown, not off.
   expect(shown((await at($, on, 'calm')).open)).not.toMatch(/AUTO-COMPACTION/)

@@ -201,16 +201,8 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       ]),
     }
   }
-  const limitRow = (l: LimitView): BoardRow => {
-    const reset = l.resetClock === undefined ? l.resetGlyph : `↻ ${l.resetClock}`
-    return row(
-      l.name,
-      [up(l.name), limitInk(l)],
-      [l.boardAmber ?? l.boardShort ?? l.value, l.boardAmber !== undefined ? 'amber' : 'text'],
-      reset === undefined ? undefined : up(reset),
-      l.passed ? [] : [`${l.value} used`],
-    )
-  }
+  const limitRow = (l: LimitView): BoardRow =>
+    row(l.name, [up(l.name), limitInk(l)], [l.boardAmber ?? l.boardShort ?? l.value, l.boardAmber !== undefined ? 'amber' : 'text'], l.boardTime, l.passed ? [] : [`${l.value} used`])
   const rows: BoardRow[] = [
     row('cache', ['CACHE'], [cacheStatus(c), cacheInk(c)], c.boardLeft === '' ? undefined : c.boardLeft, [
       c.known ? `re-warm ${c.estimate}` : undefined,
