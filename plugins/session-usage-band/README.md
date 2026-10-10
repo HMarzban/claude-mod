@@ -91,8 +91,8 @@ amber at once, the end of the row is clipped rather than wrapped.
 ## Layouts
 
 Chips is one of nine layouts. The other eight show the same readings in
-another shape, on a filled panel, and each opens with `▿` to its own view of
-every fact, under the same workspace line and buttons.
+another shape, on a filled panel (bare in `plain`), and each opens with `▿`
+to its own view of every fact, under the same workspace line and buttons.
 
 | Layout | Shows | Rows (desktop / terminal) |
 | --- | --- | --- |
