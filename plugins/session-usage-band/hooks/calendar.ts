@@ -90,7 +90,8 @@ const risesOf = (samples: readonly Sample[], cut: Cut, resetAt: number, bounds: 
   return bounds.slice(0, -1).map((from, i) => {
     const to = bounds[i + 1] ?? from
     if (from > now) return undefined
-    const inside = lastWhere(s => s.at > from && s.at < to && s.at <= now)
+    // A sample on an edge closes the slice before it and opens the one after.
+    const inside = lastWhere(s => s.at > from && s.at <= to && s.at <= now)
     const before = lastWhere(s => s.at <= from)
     // The window's first slice starts from 0, the window's own start.
     const base = before !== undefined ? cut.pct(before) : i === 0 ? 0 : undefined

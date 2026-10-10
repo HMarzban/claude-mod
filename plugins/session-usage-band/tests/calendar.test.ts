@@ -71,6 +71,14 @@ test('the days are cut at local midnight, so today is the day it is', () => {
   // The same instants an hour and a half east, at 03:30 local.
   expect(today(at(8, 2), 90)).toEqual(['T8'])
 })
+test('a sample exactly at local midnight closes the day before and opens the day it starts', () => {
+  // An hour and a half east, Tuesday's window part ends at Wednesday 00:00 local, 22:30 UTC.
+  const midnight = Date.UTC(2026, 9, 6, 22, 30)
+  const sample = (at: number, sevenPct: number) => ({ at, fivePct: 0, sevenPct, fiveResetAt: at + H, sevenResetAt: T0 + 168 * H })
+  const samples = [sample(T0, 0), sample(midnight, 6), sample(midnight + 12 * H, 9)]
+  const wk = weekOf({ samples, seven: seven(9, 20), five: undefined, now: midnight + 14 * H, utcOffsetMin: 90 })
+  expect(wk.days.slice(0, 2).map(d => `${d.initial}${d.date} ${d.text}`)).toEqual(['T6 6%', 'W7 3%'])
+})
 test("on the reset's own day, before it resets, today is that day", () => {
   const R = T0 + 168 * H // Tue 08:40
   const wk = weekOf({ samples: [], seven: seven(80, 90), five: undefined, now: R - 6 * H, utcOffsetMin: 0 })
