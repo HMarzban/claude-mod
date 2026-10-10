@@ -23,7 +23,8 @@ What the plan's steps record, in the order they happen.
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
 Ruling: `noWorkspace` keeps the held workspace read (`engine.hold` that never resolves) — the open draw after ▿ returns and the test passes, so no act waits on the held read — fallback (`rootFails`) not taken.
-Ruling: forgetTurn kept as defensive code — index.d.ts:12643 says a subagent's run raises no turn.start, TurnStartInput carries no agentId, and helpers.ts' `turn` already models that, so no subagent entry is ever written today; 1987ba7's body calls it a fix for an observed leak, which is wrong (amending it was refused), so the review commit's body corrects the record — kept per plan, no fallback. Pending maintainer: whether a nested subagent's turn.complete can carry its parent's turnId (TurnStepInput.turnId's doc implies distinct ids but never says so); if it can, forgetTurn would drop the parent's start cost and 'last message' would go stale.
+Ruling: `forgetTurn` kept as a guard — index.d.ts:12643 says a subagent's run raises no turn.start, so no subagent entry is written today; 50eaa33 corrects 1987ba7's body — kept per plan, no fallback.
+Pending maintainer: whether a nested subagent's turn.complete can carry its parent's turnId (TurnStepInput.turnId's doc implies distinct ids but never says so); if it can, `forgetTurn` would drop the parent's start cost and 'last message' would go stale.
 
 ## Freezes
 - P1 freeze (Task 14):
