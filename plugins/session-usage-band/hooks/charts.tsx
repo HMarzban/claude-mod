@@ -375,7 +375,8 @@ export type UnderlineOptions = Readonly<{
   dashed?: boolean
 }>
 
-const UNDERLINE_PX = 4
+/** An underline's height. */
+export const UNDERLINE_PX = 4
 
 /** A thin bar under a tile's label. Terminal tiles have none. */
 export const underline = (kit: Kit, o: UnderlineOptions): RenderChildren => {

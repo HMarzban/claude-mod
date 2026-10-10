@@ -167,7 +167,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   return grid(kit, [
     section(kit, 'cache', 'CACHE', [
       sentence('now', c.value),
-      sentence('rewarm', c.reWarmText),
+      sentence('reWarm', c.reWarmText),
       fact(kit, 'saved', 'saved', c.savedText),
       fact(kit, 'hit', 'hit rate', c.hitText),
       fact(kit, 'lasts', 'lasts', c.lastsText),

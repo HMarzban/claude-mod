@@ -71,7 +71,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   return grid(kit, [
     section(kit, 'cache', 'CACHE', [
       sentence('now', c.value),
-      sentence('rewarm', c.reWarmText),
+      sentence('reWarm', c.reWarmText),
       c.savedText === undefined || c.hitText === undefined ? null : sentence('saved', `saved ${c.savedText}, ${c.hitText} hit rate`),
       sentence('lasts', `lasts ${c.lastsText}`),
     ], room),

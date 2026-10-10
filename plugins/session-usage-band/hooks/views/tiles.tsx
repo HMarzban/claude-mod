@@ -2,7 +2,7 @@
 // desktop a thin underline beneath each but the cost's. No pills.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
-import { underline } from '../charts'
+import { UNDERLINE_PX, underline } from '../charts'
 import type { Kit } from '../kit'
 import { ROW_PX } from '../layout'
 import type { CacheReading, LimitView, Readings, Tone } from '../reading'
@@ -19,8 +19,6 @@ const ORDER = ['underline', 'resetText', 'calmSeven', 'calmContext', 'cost'] as 
 type Piece = (typeof ORDER)[number]
 /** An underline's length. */
 const UNDER_PX = 64
-/** An underline's height: charts' `UNDERLINE_PX`, which it keeps private. */
-const UNDER_HEIGHT = 4
 
 /** A value over its label, and on the desktop its underline beneath. */
 const stack = (kit: Kit, key: string, value: RenderElement, label: RenderElement, bar: RenderChildren): RenderElement => {
@@ -152,7 +150,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   // group's pairs fit its room with them. Only the limits hold more than two.
   const pairs = Math.floor(room / 2)
   const deepest = Math.min(pairs, Math.max(2, read.limits.length))
-  const barred = deepest * (2 * ROW_PX + UNDER_HEIGHT) <= room * ROW_PX
+  const barred = deepest * (2 * ROW_PX + UNDERLINE_PX) <= room * ROW_PX
   /** A tile, or nothing while its value is unknown; amber, its label is the
    *  reason, then what it `keeps`. */
   const tile = (key: string, value: string | undefined, label: string | Say, bar: RenderChildren = null, amber?: Amber, keeps: Say = []): RenderChildren => {
@@ -171,7 +169,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     group('cache', 'CACHE', [
       pair(kit, 'a', [
         tile('left', cacheValue(c), c.leftShort === '' ? 'cache' : 'left', barOf(kit, c.alt, c.charge, p.warm, c.amber), c.amber),
-        tile('rewarm', c.known ? c.estimate : undefined, c.condition === 'cold' ? 'next message' : 're-warm if cold'),
+        tile('reWarm', c.known ? c.estimate : undefined, c.condition === 'cold' ? 'next message' : 're-warm if cold'),
       ]),
       pair(kit, 'b', [tile('saved', c.savedText, 'saved'), tile('hit', c.hitText, 'hit rate')]),
     ], [headOf(c.text, c.amber)]),

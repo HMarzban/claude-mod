@@ -172,7 +172,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       fact(kit, 'hit', 'hit rate', c.hitText),
       fact(kit, 'saved', 'saved', c.savedText),
       fact(kit, 'lasts', 'lasts', c.lastsText),
-      c.reWarmText === undefined ? null : words(kit, 'rewarm', [[c.reWarmText, 'value']]),
+      c.reWarmText === undefined ? null : words(kit, 'reWarm', [[c.reWarmText, 'value']]),
     ]), room),
     section(kit, 'spend', 'SPEND', chartsIfRoom(room, s.split.map(part => bar(`${part.label}:bar`, part.label, part.frac, p[SPLIT_INK[part.label]])), [
       fact(kit, 'total', 'session', s.totalText),

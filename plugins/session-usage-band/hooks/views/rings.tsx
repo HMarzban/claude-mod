@@ -154,7 +154,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   return grid(kit, [
     section(kit, 'cache', 'CACHE', chartsIfRoom(room, [cacheRing(kit, c, BIG_PX, c.leftShort === '' ? undefined : c.leftShort)], [
       words(kit, 'now', [[c.value, 'value']]),
-      c.reWarmText === undefined ? null : words(kit, 'rewarm', [[c.reWarmText, 'value']]),
+      c.reWarmText === undefined ? null : words(kit, 'reWarm', [[c.reWarmText, 'value']]),
       fact(kit, 'saved', 'saved', c.savedText),
       fact(kit, 'hit', 'hit rate', c.hitText),
       fact(kit, 'lasts', 'lasts', c.lastsText),
