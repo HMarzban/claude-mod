@@ -135,10 +135,13 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
 /** A row of the board, and whether it is amber, so a board short of rows keeps it. */
 type BoardRow = Readonly<{ amber: boolean; line: RenderElement }>
 
-/** One board line: three fixed columns, each as wide as its text and a
- *  flap's two edges and clipping what outgrows that, then REMARKS, which
- *  truncates first. */
-const boardLine = (kit: Kit, key: string, [item, status, time, remarks]: readonly [RenderElement, RenderElement, RenderElement, RenderElement]): RenderElement => {
+/** The cells ITEM, STATUS and TIME take, a flap's edges and the gaps between them included. */
+const fixedCells = (kit: Kit): number => COLUMNS.reduce((sum, cells) => sum + cells + 2 * inset(kit), COLUMNS.length - 1)
+
+/** One board line: the fixed columns, each as wide as its text and a flap's
+ *  two edges and clipping what outgrows that, then REMARKS, which truncates
+ *  first. TIME is null where the board has no room for it whole. */
+const boardLine = (kit: Kit, key: string, [item, status, time, remarks]: readonly [RenderElement, RenderElement, RenderElement | null, RenderElement]): RenderElement => {
   const { Box } = kit
   const edges = 2 * inset(kit)
   return (
@@ -149,9 +152,11 @@ const boardLine = (kit: Kit, key: string, [item, status, time, remarks]: readonl
       <Box key="status" width={COLUMNS[1] + edges} flexShrink={0} overflow="hidden">
         {status}
       </Box>
-      <Box key="time" width={COLUMNS[2] + edges} flexShrink={0} overflow="hidden">
-        {time}
-      </Box>
+      {time === null ? null : (
+        <Box key="time" width={COLUMNS[2] + edges} flexShrink={0} overflow="hidden">
+          {time}
+        </Box>
+      )}
       <Box key="remarks" flexGrow={1} width={0} minWidth={0} overflow="hidden">
         {remarks}
       </Box>
@@ -175,6 +180,8 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const x = read.context
   const s = read.spend
   const { Box } = kit
+  // Where the room can't hold TIME whole, its words lead REMARKS, never cut mid-word.
+  const timed = fixedCells(kit) <= lineRoom(kit)
   // Each title sits over its column's text, as far in as a flap's.
   const head = (key: string, title: string) => (
     <Box key={key} paddingLeft={inset(kit)}>
@@ -183,13 +190,13 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   )
   /** A row of flaps; a time or remarks not known read `–`. */
   const row = (key: string, item: readonly [string, Ink?], status: readonly [string, Ink], time: string | undefined, remarks: readonly (string | undefined)[]): BoardRow => {
-    const said = remarks.filter((r): r is string => r !== undefined && r !== '')
+    const said = [timed ? undefined : time, ...remarks].filter((r): r is string => r !== undefined && r !== '')
     return {
       amber: status[1] === 'amber',
       line: boardLine(kit, key, [
         flap(kit, 'item', ...item),
         flap(kit, 'status', ...status),
-        flap(kit, 'time', time ?? '–'),
+        timed ? flap(kit, 'time', time ?? '–') : null,
         flap(kit, 'remarks', said.length === 0 ? '–' : up(said.join(' · ')), 'dim'),
       ]),
     }
@@ -224,7 +231,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     ]),
     ...read.limits.filter(l => l.key === 'other').map(limitRow),
   ]
-  return [boardLine(kit, 'head', [head('item', 'ITEM'), head('status', 'STATUS'), head('time', 'TIME'), head('remarks', 'REMARKS')]), ...fitRows(rows, bodyRows - 1)]
+  return [boardLine(kit, 'head', [head('item', 'ITEM'), head('status', 'STATUS'), timed ? head('time', 'TIME') : null, head('remarks', 'REMARKS')]), ...fitRows(rows, bodyRows - 1)]
 }
 
 /** Departures' own strip: the workspace on a flap, heading the board. */

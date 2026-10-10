@@ -140,6 +140,20 @@ for (const appearance of ['dark', 'plain'] as const)
     const trees = await drawCases($, on, { layout: 'departures', scenario: 'nearCompaction', appearance, ttl: '1h' }, [T160, D160])
     for (const m of [T160, D160]) expect(clipped(trees[caseKey(m, 'open')])).toEqual([])
   })
+/** The titles over the board's columns. */
+const titles = (open: unknown): string[] => ((byKey(open, 'head', 'Box')?.children ?? []) as Node[]).map(shown)
+test('open where TIME can\'t fit whole, the board drops the column and its words lead REMARKS', async ($, on) => {
+  // The terminal's fixed columns and their gaps take 44 cells: a lineRoom of 44 at 50 columns, 40 at 46.
+  const mounts = [50, 46].map((cols): Mount => ({ surface: 'terminal', cols }))
+  const trees = await drawCases($, on, { layout: 'departures', scenario: 'calm', appearance: 'dark', ttl: '1h' }, mounts)
+  const [fits, narrow] = mounts.map(m => trees[caseKey(m, 'open')])
+  expect(titles(fits)).toEqual(['ITEM', 'STATUS', 'TIME', 'REMARKS'])
+  expect(titles(narrow)).toEqual(['ITEM', 'STATUS', 'REMARKS'])
+  const remarks = (open: unknown, row: string) => shown(byKey(byKey(byKey(open, 'body', 'Box'), row, 'Box'), 'remarks', 'Box'))
+  expect(remarks(fits, 'cache')).not.toMatch(/IN 1H/)
+  expect(remarks(narrow, 'cache')).toMatch(/^IN 1H 00 MIN · RE-WARM/)
+  expect(remarks(narrow, '5h')).toMatch(/^↻ \d{2}:\d{2} · 4% USED/)
+})
 /** At 40 columns a single amber reason stays whole, and the line within its room. */
 const T40: Mount = { surface: 'terminal', cols: 40 }
 for (const appearance of ['dark', 'plain'] as const)
