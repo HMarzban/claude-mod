@@ -175,6 +175,13 @@ const transcriptEnd = async ($: EngineInterface, path: string): Promise<string |
   return tail?.exitCode === 0 ? tail.stdout : readWhole($, path)
 }
 
+/** The end of `sessionId`'s transcript (at `given`, when the engine names
+ *  it); undefined where there is none to read. */
+const endOf = async ($: EngineInterface, sessionId: string, given: string | undefined): Promise<string | undefined> => {
+  const file = await transcriptFile($, sessionId, given)
+  return file === undefined ? undefined : transcriptEnd($, file)
+}
+
 /** What `sessionId`'s conversation spent before this process, off its
  *  transcript: its cost record, which `grep` finds at any size, and the
  *  replies logged after it, which `tail` reads from there. Where grep can't
@@ -198,18 +205,17 @@ const spendBefore = async ($: EngineInterface, path: string, sessionId: string):
 
 /** Recalls when `sessionId` last had a reply, and what a token costs on
  *  its model: the band's own memory first; for a session from before the
- *  band, its transcript's last reply and cost record (at `path`, when the
- *  engine names it), if it is small enough to read. Read once at load, and
- *  only those two facts kept. Never throws: unknown stays unknown. */
-const recallLastReply = async ($: EngineInterface, sessionId: string, path: string | undefined): Promise<void> => {
+ *  band, its transcript's last reply and cost record, from the end
+ *  `readEnd` reads. Recalled once per load or resume, and only those two
+ *  facts kept. Never throws: unknown stays unknown. */
+const recallLastReply = async ($: EngineInterface, sessionId: string, readEnd: () => Promise<string | undefined>): Promise<void> => {
   try {
     const model = modelName(await $.session.model())
     const rates = asRates(await $.store.get(RATES_KEY))
     let lastAt = asSessions(await $.store.get(SESSIONS_KEY))[sessionId]?.lastAt
     let rate = rates[model] ?? null
     if (lastAt === undefined || rate === null) {
-      const file = await transcriptFile($, sessionId, path)
-      const transcript = file === undefined ? undefined : await transcriptEnd($, file)
+      const transcript = await readEnd()
       if (transcript !== undefined) {
         lastAt ??= lastReplyAt(transcript)
         // /model may name an alias; the last reply names the model it was billed under.
@@ -238,16 +244,19 @@ const applyResume = (resume: Resume): void => {
 }
 
 /** Reads what a resumed conversation's transcript shows, keeps it with the
- *  resume and redraws. Callers don't wait on it, and it never throws: a read
- *  that ends after the conversation ended is dropped, and failing, the
- *  ledger and the TTL stand. */
+ *  resume and redraws; where the engine gave no idle time, recalls the last
+ *  reply off the same read of its end. Callers don't wait on it, and it
+ *  never throws: a read that ends after the conversation ended is dropped,
+ *  and failing, the ledger and the TTL stand. */
 const readResumed = async ($: EngineInterface, mine: Resume): Promise<void> => {
   try {
     const file = await transcriptFile($, mine.sessionId, mine.path)
+    const end = file === undefined ? Promise.resolve(undefined) : transcriptEnd($, file)
+    if (mine.cache === undefined) void recallLastReply($, mine.sessionId, () => end)
     if (file === undefined) return
-    const [spend, end] = await Promise.all([spendBefore($, file, mine.sessionId), transcriptEnd($, file)])
+    const [spend, tail] = await Promise.all([spendBefore($, file, mine.sessionId), end])
     if (band.resume !== mine) return
-    const transcript = { spend, ttl: end === undefined ? undefined : lastWriteTtl(end) }
+    const transcript = { spend, ttl: tail === undefined ? undefined : lastWriteTtl(tail) }
     band.resume = { ...mine, transcript }
     noteTranscript(transcript)
     $.ui.invalidate('ui.render')
@@ -276,7 +285,6 @@ const resumeConversation = async ($: EngineInterface, e: ClassicEventOf['classic
   }
   band.resume = resume
   applyResume(resume)
-  if (resume.cache === undefined) void recallLastReply($, resume.sessionId, resume.path)
   void readResumed($, resume)
   $.ui.invalidate('ui.render')
 }
@@ -392,7 +400,10 @@ export const register: Register = on => {
     void readWorkspace($)
     // Loaded mid-conversation, the band has seen no reply: recall the last,
     // unless the engine said when it was.
-    if (id !== undefined && !cache.knownFresh && cache.resumedCache === undefined) await recallLastReply($, id, band.resume?.path)
+    if (id !== undefined && !cache.knownFresh && cache.resumedCache === undefined) {
+      const path = band.resume?.path
+      await recallLastReply($, id, () => endOf($, id, path))
+    }
 
     band.palette = resolvePalette((await $.env.get('CC_BAND_APPEARANCE'))?.toLowerCase(), await $.env.get('NO_COLOR'))
     band.glyphs = resolveGlyphs({

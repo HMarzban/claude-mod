@@ -387,3 +387,19 @@ test('an hour seen on a resumed transcript is assumed again after a /clear', asy
   await $.session.end(CLEAR)
   expect(fact(await mounted($, true), 'expires')).toBe('1h idle · assumed')
 })
+
+/** Whether `argv` reads a transcript's last megabyte. */
+const isEndRead = (argv: string[]): boolean => argv[0] === 'tail' && argv[2] === String(1024 * 1024)
+
+test("a resume without the engine's idle time reads its transcript's end once, for the recall and the TTL alike", async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: UNPINNED, now: 3 * HOUR })
+  engine.transcript = jsonl(RECORD, ...wroteAt('msg_1', '5m'))
+  await $.session.start(START)
+  const before = engine.ran.length
+  await $.classic.SessionStart({ source: 'resume', session_id: 's1', transcript_path: PATH })
+  await clock.settle()
+  expect(engine.ran.slice(before).filter(isEndRead)).toEqual([['tail', '-c', String(1024 * 1024), PATH]])
+  // The recall found the reply logged at the epoch, and the TTL its write.
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold/)
+  expect(fact(await mounted($, true), 'expires')).toBe('5m idle')
+})
