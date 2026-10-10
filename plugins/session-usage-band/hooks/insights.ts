@@ -1,5 +1,6 @@
 // What the band can tell you that the engine's own figures don't: what your
-// last message cost, and when your pace fills the 5-hour limit.
+// last message cost, when your pace fills the 5-hour limit, and the trails
+// the history views draw: each message's cost, the context, and the 5h reading.
 
 import { FIVE_HOUR_MS } from './format'
 
@@ -43,9 +44,6 @@ const kept = { costs: [] as CostEntry[], context: [] as number[], fiveHour: [] a
 
 /** The trails, read-only: the arrays the push functions keep, passed by reference. */
 export const trails: Trails = kept
-
-/** The points of a trail from the last hour before `now`. */
-export const lastHourOf = (trail: readonly TrailPoint[], now: number): TrailPoint[] => trail.filter(p => p.at >= now - 3600_000)
 
 /** Keeps the newest `cap` of `list`, in place. */
 const capped = <T>(list: T[], cap: number): void => {

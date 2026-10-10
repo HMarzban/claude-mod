@@ -18,10 +18,9 @@ import {
   resetIn,
 } from './format'
 import type { ResetIn } from './format'
-import { lastHourOf } from './insights'
 import type { Trails } from './insights'
 import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
-import { cacheWords, contextWords, historyWords, limitWords, spendWords, workspaceWords } from './words'
+import { cacheWords, contextWords, historyWords, lastHourOf, limitWords, spendWords, workspaceWords } from './words'
 import type { CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords } from './words'
 
 export type Tone = 'calm' | 'amber'
@@ -332,6 +331,17 @@ export const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
   ]
 }
 
+/** The conversation's trails with their words and the series a chart draws. */
+export const historyFacts = (trails: Trails, fiveHour: LimitView | undefined, now: number): HistoryReading => ({
+  ...trails,
+  ...historyWords(trails, fiveHour, now),
+  empty: trails.costs.length === 0,
+  costValues: trails.costs.map(e => e.usd),
+  reWarms: trails.costs.map(e => e.reWarm),
+  fiveHourValues: trails.fiveHour.map(p => p.pct),
+  fiveHourHour: lastHourOf(trails.fiveHour, now).map(p => p.pct),
+})
+
 /** Everything a view reads, built once per draw: the frame, each section's
  *  facts and words, and chips' own inputs. */
 export const readingsOf = (snap: BandSnapshot): Readings => {
@@ -367,16 +377,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     workspace: snap.workspace,
     workspaceText: workspaceWords(snap.workspace),
     get history() {
-      const { costs, fiveHour: trail } = snap.history
-      return (history ??= {
-        ...snap.history,
-        ...historyWords(snap.history, fiveHour, snap.now),
-        empty: costs.length === 0,
-        costValues: costs.map(e => e.usd),
-        reWarms: costs.map(e => e.reWarm),
-        fiveHourValues: trail.map(p => p.pct),
-        fiveHourHour: lastHourOf(trail, snap.now).map(p => p.pct),
-      })
+      return (history ??= historyFacts(snap.history, fiveHour, snap.now))
     },
     chips: {
       raw: snap,

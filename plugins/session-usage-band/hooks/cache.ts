@@ -62,8 +62,8 @@ type CacheState = {
   rebuilding: boolean
   /** The model the last main-loop request ran on; a switch rebuilds the cache. */
   model: string | undefined
-  /** A main-loop request rebuilt a cache that existed since takeRebuilt
-   *  last read it. */
+  /** Since takeRebuilt last read it, a main-loop request rebuilt a cache
+   *  that existed. */
   lastRebuilt: boolean
   /** The ledger when this conversation's first turn began, so spend from
    *  before it (a /clear, a resume, a reload) can't inflate the rate the

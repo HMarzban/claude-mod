@@ -18,8 +18,7 @@ import {
   fmtTokens,
 } from './format'
 import type { ResetIn } from './format'
-import { lastHourOf } from './insights'
-import type { CostEntry, Trails } from './insights'
+import type { CostEntry, TrailPoint, Trails } from './insights'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
 import type { CacheFacts, CacheMood, ContextFacts, Frame, LimitFacts, LimitView, SpendFacts } from './reading'
 import type { BandSnapshot } from './snapshot'
@@ -360,10 +359,13 @@ export type HistoryWords = Readonly<{
   trailAlt: string
 }>
 
-/** A message costing this many times the average, or this share of it, moves the trend. */
+/** A message above this many times the warm average is rising; below the average divided by it, falling. */
 const TREND_FACTOR = 1.5
 /** Points the 5h reading must rise in an hour to be rising. */
 const TRAIL_RISE = 2
+
+/** The points of a trail from the last hour before `now`. */
+export const lastHourOf = (trail: readonly TrailPoint[], now: number): TrailPoint[] => trail.filter(p => p.at >= now - 3600_000)
 
 export const historyWords = (record: Trails, fiveHour: LimitView | undefined, now: number): HistoryWords => {
   const last = record.costs[record.costs.length - 1]
