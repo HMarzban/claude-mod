@@ -238,7 +238,8 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     x.known
       ? outlook('context', 'Context', x.valueText, {
           tone: x.tone,
-          bar: meter(kit, { key: 'bar', label: 'context', frac: x.frac, tone: x.tone, accent: palette.meterFill, size: OUTLOOK }),
+          // With compaction on, it lands where it compacts.
+          bar: meter(kit, { key: 'bar', label: 'context', frac: x.frac, tone: x.tone, accent: palette.meterFill, size: OUTLOOK, projectTo: x.compactsAtText === undefined ? undefined : 1 }),
           reason: x.amber?.long,
           // Near compaction, the reason says how close.
           outcome: [x.roomText === undefined ? `${x.inContextText} of a ${x.windowText} window` : x.amber === undefined ? `compacts in ${x.roomText}` : undefined],

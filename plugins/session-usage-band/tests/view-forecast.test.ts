@@ -24,6 +24,8 @@ test('now, then the changes ahead in time order, at most three', async ($, on) =
   const t = shown((await at($, on, 'calm')).shut)
   expect(t).toMatch(/^now\s*·\s*warm\s*│\s*\d{2}:\d{2}\s*·\s*in 1h 00m\s*·\s*cold\s*│\s*\d{2}:\d{2}\s*·\s*5h resets/)
   expect((t.match(/│/g) ?? []).length).toBeLessThanOrEqual(3)
+  // The 7d reset, 67h off, is past the day a change ahead looks to.
+  expect(t).not.toMatch(/7d resets/)
 })
 test('only the next change says how far off it is', async ($, on) => {
   expect(shown((await at($, on, 'calm')).shut).match(/\bin \d/g)).toEqual(['in 1'])
@@ -41,6 +43,7 @@ test('a measured fill is a change before the reset', LONG, async ($, on) => {
   const t = shown((await at($, on, 'fiveHourAhead')).shut)
   expect(t).toMatch(/~\d{2}:\d{2}\s*·\s*in ~\S+\s*·\s*! 5h full/)
   expect(t.indexOf('! 5h full')).toBeLessThan(t.indexOf('5h resets'))
+  expect(t.match(/! 5h full/g)).toHaveLength(1)
 })
 test('a limit at 80% speaks, though it is no change', async ($, on) => {
   expect(shown((await at($, on, 'limit80')).shut)).toMatch(/│\s*! 5h 82%/)
@@ -80,6 +83,12 @@ test('open, an outlook row for each reading, in spec order', async ($, on) => {
   expect(t).toMatch(/5h\s*4%\S*\s*on pace for ~\d+%\s*·\s*↻ \d{2}:\d{2}\s*7d/)
   expect(t).toMatch(/7d\s*30%\S*\s*on pace for ~\d+%\s*·\s*↻ \S+ \d{2}:\d{2}\s*Spend/)
   expect(t).toMatch(/Spend\s*\$2\.41\s*\d+k tokens/)
+})
+test('open, the context bar dashes to compaction, where it lands', async ($, on) => {
+  expect(shown((await at($, on, 'nearCompaction')).open)).toMatch(/Context\s*\S+\s*█+▒+[^░]/)
+})
+test('open with compaction off, the context bar lands nowhere', async ($, on) => {
+  expect(shown((await at($, on, 'compactionOff')).open)).toMatch(/Context\s*\S+\s*█+░+[^▒]/)
 })
 test('open with no context, its row says so', async ($, on) => {
   expect(shown((await at($, on, 'warming')).open)).toMatch(/Context\s*not reported/)
