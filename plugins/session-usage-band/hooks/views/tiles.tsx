@@ -14,8 +14,9 @@ import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last. Amber never does.
  *  Spec §6 ends at the context tile; at 40 columns an amber 5h or context
- *  tile fits only once the cost's has gone too. */
-const ORDER = ['underline', 'resetText', 'calmSeven', 'calmContext', 'cost'] as const
+ *  tile fits only once the cost's has gone too, and the last minute's
+ *  reason only once the 5h's has. */
+const ORDER = ['underline', 'resetText', 'calmSeven', 'calmContext', 'cost', 'calmFive'] as const
 type Piece = (typeof ORDER)[number]
 /** An underline's length. */
 const UNDER_PX = 64
@@ -115,7 +116,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
     tone: x.tone,
     step: 'calmContext',
   }
-  const five = read.fiveHour === undefined ? undefined : limitTile(kit, read.fiveHour)
+  const five = read.fiveHour === undefined ? undefined : limitTile(kit, read.fiveHour, 'calmFive')
   const seven = read.sevenDay === undefined ? undefined : limitTile(kit, read.sevenDay, 'calmSeven')
   const tiles = [cache, cost, context, five, seven].filter((t): t is Tile => t !== undefined)
   return [fitLine(kit, ORDER, lineRoom(kit), keeps => line(kit, 'line', tiles.map(t => drawTile(kit, t, keeps)), toggle, 3))]

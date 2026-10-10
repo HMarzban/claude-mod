@@ -70,6 +70,11 @@ test('at 40 columns an amber tile still says why, once the cost has gone', async
   expect(t).toMatch(/82%\s*! 5h 82%/)
   expect(t).not.toMatch(/\$2\.41/)
 })
+test('at 40 columns the last minute keeps its reason whole once the calm 5h tile has gone', LONG, async ($, on) => {
+  const mounts = (['terminal', 'desktop'] as const).map((surface): Mount => ({ surface, cols: 40 }))
+  const trees = await drawCases($, on, { layout: 'tiles', scenario: 'lastMinute', appearance: 'dark', ttl: '5m' }, mounts)
+  for (const m of mounts) expect(`${m.surface}: ${shown(trees[caseKey(m, 'shut')])}`).toMatch(/^\w+: 30s! 30s left · re-warm ~\$[\d.]+$/)
+})
 test('the cache not measured yet has no re-warm price open', async ($, on) => {
   const t = shown((await at($, on, 'unmeasured')).open)
   expect(t).toMatch(/CACHE\s*–\s*cache/)
