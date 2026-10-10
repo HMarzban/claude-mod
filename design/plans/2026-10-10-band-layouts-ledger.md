@@ -33,6 +33,9 @@ What the plan's steps record, in the order they happen.
 | Task 8 (review) | 358 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 8 (review 2) | 358 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 8 (merged) | 382 pass, 0 fail, 29 files | `claude plugin test plugins/session-usage-band` |
+| Task 9a | 389 pass, 0 fail, 30 files | `claude plugin test plugins/session-usage-band` |
+| Task 9a (review) | 389 pass, 0 fail, 30 files | `claude plugin test plugins/session-usage-band` |
+| Task 9a (review 2) | 389 pass, 0 fail, 30 files | `claude plugin test plugins/session-usage-band` |
 | Task 10c | 356 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 10c (merged) | 356 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 12 | 354 pass, 0 fail, 26 files | `claude plugin test plugins/session-usage-band` |
@@ -47,6 +50,12 @@ Ruling: `fakeEl`'s `plainNode` kept as the plan writes it — the kit's `h` call
 Ruling: every ascii mapping is one character at most (`↻` and `Σ` dropped, `…` becomes `.`, `±` becomes `+`), and a glyph the map drops takes one following space while any other non-ASCII character is dropped alone (`Résumé Builder` reads `Rsum Builder`), with no global collapse of double spaces; spec §3.2 updated to match — the squeeze measures before the mapping, so a mapping must never widen a row — no fallback; the cost is slightly terser ascii text, and a clipped path can read as a real one (`~/./claude-mod`, `feat/lo.ts`).
 Pending maintainer: whether `…` should map to a character other than `.` in the ascii tier; `~` is no clean win, since `~/~/claude-mod` reads as a path too.
 Ruling: Task 12's flap tokens taken as the plan's table, no lightness changed — every `cardBg` check passed (lowest: dark `trackStroke` 3.45:1, light `warm`/`fiveAccent` 3.95:1) and the lowest on-flap ink is light `flapDim` at 7.12:1 — no separate token added, so spec §2.10 gains none; `flapWarm`, `flapAmber`, `flapFive`, `flapWeek` and `flapCoin` extend the three spec §6 names for departures.
+Ruling: `textBattery(kit, charge, tone, text)` takes `text` already in the glyphs it is drawn in, and the caller maps the ascii tier (chips passes `asciiText(label)` on a terminal in ascii) — the kit carries no glyph tier and `kit.tsx` is not Task 9a's, while the cut must fall on the mapped text — no fallback; Task 13's `layoutCachePill` must map its text the same way before it calls `textBattery`.
+Ruling: `toggleButton`'s Box has no key, and chips' row draws its toggle with it — chips' wrapper never had one and golden keeps keys, so one copy stays deep-equal; no later task finds the toggle by a `toggle` key (the invariants walk for the Button's label) — no fallback.
+Ruling: chips keeps its own buttons, footer-strip room and hint, and `frame()` draws its own copy as Step 5 writes it — Task 14's P1 freeze fixes `frame.tsx`'s exports at `frame`, `bodyRowsFor`, `openView`, `panel`, `toggleButton` and `Strip`, and golden guards chips' copy — no fallback; review reverted a shared `stripAndActions`.
+Pending maintainer: the ascii-tier check `snap.surface === 'terminal' && snap.glyphs === 'ascii'` is in both `band.tsx` and `views/chips.tsx`; one `asciiTier(snap)` beside `asciiText` in `glyphs.ts` (not Task 9a's file) would hold it.
+Pending maintainer: spec §4 file table (line 161) lists `cachePill` under `views/parts.tsx`, while the plan's Task 9a keeps it in `chips.tsx`; drop it from that row, or name Task 13's `layoutCachePill`.
+Pending maintainer: plan Task 13 Step 6's `layoutCachePill` passes `text` to `textBattery` unmapped, against the `textBattery` ruling above; on a terminal in the ascii tier `asciiTree` would then map after the cut. It takes no `snap`, so it needs the ascii check passed in (or `asciiTier(snap)` once it exists) and `ascii ? asciiText(text) : text` on the filled terminal path.
 
 ## Freezes
 - P1 freeze (Task 14):

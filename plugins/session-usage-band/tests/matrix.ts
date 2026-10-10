@@ -9,7 +9,7 @@ import {
   HOUR, HOUR_1, MIN, START, USAGE, FRESH, breakdown, engine, mountBand, pacing, resp, respond, setup, turn, type Node,
 } from './helpers'
 import { DARK } from '../hooks/palette'
-import type { BandSnapshot } from '../hooks/snapshot'
+import type { BandActions, BandSnapshot } from '../hooks/snapshot'
 
 export type Appearance = 'dark' | 'light' | 'plain'
 export type Surface = 'terminal' | 'desktop'
@@ -161,3 +161,6 @@ export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({
   otherLimits: [], workspace: undefined, glyphs: 'unicode', utcOffsetMin: undefined,
   ...over,
 })
+
+/** Actions for a draw outside a mount: one function each, so props compare equal. */
+export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide: async () => undefined }
