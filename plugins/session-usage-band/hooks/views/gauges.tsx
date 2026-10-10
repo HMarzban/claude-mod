@@ -10,12 +10,12 @@ import type { ContextReading, LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber, type Say, type SpendSplit } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberFirst, amberSay, beforeLast, chartsIfRoom, emptyWords, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
+import { accentOf, amberFirst, amberSay, chartsIfRoom, emptyWords, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
-/** What gives way as each row narrows, first to last; `reWarm` and `cost`
- *  are the narrow-width ruling's. Amber never does. */
-const ORDER = ['tokens', 'resetTexts', 'costRight', 'bars', 'calmCells', 'reWarm', 'cost'] as const
+/** What gives way as each row narrows, first to last; `reWarm`, `cost` and
+ *  `smallBars` are the narrow-width ruling's. Amber's words never do. */
+const ORDER = ['tokens', 'resetTexts', 'costRight', 'bars', 'calmCells', 'reWarm', 'cost', 'smallBars'] as const
 type Piece = (typeof ORDER)[number]
 
 const CACHE_BAR: BarSize = { px: 240, cells: 24 }
@@ -35,7 +35,8 @@ const twoSizes = (full: BarSize, make: (size: BarSize) => RenderChildren): ((isF
 
 /** Row one: the cache's name, its time-left bar once its timing is known, and
  *  its sentence, calm or amber, with the cost and the tokens on the right
- *  until the cost joins it. The cost is the last to give way. */
+ *  until the cost joins it. The cost is the last of its words to give way,
+ *  then the bar, so an amber reason shortens only once both have gone. */
 const cacheRow = (kit: Kit, read: Readings): RenderElement => {
   const c = read.cache
   const s = read.spend
@@ -54,6 +55,16 @@ const cacheRow = (kit: Kit, read: Readings): RenderElement => {
   }
   const cost = words(kit, 'cost', [[s.totalText, 'value']])
   const costTokens = words(kit, 'cost', [[s.totalText, 'value'], [' · ', 'label'], [s.tokensText, 'value'], [' tokens', 'label']])
+  /** The calm sentence once the cost has joined it: the re-warm words go,
+   *  then the cost; cold, the cost goes first, since a cold cache is a price. */
+  const calmJoined = (keeps: Keeps<Piece>): RenderElement =>
+    keeps.has('reWarm')
+      ? sentence.pricedCost
+      : c.condition === 'cold'
+        ? sentence.priced
+        : keeps.has('cost')
+          ? sentence.valueCost
+          : sentence.value
   return fitLine(kit, ORDER, lineRoom(kit), keeps => {
     const onRight = keeps.has('costRight')
     const reason = c.amber === undefined ? undefined : amberSay(c.amber, keeps)
@@ -62,15 +73,11 @@ const cacheRow = (kit: Kit, read: Readings): RenderElement => {
         ? words(kit, 'say', onRight || !keeps.has('cost') ? reason : withCost(reason))
         : onRight
           ? sentence.priced
-          : keeps.has('reWarm')
-            ? sentence.pricedCost
-            : keeps.has('cost')
-              ? sentence.valueCost
-              : sentence.value
+          : calmJoined(keeps)
     return line(
       kit,
       'cache',
-      [name, c.known && (reason === undefined || beforeLast(keeps)) ? bar(keeps.has('bars')) : null, said],
+      [name, c.known && keeps.has('smallBars') ? bar(keeps.has('bars')) : null, said],
       onRight ? (keeps.has('tokens') ? costTokens : cost) : null,
       1,
     )
@@ -117,13 +124,13 @@ const limitCell = (kit: Kit, l: LimitView): Cell => {
   }
 }
 
-/** A cell at a squeeze: amber, its bar and its reason; calm, its name, bar
- *  and value, or its words alone. */
+/** A cell at a squeeze: amber, its bar until `smallBars` and its reason;
+ *  calm, its name, bar and value, or its words alone. */
 const drawCell = (kit: Kit, cell: Cell, keeps: Keeps<Piece>): RenderElement => {
   const { Box } = kit
   const pieces =
     cell.amber !== undefined
-      ? [beforeLast(keeps) ? cell.bar(keeps.has('bars')) : null, words(kit, 'amber', amberSay(cell.amber, keeps))]
+      ? [keeps.has('smallBars') ? cell.bar(keeps.has('bars')) : null, words(kit, 'amber', amberSay(cell.amber, keeps))]
       : keeps.has('calmCells')
         ? [cell.name, cell.bar(keeps.has('bars')), cell.value(keeps)]
         : [cell.text]
