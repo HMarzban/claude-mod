@@ -24,18 +24,18 @@ const isNow = (c: Cell): boolean => ('today' in c ? c.today : c.now)
 
 /** A window as week draws it: its limit, its cells and their words, its
  *  accent, and the collapsed cells' width and give-way step. */
-type Window = Readonly<{ limit: LimitView; cells: readonly Cell[]; alt: string; summary: string; accent: Role; cellPx: number; step: Piece }>
+type WeekWindow = Readonly<{ limit: LimitView; cells: readonly Cell[]; alt: string; summary: string; accent: Role; cellPx: number; step: Piece }>
 
 /** The weekly window, then the 5-hour one, each as the engine reports it. */
-const windowsOf = (read: Readings): Window[] => {
+const windowsOf = (read: Readings): WeekWindow[] => {
   const wk = read.week
   const seven = read.sevenDay
   const five = read.fiveHour
-  const windows: Array<Window | undefined> = [
-    seven && { limit: seven, cells: wk.days, alt: wk.daysAlt, summary: wk.summary7 ?? seven.text, accent: 'accent7', cellPx: 16, step: 'calmSevenCells' },
-    five && { limit: five, cells: wk.hours, alt: wk.hoursAlt, summary: wk.summary5 ?? five.text, accent: 'accent5', cellPx: 11, step: 'calmFiveCells' },
+  const windows: Array<WeekWindow | undefined> = [
+    seven && { limit: seven, cells: wk.days, alt: wk.daysAlt, summary: wk.summary7 ?? seven.value, accent: 'accent7', cellPx: 16, step: 'calmSevenCells' },
+    five && { limit: five, cells: wk.hours, alt: wk.hoursAlt, summary: wk.summary5 ?? five.value, accent: 'accent5', cellPx: 11, step: 'calmFiveCells' },
   ]
-  return windows.filter((w): w is Window => w !== undefined)
+  return windows.filter((w): w is WeekWindow => w !== undefined)
 }
 
 /** An amber reading's reason, long until every calm piece has gone. */
@@ -43,7 +43,7 @@ const amberWords = (kit: Kit, key: string, amber: Amber, keeps: Keeps<Piece>): R
   words(kit, key, [[keeps.amber(amber), 'amber']])
 
 /** A window's name, in its accent, or amber while it needs you. */
-const nameOf = (kit: Kit, w: Window): RenderElement =>
+const nameOf = (kit: Kit, w: WeekWindow): RenderElement =>
   words(kit, 'name', [[w.limit.name, w.limit.amber === undefined ? w.accent : 'amber']])
 
 /** A cell's words, the empty ones left out. */
@@ -59,7 +59,7 @@ const cellsText = (cells: readonly Cell[], form: CellsForm): string =>
 
 /** A window's cells: day cells on the desktop, braille heights on a
  *  terminal; words in the ascii tier, and open wherever Svgs don't draw. */
-const cellsChart = (kit: Kit, read: Readings, w: Window, form: CellsForm): RenderChildren => {
+const cellsChart = (kit: Kit, read: Readings, w: WeekWindow, form: CellsForm): RenderChildren => {
   const l = w.limit
   if (read.frame.glyphs === 'ascii' || (kit.Svg === undefined && form.inWords)) return words(kit, 'cells', [[cellsText(w.cells, form), l.amber === undefined ? 'value' : 'amber']])
   return dayCells(kit, {
@@ -89,9 +89,9 @@ const initialsOf = (kit: Kit, days: readonly DayCell[]): RenderElement => {
   const { Box } = kit
   return (
     <Box key="initials" flexDirection="row">
-      <Box key="pad" width={FIRST_CELL} />
+      <Box key="pad" width={FIRST_CELL} flexShrink={0} />
       {days.map((d, i) => (
-        <Box key={`d${i}`} width={2}>
+        <Box key={`d${i}`} width={2} flexShrink={0}>
           {words(kit, 'i', [[markOf(d), d.today ? 'value' : 'label']])}
         </Box>
       ))}
@@ -101,7 +101,7 @@ const initialsOf = (kit: Kit, days: readonly DayCell[]): RenderElement => {
 
 /** A window on row 1: its cells while they're kept, its value and its reset
  *  as the squeeze allows; amber, its reason in place of the value. */
-const windowPiece = (kit: Kit, read: Readings, w: Window) => {
+const windowPiece = (kit: Kit, read: Readings, w: WeekWindow) => {
   const { Box } = kit
   const l = w.limit
   const chart = read.week.empty || w.cells.length === 0 ? null : cellsChart(kit, read, w, { ...SMALL, cellPx: w.cellPx })
