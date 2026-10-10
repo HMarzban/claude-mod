@@ -11,6 +11,14 @@ What the plan's steps record, in the order they happen.
 - Review fix: the first baseline had its desktop rows swapped. Being open is a stored atom, so the desktop mount started open after the terminal pass; the perf test now presses ▵ before each unmount, as `drawCases` does, and the baseline was retaken (desktop now matches terminal). `capture.sh` now runs in a scratch copy holding only what the capture imports, so a recapture never depends on the `chips.ts` it replaces. The recapture's `chips.ts` differed only in its header's commit, so the file stays as captured at 6540ef3. Capture runtime: 5s (the capture file alone).
 - pending maintainer: checkpoint 1 sign-off (480 hashes, capture commit 6540ef3, two identical captures, 7s runtime for the two captures at 6540ef3; 5s with the current scratch-copy `capture.sh`).
 
+## P2
+- Task 22, at e44f1ff: every layout is in. The ledger view landed on `feat/layouts` itself (Task 16); the others merged with `--no-ff` as they finished, not in the plan's order: gauges 68a41bd, tiles ca7b667, forecast 4e3192b, departures 0e01d09, rings 42a2b3f, then P3's week e349f41 and pulse 8f4b020. Each merge ran the gates and recorded its count (the table below).
+- Frozen files untouched: with the worktrees gone, Step 1 reads each P2 merge's `git diff --name-only M^1...M^2`, which lists only that view's `hooks/views/<name>.tsx` and `tests/view-<name>.test.ts`, and for gauges, departures and rings this ledger.
+- Gates green: `claude plugin validate plugins/session-usage-band` passes, the suite is 982 pass, 0 fail, 46 files, `tsc` reports no errors, and the view grep gate prints nothing; `$` appears in no hooks file but `register.tsx`, and no local is named `h`.
+- Golden untouched: `git log --format=%h -- plugins/session-usage-band/tests/golden/chips.ts` shows only 93e3f31, Task 2's commit.
+- No view worktree or `layouts/<view>` branch is left; the worktrees still listed (`hover-hotfix`, `t6`, `t7`, `t8`, `t10c`, `t12`, `t23-ahead`) are not P2's, so Step 4 leaves them.
+- maintainer checkpoint 5: pending (the merges, the full gates and the golden file untouched).
+
 ## P3
 - `limitSamples` (Task 24): 672 samples are 69,829 bytes of JSON (spec §5: about 67 KB; the test's bound is 75,000).
 
@@ -83,6 +91,7 @@ What the plan's steps record, in the order they happen.
 | the rings layout (Task 19) (merged) | 874 pass, 0 fail, 44 files | `claude plugin test plugins/session-usage-band` |
 | the week layout (Task 26) (merged) | 932 pass, 0 fail, 45 files | `claude plugin test plugins/session-usage-band` |
 | the pulse layout (Task 25) (merged) | 982 pass, 0 fail, 46 files | `claude plugin test plugins/session-usage-band` |
+| Task 22, every layout merged | 982 pass, 0 fail, 46 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
