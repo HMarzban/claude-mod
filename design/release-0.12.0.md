@@ -117,8 +117,8 @@ Task 28 measured chips like for like, P0's own test against both hooks: within n
 
 ### Memory and repaints
 
-- `soak.test.ts`, 3 pass: six hours, 1,000 turns, three clears and a layout switch every 167 turns, with `limitSamples` written at most 25 times, `layout` only by the command, and the store under 100,000 bytes of JSON; a calm ten-minute walk repaints 10 times (bound 11); with the cache cold, a reset countdown repaints as its minute turns.
-- The caps, asserted on insert in `history.test.ts` and `calendar.test.ts`: `costTrail` 24, `contextTrail` 40, `fiveHourTrail` 300 and five hours, `limitSamples` 672 (69,829 bytes of JSON at the cap).
+- `soak.test.ts`, 3 pass: six hours, 1,000 turns, three clears and a layout switch every 167 turns, with `limitSamples` written at most 25 times, `layout` only by the command, and the store under 100,000 bytes of JSON (61,239, from a stored week of samples at the cap; see Done); a calm ten-minute walk repaints 10 times (bound 11); with the cache cold, a reset countdown repaints as its minute turns.
+- The caps, asserted on insert in `history.test.ts` and `memory.test.ts`: `costTrail` 24, `contextTrail` 40, `fiveHourTrail` 300 and five hours, `limitSamples` 672 (73,249 bytes of JSON at the cap, at the engine's widest figures), `sessions` 50 (3,201 bytes).
 - One timer, `band.tick`. No view keeps module state, a timer or a listener.
 - Heap can't be measured in the test sandbox; the bounded structures are the proof (spec §9).
 
@@ -171,6 +171,16 @@ The ledger's Rulings section holds 122 `Ruling:` lines, each with its why and wh
 - No paint key (Task 28): the repaints that change nothing cost about 0.5 ms a turn, below spec §9's bar for adopting one.
 - Week's day cells are cut at local midnight. A reset off midnight folds a part day into its neighbour, so there are always seven cells.
 - The light palette gains `fiveText` (4.85:1 on the card) for the 5h name drawn as words.
+
+## Done since the gate
+
+Open items cleared on `feat/layouts` after 0119b9a.
+
+- **The memory caps** (Task 29's deferred `memory.test` unit), in 127a140, 7b206b4 and 0c80b5d:
+  - `memory.test.ts` now holds the samples' store tests, moved from `calendar.test.ts`. It holds `limitSamples` at `MAX_SAMPLES` with every limit at 99.9 and 13-digit times: 73,249 bytes of JSON, under the test's 75,000. The engine gives a limit at most one decimal, so the 91 KB figure took floats it never sends, and `sampleOf` doesn't round.
+  - A stored list past the cap reads as its newest week. A stored record past `MAX_SESSIONS` is written back as its newest 50. Malformed entries are dropped from both. Fifty sessions at UUIDs and 13-digit times are 3,201 bytes (bound 4,000).
+  - The soak starts from a stored week at the cap, so its 100,000-byte bound now sees it: the list stays at 672 as each new bucket evicts the oldest, and the whole store reads 61,239 bytes.
+  - With the caps lifted, each of these fails. 1046 pass, 0 fail, 48 files. Users see no change, so the CHANGELOG has no line.
 
 ## Pending the maintainer
 
@@ -266,7 +276,6 @@ Each is a `Pending maintainer:` line, or Task 29's deferred findings, still open
 **Deferred follow-ups (Task 29's minor findings)**
 - A `projectedAlt` on `LimitWords`, for open tiles' underline alt, which reads `5h at its reset` with no value.
 - A `reads` option for a share on `meter`. Gauges' `hit rate 0% used` and the split bars' `input 94% used` misstate a share.
-- A `memory.test` unit at `MAX_SAMPLES` and `MAX_SESSIONS`. The soak's 100,000-byte bound never sees `limitSamples` at its cap, which is about 91 KB alone with float percentages.
 - `LimitWords.valueText`, for the four `l.passed ? 'reset' : l.value` copies.
 - `cacheWords` taking the snapshot's cache, and `CacheFacts.estimate` and `LimitFacts.value` holding words: a pure move between the layers.
 
@@ -371,9 +380,10 @@ default, and with no layout stored it draws exactly as before.
 - **Store writes.** None while drawing. `layout` is written only by the
   command, and `limitSamples` at most once per 15 minutes.
 - **The soak.** Six hours, 1,000 turns, three clears and a layout switch
-  every 167 turns. The store stays under 100 KB, and every trail within
-  its cap: 24 costs, 40 context readings, 300 5h readings over five
-  hours, and 672 samples.
+  every 167 turns, from a stored week of samples. The store stays under
+  100 KB, the samples at their cap of 672, and the cost and context
+  trails at theirs, 24 and 40. A unit test holds the 5h trail to 300
+  readings over five hours.
 - **Heap** can't be measured in the test sandbox. The caps, asserted on
   insert, are the proof.
 
