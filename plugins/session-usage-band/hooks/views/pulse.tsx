@@ -63,9 +63,10 @@ const costBars = (kit: Kit, hist: HistoryReading, count: number, height: number)
   })
 }
 
-/** The 5h trail on the limit's own scale, in its accent or, amber, in amber;
- *  `projected`, it gains a dashed line to where the window lands. */
-const fiveHourTrail = (kit: Kit, f: LimitView, values: readonly number[], alt: string, px: number, height: number, projected: boolean): RenderChildren =>
+/** The 5h trail on the limit's own scale, in its accent or, amber, in amber.
+ *  Amber, it gains a dashed line to where the window lands, or to the top
+ *  when no landing is measured; `open`, a calm trail gains its landing too. */
+const fiveHourTrail = (kit: Kit, f: LimitView, values: readonly number[], alt: string, px: number, height: number, open: boolean): RenderChildren =>
   sparkline(kit, {
     key: 'trail',
     alt,
@@ -74,7 +75,7 @@ const fiveHourTrail = (kit: Kit, f: LimitView, values: readonly number[], alt: s
     px,
     height,
     max: PERCENT,
-    projectTo: projected ? f.projectedFrac : undefined,
+    projectTo: f.amber !== undefined ? (f.projectedFrac ?? 1) : open ? f.projectedFrac : undefined,
   })
 
 const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
@@ -97,7 +98,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const trail =
     !charts || f === undefined || hist.fiveHourHour.length < 2
       ? null
-      : fiveHourTrail(kit, f, hist.fiveHourHour, hist.trailAlt, TRAIL_PX, CHART_PX, f.amber !== undefined)
+      : fiveHourTrail(kit, f, hist.fiveHourHour, hist.trailAlt, TRAIL_PX, CHART_PX, false)
   const total = words(kit, 'total', [[read.spend.totalText, 'value']], true)
   // The total over its numbers on the desktop, so the line stays two rows
   // once the charts give way; beside them, a cell apart, on a text surface.
@@ -193,7 +194,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       sentence('pct', `${x.valueText} ${x.towardText}`),
       sentence('in', x.compactsAtText === undefined ? `${x.inContextText} in context` : `${x.inContextText} in context, compacts at ${x.compactsAtText}`),
     ], chartRows), room),
-    // What needs you leads, so a body short of rows keeps it.
+    // Amber limits lead the section, so a body short of rows keeps them.
     section(kit, 'limits', 'LIMITS', read.limits.length === 0 ? [sentence('none', EMPTY.limits)] : chartsIfRoom(room, [
       charts && f !== undefined && hist.fiveHourWindow.length > 1 ? fiveHourTrail(kit, f, hist.fiveHourWindow, hist.fiveHourWindowAlt, OPEN_TRAIL_PX, OPEN_CHART_PX, true) : null,
     ], [

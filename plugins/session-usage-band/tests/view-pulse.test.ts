@@ -56,7 +56,26 @@ test('the desktop draws the cost bars as an Svg with alt text, the newest in val
 })
 test('the desktop draws the 5h trail, amber and projected when the pace fills it', LONG, async ($, on) => {
   const trail = svgsOf((await at($, on, 'fiveHourAhead', D160)).shut).find(n => /5h usage over the last hour/.test(String(n.props?.alt)))
+  expect(String(trail?.props?.source)).toMatch(new RegExp(`stroke="${DARK.amberFg}"`))
   expect(String(trail?.props?.source)).toMatch(/stroke-dasharray/)
+})
+test('an amber 5h trail with no landing measured projects to the top', LONG, async ($, on) => {
+  const clock = setup(on, { store: { layout: 'pulse' } })
+  await $.session.start(START)
+  // 85% twice, ten minutes apart, the reset unknown: amber, but no pace and no landing.
+  usage.current = { ...USAGE, rateLimits: [{ kind: 'five_hour', percentUsed: 85 }, ...USAGE.rateLimits.slice(1)] }
+  for (const wait of [10 * MIN, 0]) {
+    const u = usage.current
+    await $.session.measure({ context: u.context, rateLimits: u.rateLimits, cost: u.cost, changed: [] })
+    await clock.advance(wait)
+  }
+  const ui = await mountBand($, 'desktop', 160)
+  const trail = svgsOf(await ui.drawn()).find(n => /^5h usage over the last hour/.test(String(n.props?.alt)))
+  await ui.unmount()
+  const source = String(trail?.props?.source)
+  expect(source).toMatch(new RegExp(`stroke="${DARK.amberFg}"`))
+  // The top of a 36 px chart, 2 px in from its edge.
+  expect(source).toMatch(/<line [^>]*y2="2"[^>]*stroke-dasharray/)
 })
 test('the amber 5h projection climbs from now to where the window lands', LONG, async ($, on) => {
   const trail = svgsOf((await at($, on, 'fiveHourAhead', D160)).shut).find(n => /5h usage/.test(String(n.props?.alt)))
