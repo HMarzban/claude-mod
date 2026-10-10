@@ -26,6 +26,9 @@ type Ink = keyof typeof INK
  *  reset is; and TIME. REMARKS takes the rest. */
 const COLUMNS = [11, 20, 14] as const
 
+/** The session's spend row's ITEM. */
+const SPEND_ITEM = 'SPEND'
+
 const up = (text: string): string => text.toUpperCase()
 
 /** How far a flap's text sits in from its edge: its padding on the filled
@@ -227,8 +230,8 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     }
   }
   const limitRow = (l: LimitView): BoardRow => {
-    // An other limit is named by its kind, `spend`, so its item says it is a limit, apart from SPEND.
-    const item = l.key === 'other' ? `${up(l.name)} LIMIT` : up(l.name)
+    // A gateway's limit is named by its kind, `spend`, so its item says it is a limit, apart from SPEND.
+    const item = up(l.name) === SPEND_ITEM ? `${SPEND_ITEM} LIMIT` : up(l.name)
     return row(item, [item, limitInk(l)], [l.boardAmber ?? l.boardShort ?? l.value, l.boardAmber !== undefined ? 'amber' : 'text'], l.boardTime, l.passed ? [] : [`${l.value} used`])
   }
   const rows: BoardRow[] = [
@@ -245,7 +248,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
         ])
       : row('context', ['CONTEXT'], [up(EMPTY.context), 'dim'], undefined, []),
     ...(read.limits.length === 0 ? [row('limits', ['LIMITS'], [up(EMPTY.limits), 'dim'], undefined, [])] : read.limits.filter(l => l.key !== 'other').map(limitRow)),
-    row('spend', ['SPEND'], [s.totalText, 'coin'], s.lastText === undefined ? undefined : `LAST ${s.lastText}`, [
+    row('spend', [SPEND_ITEM], [s.totalText, 'coin'], s.lastText === undefined ? undefined : `LAST ${s.lastText}`, [
       `${s.tokensText} tokens`,
       ...s.split.map(part => `${part.text} ${part.label}`),
     ]),

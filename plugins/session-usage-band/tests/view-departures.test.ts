@@ -162,6 +162,10 @@ test('open, an other limit\'s ITEM names it a limit, apart from the session\'s S
   expect(boardItems(open)).toEqual(['CACHE', 'CONTEXT', '5H', '7D', 'SPEND', 'SPEND LIMIT'])
   expect(clipped(open)).toEqual([])
 })
+test('open, an other limit that shares no name with the board\'s rows keeps its own ITEM', () => {
+  const open = drawBand(fakeEl, snapOf({ layout: 'departures', columns: 160, expanded: true, otherLimits: [{ kind: 'weekly', percentUsed: 20, resetsAt: new Date(50 * HOUR).toISOString() }] }), NO_ACT)
+  expect(boardItems(open)).toEqual(['CACHE', 'CONTEXT', '5H', '7D', 'SPEND', 'WEEKLY'])
+})
 /** The titles over the board's columns. */
 const titles = (open: unknown): string[] => ((byKey(open, 'head', 'Box')?.children ?? []) as Node[]).map(shown)
 test('open where TIME can\'t fit whole, the board drops the column and its words lead REMARKS', async ($, on) => {
