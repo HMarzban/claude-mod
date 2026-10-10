@@ -3,13 +3,16 @@
 // P0 needs SCENARIOS and drawCases; P1 adds the snapshot builder and the
 // invariant checks.
 
-import type { On, SessionUsage } from 'claude-code'
-import type { Engine, MockClock } from 'claude-code/testing'
+import type { On, RenderChildren, SessionUsage } from 'claude-code'
+import { expect, type Engine, type MockClock } from 'claude-code/testing'
 import {
-  HOUR, HOUR_1, MIN, START, USAGE, FRESH, breakdown, engine, mountBand, pacing, resp, respond, setup, turn, type Node,
+  HOUR, HOUR_1, MIN, START, USAGE, FRESH, breakdown, engine, firstRow, mountBand, pacing, resp, respond, setup, shown, turn, walk, type Node,
 } from './helpers'
+import { DESKTOP, ROW_PX, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
-import type { BandActions, BandSnapshot } from '../hooks/snapshot'
+import type { BandActions, BandSnapshot, Glyphs, LayoutName } from '../hooks/snapshot'
+import { VIEWS } from '../hooks/views/index'
+import { rowsOf } from '../hooks/views/view'
 
 export type Appearance = 'dark' | 'light' | 'plain'
 export type Surface = 'terminal' | 'desktop'
@@ -164,3 +167,163 @@ export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({
 
 /** Actions for a draw outside a mount: one function each, so props compare equal. */
 export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide: async () => undefined }
+
+/** Every layout's words for each amber trigger. `·` reads `-` in the ascii tier. */
+export const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
+  cacheLastMinute: /! \d+s( left)?|LAST CALL|! cooling [·-] \d+s left/,
+  nearCompaction: /! context \d+%|! ctx \d+%|! COMPACTS IN ~/,
+  contextNoCompaction: /! context \d+%|! ctx \d+%|! CONTEXT \d+%/,
+  limit80: /! 5h|! NEAR LIMIT/,
+  fiveHourAhead: /! 5h|! FULL/,
+}
+
+const visible = (k: unknown): boolean => k !== null && k !== undefined && k !== false
+/** Height in lines (terminal) or px (desktop): a Text or Button is a row, an
+ *  Svg its height (none on the terminal), a column sums with its gaps, a row
+ *  takes its tallest; a top margin adds its rows. */
+const heightOf = (n: unknown, px: boolean): number => {
+  const unit = px ? ROW_PX : 1
+  if (typeof n === 'string' || typeof n === 'number') return unit
+  if (n === null || typeof n !== 'object') return 0
+  const node = n as Node
+  if (node.props?.position === 'absolute' || node.props?.display === 'none') return 0
+  const margin = (typeof node.props?.marginTop === 'number' ? node.props.marginTop : 0) * unit
+  if (node.type === 'Svg') return px ? Number(node.props?.height ?? ROW_PX) + margin : 0
+  if (node.type === 'Text' || node.type === 'Button') return unit + margin
+  const kids = (node.children ?? []).filter(visible)
+  if (kids.length === 0) return margin
+  const sizes = kids.map(k => heightOf(k, px))
+  if (node.props?.flexDirection !== 'column') return Math.max(...sizes) + margin
+  const gap = (typeof node.props?.rowGap === 'number' ? node.props.rowGap : 0) * (kids.length - 1) * unit
+  return sizes.reduce((a, b) => a + b, 0) + gap + margin
+}
+/** Rows a drawn tree takes: lines on the terminal; on the desktop its height
+ *  over ROW_PX, to the nearest row. */
+export const visualRows = (tree: unknown, surface: Surface): number =>
+  surface === 'desktop' ? Math.round(heightOf(tree, true) / ROW_PX) : heightOf(tree, false)
+
+export type InvariantContext = Readonly<{
+  layout: LayoutName
+  surface: Surface
+  appearance: Appearance
+  cols: number
+  maxRows: number
+  scenario: ScenarioName
+  glyphs: Glyphs
+  expanded: boolean
+}>
+
+/** A colour prop, at the top of a node's props or inside its `hover`. */
+const COLOUR_PROPS: ReadonlySet<string> = new Set(['color', 'backgroundColor', 'borderColor'])
+/** A paint in an Svg's source, as an attribute or a style: a hex, an `rgb()` or a name. */
+const SVG_PAINT = /\b(?:fill|stroke|stop-color|color)\s*[=:]\s*["']?\s*(#[0-9a-f]{3,8}|rgb\([^)]*\)|[a-z]+)/gi
+/** The red names: the theme's error key and Ink's red keywords. */
+const RED_NAME = /^(error|red|redBright)$/i
+/** A hex colour, `fff` to `ffffff80`. */
+const HEX = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i
+const RGB = /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i
+
+/** Whether a colour's hue lies within 15° of pure red at more than half
+ *  saturation. Amber sits near 40°. */
+const isRed = (r: number, g: number, b: number): boolean => {
+  const max = Math.max(r, g, b)
+  const chroma = max - Math.min(r, g, b)
+  // With red the largest, the hue is 60° × (g − b) / chroma, either side of 0°.
+  return max === r && chroma > max / 2 && Math.abs((60 * (g - b)) / chroma) <= 15
+}
+/** A colour's red, green and blue, when it is written in hex or `rgb()`. */
+const channelsOf = (colour: string): readonly [number, number, number] | undefined => {
+  const hex = colour.match(HEX)?.[1]
+  if (hex !== undefined) {
+    const pairs = hex.length <= 4 ? [...hex.slice(0, 3)].map(c => c + c) : [hex.slice(0, 2), hex.slice(2, 4), hex.slice(4, 6)]
+    const [r = 0, g = 0, b = 0] = pairs.map(pair => parseInt(pair, 16))
+    return [r, g, b]
+  }
+  const rgb = colour.match(RGB)
+  return rgb === null ? undefined : [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])]
+}
+/** Whether a colour is red: a red name, or a hex or `rgb()` of a red hue. */
+const isRedColour = (colour: string): boolean => {
+  const channels = channelsOf(colour)
+  return RED_NAME.test(colour) || (channels !== undefined && isRed(...channels))
+}
+/** The colour props' values, at the top and one level into an object-valued
+ *  prop such as `hover`. */
+const colourProps = (props: Readonly<Record<string, unknown>>, nested = true): string[] =>
+  Object.entries(props).flatMap(([key, value]) => {
+    if (typeof value === 'string') return COLOUR_PROPS.has(key) ? [value] : []
+    return nested && typeof value === 'object' && value !== null ? colourProps(value as Record<string, unknown>, false) : []
+  })
+/** Every colour a node paints: its colour props, and an Svg's paints. */
+const coloursOf = (n: Node): string[] => {
+  const source = n.type === 'Svg' && typeof n.props?.source === 'string' ? n.props.source : ''
+  return [...colourProps(n.props ?? {}), ...[...source.matchAll(SVG_PAINT)].map(m => m[1] ?? '')]
+}
+
+/** What each glyph tier may draw (spec §3.2): the unicode tier's glyphs and braille, or ASCII alone. */
+const UNICODE_TIER = /^[\x20-\x7e█░▒│·↻Σ◷◔▿▵…±●■–↑↓\u2800-\u28ff]*$/
+const ASCII_TIER = /^[\x20-\x7e]*$/
+
+/** Each failed check as `<check>: <why>`; none when the tree keeps the spec
+ *  §2 contract: the checks spec §7 lists, §9's node budget and §2.6's open height. */
+export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => {
+  const errors: string[] = []
+  const fail = (check: string, why: string): void => {
+    errors.push(`${check}: ${why}`)
+  }
+  const collapsed = firstRow(tree)
+  const svgDraws = ctx.surface === 'desktop' && ctx.appearance !== 'plain'
+  const ascii = ctx.glyphs === 'ascii' && ctx.surface === 'terminal'
+  const amber: readonly AmberReason[] = SCENARIOS[ctx.scenario].amber
+
+  const declared = rowsOf(VIEWS[ctx.layout], { Svg: svgDraws })
+  const rows = visualRows(collapsed, ctx.surface)
+  if (rows !== declared) fail('rows', `${rows} drawn, ${declared} declared`)
+
+  const mark = ctx.expanded ? (ascii ? '^' : '▵') : ascii ? 'v' : '▿'
+  let toggles = 0
+  walk(collapsed, n => {
+    if (n.type === 'Button' && n.props?.label === mark) toggles++
+  })
+  if (toggles !== 1) fail('toggle', `${toggles} ${mark} in the collapsed part`)
+
+  // All-amber below 60 columns clips by design, ▿ pinned at the end.
+  const clipsByDesign = ctx.cols < 60 && amber.length > 0
+  const width = cellsOf(collapsed as RenderChildren, ctx.surface === 'desktop' ? DESKTOP : TERMINAL)
+  if (!clipsByDesign && width > ctx.cols) fail('width', `${width} columns at ${ctx.cols}`)
+
+  let nodes = 0
+  const svgs: Node[] = []
+  walk(tree, n => {
+    nodes++
+    if (n.type === 'Svg') svgs.push(n)
+    for (const colour of coloursOf(n)) if (isRedColour(colour)) fail('colour', `red ${colour}`)
+    if (ctx.surface === 'desktop') {
+      for (const k of n.children ?? [])
+        if (typeof k === 'string' && /^\s+$/.test(k)) fail('whitespace', `a whitespace-only child of a ${n.type}`)
+    }
+  })
+  if (!svgDraws && svgs.length > 0) fail('svgPlacement', `${svgs.length} Svg where none draws`)
+  for (const s of svgs) {
+    if (typeof s.props?.alt !== 'string' || s.props.alt === '' || typeof s.props?.width !== 'number')
+      fail('svgProps', 'an Svg without an alt or a width')
+  }
+
+  const text = shown(tree)
+  if (/send|keep (it )?warm/i.test(text)) fail('wording', 'suggests sending a message')
+  for (const reason of amber) if (!AMBER_WORDS[reason].test(text)) fail('amber', `no words for ${reason}`)
+  if (/re-warm \$/i.test(text) || /full (in |at )?\d/i.test(text)) fail('estimate', 'an estimate without ~')
+  if (!(ascii ? ASCII_TIER : UNICODE_TIER).test(text)) fail('glyphs', 'a glyph outside the tier')
+
+  if (nodes > (ctx.expanded ? 1500 : 400)) fail('size', `${nodes} nodes`)
+  if (ctx.expanded) {
+    const tall = visualRows(tree, ctx.surface)
+    if (tall > ctx.maxRows) fail('height', `${tall} rows at maxRows ${ctx.maxRows}`)
+  }
+  return errors
+}
+
+/** Fails the test with every broken check named. */
+export const expectInvariants = (tree: Node, ctx: InvariantContext): void => {
+  expect(invariantErrors(tree, ctx)).toEqual([])
+}
