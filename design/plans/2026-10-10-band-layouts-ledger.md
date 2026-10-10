@@ -53,6 +53,8 @@ What the plan's steps record, in the order they happen.
 | Task 12 (merged) | 358 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 13 | 422 pass, 0 fail, 32 files | `claude plugin test plugins/session-usage-band` |
 | Task 13 (merged) | 451 pass, 0 fail, 34 files | `claude plugin test plugins/session-usage-band` |
+| Task 14 (P1, `TZ=UTC`) | 456 pass, 0 fail, 35 files | `TZ=UTC claude plugin test plugins/session-usage-band` |
+| Task 14 (P1, `TZ=Asia/Tehran`) | 456 pass, 0 fail, 35 files | `TZ=Asia/Tehran claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
@@ -89,9 +91,20 @@ Pending maintainer: the snapshot holds no time at which a measured cache went co
 Pending maintainer: one ascii guard for every caller. `band.tsx` and `views/chips.tsx` each check `snap.surface === 'terminal' && snap.glyphs === 'ascii'`, while `layoutCachePill` checks only `read.frame.glyphs === 'ascii'` on the filled path without Svg, so on `mobile` or `vscode` in a CJK locale the layouts' cache pill alone maps (`·` reads `-`). Three ways to hold it once: `kit.surface` (spec §4.1 says the kit holds `surface`; `kit.tsx` isn't Task 13's), `asciiTier(snap)` beside `asciiText` in `glyphs.ts` (Task 8's), or a terminal-aware tier in `Frame` (a field spec §4.1 doesn't list); `layoutCachePill` follows whichever lands, with a test that a filled non-terminal snap in the ascii tier draws the pill unmapped.
 
 ## Freezes
-- P1 freeze (Task 14):
+- P1 freeze (Task 14), at dc28d40: these interfaces are frozen for P2. Gates green: `claude plugin validate .` and `claude plugin validate plugins/session-usage-band` pass, the suite passes in both zones (456 pass, 0 fail, 35 files), and `tsc` reports no errors.
+  - `VIEWS` has nine entries: chips hand-written, and gauges, ledger, rings, pulse, tiles, week, departures and forecast as stubs that declare their rows and draw chips.
+  - `views/view.ts` exports `View`, `Rows`, `Lines`, `Body`, `rowsOf` and `defineView`.
+  - `readingsOf` exposes every field in Tasks 5 and 13's types: `frame`, `cache`, `spend`, `context`, `fiveHour`, `sevenDay`, `limits`, `worstLimit`, `workspace`, `workspaceText` and `chips`, each section its facts and words (`hitFrac`, `coldInMs`, `resetInMs` and `projectedFrac` included).
+  - `words.ts` exports `AMBER`, `EMPTY`, `altOf`, `resetPhrase`, `paceText`, `Role`, `Say`, `Amber` and the five word builders (`cacheWords`, `contextWords`, `spendWords`, `limitWords`, `workspaceWords`).
+  - `charts.tsx` exports `meter`, `ring`, `sparkline`, `barChart`, `dayCells`, `underline` and `braille`.
+  - `parts.tsx` exports `PillSpec`, `pill`, `batteryIcon`, `textBattery`, `Keeps`, `line`, `lineRoom`, `fitLine`, `beforeLast`, `words`, `fact`, `section`, `grid`, `gridRoom`, `chartsIfRoom`, `accentOf` and `layoutCachePill`.
+  - `frame.tsx` exports only `frame`, `bodyRowsFor`, `openView`, `panel`, `toggleButton` and the `Strip` type.
+  - `tests/matrix.ts` exports `drawCases`, `caseKey`, `snapOf`, `NO_ACT`, `invariantErrors`, `expectInvariants`, `suiteCases` and `viewSuite`.
+  - Checks: the view grep gate prints nothing; `$` appears in no hooks file but `register.tsx`; no local is named `h`.
+  - Four pending lines above would amend a frozen interface if decided, and land at the Task 16 re-freeze: the one ascii guard (`kit.surface`, `asciiTier` or a `Frame` field), `kit.gap` on a plain desktop, a cold-since time in the snapshot for `coldSinceClock`, and the `id`/gradient check in `matrix.ts`' `svgProps`.
+  - History (`git log --oneline main..feat/layouts`): each of Tasks 1 to 13 (9a, 9b, 10a, 10b, 10c, 11a and 11b included) has its own feature commit, followed by its review fixes and, from Task 6 on, a merge and a docs commit recording the count; 64 commits and 12 merges in all. `feat/layouts` has no upstream and there is no `origin/feat/layouts`: nothing is pushed.
 - P2.0 re-freeze (Task 16):
 
 ## Time zone
-- Kit, TZ=UTC: · kit, TZ=Asia/Tehran: · live session:
+- Kit, TZ=UTC: `ZONE offset=210` · kit, TZ=Asia/Tehran: `ZONE offset=210` · live session: pending maintainer. Both full-suite runs (Task 14, Step 2) and `tools/test-only.sh zone` under each read 210, as does a run with `TZ` unset; this host is `+0330`. The kit reports the host's zone and ignores `TZ`, as Task 10c found, so the "both read 0" case does not arise. Whether a live session passes its zone through is still the live check's to say (checkpoint 2); if it reads 0 in a non-UTC zone, the relative-times ruling (spec §5) is decided then.
 - Task 10c, `tools/test-only.sh zone` (`ZONE offset=` at 2026-10-09T12:00Z): unset TZ 210 · `TZ=UTC` 210 · `TZ=Asia/Tehran` 210. The kit reports this machine's zone (+03:30) and ignores `TZ` in the environment it is started from.
