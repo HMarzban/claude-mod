@@ -34,5 +34,5 @@ export const drawBand = (
   }
   // Mapped last: the squeeze measured the row in the band's own glyphs, and
   // no mapping widens one.
-  return snap.surface === 'terminal' && snap.glyphs === 'ascii' ? asciiTree(tree) : tree
+  return read.frame.glyphs === 'ascii' ? asciiTree(tree) : tree
 }

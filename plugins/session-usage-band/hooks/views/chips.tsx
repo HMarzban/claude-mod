@@ -6,7 +6,6 @@ import type { RenderChildren, RenderElement } from 'claude-code'
 import { meter } from '../charts'
 import {
   fmtCost,
-  fmtEstimate,
   fmtAgo,
   fmtEta,
   fmtSmallCost,
@@ -80,7 +79,7 @@ export const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderEle
   const { Box, Button, Text, Svg, palette, measure, onTone, gap, icon } = kit
   const snap = read.chips.raw
   const c = snap.cache
-  const ascii = snap.surface === 'terminal' && snap.glyphs === 'ascii'
+  const ascii = read.frame.glyphs === 'ascii'
   // ---- what the pills say, whatever the squeeze ----------------------------
   const { mood, estimate, tone: cacheTone, charge } = read.cache
   const { copy, tokenBreakdown } = read.chips.reading
@@ -88,7 +87,6 @@ export const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderEle
   const ctx = snap.context
   const {
     known: hasContext,
-    used: ctxUsed,
     frac: ctxFrac,
     pct: ctxPct,
     toCompact,
@@ -267,6 +265,8 @@ export const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderEle
         <Text color={palette.cardValue}>{value}</Text>
       </Box>
     )
+    /** A fact the readings may not know yet: nothing until they do. */
+    const knownRow = (label: string, value: string | undefined) => (value === undefined ? null : factRow(label, value))
     const note = (text: string) => (
       <Text key="note" color={palette.label} wrap="wrap">
         {text}
@@ -412,11 +412,10 @@ export const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderEle
         copy.note === undefined ? null : note(copy.note),
         known ? factRow(mood === 'cold' ? 'next message' : 're-warm if cold', estimate) : null,
         c.recalled && c.idleMs !== null ? factRow('idle for', fmtAgo(c.idleMs)) : null,
-        c.misses > 0 ? factRow('unexpected rebuilds', String(c.misses)) : null,
-        measured && c.savedUsd !== null ? factRow('saved by cache', fmtEstimate(c.savedUsd)) : null,
-        measured && c.hitRatio !== null ? factRow('hit rate', `${Math.round(c.hitRatio * 100)}%`) : null,
-        // Inference only ever moves an assumed hour to 5m, so an unpinned hour is the guess.
-        factRow('expires', `${c.ttl} idle${!c.ttlPinned && c.ttl === '1h' ? ' · assumed' : ''}`),
+        knownRow('unexpected rebuilds', read.cache.rebuildsText),
+        knownRow('saved by cache', read.cache.savedText),
+        knownRow('hit rate', read.cache.hitText),
+        factRow('expires', read.cache.lastsText),
       ],
     )
 
@@ -444,18 +443,19 @@ export const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderEle
           { text: `${ctxPct} full${ctx.compactAt === undefined ? severityMark(ctxFrac) : ''}`, tone: ctxTone },
           meter(kit, { label: 'context', frac: ctxFrac, tone: ctxTone, accent: palette.meterFill, size: cardBar, stretch: true }),
           [
-          toCompact !== undefined ? factRow('room left', `~${fmtTokens(toCompact)}`) : null,
-          ctx.compactAt !== undefined ? factRow('auto-compacts at', fmtTokens(ctx.compactAt)) : null,
-          factRow('in context', fmtTokens(ctxUsed)),
-          factRow('model window', fmtTokens(ctx.window)),
+          knownRow('room left', read.context.roomText),
+          knownRow('auto-compacts at', read.context.compactsAtText),
+          factRow('in context', read.context.inContextText),
+          factRow('model window', read.context.windowText),
           ],
         )
       : null
 
-    const { windows, worst } = read.chips.reading
+    const { windows } = read.chips.reading
+    const worst = read.worstLimit
     /** A window's bar in its chip's own accent; any other window's in the meter's. */
     const windowAccent = (w: ChipsWindow) => (w.key === 'other' ? palette.meterFill : LIMITS[w.key].tint(palette).accent)
-    const valueOf = (w: ChipsWindow) => `${w.value}${severityMark(w.frac)}`
+    const valueOf = (w: LimitView) => `${w.value}${severityMark(w.frac)}`
 
     /** One window: its name, bar and value on a line, then its reset and pace in words. */
     const limitRows = (w: ChipsWindow): readonly [RenderChildren, RenderChildren] => {

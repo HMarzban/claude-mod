@@ -13,12 +13,13 @@ import {
   contextUsed,
   fmtCountdown,
   fmtEstimate,
+  fmtPct,
   fmtTokens,
   resetIn,
 } from './format'
 import type { ResetIn } from './format'
 import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
-import { cacheWords, contextWords, limitWords, paceText, spendWords, workspaceWords } from './words'
+import { cacheWords, contextWords, limitWords, spendWords, workspaceWords } from './words'
 import type { CacheWords, ContextWords, LimitWords, SpendWords } from './words'
 
 export type Tone = 'calm' | 'amber'
@@ -128,7 +129,7 @@ export const contextReading = (ctx: BandSnapshot['context']) => {
     known: ctx.percent !== undefined || ctx.tokens !== undefined,
     used,
     frac,
-    pct: `${Math.round(frac * 100)}%`,
+    pct: fmtPct(frac),
     toCompact: ctx.compactAt === undefined ? undefined : Math.max(0, ctx.compactAt - used),
     nearCompact,
     tone,
@@ -154,14 +155,14 @@ export const limitTone = (reading: LimitReading, now: number, etaMs: number | nu
 // ---- the facts every layout draws from ------------------------------------
 // Moved from band.tsx; words.ts phrases them, and readingsOf puts the two together.
 
-export type { Glyphs } from './snapshot'
-
 /** How the band is mounted and when: what every view lays itself out by. */
 export type Frame = Readonly<{
   expanded: boolean
   maxRows: number
   now: number
   isWorking: boolean
+  /** The tier drawn in: the session's on a terminal, where ambiguous-width
+   *  glyphs can draw wide; the band's own glyphs on every other surface. */
   glyphs: Glyphs
   utcOffsetMin: number | undefined
 }>
@@ -212,20 +213,22 @@ export type LimitFacts = Readonly<{
   resetInMs: number | undefined
 }>
 
-/** A window as chips' Limits card reads it: the facts, its raw reading and window length, and the card's pace tail. */
-export type ChipsWindow = LimitFacts & Readonly<{ reading: LimitReading; windowMs: number | undefined; cardPace: string }>
-
-export type ChipsReadings = Readonly<{
-  /** The snapshot itself: chips' own code moved over unchanged. Only chips reads it. */
-  raw: BandSnapshot
-  reading: Readonly<{ copy: CacheCopy; tokenBreakdown: string; windows: readonly ChipsWindow[]; worst: ChipsWindow | undefined }>
-}>
-
 // What the views read: each section's facts, and its words beside them.
 export type CacheReading = CacheFacts & CacheWords
 export type ContextReading = ContextFacts & ContextWords
 export type SpendReading = SpendFacts & SpendWords
+/** A limit window as the views read it. A view, not a reading: `LimitReading`
+ *  is the snapshot's raw window. */
 export type LimitView = LimitFacts & LimitWords
+
+/** A window as chips' Limits card reads it: the view, and the card's pace tail. */
+export type ChipsWindow = LimitView & Readonly<{ cardPace: string }>
+
+export type ChipsReadings = Readonly<{
+  /** The snapshot itself: chips' own code moved over unchanged. Only chips reads it. */
+  raw: BandSnapshot
+  reading: Readonly<{ copy: CacheCopy; tokenBreakdown: string; windows: readonly ChipsWindow[] }>
+}>
 
 export type Readings = Readonly<{
   frame: Frame
@@ -276,25 +279,21 @@ export const spendFacts = (snap: BandSnapshot): SpendFacts => {
   return { totalUsd: snap.costUsd, lastTurnUsd: snap.lastTurnUsd, sent: t.sent, back: t.back, cached: t.cached, total: t.sent + t.back + t.cached }
 }
 
-/** Each window the engine reports, 5h, 7d, then the rest, as the Limits card reads them. */
-export const limitFacts = (snap: BandSnapshot): ChipsWindow[] => {
-  const one = (name: string, key: LimitKey, reading: LimitReading, windowMs: number | undefined, etaMs: number | null): ChipsWindow => {
+/** The facts of each window the engine reports: 5h, 7d, then the rest. */
+export const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
+  const one = (name: string, key: LimitKey, reading: LimitReading, windowMs: number | undefined, etaMs: number | null): LimitFacts => {
     const reset = resetIn(reading.resetsAt, snap.now)
     const passed = reset?.kind === 'passed'
     const gone = windowGone(reading, windowMs, snap.now)
     // A measured fill lands it at 100, so the words and the amber agree; else
     // the average's landing, once 5% of the window has gone.
     const projectedPct = etaMs !== null ? 100 : gone === undefined || gone < 0.05 ? undefined : reading.percentUsed / gone
-    const pace = paceText({ etaMs, projectedPct })
     return {
       name,
       key,
-      reading,
-      windowMs,
       etaMs,
       reset,
       gone,
-      cardPace: pace === '' ? '' : ` · ${pace}`,
       percentUsed: reading.percentUsed,
       frac: clamp01(reading.percentUsed / 100),
       tone: limitTone(reading, snap.now, etaMs),
@@ -321,18 +320,17 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     maxRows: snap.maxRows,
     now: snap.now,
     isWorking: snap.isWorking,
-    glyphs: snap.glyphs,
+    glyphs: snap.surface === 'terminal' ? snap.glyphs : 'unicode',
     utcOffsetMin: snap.utcOffsetMin,
   }
   const cache = cacheFacts(snap)
   const spend = spendFacts(snap)
   const context = contextFacts(snap)
-  const windows = limitFacts(snap)
-  const limits = windows.map((w): LimitView => ({ ...w, ...limitWords(w, frame) }))
+  const limits = limitFacts(snap).map((f): LimitView => ({ ...f, ...limitWords(f, frame) }))
   // The headline is the window closest to its limit.
-  const worst = windows
-    .filter(w => !w.passed)
-    .reduce<ChipsWindow | undefined>((top, w) => (top === undefined || w.percentUsed > top.percentUsed ? w : top), undefined)
+  const worstLimit = limits
+    .filter(l => !l.passed)
+    .reduce<LimitView | undefined>((top, l) => (top === undefined || l.percentUsed > top.percentUsed ? l : top), undefined)
   return {
     frame,
     cache: { ...cache, ...cacheWords(cache, c, frame) },
@@ -341,7 +339,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     fiveHour: limits.find(l => l.key === '5h'),
     sevenDay: limits.find(l => l.key === '7d'),
     limits,
-    worstLimit: worst === undefined ? undefined : limits[windows.indexOf(worst)],
+    worstLimit,
     workspace: snap.workspace,
     workspaceText: workspaceWords(snap.workspace),
     chips: {
@@ -349,8 +347,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
       reading: {
         copy: cacheCopy(c, cache.mood, snap.isWorking),
         tokenBreakdown: `input ${fmtTokens(c.tokens.sent)} · output ${fmtTokens(c.tokens.back)} · cache reads ${fmtTokens(c.tokens.cached)}`,
-        windows,
-        worst,
+        windows: limits.map((l): ChipsWindow => ({ ...l, cardPace: l.pace === '' ? '' : ` · ${l.pace}` })),
       },
     },
   }

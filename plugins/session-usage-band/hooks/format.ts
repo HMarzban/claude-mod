@@ -12,6 +12,9 @@ export const COMPACT_NEAR = 0.9
 
 export const clamp01 = (n: number): number => (n < 0 ? 0 : n > 1 ? 1 : n)
 
+/** A share as a whole percent: 0.38 is `38%`. */
+export const fmtPct = (frac: number): string => `${Math.round(frac * 100)}%`
+
 export const fmtTokens = (n: number): string => {
   const v = Math.max(0, Math.round(n))
   // Each unit from where the one below would round up to it: 9,999 is 10k,

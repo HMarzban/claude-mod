@@ -13,6 +13,7 @@ import {
   fmtLeft,
   fmtLeftShort,
   fmtLeftSpoken,
+  fmtPct,
   fmtSmallCost,
   fmtTokens,
 } from './format'
@@ -30,13 +31,14 @@ export type Say = ReadonlyArray<readonly [string, Role]>
 /** An amber reading's words: long while a calm piece remains to give way, then short. */
 export type Amber = Readonly<{ long: string; short: string }>
 
-const pct = (frac: number): string => `${Math.round(frac * 100)}%`
+/** A value not known yet: unknown, never 0. */
+const UNKNOWN = '–'
 
 /** What an amber reading says, long and short, always led by one `! `. */
 export const AMBER = {
   cache: (left: string, leftShort: string, estimate: string): Amber => ({ long: `! ${left} · re-warm ${estimate}`, short: `! ${leftShort}` }),
-  context: (frac: number, toCompact: number): Amber => ({ long: `! context ${pct(frac)} · compacts in ~${fmtTokens(toCompact)}`, short: `! ctx ${pct(frac)}` }),
-  contextNoCompaction: (frac: number): Amber => ({ long: `! context ${pct(frac)}`, short: `! ctx ${pct(frac)}` }),
+  context: (frac: number, toCompact: number): Amber => ({ long: `! context ${fmtPct(frac)} · compacts in ~${fmtTokens(toCompact)}`, short: `! ctx ${fmtPct(frac)}` }),
+  contextNoCompaction: (frac: number): Amber => ({ long: `! context ${fmtPct(frac)}`, short: `! ctx ${fmtPct(frac)}` }),
   limit: (name: string, percentUsed: number): Amber => {
     const said = `! ${name} ${Math.round(percentUsed)}%`
     return { long: said, short: said }
@@ -57,13 +59,16 @@ export const EMPTY = {
 export const resetPhrase = (r: ResetIn, form: 'words' | 'glyph'): string =>
   r.kind === 'passed' ? 'reset' : form === 'words' ? `resets in ${r.text}` : `↻ in ${r.text}`
 
+/** A landing at or over 100% is none: the window fills before it resets. */
+const fillsBeforeReset = (projectedPct: number): boolean => projectedPct >= 100
+
 /** A window's pace in words: a measured fill first, then the average's landing. */
 export const paceText = (p: Readonly<{ etaMs: number | null; projectedPct: number | undefined }>): string =>
   p.etaMs !== null
     ? `full in ${fmtEta(p.etaMs)}`
     : p.projectedPct === undefined
       ? ''
-      : p.projectedPct >= 100
+      : fillsBeforeReset(p.projectedPct)
         ? 'full before reset'
         : `on pace for ~${Math.round(p.projectedPct)}%`
 
@@ -114,7 +119,7 @@ export type CacheWords = Readonly<{
 }>
 
 export type ContextWords = Readonly<{
-  /** `38%`, `context 38%` and `ctx 38%`. */
+  /** `38%`, `context 38%` and `ctx 38%`; while not reported, `–`. */
   valueText: string
   text: string
   textShort: string
@@ -126,7 +131,8 @@ export type ContextWords = Readonly<{
   boardAmber: string | undefined
   /** What the share is of: `toward compaction`, or `of the window` when compaction is off. */
   towardText: string
-  /** Tokens in context, where it compacts, the room before then, and the window: `76k`, `190k`, `~114k`, `200k`. */
+  /** Tokens in context, where it compacts, the room before then, and the window:
+   *  `76k`, `190k`, `~114k`, `200k`. While not reported, `–` and no room. */
   inContextText: string
   compactsAtText: string | undefined
   roomText: string | undefined
@@ -156,7 +162,8 @@ export type LimitWords = Readonly<{
   resetGlyph: string | undefined
   /** `16:40`, or `Mon 08:40` past today, when the offset is known. */
   resetClock: string | undefined
-  /** Where the window lands at its reset: `~10%`. */
+  /** Where the window lands at its reset, `~10%`; none at 100% or more,
+   *  where `pace` says `full before reset`. */
   projectedText: string | undefined
   /** A measured fill, `~40m`, and when, `~14:20` (the offset known). */
   fullIn: string | undefined
@@ -165,7 +172,7 @@ export type LimitWords = Readonly<{
   amber: Amber | undefined
   /** `! NEAR LIMIT`, `! FULL ~14:20`, or without the offset, `! FULL IN ~40M`. */
   boardAmber: string | undefined
-  /** `~10% AT ↻`, or `RESET`. */
+  /** `~10% AT ↻`, `FULL BEFORE ↻`, or `RESET`. */
   boardShort: string | undefined
   alt: string
 }>
@@ -200,7 +207,7 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
   const off = frame.utcOffsetMin
   // Spoken, a price is never marked ~: the alt says "about".
   const price = c.reWarmUsd !== null ? fmtSmallCost(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`
-  const value = f.mood === 'unmeasured' ? '–' : f.mood === 'warming' ? 'warming' : f.mood === 'cold' ? 'cold' : working ? 'warm' : left
+  const value = f.mood === 'unmeasured' ? UNKNOWN : f.mood === 'warming' ? 'warming' : f.mood === 'cold' ? 'cold' : working ? 'warm' : left
   const say: Say =
     f.mood === 'cold' ? [['cache ', 'label'], ['cold', 'value'], [' · re-warm ', 'label'], [f.estimate, 'value']] : [['cache ', 'label'], [value, 'value']]
   const sayShort: Say =
@@ -223,7 +230,7 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     coldAtClock: counting && off !== undefined ? fmtClock(frame.now + f.coldInMs, off) : undefined,
     coldSinceClock: undefined,
     savedText: f.measured && c.savedUsd !== null ? fmtEstimate(c.savedUsd) : undefined,
-    hitText: f.hitFrac === undefined ? undefined : pct(f.hitFrac),
+    hitText: f.hitFrac === undefined ? undefined : fmtPct(f.hitFrac),
     // Inference only ever moves an assumed hour to 5m, so an unpinned hour is the guess.
     lastsText: `${c.ttl} idle${!c.ttlPinned && c.ttl === '1h' ? ' · assumed' : ''}`,
     rebuildsText: c.misses > 0 ? String(c.misses) : undefined,
@@ -242,15 +249,17 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
   }
 }
 
-/** The context in words, measured toward compaction when it is on. */
+/** The context in words, measured toward compaction when it is on; unknown
+ *  while the engine reports none, never 0%. */
 export const contextWords = (f: ContextFacts): ContextWords => {
+  const value = f.known ? f.pct : UNKNOWN
   const towardText = f.compactAt !== undefined ? 'toward compaction' : 'of the window'
-  const roomText = f.toCompact === undefined ? undefined : `~${fmtTokens(f.toCompact)}`
-  const say: Say = [['context ', 'label'], [f.pct, 'value']]
-  const sayShort: Say = [['ctx ', 'label'], [f.pct, 'value']]
+  const roomText = !f.known || f.toCompact === undefined ? undefined : `~${fmtTokens(f.toCompact)}`
+  const say: Say = [['context ', 'label'], [value, 'value']]
+  const sayShort: Say = [['ctx ', 'label'], [value, 'value']]
   const amber = f.tone !== 'amber' ? undefined : f.toCompact !== undefined ? AMBER.context(f.frac, f.toCompact) : AMBER.contextNoCompaction(f.frac)
   return {
-    valueText: f.pct,
+    valueText: value,
     text: joined(say),
     textShort: joined(sayShort),
     say,
@@ -258,11 +267,13 @@ export const contextWords = (f: ContextFacts): ContextWords => {
     amber,
     boardAmber: f.tone !== 'amber' ? undefined : roomText !== undefined ? `! COMPACTS IN ${roomText.toUpperCase()}` : `! CONTEXT ${f.pct}`,
     towardText,
-    inContextText: fmtTokens(f.used),
+    inContextText: f.known ? fmtTokens(f.used) : UNKNOWN,
     compactsAtText: f.compactAt === undefined ? undefined : fmtTokens(f.compactAt),
     roomText,
     windowText: fmtTokens(f.window),
-    alt: altOf('context', `${Math.round(f.frac * 100)} percent ${towardText}`, f.tone === 'amber' ? 'near the limit' : 'fine'),
+    alt: f.known
+      ? altOf('context', `${Math.round(f.frac * 100)} percent ${towardText}`, f.tone === 'amber' ? 'near the limit' : 'fine')
+      : altOf('context', EMPTY.context),
   }
 }
 
@@ -285,7 +296,8 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const off = frame.utcOffsetMin
   const live = !f.passed
   const projected = live ? f.projectedPct : undefined
-  const projectedText = projected === undefined ? undefined : `~${Math.round(projected)}%`
+  const fills = projected !== undefined && fillsBeforeReset(projected)
+  const projectedText = projected === undefined || fills ? undefined : `~${Math.round(projected)}%`
   const etaMs = live ? f.etaMs : null
   const fullIn = etaMs !== null ? fmtEta(etaMs) : undefined
   const fullAtClock = etaMs !== null && off !== undefined ? `~${fmtClock(frame.now + etaMs, off)}` : undefined
@@ -309,12 +321,18 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
           : fullAtClock !== undefined
             ? `! FULL ${fullAtClock}`
             : `! FULL IN ${fullIn.toUpperCase()}`,
-    boardShort: f.passed ? 'RESET' : projectedText !== undefined ? `${projectedText} AT ↻` : undefined,
+    boardShort: f.passed ? 'RESET' : fills ? 'FULL BEFORE ↻' : projectedText !== undefined ? `${projectedText} AT ↻` : undefined,
     alt: altOf(
       `${f.name} limit`,
       live ? `${Math.round(f.percentUsed)} percent used` : 'reset',
       f.tone === 'amber' ? 'needs attention' : 'fine',
-      etaMs !== null ? `full in ${fmtEtaSpoken(etaMs)}` : projected !== undefined ? `about ${Math.round(projected)} percent at its reset` : undefined,
+      etaMs !== null
+        ? `full in ${fmtEtaSpoken(etaMs)}`
+        : fills
+          ? 'full before its reset'
+          : projected !== undefined
+            ? `about ${Math.round(projected)} percent at its reset`
+            : undefined,
     ),
   }
 }

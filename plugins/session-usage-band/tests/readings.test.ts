@@ -117,6 +117,16 @@ test('a measured fill is an estimate, with ~, in words and on the board', () => 
   expect(r.fiveHour?.amber).toEqual({ long: '! 5h full in ~40m', short: '! 5h ~40m' })
   expect(r.fiveHour?.alt).toBe('5h limit 84 percent used, needs attention, full in about 40 minutes')
 })
+test('a landing at or over 100% is full before reset, never ~112%', () => {
+  const r = readingsOf(snapOf({ sevenDay: { percentUsed: 79, resetsAt: new Date(50 * HOUR).toISOString() } }))
+  expect(r.sevenDay?.projectedPct ?? 0).toBeGreaterThan(100)
+  expect([r.sevenDay?.tone, r.sevenDay?.pace, r.sevenDay?.projectedText, r.sevenDay?.boardShort]).toEqual(['calm', 'full before reset', undefined, 'FULL BEFORE ↻'])
+  expect(r.sevenDay?.alt).toBe('7d limit 79 percent used, fine, full before its reset')
+})
+test('a measured fill lands at 100, so it too is full before reset', () => {
+  const r = readingsOf(snapOf({ fiveHour: { percentUsed: 84, resetsAt: new Date(70 * MIN).toISOString(), etaMs: 40 * MIN } }))
+  expect([r.fiveHour?.projectedText, r.fiveHour?.boardShort]).toEqual([undefined, 'FULL BEFORE ↻'])
+})
 test('a passed window has no reset words', () => {
   const r = readingsOf(snapOf({ now: 4 * HOUR }))
   expect([r.fiveHour?.text, r.fiveHour?.resetWords, r.fiveHour?.resetGlyph, r.fiveHour?.boardShort]).toEqual(['5h reset', undefined, undefined, 'RESET'])
@@ -132,6 +142,17 @@ test('context speaks toward compaction, or of the window when it is off', () => 
   expect([near.boardAmber, near.towardText, near.roomText]).toEqual(['! COMPACTS IN ~14K', 'toward compaction', '~14k'])
   const off = readingsOf(snapOf({ context: { tokens: 170_000, window: 200_000, percent: 85, compactAt: undefined } })).context
   expect([off.amber?.long, off.boardAmber, off.towardText]).toEqual(['! context 85%', '! CONTEXT 85%', 'of the window'])
+})
+test('context not reported reads as unknown, never 0%', () => {
+  const x = readingsOf(snapOf({ context: { tokens: undefined, window: 200_000, percent: undefined, compactAt: 190_000 } })).context
+  expect(x.known).toBe(false)
+  expect([x.valueText, x.text, x.textShort, x.inContextText, x.roomText]).toEqual(['–', 'context –', 'ctx –', '–', undefined])
+  expect(x.say).toEqual([['context ', 'label'], ['–', 'value']])
+  expect(x.alt).toBe('context not reported')
+})
+test('the ascii tier is drawn on a terminal alone', () => {
+  expect(readingsOf(snapOf({ glyphs: 'ascii' })).frame.glyphs).toBe('ascii')
+  for (const surface of ['desktop', 'mobile', 'vscode'] as const) expect(readingsOf(snapOf({ surface, glyphs: 'ascii' })).frame.glyphs).toBe('unicode')
 })
 test('spend splits its tokens, each with its share', () => {
   const s = readingsOf(snapOf()).spend
