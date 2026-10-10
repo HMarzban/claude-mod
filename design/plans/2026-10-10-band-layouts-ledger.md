@@ -38,4 +38,3 @@ Pending maintainer: whether a nested subagent's turn.complete can carry its pare
 ## Time zone
 - Kit, TZ=UTC: · kit, TZ=Asia/Tehran: · live session:
 - Task 10c, `tools/test-only.sh zone` (`ZONE offset=` at 2026-10-09T12:00Z): unset TZ 210 · `TZ=UTC` 210 · `TZ=Asia/Tehran` 210. The kit reports this machine's zone (+03:30) and ignores `TZ` in the environment it is started from.
-- pending maintainer: the offset a live session reports (`utcOffsetMin` in the snapshot), to confirm the engine's sandbox gives the local zone and not 0.
