@@ -4,8 +4,8 @@
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { clipMiddle } from './format'
 import { ALT } from './icons'
-import type { Kit } from './kit'
-import { STRIP_GIVES_WAY, squeezeToFit, stripKeeps } from './layout'
+import type { CardPlace, Kit } from './kit'
+import { STRIP_GIVES_WAY, isList, squeezeToFit, startsOf, stripKeeps } from './layout'
 import { BARE } from './palette'
 import { gitSummary, splitPath } from './workspace'
 import type { GitState, Workspace } from './workspace'
@@ -22,8 +22,14 @@ const tracking = (g: GitState): string => {
   const sides = [g.ahead ? `${commits(g.ahead)} to push` : '', g.behind ? `${g.behind} to pull` : ''].filter(Boolean)
   return sides.length === 0 ? 'up to date with its upstream' : sides.join(', ')
 }
-const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'footer', edge: number): RenderElement => {
-  const { Box, Text, Svg, hoverCard, icon } = kit
+/** The key a drawn Box goes by, if any. */
+const keyOf = (n: RenderChildren): string | undefined => {
+  const key = typeof n === 'object' && n !== null && !isList(n) && n.type === 'Box' ? n.props?.key : undefined
+  return typeof key === 'string' ? key : undefined
+}
+
+const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'footer', edge: number, room: number): RenderElement => {
+  const { Box, Text, Svg, measure, hoverable, hoverCard, icon } = kit
   const kept = (piece: (typeof STRIP_GIVES_WAY)[number]) => stripKeeps(squeeze, piece)
   const git = ws.git
   const { parent, name: fullName } = splitPath(ws.path)
@@ -36,52 +42,56 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
       i === 0 || Svg ? [piece] : [<Text key={`${side}-sep${i}`} color={BARE.label}>{' · '}</Text>, piece],
     )
 
+  // The card text each piece that explains itself on hover reveals, by the
+  // piece's key, for the end of the strip; see the kit's hoverCard.
+  const explained = new Map<string, string>()
+  /** The props of a piece keyed `key` that reveals `text` on hover. */
+  const explains = (key: string, text: string) => {
+    explained.set(key, text)
+    return { key, ...hoverable(key) }
+  }
+
   const where: RenderChildren[] = [
-    <Box key="ws:path" flexDirection="row">
+    <Box flexDirection="row" {...explains('ws:path', git === undefined ? ws.path : `${ws.path}: ${gitSummary(git)}`)}>
       {Svg ? icon('folder', BARE.icon, clipped ? `folder ${ws.path}` : ALT.folder) : null}
       {parentShown === '' ? null : <Text color={BARE.label} wrap="truncate-end">{parentShown}</Text>}
       <Text color={BARE.value} bold wrap="truncate-end">
         {name}
       </Text>
-      {hoverCard(git === undefined ? ws.path : `${ws.path}: ${gitSummary(git)}`, 'left')}
     </Box>,
   ]
   if (git?.branch !== undefined) {
     const branch = clipMiddle(git.branch, kept('branchLong') ? Infinity : kept('branchShort') ? 24 : 12)
     where.push(
-      <Box key="ws:head" flexDirection="row">
+      <Box flexDirection="row" {...explains('ws:head', `Branch ${git.branch}${git.commit === undefined ? ', no commits yet' : ''}: ${tracking(git)}`)}>
         {Svg ? icon('branch', BARE.branch, branch === git.branch ? ALT.branch : `branch ${git.branch}`) : <Text color={BARE.label}>{'on '}</Text>}
         <Text color={BARE.value} wrap="truncate-end">
           {branch}
         </Text>
-        {hoverCard(`Branch ${git.branch}${git.commit === undefined ? ', no commits yet' : ''}: ${tracking(git)}`, 'left')}
       </Box>,
     )
   } else if (git !== undefined) {
     where.push(
-      <Box key="ws:head" flexDirection="row">
+      <Box flexDirection="row" {...explains('ws:head', 'HEAD is detached: new commits belong to no branch')}>
         {Svg ? icon('commit', BARE.icon) : null}
         <Text color={BARE.label}>{git.commit === undefined ? 'detached' : 'detached at '}</Text>
         {git.commit === undefined ? null : <Text color={BARE.value}>{git.commit}</Text>}
-        {hoverCard('HEAD is detached: new commits belong to no branch', 'left')}
       </Box>,
     )
   }
   if (git?.worktree !== undefined && kept('worktree')) {
     const of = kept('worktreeOf') && ws.repoName !== undefined ? ws.repoName : undefined
+    const text =
+      ws.repoName === undefined
+        ? 'A linked worktree: its own checkout of the repository'
+        : `A linked worktree: its own checkout, sharing ${ws.repoName}'s history`
     where.push(
-      <Box key="ws:worktree" flexDirection="row">
+      <Box flexDirection="row" {...explains('ws:worktree', text)}>
         {Svg ? icon('worktree', BARE.icon) : null}
         <Text color={BARE.label}>
           {of === undefined ? 'worktree' : 'worktree of '}
           {of === undefined ? null : <Text key="of" color={BARE.value}>{of}</Text>}
         </Text>
-        {hoverCard(
-          ws.repoName === undefined
-            ? 'A linked worktree: its own checkout of the repository'
-            : `A linked worktree: its own checkout, sharing ${ws.repoName}'s history`,
-          'left',
-        )}
       </Box>,
     )
   }
@@ -90,13 +100,12 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
   if (git !== undefined && git.changed > 0) {
     const word = kept('changedWord')
     state.push(
-      <Box key="ws:changes" flexDirection="row">
+      <Box flexDirection="row" {...explains('ws:changes', `${git.changed} uncommitted change${git.changed === 1 ? '' : 's'}`)}>
         {Svg ? icon('changes', BARE.icon) : null}
         <Text color={BARE.value}>
           {`${!word && !Svg ? '±' : ''}${git.changed}`}
           {word ? <Text key="w" color={BARE.label}>{' changed'}</Text> : null}
         </Text>
-        {hoverCard(`${git.changed} uncommitted change${git.changed === 1 ? '' : 's'}`, 'right')}
       </Box>,
     )
   } else if (git !== undefined && kept('clean')) {
@@ -107,28 +116,44 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
     )
   }
   if (git !== undefined && (git.ahead || git.behind) && kept('aheadBehind')) {
-    const card = hoverCard(tracking(git), 'right')
     if (Svg) {
       // Icons a reader names, "ahead 2, behind 1", where ↑ ↓ read as arrows.
       for (const [side, n] of [['ahead', git.ahead], ['behind', git.behind]] as const) {
         if (n)
           state.push(
-            <Box key={`ws:${side}`} flexDirection="row">
+            <Box flexDirection="row" {...explains(`ws:${side}`, tracking(git))}>
               {icon(side, BARE.icon)}
               <Text color={BARE.value}>{String(n)}</Text>
-              {card}
             </Box>,
           )
       }
     } else {
       state.push(
-        <Box key="ws:ab" flexDirection="row">
+        <Box flexDirection="row" {...explains('ws:ab', tracking(git))}>
           <Text color={BARE.value}>{[git.ahead ? `↑${git.ahead}` : '', git.behind ? `↓${git.behind}` : ''].filter(Boolean).join(' ')}</Text>
-          {card}
         </Box>,
       )
     }
   }
+
+  // Each card at its piece: on the path's side from where the piece starts,
+  // on the state's ending where it ends. A separator is a Text, not a Box, so no card.
+  const pad = place === 'top' ? 1 + edge / 2 : 0
+  const spacing = Svg ? 2 : 0
+  const whereLine = joined('where', where)
+  const stateLine = joined('state', state)
+  /** The cards of `line`'s pieces, in its order, each placed by `at` from
+   *  how far into the strip its piece's first column sits. */
+  const cardsOf = (line: readonly RenderChildren[], at: (offset: number) => CardPlace) =>
+    startsOf(line, spacing, measure).flatMap((offset, i) => {
+      const key = keyOf(line[i])
+      const text = key === undefined ? undefined : explained.get(key)
+      return key === undefined || text === undefined ? [] : [hoverCard(key, text, at(pad + offset))]
+    })
+  const cards = [
+    ...cardsOf(whereLine, left => ({ left, room })),
+    ...cardsOf([...stateLine].reverse(), right => ({ right, room })).reverse(),
+  ]
 
   return (
     <Box
@@ -137,15 +162,16 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
       flexWrap="nowrap"
       overflow="hidden"
       height={1}
-      {...(place === 'top' ? { paddingX: 1 + edge / 2, marginTop: 1 } : { flexGrow: 1, flexShrink: 1, minWidth: 0 })}
+      {...(place === 'top' ? { paddingX: pad, marginTop: 1 } : { flexGrow: 1, flexShrink: 1, minWidth: 0 })}
     >
-      <Box key="ws:where" flexDirection="row" columnGap={Svg ? 2 : 0} flexShrink={1} minWidth={0} overflow="hidden">
-        {joined('where', where)}
+      <Box key="ws:where" flexDirection="row" columnGap={spacing} flexShrink={1} minWidth={0} overflow="hidden">
+        {whereLine}
       </Box>
       <Box key="ws:fill" flexGrow={1} minWidth={2} />
-      <Box key="ws:state" flexDirection="row" columnGap={Svg ? 2 : 0} flexShrink={0}>
-        {joined('state', state)}
+      <Box key="ws:state" flexDirection="row" columnGap={spacing} flexShrink={0}>
+        {stateLine}
       </Box>
+      {cards}
     </Box>
   )
 }
@@ -154,4 +180,4 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
  *  view's top, or the footer when the band is short of rows; `edge` is the
  *  cards' border width, so the strip's text lines up with theirs. */
 export const drawStrip = (kit: Kit, ws: Workspace, place: 'top' | 'footer', edge: number, room: number): RenderElement =>
-  squeezeToFit(squeeze => stripAt(kit, ws, squeeze, place, edge), STRIP_GIVES_WAY.length, room, kit.measure)
+  squeezeToFit(squeeze => stripAt(kit, ws, squeeze, place, edge, room), STRIP_GIVES_WAY.length, room, kit.measure)

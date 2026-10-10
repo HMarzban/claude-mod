@@ -25,6 +25,7 @@ import {
   cellsOf,
   keeps,
   squeezeToFit,
+  startsOf,
 } from './layout'
 import type { BarSize, Piece } from './layout'
 import { BARE } from './palette'
@@ -98,16 +99,14 @@ type PillSpec = Readonly<{
 
 export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions): RenderElement => {
   const kit = makeKit(el, snap)
-  const { Box, Button, Text, Svg, palette, measure, onTone, hoverCard, gap, icon } = kit
+  const { Box, Button, Text, Svg, palette, measure, onTone, hoverable, hoverCard, gap, icon } = kit
   const c = snap.cache
-  // A pill carries its own foreground and background, never one of each. Its
-  // card is a child, so the engine counts the pointer on the card as on the
-  // pill and reading it keeps the pill hovered. The card has no key: a keyed
-  // Box is its own hover scope, and a hidden one could never be hovered. One
-  // line, since a collapsed band is one row. Plain has no background to cover
-  // the row with, so no cards; the expanded line says it all. A pill never
-  // shrinks: the squeeze drops pieces instead, so its text never wraps.
-  const pill = ({ key, tone, body, hover, paintsOwnBg, bg }: PillSpec, anchor: 'left' | 'right') => {
+  // A pill carries its own foreground and background, never one of each. It
+  // reveals its card, drawn after every pill, through the hover scope they
+  // share; one line, since a collapsed band is one row. Plain has no
+  // cards; the expanded line says it all. A pill never shrinks: the squeeze
+  // drops pieces instead, so its text never wraps.
+  const pill = ({ key, tone, body, paintsOwnBg, bg }: PillSpec) => {
     if (!palette.filled) {
       const fg = onTone(tone, palette.value)
       return (
@@ -120,9 +119,8 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     }
     const fill = paintsOwnBg ? {} : { backgroundColor: onTone(tone, bg ?? palette.surface, palette.amberBg), paddingX: 1 }
     return (
-      <Box key={key} flexShrink={0} {...fill}>
+      <Box key={key} flexShrink={0} {...fill} {...hoverable(key)}>
         {body}
-        {hoverCard(hover, anchor)}
       </Box>
     )
   }
@@ -384,11 +382,12 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     return pills
   }
 
-  const rowOf = (pills: PillSpec[]): RenderElement => (
-    <Box key="row" flexDirection="row" flexWrap="nowrap" overflow="hidden" columnGap={1}>
-      {pills.map((spec, i) => pill(spec, i === pills.length - 1 ? 'right' : 'left'))}
-      <Box flexGrow={1} />
-      <Box flexShrink={0}>
+  const rowOf = (specs: PillSpec[]): RenderElement => {
+    const pills = specs.map(pill)
+    // ▿ comes after the cards and, placed relative, stacks over them on the
+    // desktop too, so it stays pressable where the measure sets a card long.
+    const toggle = (
+      <Box flexShrink={0} position="relative">
         {/* A Button holds text alone, so its icon is a glyph. The outlined
             triangles are measured centred in the line, within half a pixel,
             and wider than tall like a disclosure icon; arrowhead chevrons sit
@@ -401,8 +400,19 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
           onPress={act.toggleExpanded}
         />
       </Box>
-    </Box>
-  )
+    )
+    // A card ends short of ▿ and the gap before it.
+    const room = snap.columns - cellsOf(toggle, measure) - 1
+    const starts = startsOf(pills, 1, measure)
+    return (
+      <Box key="row" flexDirection="row" flexWrap="nowrap" overflow="hidden" columnGap={1}>
+        {pills}
+        <Box flexGrow={1} />
+        {specs.map(({ key, hover }, i) => hoverCard(key, hover, { left: starts[i] ?? 0, room }))}
+        {toggle}
+      </Box>
+    )
+  }
 
   const row = squeezeToFit(squeeze => rowOf(buildPills(squeeze)), GIVES_WAY.length, snap.columns - ROW_SLACK, measure)
 
