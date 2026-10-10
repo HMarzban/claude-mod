@@ -247,8 +247,10 @@ const recallLastReply = async (
   }
 }
 
-/** What the band recalls of the last reply, noted in the cache model. */
+/** What the band recalls of the last reply, noted in the cache model until
+ *  this band's first reply, which speaks for itself. */
 const noteRecalled = (recalled: RecalledReply | undefined): void => {
+  if (cache.requests > 0) return
   if (recalled?.billed !== undefined) noteBilledModel(recalled.billed)
   if (recalled?.lastAt !== undefined) noteRecall(recalled.lastAt, recalled.rate)
 }

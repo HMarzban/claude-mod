@@ -484,6 +484,25 @@ test('a TTL seen on the last resume is forgotten when the same session is resume
   expect(fact(await mounted($, true), 'expires')).toBe('1h idle · assumed')
 })
 
+test("a recall that lands after the first reply leaves that reply's billed model alone", async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = jsonl(RECORD, ...reply('msg_1', 1, REPLY_USAGE, 'claude-sonnet-4-6'))
+  let release = (): void => undefined
+  engine.hold = new Promise<void>(resolve => {
+    release = resolve
+  })
+  await $.session.start(START)
+  await $.classic.SessionStart({ source: 'resume', session_id: 's1', transcript_path: PATH })
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  release()
+  await clock.settle()
+  usage.current = { ...usage.current, cost: { usd: 2.83 } }
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+  await clock.settle()
+  expect(Object.keys(engine.store.rates as Record<string, number>)).toEqual(['claude-opus-5-5'])
+})
+
 test('an hour seen on a resumed transcript is assumed again after a /clear', async ($, on) => {
   const clock = setup(on, { usage: RESUMED, env: UNPINNED, now: 3 * HOUR })
   engine.transcript = jsonl(RECORD, ...wroteAt('msg_1', '1h'))
