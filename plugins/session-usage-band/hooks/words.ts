@@ -2,6 +2,7 @@
 // readings hold. Pure, and the one place a layout's words are written, so
 // amber, pace, resets, empty states and alt text read the same everywhere.
 
+import type { DayCell, HourCell, Week } from './calendar'
 import {
   fmtBoardLeft,
   fmtClock,
@@ -18,8 +19,9 @@ import {
   fmtTokens,
 } from './format'
 import type { ResetIn } from './format'
+import type { CostEntry, TrailPoint, Trails } from './insights'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
-import type { CacheFacts, CacheMood, ContextFacts, Frame, LimitFacts, SpendFacts } from './reading'
+import type { CacheFacts, CacheMood, ContextFacts, Frame, LimitFacts, LimitView, SpendFacts } from './reading'
 import type { BandSnapshot } from './snapshot'
 import { gitSummary } from './workspace'
 import type { Workspace } from './workspace'
@@ -340,3 +342,94 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
 /** Where the session is, as one line: the path, then git in words. */
 export const workspaceWords = (ws: Workspace | undefined): string | undefined =>
   ws === undefined ? undefined : ws.git === undefined ? ws.path : `${ws.path}, ${gitSummary(ws.git)}`
+
+/** What the history says: the costs' numbers, and each trail's trend for a reader. */
+export type HistoryWords = Readonly<{
+  /** '$0.21' */
+  lastText: string | undefined
+  /** '$0.18': the average with re-warms left out. */
+  avgText: string | undefined
+  /** '$0.84 re-warm' */
+  maxText: string | undefined
+  /** 'last $0.21 · avg $0.18 · max $0.84 re-warm' */
+  numbersText: string
+  /** 'last $0.21' */
+  numbersShort: string
+  /** 'cost of the last 14 messages, steady' | '…, rising, the newest a re-warm' */
+  costsAlt: string
+  /** '5h usage over the last hour, steady' | '…, rising, full in about 40 minutes' */
+  trailAlt: string
+}>
+
+/** A message above this many times the warm average is rising; below the average divided by it, falling. */
+const TREND_FACTOR = 1.5
+/** Points the 5h reading must rise in an hour to be rising. */
+const TRAIL_RISE = 2
+
+/** The points of a trail from the last hour before `now`. */
+export const lastHourOf = (trail: readonly TrailPoint[], now: number): TrailPoint[] => trail.filter(p => p.at >= now - 3600_000)
+
+export const historyWords = (record: Trails, fiveHour: LimitView | undefined, now: number): HistoryWords => {
+  const last = record.costs[record.costs.length - 1]
+  const warm = record.costs.filter(e => !e.reWarm)
+  const avg = warm.length === 0 ? undefined : warm.reduce((sum, e) => sum + e.usd, 0) / warm.length
+  const max = record.costs.reduce<CostEntry | undefined>((top, e) => (top === undefined || e.usd > top.usd ? e : top), undefined)
+  const lastText = last === undefined ? undefined : fmtSmallCost(last.usd)
+  const avgText = avg === undefined ? undefined : fmtSmallCost(avg)
+  const maxText = max === undefined ? undefined : `${fmtSmallCost(max.usd)}${max.reWarm ? ' re-warm' : ''}`
+  const trend =
+    last === undefined || avg === undefined
+      ? 'steady'
+      : last.usd > avg * TREND_FACTOR
+        ? 'rising'
+        : last.usd < avg / TREND_FACTOR
+          ? 'falling'
+          : 'steady'
+  const hour = lastHourOf(record.fiveHour, now)
+  const rise = hour.length < 2 ? 0 : (hour[hour.length - 1]?.pct ?? 0) - (hour[0]?.pct ?? 0)
+  const messages = record.costs.length === 1 ? 'the last message' : `the last ${record.costs.length} messages`
+  const fullIn = fiveHour === undefined || fiveHour.etaMs === null ? '' : `, full in ${fmtEtaSpoken(fiveHour.etaMs)}`
+  return {
+    lastText,
+    avgText,
+    maxText,
+    numbersText: [lastText && `last ${lastText}`, avgText && `avg ${avgText}`, maxText && `max ${maxText}`].filter(Boolean).join(' · '),
+    numbersShort: lastText === undefined ? '' : `last ${lastText}`,
+    costsAlt: `cost of ${messages}, ${trend}${last?.reWarm ? ', the newest a re-warm' : ''}`,
+    trailAlt: `5h usage over the last hour, ${rise >= TRAIL_RISE ? 'rising' : 'steady'}${fullIn}`,
+  }
+}
+
+/** What the week says: its cells for a reader, and a summary per window. */
+export type WeekWords = Readonly<{
+  /** 'weekly limit by day: Tuesday 6%, Wednesday 9%, Saturday about 7%' */
+  daysAlt: string
+  /** '5-hour limit by hour: 08:40 10%, 09:40 15%' */
+  hoursAlt: string
+  /** '30% used · on pace for ~50% by Mon 08:40 · busiest Thu', or once passed, 'reset' */
+  summary7: string | undefined
+  /** '4% used · on pace for ~10% by 16:40' */
+  summary5: string | undefined
+}>
+
+/** The cells known or guessed, each named, a guess said as about. */
+const cellsSpoken = <C extends DayCell | HourCell>(title: string, cells: readonly C[], name: (c: C) => string): string => {
+  const said = cells.flatMap(c => (c.pct === undefined ? [] : [`${name(c)} ${c.guess ? `about ${Math.round(c.pct)}%` : c.text}`]))
+  return `${title}: ${said.length === 0 ? 'not known yet' : said.join(', ')}`
+}
+
+/** A window's summary: its use and its pace, then the busiest day when given. */
+const summaryOf = (l: LimitView | undefined, busiest?: string): string | undefined => {
+  if (l === undefined) return undefined
+  // Only a landing reads by the reset: a fill has its own time, and full before reset says it.
+  const pace = l.projectedText !== undefined && l.resetClock !== undefined ? `${l.pace} by ${l.resetClock}` : l.pace
+  const standing = l.reset?.kind === 'passed' ? [resetPhrase(l.reset, 'words')] : [`${l.value} used`, pace]
+  return [...standing, busiest === undefined ? '' : `busiest ${busiest}`].filter(Boolean).join(' · ')
+}
+
+export const weekWords = (w: Week, seven: LimitView | undefined, five: LimitView | undefined): WeekWords => ({
+  daysAlt: cellsSpoken('weekly limit by day', w.days, d => d.name),
+  hoursAlt: cellsSpoken('5-hour limit by hour', w.hours, c => c.startClock),
+  summary7: summaryOf(seven, w.busiest),
+  summary5: summaryOf(five),
+})

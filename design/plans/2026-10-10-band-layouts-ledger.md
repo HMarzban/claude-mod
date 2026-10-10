@@ -11,6 +11,9 @@ What the plan's steps record, in the order they happen.
 - Review fix: the first baseline had its desktop rows swapped. Being open is a stored atom, so the desktop mount started open after the terminal pass; the perf test now presses ▵ before each unmount, as `drawCases` does, and the baseline was retaken (desktop now matches terminal). `capture.sh` now runs in a scratch copy holding only what the capture imports, so a recapture never depends on the `chips.ts` it replaces. The recapture's `chips.ts` differed only in its header's commit, so the file stays as captured at 6540ef3. Capture runtime: 5s (the capture file alone).
 - pending maintainer: checkpoint 1 sign-off (480 hashes, capture commit 6540ef3, two identical captures, 7s runtime for the two captures at 6540ef3; 5s with the current scratch-copy `capture.sh`).
 
+## P3
+- `limitSamples` (Task 24): 672 samples are 69,829 bytes of JSON (spec §5: about 67 KB; the test's bound is 75,000).
+
 ## Test counts at each gate
 | Gate | Count | Command |
 | --- | --- | --- |
@@ -61,6 +64,12 @@ What the plan's steps record, in the order they happen.
 | Task 14b (fourth review, on dcae029) | 506 pass, 0 fail, 36 files | `claude plugin test plugins/session-usage-band` |
 | Task 14b (fifth review) | 509 pass, 0 fail, 36 files | `claude plugin test plugins/session-usage-band` |
 | Task 14b, resumed sessions recover their spend and cache state (merged) | 509 pass, 0 fail, 36 files | `claude plugin test plugins/session-usage-band` |
+| Task 23 (built ahead, on Task 8's merge) | 390 pass, 0 fail, 30 files | `claude plugin test plugins/session-usage-band` |
+| Task 24 (built ahead, on Task 23's branch) | 403 pass, 0 fail, 31 files | `claude plugin test plugins/session-usage-band` |
+| Task 24 (review) | 405 pass, 0 fail, 31 files | `claude plugin test plugins/session-usage-band` |
+| Task 24 (second review) | 405 pass, 0 fail, 31 files | `claude plugin test plugins/session-usage-band` |
+| Task 24 (third review, rebased on 5812aca) | 536 pass, 0 fail, 38 files | `claude plugin test plugins/session-usage-band` |
+| Task 24 (third review, `TZ=Asia/Tehran`) | 536 pass, 0 fail, 38 files | `TZ=Asia/Tehran claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
@@ -130,6 +139,19 @@ Ruling: Task 14b's SessionStart `.catch` has a test of its behaviour, not of the
 Ruling: Task 14b's `transcriptSpend` skips a reply stamped at or after the resume (`Resume.at`, passed through `spendBefore`) — the tail past the record runs after grep returns, so it can hold a reply this process already logged, which the ledger's growth counts: a $30 record and one $0.135 turn read $30.27; a line with no time still counts — no fallback.
 Ruling: Task 14b's `noteRecalled` notes nothing once this band has seen a reply, as `noteTtlSeen` does — a recall landing after the first reply overwrote the model that reply was billed under, so a rate solved after a /model switch was remembered under the old model — no fallback.
 Ruling: Task 14b's `noteResume` clears the seen TTL with the prior spend, as its doc says a resume's facts replace any before them — a second resume with no reset between kept the first one's 5m until its own read, and for good when that read found none — no fallback.
+Ruling (F.4): `Readings.history` is a lazy getter that maps the trails once per draw that reads it (pulse only), over at most 300 entries — a few microseconds, below what the perf test can see — so the push functions keep no parallel arrays — no fallback; Task 28's profile revisits it only if pulse is over budget.
+Ruling: Task 23 built ahead of Task 13 — `historyWords` takes `LimitView` as it stands (`LimitFacts`, which already has `etaMs`), and `readingsOf` hoists `fiveHour`/`sevenDay` into consts, lines Task 13 also edits — the merge keeps both hoists and Task 13's words — no fallback.
+Ruling: the histories keep the plan's names, `trails.costs`, `trails.context` and `trails.fiveHour` (with `COST_TRAIL`, `CONTEXT_TRAIL`, `FIVE_HOUR_TRAIL` and `noteFiveHourTrail`), for spec §4.3's `costTrail`, `contextTrail` and `fiveHourTrail` — pulse (Task 25) reads `hist.costs`/`hist.context` off `Readings.history`, which spreads the trails — no rename; and `turn.complete`, not `noteTurnEnd`, pushes the cost, since the re-warm mark is `cache.ts`' and `insights.ts` stays free of the cache model.
+Ruling: Task 24 built ahead of Tasks 10b and 13 — `memory.ts` gains only `LIMIT_SAMPLES_KEY` of Task 10b's names, and `LimitFacts` gains Task 13's `resetInMs` with Task 13's own definition, so the merges reconcile identical lines; `weekWords` calls `paceText(l)` where Task 13 gives `l.pace`, and its summaries leave out ` by ${resetClock}` until `LimitView.resetClock` exists (spec §6 asks only for used, on pace for and busiest) — no fallback; merge note: with Task 13 in, `weekWords` reads `l.pace` and adds ` by ${l.resetClock}` when known (`'30% used · on pace for ~50% by Mon 08:40 · busiest Thu'`).
+Ruling: the plan's first calendar test replaced its sample at `T0 + 5 min`, which is 08:45, the first instant of the next 15-minute bucket after 08:40; the test uses `T0 + 1 min` (as the merge test does), so the replace in place it asserts is what it exercises — every assertion unchanged.
+Ruling: a slice's `fullMark` is the slice holding a measured fill (`fullAt`) for days and hours alike, else the first slice ahead where the guesses reach 100, found as `ceil((100 − used) / (landing − used) × slicesAhead)` so a landing of exactly 100 marks the last slice without float drift — the 7d window never has a measured fill, so the days take the guess — no fallback.
+Ruling: the calendar's alt text says `'not known yet'` inline in `cellsSpoken` when no cell is measured or guessed, not as a new `EMPTY` entry, so Task 4's `empty states read like the band` assertion stays unchanged — no fallback.
+Ruling: the plan's `a sample from another window is ignored` test passed with the window filter removed, since its unsorted samples left the stale one before `s(20, 5)`, the last inside day 0; the test keeps the samples sorted with the stale one last (`s(0, 0), s(10, 5), { ...s(15, 50), sevenResetAt: T0 - H }`), and fails with the filter removed — every assertion unchanged — no fallback.
+Ruling: the plan's `a failing store never throws` test passed before the code and still passed with the `limitSamples` write's `.catch` removed, since the engine drops a hook that throws without a sign; it also asserts `turn.complete`'s closing redraw, and fails with that `.catch` removed — no assertion changed, one added — no fallback.
+Ruling: Task 24 rebased onto 5812aca, with Tasks 10b, 13 and 14b in — the built-ahead stand-ins go: `LimitView` is Task 13's `LimitFacts & LimitWords`, `LimitFacts` keeps Task 13's one `resetInMs`, `memory.ts` keeps 10b's `LAYOUT_KEY` beside `LIMIT_SAMPLES_KEY`, `readingsOf` hoists `fiveHour`/`sevenDay` for `history`, `week` and its fields, and `turn.complete` takes one `now` for the sample and the offset before `await readLayout($)`; the merge note above is settled, `weekWords` reading `l.pace` — no fallback.
+Ruling: a week summary adds ` by ${resetClock}` to a landing alone (`projectedText` set, so `pace` reads `on pace for ~N%`) — a measured fill keeps `full in ~40m`, since ` by 16:40` would give the reset as the fill's time, and `full before reset` already names the reset; `'30% used · on pace for ~65% by Thu 00:00 · busiest Sat'` — no fallback; the review's form added it to every pace.
+Ruling: `HourCell` gains `startClock` (`fmtClock` of the slice's start), and `hoursAlt` speaks it — the hours are cut from the 5h reset, so `08:00` for an hour from 08:40 was up to 59 minutes off, and the plan's `08:00` form holds only for a reset on the hour; `label` stays the clock hour the views draw — no fallback.
+Ruling: `storedSamples` gives undefined on a failed read, and `noteSample` then keeps the sample in memory alone, writing at the next bucket — a write after a failed read laid this session's copy over every sample other sessions had stored since its last good read; `helpers.ts` gains `storeReadFails`, since a `store.get` hook that throws rejects the plugin's read — no fallback.
 
 ## Freezes
 - P1 freeze (Task 14), at dc28d40: these interfaces are frozen for P2. Gates green: `claude plugin validate .` and `claude plugin validate plugins/session-usage-band` pass, the suite passes in both zones (456 pass, 0 fail, 35 files), and `tsc` reports no errors.

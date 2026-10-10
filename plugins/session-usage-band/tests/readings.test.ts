@@ -1,5 +1,5 @@
 import { test, expect } from 'claude-code/testing'
-import { fmtClock } from '../hooks/format'
+import { fmtClock, fmtDayClock } from '../hooks/format'
 import { readingsOf } from '../hooks/reading'
 import { HOUR, MIN } from './helpers'
 import { snapOf } from './matrix'
@@ -163,4 +163,50 @@ test('spend splits its tokens, each with its share', () => {
 test('the workspace is a sentence', () => {
   const workspace = { path: '~/workspace/claude-mod', git: { branch: 'main', commit: 'abc1234', worktree: undefined, changed: 0, ahead: 0, behind: 0 }, repoName: undefined }
   expect(readingsOf(snapOf({ workspace })).workspaceText).toBe('~/workspace/claude-mod, branch main, clean')
+})
+test('the history speaks its numbers and its trend', () => {
+  const history = { costs: [{ usd: 0.2, reWarm: false }, { usd: 0.2, reWarm: false }, { usd: 0.84, reWarm: true }], context: [], fiveHour: [] }
+  const hist = readingsOf(snapOf({ history })).history
+  expect(hist.numbersText).toBe('last $0.84 · avg $0.20 · max $0.84 re-warm')
+  expect(hist.numbersShort).toBe('last $0.84')
+  expect(hist.costsAlt).toBe('cost of the last 3 messages, rising, the newest a re-warm')
+  expect([hist.empty, readingsOf(snapOf()).history.empty]).toEqual([false, true])
+})
+test('the history is read only when a view asks for it', () => {
+  expect(typeof Object.getOwnPropertyDescriptor(readingsOf(snapOf()), 'history')?.get).toBe('function')
+})
+test('the week is read only when a view asks for it', () => {
+  expect(typeof Object.getOwnPropertyDescriptor(readingsOf(snapOf()), 'week')?.get).toBe('function')
+})
+test('the week names its cells in words, for a reader and a summary', () => {
+  const now = 77 * HOUR
+  const T = (hours: number, seven: number, five = 0) => ({ at: hours * HOUR, fivePct: five, sevenPct: seven, fiveResetAt: 80 * HOUR, sevenResetAt: 168 * HOUR })
+  const wk = readingsOf(snapOf({
+    now, utcOffsetMin: 0,
+    samples: [T(0, 0), T(15, 6), T(39, 15), T(63, 26), T(75.5, 28, 4), T(76.5, 29, 12), T(77, 30, 12)],
+    sevenDay: { percentUsed: 30, resetsAt: new Date(168 * HOUR).toISOString() },
+    fiveHour: { percentUsed: 12, resetsAt: new Date(80 * HOUR).toISOString(), etaMs: null },
+  })).week
+  expect(wk.empty).toBe(false)
+  expect(wk.daysAlt).toMatch(/^weekly limit by day: \w+day 6%, \w+day 9%/)
+  expect(wk.daysAlt).toMatch(/Monday about \d+%/)
+  expect(wk.hoursAlt).toMatch(/^5-hour limit by hour: \d{2}:00 4%, \d{2}:00 8%, \d{2}:00 about \d+%/)
+  expect(`${wk.daysAlt} ${wk.hoursAlt}`).not.toMatch(/[~↻]/)
+  // Days 6, 9, 11 and 4: the third, a Saturday from the epoch's Thursday, is the busiest.
+  expect(wk.summary7).toBe(`30% used · on pace for ~65% by ${fmtDayClock(168 * HOUR, 0, now)} · busiest Sat`)
+  expect(wk.summary5).toBe(`12% used · on pace for ~30% by ${fmtDayClock(80 * HOUR, 0, now)}`)
+})
+test('a measured fill keeps its own time, with no reset clock after it', () => {
+  const wk = readingsOf(snapOf({ utcOffsetMin: 0, fiveHour: { percentUsed: 84, resetsAt: new Date(70 * MIN).toISOString(), etaMs: 40 * MIN } })).week
+  expect(wk.summary5).toBe('84% used · full in ~40m')
+})
+test('a passed window says only that it reset', () => {
+  const wk = readingsOf(snapOf({ now: 170 * HOUR, utcOffsetMin: 0, sevenDay: { percentUsed: 30, resetsAt: new Date(168 * HOUR).toISOString() } })).week
+  expect([wk.summary7, wk.summary5]).toEqual(['reset', 'reset'])
+})
+test('with no samples and no pace yet, the week is not known yet', () => {
+  // An hour into the window: too early for a landing, so no day is guessed either.
+  const wk = readingsOf(snapOf({ now: HOUR, sevenDay: { percentUsed: 1, resetsAt: new Date(168 * HOUR).toISOString() } })).week
+  expect(wk.daysAlt).toBe('weekly limit by day: not known yet')
+  expect(wk.empty).toBe(true)
 })

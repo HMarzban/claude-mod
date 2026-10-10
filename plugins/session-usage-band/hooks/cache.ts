@@ -62,6 +62,9 @@ type CacheState = {
   rebuilding: boolean
   /** The model the last main-loop request ran on; a switch rebuilds the cache. */
   model: string | undefined
+  /** Since takeRebuilt last read it, a main-loop request rebuilt a cache
+   *  that existed. */
+  lastRebuilt: boolean
   /** The ledger when this conversation's first turn began, so spend from
    *  before it (a /clear, a resume, a reload) can't inflate the rate the
    *  re-warm price is solved from. */
@@ -104,6 +107,7 @@ const INITIAL: Readonly<CacheState> = {
   cached: 0,
   rebuilding: false,
   model: undefined,
+  lastRebuilt: false,
   costBase: 0,
   baselined: false,
   knownFresh: false,
@@ -260,6 +264,7 @@ export const recordResponse = (
   state.output += usage.output_tokens
   if (!isMain) return
 
+  const missesBefore = state.misses
   const prefix = state.cached
   const gap = state.requests > 0 ? sentAt - state.lastAt : 0
   // Another model has its own cache: reading nothing after a switch is no miss.
@@ -277,6 +282,11 @@ export const recordResponse = (
     }
   }
 
+  // A rebuild of a cache that existed: its time ran out, it missed, a
+  // compaction rebuilt it, or the model changed. The first build is warming.
+  const missed = state.misses > missesBefore
+  if (state.requests > 0 && (gap > TTL_MS[state.ttl] || missed || state.rebuilding || switched)) state.lastRebuilt = true
+
   state.requests += 1
   // The next request's TTL follows the config in force, not the transcript's.
   state.ttlSeen = undefined
@@ -285,6 +295,16 @@ export const recordResponse = (
   state.lastAt = sentAt
   state.rebuilding = false
   state.model = model ?? state.model
+}
+
+/** Whether a main request rebuilt the cache since the last call (TTL run
+ *  out, a miss, a compaction, a model switch); clears it. A turn may make
+ *  several requests and the rebuild is usually its first, so each request
+ *  sets the mark and the turn takes it once. */
+export const takeRebuilt = (): boolean => {
+  const rebuilt = state.lastRebuilt
+  state.lastRebuilt = false
+  return rebuilt
 }
 
 // The price of each kind of token against base input. Writes and output hold

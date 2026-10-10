@@ -114,6 +114,8 @@ type EngineFake = {
   storeSets: string[]
   /** When true, every store write rejects, as an unavailable store would. */
   storeFails: boolean
+  /** When true, every store read rejects, as a store that fails for a moment would. */
+  storeReadFails: boolean
   /** How many times the plugin asked for a redraw (`$.ui.invalidate`). */
   invalidates: number
 }
@@ -125,6 +127,7 @@ const ENGINE_INITIAL: Readonly<EngineFake> = {
   storeGets: [],
   storeSets: [],
   storeFails: false,
+  storeReadFails: false,
   invalidates: 0,
   hold: undefined,
   sessionId: 's1',
@@ -166,6 +169,7 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
   engine.store = JSON.parse(JSON.stringify(store)) as Record<string, unknown>
   on('store.get', ($, e) => {
     engine.storeGets.push(e.key)
+    if (engine.storeReadFails) throw new Error('store unavailable')
     return { value: engine.store[e.key] }
   })
   on('store.set', ($, e) => {

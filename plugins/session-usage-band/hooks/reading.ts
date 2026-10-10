@@ -3,6 +3,8 @@
 // Pure, so each can be checked without mounting the band.
 
 import { TTL_MS } from './cache'
+import { isKnown, weekOf } from './calendar'
+import type { Week, WindowNow } from './calendar'
 import {
   COMPACT_NEAR,
   FIVE_HOUR_MS,
@@ -18,9 +20,10 @@ import {
   resetIn,
 } from './format'
 import type { ResetIn } from './format'
+import type { Trails } from './insights'
 import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
-import { cacheWords, contextWords, limitWords, spendWords, workspaceWords } from './words'
-import type { CacheWords, ContextWords, LimitWords, SpendWords } from './words'
+import { cacheWords, contextWords, historyWords, lastHourOf, limitWords, spendWords, weekWords, workspaceWords } from './words'
+import type { CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
 
 export type Tone = 'calm' | 'amber'
 
@@ -230,6 +233,32 @@ export type ChipsReadings = Readonly<{
   reading: Readonly<{ copy: CacheCopy; tokenBreakdown: string; windows: readonly ChipsWindow[] }>
 }>
 
+/** The conversation's trails, their words, and the series a chart draws. */
+export type HistoryReading = Trails &
+  HistoryWords &
+  Readonly<{
+    /** No cost yet this conversation. */
+    empty: boolean
+    /** Each message's cost, oldest first. */
+    costValues: readonly number[]
+    /** Which of them were re-warms. */
+    reWarms: readonly boolean[]
+    /** The 5h trail's percentages. */
+    fiveHourValues: readonly number[]
+    /** The same over the last hour. */
+    fiveHourHour: readonly number[]
+  }>
+
+export type { DayCell, HourCell } from './calendar'
+
+/** The week's day and hour cells, their words, and whether any is known. */
+export type WeekReading = Week &
+  WeekWords &
+  Readonly<{
+    /** No cell measured yet: history fills in as you use Claude. */
+    empty: boolean
+  }>
+
 export type Readings = Readonly<{
   frame: Frame
   cache: CacheReading
@@ -243,6 +272,10 @@ export type Readings = Readonly<{
   workspace: BandSnapshot['workspace']
   /** The workspace as one line: `~/workspace/claude-mod, branch main, clean`. */
   workspaceText: string | undefined
+  /** Built the first time a view reads it, so chips never pays for it. */
+  history: HistoryReading
+  /** The week's day and hour cells; built, like history, the first time a view reads it. */
+  week: WeekReading
   chips: ChipsReadings
 }>
 
@@ -312,6 +345,45 @@ export const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
   ]
 }
 
+/** The conversation's trails with their words and the series a chart draws. */
+export const historyFacts = (trails: Trails, fiveHour: LimitView | undefined, now: number): HistoryReading => ({
+  ...trails,
+  ...historyWords(trails, fiveHour, now),
+  empty: trails.costs.length === 0,
+  costValues: trails.costs.map(e => e.usd),
+  reWarms: trails.costs.map(e => e.reWarm),
+  fiveHourValues: trails.fiveHour.map(p => p.pct),
+  fiveHourHour: lastHourOf(trails.fiveHour, now).map(p => p.pct),
+})
+
+/** A window as the calendar reads it: its reset and a measured fill as times. */
+const windowOf = (l: LimitView | undefined, now: number): WindowNow | undefined =>
+  l === undefined
+    ? undefined
+    : {
+        percentUsed: l.percentUsed,
+        projectedPct: l.projectedPct,
+        resetsAt: l.resetInMs === undefined ? undefined : now + l.resetInMs,
+        fullAt: l.etaMs === null ? undefined : now + l.etaMs,
+      }
+
+/** The week's cells from the limit samples, with their words. With the zone
+ *  unknown, the cells are named in UTC. */
+export const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour: LimitView | undefined): WeekReading => {
+  const week = weekOf({
+    samples: snap.samples,
+    seven: windowOf(sevenDay, snap.now),
+    five: windowOf(fiveHour, snap.now),
+    now: snap.now,
+    utcOffsetMin: snap.utcOffsetMin ?? 0,
+  })
+  return {
+    ...week,
+    ...weekWords(week, sevenDay, fiveHour),
+    empty: ![...week.days, ...week.hours].some(isKnown),
+  }
+}
+
 /** Everything a view reads, built once per draw: the frame, each section's
  *  facts and words, and chips' own inputs. */
 export const readingsOf = (snap: BandSnapshot): Readings => {
@@ -332,17 +404,27 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
   const worstLimit = limits
     .filter(l => !l.passed)
     .reduce<LimitView | undefined>((top, l) => (top === undefined || l.percentUsed > top.percentUsed ? l : top), undefined)
+  const fiveHour = limits.find(l => l.key === '5h')
+  const sevenDay = limits.find(l => l.key === '7d')
+  let history: HistoryReading | undefined
+  let week: WeekReading | undefined
   return {
     frame,
     cache: { ...cache, ...cacheWords(cache, c, frame) },
     spend: { ...spend, ...spendWords(spend) },
     context: { ...context, ...contextWords(context) },
-    fiveHour: limits.find(l => l.key === '5h'),
-    sevenDay: limits.find(l => l.key === '7d'),
+    fiveHour,
+    sevenDay,
     limits,
     worstLimit,
     workspace: snap.workspace,
     workspaceText: workspaceWords(snap.workspace),
+    get history() {
+      return (history ??= historyFacts(snap.history, fiveHour, snap.now))
+    },
+    get week() {
+      return (week ??= weekFacts(snap, sevenDay, fiveHour))
+    },
     chips: {
       raw: snap,
       reading: {
