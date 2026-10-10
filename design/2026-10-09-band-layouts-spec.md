@@ -158,11 +158,11 @@ band.tsx: drawBand builds kit and readings once, calls VIEWS[layout].draw, and f
 
 | File | Role |
 | --- | --- |
-| `hooks/reading.ts` | Gains `readingsOf(snap): Readings`. Today's `drawBand` closures are **extracted, not rewritten**, into it. That covers cache, spend (with `avgWarmUsd`), context, each limit window (with `projectedPct`), `otherLimits`, `worstLimit`, the workspace and the alt strings. A fact that has a long and a short form carries both. |
+| `hooks/reading.ts` | Gains `readingsOf(snap): Readings`. Today's `drawBand` closures are **extracted, not rewritten**, into it. That covers cache, spend, context, each limit window (with `projectedPct`), `otherLimits`, `worstLimit`, the workspace and the alt strings. A fact that has a long and a short form carries both. |
 | `hooks/charts.tsx` | `meter` (hoisted from band.tsx), `ring`, `sparkline`, `barChart`, `dayCells` and `braille`. Each takes a `key`. |
-| `hooks/views/parts.tsx` | Pieces shared by several views, hoisted from band.tsx: `pill`, `batteryIcon`, `textBattery`, `cachePill`. `pill` takes an optional `hover`, and only chips passes one. |
+| `hooks/views/parts.tsx` | Pieces shared by several views, hoisted from band.tsx: `pill`, `batteryIcon` and `textBattery`, and `layoutCachePill`, the cache pill the new views share; chips keeps its own `cachePill`. `pill` takes an optional `hover`, and only chips passes one. |
 | `hooks/views/frame.tsx` | The expanded scaffold: where the strip goes, `bodyRows = max(0, maxRows − collapsedRows − 3 − stripRows)`, and the buttons row. At `bodyRows = 0` it draws only the buttons row, with the strip in the footer if it fits. A view may draw the strip in its own style; ledger, for example, draws it as a sentence. |
-| `hooks/views/index.ts` | `VIEWS: Readonly<Record<LayoutName, View>>`. The compiler rejects a missing view. The list reply comes from it. |
+| `hooks/views/index.ts` | `VIEWS: Readonly<Record<LayoutName, View>>`. The compiler rejects a missing view. The list reply comes from `LAYOUT_NAMES`, the names `VIEWS` is keyed by. |
 | `hooks/views/<name>.tsx` | `export const <name>View: View`. `chips.tsx` keeps `limitChip`, `buildPills` and its `GIVES_WAY`. Its existing `format.ts` calls move over unchanged, so it is exempt from the no-`format.ts` rule. |
 | `hooks/snapshot.ts` | `LAYOUT_NAMES`, `LayoutName`, `DEFAULT_LAYOUT = 'chips'`, plus the fields `layout`, `utcOffsetMin`, `glyphs` and the histories |
 | `hooks/memory.ts` | `LAYOUT_KEY`, `LIMIT_SAMPLES_KEY`, `asLayoutName(v: unknown)` (it trims and lowercases a string, and serves both the command and the store), `asLimitSamples` |
@@ -216,7 +216,7 @@ type View = Readonly<{
 | --- | --- | --- | --- |
 | 5h and 7d `projectedPct` | gauges, rings, tiles, week, departures, forecast | Today's Limits card computes `percentUsed / gone`; it moves into `readingsOf`. With a measured 5h `etaMs` that fills before the reset, the 5h `projectedPct` is 100, so the words and amber agree. | — |
 | `reWarm` | pulse | `recordResponse` sets `cache.lastRebuilt` when a turn's first main-loop request rewrote the cache: TTL expired, a miss, a compaction, a model switch. Today's `misses` counts only unexpected misses, so it isn't enough. | — |
-| `costTrail` | pulse; forecast (`avgWarmUsd`) | `noteTurnEnd` pushes `{ usd, reWarm }` | 24; cleared on `session.end` and `session.start` |
+| `costTrail` | pulse | `noteTurnEnd` pushes `{ usd, reWarm }` | 24; cleared on `session.end` and `session.start` |
 | `contextTrail` | pulse (expanded) | `turn.complete` pushes the context used | 40; same clearing |
 | `fiveHourTrail` | pulse | A trail beside `insights` (whose 30-minute pace samples stay untouched), at most one reading a minute. It belongs to the account, so it clears on `session.start` only. | 300 (5 h) |
 | `limitSamples` | week (days and hours) | `$.store`, written on `turn.complete`, at most one per 15-minute bucket. `fivePct` is ignored when `fiveResetAt` differs from the current window, and `sevenPct` when `sevenResetAt` does. A day cell is that day's rise in `sevenPct`. The hour cells are the five hours before the 5h reset. | 672 (7 d × 96), about 67 KB, measured in a test |
