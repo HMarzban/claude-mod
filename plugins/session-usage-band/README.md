@@ -4,27 +4,61 @@ A calm band above the Claude Code prompt that answers: is my cache still
 warm, what is this session costing, and am I close to a limit? By default
 it is one row of chips:
 
-```
-◷ cache 52m   $3.19   Σ 225k   ◔ ██░░░░ 76k / 200k   5h ░░░░░░ 4% │ ↻ 3h 00m   7d ██░░░░ 30% │ ↻ 2d 19h   ▿
-```
-
-On the desktop app's Code tab the glyphs are small icons, and the bars are
-drawn as SVG meters:
-
-![The band expanded on the desktop: chips for the cache, cost, context and the 5h and 7d limits, then the Cache, Spend, Context and Limits cards, the project path and branch, and the Collapse and Hide band buttons](https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-expanded.png)
+![The chip row, labelled: the cache countdown and what a re-warm will cost, the session cost, context toward auto-compaction, the 5-hour limit with its pace, the weekly limit and its reset, and the toggle that opens the cards](https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-anatomy.png)
 
 Eight more [layouts](#layouts) draw the same readings in other shapes:
-bars, words alone, rings, trends, tiles, day cells, a split-flap board or a
-forecast. Try every state live on the [website](https://hmarzban.github.io/claude-mod/),
+`gauges` (bars), `ledger` (words alone), `rings`, `pulse` (trends),
+`tiles`, `week` (day cells), `departures` (a split-flap board) or
+`forecast`. Try every state live on the [website](https://hmarzban.github.io/claude-mod/),
 and see the [changelog](CHANGELOG.md) for what changed in each version. Found
 something off? [Open an issue](https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml).
+
+## Install
+
+```bash
+claude plugin install session-usage-band --marketplace HMarzban/claude-mod
+```
+
+Then start a new session, or run `/reload-plugins` in an open one.
+
+The band needs Claude Code with mods (function-hooks plugins), and was
+tested on 2.1.295 in the terminal and the desktop app's bundled 2.1.289. The
+one-line form needs Claude Code 2.1.292 or later; on an older one, add the
+marketplace first (`claude plugin marketplace add HMarzban/claude-mod`),
+then `claude plugin install session-usage-band@hossein-mods`.
+
+It draws in the terminal and the desktop app's Code tab, which are the
+surfaces with a band above the prompt. WSL sessions don't load plugins. The
+[repository README](https://github.com/HMarzban/claude-mod/blob/main/README.md)
+covers installing inside a session or for a whole team, updating and
+uninstalling.
+
+## Settings
+
+| Command | Effect |
+| --- | --- |
+| `/usage-band` | Toggle visibility |
+| `/usage-band more` / `less` | Open or close the expanded view, and show the band if hidden |
+| `/usage-band show` / `hide` | Set visibility explicitly |
+| `/usage-band layout <name>` | Draw the band in another [layout](#layouts), for every session, and show it if hidden |
+| `/usage-band layout` | Name the layout in use and list them all |
+
+| Variable | Effect |
+| --- | --- |
+| `CC_BAND_APPEARANCE` | `dark` (default), `light` or `plain`; see [Appearance](#appearance) |
+| `NO_COLOR` | Forces `plain` |
+| `CC_BAND_GLYPHS` | `ascii` or `unicode`, in the terminal only; see [Glyphs in the terminal](#glyphs-in-the-terminal) |
+| `CLAUDE_CODE_PROMPT_CACHE_TTL` | `5m` or `1h`, so the band doesn't guess the cache's lifetime; see [Cache lifetime](#cache-lifetime) |
+| `FORCE_PROMPT_CACHING_5M=1` | The same, for 5 minutes |
+| `ENABLE_PROMPT_CACHING_1H=1` | The same, for an hour |
+
+Set them in the shell you start Claude Code from (`export CC_BAND_APPEARANCE=light`,
+then `claude`). The band reads them when a session starts.
 
 ## Reading it
 
 This section describes chips, the default layout; the others are under
 [Layouts](#layouts).
-
-![The chip row, labelled: the cache countdown and what a re-warm will cost, the session cost, context toward auto-compaction, the 5-hour limit with its pace, the weekly limit and its reset, and the toggle that opens the cards](https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-anatomy.png)
 
 | Chip | Shows | Turns amber when |
 | --- | --- | --- |
@@ -46,7 +80,8 @@ you can tell them apart; that's a label, not a warning. Nothing is ever
 red: a cold cache or a full meter is a price, not an error. Colour is
 never the only signal, since escalation always adds words or `!` / `!!`.
 
-Hover any chip for a one-line explanation. `▿` opens the expanded view.
+On the desktop (not in `plain`), hover any chip for a one-line
+explanation. `▿` opens the expanded view.
 It starts with a line that says where you are:
 
 ```
@@ -70,6 +105,8 @@ messages and when you open the cards, never while the band draws.
 
 Then come four cards with every fact labelled:
 
+![The band expanded on the desktop: chips for the cache, cost, context and the 5h and 7d limits, then the Cache, Spend, Context and Limits cards, the project path and branch, and the Collapse and Hide band buttons](https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-expanded.png)
+
 | Card | Shows |
 | --- | --- |
 | Cache | Time left on a bar, what a re-warm would cost if it went cold, what the cache has saved, the hit rate, how long it lasts idle, unexpected rebuilds |
@@ -86,6 +123,15 @@ Below the cards, `Collapse` (key `c`) closes them and `Hide band` (key `h`)
 hides the band; `/usage-band` brings it back.
 
 ## When the band is narrow
+
+At full width in the terminal, chips' row reads:
+
+```
+◷ cache 52m   $3.19   Σ 225k   ◔ ██░░░░ 38% full   5h ░░░░░░ 4% │ ↻ 3h 00m   7d ██░░░░ 30% │ ↻ 2d 19h   ▿
+```
+
+On the desktop app's Code tab the glyphs are small icons, and the bars are
+drawn as SVG meters.
 
 Chips' row stays on one line. As it narrows, pieces give way in this
 order: the tokens chip, the 7d reset time, the 5h reset time, the context
@@ -104,6 +150,11 @@ plain words and departures as a flap on its board; the others draw it as
 chips does. Every layout turns amber at the same moments, by the same
 rules. Only chips has hover cards on its readings; the workspace line has
 them wherever it is drawn as chips draws it.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-layouts-dark.png">
+  <img alt="The nine layouts on the desktop, each drawn twice from the band's own output, calm and in the cache's last minute: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" src="https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-layouts-light.png">
+</picture>
 
 | Layout | Shows | Rows (desktop / terminal) |
 | --- | --- | --- |
@@ -228,8 +279,10 @@ and Sonnet 5.5 and 0.025× on Fable 5.1 and Mythos 5.1, per
 which leaves one unknown:
 
 ```
-cost = r × (uncached + 1.25×written + read multiple×read + 5×output)
+cost = r × (uncached + 1.25×written + read share×read + 5×output)
 ```
+
+where read share is the cache-read multiple above.
 
 Solve for `r`, then price the re-warm as a cache write of the whole
 conversation. After a compaction, it prices the summary instead. It's
@@ -275,16 +328,6 @@ CC_BAND_APPEARANCE=plain   # no backgrounds; every colour a theme key
 `NO_COLOR` forces `plain`. `plain` has no hover cards and no SVG icons, since
 the expanded cards carry the same facts.
 
-## Commands
-
-| Command | Effect |
-| --- | --- |
-| `/usage-band` | Toggle visibility |
-| `/usage-band more` / `less` | Open or close the expanded view, and show the band if hidden |
-| `/usage-band show` / `hide` | Set visibility explicitly |
-| `/usage-band layout <name>` | Draw the band in another [layout](#layouts), for every session, and show it if hidden |
-| `/usage-band layout` | Name the layout in use and list them all |
-
 ## Cache lifetime
 
 The default lifetime depends on billing: an hour on a subscription within
@@ -300,42 +343,11 @@ To remove the guess, set one of:
 - `FORCE_PROMPT_CACHING_5M=1`
 - `ENABLE_PROMPT_CACHING_1H=1`
 
-## Install
-
-```bash
-claude plugin install session-usage-band --marketplace HMarzban/claude-mod
-```
-
-Then start a new session, or run `/reload-plugins` in an open one. Before
-Claude Code 2.1.292, add the marketplace first
-(`claude plugin marketplace add HMarzban/claude-mod`), then
-`claude plugin install session-usage-band@hossein-mods`.
-
-It needs Claude Code with mods (function-hooks plugins), and was tested on
-2.1.295 in the terminal and the desktop app's bundled 2.1.289. It draws in the terminal and the desktop app's Code tab, which are
-the surfaces with a band above the prompt. WSL sessions don't load plugins.
-The [repository README](https://github.com/HMarzban/claude-mod/blob/main/README.md) covers installing inside a session or for a whole team, updating and uninstalling.
-
 ## Developing
 
-```bash
-claude plugin validate plugins/session-usage-band
-claude plugin test plugins/session-usage-band
-npx -y -p typescript@5 tsc -p plugins/session-usage-band
-tools/views-gate.sh
-```
-
-[CONTRIBUTING.md](https://github.com/HMarzban/claude-mod/blob/main/CONTRIBUTING.md) has the full loop and the rules the
-code follows.
-
-Only `hooks/register.tsx` touches the engine (`$`). It reads a snapshot
-(`hooks/snapshot.ts`) for `hooks/band.tsx`, a pure drawing function, which
-turns it into readings (`hooks/reading.ts`, its words from
-`hooks/words.ts`) and draws the chosen layout from `hooks/views/`. Every
-layout but chips draws those words and formats nothing itself. The cache
-model, insights, memory, formatting, workspace and palettes are plain
-modules. The tests drive the band through the engine's test kit, and test
-the plain modules directly.
+See [CONTRIBUTING.md](https://github.com/HMarzban/claude-mod/blob/main/CONTRIBUTING.md)
+for the development loop, the gates, the module map and the rules the code
+follows.
 
 ## Help make it better
 
