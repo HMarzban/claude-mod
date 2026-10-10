@@ -165,6 +165,7 @@ export const noteResume = (said: ResumedCache | undefined): void => {
   state.resumed = true
   state.resumedCache = said
   state.prior = undefined
+  state.ttlSeen = undefined
 }
 
 /** What a resumed conversation spent before this process. */

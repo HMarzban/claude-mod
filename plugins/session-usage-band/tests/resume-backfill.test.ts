@@ -471,6 +471,19 @@ test('a TTL read off the transcript after the first reply is no longer news', as
   expect(fact(await mounted($, true), 'expires')).toBe('1h idle · assumed')
 })
 
+test('a TTL seen on the last resume is forgotten when the same session is resumed again', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: UNPINNED, now: 3 * HOUR })
+  engine.transcript = jsonl(RECORD, ...wroteAt('msg_1', '5m'))
+  await $.session.start(START)
+  await resume($, 2 * MIN, { expired: false })
+  await clock.settle()
+  // Read again, the transcript shows no cache write.
+  engine.transcript = jsonl(RECORD)
+  await resume($, 2 * MIN, { expired: false })
+  await clock.settle()
+  expect(fact(await mounted($, true), 'expires')).toBe('1h idle · assumed')
+})
+
 test('an hour seen on a resumed transcript is assumed again after a /clear', async ($, on) => {
   const clock = setup(on, { usage: RESUMED, env: UNPINNED, now: 3 * HOUR })
   engine.transcript = jsonl(RECORD, ...wroteAt('msg_1', '1h'))
