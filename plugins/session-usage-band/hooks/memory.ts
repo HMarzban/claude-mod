@@ -2,11 +2,12 @@
 // each session last had a reply, what a token costs on each model, and the
 // layout the band draws in. With the first two a reopened session, or a
 // reload, says whether its cache is cold and what the next message costs,
-// before any reply of its own. What a session has spent is read off its
-// transcript, which Claude Code keeps.
+// before any reply of its own. What a session has spent, and how long its
+// cache was last written for, are read off its transcript, which Claude Code
+// keeps.
 
 import { NO_TOKENS, addTokens, modelName, weightedTokens } from './cache'
-import type { Spend, TokenCounts } from './cache'
+import type { Spend, TokenCounts, Ttl } from './cache'
 import { LAYOUT_NAMES } from './snapshot'
 import type { LayoutName } from './snapshot'
 import { stripTrailingSlashes } from './workspace'
@@ -155,32 +156,60 @@ export const rateFromTranscript = (transcript: string, model: string): number | 
   return null
 }
 
-/** What marks a cost record's line, for `grep -F` to find. */
-export const COST_RECORD = '"type":"cost-state"'
-
-const isCostRecord = (line: string): boolean => line.includes(COST_RECORD) && parsed(line)?.type === 'cost-state'
-
-/** The last well-formed cost record in `grep -b` output: the byte offset its
- *  line starts at in the file, and the line. */
-export const lastCostRecord = (found: string): Readonly<{ offset: number; line: string }> | undefined => {
-  const lines = found.split('\n')
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const [, offset, line] = /^(\d+):(.*)$/.exec(lines[i] ?? '') ?? []
-    if (offset !== undefined && line !== undefined && isCostRecord(line)) return { offset: Number(offset), line }
+/** The TTL the transcript's last main-loop cache write was made at: an hour
+ *  if it wrote any for an hour, else five minutes if it wrote any. A
+ *  subagent's reply says nothing of the main loop's cache. */
+export const lastWriteTtl = (transcript: string): Ttl | undefined => {
+  for (const entry of fromEnd(transcript, '"cache_creation"')) {
+    if (entry.type !== 'assistant' || entry.isSidechain === true || !isRecord(entry.message)) continue
+    const usage = entry.message.usage
+    const written = isRecord(usage) ? usage.cache_creation : undefined
+    if (!isRecord(written)) continue
+    if (countOf(written, 'ephemeral_1h_input_tokens') > 0) return '1h'
+    if (countOf(written, 'ephemeral_5m_input_tokens') > 0) return '5m'
   }
   return undefined
 }
 
-/** What a conversation had spent by the end of `transcript`: its last cost
- *  record's dollars and every model's tokens in it, then each reply logged
- *  after that record, priced at its model's rate there (a model the record
- *  doesn't name adds its tokens alone). Claude Code logs a reply once per
- *  content block, each line with the same usage, so a reply counts once by
- *  its id. Undefined without a well-formed record. */
-export const transcriptSpend = (transcript: string): Spend | undefined => {
+/** What marks a cost record's line, for `grep -F` to find. */
+export const COST_RECORD = '"type":"cost-state"'
+
+/** A line's cost record, parsed; undefined for any other line, or one cut short. */
+const costRecordOf = (line: string): Record<string, unknown> | undefined => {
+  if (!line.includes(COST_RECORD)) return undefined
+  const entry = parsed(line)
+  return entry?.type === 'cost-state' ? entry : undefined
+}
+
+/** Which of `records` a session's spend counts from: its own last one, else
+ *  the last of any session's, as a fork's file may hold only its parent's.
+ *  -1 with none. */
+const recordFor = (records: ReadonlyArray<Record<string, unknown> | undefined>, sessionId: string): number => {
+  const own = records.findLastIndex(record => record?.sessionId === sessionId)
+  return own >= 0 ? own : records.findLastIndex(record => record !== undefined)
+}
+
+/** The cost record `sessionId`'s spend counts from, in `grep -b` output: the
+ *  byte offset its line starts at in the file, and the line. */
+export const sessionCostRecord = (found: string, sessionId: string): Readonly<{ offset: number; line: string }> | undefined => {
+  const hits = found.split('\n').flatMap(text => {
+    const [, offset, line] = /^(\d+):(.*)$/.exec(text) ?? []
+    return offset === undefined || line === undefined ? [] : [{ offset: Number(offset), line }]
+  })
+  return hits[recordFor(hits.map(hit => costRecordOf(hit.line)), sessionId)]
+}
+
+/** What `sessionId`'s conversation had spent by the end of `transcript`: its
+ *  cost record's dollars and every model's tokens in it, then each reply
+ *  logged after that record, priced at its model's rate there (a model the
+ *  record doesn't name adds its tokens alone). Claude Code logs a reply once
+ *  per content block, each line with the same usage, so a reply counts once
+ *  by its id. Undefined without a well-formed record. */
+export const transcriptSpend = (transcript: string, sessionId: string): Spend | undefined => {
   const lines = transcript.split('\n')
-  const at = lines.findLastIndex(isCostRecord)
-  const record = at < 0 ? undefined : parsed(lines[at] ?? '')
+  const records = lines.map(costRecordOf)
+  const at = recordFor(records, sessionId)
+  const record = records[at]
   if (record === undefined) return undefined
   const models = isRecord(record.modelUsage) ? record.modelUsage : {}
   let usd = countOf(record, 'totalCostUSD')

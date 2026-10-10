@@ -32,6 +32,8 @@ export type BandSnapshot = Readonly<{
     requests: number
     msLeft: number
     ttl: Ttl
+    /** The TTL is known, not assumed: pinned by the environment, or seen on
+     *  the conversation's last cache write. */
     ttlPinned: boolean
     window: number
     hitRatio: number | null

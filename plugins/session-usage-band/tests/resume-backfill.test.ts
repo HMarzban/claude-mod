@@ -6,7 +6,7 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { SessionUsage } from 'claude-code'
-import { CLEAR, HOUR, MIN, START, USAGE, cardOf, engine, fact, pillOf, setup, shown, startTurn, endTurn, mountBand } from './helpers'
+import { CLEAR, HOUR, MIN, START, USAGE, cardOf, engine, fact, pillOf, setup, shown, startTurn, endTurn, mountBand, usage } from './helpers'
 
 const ENV = { ENABLE_PROMPT_CACHING_1H: '1', HOME: '/Users/me' }
 const BUILT_PATH = '/Users/me/.claude/projects/-Users-me-workspace-claude-mod/s1.jsonl'
@@ -245,4 +245,82 @@ test('a new session and a /clear read nothing and stay warming', async ($, on) =
   expect(engine.ran.filter(argv => argv[0] === 'grep' || argv[0] === 'tail')).toEqual([])
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache warming/)
   expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$0\.00/)
+})
+
+test('a SessionStart that comes before session.start still resumes the conversation', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = TRANSCRIPT
+  await resume($, 48 * HOUR)
+  await $.session.start(START)
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold/)
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
+})
+
+test('a SessionStart while session.start runs still resumes the conversation', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = TRANSCRIPT
+  await Promise.all([resume($, 48 * HOUR), $.session.start(START)])
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold/)
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
+})
+
+test('a ledger the host restores after the transcript is read is never added to it', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = TRANSCRIPT
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  await clock.settle()
+  // The host restores the record's total only once the band has read the transcript.
+  usage.current = { ...RESUMED, cost: { usd: 30 } }
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
+  await startTurn($, 't1', 30)
+  await endTurn($, 't1', 31)
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$31\.27/)
+})
+
+test('a fork counts its own cost record, not one its parent wrote', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = jsonl(
+    { ...RECORD, sessionId: 's1' },
+    ...reply('msg_1', 3, REPLY_USAGE),
+    ...reply('msg_2', 1, REPLY_USAGE),
+    { ...RECORD, sessionId: 'parent', totalCostUSD: 50 },
+  )
+  await $.session.start(START)
+  await resume($, 10 * MIN, { source: 'fork' })
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
+})
+
+/** No TTL pinned, so the band has only the transcript to go by. */
+const UNPINNED = { HOME: '/Users/me' }
+
+/** A reply that wrote its cache at `ttl`. */
+const wroteAt = (id: string, ttl: '5m' | '1h') =>
+  reply(id, 1, {
+    ...REPLY_USAGE,
+    cache_creation: { ephemeral_5m_input_tokens: ttl === '5m' ? 2_000 : 0, ephemeral_1h_input_tokens: ttl === '1h' ? 2_000 : 0 },
+  })
+
+test("a resumed session's cache lasts as long as its last main-loop cache write said", async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: UNPINNED, now: 3 * HOUR })
+  // A subagent's reply after it, written for an hour, says nothing of the main loop's cache.
+  engine.transcript = jsonl(RECORD, ...wroteAt('msg_1', '5m'), ...wroteAt('msg_2', '1h').map(line => ({ ...line, isSidechain: true })))
+  await $.session.start(START)
+  await resume($, 2 * MIN, { expired: false })
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 3:00/)
+  expect(fact(await mounted($, true), 'expires')).toBe('5m idle')
+})
+
+test('an hour seen on the last cache write is no longer assumed', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: UNPINNED, now: 3 * HOUR })
+  engine.transcript = jsonl(RECORD, ...wroteAt('msg_1', '1h'))
+  await $.session.start(START)
+  await resume($, 2 * MIN, { expired: false })
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 58m/)
+  expect(fact(await mounted($, true), 'expires')).toBe('1h idle')
 })
