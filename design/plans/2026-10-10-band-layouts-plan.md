@@ -3060,7 +3060,7 @@ The cases, one setup each:
 - calm and `lastMinute` at every width `[40, 41, 50, 60, 67, 68, 80, 95, 120, 160, 200]`, one test per surface (4 tests);
 - the other amber scenarios, `fiveHourAhead`, `limit80` and `nearCompaction`, at 40, 50 and 60, both surfaces (3 tests);
 - calm at `maxRows` 4, 8, 13 and 40, both surfaces at 120 (1 test);
-- `gatewaySpend`, whose amber is owed words only open, at `maxRows` 7, 8 and 10, both surfaces at 80 and 120 (1 test; added at the Task 16 review).
+- `gatewaySpend`, whose amber is owed words only open, at `maxRows` 7, 8 and 10 and from the fewest rows that keep a fact under each title (the view's rows plus 5: 6 for a one-row view), both surfaces at 80 and 120 (1 test; added at the Task 16 review).
 
 That is 35 tests a view. `lastMinute` and `cold` use `ttl: '5m'`, so each walks 270 ticks instead of 3,600; golden keeps the hour-long walks. Every tree is checked shut and open.
 
@@ -3089,7 +3089,7 @@ test('every width and every height is covered', () => {
   for (const maxRows of [4, 8, 13, 40]) expect(cases.some(c => c.mounts.some(m => m.maxRows === maxRows))).toBe(true)
   for (const s of ['fiveHourAhead', 'limit80', 'nearCompaction']) expect(cases.some(c => c.options.scenario === s && c.mounts.some(m => m.cols === 40))).toBe(true)
   // The open-only amber short of rows, on both grids.
-  for (const cols of [80, 120]) for (const maxRows of [7, 8, 10]) expect(cases.some(c => c.options.scenario === 'gatewaySpend' && c.mounts.some(m => m.cols === cols && m.maxRows === maxRows))).toBe(true)
+  for (const cols of [80, 120]) for (const maxRows of [6, 7, 8, 10]) expect(cases.some(c => c.options.scenario === 'gatewaySpend' && c.mounts.some(m => m.cols === cols && m.maxRows === maxRows))).toBe(true)
 })
 test('light, plain and the ascii tier are each drawn', () => {
   expect(cases.some(c => c.options.appearance === 'light')).toBe(true)
@@ -3113,6 +3113,8 @@ export type SuiteCase = Readonly<{ name: string; options: CaseOptions; mounts: r
 
 const WIDTHS = [40, 41, 50, 60, 67, 68, 80, 95, 120, 160, 200] as const
 const both = (cols: number, maxRows?: number): Mount[] => [{ surface: 'terminal', cols, maxRows }, { surface: 'desktop', cols, maxRows }]
+/** The fewest rows that leave an open view a fact under each section title. */
+const factRows = (layout: LayoutName, surface: Surface): number => VIEWS[layout].rows[surface] + 5
 const ttlOf = (s: ScenarioName): Ttl => (s === 'lastMinute' || s === 'cold' ? '5m' : '1h')
 
 export const suiteCases = (layout: LayoutName): SuiteCase[] => {
@@ -3127,7 +3129,7 @@ export const suiteCases = (layout: LayoutName): SuiteCase[] => {
     ]),
     ...(['fiveHourAhead', 'limit80', 'nearCompaction'] as const).map(scenario => ({ name: `${layout}: ${scenario}, narrow`, options: opts(scenario), mounts: [40, 50, 60].flatMap(cols => both(cols)) })),
     { name: `${layout}: calm, short of rows`, options: opts('calm'), mounts: [4, 8, 13, 40].flatMap(maxRows => both(120, maxRows)) },
-    { name: `${layout}: gatewaySpend, short of rows`, options: opts('gatewaySpend'), mounts: [80, 120].flatMap(cols => [7, 8, 10].flatMap(maxRows => both(cols, maxRows))) },
+    { name: `${layout}: gatewaySpend, short of rows`, options: opts('gatewaySpend'), mounts: [80, 120].flatMap(cols => (['terminal', 'desktop'] as const).flatMap(surface => [...new Set([factRows(layout, surface), 7, 8, 10])].map((maxRows): Mount => ({ surface, cols, maxRows })))) },
   ]
 }
 
@@ -4578,97 +4580,7 @@ Expected: FAIL. The stub draws chips, so the sentences and most of the 35 suite 
 
 - [ ] **Step 3: Implement `hooks/views/ledger.tsx`**
 
-```tsx
-// ledger: the band in words alone, `·`-separated; `! ` leads what needs you.
-// The reference view: every other layout follows its shape.
-
-import type { RenderChildren, RenderElement } from 'claude-code'
-import type { Kit } from '../kit'
-import type { LimitView, Readings } from '../reading'
-import type { BandActions } from '../snapshot'
-import { EMPTY } from '../words'
-import { toggleButton, type Strip } from './frame'
-import { fitLine, grid, gridRoom, line, lineRoom, section, words, type Keeps } from './parts'
-import { defineView } from './view'
-
-/** What gives way as the line narrows, first to last. Amber never does. */
-const ORDER = ['resetGlyph', 'resetTimes', 'calmSeven', 'calmContext', 'cost', 'calmFive'] as const
-type Piece = (typeof ORDER)[number]
-
-/** A limit: amber, its reason; calm, its value and its reset as the squeeze allows. */
-const limitPiece = (kit: Kit, l: LimitView, step: Piece, keeps: Keeps<Piece>): RenderChildren => {
-  if (l.amber !== undefined) return words(kit, l.name, [[keeps.amber(l.amber), 'amber']])
-  if (!keeps.has(step)) return null
-  const reset = keeps.has('resetTimes') ? (keeps.has('resetGlyph') ? l.resetWords : l.resetGlyph) : undefined
-  return words(kit, l.name, reset === undefined ? l.say : [...l.say, [`, ${reset}`, 'label']])
-}
-
-const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
-  const c = read.cache
-  const x = read.context
-  // Built once: none of these changes with the squeeze.
-  const toggle = toggleButton(kit, read, act)
-  const cost = words(kit, 'cost', [[read.spend.totalText, 'value']])
-  const calmCache = words(kit, 'cache', c.say)
-  const calmContext = x.known ? words(kit, 'ctx', x.say) : null
-  const seps = [1, 2, 3, 4].map(i => words(kit, `sep${i}`, [['·', 'label']]))
-  return [
-    fitLine(kit, ORDER, lineRoom(kit), keeps => {
-      const pieces = [
-        c.amber !== undefined ? words(kit, 'cache', [[keeps.amber(c.amber), 'amber']]) : calmCache,
-        keeps.has('cost') ? cost : null,
-        !x.known ? null : x.amber !== undefined ? words(kit, 'ctx', [[keeps.amber(x.amber), 'amber']]) : keeps.has('calmContext') ? calmContext : null,
-        read.fiveHour === undefined ? null : limitPiece(kit, read.fiveHour, 'calmFive', keeps),
-        read.sevenDay === undefined ? null : limitPiece(kit, read.sevenDay, 'calmSeven', keeps),
-      ].filter((p): p is RenderElement => p !== null)
-      return line(kit, 'line', pieces.flatMap((p, i) => (i === 0 ? [p] : [seps[i - 1] ?? null, p])), toggle, 1)
-    }),
-  ]
-}
-
-/** The facts behind ▿: four columns of short sentences. */
-const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
-  const c = read.cache
-  const x = read.context
-  const s = read.spend
-  const room = gridRoom(kit, bodyRows)
-  const say = (key: string, text: string | undefined): RenderChildren => (text === undefined ? null : words(kit, key, [[text, 'value']]))
-  return grid(kit, [
-    section(kit, 'cache', 'CACHE', [
-      say('now', c.value),
-      say('rewarm', c.reWarmText),
-      c.savedText === undefined || c.hitText === undefined ? null : say('saved', `saved ${c.savedText}, ${c.hitText} hit rate`),
-      say('lasts', `lasts ${c.lastsText}`),
-    ], room),
-    section(kit, 'spend', 'SPEND', [
-      say('total', `${s.totalText} this session`),
-      s.lastText === undefined ? null : say('last', `last message ${s.lastText}`),
-      say('tokens', `${s.tokensText} tokens: ${s.split.map(part => `${part.text} ${part.label}`).join(', ')}`),
-    ], room),
-    section(kit, 'context', 'CONTEXT', !x.known ? [say('none', EMPTY.context)] : [
-      say('pct', `${x.valueText} ${x.towardText}`),
-      say('in', x.compactsAtText === undefined ? `${x.inContextText} in context` : `${x.inContextText} in context, compacts at ${x.compactsAtText}`),
-      x.roomText === undefined ? null : say('room', `${x.roomText} room in a ${x.windowText} window`),
-    ], room),
-    section(kit, 'limits', 'LIMITS', read.limits.length === 0 ? [say('none', EMPTY.limits)] : [
-      read.worstLimit === undefined ? null : say('closest', `closest is ${read.worstLimit.text}`),
-      ...read.limits.map(l => say(l.name, [l.text, l.resetWords, l.pace].filter(t => t !== undefined && t !== '').join(', '))),
-    ], room),
-  ], bodyRows)
-}
-
-/** Ledger's own strip: the workspace as a sentence. */
-const strip: Strip = (kit, read) => {
-  const { Box } = kit
-  return read.workspaceText === undefined ? null : (
-    <Box key="strip" flexGrow={1} width={0} minWidth={0} overflow="hidden">
-      {words(kit, 'workspace', [[read.workspaceText, 'label']])}
-    </Box>
-  )
-}
-
-export const ledgerView = defineView('ledger', { desktop: 1, terminal: 1 }, lines, body, strip)
-```
+Done: `hooks/views/ledger.tsx` and `tests/view-ledger.test.ts` on `feat/layouts` are the source of truth, and the reference every P2 view follows; the code block this step held is superseded. The pilot changed it at these points (each a ruling in the ledger): the first give-way step is `resetWords`, not `resetGlyph`; an amber reading's words come from one `amberWords`, which `amberOr` and `limitPiece` both call; LIMITS leads with its amber limits, each in its reason's words with its reset and pace, then `closest is …` only when the closest limit is calm; and a `Strip` returns only its line, which the frame places (no `width={0}` Box). The tests add the give-way table, the amber limit short of rows, and an amber limit's pace.
 
 Change `views/index.ts` only if the stub's export name differs (it doesn't: `ledgerView`).
 
@@ -5524,10 +5436,12 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
 }
 
 /** The board's header: the workspace, on a flap. */
+// A Strip returns only its line; the frame places it in its own `strip` row
+// (Task 16), so this Box takes another key.
 const strip: Strip = (kit, read) => {
   const { Box } = kit
   return read.workspaceText === undefined ? null : (
-    <Box key="strip" flexGrow={1} width={0} minWidth={0} overflow="hidden">{flap(kit, 'workspace', read.workspaceText, 'dim')}</Box>
+    <Box key="board" flexGrow={1} width={0} minWidth={0} overflow="hidden">{flap(kit, 'workspace', read.workspaceText, 'dim')}</Box>
   )
 }
 
