@@ -69,16 +69,18 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   // Built once: none of these changes with the squeeze.
   const toggle = toggleButton(kit, read, act)
   // Long, the cache's label names its condition, unless its value already does
-  // (warming, or warm with no countdown); cold, the price to re-warm it.
+  // (warming, or warm with no countdown); cold, the price to re-warm it, which
+  // stays once the labels shorten, since a cold cache is a price.
   const valueNamesCondition = c.condition === 'warming' || (c.condition === 'warm' && c.leftShort === '')
   const cacheLong = c.condition === 'cold' ? `re-warm ${c.estimate}` : valueNamesCondition ? 'cache' : `cache ${c.condition}`
+  const cacheShort = c.condition === 'cold' ? c.estimate : 'cache'
   const cache: Figure = {
     key: 'cache',
     tone: c.tone,
     amber: c.amber,
     ring: cacheRing(kit, c, RING_PX),
     value: valueWords(kit, c.leftShort === '' ? c.value : c.leftShort, c.tone),
-    label: keeps => (keeps.has('labelsLong') ? cacheLong : 'cache'),
+    label: keeps => (keeps.has('labelsLong') ? cacheLong : cacheShort),
   }
   // Unreported, the context says nothing collapsed; open, its section says so.
   const context: Figure | undefined = !x.known ? undefined : {
