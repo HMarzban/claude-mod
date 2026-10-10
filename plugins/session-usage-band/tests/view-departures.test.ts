@@ -168,9 +168,9 @@ test('open, an other limit that shares no name with the board\'s rows keeps its 
 })
 /** The titles over the board's columns. */
 const titles = (open: unknown): string[] => ((byKey(open, 'head', 'Box')?.children ?? []) as Node[]).map(shown)
-test('open where TIME can\'t fit whole, the board drops the column and its words lead REMARKS', async ($, on) => {
-  // The terminal's fixed columns and their gaps take 47 cells: a lineRoom of 47 at 53 columns, 46 at 52.
-  const mounts = [53, 52].map((cols): Mount => ({ surface: 'terminal', cols }))
+test('open where TIME can\'t fit whole beside REMARKS\' least, the board drops the column and its words lead REMARKS', async ($, on) => {
+  // On the terminal the fixed columns, REMARKS' 14 cells and their gaps take 62: a lineRoom of 62 at 68 columns, 61 at 67.
+  const mounts = [68, 67].map((cols): Mount => ({ surface: 'terminal', cols }))
   const trees = await drawCases($, on, { layout: 'departures', scenario: 'calm', appearance: 'dark', ttl: '1h' }, mounts)
   const [fits, narrow] = mounts.map(m => trees[caseKey(m, 'open')])
   expect(titles(fits)).toEqual(['ITEM', 'STATUS', 'TIME', 'REMARKS'])

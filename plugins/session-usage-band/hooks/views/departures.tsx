@@ -25,6 +25,8 @@ type Ink = keyof typeof INK
  *  STATUS, as wide as `! FULL IN ~4H 45 MIN`, which any fill before a 5h
  *  reset is; and TIME. REMARKS takes the rest. */
 const COLUMNS = [11, 20, 14] as const
+/** The least REMARKS keeps beside TIME, as wide as `RE-WARM ~$2.13`. */
+const MIN_REMARKS = 14
 
 /** The session's spend row's ITEM. */
 const SPEND_ITEM = 'SPEND'
@@ -163,8 +165,8 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
 /** A row of the board, and whether it is amber, so a board short of rows keeps it. */
 type BoardRow = Readonly<{ amber: boolean; line: RenderElement }>
 
-/** The cells ITEM, STATUS and TIME take, a flap's edges and the gaps between them included. */
-const fixedCells = (kit: Kit): number => COLUMNS.reduce((sum, cells) => sum + cells + 2 * inset(kit), COLUMNS.length - 1)
+/** The cells these columns take, a flap's edges and the gaps between them included. */
+const boardCells = (kit: Kit, columns: readonly number[]): number => columns.reduce((sum, cells) => sum + cells + 2 * inset(kit), columns.length - 1)
 
 /** One board line: the fixed columns, each as wide as its text and a flap's
  *  two edges and truncating what outgrows that, then REMARKS, which
@@ -208,8 +210,9 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const x = read.context
   const s = read.spend
   const { Box } = kit
-  // Where the room can't hold TIME whole, its words lead REMARKS as TIME draws them, never cut mid-word.
-  const timed = fixedCells(kit) <= lineRoom(kit)
+  // Where the room can't hold TIME whole and REMARKS' least, TIME's words lead
+  // REMARKS as TIME draws them, never cut mid-word.
+  const timed = boardCells(kit, [...COLUMNS, MIN_REMARKS]) <= lineRoom(kit)
   // Each title sits over its column's text, as far in as a flap's.
   const head = (key: string, title: string) => (
     <Box key={key} paddingLeft={inset(kit)}>
