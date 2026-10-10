@@ -5,6 +5,7 @@
 import type { DayCell, HourCell, Week } from './calendar'
 import {
   FIVE_HOUR_MS,
+  fmtBoardEta,
   fmtBoardLeft,
   fmtClock,
   fmtCost,
@@ -105,8 +106,7 @@ export type CacheWords = Readonly<{
   reWarmText: string | undefined
   /** When it goes cold, `14:32`, while counting and the offset is known. */
   coldAtClock: string | undefined
-  /** When it went cold, `13:28`: undefined until the snapshot carries that
-   *  time, since a cold cache's time left is 0. */
+  /** When it went cold, `13:28`, once measured and the offset is known. */
   coldSinceClock: string | undefined
   /** What the cache saved, `~$11.40`, and its hit rate, `96%`, once measured. */
   savedText: string | undefined
@@ -187,10 +187,12 @@ export type LimitWords = Readonly<{
   fullAtClock: string | undefined
   /** `! 5h 82%`, or with a measured fill, `! 5h full in ~40m` / `! 5h ~40m`. */
   amber: Amber | undefined
-  /** `! NEAR LIMIT`, `! FULL ~14:20`, or without the offset, `! FULL IN ~40M`. */
+  /** `! NEAR LIMIT`, `! FULL ~14:20`, or without the offset, `! FULL IN ~40 MIN`. */
   boardAmber: string | undefined
   /** `~10% AT ↻`, `FULL BEFORE ↻`, or `RESET`; in the ascii tier, `~10% AT RESET`. */
   boardShort: string | undefined
+  /** The board's time of the reset: `↻ 16:40`, or without the offset `IN 3H 00 MIN`; undefined once passed. */
+  boardTime: string | undefined
   alt: string
 }>
 
@@ -245,7 +247,7 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     amber: f.mood === 'expiring' ? AMBER.cache(left, leftShort, f.estimate) : undefined,
     reWarmText: !f.known ? undefined : f.mood === 'cold' ? `next message ${f.estimate}` : `re-warm ${f.estimate} if it goes cold`,
     coldAtClock: counting && off !== undefined ? fmtClock(frame.now + f.coldInMs, off) : undefined,
-    coldSinceClock: undefined,
+    coldSinceClock: f.mood === 'cold' && c.coldAt !== null && off !== undefined ? fmtClock(c.coldAt, off) : undefined,
     savedText: f.measured && c.savedUsd !== null ? fmtEstimate(c.savedUsd) : undefined,
     hitText: f.hitFrac === undefined ? undefined : fmtPct(f.hitFrac),
     // Inference only ever moves an assumed hour to 5m, so an unpinned hour is the guess.
@@ -345,12 +347,13 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     boardAmber:
       f.tone !== 'amber'
         ? undefined
-        : fullIn === undefined
+        : etaMs === null
           ? '! NEAR LIMIT'
           : fullAtClock !== undefined
             ? `! FULL ${fullAtClock}`
-            : `! FULL IN ${fullIn.toUpperCase()}`,
+            : `! FULL ${fmtBoardEta(etaMs)}`,
     boardShort: f.passed ? 'RESET' : fills ? `FULL BEFORE ${boardReset}` : projectedText !== undefined ? `${projectedText} AT ${boardReset}` : undefined,
+    boardTime: resetClock !== undefined ? `↻ ${resetClock.toUpperCase()}` : f.resetInMs !== undefined ? fmtBoardLeft(f.resetInMs) : undefined,
     alt: altOf(
       `${f.name} limit`,
       live ? `${Math.round(f.percentUsed)} percent used` : 'reset',

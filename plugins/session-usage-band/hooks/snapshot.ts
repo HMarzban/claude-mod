@@ -53,6 +53,9 @@ export type BandSnapshot = Readonly<{
     recalled: boolean
     /** How long since that recalled reply. */
     idleMs: number | null
+    /** When the cache goes or went cold: a lifetime after the last reply
+     *  this band saw; none before one. */
+    coldAt: number | null
     /** A resumed conversation's spend and tokens from before this process
      *  are counted, as its transcript records them. */
     recovered: boolean

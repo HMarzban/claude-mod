@@ -77,8 +77,13 @@ test('cold is a price', () => {
   const c = readingsOf(snapOf({ cache: cacheAt(0), utcOffsetMin: 0 })).cache
   expect([c.text, c.textShort, c.reWarmText, c.board]).toEqual(['cache cold · re-warm ~$1.66', 'cold ~$1.66', 'next message ~$1.66', 'DEPARTED'])
   expect(c.alt).toBe('cache cold, re-warm about $1.66')
-  // A cold cache's time left is 0, so the snapshot doesn't say yet when it went cold.
+  // Recalled, or before a reply, the band doesn't know when it went cold.
   expect(c.coldSinceClock).toBeUndefined()
+})
+test('a measured cache that went cold says when, once the offset is known', () => {
+  const cold = { ...cacheAt(0), coldAt: 13 * HOUR + 28 * MIN }
+  expect(readingsOf(snapOf({ now: 14 * HOUR, cache: cold, utcOffsetMin: 0 })).cache.coldSinceClock).toBe(fmtClock(13 * HOUR + 28 * MIN, 0))
+  expect(readingsOf(snapOf({ now: 14 * HOUR, cache: cold })).cache.coldSinceClock).toBeUndefined()
 })
 test('an hour left is said in full, on the board and to a reader', () => {
   const c = readingsOf(snapOf({ cache: cacheAt(60 * MIN) })).cache
@@ -99,6 +104,14 @@ test('clock times appear only when the offset is known', () => {
   expect(r.cache.coldAtClock).toBe(fmtClock(now + 52 * MIN, 0))
   expect(r.fiveHour?.resetClock).toBe(fmtClock(now + 3 * HOUR, 0))
 })
+test('the board says a reset at its clock time, and without the offset in minutes, never "3H 00M"', () => {
+  const now = Date.UTC(2026, 9, 9, 13, 40)
+  const timed = readingsOf(snapOf({ now, utcOffsetMin: 0, fiveHour: { percentUsed: 4, resetsAt: new Date(now + 3 * HOUR).toISOString(), etaMs: null } }))
+  expect(timed.fiveHour?.boardTime).toBe(`↻ ${fmtClock(now + 3 * HOUR, 0)}`)
+  const r = readingsOf(snapOf())
+  expect([r.fiveHour?.boardTime, r.sevenDay?.boardTime]).toEqual(['IN 3H 00 MIN', 'IN 67H 00 MIN'])
+  expect(readingsOf(snapOf({ now: 4 * HOUR })).fiveHour?.boardTime).toBeUndefined()
+})
 test('limits speak in words, amber with one "! "', () => {
   const r = readingsOf(snapOf({ fiveHour: { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }))
   expect(r.fiveHour?.text).toBe('5h 82%')
@@ -117,6 +130,10 @@ test('a measured fill is an estimate, with ~, in words and on the board', () => 
   expect([r.fiveHour?.fullIn, r.fiveHour?.fullAtClock, r.fiveHour?.boardAmber]).toEqual(['~40m', `~${at}`, `! FULL ~${at}`])
   expect(r.fiveHour?.amber).toEqual({ long: '! 5h full in ~40m', short: '! 5h ~40m' })
   expect(r.fiveHour?.alt).toBe('5h limit 84 percent used, needs attention, full in about 40 minutes')
+})
+test('with no UTC offset a measured fill says on the board when, in board minutes, never "~40M"', () => {
+  const boardAmber = (etaMs: number) => readingsOf(snapOf({ fiveHour: { percentUsed: 84, resetsAt: new Date(5 * HOUR).toISOString(), etaMs } })).fiveHour?.boardAmber
+  expect([40, 60, 75, 285].map(mins => boardAmber(mins * MIN))).toEqual(['! FULL IN ~40 MIN', '! FULL IN ~1H 00 MIN', '! FULL IN ~1H 15 MIN', '! FULL IN ~4H 45 MIN'])
 })
 test('a landing at or over 100% is full before reset, never ~112%', () => {
   const r = readingsOf(snapOf({ sevenDay: { percentUsed: 79, resetsAt: new Date(50 * HOUR).toISOString() } }))

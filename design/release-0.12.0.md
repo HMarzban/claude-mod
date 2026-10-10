@@ -196,6 +196,16 @@ Open items cleared on `feat/layouts` after 0119b9a.
   - The spec's errata (5b5a7a8): §4 names `layoutCachePill`, §4.1 says the list comes from `LAYOUT_NAMES`, and `avgWarmUsd`, which no reading builds, is ruled out of §4.1 and §5. §6 now says forecast's Spend row draws no bar, as it has nothing to land at (Task C4).
   - The CHANGELOG gains its Fixed line for 7aebb0a (bbf20dc). The rest change layouts and a command new in 0.12.0, so Added covers them.
   - 1052 pass, 0 fail, 48 files.
+- **Departures polish** (C5), in 2ab2087, 30d742b, 68d46f3, bddd3e6, 2a0015f, 0078ea4, e33dfa2 and cb73c83, and after review in 0d04a19, 0543321, e1b31ed, 1b6b8e5, fd559e4, df5fda5, 3f31618 and 690a63f, each with its `Ruling (C5):` line in the ledger:
+  - Plain flaps are drawn in spec §3.1's `[ ]`. The brackets are the line's first give-way step, so a single amber reason still fits at 40 columns. The open board keeps them, and its headers sit one cell in. A flap that outgrows its cell truncates its text and keeps its `]`.
+  - The give-way keeps its steps past spec §6's four, `cost` and `calmFive`: without them an amber reason would clip at 40 columns while a calm piece stayed (spec §2.6). Ruled, no change. A third, `coldSince`, follows them (below).
+  - An amber short form stays lower case (`! 5h 82%`), as spec §2.6 writes the short forms and §2.2 puts `47s` on the board. Upper case would make `! 5h ~1h` read `! 5H ~1H`, the short form §2.12 keeps off the board. Ruled, no change.
+  - Where the board can't hold TIME whole and still leave REMARKS 14 cells, a re-warm price's width (below 68 columns on the terminal, 76 where a flap is padded or bracketed), TIME is dropped, and each row's time leads its REMARKS as TIME draws it (`30s` in the last minute).
+  - With no UTC offset, a limit's TIME reads `IN 3H 00 MIN` (7d `IN 67H 00 MIN`), from the new `LimitWords.boardTime`, which also holds the clock form `↻ 16:40`. A measured fill's STATUS reads `! FULL IN ~1H 15 MIN`, not `! FULL IN ~1H 15M`, from the new `fmtBoardEta`. STATUS widens from 18 cells to 20 to hold it, so a 1M window's `! COMPACTS IN ~100K` fits too.
+  - The board keeps spec §6's row order, CACHE first. Where the rows under the header can't hold CACHE and every amber row (at `gatewaySpend`, one row), an amber row takes CACHE's place, since amber is never cut while a calm piece stays. Pinned by a test, no change.
+  - A gateway's spend limit's ITEM reads `SPEND LIMIT`, apart from the session's `SPEND`. ITEM widens from 10 cells to 11 to hold it. Any other limit keeps its own name.
+  - The snapshot holds when a measured cache went cold (`cache.coldAt`), so a cold cache reads `DEPARTED 13:28`. On the collapsed line the clock gives way last, after the 5H flap. A recalled cache still reads `DEPARTED` alone.
+  - Shared files touched: `words.ts` (`boardTime`, the no-offset fill's board minutes, and `coldSinceClock` reading `coldAt`), `format.ts` (`fmtBoardEta`), `snapshot.ts` and `cache.ts` (`coldAt`, from `measuredColdAt`), and `tests/matrix.ts` (`coldAt: null` in `snapOf`). Golden is unchanged. 1064 pass, 0 fail, 48 files. These change a layout that is new in 0.12.0, so the CHANGELOG's Added line covers them.
 
 ## Pending the maintainer
 
@@ -261,16 +271,6 @@ Each is a `Pending maintainer:` line, or Task 29's deferred findings, still open
 - Gauges' warming row two draws only ▿.
 - A cold cache with an amber limit at 40 columns would clip the amber in departures and ledger. No scenario holds that combination yet.
 - At bodyRows 1, every section is a bare title. An open view then can't say open-only amber (`gatewaySpend`'s `! spend 92%`).
-
-**Departures**
-- Plain flaps are drawn bare, not as spec §3.1's `[ ]`, so a single amber reason fits at 40 columns.
-- Its give-way runs two steps past spec §6's four (`cost`, `calmFive`).
-- An amber short form is lower case on the upper-case board (`! 5h 82%`).
-- Below about 50 columns the board cuts TIME mid-word. Should it drop TIME whole instead?
-- With no UTC offset, TIME falls back to `↻ IN 3H 00M`, the short form spec §2.12 keeps off the board.
-- `fitRows` puts an amber other-limit ahead of CACHE.
-- Two rows read `SPEND` under ITEM at `gatewaySpend`.
-- `coldSinceClock` stays undefined until the snapshot holds when a measured cache went cold.
 
 **Words**
 - `EMPTY.costsShort` reads `No costs.`, where the plan wrote `No costs yet.`.
