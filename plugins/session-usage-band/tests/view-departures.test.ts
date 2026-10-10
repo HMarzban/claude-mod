@@ -157,3 +157,20 @@ test('open, compaction not known yet says nothing of it', LONG, async ($, on) =>
 test('open, the board says auto-compaction is off when the engine says so', LONG, async ($, on) => {
   expect(shown((await at($, on, 'compactionOff')).open)).toMatch(/AUTO-COMPACTION OFF/)
 })
+test('in ascii, a landing and a fill before the reset keep their noun', LONG, async ($, on) => {
+  const trees = await drawCases($, on, { layout: 'departures', scenario: 'calm', appearance: 'dark', ttl: '1h', env: { CC_BAND_GLYPHS: 'ascii' } }, [T160])
+  const shut = shown(trees[caseKey(T160, 'shut')])
+  expect(shut).toMatch(/~\d+% AT RESET/)
+  expect(shut).not.toMatch(/\bAT\b(?! RESET)/)
+})
+for (const [scenario, amber] of [
+  ['calm', /\$2\.41/],
+  ['limit80', /! 5h 82%$/],
+  ['nearCompaction', /! ctx \d+%$/],
+] as const)
+  test(`in ascii at 40 columns, ${scenario} stays within the line's room`, LONG, async ($, on) => {
+    const trees = await drawCases($, on, { layout: 'departures', scenario, appearance: 'dark', ttl: '1h', env: { CC_BAND_GLYPHS: 'ascii' } }, [T40])
+    const line = byKey(trees[caseKey(T40, 'shut')], 'line', 'Box')
+    expect(shown(line)).toMatch(amber)
+    expect(cellsOf(line as RenderChildren, TERMINAL)).toBeLessThanOrEqual(T40.cols - ROW_SLACK - 2)
+  })

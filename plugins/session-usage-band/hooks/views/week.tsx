@@ -112,7 +112,7 @@ const windowPiece = (kit: Kit, read: Readings, w: WeekWindow) => {
   // Built once: the squeeze only picks among them. Beside its cells a window
   // says its value; without them, its name and value, as `say` has them.
   const name = nameOf(kit, w)
-  const reset = l.resetClock === undefined ? l.resetGlyph : `↻ ${l.resetClock}`
+  const reset = l.resetAtGlyph
   const phrase = (say: Say, withReset: boolean): RenderElement =>
     words(kit, 'v', withReset && reset !== undefined ? [...say, [` ${reset}`, 'label']] : say)
   const value: Say = [[l.value, 'value']]

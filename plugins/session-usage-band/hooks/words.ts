@@ -168,6 +168,9 @@ export type LimitWords = Readonly<{
   resetGlyph: string | undefined
   /** `16:40`, or `Mon 08:40` past today, when the offset is known. */
   resetClock: string | undefined
+  /** After `↻`, a clock time: `↻ 16:40`, else `↻ in 3h 00m`; in the ascii
+   *  tier, which drops the glyph, `resets 16:40`. Undefined once passed. */
+  resetAtGlyph: string | undefined
   /** Where the window lands at its reset, `~10%`; none at 100% or more,
    *  where `pace` says `full before reset`. */
   projectedText: string | undefined
@@ -178,7 +181,7 @@ export type LimitWords = Readonly<{
   amber: Amber | undefined
   /** `! NEAR LIMIT`, `! FULL ~14:20`, or without the offset, `! FULL IN ~40M`. */
   boardAmber: string | undefined
-  /** `~10% AT ↻`, `FULL BEFORE ↻`, or `RESET`. */
+  /** `~10% AT ↻`, `FULL BEFORE ↻`, or `RESET`; in the ascii tier, `~10% AT RESET`. */
   boardShort: string | undefined
   alt: string
 }>
@@ -309,13 +312,19 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const fullIn = etaMs !== null ? fmtEta(etaMs) : undefined
   const fullAtClock = etaMs !== null && off !== undefined ? `~${fmtClock(frame.now + etaMs, off)}` : undefined
   const say: Say = [[`${f.name} `, 'label'], [live ? f.value : 'reset', 'value']]
+  const resetGlyph = f.reset?.kind === 'in' ? resetPhrase(f.reset, 'glyph') : undefined
+  const resetClock = f.resetInMs !== undefined && off !== undefined ? fmtDayClock(frame.now + f.resetInMs, off, frame.now) : undefined
+  // The ascii tier drops `↻`, so a phrase whose object is the glyph says its word.
+  const ascii = frame.glyphs === 'ascii'
+  const boardReset = ascii ? 'RESET' : '↻'
   return {
     text: joined(say),
     say,
     pace: live ? paceText(f) : '',
     resetWords: f.reset?.kind === 'in' ? resetPhrase(f.reset, 'words') : undefined,
-    resetGlyph: f.reset?.kind === 'in' ? resetPhrase(f.reset, 'glyph') : undefined,
-    resetClock: f.resetInMs !== undefined && off !== undefined ? fmtDayClock(frame.now + f.resetInMs, off, frame.now) : undefined,
+    resetGlyph,
+    resetClock,
+    resetAtGlyph: resetClock === undefined ? resetGlyph : `${ascii ? 'resets' : '↻'} ${resetClock}`,
     projectedText,
     fullIn,
     fullAtClock,
@@ -328,7 +337,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
           : fullAtClock !== undefined
             ? `! FULL ${fullAtClock}`
             : `! FULL IN ${fullIn.toUpperCase()}`,
-    boardShort: f.passed ? 'RESET' : fills ? 'FULL BEFORE ↻' : projectedText !== undefined ? `${projectedText} AT ↻` : undefined,
+    boardShort: f.passed ? 'RESET' : fills ? `FULL BEFORE ${boardReset}` : projectedText !== undefined ? `${projectedText} AT ${boardReset}` : undefined,
     alt: altOf(
       `${f.name} limit`,
       live ? `${Math.round(f.percentUsed)} percent used` : 'reset',

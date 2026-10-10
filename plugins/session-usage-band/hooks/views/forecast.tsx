@@ -229,7 +229,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
         : meter(kit, { key: 'bar', label: l.name, frac: l.frac, tone: l.tone, accent: accentOf(kit, l), size: OUTLOOK, tick: l.gone, projectTo: l.projectedFrac }),
       reason: l.amber?.long,
       // A measured fill's reason says its pace.
-      outcome: [l.fullIn === undefined ? l.pace : undefined, l.resetClock !== undefined ? `↻ ${l.resetClock}` : l.resetGlyph],
+      outcome: [l.fullIn === undefined ? l.pace : undefined, l.resetAtGlyph],
     })
   const rows: Outlook[] = [
     outlook('cache', 'Cache', c.left !== '' ? c.left : c.condition, {

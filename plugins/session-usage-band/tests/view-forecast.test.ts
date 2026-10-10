@@ -126,3 +126,8 @@ test('with the offset unknown, each change reads as a duration, and a 7d reset w
   expect(drawn(120)).toBe('now · warm│in 52m · cold│in 3h 00m · 5h resets│in 20h 00m · 7d resets')
   expect(drawn(70)).toBe('now · warm│in 52m · cold│in 3h 00m · 5h resets')
 })
+test('in ascii, an outlook says when a limit resets in words', LONG, async ($, on) => {
+  const trees = await drawCases($, on, { layout: 'forecast', scenario: 'calm', appearance: 'dark', ttl: '1h', env: { CC_BAND_GLYPHS: 'ascii' } }, [T160])
+  const open = shown(trees[caseKey(T160, 'open')])
+  expect(open).toMatch(/on pace for ~\d+%\s*-\s*resets \d{2}:\d{2}/)
+})
