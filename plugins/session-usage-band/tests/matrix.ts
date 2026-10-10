@@ -10,7 +10,7 @@ import {
 } from './helpers'
 import { DESKTOP, ROW_PX, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
-import type { BandActions, BandSnapshot, LayoutName } from '../hooks/snapshot'
+import type { BandActions, BandSnapshot, Glyphs, LayoutName } from '../hooks/snapshot'
 import { VIEWS } from '../hooks/views/index'
 import { rowsOf } from '../hooks/views/view'
 
@@ -209,19 +209,19 @@ export type InvariantContext = Readonly<{
   cols: number
   maxRows: number
   scenario: ScenarioName
-  glyphs: 'unicode' | 'ascii'
+  glyphs: Glyphs
   expanded: boolean
 }>
 
 /** A colour prop, at the top of a node's props or inside its `hover`. */
 const COLOUR_PROPS: ReadonlySet<string> = new Set(['color', 'backgroundColor', 'borderColor'])
-/** The red names a colour prop takes: the theme's error key and Ink's red keywords. */
+/** A paint in an Svg's source, as an attribute or a style: a hex, an `rgb()` or a name. */
+const SVG_PAINT = /\b(?:fill|stroke|stop-color|color)\s*[=:]\s*["']?\s*(#[0-9a-f]{3,8}|rgb\([^)]*\)|[a-z]+)/gi
+/** The red names: the theme's error key and Ink's red keywords. */
 const RED_NAME = /^(error|red|redBright)$/i
+/** A hex colour, `fff` to `ffffff80`. */
+const HEX = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i
 const RGB = /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i
-/** A hex colour, `fff` to `ffffff80`; not a character reference such as `&#8230;`. */
-const HEX = /(?<!&)#([0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3,4})\b/gi
-/** An Svg paint named red rather than written in hex. */
-const SVG_RED = /\b(fill|stroke|stop-color)="red"/i
 
 /** Whether a colour's hue lies within 15° of pure red at more than half
  *  saturation. Amber sits near 40°. */
@@ -231,30 +231,34 @@ const isRed = (r: number, g: number, b: number): boolean => {
   // With red the largest, the hue is 60° × (g − b) / chroma, either side of 0°.
   return max === r && chroma > max / 2 && Math.abs((60 * (g - b)) / chroma) <= 15
 }
-const isRedHex = (hex: string): boolean => {
-  const digits = hex.length <= 4 ? [...hex.slice(0, 3)].map(c => c + c) : [hex.slice(0, 2), hex.slice(2, 4), hex.slice(4, 6)]
-  const [r = 0, g = 0, b = 0] = digits.map(d => parseInt(d, 16))
-  return isRed(r, g, b)
+/** A colour's red, green and blue, when it is written in hex or `rgb()`. */
+const channelsOf = (colour: string): readonly [number, number, number] | undefined => {
+  const hex = colour.match(HEX)?.[1]
+  if (hex !== undefined) {
+    const pairs = hex.length <= 4 ? [...hex.slice(0, 3)].map(c => c + c) : [hex.slice(0, 2), hex.slice(2, 4), hex.slice(4, 6)]
+    const [r = 0, g = 0, b = 0] = pairs.map(pair => parseInt(pair, 16))
+    return [r, g, b]
+  }
+  const rgb = colour.match(RGB)
+  return rgb === null ? undefined : [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])]
 }
-/** The red a colour prop names: a red name, or an `rgb()` that is red. */
-const redName = (value: string): string | undefined => {
-  const rgb = value.match(RGB)
-  const red = RED_NAME.test(value) || (rgb !== null && isRed(Number(rgb[1]), Number(rgb[2]), Number(rgb[3])))
-  return red ? value : undefined
+/** Whether a colour is red: a red name, or a hex or `rgb()` of a red hue. */
+const isRedColour = (colour: string): boolean => {
+  const channels = channelsOf(colour)
+  return RED_NAME.test(colour) || (channels !== undefined && isRed(...channels))
 }
-/** The red written in any string: a red hex anywhere (an Svg's source
- *  included), or an Svg paint named red. */
-const redWritten = (value: string): string | undefined =>
-  [...value.matchAll(HEX)].find(m => isRedHex(m[1] ?? ''))?.[0] ?? value.match(SVG_RED)?.[0]
-/** Every red in a node's props, and in an object-valued prop such as `hover`. */
-const redsIn = (props: Readonly<Record<string, unknown>>, nested = true): string[] =>
+/** The colour props' values, at the top and one level into an object-valued
+ *  prop such as `hover`. */
+const colourProps = (props: Readonly<Record<string, unknown>>, nested = true): string[] =>
   Object.entries(props).flatMap(([key, value]) => {
-    if (typeof value === 'string') {
-      const red = (COLOUR_PROPS.has(key) ? redName(value) : undefined) ?? redWritten(value)
-      return red === undefined ? [] : [red]
-    }
-    return nested && typeof value === 'object' && value !== null ? redsIn(value as Record<string, unknown>, false) : []
+    if (typeof value === 'string') return COLOUR_PROPS.has(key) ? [value] : []
+    return nested && typeof value === 'object' && value !== null ? colourProps(value as Record<string, unknown>, false) : []
   })
+/** Every colour a node paints: its colour props, and an Svg's paints. */
+const coloursOf = (n: Node): string[] => {
+  const source = n.type === 'Svg' && typeof n.props?.source === 'string' ? n.props.source : ''
+  return [...colourProps(n.props ?? {}), ...[...source.matchAll(SVG_PAINT)].map(m => m[1] ?? '')]
+}
 
 /** What each glyph tier may draw (spec §3.2): the unicode tier's glyphs and braille, or ASCII alone. */
 const UNICODE_TIER = /^[\x20-\x7e█░▒│·↻Σ◷◔▿▵…±●■–↑↓\u2800-\u28ff]*$/
@@ -293,13 +297,17 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   walk(tree, n => {
     nodes++
     if (n.type === 'Svg') svgs.push(n)
-    for (const red of redsIn(n.props ?? {})) fail('colour', `red ${red}`)
-    if (ctx.surface === 'desktop')
-      for (const k of n.children ?? []) if (typeof k === 'string' && /^\s+$/.test(k)) fail('whitespace', `a whitespace-only child of a ${n.type}`)
+    for (const colour of coloursOf(n)) if (isRedColour(colour)) fail('colour', `red ${colour}`)
+    if (ctx.surface === 'desktop') {
+      for (const k of n.children ?? [])
+        if (typeof k === 'string' && /^\s+$/.test(k)) fail('whitespace', `a whitespace-only child of a ${n.type}`)
+    }
   })
   if (!svgDraws && svgs.length > 0) fail('svgPlacement', `${svgs.length} Svg where none draws`)
-  for (const s of svgs)
-    if (typeof s.props?.alt !== 'string' || s.props.alt === '' || typeof s.props?.width !== 'number') fail('svgProps', 'an Svg without an alt or a width')
+  for (const s of svgs) {
+    if (typeof s.props?.alt !== 'string' || s.props.alt === '' || typeof s.props?.width !== 'number')
+      fail('svgProps', 'an Svg without an alt or a width')
+  }
 
   const text = shown(tree)
   if (/send|keep (it )?warm/i.test(text)) fail('wording', 'suggests sending a message')
