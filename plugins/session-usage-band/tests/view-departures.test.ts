@@ -186,6 +186,14 @@ test('open where TIME can\'t fit whole beside REMARKS\' least, the board drops t
   expect(remarks(narrow, 'cache')).toMatch(/^IN 1H 00 MIN · RE-WARM/)
   expect(remarks(narrow, '5H')).toMatch(/^↻ \d{2}:\d{2} · 4% USED/)
 })
+test('in ascii, a narrow board\'s reset leads REMARKS with its noun, and a wide board\'s TIME holds a reset past today whole', LONG, async ($, on) => {
+  const narrow: Mount = { surface: 'terminal', cols: 67 }
+  const trees = await drawCases($, on, { layout: 'departures', scenario: 'calm', appearance: 'dark', ttl: '1h', env: { CC_BAND_GLYPHS: 'ascii' } }, [narrow, T160])
+  const cell = (m: Mount, row: string, column: string) => shown(byKey(byKey(byKey(trees[caseKey(m, 'open')], 'body', 'Box'), row, 'Box'), column, 'Box'))
+  expect(cell(narrow, '5H', 'remarks')).toMatch(/^RESET \d{2}:\d{2} - 4% USED/)
+  expect(cell(T160, '5H', 'time')).toMatch(/^RESET \d{2}:\d{2}$/)
+  expect(cell(T160, '7D', 'time')).toMatch(/^[A-Z]{3} \d{2}:\d{2}$/)
+})
 test('open on a narrow board in the last minute, REMARKS leads with the seconds as TIME draws them', LONG, async ($, on) => {
   const open = (await at($, on, 'lastMinute', { surface: 'terminal', cols: 50 }, '5m')).open
   expect(shown(byKey(byKey(byKey(open, 'body', 'Box'), 'cache', 'Box'), 'remarks', 'Box'))).toMatch(/^30s · RE-WARM/)

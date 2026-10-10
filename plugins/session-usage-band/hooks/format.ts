@@ -123,11 +123,14 @@ const hhmm = (wall: number): string => {
 /** A local 24-hour clock time: `14:32`. The offset is east-positive minutes. */
 export const fmtClock = (ms: number, utcOffsetMin: number): string => hhmm(wallTime(ms, utcOffsetMin))
 
+/** Whether `ms` falls on the same local day as `now`. */
+export const isToday = (ms: number, utcOffsetMin: number, now: number): boolean =>
+  Math.floor(wallTime(ms, utcOffsetMin) / DAY_MS) === Math.floor(wallTime(now, utcOffsetMin) / DAY_MS)
+
 /** A clock time, with its weekday when it isn't today: `16:40`, `Mon 08:40`. */
 export const fmtDayClock = (ms: number, utcOffsetMin: number, now: number): string => {
   const wall = wallTime(ms, utcOffsetMin)
-  const sameDay = Math.floor(wall / DAY_MS) === Math.floor(wallTime(now, utcOffsetMin) / DAY_MS)
-  return sameDay ? hhmm(wall) : `${DAYS[new Date(wall).getUTCDay()]} ${hhmm(wall)}`
+  return isToday(ms, utcOffsetMin, now) ? hhmm(wall) : `${DAYS[new Date(wall).getUTCDay()]} ${hhmm(wall)}`
 }
 
 /** This machine's offset from UTC at `now`, east-positive minutes; undefined

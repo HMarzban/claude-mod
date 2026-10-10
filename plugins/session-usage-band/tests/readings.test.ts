@@ -112,6 +112,12 @@ test('the board says a reset at its clock time, and without the offset in minute
   expect([r.fiveHour?.boardTime, r.sevenDay?.boardTime]).toEqual(['IN 3H 00 MIN', 'IN 67H 00 MIN'])
   expect(readingsOf(snapOf({ now: 4 * HOUR })).fiveHour?.boardTime).toBeUndefined()
 })
+test('in ascii, the board says a reset today with its noun, and one past today by its weekday, within TIME', () => {
+  const now = Date.UTC(2026, 9, 9, 13, 40)
+  const at = (inMs: number) => new Date(now + inMs).toISOString()
+  const r = readingsOf(snapOf({ now, utcOffsetMin: 0, glyphs: 'ascii', fiveHour: { percentUsed: 4, resetsAt: at(3 * HOUR), etaMs: null }, sevenDay: { percentUsed: 30, resetsAt: at(67 * HOUR) } }))
+  expect([r.fiveHour?.boardTime, r.sevenDay?.boardTime]).toEqual([`RESET ${fmtClock(now + 3 * HOUR, 0)}`, fmtDayClock(now + 67 * HOUR, 0, now).toUpperCase()])
+})
 test('limits speak in words, amber with one "! "', () => {
   const r = readingsOf(snapOf({ fiveHour: { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }))
   expect(r.fiveHour?.text).toBe('5h 82%')

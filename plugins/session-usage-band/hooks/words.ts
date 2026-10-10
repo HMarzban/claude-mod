@@ -19,6 +19,7 @@ import {
   fmtPct,
   fmtSmallCost,
   fmtTokens,
+  isToday,
 } from './format'
 import type { ResetIn } from './format'
 import type { CostEntry, TrailPoint, Trails } from './insights'
@@ -191,7 +192,8 @@ export type LimitWords = Readonly<{
   boardAmber: string | undefined
   /** `~10% AT ↻`, `FULL BEFORE ↻`, or `RESET`; in the ascii tier, `~10% AT RESET`. */
   boardShort: string | undefined
-  /** The board's time of the reset: `↻ 16:40`, or without the offset `IN 3H 00 MIN`; undefined once passed. */
+  /** The board's time of the reset: `↻ 16:40`, or without the offset `IN 3H 00 MIN`;
+   *  in the ascii tier `RESET 16:40`, past today `SAT 22:30`. Undefined once passed. */
   boardTime: string | undefined
   alt: string
 }>
@@ -326,7 +328,9 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const valueText = live ? f.value : 'reset'
   const say: Say = [[`${f.name} `, 'label'], [valueText, 'value']]
   const resetGlyph = f.reset?.kind === 'in' ? resetPhrase(f.reset, 'glyph') : undefined
-  const resetClock = f.resetInMs !== undefined && off !== undefined ? fmtDayClock(frame.now + f.resetInMs, off, frame.now) : undefined
+  const resetAt = f.resetInMs === undefined ? undefined : frame.now + f.resetInMs
+  const resetClock = resetAt !== undefined && off !== undefined ? fmtDayClock(resetAt, off, frame.now) : undefined
+  const resetToday = resetAt !== undefined && off !== undefined && isToday(resetAt, off, frame.now)
   // The ascii tier drops `↻`, so a phrase whose object is the glyph says its word.
   const ascii = frame.glyphs === 'ascii'
   const boardReset = ascii ? 'RESET' : '↻'
@@ -353,7 +357,13 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
             ? `! FULL ${fullAtClock}`
             : `! FULL ${fmtBoardEta(etaMs)}`,
     boardShort: f.passed ? 'RESET' : fills ? `FULL BEFORE ${boardReset}` : projectedText !== undefined ? `${projectedText} AT ${boardReset}` : undefined,
-    boardTime: resetClock !== undefined ? `↻ ${resetClock.toUpperCase()}` : f.resetInMs !== undefined ? fmtBoardLeft(f.resetInMs) : undefined,
+    // In ascii, TIME's 14 cells can't hold `RESET SAT 22:30`, so past today the weekday says it alone.
+    boardTime:
+      resetClock !== undefined
+        ? (ascii && !resetToday ? resetClock : `${boardReset} ${resetClock}`).toUpperCase()
+        : f.resetInMs !== undefined
+          ? fmtBoardLeft(f.resetInMs)
+          : undefined,
     alt: altOf(
       `${f.name} limit`,
       live ? `${Math.round(f.percentUsed)} percent used` : 'reset',
