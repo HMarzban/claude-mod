@@ -69,6 +69,7 @@ Run `/reload-plugins` in your session afterwards.
 | `tests/cases.ts`, `tests/matrix.ts` | The states every layout is drawn in and `drawCases`, which draws them; `snapOf` for pure tests, the invariant checks, and `viewSuite`, which every layout's test file runs. |
 | `tools/golden/capture.sh`, `tests/golden/` | Golden: chips' trees, captured from the band before the layouts work, which `golden-a` and `golden-b` hold chips to. |
 | `tools/test-only.sh` | Runs only the tests whose names match the globs given, against a scratch copy of the plugin. |
+| `tools/views-gate.sh` | The views gate, run in CI: fails when a layout's view formats or reads a raw fact. |
 
 ## Rules the code follows
 
@@ -102,7 +103,7 @@ Run `/reload-plugins` in your session afterwards.
   `VIEWS`. It draws only words from `read`: outside `chips.tsx`,
   `parts.tsx` and `frame.tsx`, no file in `views/` contains `.raw`,
   `.reading.`, `Date.parse`, `.replace(`, `Math.round` or an import of
-  `../format`.
+  `../format`. `tools/views-gate.sh` checks.
 - **Test first.** Write the failing test, watch it fail, then make it pass.
 - **Settle on the clock.** Work a hook starts without awaiting finishes
   under the mocked clock: `await clock.settle()`, never a spin of
