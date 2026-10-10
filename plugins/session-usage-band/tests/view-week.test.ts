@@ -111,6 +111,20 @@ test('calm gives way in spec order: the reset text, the 5h cells, then the 7d ce
   expect(svgAlts(d40).filter(a => /limit by/.test(a))).toEqual([expect.stringMatching(/^weekly limit by day/)])
   expect(shown(d40)).toMatch(/5h 4%/)
 })
+test('with no history, the empty text gives way before the resets, so row 1 keeps them where it fits', async ($, on) => {
+  const t = shown((await at($, on, 'calm', { surface: 'terminal', cols: 60 })).shut)
+  expect(t).toMatch(/↻[\s\S]*↻/)
+  expect(t).not.toMatch(/History fills in/)
+})
+test('the cache pill turns short only once every calm piece has gone: at 60 columns the last minute keeps its price', LONG, async ($, on) => {
+  const t = shown((await at($, on, 'lastMinute', { surface: 'terminal', cols: 60 }, '5m')).shut)
+  expect(t).toMatch(/↻[\s\S]*! 30s left · re-warm ~\$/)
+})
+test('near compaction at 40 columns, the cost gives way so row 2 fits', async ($, on) => {
+  const t = shown((await at($, on, 'nearCompaction', { surface: 'terminal', cols: 40 })).shut)
+  expect(t).toMatch(/! ctx \d+%/)
+  expect(t).not.toMatch(/\$2\.41/)
+})
 test('a limit at 80% says why, in words', async ($, on) => {
   expect(shown((await at($, on, 'limit80')).shut)).toMatch(/! 5h 82%/)
 })
