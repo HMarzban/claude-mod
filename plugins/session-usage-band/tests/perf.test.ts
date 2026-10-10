@@ -31,7 +31,8 @@ for (const scenario of ['calm', 'lastMinute'] as const) for (const layout of ORD
         if (state === 'open') await ui.press({ key: 'more' })
         const key = `${scenario}|${m.surface}|${cols}|${state}`
         const writes = engine.storeSets.length
-        // A file's first draws run cold: chips, the yardstick, is timed warm.
+        // A file's first draws run cold, so chips, the yardstick, is timed
+        // after an untimed pass of its own.
         if (layout === 'chips') await medianOf(ui)
         const ms = await medianOf(ui)
         expect(engine.storeSets.length).toBe(writes)
