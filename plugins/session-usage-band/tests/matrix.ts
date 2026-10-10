@@ -136,8 +136,8 @@ const coloursOf = (n: Node): string[] => {
 /** What each glyph tier may draw (spec §3.2): the unicode tier's glyphs and braille, or ASCII alone. */
 const UNICODE_TIER = /^[\x20-\x7e█░▒│·↻Σ◷◔▿▵…±●■–↑↓\u2800-\u28ff]*$/
 const ASCII_TIER = /^[\x20-\x7e]*$/
-/** What a value missing from a phrase leaves drawn (spec §2.8). */
-const NOTHING = /\b(NaN|undefined|null)\b/
+/** What a value missing from a phrase leaves drawn (spec §2.8), in any case: departures upper-cases its own. */
+const NOTHING = /\b(NaN|undefined|null)\b/i
 /** What spec §2.9 bars from any Svg's markup: an id, a gradient, a pattern, a clipPath. */
 const SVG_BARRED = /<(linearGradient|radialGradient|pattern|clipPath)\b|\bid=/
 /** A price or a fill time drawn without its `~` (spec §2.4). */
@@ -200,7 +200,7 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   // A landing of 100% or more says `full before reset` (spec §2.1).
   if (/~\d{3,}%/.test(text)) fail('projection', 'a landing of 100% or more')
   // No scenario holds an empty context, so 0% is only ever an unreported one.
-  if (/\b(context|ctx) 0%/.test(text)) fail('unknown', 'context 0% where it is unknown')
+  if (/\b(context|ctx) 0%/i.test(text)) fail('unknown', 'context 0% where it is unknown')
   if (NOTHING.test(text)) fail('empty', 'NaN, undefined or null drawn')
   // In the ascii tier a glyph-only Text, such as an icon's `↻ `, maps to nothing.
   if (!ascii) {

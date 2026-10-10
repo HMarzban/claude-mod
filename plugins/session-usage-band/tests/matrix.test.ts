@@ -120,11 +120,11 @@ test('projection: a landing of 100% or more says full before reset', () => {
   expect(failed(view([row(t('7d full before reset'), toggle())]), { scenario: 'sevenFullBeforeReset' })).not.toContain('projection')
 })
 test('unknown: context not reported never reads 0%', () => {
-  for (const said of ['context 0%', 'ctx 0%']) expect(failed(view([row(t(said), toggle())]), { scenario: 'warming' })).toContain('unknown')
+  for (const said of ['context 0%', 'ctx 0%', 'CONTEXT 0%']) expect(failed(view([row(t(said), toggle())]), { scenario: 'warming' })).toContain('unknown')
   expect(failed(view([row(t('context –'), toggle())]), { scenario: 'warming' })).not.toContain('unknown')
 })
 test('empty: no NaN, undefined, null or empty Text', () => {
-  for (const said of ['context NaN%', '↻ undefined', 'null left'])
+  for (const said of ['context NaN%', '↻ undefined', 'null left', '↻ UNDEFINED'])
     expect(failed(view([row(t(said), toggle())]))).toContain('empty')
   expect(failed(view([row(t('a'), svg({ width: 20, alt: '5h undefined' }), toggle())]), { surface: 'desktop' })).toContain('empty')
   expect(failed(view([row(t('a'), t(''), toggle())]))).toContain('empty')
