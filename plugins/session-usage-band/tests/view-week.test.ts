@@ -166,6 +166,11 @@ test('no history: the facts stay, and the empty text says so when open', async (
 test('a fresh session with no history: the facts stay', async ($, on) => {
   expectFactsWithoutCells(await drawCases($, on, { layout: 'week', scenario: 'emptyHistory', appearance: 'dark', ttl: '1h' }, [T160, D160]))
 })
+test('open with a body of one row, an amber limit takes it from the facts line', async ($, on) => {
+  const open = shown((await at($, on, 'gatewaySpend', { surface: 'terminal', cols: 80, maxRows: 6 })).open)
+  expect(open).toMatch(/! spend 92%, resets in 5h 00m/)
+  expect(open).not.toMatch(/SPEND/)
+})
 test('open: large day and hour cells, a summary per window, then the facts line', async ($, on) => {
   const { open } = await oneWithHistory($, on, D160)
   const t = shown(open)
