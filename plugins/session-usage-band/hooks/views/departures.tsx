@@ -65,9 +65,10 @@ const group = (kit: Kit, key: string, flaps: readonly RenderChildren[]): RenderE
   )
 }
 
-/** The cache's status: its board word, then the clock time it goes or went cold, when known. */
-const cacheStatus = (c: CacheReading): string => {
-  const clock = c.condition === 'cooling' ? undefined : (c.coldAtClock ?? c.coldSinceClock)
+/** The cache's status: its board word, then the clock time it goes cold,
+ *  or went cold unless `since` is false, when known. */
+const cacheStatus = (c: CacheReading, since = true): string => {
+  const clock = c.condition === 'cooling' ? undefined : (c.coldAtClock ?? (since ? c.coldSinceClock : undefined))
   return clock === undefined ? c.board : `${c.board} ${clock}`
 }
 
@@ -108,6 +109,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
     return {
       label: flapOf('label', 'CACHE'),
       status: flapOf('status', cacheStatus(c), cacheInk(c)),
+      statusShort: flapOf('status', cacheStatus(c, false), cacheInk(c)),
       left: c.boardLeft === '' ? null : flapOf('left', c.boardLeft, c.amber !== undefined ? 'amber' : 'text'),
       reWarm: c.condition === 'cooling' || c.condition === 'cold' ? flapOf('reWarm', `RE-WARM ${up(c.estimate)}`, c.amber !== undefined ? 'amber' : 'text') : null,
       five: read.fiveHour === undefined ? undefined : limitEntries(kit, flapOf, read.fiveHour),
@@ -122,14 +124,15 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   return [
     fitLine(kit, ORDER, lineRoom(kit), keeps => {
       // A filled flap has its ground for edges, so only plain draws a second look.
-      const { label, status, left, reWarm, five, seven, context, cost } = kit.palette.filled || keeps.has('brackets') ? bracketed() : bare()
+      const { label, status, statusShort, left, reWarm, five, seven, context, cost } = kit.palette.filled || keeps.has('brackets') ? bracketed() : bare()
       return line(
         kit,
         'line',
         [
           group(kit, 'cache', [
             label,
-            status,
+            // When it went cold gives way at the last calm step, so its price still fits.
+            keeps.has('calmFive') ? status : statusShort,
             // The minutes give way to the clock time alone; with no clock they
             // stay until the last calm step, so an amber reason still fits.
             // LAST CALL keeps its seconds.

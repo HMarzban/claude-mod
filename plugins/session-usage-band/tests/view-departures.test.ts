@@ -29,8 +29,8 @@ test('the last minute is LAST CALL, with the price and no "send"', LONG, async (
   expect(t).toMatch(/LAST CALL\s*30s\s*RE-WARM ~\$/)
   expect(t).not.toMatch(/send|keep warm/i)
 })
-test('cold, it has departed and names the re-warm', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'cold', T160, '5m')).shut)).toMatch(/DEPARTED(\s*\d{2}:\d{2})?\s*RE-WARM ~\$/)
+test('cold, it has departed at a clock time and names the re-warm', LONG, async ($, on) => {
+  expect(shown((await at($, on, 'cold', T160, '5m')).shut)).toMatch(/DEPARTED \d{2}:\d{2}\s*RE-WARM ~\$/)
 })
 test('working, it is boarding with no time', async ($, on) => {
   const t = shown((await at($, on, 'working')).shut)
@@ -181,6 +181,12 @@ for (const appearance of ['dark', 'plain'] as const)
       expect(shown(line)).toMatch(amber)
       expect(cellsOf(line as RenderChildren, TERMINAL)).toBeLessThanOrEqual(T40.cols - ROW_SLACK - 2)
     })
+for (const appearance of ['dark', 'plain'] as const)
+  test(`${appearance} at 40 columns, a cold cache lets the time it went cold go and keeps its price`, LONG, async ($, on) => {
+    const line = byKey((await at($, on, 'cold', T40, '5m', appearance)).shut, 'line', 'Box')
+    expect(shown(line)).toMatch(/^\[?CACHE\]?\[?DEPARTED\]?\[?RE-WARM ~\$\d+\.\d{2}\]?$/)
+    expect(cellsOf(line as RenderChildren, TERMINAL)).toBeLessThanOrEqual(T40.cols - ROW_SLACK - 2)
+  })
 /** With no UTC offset there is no clock time, so the minutes give way at the last calm step instead. */
 for (const [scenario, over, amber] of [
   ['limit80', { fiveHour: { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }, /! 5h 82%$/],

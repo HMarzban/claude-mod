@@ -77,8 +77,13 @@ test('cold is a price', () => {
   const c = readingsOf(snapOf({ cache: cacheAt(0), utcOffsetMin: 0 })).cache
   expect([c.text, c.textShort, c.reWarmText, c.board]).toEqual(['cache cold · re-warm ~$1.66', 'cold ~$1.66', 'next message ~$1.66', 'DEPARTED'])
   expect(c.alt).toBe('cache cold, re-warm about $1.66')
-  // A cold cache's time left is 0, so the snapshot doesn't say yet when it went cold.
+  // Recalled, or before a reply, the band doesn't know when it went cold.
   expect(c.coldSinceClock).toBeUndefined()
+})
+test('a measured cache that went cold says when, once the offset is known', () => {
+  const cold = { ...cacheAt(0), coldAt: 13 * HOUR + 28 * MIN }
+  expect(readingsOf(snapOf({ now: 14 * HOUR, cache: cold, utcOffsetMin: 0 })).cache.coldSinceClock).toBe(fmtClock(13 * HOUR + 28 * MIN, 0))
+  expect(readingsOf(snapOf({ now: 14 * HOUR, cache: cold })).cache.coldSinceClock).toBeUndefined()
 })
 test('an hour left is said in full, on the board and to a reader', () => {
   const c = readingsOf(snapOf({ cache: cacheAt(60 * MIN) })).cache

@@ -26,7 +26,7 @@ export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({
   surface: 'terminal', columns: 120, maxRows: 13, isWorking: false, expanded: false, palette: DARK, now: 0,
   cache: {
     requests: 1, msLeft: 52 * MIN, ttl: '1h', ttlPinned: true, window: 155_000, hitRatio: 0.96, misses: 0, reWarmUsd: 1.66,
-    savedUsd: 11.4, readShare: 0.05, fresh: true, recalled: false, idleMs: null, recovered: false, tokens: { sent: 18_000, back: 9_000, cached: 198_000 },
+    savedUsd: 11.4, readShare: 0.05, fresh: true, recalled: false, idleMs: null, coldAt: null, recovered: false, tokens: { sent: 18_000, back: 9_000, cached: 198_000 },
   },
   costUsd: 3.19, lastTurnUsd: 0.21, history: { costs: [], context: [], fiveHour: [] },
   context: { tokens: 76_000, window: 200_000, percent: 38, compactAt: 190_000, autoCompactOff: false },

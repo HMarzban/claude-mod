@@ -432,6 +432,7 @@ export const cacheView = (now: number, sessionCost: number | undefined, contextT
     reWarmUsd: recalled ? recalledPrice : reWarmUsd(sessionCost),
     recalled,
     idleMs: recalled && lastAt !== undefined ? now - lastAt : null,
+    coldAt: state.requests > 0 ? state.lastAt + TTL_MS[effectiveTtl()] : null,
     savedUsd: savedUsd(sessionCost),
     readShare: readShare(),
     fresh: state.knownFresh,

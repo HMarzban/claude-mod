@@ -105,8 +105,7 @@ export type CacheWords = Readonly<{
   reWarmText: string | undefined
   /** When it goes cold, `14:32`, while counting and the offset is known. */
   coldAtClock: string | undefined
-  /** When it went cold, `13:28`: undefined until the snapshot carries that
-   *  time, since a cold cache's time left is 0. */
+  /** When it went cold, `13:28`, once measured and the offset is known. */
   coldSinceClock: string | undefined
   /** What the cache saved, `~$11.40`, and its hit rate, `96%`, once measured. */
   savedText: string | undefined
@@ -247,7 +246,7 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     amber: f.mood === 'expiring' ? AMBER.cache(left, leftShort, f.estimate) : undefined,
     reWarmText: !f.known ? undefined : f.mood === 'cold' ? `next message ${f.estimate}` : `re-warm ${f.estimate} if it goes cold`,
     coldAtClock: counting && off !== undefined ? fmtClock(frame.now + f.coldInMs, off) : undefined,
-    coldSinceClock: undefined,
+    coldSinceClock: f.mood === 'cold' && c.coldAt !== null && off !== undefined ? fmtClock(c.coldAt, off) : undefined,
     savedText: f.measured && c.savedUsd !== null ? fmtEstimate(c.savedUsd) : undefined,
     hitText: f.hitFrac === undefined ? undefined : fmtPct(f.hitFrac),
     // Inference only ever moves an assumed hour to 5m, so an unpinned hour is the guess.
