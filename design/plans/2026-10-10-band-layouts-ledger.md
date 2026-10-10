@@ -45,6 +45,7 @@ What the plan's steps record, in the order they happen.
 | Task 10c (merged) | 356 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 12 | 354 pass, 0 fail, 26 files | `claude plugin test plugins/session-usage-band` |
 | Task 12 (merged) | 358 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
+| Task 13 | 420 pass, 0 fail, 32 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
@@ -61,6 +62,11 @@ Ruling: chips keeps its own buttons, footer-strip room and hint, and `frame()` d
 Pending maintainer: the ascii-tier check `snap.surface === 'terminal' && snap.glyphs === 'ascii'` is in both `band.tsx` and `views/chips.tsx`; one `asciiTier(snap)` beside `asciiText` in `glyphs.ts` (not Task 9a's file) would hold it.
 Pending maintainer: spec §4 file table (line 161) lists `cachePill` under `views/parts.tsx`, while the plan's Task 9a keeps it in `chips.tsx`; drop it from that row, or name Task 13's `layoutCachePill`.
 Pending maintainer: plan Task 13 Step 6's `layoutCachePill` passes `text` to `textBattery` unmapped, against the `textBattery` ruling above; on a terminal in the ascii tier `asciiTree` would then map after the cut. It takes no `snap`, so it needs the ascii check passed in (or `asciiTier(snap)` once it exists) and `ascii ? asciiText(text) : text` on the filled terminal path.
+Ruling: Task 13's `layoutCachePill` maps its text with `asciiText` before `textBattery` cuts it, when `read.frame.glyphs` is `'ascii'` on the filled path without Svg — this settles the pending line above with no new parameter and no `snap`, as the `textBattery` ruling asks; `parts.test` pins it on a direct call, since through `drawBand` every cache phrase maps one character to one — no fallback.
+Ruling: Task 13 holds the countdown rule once — `cacheFacts.coldInMs` is set while the cache counts down (expiring, or warm and Claude not working), and `cacheWords` reads it rather than re-deriving it; `hitText` is built from `hitFrac` with `words.ts`' `pct` — the facts feed the words, as spec §4.1 layers them — no fallback.
+Ruling: Task 13's `fmtLeftShort` and `fmtBoardLeft` are built on `format.ts`' own `secondsLeft` and `minutesLeft`, and `fmtLeft` becomes `` `${fmtLeftShort(ms)} left` `` — the same output at every input, which `phrases.test` pins — no fallback.
+Ruling: Task 13's `readings.test` drops the plan's `const MIN = 60_000`, because the file already imports `MIN` from `helpers.ts` and a second declaration would stop it loading; the test imports are merged at the top — no assertion changed — no fallback.
+Pending maintainer: `layoutCachePill` maps ascii on any filled surface without Svg, while chips and `band.tsx` map only when `surface === 'terminal'`; `RenderSurface` also has `mobile` and `vscode`, where a CJK locale would map the cache pill alone. The kit carries no `surface`, though spec §4.1 says it holds one; with `kit.surface` (Task 13 doesn't own `kit.tsx`) the guard would match chips'.
 
 ## Freezes
 - P1 freeze (Task 14):

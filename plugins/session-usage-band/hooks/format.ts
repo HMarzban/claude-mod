@@ -143,9 +143,18 @@ const minutesLeft = (ms: number): number => (ms < 600_000 ? Math.ceil(ms / 60_00
 /** The cache's last minute in words, where a `0:47` would read as a clock. */
 export const fmtSecondsLeft = (ms: number): string => `${secondsLeft(ms)}s left`
 
+/** The countdown alone, for a tile or a pill: `1h 00m`, `52m`, `10m`, `47s`. */
+export const fmtLeftShort = (ms: number): string =>
+  ms < 60_000 ? `${secondsLeft(ms)}s` : ms < 600_000 ? `${minutesLeft(ms)}m` : fmtCountdown(ms)
+
 /** A countdown in words for the new layouts: `1h 00m left`, `52m left`, `10m left`, `47s left`. */
-export const fmtLeft = (ms: number): string =>
-  ms < 60_000 ? fmtSecondsLeft(ms) : ms < 600_000 ? `${minutesLeft(ms)}m left` : `${fmtCountdown(ms)} left`
+export const fmtLeft = (ms: number): string => `${fmtLeftShort(ms)} left`
+
+/** The countdown on a departures board: `IN 1H 00 MIN`, `IN 52 MIN`, never `52M`. */
+export const fmtBoardLeft = (ms: number): string => {
+  const mins = minutesLeft(ms)
+  return mins >= 60 ? `IN ${Math.floor(mins / 60)}H ${String(mins % 60).padStart(2, '0')} MIN` : `IN ${mins} MIN`
+}
 
 const plural = (n: number, unit: string): string => `${n} ${unit}${n === 1 ? '' : 's'}`
 

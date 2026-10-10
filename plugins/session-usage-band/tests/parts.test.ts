@@ -3,9 +3,10 @@
 import { test, expect } from 'claude-code/testing'
 import { makeKit } from '../hooks/kit'
 import { DARK } from '../hooks/palette'
-import { accentOf, beforeLast, chartsIfRoom, fact, fitLine, grid, gridRoom, line, lineRoom, section, words, type Keeps } from '../hooks/views/parts'
+import { readingsOf } from '../hooks/reading'
+import { accentOf, beforeLast, chartsIfRoom, fact, fitLine, grid, gridRoom, layoutCachePill, line, lineRoom, section, words, type Keeps } from '../hooks/views/parts'
 import type { Amber } from '../hooks/words'
-import { byKey, fakeEl, shown, walk, type Node } from './helpers'
+import { byKey, cards, fakeEl, shown, walk, type Node } from './helpers'
 import { snapOf } from './matrix'
 
 const kit = (columns = 120) => makeKit(fakeEl, snapOf({ columns }))
@@ -80,4 +81,16 @@ test("a limit's accent is its window's", () => {
   expect(accentOf(kit(), { key: '5h' })).toBe(DARK.fiveAccent)
   expect(accentOf(kit(), { key: '7d' })).toBe(DARK.weekAccent)
   expect(accentOf(kit(), { key: 'other' })).toBe(DARK.meterFill)
+})
+test("the layouts' cache pill speaks the readings' words, with no hover", () => {
+  const snap = snapOf({ cache: { ...snapOf().cache, msLeft: 47_000 } })
+  const k = makeKit(fakeEl, snap)
+  const long = layoutCachePill(k, readingsOf(snap), false)
+  expect(shown(long)).toMatch(/! 47s left · re-warm ~\$1\.66/)
+  expect(shown(layoutCachePill(k, readingsOf(snap), true))).toMatch(/! 47s\s*$/)
+  expect(cards(long)).toHaveLength(0)
+})
+test("in the ascii tier the cache pill's words are mapped before the battery's cut", () => {
+  const snap = snapOf({ cache: { ...snapOf().cache, msLeft: -60_000 }, glyphs: 'ascii' })
+  expect(shown(layoutCachePill(makeKit(fakeEl, snap), readingsOf(snap), false))).toBe(' cache cold - re-warm ~$1.66 ')
 })
