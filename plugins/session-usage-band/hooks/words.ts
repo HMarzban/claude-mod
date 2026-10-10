@@ -174,6 +174,8 @@ export type LimitWords = Readonly<{
   /** Where the window lands at its reset, `~10%`; none at 100% or more,
    *  where `pace` says `full before reset`. */
   projectedText: string | undefined
+  /** The landing for a reader, `5h limit about 10 percent at its reset`, where `projectedText` is set. */
+  projectedAlt: string | undefined
   /** A measured fill, `~40m`, and when, `~14:20` (the offset known). */
   fullIn: string | undefined
   fullAtClock: string | undefined
@@ -307,7 +309,9 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const live = !f.passed
   const projected = live ? f.projectedPct : undefined
   const fills = projected !== undefined && fillsBeforeReset(projected)
-  const projectedText = projected === undefined || fills ? undefined : `~${Math.round(projected)}%`
+  const lands = projected !== undefined && !fills
+  const projectedText = lands ? `~${Math.round(projected)}%` : undefined
+  const landing = lands ? `about ${Math.round(projected)} percent at its reset` : undefined
   const etaMs = live ? f.etaMs : null
   const fullIn = etaMs !== null ? fmtEta(etaMs) : undefined
   const fullAtClock = etaMs !== null && off !== undefined ? `~${fmtClock(frame.now + etaMs, off)}` : undefined
@@ -326,6 +330,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     resetClock,
     resetAtGlyph: resetClock === undefined ? resetGlyph : `${ascii ? 'resets' : '↻'} ${resetClock}`,
     projectedText,
+    projectedAlt: landing === undefined ? undefined : altOf(`${f.name} limit`, landing),
     fullIn,
     fullAtClock,
     amber: f.tone !== 'amber' ? undefined : fullIn !== undefined ? AMBER.limitPace(f.name, fullIn) : AMBER.limit(f.name, f.percentUsed),
@@ -346,9 +351,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
         ? `full in ${fmtEtaSpoken(etaMs)}`
         : fills
           ? 'full before its reset'
-          : projected !== undefined
-            ? `about ${Math.round(projected)} percent at its reset`
-            : undefined,
+          : landing,
     ),
   }
 }

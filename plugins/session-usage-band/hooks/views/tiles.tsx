@@ -189,7 +189,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
         // Amber, a limit still says when it resets.
         tile('now', l.passed ? 'reset' : l.value, limitLabel(l), barOf(kit, l.alt, l.frac, accentOf(kit, l), l.amber), l.amber, l.resetGlyph === undefined ? [] : [[` ${l.resetGlyph}`, 'label']]),
         l.projectedText !== undefined
-          ? tile('then', l.projectedText, `${l.name} at its reset`, l.projectedFrac === undefined ? null : barOf(kit, `${l.name} at its reset`, l.projectedFrac, accentOf(kit, l), undefined, true))
+          ? tile('then', l.projectedText, `${l.name} at its reset`, l.projectedAlt === undefined || l.projectedFrac === undefined ? null : barOf(kit, l.projectedAlt, l.projectedFrac, accentOf(kit, l), undefined, true))
           : // A landing past the top has no figure: its pace says it fills first,
             // unless the reason is a measured fill, which says it.
             tile('then', l.fullIn === undefined && l.pace !== '' ? l.pace : undefined, `${l.name} at this pace`),
