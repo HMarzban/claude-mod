@@ -4,13 +4,18 @@
 import { test, expect } from 'claude-code/testing'
 import { GOLDEN, GOLDEN_TREES } from './chips'
 import { canon, treeHash } from './hash'
-import { GOLDEN_APPEARANCES, GOLDEN_MOUNTS, drawCases, goldenKey, type ScenarioName } from '../matrix'
+import { GOLDEN_APPEARANCES, GOLDEN_MOUNTS, caseKey, drawCases, goldenKey, type ScenarioName } from '../matrix'
 import { LONG } from '../helpers'
+
+/** Every case golden expects from one setup: a case drawCases skips fails the
+ *  test instead of passing unasserted. */
+const EXPECTED_CASES = GOLDEN_MOUNTS.flatMap(m => [caseKey(m, 'shut'), caseKey(m, 'open')]).sort()
 
 export const goldenSuite = (scenarios: readonly ScenarioName[]): void => {
   for (const scenario of scenarios) for (const appearance of GOLDEN_APPEARANCES) {
     test(`chips draws as before: ${scenario}, ${appearance}`, LONG, async ($, on) => {
       const trees = await drawCases($, on, { scenario, appearance }, GOLDEN_MOUNTS)
+      expect(Object.keys(trees).sort()).toEqual(EXPECTED_CASES)
       for (const [drawn, tree] of Object.entries(trees)) {
         const key = goldenKey(scenario, appearance, drawn)
         expect(`${key} ${treeHash(tree)}`).toBe(`${key} ${GOLDEN[key]}`)

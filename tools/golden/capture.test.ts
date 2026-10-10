@@ -1,4 +1,4 @@
-// tools/golden/capture.test.ts — copied into the plugin's tests/ by
+// tools/golden/capture.test.ts — copied into a scratch copy of the plugin by
 // capture.sh for one run; prints GOLDEN, TREE and PERF lines, never asserts.
 import { test } from 'claude-code/testing'
 import { GOLDEN_APPEARANCES, GOLDEN_MOUNTS, SCENARIO_NAMES, drawCases, goldenKey } from './matrix'
@@ -42,6 +42,8 @@ test('perf baseline', LONG, async ($, on) => {
       times.sort((x, y) => x - y)
       console.log(`PERF chips ${surface} ${open ? 'open' : 'shut'} median=${times[100]?.toFixed(3)}ms p95=${times[190]?.toFixed(3)}ms`)
     }
+    // Shut it again: being open is stored, so the next mount would start open.
+    await ui.press({ key: 'more' })
     await ui.unmount()
   }
 })

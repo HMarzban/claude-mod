@@ -9,10 +9,17 @@ if ! git -C "$ROOT" diff --quiet 40943d3 -- plugins/session-usage-band/hooks; th
   exit 1
 fi
 COMMIT="$(git -C "$ROOT" rev-parse HEAD)"
-trap 'rm -f "$PLUGIN/tests/zz-golden-capture.test.ts"' EXIT
-cp "$HERE/capture.test.ts" "$PLUGIN/tests/zz-golden-capture.test.ts"
+# Run in a scratch copy holding only what the capture imports, so it never
+# depends on the golden suite or the chips.ts it is about to replace.
+SCRATCH="$(mktemp -d)"
+trap 'rm -rf "$SCRATCH"' EXIT
+find "$PLUGIN" -mindepth 1 -maxdepth 1 ! -name tests -exec cp -R {} "$SCRATCH/" \;
+mkdir -p "$SCRATCH/tests/golden"
+cp "$PLUGIN"/tests/{helpers.ts,matrix.ts,globals.d.ts} "$SCRATCH/tests/"
+cp "$PLUGIN/tests/golden/hash.ts" "$SCRATCH/tests/golden/"
+cp "$HERE/capture.test.ts" "$SCRATCH/tests/golden-capture.test.ts"
 START_S=$(date +%s)
-claude plugin test "$PLUGIN" > "$OUT/capture.log" 2>&1 || { tail -30 "$OUT/capture.log"; exit 1; }
+claude plugin test "$SCRATCH" > "$OUT/capture.log" 2>&1 || { tail -30 "$OUT/capture.log"; exit 1; }
 echo "capture took $(( $(date +%s) - START_S ))s"
 python3 - "$OUT/capture.log" "$PLUGIN/tests/golden/chips.ts" "$COMMIT" <<'EOF'
 import json, re, sys
