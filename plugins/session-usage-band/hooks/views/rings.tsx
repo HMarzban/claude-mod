@@ -71,8 +71,8 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const x = read.context
   // Built once: none of these changes with the squeeze.
   const toggle = toggleButton(kit, read, act)
-  // Long, the cache's label says what its value doesn't: cold, the price; else the condition.
-  const cacheLong = c.condition === 'cold' ? `re-warm ${c.estimate}` : c.value === c.condition ? 'cache' : `cache ${c.condition}`
+  // Long, the cache's label names its condition; cold, the price to re-warm it.
+  const cacheLong = c.condition === 'cold' ? `re-warm ${c.estimate}` : `cache ${c.condition}`
   const cache: Figure = {
     key: 'cache',
     tone: c.tone,
