@@ -198,6 +198,7 @@ for (const appearance of ['dark', 'plain'] as const)
     ['nearCompaction', '1h', /! ctx \d+%$/],
     ['fiveHourAhead', '1h', /! 5h ~1h$/],
     ['lastMinute', '5m', /LAST CALL\s*30s$/],
+    ['coldLimit80', '5m', /! 5h 82%$/],
   ] as const)
     test(`${appearance} at 40 columns, ${scenario} keeps its amber whole within the line's room`, LONG, async ($, on) => {
       const line = byKey((await at($, on, scenario, T40, ttl, appearance)).shut, 'line', 'Box')
