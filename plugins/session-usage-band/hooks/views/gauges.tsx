@@ -10,7 +10,7 @@ import type { ContextReading, LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber, type Say, type SpendSplit } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberFirst, amberSay, beforeLast, chartsIfRoom, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
+import { accentOf, amberFirst, amberSay, beforeLast, chartsIfRoom, empty, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
 /** What gives way as each row narrows, first to last; `reWarm` is the
@@ -156,7 +156,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const room = gridRoom(kit, bodyRows)
   const bar = (key: string, label: string, frac: number, accent: string, more: Partial<Pick<MeterOptions, 'tone' | 'reads' | 'tick' | 'projectTo'>> = {}) =>
     meter(kit, { key, label, frac, tone: 'calm', accent, size: CELL_BAR, ...more })
-  const none = (text: string) => words(kit, 'none', [[text, 'label']])
+  const none = (text: string) => words(kit, 'none', empty(text))
   // What needs you leads, so a panel short of rows keeps it.
   const limits = amberFirst(read.limits)
   return grid(kit, [

@@ -6,11 +6,13 @@ import { test, expect } from 'claude-code/testing'
 import type { RenderElement } from 'claude-code'
 import { drawBand } from '../hooks/band'
 import { makeKit } from '../hooks/kit'
-import { PLAIN } from '../hooks/palette'
+import { DARK, PLAIN } from '../hooks/palette'
+import { readingsOf } from '../hooks/reading'
 import { LAYOUT_NAMES } from '../hooks/snapshot'
 import { VIEWS } from '../hooks/views/index'
 import { rowsOf, type View } from '../hooks/views/view'
-import { fakeEl, shown } from './helpers'
+import { EMPTY } from '../hooks/words'
+import { fakeEl, shown, walk } from './helpers'
 import { NO_ACT, snapOf } from './matrix'
 
 const marker: View = { name: 'ledger', rows: { desktop: 1, terminal: 1 }, draw: () => ({ type: 'Text', props: {}, children: ['LEDGER'] }) as unknown as RenderElement }
@@ -39,4 +41,26 @@ test('below 40 columns every layout draws chips', () => {
 })
 test('a view that throws falls back to chips', () => {
   expect(shown(drawBand(fakeEl, snapOf({ layout: 'ledger' }), NO_ACT, { ...VIEWS, ledger: boom }))).toMatch(/\$3\.19/)
+})
+test('every new view draws its empty states in a label\'s ink', () => {
+  // Departures writes them on its board, upper case, in the board's ink.
+  const layouts = LAYOUT_NAMES.filter(name => name !== 'chips' && name !== 'departures')
+  const phrases = Object.values(EMPTY)
+  const inks: string[] = []
+  for (const layout of layouts)
+    for (const surface of ['terminal', 'desktop'] as const)
+      for (const expanded of [false, true]) {
+        const snap = snapOf({
+          layout, surface, expanded, columns: 160, maxRows: 40,
+          lastTurnUsd: null,
+          context: { tokens: undefined, window: 200_000, percent: undefined, compactAt: undefined, autoCompactOff: false },
+          fiveHour: undefined, sevenDay: undefined,
+        })
+        walk(VIEWS[layout].draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT), n => {
+          const text = (n.children ?? []).every(k => typeof k === 'string') ? (n.children ?? []).join('') : ''
+          if (n.type === 'Text' && phrases.some(e => text.includes(e))) inks.push(`${layout} ${surface}${expanded ? ' open' : ''} "${text}" ${String(n.props?.color === DARK.label ? 'label' : n.props?.color)}`)
+        })
+      }
+  expect(inks.length).toBeGreaterThan(0)
+  expect(inks.filter(i => !i.endsWith(' label'))).toEqual([])
 })

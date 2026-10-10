@@ -211,6 +211,9 @@ export const words = (kit: Kit, key: string, say: Say, bold = false): RenderElem
   )
 }
 
+/** An empty state's words (`EMPTY`), drawn in a label's ink in every view. */
+export const empty = (text: string): Say => [[text, 'label']]
+
 /** How a view writes a limit's sentence: led while calm by its `text` or its
  *  `say`, the reset phrase it says, and what joins the phrases. */
 export type SentenceStyle = Readonly<{ lead: 'text' | 'say'; reset: 'resetWords' | 'resetGlyph'; sep: ', ' | ' · ' }>

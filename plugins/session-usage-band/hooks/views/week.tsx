@@ -9,7 +9,7 @@ import type { DayCell, HourCell, LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Role, type Say } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberWords, beforeLast, chartsIfRoom, fitLine, grid, layoutCachePill, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
+import { accentOf, amberWords, beforeLast, chartsIfRoom, empty, fitLine, grid, layoutCachePill, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the rows narrow, first to last. Amber never does. The
@@ -141,9 +141,9 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   // Built once: none of these changes with the squeeze.
   const toggle = toggleButton(kit, read, act)
   const cost = words(kit, 'cost', [[read.spend.totalText, 'value']])
-  const empty = words(kit, 'empty', [[EMPTY.history, 'label']])
+  const noHistory = words(kit, 'empty', empty(EMPTY.history))
   // With no 5h or 7d, row 1 says so; other limits are drawn only open (spec §2.7).
-  const noWindows = words(kit, 'none', [[read.limits.length === 0 ? 'limits ' : '5h · 7d ', 'label'], [EMPTY.limits, 'value']])
+  const noWindows = words(kit, 'none', [[read.limits.length === 0 ? 'limits ' : '5h · 7d ', 'label'], ...empty(EMPTY.limits)])
   const pieces = windows.map(w => windowPiece(kit, read, w))
   const seven = pieces.find(p => p.key === '7d')
   // On the desktop the cells carry their initials, and the ascii tier names each cell.
@@ -159,7 +159,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
           kit,
           'r2',
           [
-            seven?.showsCells(keeps) ? initials : wk.empty && keeps.has('emptyText') ? empty : null,
+            seven?.showsCells(keeps) ? initials : wk.empty && keeps.has('emptyText') ? noHistory : null,
             pill(!beforeLast(keeps)),
             keeps.has('cost') ? cost : null,
             // Week shows no context, so its trigger gets an amber piece of its own.
@@ -187,13 +187,14 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const x = read.context
   const windows = windowsOf(read)
   // The other three sections, a phrase each.
+  const context: Say = x.known ? [[`${x.valueText} ${x.towardText}`, 'value']] : empty(EMPTY.context)
   const facts = words(kit, 'facts', [
     ['CACHE ', 'label'],
     [c.value, 'value'],
     ['  SPEND ', 'label'],
     [`${read.spend.totalText} this session`, 'value'],
     ['  CONTEXT ', 'label'],
-    [x.known ? `${x.valueText} ${x.towardText}` : EMPTY.context, 'value'],
+    ...context,
   ])
   if (bodyRows < 2) return [facts]
   const charts = windows
@@ -215,8 +216,8 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const rows = [
     ...sentences.filter(s => s.limit.amber !== undefined).map(s => s.row),
     ...sentences.filter(s => s.limit.amber === undefined).map(s => s.row),
-    read.limits.length === 0 ? words(kit, 'none', [[EMPTY.limits, 'value']]) : null,
-    read.week.empty ? words(kit, 'empty', [[EMPTY.history, 'label']]) : null,
+    read.limits.length === 0 ? words(kit, 'none', empty(EMPTY.limits)) : null,
+    read.week.empty ? words(kit, 'empty', empty(EMPTY.history)) : null,
   ]
   // LIMITS takes the rows its title and the facts line leave; at two rows it
   // keeps one under its title, and the facts line goes.

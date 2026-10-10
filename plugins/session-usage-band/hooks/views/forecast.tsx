@@ -10,7 +10,7 @@ import type { CacheReading, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber, type CacheCondition, type Say } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberWords, fitLine, line, lineRoom, separatedBy, words, type Keeps } from './parts'
+import { accentOf, amberWords, empty, fitLine, line, lineRoom, separatedBy, words, type Keeps } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last; `nextChange` is the narrow-width ruling's. Amber never does. */
@@ -195,7 +195,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const outlook = (
     key: string,
     name: string,
-    now: string,
+    now: string | Say,
     o: Readonly<{ tone?: Tone; bar?: RenderChildren; reason?: string; outcome?: ReadonlyArray<string | undefined> }> = {},
   ): Outlook => {
     const amber = o.tone === 'amber'
@@ -211,7 +211,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
             {words(kit, 'name', [[name, 'label']], true)}
           </Box>
           <Box key="now" width={NOW_COLS} flexShrink={0}>
-            {words(kit, 'now', [[now, amber ? 'amber' : 'value']])}
+            {words(kit, 'now', typeof now === 'string' ? [[now, amber ? 'amber' : 'value']] : now)}
           </Box>
           {barred ? (
             <Box key="bar" width={OUTLOOK.cells} flexShrink={0}>
@@ -258,9 +258,9 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
                 ? [`compacts in ${x.roomText}, at ${x.compactsAtText}`, `${x.inContextText} in context`]
                 : [`${x.inContextText} in context, compacts at ${x.compactsAtText}`],
         })
-      : outlook('context', 'Context', EMPTY.context),
+      : outlook('context', 'Context', empty(EMPTY.context)),
     ...read.limits.filter(l => l.key !== 'other').map(limit),
-    ...(read.limits.length === 0 ? [outlook('limits', 'Limits', EMPTY.limits)] : []),
+    ...(read.limits.length === 0 ? [outlook('limits', 'Limits', empty(EMPTY.limits))] : []),
     outlook('spend', 'Spend', s.totalText, { outcome: [s.lastText === undefined ? undefined : `last ${s.lastText}`, `${s.tokensText} tokens: ${s.split.map(part => `${part.text} ${part.label}`).join(', ')}`] }),
     ...read.limits.filter(l => l.key === 'other').map(limit),
   ]
