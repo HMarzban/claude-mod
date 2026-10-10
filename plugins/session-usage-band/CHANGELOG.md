@@ -35,6 +35,8 @@ version may change how the band reads.
   counting down, at the re-caching price Claude Code names and for as long
   as its last cache write was made for, and the spend and token breakdown
   start from what the transcript records, not $0.00.
+- A reset countdown no longer stands a minute stale while the cache is
+  cold, and a calm band repaints once a minute, not twice.
 - Inside, not on screen: a turn that ends outside the main conversation
   drops any start cost it noted, so a subagent's turns can't build up.
 
