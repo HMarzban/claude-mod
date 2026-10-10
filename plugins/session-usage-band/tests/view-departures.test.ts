@@ -87,6 +87,20 @@ for (const [scenario, ttl] of [['calm', '1h'], ['cold', '5m'], ['lastMinute', '5
   test(`open, ${scenario} at ${ttl} says no duration in short form`, LONG, async ($, on) => {
     expect(shown(byKey((await at($, on, scenario, T160, ttl)).open, 'body', 'Box'))).not.toMatch(SHORT_DURATION)
   })
+/** Each board row's ITEM under the header: the text of every fixed ITEM cell after the first. */
+const boardItems = (open: unknown): string[] => {
+  const items: string[] = []
+  walk(open, (n: Node) => {
+    if (n.props?.key === 'item' && typeof n.props.width === 'number') items.push(shown(n))
+  })
+  return items.slice(1)
+}
+test('open short of rows, the board keeps CACHE first, then the amber other limit', async ($, on) => {
+  // 8 rows leave the board two under its header; 6 leave one, which the amber limit takes.
+  const mounts = [8, 6].map((maxRows): Mount => ({ surface: 'terminal', cols: 80, maxRows }))
+  const trees = await drawCases($, on, { layout: 'departures', scenario: 'gatewaySpend', appearance: 'dark', ttl: '1h' }, mounts)
+  expect(mounts.map(m => boardItems(trees[caseKey(m, 'open')]))).toEqual([['CACHE', 'SPEND'], ['SPEND']])
+})
 test('open, the workspace heads the board on a flap', async ($, on) => {
   expect(shown((await at($, on, 'calm')).open)).toMatch(/claude-mod, branch main, clean/)
 })
