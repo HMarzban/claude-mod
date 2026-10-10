@@ -76,6 +76,7 @@ What the plan's steps record, in the order they happen.
 | Task 16 (second review) | 590 pass, 0 fail, 39 files | `claude plugin test plugins/session-usage-band` |
 | Task 18, gauges (bd077f3, 6303216) | 643 pass, 0 fail, 40 files | `claude plugin test plugins/session-usage-band` |
 | Task 18 (second review, 85b8123) | 645 pass, 0 fail, 40 files | `claude plugin test plugins/session-usage-band` |
+| the gauges layout (Task 18) (merged) | 650 pass, 0 fail, 40 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
