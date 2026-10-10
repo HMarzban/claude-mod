@@ -56,6 +56,7 @@ What the plan's steps record, in the order they happen.
 | Task 14 (P1, `TZ=UTC`) | 456 pass, 0 fail, 35 files | `TZ=UTC claude plugin test plugins/session-usage-band` |
 | Task 14 (P1, `TZ=Asia/Tehran`) | 456 pass, 0 fail, 35 files | `TZ=Asia/Tehran claude plugin test plugins/session-usage-band` |
 | P1 review | 468 pass, 0 fail, 35 files | `claude plugin test plugins/session-usage-band` |
+| Task 14b (second review) | 383 pass, 0 fail, 28 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
@@ -103,6 +104,14 @@ Ruling (P1 review): chips' cache and context cards read the readings' `rebuildsT
 Ruling (P1 review): `isDrawn` lives in `layout.ts` and serves `cellsOf`, `parts.tsx` and the matrix's `heightOf`, so `cellsOf` no longer counts a gap for a `false` child; `helpers.ts`' `widthOf` keeps its own filter, as its comment says it measures apart from the hooks on purpose; `matrix.ts` takes `TTL_MS` and `Ttl` from `cache.ts` and `DEFAULT_MAX_ROWS` from `helpers.ts` — no fallback.
 Ruling (P1 review): the command's list stays built from `LAYOUT_NAMES`, and `views/index.ts` says so — `VIEWS` is typed by `LayoutName`, so the two hold the same names, and `register.tsx` reading `VIEWS` would reach past the snapshot into the views — no fallback; spec §4.1's "The list reply comes from it" is left for the maintainer.
 Ruling (P1 review): `frame.test` pins `toggleButton`'s literal props (key `more`, `▿` plain and dim on the terminal, `▵` secondary on the desktop, `onPress` the toggle), and the bad-stored-value tests compare the drawn band with chips as the command chooses it, while the hidden-band test keeps `$2.41`, which checks only that the band draws — no fallback.
+Ruling: Task 14b holds a resume in either order against session.start — the 2.1.296 launch loader races the SessionStart hooks with session.start, so `band.resume` outlives the reset and session.start applies it again for its own session id — no fallback.
+Ruling: Task 14b keys a resume on `e.session_id || $.session.id()` — during an in-process /resume the binary runs the SessionStart hooks (`H7`) before it switches the session (`A_`), so `$.session.id()` still names the session left, while `t7r` stamps the resumed id — no fallback.
+Ruling: Task 14b exempts `band.resume` from "session.start must reset everything" — in the kit a resume said after the last test's load and one said before this load look the same, so no claim flag can drop one and keep the other; production loads once per module, and the tests stay independent of order — exemption recorded in the plan, no fallback.
+Ruling: Task 14b takes the TTL from the transcript's last main-loop `usage.cache_creation` split, known only until the band's first reply — `prompt_cache_likely_expired` is also set after a compaction, so it never sets the TTL, and the next request's TTL follows the config in force — no fallback.
+Ruling: Task 14b reads a resumed spend with `grep -b -F` for cost records, then `tail -c +N` from the session's own last record (else the last well-formed one) — a 67 MB transcript held its last record 1.4 MB from the end — fallbacks: grep exit 1 seeds nothing, grep missing reads the file whole up to `READ_LIMIT`, truncated grep output gives up, a failed or truncated tail seeds the record alone.
+Ruling: Task 14b prices each reply after the record at its model's rate in that record, writes at 1.25× — that is how the record's own total counts them — the `ephemeral_5m`/`ephemeral_1h` split not used.
+Ruling: Task 14b shows `max(ledger, transcript total + ledger − costBase)` once the first turn baselines, `max(ledger, transcript total)` before — the host may restore the ledger after the SessionStart hooks start (`Jhe` after `H7`), so the ledger at the read is no baseline — no fallback.
+Ruling: Task 14b reads a resume's transcript end once, shared with the recall — two cases still read it twice (a load that recalled before the resume was said, and a no-idle-time SessionStart said before the load), since sharing them would hold the 1 MiB end for the session's life — not shared.
 
 ## Freezes
 - P1 freeze (Task 14), at dc28d40: these interfaces are frozen for P2. Gates green: `claude plugin validate .` and `claude plugin validate plugins/session-usage-band` pass, the suite passes in both zones (456 pass, 0 fail, 35 files), and `tsc` reports no errors.
