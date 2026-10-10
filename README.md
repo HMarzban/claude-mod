@@ -122,11 +122,11 @@ split-flap board or a forecast.
 
 In every layout a reading turns amber when it needs you: the cache's last
 minute, context near auto-compaction, a limit at 80% or a 5-hour pace that
-would run out before the reset. Nothing is ever red. In chips, hover any
-chip for a one-line explanation.
+would run out before the reset. Nothing is ever red. On the desktop, hover
+any chip in chips for a one-line explanation.
 
-Resume a session (`claude --resume`, `/resume`, or a past session opened in
-the desktop app) and the band doesn't read it as a new one. The countdown
+Resume or fork a session (`claude --resume`, `/resume`, or a past session
+opened in the desktop app) and the band doesn't read it as a new one. The countdown
 runs from how long Claude Code says the session has been idle, the cache
 reads cold when Claude Code says it has likely expired, and the re-warm
 price is Claude Code's own estimate where it gives one. The cost picks up

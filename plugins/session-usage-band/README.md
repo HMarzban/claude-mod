@@ -21,7 +21,7 @@ something off? [Open an issue](https://github.com/HMarzban/claude-mod/issues/new
 
 ## Reading it
 
-This section reads chips, the default layout; the others are under
+This section describes chips, the default layout; the others are under
 [Layouts](#layouts).
 
 ![The chip row, labelled: the cache countdown and what a re-warm will cost, the session cost, context toward auto-compaction, the 5-hour limit with its pace, the weekly limit and its reset, and the toggle that opens the cards](https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-anatomy.png)

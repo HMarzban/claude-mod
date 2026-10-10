@@ -70,7 +70,7 @@ Run `/reload-plugins` in your session afterwards.
 | `types/index.d.ts` | The plugin's state contract. |
 | `tests/` | Tests, one file per area, with shared helpers in `helpers.ts`: `setup()` starts a test from a fresh engine, `mountBand()` draws the band, `byKey()` finds a node. |
 | `tests/cases.ts`, `tests/matrix.ts` | The states every layout is drawn in and `drawCases`, which draws them; `snapOf` for pure tests, the invariant checks, and `viewSuite`, which every layout's test file runs. |
-| `tools/golden/capture.sh`, `tests/golden/` | Golden: chips' trees, captured from the band before the layouts work with the 0.11.13 hover fix, which `golden-a` and `golden-b` hold chips to. |
+| `tools/golden/capture.sh`, `tests/golden/` | Golden: chips' trees, captured from the band before the layouts work, with the 0.11.13 hover fix, which `golden-a` and `golden-b` hold chips to. |
 | `tools/test-only.sh` | Runs only the tests whose names match the globs given, against a scratch copy of the plugin. |
 | `tools/views-gate.sh` | The views gate, run in CI: fails when a layout's view formats or reads a raw fact. |
 
