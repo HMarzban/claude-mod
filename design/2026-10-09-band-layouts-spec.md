@@ -188,6 +188,7 @@ type View = Readonly<{
 | `/usage-band layout` | `Usage band layout: chips. Choose one: chips, gauges, ledger, rings, pulse, tiles, week, departures, forecast.` |
 | `/usage-band layout pulse` | `Usage band layout: pulse. /usage-band layout chips goes back.` For chips itself: `Usage band layout: chips.` |
 | An unknown name | `Unknown layout "<input, clipped to 20>". Choose one: …`. Nothing changes. |
+| A name the store can't save | The reply as above, then `It couldn't be saved, so it lasts until Claude's next reply.` |
 | Any other word | `Usage: /usage-band [more \| less \| show \| hide] · /usage-band layout <name>`. The bracket is unchanged, so the existing test holds. |
 
 - **Matching:** case and surrounding spaces are ignored.

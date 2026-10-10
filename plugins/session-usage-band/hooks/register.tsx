@@ -433,6 +433,8 @@ const LAYOUT_LIST = `Choose one: ${LAYOUT_NAMES.join(', ')}.`
 /** `layout`, then what follows it, if anything. */
 const LAYOUT_ARG = /^\s*layout(?:\s+(.*))?$/i
 
+/** What a layout reply adds when the store couldn't keep it. */
+const UNSAVED = "It couldn't be saved, so it lasts until Claude's next reply."
 /** The reply naming the layout the band draws in. */
 const layoutReply = (name: LayoutName): string => `Usage band layout: ${name}.`
 
@@ -443,11 +445,15 @@ const chooseLayout = async ($: EngineInterface, arg: string): Promise<string> =>
   if (name === undefined) return `Unknown layout "${clipMiddle(arg.trim(), 20)}". ${LAYOUT_LIST}`
   band.layout = name
   // Remembered for the next session. A store that fails leaves this one
-  // switched until the next turn reads the store back.
-  await $.store.set(LAYOUT_KEY, name).catch(() => undefined)
+  // switched until the next turn reads the store back, and the reply says so.
+  const saved = await $.store.set(LAYOUT_KEY, name).then(
+    () => true,
+    () => false,
+  )
   await update($, isHidden, () => false)
   $.ui.invalidate('ui.render')
-  return name === DEFAULT_LAYOUT ? layoutReply(name) : `${layoutReply(name)} /usage-band layout ${DEFAULT_LAYOUT} goes back.`
+  const reply = name === DEFAULT_LAYOUT ? layoutReply(name) : `${layoutReply(name)} /usage-band layout ${DEFAULT_LAYOUT} goes back.`
+  return saved ? reply : `${reply} ${UNSAVED}`
 }
 
 export const register: Register = on => {
