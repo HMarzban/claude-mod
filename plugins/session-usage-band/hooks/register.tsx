@@ -95,6 +95,11 @@ const REPLY = {
  *  process, and the TTL of its last cache write. */
 type TranscriptFacts = Readonly<{ spend: Spend | undefined; ttl: Ttl | undefined }>
 
+/** What the band recalls of a conversation's last reply, before its own:
+ *  when it was, the base rate per token on its model, and the model it was
+ *  billed under, where its transcript names one. */
+type RecalledReply = Readonly<{ lastAt: number | undefined; rate: number | null; billed: string | undefined }>
+
 /** A conversation the engine said it resumed: its session, what the engine
  *  said of its cache, where its transcript is, and once read, what that shows. */
 type Resume = Readonly<{
@@ -210,32 +215,38 @@ const spendBefore = async ($: EngineInterface, path: string, sessionId: string):
 /** Recalls when `sessionId` last had a reply, and what a token costs on
  *  its model: the band's own memory first; for a session from before the
  *  band, its transcript's last reply and cost record, from the end
- *  `readEnd` reads. Recalled once per load or resume, and only those two
- *  facts kept. Never throws: unknown stays unknown. */
+ *  `readEnd` reads. Recalled once per load or resume, and only those facts
+ *  kept; the caller notes them. Never throws: unknown stays unknown. */
 const recallLastReply = async (
   $: EngineInterface,
   sessionId: string,
   readEnd: () => Promise<string | undefined>,
-): Promise<void> => {
+): Promise<RecalledReply | undefined> => {
   try {
     const model = modelName(await $.session.model())
     const rates = asRates(await $.store.get(RATES_KEY))
     let lastAt = asSessions(await $.store.get(SESSIONS_KEY))[sessionId]?.lastAt
     let rate = rates[model] ?? null
+    let billed: string | undefined
     if (lastAt === undefined || rate === null) {
       const transcript = await readEnd()
       if (transcript !== undefined) {
         lastAt ??= lastReplyAt(transcript)
         // /model may name an alias; the last reply names the model it was billed under.
-        const billed = lastReplyModel(transcript)
-        if (billed !== undefined) noteBilledModel(billed)
+        billed = lastReplyModel(transcript)
         rate ??= billed === undefined ? rateFromTranscript(transcript, model) : (rates[billed] ?? rateFromTranscript(transcript, billed))
       }
     }
-    if (lastAt !== undefined) noteRecall(lastAt, rate)
+    return { lastAt, rate, billed }
   } catch {
-    // nothing to recall
+    return undefined // nothing to recall
   }
+}
+
+/** What the band recalls of the last reply, noted in the cache model. */
+const noteRecalled = (recalled: RecalledReply | undefined): void => {
+  if (recalled?.billed !== undefined) noteBilledModel(recalled.billed)
+  if (recalled?.lastAt !== undefined) noteRecall(recalled.lastAt, recalled.rate)
 }
 
 /** What a resumed conversation's transcript shows, noted in the cache model. */
@@ -254,18 +265,21 @@ const applyResume = (resume: Resume): void => {
 /** Reads what a resumed conversation's transcript shows, keeps it with the
  *  resume and redraws; where the engine gave no idle time, recalls the last
  *  reply off the same read of its end. Callers don't wait on it, and it
- *  never throws: a read that ends after the conversation ended is dropped,
- *  and failing, the ledger and the TTL stand. */
+ *  never throws: a read or recall that ends after the conversation ended is
+ *  dropped, and failing, the ledger and the TTL stand. */
 const readResumed = async ($: EngineInterface, mine: Resume): Promise<void> => {
   try {
     const file = await transcriptFile($, mine.sessionId, mine.path)
     const end = file === undefined ? Promise.resolve(undefined) : transcriptEnd($, file)
-    if (mine.cache === undefined) void recallLastReply($, mine.sessionId, () => end)
-    if (file === undefined) return
-    const [spend, tail] = await Promise.all([spendBefore($, file, mine.sessionId), end])
+    const [recalled, spend, tail] = await Promise.all([
+      mine.cache === undefined ? recallLastReply($, mine.sessionId, () => end) : undefined,
+      file === undefined ? undefined : spendBefore($, file, mine.sessionId),
+      end,
+    ])
     if (band.resume !== mine) return
     const transcript = { spend, ttl: tail === undefined ? undefined : lastWriteTtl(tail) }
     band.resume = { ...mine, transcript }
+    noteRecalled(recalled)
     noteTranscript(transcript)
     $.ui.invalidate('ui.render')
   } catch {
@@ -410,7 +424,7 @@ export const register: Register = on => {
     // unless the engine said when it was.
     if (id !== undefined && !cache.knownFresh && cache.resumedCache === undefined) {
       const path = band.resume?.path
-      await recallLastReply($, id, () => endOf($, id, path))
+      noteRecalled(await recallLastReply($, id, () => endOf($, id, path)))
     }
 
     band.palette = resolvePalette((await $.env.get('CC_BAND_APPEARANCE'))?.toLowerCase(), await $.env.get('NO_COLOR'))

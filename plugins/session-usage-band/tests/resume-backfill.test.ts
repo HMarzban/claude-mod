@@ -270,6 +270,17 @@ test("/resume without the engine's idle time recalls the resumed session's last 
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 50m/)
 })
 
+test('a recall still out when /resume moves on never lands on the conversation resumed', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, store: { sessions: { s1: { lastAt: 3 * HOUR - MIN } } }, now: 3 * HOUR })
+  await $.session.start(START)
+  await $.classic.SessionStart({ source: 'resume', session_id: 's1', transcript_path: PATH })
+  await $.session.end(RESUME_S2)
+  await $.classic.SessionStart({ source: 'resume', session_id: 's2', transcript_path: PATH })
+  await clock.settle()
+  // s2 has nothing to recall, so its cache is unknown, not s1's.
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache –/)
+})
+
 test('a new session and a /clear read nothing and stay warming', async ($, on) => {
   const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
   engine.transcript = TRANSCRIPT
