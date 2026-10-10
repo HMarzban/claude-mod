@@ -175,6 +175,18 @@ test('the history speaks its numbers and its trend', () => {
   expect(hist.costsAltOf(14)).toBe(hist.costsAlt)
   expect([hist.empty, readingsOf(snapOf()).history.empty]).toEqual([false, true])
 })
+test('the 5h trail is drawn and spoken over the last hour, and since the window started', () => {
+  // The window resets at 3h, so it started 2h before now; the first point is the window before.
+  const fiveHour = [{ at: -3 * HOUR, pct: 80 }, { at: -90 * MIN, pct: 1 }, { at: -30 * MIN, pct: 3 }, { at: 0, pct: 4 }]
+  const hist = readingsOf(snapOf({ history: { costs: [], context: [], fiveHour } })).history
+  expect([hist.fiveHourValues, hist.fiveHourHour, hist.fiveHourWindow]).toEqual([[80, 1, 3, 4], [3, 4], [1, 3, 4]])
+  expect([hist.trailAlt, hist.fiveHourWindowAlt]).toEqual(['5h usage over the last hour, steady', '5h usage this window, rising'])
+  const filling = readingsOf(snapOf({ history: { costs: [], context: [], fiveHour }, fiveHour: { percentUsed: 84, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 40 * MIN } })).history
+  expect(filling.fiveHourWindowAlt).toBe('5h usage this window, rising, full in about 40 minutes')
+  // With no window known, there is nothing since its start to draw.
+  const unknown = readingsOf(snapOf({ history: { costs: [], context: [], fiveHour }, fiveHour: undefined })).history
+  expect(unknown.fiveHourWindow).toEqual([])
+})
 test('the history is read only when a view asks for it', () => {
   expect(typeof Object.getOwnPropertyDescriptor(readingsOf(snapOf()), 'history')?.get).toBe('function')
 })

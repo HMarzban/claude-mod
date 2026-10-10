@@ -4,6 +4,7 @@
 
 import type { DayCell, HourCell, Week } from './calendar'
 import {
+  FIVE_HOUR_MS,
   fmtBoardLeft,
   fmtClock,
   fmtCost,
@@ -362,15 +363,28 @@ export type HistoryWords = Readonly<{
   costsAltOf: (count: number) => string
   /** '5h usage over the last hour, steady' | '…, rising, full in about 40 minutes' */
   trailAlt: string
+  /** '5h usage this window, rising, full in about 40 minutes': the same since the window started. */
+  fiveHourWindowAlt: string
 }>
 
 /** A message above this many times the warm average is rising; below the average divided by it, falling. */
 const TREND_FACTOR = 1.5
-/** Points the 5h reading must rise in an hour to be rising. */
+/** Points the 5h reading must rise, first point to last, to be rising. */
 const TRAIL_RISE = 2
 
 /** The points of a trail from the last hour before `now`. */
 export const lastHourOf = (trail: readonly TrailPoint[], now: number): TrailPoint[] => trail.filter(p => p.at >= now - 3600_000)
+
+/** The points of a trail since the 5h window started; none while no window is known. */
+export const thisWindowOf = (trail: readonly TrailPoint[], fiveHour: LimitView | undefined, now: number): TrailPoint[] => {
+  if (fiveHour?.resetInMs === undefined) return []
+  const start = now + fiveHour.resetInMs - FIVE_HOUR_MS
+  return trail.filter(p => p.at >= start)
+}
+
+/** A 5h trail's trend: rising once it has climbed `TRAIL_RISE` points. */
+const riseOf = (points: readonly TrailPoint[]): 'rising' | 'steady' =>
+  points.length >= 2 && (points[points.length - 1]?.pct ?? 0) - (points[0]?.pct ?? 0) >= TRAIL_RISE ? 'rising' : 'steady'
 
 export const historyWords = (record: Trails, fiveHour: LimitView | undefined, now: number): HistoryWords => {
   const last = record.costs[record.costs.length - 1]
@@ -388,13 +402,12 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, no
         : last.usd < avg / TREND_FACTOR
           ? 'falling'
           : 'steady'
-  const hour = lastHourOf(record.fiveHour, now)
-  const rise = hour.length < 2 ? 0 : (hour[hour.length - 1]?.pct ?? 0) - (hour[0]?.pct ?? 0)
   const costsAltOf = (count: number): string => {
     const drawn = Math.min(count, record.costs.length)
     return `cost of ${drawn === 1 ? 'the last message' : `the last ${drawn} messages`}, ${trend}${last?.reWarm ? ', the newest a re-warm' : ''}`
   }
   const fullIn = fiveHour === undefined || fiveHour.etaMs === null ? '' : `, full in ${fmtEtaSpoken(fiveHour.etaMs)}`
+  const fiveHourAlt = (span: string, points: readonly TrailPoint[]): string => `5h usage ${span}, ${riseOf(points)}${fullIn}`
   return {
     lastText,
     avgText,
@@ -403,7 +416,8 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, no
     numbersShort: lastText === undefined ? '' : `last ${lastText}`,
     costsAlt: costsAltOf(record.costs.length),
     costsAltOf,
-    trailAlt: `5h usage over the last hour, ${rise >= TRAIL_RISE ? 'rising' : 'steady'}${fullIn}`,
+    trailAlt: fiveHourAlt('over the last hour', lastHourOf(record.fiveHour, now)),
+    fiveHourWindowAlt: fiveHourAlt('this window', thisWindowOf(record.fiveHour, fiveHour, now)),
   }
 }
 
