@@ -283,8 +283,8 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // Main-loop turns only: a subagent's run is part of the turn that spawned it,
-  // so its own start cost is dropped.
+  // Main-loop turns only: a subagent's run is part of the turn that spawned it.
+  // It raises no turn.start; forgetTurn guards against one that does.
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId === undefined) {

@@ -12,7 +12,7 @@ import {
   openTurns,
   resetInsights,
 } from '../hooks/insights'
-import { fact, mountBand, resp, respond, setup, START, turn } from './helpers'
+import { endTurn, fact, mountBand, resp, respond, setup, START, startTurn } from './helpers'
 
 const MIN = 60_000
 const cents = (n: number | null): number | null => (n === null ? null : Math.round(n * 100))
@@ -120,17 +120,28 @@ test('the ETA rounds to 5 minutes under an hour and 15 from an hour', () => {
 test('a forgotten turn leaves no start cost behind', () => {
   resetInsights()
   noteTurnStart('s', 1)
+  expect(openTurns()).toBe(1)
   forgetTurn('s')
   expect(openTurns()).toBe(0)
 })
 
-test("a subagent's turn doesn't change what the last message cost", async ($, on) => {
+test('forgetting a turn keeps the other turns open', () => {
+  resetInsights()
+  noteTurnStart('a', 1)
+  noteTurnStart('b', 2)
+  forgetTurn('b')
+  expect(openTurns()).toBe(1)
+  noteTurnEnd('a', 1.5)
+  expect(cents(insights.lastTurnUsd)).toBe(50)
+})
+
+test("a subagent's turn inside an open turn doesn't change what the last message cost", async ($, on) => {
   setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
-  await turn($, 'main-1', 2.41, 2.62)
-  await $.turn.start({ text: 'hi', turnId: 'sub-1' })
-  await turn($, 'sub-1', 2.62, 3.1, { agentId: 'agent-1' })
+  await startTurn($, 'main-1', 2.41)
+  await endTurn($, 'sub-1', 2.5, { agentId: 'agent-1' })
+  await endTurn($, 'main-1', 2.62)
   const ui = await mountBand($, 'terminal', 110)
   await ui.press({ key: 'more' })
   expect(fact(await ui.drawn(), 'last message')).toBe('$0.21')

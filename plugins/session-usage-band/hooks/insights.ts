@@ -54,8 +54,9 @@ export const noteTurnEnd = (turnId: string, costUsd: number | undefined): void =
   turns.lastTurnUsd = spent > 0 ? spent : null
 }
 
-/** A turn that ends outside the main loop: its start cost is dropped, so a
- *  subagent's turns never build up. */
+/** A turn that ends outside the main loop: its start cost, if any, is
+ *  dropped unpriced. A subagent's run raises no turn.start today, so this
+ *  only guards against one that does. */
 export const forgetTurn = (turnId: string): void => {
   state.turnStartCost.delete(turnId)
 }

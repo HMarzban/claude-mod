@@ -428,19 +428,25 @@ export const textMeters = async (ui: {
 
 // ── driving the engine ─────────────────────────────────────────────────
 
-/** One main-loop turn (or, with `agentId`, a subagent's) that moves the
- *  ledger from `from` to `to`. */
-export const turn = async (
-  $: Engine,
-  id: string,
-  from: number,
-  to: number,
-  extra: { agentId?: string; isAborted?: boolean; reason?: 'answer' | 'aborted' | 'error' } = {},
-): Promise<void> => {
-  usage.current = { ...usage.current, cost: { usd: from } }
-  if (extra.agentId === undefined) await $.turn.start({ text: 'hi', turnId: id })
-  usage.current = { ...usage.current, cost: { usd: to } }
+type TurnEnd = { agentId?: string; isAborted?: boolean; reason?: 'answer' | 'aborted' | 'error' }
+
+/** A main-loop turn's `turn.start`, with the ledger at `at`. */
+export const startTurn = async ($: Engine, id: string, at: number): Promise<void> => {
+  usage.current = { ...usage.current, cost: { usd: at } }
+  await $.turn.start({ text: 'hi', turnId: id })
+}
+
+/** A turn's `turn.complete` (with `agentId`, a subagent's), with the ledger at `at`. */
+export const endTurn = async ($: Engine, id: string, at: number, extra: TurnEnd = {}): Promise<void> => {
+  usage.current = { ...usage.current, cost: { usd: at } }
   await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: id, reason: 'answer', ...extra })
+}
+
+/** One main-loop turn (or, with `agentId`, a subagent's, which raises no
+ *  `turn.start`) that moves the ledger from `from` to `to`. */
+export const turn = async ($: Engine, id: string, from: number, to: number, extra: TurnEnd = {}): Promise<void> => {
+  if (extra.agentId === undefined) await startTurn($, id, from)
+  await endTurn($, id, to, extra)
 }
 
 /** Starts the session and feeds a 5h pace: 40% then 50% twelve minutes on,
