@@ -306,11 +306,12 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
   const isGuess = (i: number) => guess[i] === true
   if (!Svg) {
     // Cell i sits at column 2i + 1, so a line of labels spaced alike sits
-    // under it; today's brackets take the spaces either side.
+    // under it; today's brackets take the spaces either side, and a closing
+    // space keeps the line 2n + 1 wide wherever today falls.
     const cells = values.map((v, i) => (i === today ? '[' : i - 1 === today ? ']' : ' ') + (v === undefined || isGuess(i) ? '·' : braille([v, 0], top)))
     return (
       <Text key={key} color={color}>
-        {cells.join('') + (today === values.length - 1 ? ']' : '')}
+        {cells.join('') + (today === values.length - 1 ? ']' : ' ')}
       </Text>
     )
   }

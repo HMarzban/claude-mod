@@ -67,7 +67,12 @@ test('in text, a ring is a meter, a line or bar chart is braille, and an underli
 })
 test("in text, day cells are a braille height each, a guess is a dot, and today is in brackets", () => {
   const cells = dayCells(term, { key: 'd', alt: 'week', values: [4, 2, undefined, 4], guess: [false, false, false, true], today: 1, color: '#a99cf0', cellPx: 16, height: 16 })
-  expect(textOf(cells)).toBe(` ${braille([4, 0], 4)}[${braille([2, 0], 4)}]· ·`)
+  expect(textOf(cells)).toBe(` ${braille([4, 0], 4)}[${braille([2, 0], 4)}]· · `)
+})
+test('in text, day cells keep one width wherever today falls', () => {
+  const values = [4, 2, 3, 4]
+  const widths = values.map((_, today) => textOf(dayCells(term, { key: 'd', alt: 'week', values, today, color: '#a99cf0', cellPx: 16, height: 16 })).length)
+  expect(widths).toEqual(values.map(() => 2 * values.length + 1))
 })
 test('the weather icons draw on the desktop and leave the word to the text', () => {
   for (const [name, alt] of [['sun', 'warm'], ['cloud', 'cooling'], ['snow', 'cold']] as const) {
