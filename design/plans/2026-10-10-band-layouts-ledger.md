@@ -152,6 +152,7 @@ What the plan's steps record, in the order they happen.
 | After Task 33, the memory caps | 1046 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 | cleanup C2, alt text (merged) | 1050 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 | After Task 33, forecast and the phrasebook | 1052 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
+| cleanup C4, forecast and words (merged) | 1056 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
