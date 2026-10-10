@@ -95,12 +95,24 @@ type EngineFake = {
   statted: string[]
   /** The plugin's own store, JSON in and out as the engine keeps it. */
   store: Record<string, unknown>
+  /** Every key the plugin read from its store, in order. */
+  storeGets: string[]
+  /** Every key the plugin wrote to its store, in order. */
+  storeSets: string[]
+  /** When true, every store write rejects, as an unavailable store would. */
+  storeFails: boolean
+  /** How many times the plugin asked for a redraw (`$.ui.invalidate`). */
+  invalidates: number
 }
 
 /** Each test's engine, as `base` restores it: every default written once, so
  *  a field added to EngineFake can't be left out of the reset. */
 const ENGINE_INITIAL: Readonly<EngineFake> = {
   store: {},
+  storeGets: [],
+  storeSets: [],
+  storeFails: false,
+  invalidates: 0,
   hold: undefined,
   sessionId: 's1',
   model: 'claude-opus-5-5',
@@ -117,9 +129,10 @@ const ENGINE_INITIAL: Readonly<EngineFake> = {
   gate: undefined,
 }
 
-// Cloned, not spread: `ran` and `statted` are pushed to, and a shallow copy
-// would carry one test's pushes into the defaults. structuredClone keeps the
-// undefined fields too, which a JSON round-trip would drop from the reset.
+// Cloned, not spread: `ran`, `statted` and the store logs are pushed to, and
+// a shallow copy would carry one test's pushes into the defaults.
+// structuredClone keeps the undefined fields too, which a JSON round-trip
+// would drop from the reset.
 export const engine: EngineFake = structuredClone(ENGINE_INITIAL)
 
 /** Every toast the plugin raised since `base` ran. */
@@ -134,8 +147,13 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
   nextUsage = null
   Object.assign(engine, structuredClone(ENGINE_INITIAL))
   engine.store = JSON.parse(JSON.stringify(store)) as Record<string, unknown>
-  on('store.get', ($, e) => ({ value: engine.store[e.key] }))
+  on('store.get', ($, e) => {
+    engine.storeGets.push(e.key)
+    return { value: engine.store[e.key] }
+  })
   on('store.set', ($, e) => {
+    engine.storeSets.push(e.key)
+    if (engine.storeFails) throw new Error('store unavailable')
     engine.store[e.key] = JSON.parse(JSON.stringify(e.value)) as unknown
     return { value: undefined }
   })
@@ -194,6 +212,11 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
     return { value: undefined }
   })
   on('ui.render', () => ({ type: 'Box' as const, children: [] }))
+  // A redraw asked for: counted, then passed on, so the redraw still happens.
+  on('ui.invalidate', ($, e, next) => {
+    engine.invalidates++
+    return next(e)
+  })
   on('turn.step', async function* ($, e) {
     if (engine.gate !== undefined) await engine.gate
     return {
