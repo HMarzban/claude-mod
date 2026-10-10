@@ -9,12 +9,12 @@ import type { CacheReading, ContextReading, LimitView, Readings, Tone } from '..
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberFirst, amberSay, beforeLast, chartsIfRoom, emptyWords, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, section, words, type Keeps, type SentenceStyle } from './parts'
+import { accentOf, amberFirst, amberSay, chartsIfRoom, emptyWords, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, section, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
-/** What gives way as the line narrows, first to last; `marks` and
- *  `calmFive` are the narrow-width ruling's. Amber never does. */
-const ORDER = ['labelsLong', 'resetText', 'calmSeven', 'cost', 'calmContext', 'marks', 'calmFive'] as const
+/** What gives way as the line narrows, first to last; `marks`, `calmFive`
+ *  and `amberRing` are the narrow-width ruling's. Amber's words never do. */
+const ORDER = ['labelsLong', 'resetText', 'calmSeven', 'cost', 'calmContext', 'marks', 'calmFive', 'amberRing'] as const
 type Piece = (typeof ORDER)[number]
 /** The collapsed ring, within spec §3.1's 22–30 px, and the expanded one. */
 const RING_PX = 26
@@ -46,11 +46,12 @@ type Figure = Readonly<{
 const valueWords = (kit: Kit, text: string, tone: Tone): RenderElement => words(kit, 'value', [[text, tone === 'amber' ? 'amber' : 'value']], true)
 
 /** A figure at a squeeze: amber, its label is its reason, and its ring stays
- *  until the amber step; calm, its ring gives way at `marks`. */
+ *  until `amberRing`, so it goes before the reason shortens; calm, its ring
+ *  gives way at `marks`. */
 const drawFigure = (kit: Kit, f: Figure, keeps: Keeps<Piece>): RenderElement => {
   const { Box, Svg } = kit
   const label = words(kit, 'label', f.amber !== undefined ? amberSay(f.amber, keeps) : [[f.label(keeps), 'label']])
-  const ringKept = f.amber !== undefined ? beforeLast(keeps) : keeps.has('marks')
+  const ringKept = keeps.has(f.amber !== undefined ? 'amberRing' : 'marks')
   return (
     <Box key={f.key} flexDirection="row" columnGap={1} alignItems="center">
       {ringKept ? f.ring : null}
