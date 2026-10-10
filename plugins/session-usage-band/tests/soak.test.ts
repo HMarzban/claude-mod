@@ -10,8 +10,8 @@ const run = ($: Engine, args: string) =>
   $.command.run({ command: 'usage-band', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 110 } })
 const nodes = (tree: unknown): number => { let n = 0; walk(tree, () => { n++ }); return n }
 /** What pulse draws on both surfaces: its shut trees' nodes and, open, its
- *  text and its charts' sources, which a trail past its cap would grow, and
- *  the charts' alts. */
+ *  text and its charts' sources, which the cost or context trail past its cap
+ *  would grow, and the charts' alts. */
 const pulseSize = async ($: Engine) => {
   const size = { shutNodes: 0, text: 0, source: 0, alts: [] as string[] }
   for (const surface of ['terminal', 'desktop'] as const) {
@@ -62,10 +62,14 @@ test('six hours, a thousand turns, three clears: writes, size and trees stay bou
   const before = await pulseSize($)
   for (let i = 1000; i < 1050; i++) await turnAt(i)
   const after = await pulseSize($)
-  expect(sampleWrites).toBeLessThanOrEqual(25) // 24 buckets in 6 h, and the first
+  // Once per 15 minutes: 24 buckets in 6 h, and the first.
+  expect(sampleWrites).toBeGreaterThanOrEqual(20)
+  expect(sampleWrites).toBeLessThanOrEqual(25)
   expect(engine.storeSets.filter(k => k === 'layout').length).toBe(commands)
   expect(JSON.stringify(engine.store).length).toBeLessThan(100_000)
-  // Every trail at its cap: 50 more turns draw no more, give or take the figures' widths.
+  // The cost and context trails at their caps: 50 more turns draw no more, give or
+  // take the figures' widths. The 5h trail is windowed when drawn, so no tree shows
+  // its cap; history.test.ts holds that bound.
   expect(after.shutNodes).toBe(before.shutNodes)
   expect(after.text).toBeLessThanOrEqual(1.05 * before.text)
   expect(after.source).toBeLessThanOrEqual(1.05 * before.source)
