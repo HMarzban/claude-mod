@@ -2,6 +2,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import { DARK } from '../hooks/palette'
+import { cellsOf, ROW_PX, TERMINAL } from '../hooks/layout'
 import {
   LONG,
   USAGE,
@@ -227,4 +228,17 @@ test('a window whose reset has passed gives way like a calm one', LONG, async ($
   const ui = await mountBand($, 'terminal', 30)
   expect(widthOf(firstRow(await ui.drawn()))).toBeLessThanOrEqual(30)
   await ui.unmount()
+})
+
+test('a column Box is as wide as its widest row', () => {
+  const col = {
+    type: 'Box',
+    props: { flexDirection: 'column' },
+    children: [
+      { type: 'Text', props: {}, children: ['abcdef'] },
+      { type: 'Text', props: {}, children: ['abc'] },
+    ],
+  }
+  expect(cellsOf(col as never, TERMINAL)).toBe(6)
+  expect(ROW_PX).toBe(24)
 })

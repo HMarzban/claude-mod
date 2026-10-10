@@ -50,6 +50,8 @@ export const stripKeeps = keepsIn<(typeof STRIP_GIVES_WAY)[number]>(STRIP_GIVES_
 export const SHORT_BELOW = 68
 export const METER_CELLS = 6
 export const METER_PX = 44
+/** A row's height on the desktop, for counting how many rows a layout takes. */
+export const ROW_PX = 24
 /** The longest line a card holds unwrapped, in characters:
  *  `resets 2d 19h · full before reset`. */
 export const CARD_TEXT = 33
@@ -73,8 +75,9 @@ export const DESKTOP: Measure = { text: 0.75, pxPerCell: 10 }
 
 export const isList = (n: RenderChildren): n is readonly RenderChildren[] => Array.isArray(n)
 
-/** Columns a drawn tree takes: text, padding, gaps and Button labels. Hidden
- *  cards take none; an Svg takes its width in columns, rounded up. */
+/** Columns a drawn tree takes: text, padding, gaps and Button labels. A
+ *  column Box takes its widest row; hidden cards take none; an Svg takes its
+ *  width in columns, rounded up. */
 export const cellsOf = (n: RenderChildren, m: Measure): number => {
   if (n === null || n === undefined || typeof n === 'boolean') return 0
   if (typeof n === 'string' || typeof n === 'number') return [...String(n)].length * m.text
@@ -92,7 +95,11 @@ export const cellsOf = (n: RenderChildren, m: Measure): number => {
       const kids = (n.children ?? []).filter(k => k !== null && k !== undefined)
       const pad = typeof n.props?.paddingX === 'number' ? 2 * n.props.paddingX : 0
       const gap = typeof n.props?.columnGap === 'number' ? n.props.columnGap * Math.max(0, kids.length - 1) : 0
-      const own = kids.reduce((sum: number, k) => sum + cellsOf(k, m), 0) + pad + gap
+      const widths = kids.map(k => cellsOf(k, m))
+      const own =
+        n.type === 'Box' && n.props?.flexDirection === 'column'
+          ? Math.max(0, ...widths) + pad
+          : widths.reduce((sum, w) => sum + w, 0) + pad + gap
       return n.type === 'Box' && typeof n.props?.minWidth === 'number' ? Math.max(n.props.minWidth, own) : own
     }
     default:
