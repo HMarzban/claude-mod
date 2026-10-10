@@ -82,6 +82,7 @@ What the plan's steps record, in the order they happen.
 | the departures layout (Task 20) (merged) | 827 pass, 0 fail, 43 files | `claude plugin test plugins/session-usage-band` |
 | the rings layout (Task 19) (merged) | 874 pass, 0 fail, 44 files | `claude plugin test plugins/session-usage-band` |
 | the week layout (Task 26) (merged) | 932 pass, 0 fail, 45 files | `claude plugin test plugins/session-usage-band` |
+| the pulse layout (Task 25) (merged) | 982 pass, 0 fail, 46 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
