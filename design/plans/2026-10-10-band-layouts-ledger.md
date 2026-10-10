@@ -39,6 +39,7 @@ What the plan's steps record, in the order they happen.
 | Task 9a (merged) | 389 pass, 0 fail, 30 files | `claude plugin test plugins/session-usage-band` |
 | Task 10a | 395 pass, 0 fail, 31 files | `claude plugin test plugins/session-usage-band` |
 | Task 10a (merged) | 395 pass, 0 fail, 31 files | `claude plugin test plugins/session-usage-band` |
+| Task 10b | 408 pass, 0 fail, 32 files | `claude plugin test plugins/session-usage-band` |
 | Task 10c | 356 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 10c (merged) | 356 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 12 | 354 pass, 0 fail, 26 files | `claude plugin test plugins/session-usage-band` |
@@ -59,6 +60,8 @@ Ruling: chips keeps its own buttons, footer-strip room and hint, and `frame()` d
 Pending maintainer: the ascii-tier check `snap.surface === 'terminal' && snap.glyphs === 'ascii'` is in both `band.tsx` and `views/chips.tsx`; one `asciiTier(snap)` beside `asciiText` in `glyphs.ts` (not Task 9a's file) would hold it.
 Pending maintainer: spec §4 file table (line 161) lists `cachePill` under `views/parts.tsx`, while the plan's Task 9a keeps it in `chips.tsx`; drop it from that row, or name Task 13's `layoutCachePill`.
 Pending maintainer: plan Task 13 Step 6's `layoutCachePill` passes `text` to `textBattery` unmapped, against the `textBattery` ruling above; on a terminal in the ascii tier `asciiTree` would then map after the cut. It takes no `snap`, so it needs the ascii check passed in (or `asciiTier(snap)` once it exists) and `ascii ? asciiText(text) : text` on the filled terminal path.
+Ruling: `session.start` reads the stored layout with `await readLayout($)` in place of Task 10a's `band.layout = DEFAULT_LAYOUT` reset, after `band.reads++` — `readLayout` always assigns `band.layout` (the stored name or chips), so the reset was a second write of the same field; module state still resets on every start — no fallback.
+Pending maintainer: a layout chosen while the store fails to write lasts only until the next main-loop turn — `turn.complete`'s `readLayout` finds nothing stored and falls back to chips (checked with a throwaway test: `storeFails`, `layout ledger`, one turn, `layout` answers chips). Spec §4.2 reads the store on every turn with the chips fallback, so 10b keeps that and says so in `chooseLayout`'s comment; one option is for `turn.complete` to adopt only a known stored name and otherwise keep the current layout, leaving the chips fallback to `session.start`.
 
 ## Freezes
 - P1 freeze (Task 14):
