@@ -36,8 +36,16 @@ test('a cold cache is no change ahead: the next one is the reset', async ($, on)
 test('the last minute is "! cooling" with seconds', LONG, async ($, on) => {
   expect(shown((await at($, on, 'lastMinute', T160, '5m')).shut)).toMatch(/^! cooling · 30s left/)
 })
-test('at 40 columns amber still leads, whole while a calm change gives way', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'lastMinute', { surface: 'terminal', cols: 40 }, '5m')).shut)).toMatch(/^! cooling · 30s left$/)
+test('at 40 columns amber still leads, its price kept while a calm change gives way', LONG, async ($, on) => {
+  expect(shown((await at($, on, 'lastMinute', { surface: 'terminal', cols: 40 }, '5m')).shut)).toMatch(/^! 30s left · re-warm ~\$\S+$/)
+})
+test('in the terminal, the last minute says its price in its head', LONG, async ($, on) => {
+  expect(shown((await at($, on, 'lastMinute', T160, '5m')).shut)).toMatch(/^! cooling · 30s left · re-warm ~\$\S+\s*│/)
+})
+test('on a plain desktop, with no detail row, the last minute says its price in its head', LONG, async ($, on) => {
+  const mounts: Mount[] = [D160, { surface: 'desktop', cols: 40 }]
+  const plain = await drawCases($, on, { layout: 'forecast', scenario: 'lastMinute', appearance: 'plain', ttl: '5m' }, mounts)
+  for (const m of mounts) expect(shown(plain[caseKey(m, 'shut')])).toMatch(/^! (cooling · )?30s left · re-warm ~\$/)
 })
 test('a measured fill is a change before the reset', LONG, async ($, on) => {
   const t = shown((await at($, on, 'fiveHourAhead')).shut)

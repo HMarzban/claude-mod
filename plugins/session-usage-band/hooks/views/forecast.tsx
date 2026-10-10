@@ -107,8 +107,11 @@ const nowDetailOf = (c: CacheReading): Detail => {
   return { long: `lasts ${c.lastsText}`, short: c.lastsText }
 }
 
-/** The cache's last minute, as now says it: `! cooling · 47s left`, then the readings' short form. */
-const lastMinute = (c: CacheReading, amber: Amber): Amber => ({ long: `! cooling · ${c.left}`, short: amber.short })
+/** The cache's last minute, as now says it: `! cooling · 47s left`, its price
+ *  beneath, then the readings' short form. With no detail row the price joins
+ *  it, and the short form is the readings' long one, so the price stays. */
+const lastMinute = (kit: Kit, c: CacheReading, amber: Amber): Amber =>
+  kit.Svg ? { long: `! cooling · ${c.left}`, short: amber.short } : { long: `! cooling · ${c.left} · re-warm ${c.estimate}`, short: amber.long }
 
 /** A change's head: its time, with how far off when it is the next, then what it is. */
 const changeHead = (kit: Kit, ch: Change, next: boolean, keeps: Keeps<Piece>): RenderElement => {
@@ -152,7 +155,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   return [
     fitLine(kit, ORDER, lineRoom(kit), keeps => {
       const detail = (d: Detail): string => (keeps.has('detail') ? d.long : d.short)
-      const head = c.amber === undefined ? nowCalm : amberWords(kit, 'head', lastMinute(c, c.amber), keeps)
+      const head = c.amber === undefined ? nowCalm : amberWords(kit, 'head', lastMinute(kit, c, c.amber), keeps)
       // An amber change never gives way; the next one only once the rest have.
       const ahead = changes.filter((ch, i) => ch.amberShort !== undefined || keeps.has(i === 0 ? 'nextChange' : ch.seven ? 'farSeven' : 'farChanges'))
       const pieces = [
