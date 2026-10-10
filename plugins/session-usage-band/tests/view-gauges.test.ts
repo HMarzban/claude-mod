@@ -29,8 +29,9 @@ test('5h and 7d bars carry a tick for the window gone; context has none', async 
 test('narrow, calm cells become text', async ($, on) => {
   expect(shown((await at($, on, 'calm', { surface: 'terminal', cols: 50 })).shut)).toMatch(/5h 4%/)
 })
-test('calm gives way in spec order: the tokens, the reset texts, the cost joins, the bars shrink, the cells turn text, then the re-warm', async ($, on) => {
-  // Each width sits inside its step's band, not at its edge.
+test('each row gives way in its own spec order: row one the tokens, the cost joins, the bar shrinks, the re-warm; row two the resets, the bars shrink, the cells turn text', async ($, on) => {
+  // Each width sits inside its step's band, not at its edge. Each row squeezes
+  // on its own, so row two's resets can go while row one keeps its tokens.
   const mounts = [160, 95, 80, 65, 50].map((cols): Mount => ({ surface: 'terminal', cols }))
   const trees = await drawCases($, on, { layout: 'gauges', scenario: 'calm', appearance: 'dark', ttl: '1h' }, mounts)
   const [whole, noResets, costRight, joined, text] = mounts.map(m => shown(trees[caseKey(m, 'shut')]))
@@ -48,6 +49,13 @@ test('at 40 columns amber still speaks, short', LONG, async ($, on) => {
   expect(t).toMatch(/^cache\s*! 30s/)
   expect(t).not.toMatch(/left/)
 })
+test('amber, the cost joins the reason as the calm sentence does', LONG, async ($, on) => {
+  const mounts = [60, 40].map((cols): Mount => ({ surface: 'terminal', cols }))
+  const trees = await drawCases($, on, { layout: 'gauges', scenario: 'lastMinute', appearance: 'dark', ttl: '5m' }, mounts)
+  const [mid, narrow] = mounts.map(m => shown(trees[caseKey(m, 'shut')]))
+  expect(mid).toMatch(/! 30s left · re-warm ~\$[\d.]+ · \$2\.41/)
+  expect(narrow).toMatch(/! 30s · \$2\.41/)
+})
 test('a measured pace speaks in amber words', LONG, async ($, on) => {
   expect(shown((await at($, on, 'fiveHourAhead')).shut)).toMatch(/! 5h full in ~/)
 })
@@ -62,8 +70,17 @@ test('open, the limits carry a dashed projection and their pace', async ($, on) 
   expect(shown(open)).toMatch(/on pace for ~\d+%/)
   expect(svgsOf(open).some(n => /stroke-dasharray="3 2"/.test(String(n.props?.source)))).toBe(true)
 })
-test('open, an amber limit leads and keeps its pace', async ($, on) => {
-  expect(shown((await at($, on, 'limit80')).open)).toMatch(/LIMITS.*! 5h 82% · full before reset/)
+test('open, an amber limit keeps its reset and its pace', async ($, on) => {
+  expect(shown((await at($, on, 'limit80')).open)).toMatch(/LIMITS.*! 5h 82% · resets in 3h 00m · full before reset/)
+})
+test('open, an amber limit leads the calm ones', async ($, on) => {
+  expect(shown((await at($, on, 'gatewaySpend')).open)).toMatch(/LIMITS.*! spend 92% · resets in 5h 00m\s*5h 4%/)
+})
+test('open, each limit says when it resets, even where the row has no room for it', async ($, on) => {
+  expect(shown((await at($, on, 'calm', { surface: 'terminal', cols: 80 })).open)).toMatch(/LIMITS.*5h 4% · resets in 3h 00m · on pace for ~10%/)
+})
+test('open, the spend panel says the session\'s tokens', async ($, on) => {
+  expect(shown((await at($, on, 'calm', { surface: 'terminal', cols: 80 })).open)).toMatch(/SPEND.*tokens 208k/)
 })
 test('open, a limit filling before its reset says so once', LONG, async ($, on) => {
   expect(shown((await at($, on, 'fiveHourAhead')).open)).toMatch(/LIMITS.*! 5h full in ~1h(?! · full)/)

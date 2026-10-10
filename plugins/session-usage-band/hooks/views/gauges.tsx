@@ -34,11 +34,10 @@ const twoSizes = (full: BarSize, make: (size: BarSize) => RenderChildren): ((isF
 }
 
 /** An amber reading's reason, long until every calm piece has gone. */
-const amberWords = (kit: Kit, key: string, amber: Amber, keeps: Keeps<Piece>): RenderElement =>
-  words(kit, key, [[keeps.amber(amber), 'amber']])
+const amberSay = (amber: Amber, keeps: Keeps<Piece>): Say => [[keeps.amber(amber), 'amber']]
 
-/** Row one: the cache's name, its time-left bar and its sentence, with the
- *  cost and the tokens on the right until the cost joins the sentence. */
+/** Row one: the cache's name, its time-left bar and its sentence, calm or
+ *  amber, with the cost and the tokens on the right until the cost joins it. */
 const cacheRow = (kit: Kit, read: Readings): RenderElement => {
   const c = read.cache
   const s = read.spend
@@ -58,9 +57,10 @@ const cacheRow = (kit: Kit, read: Readings): RenderElement => {
   const costTokens = words(kit, 'cost', [[s.totalText, 'value'], [' · ', 'label'], [s.tokensText, 'value'], [' tokens', 'label']])
   return fitLine(kit, ORDER, lineRoom(kit), keeps => {
     const onRight = keeps.has('costRight')
+    const reason = c.amber === undefined ? undefined : amberSay(c.amber, keeps)
     const said =
-      c.amber !== undefined
-        ? amberWords(kit, 'say', c.amber, keeps)
+      reason !== undefined
+        ? words(kit, 'say', onRight ? reason : withCost(reason))
         : onRight
           ? sentence.priced
           : keeps.has('reWarm')
@@ -69,7 +69,7 @@ const cacheRow = (kit: Kit, read: Readings): RenderElement => {
     return line(
       kit,
       'cache',
-      [name, c.amber === undefined || beforeLast(keeps) ? bar(keeps.has('bars')) : null, said, c.amber !== undefined && !onRight ? cost : null],
+      [name, reason === undefined || beforeLast(keeps) ? bar(keeps.has('bars')) : null, said],
       onRight ? (keeps.has('tokens') ? costTokens : cost) : null,
       1,
     )
@@ -119,7 +119,7 @@ const drawCell = (kit: Kit, cell: Cell, keeps: Keeps<Piece>): RenderElement => {
   const { Box } = kit
   const pieces =
     cell.amber !== undefined
-      ? [beforeLast(keeps) ? cell.bar(keeps.has('bars')) : null, amberWords(kit, 'amber', cell.amber, keeps)]
+      ? [beforeLast(keeps) ? cell.bar(keeps.has('bars')) : null, words(kit, 'amber', amberSay(cell.amber, keeps))]
       : keeps.has('calmCells')
         ? [cell.name, cell.bar(keeps.has('bars')), cell.value(keeps)]
         : [cell.text]
@@ -144,12 +144,12 @@ const cellsRow = (kit: Kit, read: Readings, act: BandActions): RenderElement => 
 
 const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => [cacheRow(kit, read), cellsRow(kit, read, act)]
 
-/** A limit in its panel: its reason while amber, else its value; then its
- *  pace, unless the reason is a measured fill, which says it. */
+/** A limit in its panel: its reason while amber, else its value; then when
+ *  it resets, and its pace unless the reason is a measured fill, which says it. */
 const limitLine = (kit: Kit, l: LimitView): RenderElement => {
   const lead: Say = l.amber !== undefined ? [[l.amber.long, 'amber']] : l.say
-  const pace = l.fullIn === undefined ? l.pace : ''
-  return words(kit, l.name, pace === '' ? lead : [...lead, [` · ${pace}`, 'label']])
+  const tail = [l.resetWords, l.fullIn === undefined ? l.pace : undefined].filter((t): t is string => t !== undefined && t !== '')
+  return words(kit, l.name, [...lead, ...tail.map(t => [` · ${t}`, 'label'] as const)])
 }
 
 /** The facts behind ▿: four panels, each its bars over its facts while they fit. */
@@ -173,6 +173,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     ]), room),
     section(kit, 'spend', 'SPEND', chartsIfRoom(room, s.split.map(part => bar(`${part.label}:bar`, part.label, part.frac, p[SPLIT_INK[part.label]])), [
       fact(kit, 'total', 'session', s.totalText),
+      fact(kit, 'tokens', 'tokens', s.tokensText),
       fact(kit, 'last', 'last message', s.lastText),
       ...s.split.map(part => fact(kit, part.label, part.label, part.text)),
     ]), room),
