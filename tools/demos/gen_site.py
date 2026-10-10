@@ -17,24 +17,42 @@ def text(n):
     return ''
 
 
-def lift_hovers(n):
-    """Move each hidden hover card's words onto its chip as `tip`."""
-    if isinstance(n, list):
-        for c in n:
-            lift_hovers(c)
-        return
-    if not isinstance(n, dict):
-        return
-    kids = n.get('children') or []
-    keep = []
-    for c in kids:
-        p = (c.get('props') or {}) if isinstance(c, dict) else {}
-        if p.get('position') == 'absolute' and p.get('display') == 'none':
-            n.setdefault('props', {})['tip'] = ' '.join(text(c).split())
-        else:
-            keep.append(c)
-            lift_hovers(c)
-    n['children'] = keep
+def lift_hovers(tree):
+    """Move each hidden hover card's words onto the chip that shares its
+    hover scope, as `tip`."""
+    tips = {}
+
+    def drop(n):
+        if isinstance(n, list):
+            for c in n:
+                drop(c)
+            return
+        if not isinstance(n, dict):
+            return
+        keep = []
+        for c in n.get('children') or []:
+            p = (c.get('props') or {}) if isinstance(c, dict) else {}
+            if p.get('position') == 'absolute' and p.get('display') == 'none':
+                tips[(c.get('hover') or {}).get('scope')] = ' '.join(text(c).split())
+            else:
+                keep.append(c)
+                drop(c)
+        n['children'] = keep
+
+    def tag(n):
+        if isinstance(n, list):
+            for c in n:
+                tag(c)
+            return
+        if not isinstance(n, dict):
+            return
+        scope = (n.get('hover') or {}).get('scope')
+        if scope in tips:
+            n.setdefault('props', {})['tip'] = tips[scope]
+        tag(n.get('children') or [])
+
+    drop(tree)
+    tag(tree)
 
 
 src, template, out = sys.argv[1], sys.argv[2], sys.argv[3]

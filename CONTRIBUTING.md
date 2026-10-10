@@ -71,6 +71,9 @@ Run `/reload-plugins` in your session afterwards.
   resolves to the first, so a drawing rounds its own ends rather than clip.
 - **A hover card has no key.** A keyed Box is its own hover scope, and a
   hidden one could never be hovered.
+- **A hover card is drawn last in its row.** A placed Box paints over those
+  before it, so a card inside its piece would sit under the pieces after.
+  The kit's `hoverable` and `hoverCard` join the two by a hover scope.
 - **A Button holds text alone.** It has no icon prop and no children but its
   label, so a button's icon is a glyph.
 - **Atoms are declared in `register.tsx`.** They are the band's state in the

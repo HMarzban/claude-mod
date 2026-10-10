@@ -237,6 +237,9 @@ export type Node = {
   children?: unknown[]
 }
 
+/** Whether a node is a hover card: a Box placed out of the flow. */
+export const isCard = (n: unknown): n is Node => (n as Node | null)?.props?.position === 'absolute'
+
 /** All text beneath a node, hidden cards included. */
 export const textOf = (n: unknown): string =>
   typeof n === 'string' || typeof n === 'number'
@@ -268,7 +271,8 @@ export const rowCount = (tree: unknown): number => {
 }
 
 /** Cells a drawn row needs, as the terminal lays it out: text, padding, gaps
- *  and Button labels; hidden cards take none; an Svg takes a cell per 8px.
+ *  and Button labels; hidden cards take none, nor a gap; an Svg takes a cell
+ *  per 8px.
  *  Kept apart from band.tsx's own measure on purpose, so the fit tests check
  *  the drawing against an independent count rather than against itself. */
 export const widthOf = (n: unknown): number => {
@@ -278,7 +282,7 @@ export const widthOf = (n: unknown): number => {
   if (node.props?.position === 'absolute') return 0
   if (node.type === 'Button') return [...String(node.props?.label ?? '')].length
   if (node.type === 'Svg') return Math.ceil(Number(node.props?.width ?? 64) / 8)
-  const kids = (node.children ?? []).filter(k => k !== null && k !== undefined && k !== false)
+  const kids = (node.children ?? []).filter(k => k !== null && k !== undefined && k !== false && !isCard(k))
   const pad = typeof node.props?.paddingX === 'number' ? 2 * node.props.paddingX : 0
   const gap = typeof node.props?.columnGap === 'number' ? node.props.columnGap * Math.max(0, kids.length - 1) : 0
   return kids.map(widthOf).reduce((a, b) => a + b, 0) + pad + gap
@@ -372,17 +376,26 @@ export const svgRect = (source: string, cls: string): Readonly<Record<string, nu
 /** The battery icon's charge bar width, in px. */
 export const fillWidth = (svg: Node | undefined): number => svgRect(String(svg?.props?.source), 'charge')?.width ?? 0
 
-/** Each pill's hidden hover card, as [pill key, card] pairs. */
+/** Each hidden hover card, as [key, card] pairs in drawing order: the key of
+ *  the first keyed Box in the card's row that shares its hover scope, or ''
+ *  when none does. */
 export const cards = (tree: unknown): Array<[string, Node]> => {
   const out: Array<[string, Node]> = []
-  walk(tree, n => {
-    for (const k of n.children ?? []) {
-      const child = k as Node
-      if (child?.props?.position === 'absolute') out.push([String(n.props?.key), child])
+  walk(tree, row => {
+    for (const card of (row.children ?? []).filter(isCard)) {
+      const scope = card.hover?.scope
+      let key = ''
+      walk(row, n => {
+        if (key === '' && scope !== undefined && n !== card && n.props?.key !== undefined && n.hover?.scope === scope) key = String(n.props.key)
+      })
+      out.push([key, card])
     }
   })
   return out
 }
+
+/** The hover card that `key`'s piece reveals. */
+export const hoverCardOf = (tree: unknown, key: string): Node | undefined => cards(tree).find(([k]) => k === key)?.[1]
 
 /** The value a card row shows for `label` in the expanded view. */
 export const fact = (tree: unknown, label: string): string | undefined => {

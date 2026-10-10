@@ -73,8 +73,12 @@ export const DESKTOP: Measure = { text: 0.75, pxPerCell: 10 }
 
 export const isList = (n: RenderChildren): n is readonly RenderChildren[] => Array.isArray(n)
 
+/** Whether `n` is a Box placed out of the flow: a hover card. */
+const isPlaced = (n: RenderChildren): boolean =>
+  typeof n === 'object' && n !== null && !isList(n) && n.type === 'Box' && n.props?.position === 'absolute'
+
 /** Columns a drawn tree takes: text, padding, gaps and Button labels. Hidden
- *  cards take none; an Svg takes its width in columns, rounded up. */
+ *  cards take none, nor a gap; an Svg takes its width in columns, rounded up. */
 export const cellsOf = (n: RenderChildren, m: Measure): number => {
   if (n === null || n === undefined || typeof n === 'boolean') return 0
   if (typeof n === 'string' || typeof n === 'number') return [...String(n)].length * m.text
@@ -87,9 +91,9 @@ export const cellsOf = (n: RenderChildren, m: Measure): number => {
       return Math.ceil((n.props.width ?? 64) / m.pxPerCell)
     case 'Box':
     case 'Text': {
-      if (n.props?.position === 'absolute') return 0
+      if (isPlaced(n)) return 0
       if (n.type === 'Box' && typeof n.props?.width === 'number') return n.props.width
-      const kids = (n.children ?? []).filter(k => k !== null && k !== undefined)
+      const kids = (n.children ?? []).filter(k => k !== null && k !== undefined && !isPlaced(k))
       const pad = typeof n.props?.paddingX === 'number' ? 2 * n.props.paddingX : 0
       const gap = typeof n.props?.columnGap === 'number' ? n.props.columnGap * Math.max(0, kids.length - 1) : 0
       const own = kids.reduce((sum: number, k) => sum + cellsOf(k, m), 0) + pad + gap

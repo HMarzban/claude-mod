@@ -12,11 +12,15 @@ import {
   DARK_HOSTS,
   LIGHT_HOSTS,
   byKey,
+  cards,
   contrast,
   engine,
+  hoverCardOf,
+  isCard,
   props,
   shown,
   svgsOf,
+  textOf,
   walk,
   widthOf,
   type Node,
@@ -231,11 +235,32 @@ test("the path's hover card says the whole state, so nothing a narrow line drops
   const clock = setup(on, { env: HOME })
   engine.git = { status: DIRTY, dirs: GIT_MAIN_TREE }
   await $.session.start({ ...START, surface: 'desktop' })
-  let card = ''
-  walk(byKey(stripOf(await expanded($, clock, 'desktop')), 'ws:path'), k => {
-    if (k.type === 'Box' && k.props?.position === 'absolute') card = String((k.children as Node[] | undefined)?.map(c => shown(c)).join(''))
-  })
-  expect(card).toBe('~/workspace/claude-mod: branch main, 3 changed, 2 ahead, 1 behind')
+  const card = hoverCardOf(stripOf(await expanded($, clock, 'desktop')), 'ws:path')
+  expect(textOf(card)).toBe('~/workspace/claude-mod: branch main, 3 changed, 2 ahead, 1 behind')
+})
+
+test("the strip's hover cards are drawn after all of it, each across the line and sharing its piece's scope", async ($, on) => {
+  const clock = setup(on, { env: HOME })
+  engine.root = WORKTREE
+  engine.git = { status: DIRTY, dirs: WORKTREE_DIRS }
+  await $.session.start(START)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const strip = stripOf(await expanded($, clock, surface))
+    const kids = ((strip?.children ?? []) as Node[]).filter(Boolean)
+    const first = kids.findIndex(isCard)
+    const found = cards(strip)
+    expect(found.map(([key]) => key)).toEqual(['ws:path', 'ws:head', 'ws:worktree', 'ws:changes', surface === 'desktop' ? 'ws:ahead' : 'ws:ab'])
+    expect(kids.slice(first)).toEqual(found.map(([, card]) => card))
+    expect(kids.slice(0, first).map(k => k.props?.key)).toEqual(['ws:where', 'ws:fill', 'ws:state'])
+    for (const [key, card] of found) {
+      expect(byKey(strip, key, 'Box')?.hover?.scope).toBe(card.hover?.scope)
+      expect(card.props).toMatchObject({ top: 0, left: 0, right: 0, display: 'none' })
+      expect(card.props?.width).toBeUndefined()
+      expect(card.props?.key).toBeUndefined()
+      expect(card.hover?.display).toBe('flex')
+    }
+    if (surface === 'desktop') expect(byKey(strip, 'ws:behind', 'Box')?.hover?.scope).toBe(byKey(strip, 'ws:ahead', 'Box')?.hover?.scope)
+  }
 })
 
 test('one commit to push reads as one', async ($, on) => {

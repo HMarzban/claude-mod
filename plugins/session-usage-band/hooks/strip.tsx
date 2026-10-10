@@ -23,7 +23,7 @@ const tracking = (g: GitState): string => {
   return sides.length === 0 ? 'up to date with its upstream' : sides.join(', ')
 }
 const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'footer', edge: number): RenderElement => {
-  const { Box, Text, Svg, hoverCard, icon } = kit
+  const { Box, Text, Svg, hoverable, hoverCard, icon } = kit
   const kept = (piece: (typeof STRIP_GIVES_WAY)[number]) => stripKeeps(squeeze, piece)
   const git = ws.git
   const { parent, name: fullName } = splitPath(ws.path)
@@ -36,52 +36,55 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
       i === 0 || Svg ? [piece] : [<Text key={`${side}-sep${i}`} color={BARE.label}>{' · '}</Text>, piece],
     )
 
+  // Each piece's card, for the end of the strip; see the kit's hoverCard.
+  const cards: RenderChildren[] = [hoverCard('ws:path', git === undefined ? ws.path : `${ws.path}: ${gitSummary(git)}`)]
   const where: RenderChildren[] = [
-    <Box key="ws:path" flexDirection="row">
+    <Box key="ws:path" flexDirection="row" {...hoverable('ws:path')}>
       {Svg ? icon('folder', BARE.icon, clipped ? `folder ${ws.path}` : ALT.folder) : null}
       {parentShown === '' ? null : <Text color={BARE.label} wrap="truncate-end">{parentShown}</Text>}
       <Text color={BARE.value} bold wrap="truncate-end">
         {name}
       </Text>
-      {hoverCard(git === undefined ? ws.path : `${ws.path}: ${gitSummary(git)}`, 'left')}
     </Box>,
   ]
   if (git?.branch !== undefined) {
     const branch = clipMiddle(git.branch, kept('branchLong') ? Infinity : kept('branchShort') ? 24 : 12)
+    cards.push(hoverCard('ws:head', `Branch ${git.branch}${git.commit === undefined ? ', no commits yet' : ''}: ${tracking(git)}`))
     where.push(
-      <Box key="ws:head" flexDirection="row">
+      <Box key="ws:head" flexDirection="row" {...hoverable('ws:head')}>
         {Svg ? icon('branch', BARE.branch, branch === git.branch ? ALT.branch : `branch ${git.branch}`) : <Text color={BARE.label}>{'on '}</Text>}
         <Text color={BARE.value} wrap="truncate-end">
           {branch}
         </Text>
-        {hoverCard(`Branch ${git.branch}${git.commit === undefined ? ', no commits yet' : ''}: ${tracking(git)}`, 'left')}
       </Box>,
     )
   } else if (git !== undefined) {
+    cards.push(hoverCard('ws:head', 'HEAD is detached: new commits belong to no branch'))
     where.push(
-      <Box key="ws:head" flexDirection="row">
+      <Box key="ws:head" flexDirection="row" {...hoverable('ws:head')}>
         {Svg ? icon('commit', BARE.icon) : null}
         <Text color={BARE.label}>{git.commit === undefined ? 'detached' : 'detached at '}</Text>
         {git.commit === undefined ? null : <Text color={BARE.value}>{git.commit}</Text>}
-        {hoverCard('HEAD is detached: new commits belong to no branch', 'left')}
       </Box>,
     )
   }
   if (git?.worktree !== undefined && kept('worktree')) {
     const of = kept('worktreeOf') && ws.repoName !== undefined ? ws.repoName : undefined
+    cards.push(
+      hoverCard(
+        'ws:worktree',
+        ws.repoName === undefined
+          ? 'A linked worktree: its own checkout of the repository'
+          : `A linked worktree: its own checkout, sharing ${ws.repoName}'s history`,
+      ),
+    )
     where.push(
-      <Box key="ws:worktree" flexDirection="row">
+      <Box key="ws:worktree" flexDirection="row" {...hoverable('ws:worktree')}>
         {Svg ? icon('worktree', BARE.icon) : null}
         <Text color={BARE.label}>
           {of === undefined ? 'worktree' : 'worktree of '}
           {of === undefined ? null : <Text key="of" color={BARE.value}>{of}</Text>}
         </Text>
-        {hoverCard(
-          ws.repoName === undefined
-            ? 'A linked worktree: its own checkout of the repository'
-            : `A linked worktree: its own checkout, sharing ${ws.repoName}'s history`,
-          'left',
-        )}
       </Box>,
     )
   }
@@ -89,14 +92,14 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
   const state: RenderChildren[] = []
   if (git !== undefined && git.changed > 0) {
     const word = kept('changedWord')
+    cards.push(hoverCard('ws:changes', `${git.changed} uncommitted change${git.changed === 1 ? '' : 's'}`))
     state.push(
-      <Box key="ws:changes" flexDirection="row">
+      <Box key="ws:changes" flexDirection="row" {...hoverable('ws:changes')}>
         {Svg ? icon('changes', BARE.icon) : null}
         <Text color={BARE.value}>
           {`${!word && !Svg ? '±' : ''}${git.changed}`}
           {word ? <Text key="w" color={BARE.label}>{' changed'}</Text> : null}
         </Text>
-        {hoverCard(`${git.changed} uncommitted change${git.changed === 1 ? '' : 's'}`, 'right')}
       </Box>,
     )
   } else if (git !== undefined && kept('clean')) {
@@ -107,24 +110,23 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
     )
   }
   if (git !== undefined && (git.ahead || git.behind) && kept('aheadBehind')) {
-    const card = hoverCard(tracking(git), 'right')
+    // Ahead and behind, apart on the desktop, share one card.
+    cards.push(hoverCard('ws:ab', tracking(git)))
     if (Svg) {
       // Icons a reader names, "ahead 2, behind 1", where ↑ ↓ read as arrows.
       for (const [side, n] of [['ahead', git.ahead], ['behind', git.behind]] as const) {
         if (n)
           state.push(
-            <Box key={`ws:${side}`} flexDirection="row">
+            <Box key={`ws:${side}`} flexDirection="row" {...hoverable('ws:ab')}>
               {icon(side, BARE.icon)}
               <Text color={BARE.value}>{String(n)}</Text>
-              {card}
             </Box>,
           )
       }
     } else {
       state.push(
-        <Box key="ws:ab" flexDirection="row">
+        <Box key="ws:ab" flexDirection="row" {...hoverable('ws:ab')}>
           <Text color={BARE.value}>{[git.ahead ? `↑${git.ahead}` : '', git.behind ? `↓${git.behind}` : ''].filter(Boolean).join(' ')}</Text>
-          {card}
         </Box>,
       )
     }
@@ -146,6 +148,7 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
       <Box key="ws:state" flexDirection="row" columnGap={Svg ? 2 : 0} flexShrink={0}>
         {joined('state', state)}
       </Box>
+      {cards}
     </Box>
   )
 }

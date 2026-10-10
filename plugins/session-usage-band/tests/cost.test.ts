@@ -11,7 +11,7 @@ import {
   respond,
   usage,
   textOf,
-  pillOf,
+  hoverCardOf,
   turn,
   setup,
   mountBand,
@@ -42,7 +42,7 @@ test("no cost ledger hides last turn's cost", async ($, on) => {
   await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
 
   const ui = await mountBand($, 'terminal', 110)
-  expect(textOf(pillOf(await ui.drawn(), 'cost'))).toMatch(/What this session has cost so far/)
+  expect(textOf(hoverCardOf(await ui.drawn(), 'cost'))).toBe('What this session has cost so far')
   await ui.unmount()
 })
 
