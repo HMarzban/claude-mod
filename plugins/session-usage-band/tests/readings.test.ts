@@ -137,14 +137,15 @@ test('a passed window has no fill time', () => {
   expect(r.fiveHour?.alt).not.toMatch(/full in/)
 })
 test('context speaks toward compaction, or of the window when it is off', () => {
-  const near = readingsOf(snapOf({ context: { tokens: 176_000, window: 200_000, percent: 88, compactAt: 190_000 } })).context
+  const near = readingsOf(snapOf({ context: { tokens: 176_000, window: 200_000, percent: 88, compactAt: 190_000, autoCompactOff: false } })).context
   expect(near.amber).toEqual({ long: '! context 93% · compacts in ~14k', short: '! ctx 93%' })
   expect([near.boardAmber, near.towardText, near.roomText]).toEqual(['! COMPACTS IN ~14K', 'toward compaction', '~14k'])
-  const off = readingsOf(snapOf({ context: { tokens: 170_000, window: 200_000, percent: 85, compactAt: undefined } })).context
-  expect([off.amber?.long, off.boardAmber, off.towardText]).toEqual(['! context 85%', '! CONTEXT 85%', 'of the window'])
+  const off = readingsOf(snapOf({ context: { tokens: 170_000, window: 200_000, percent: 85, compactAt: undefined, autoCompactOff: true } })).context
+  expect([off.amber?.long, off.boardAmber, off.towardText, off.compactionOffText]).toEqual(['! context 85%', '! CONTEXT 85%', 'of the window', 'auto-compaction off'])
+  expect(near.compactionOffText).toBeUndefined()
 })
 test('context not reported reads as unknown, never 0%', () => {
-  const x = readingsOf(snapOf({ context: { tokens: undefined, window: 200_000, percent: undefined, compactAt: 190_000 } })).context
+  const x = readingsOf(snapOf({ context: { tokens: undefined, window: 200_000, percent: undefined, compactAt: 190_000, autoCompactOff: false } })).context
   expect(x.known).toBe(false)
   expect([x.valueText, x.text, x.textShort, x.inContextText, x.roomText]).toEqual(['–', 'context –', 'ctx –', '–', undefined])
   expect(x.say).toEqual([['context ', 'label'], ['–', 'value']])
@@ -190,7 +191,7 @@ test('the 5h trail is drawn and spoken over the last hour, and since the window 
 test('the context trail is spoken with where it compacts, when compaction is on', () => {
   const history = { costs: [], context: [60_000, 50_000, 76_000], fiveHour: [] }
   expect(readingsOf(snapOf({ history })).history.contextTrailAlt).toBe('context over the conversation, rising, compacts at 190k')
-  const off = readingsOf(snapOf({ history: { ...history, context: [90_000, 76_000] }, context: { tokens: 76_000, window: 200_000, percent: 38, compactAt: undefined } })).history
+  const off = readingsOf(snapOf({ history: { ...history, context: [90_000, 76_000] }, context: { tokens: 76_000, window: 200_000, percent: 38, compactAt: undefined, autoCompactOff: true } })).history
   expect(off.contextTrailAlt).toBe('context over the conversation, falling')
   expect(readingsOf(snapOf()).history.contextTrailAlt).toBe('context over the conversation, steady, compacts at 190k')
 })

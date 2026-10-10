@@ -39,6 +39,7 @@ What the plan's steps record, in the order they happen.
 - Final: fixed one failed store read on `turn.complete` redrawing a chosen layout as chips until a later turn read the store — `layout-command.test`'s `a store read that fails after a turn keeps the layout drawn` RED→GREEN (`Usage band layout: chips.`), with `a store read that fails as the session starts draws chips` beside it, suite 1026/1026
 - Final: fixed open tiles never saying an amber limit's reset, nor `full before reset` as text, since an amber label was its reason alone and the `then` tile went whenever a landing reached 100% — `view-tiles.test`'s `open, an amber limit keeps its reset, and a landing past the top says it fills first` and `open, a weekly landing past the top says it fills before its reset` RED→GREEN, suite 1028/1028
 - Final: fixed the light palette's `5h` name in tiles and week drawing `fiveAccent` as text at 3.95:1 on the card, below spec §2.10's 4.5:1 — `design.test`'s `light: every role a layout's words take is text that holds on the card ground` RED→GREEN (`accent5 fiveAccent 3.95`), suite 1030/1030
+- Final: fixed departures' open board reading `NO AUTO-COMPACTION` while compaction was only unknown (before the first breakdown, or on with no threshold), telling a user whose compaction is on that it is off — `view-departures.test`'s `open, compaction not known yet says nothing of it` and `open, the board says auto-compaction is off when the engine says so` RED→GREEN (calm drew `OF THE WINDOW · NO AUTO-COMPACTION`), suite 1032/1032
 
 ## Test counts at each gate
 | Gate | Count | Command |
@@ -126,6 +127,7 @@ What the plan's steps record, in the order they happen.
 | Task 29, a failed layout read keeps the layout | 1026 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 | Task 29, open tiles keep an amber limit's reset and pace | 1028 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 | Task 29, the 5h accent as text holds 4.5:1 | 1030 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
+| Task 29, departures says compaction is off only when it is | 1032 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
@@ -272,6 +274,7 @@ Ruling: Task 29's braille cap is `sparkline`'s `cells` option, the trail drawn a
 Ruling: Task 29's `readLayout` assigns only on a read that succeeds (an unset or unknown value still draws chips, Review Focus 1 and 2), and `session.start` sets chips before it reads — this amends the `readLayout` ruling above, whose 'always assigns' no longer holds, so the reset is back; a mutation dropping the reset still passes `a store read that fails as the session starts draws chips`, since in the kit each test's setup starts the band's state afresh, so the reset is pinned by reading only — no fallback.
 Ruling: Task 29's open tiles: an amber limit's `now` label is its reason, then its `resetGlyph` (`! 5h 82% ↻ in 3h 00m`), and with no landing figure the `then` tile says the pace over `<name> at this pace` (`full before reset`), unless the reason is a measured fill, which says it, as ledger and gauges rule — the collapsed tiles are unchanged: the amber label there is the reason alone, as spec §6's give-way allows — no fallback.
 Ruling: Task 29 adds the palette token `fiveText` (dark `#7fcf8a`, as `fiveAccent`; light `#287a3d`, 4.85:1 on `cardBg`; plain `success`), which `words()`' `accent5` role takes, and `parts.tsx` exports `ROLE_INK`, each role's palette key, so `design.test` checks every role — `fiveFg` is near white in dark (`#cfe8d3`) and would lose the accent there; `fiveAccent` stays for marks (chips' bars, `accentOf`); `accent7` keeps `weekAccent`, at 4.55:1 — no fallback.
+Ruling: Task 29 carries `register.tsx`'s `autoCompactOff` into `BandSnapshot.context` and `ContextFacts`, and `contextWords` gains `compactionOffText` (`auto-compaction off`, only when the engine says so), which departures' CONTEXT remark reads — the review's other form, leaving the remark out, would never say off at all; the board reads `AUTO-COMPACTION OFF`, as the context toast says "auto-compaction is off"; the test snapshots name the flag, `true` where they stand for compaction off — no fallback.
 
 ## Freezes
 - P1 freeze (Task 14), at dc28d40: these interfaces are frozen for P2. Gates green: `claude plugin validate .` and `claude plugin validate plugins/session-usage-band` pass, the suite passes in both zones (456 pass, 0 fail, 35 files), and `tsc` reports no errors.

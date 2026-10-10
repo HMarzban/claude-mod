@@ -213,7 +213,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     x.known
       ? row('context', ['CONTEXT'], [x.boardAmber ?? x.valueText, x.boardAmber !== undefined ? 'amber' : 'text'], up(`${x.inContextText} of ${x.windowText}`), [
           x.towardText,
-          x.compactsAtText === undefined ? 'no auto-compaction' : `compacts at ${x.compactsAtText}`,
+          x.compactsAtText === undefined ? x.compactionOffText : `compacts at ${x.compactsAtText}`,
           x.roomText === undefined ? undefined : `room ${x.roomText}`,
         ])
       : row('context', ['CONTEXT'], [up(EMPTY.context), 'dim'], undefined, []),

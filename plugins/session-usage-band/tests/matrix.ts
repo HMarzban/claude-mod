@@ -28,7 +28,7 @@ export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({
     savedUsd: 11.4, readShare: 0.05, fresh: true, recalled: false, idleMs: null, recovered: false, tokens: { sent: 18_000, back: 9_000, cached: 198_000 },
   },
   costUsd: 3.19, lastTurnUsd: 0.21, history: { costs: [], context: [], fiveHour: [] },
-  context: { tokens: 76_000, window: 200_000, percent: 38, compactAt: 190_000 },
+  context: { tokens: 76_000, window: 200_000, percent: 38, compactAt: 190_000, autoCompactOff: false },
   fiveHour: { percentUsed: 4, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null },
   sevenDay: { percentUsed: 30, resetsAt: new Date(67 * HOUR).toISOString() },
   samples: [], otherLimits: [], workspace: undefined, layout: 'chips', glyphs: 'unicode', utcOffsetMin: undefined,

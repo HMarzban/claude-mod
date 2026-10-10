@@ -140,6 +140,8 @@ export type ContextWords = Readonly<{
   inContextText: string
   compactsAtText: string | undefined
   roomText: string | undefined
+  /** `auto-compaction off`, only when the engine says so; unknown says nothing. */
+  compactionOffText: string | undefined
   windowText: string
   alt: string
 }>
@@ -274,6 +276,7 @@ export const contextWords = (f: ContextFacts): ContextWords => {
     inContextText: f.known ? fmtTokens(f.used) : UNKNOWN,
     compactsAtText: f.compactAt === undefined ? undefined : fmtTokens(f.compactAt),
     roomText,
+    compactionOffText: f.autoCompactOff ? 'auto-compaction off' : undefined,
     windowText: fmtTokens(f.window),
     alt: f.known
       ? altOf('context', `${Math.round(f.frac * 100)} percent ${towardText}`, f.tone === 'amber' ? 'near the limit' : 'fine')

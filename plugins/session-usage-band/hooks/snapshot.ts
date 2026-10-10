@@ -69,6 +69,8 @@ export type BandSnapshot = Readonly<{
     percent: number | undefined
     /** Where auto-compaction runs, when it is on. */
     compactAt: number | undefined
+    /** Auto-compaction is off, as the engine said; false while unknown. */
+    autoCompactOff: boolean
   }>
   fiveHour: (LimitReading & { etaMs: number | null }) | undefined
   sevenDay: LimitReading | undefined

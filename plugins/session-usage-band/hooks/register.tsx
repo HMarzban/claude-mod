@@ -716,6 +716,7 @@ export const register: Register = on => {
           window: usage.context.window,
           percent: usage.context.percent,
           compactAt: band.compactAt,
+          autoCompactOff: band.autoCompactOff,
         },
         fiveHour: five ? { percentUsed: five.percentUsed, resetsAt: five.resetsAt, etaMs: fiveHourEtaMs(now) } : undefined,
         sevenDay: seven ? { percentUsed: seven.percentUsed, resetsAt: seven.resetsAt } : undefined,

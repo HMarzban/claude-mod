@@ -143,10 +143,17 @@ for (const appearance of ['dark', 'plain'] as const)
 /** With no UTC offset there is no clock time, so the minutes give way at the last calm step instead. */
 for (const [scenario, over, amber] of [
   ['limit80', { fiveHour: { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }, /! 5h 82%$/],
-  ['nearCompaction', { context: { tokens: 150_000, window: 200_000, percent: 75, compactAt: 160_000 } }, /! ctx \d+%$/],
+  ['nearCompaction', { context: { tokens: 150_000, window: 200_000, percent: 75, compactAt: 160_000, autoCompactOff: false } }, /! ctx \d+%$/],
 ] as const)
   test(`at 40 columns with no UTC offset, ${scenario} keeps its amber whole within the line's room`, () => {
     const line = byKey(drawBand(fakeEl, snapOf({ layout: 'departures', columns: 40, ...over }), NO_ACT), 'line', 'Box')
     expect(shown(line)).toMatch(amber)
     expect(cellsOf(line as RenderChildren, TERMINAL)).toBeLessThanOrEqual(T40.cols - ROW_SLACK - 2)
   })
+test('open, compaction not known yet says nothing of it', LONG, async ($, on) => {
+  // Calm reads no breakdown: compaction is unknown, not off.
+  expect(shown((await at($, on, 'calm')).open)).not.toMatch(/AUTO-COMPACTION/)
+})
+test('open, the board says auto-compaction is off when the engine says so', LONG, async ($, on) => {
+  expect(shown((await at($, on, 'compactionOff')).open)).toMatch(/AUTO-COMPACTION OFF/)
+})

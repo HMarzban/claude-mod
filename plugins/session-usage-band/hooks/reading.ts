@@ -183,7 +183,7 @@ export type CacheFacts = Readonly<{
   coldInMs: number | undefined
 }>
 
-export type ContextFacts = ReturnType<typeof contextReading> & Readonly<{ compactAt: number | undefined; window: number }>
+export type ContextFacts = ReturnType<typeof contextReading> & Readonly<{ compactAt: number | undefined; autoCompactOff: boolean; window: number }>
 
 export type SpendFacts = Readonly<{
   totalUsd: number
@@ -306,6 +306,7 @@ export const cacheFacts = (snap: BandSnapshot): CacheFacts => {
 export const contextFacts = (snap: BandSnapshot): ContextFacts => ({
   ...contextReading(snap.context),
   compactAt: snap.context.compactAt,
+  autoCompactOff: snap.context.autoCompactOff,
   window: snap.context.window,
 })
 
