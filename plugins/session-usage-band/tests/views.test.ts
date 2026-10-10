@@ -44,23 +44,26 @@ test('a view that throws falls back to chips', () => {
 })
 test('every new view draws its empty states in a label\'s ink', () => {
   // Departures writes them on its board, upper case, in the board's ink.
+  // At 40 columns pulse's desktop says its short costs.
   const layouts = LAYOUT_NAMES.filter(name => name !== 'chips' && name !== 'departures')
   const phrases = Object.values(EMPTY)
   const inks: string[] = []
   for (const layout of layouts)
     for (const surface of ['terminal', 'desktop'] as const)
-      for (const expanded of [false, true]) {
-        const snap = snapOf({
-          layout, surface, expanded, columns: 160, maxRows: 40,
-          lastTurnUsd: null,
-          context: { tokens: undefined, window: 200_000, percent: undefined, compactAt: undefined, autoCompactOff: false },
-          fiveHour: undefined, sevenDay: undefined,
-        })
-        walk(VIEWS[layout].draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT), n => {
-          const text = (n.children ?? []).every(k => typeof k === 'string') ? (n.children ?? []).join('') : ''
-          if (n.type === 'Text' && phrases.some(e => text.includes(e))) inks.push(`${layout} ${surface}${expanded ? ' open' : ''} "${text}" ${String(n.props?.color === DARK.label ? 'label' : n.props?.color)}`)
-        })
-      }
-  expect(inks.length).toBeGreaterThan(0)
+      for (const expanded of [false, true])
+        for (const columns of [160, 40]) {
+          const snap = snapOf({
+            layout, surface, expanded, columns, maxRows: 40,
+            lastTurnUsd: null,
+            context: { tokens: undefined, window: 200_000, percent: undefined, compactAt: undefined, autoCompactOff: false },
+            fiveHour: undefined, sevenDay: undefined,
+          })
+          walk(VIEWS[layout].draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT), n => {
+            const text = (n.children ?? []).every(k => typeof k === 'string') ? (n.children ?? []).join('') : ''
+            if (n.type === 'Text' && phrases.some(e => text.includes(e))) inks.push(`${layout} ${surface} ${columns}${expanded ? ' open' : ''} "${text}" ${String(n.props?.color === DARK.label ? 'label' : n.props?.color)}`)
+          })
+        }
+  expect(new Set(inks.map(i => i.split(' ')[0]))).toEqual(new Set(layouts))
+  expect(phrases.filter(e => !inks.some(i => i.includes(e)))).toEqual([])
   expect(inks.filter(i => !i.endsWith(' label'))).toEqual([])
 })
