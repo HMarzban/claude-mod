@@ -5,7 +5,7 @@ import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On, SessionUsage } from 'claude-code'
 import { DEFAULT_MAX_ROWS, HOUR, HOUR_1, LONG, START, USAGE, byKey, mountBand, setup, shown, svgAlts, svgsOf, widthOf, type Node } from './helpers'
-import { caseKey, drawCases, invariantErrors, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
+import { caseKey, drawCases, expectInvariants, invariantErrors, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
 
 viewSuite('week')
 
@@ -145,7 +145,8 @@ test('another limit alone: two rows still, no 5h or 7d, and no word of the other
   expect(shown(shut)).toMatch(/^5h · 7d none reported/)
   expect(shown(shut)).not.toMatch(/^limits|spend/)
   const ctx = { layout: 'week', surface: 'terminal', appearance: 'dark', cols: 160, maxRows: DEFAULT_MAX_ROWS, scenario: 'unmeasured', glyphs: 'unicode', expanded: false } as const
-  expect(shut === undefined ? ['missing: not drawn'] : invariantErrors(shut, ctx)).toEqual([])
+  expect(shut).toBeDefined()
+  if (shut !== undefined) expectInvariants(shut, ctx)
 })
 /** With no history the empty text takes the cells' place, never the facts'. */
 const expectFactsWithoutCells = (trees: Readonly<Record<string, Node>>) => {

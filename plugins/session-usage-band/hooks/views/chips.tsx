@@ -76,7 +76,7 @@ const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
 /** The expanded view's cards, in the order they are drawn. */
 type CardName = 'cache' | 'spend' | 'context' | 'limits'
 
-export const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement => {
+const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement => {
   const { Box, Button, Text, Svg, palette, measure, onTone, hoverCard, gap, icon } = kit
   const snap = read.chips.raw
   const c = snap.cache

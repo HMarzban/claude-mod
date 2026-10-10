@@ -73,7 +73,7 @@ export const MAX_SAMPLES = 672
 const BUCKET_MS = 15 * 60_000
 
 /** The 15-minute bucket `at` falls in. */
-export const bucketOf = (at: number): number => Math.floor(at / BUCKET_MS)
+const bucketOf = (at: number): number => Math.floor(at / BUCKET_MS)
 
 /** Whether two samples fall in one bucket. */
 export const sameBucket = (a: Sample, b: Sample): boolean => bucketOf(a.at) === bucketOf(b.at)

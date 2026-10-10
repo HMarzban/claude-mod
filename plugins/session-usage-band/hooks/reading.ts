@@ -219,7 +219,7 @@ export type LimitFacts = Readonly<{
 // What the views read: each section's facts, and its words beside them.
 export type CacheReading = CacheFacts & CacheWords
 export type ContextReading = ContextFacts & ContextWords
-export type SpendReading = SpendFacts & SpendWords
+type SpendReading = SpendFacts & SpendWords
 /** A limit window as the views read it. A view, not a reading: `LimitReading`
  *  is the snapshot's raw window. */
 export type LimitView = LimitFacts & LimitWords
@@ -227,7 +227,7 @@ export type LimitView = LimitFacts & LimitWords
 /** A window as chips' Limits card reads it: the view, and the card's pace tail. */
 export type ChipsWindow = LimitView & Readonly<{ cardPace: string }>
 
-export type ChipsReadings = Readonly<{
+type ChipsReadings = Readonly<{
   /** The snapshot itself: chips' own code moved over unchanged. Only chips reads it. */
   raw: BandSnapshot
   reading: Readonly<{ copy: CacheCopy; tokenBreakdown: string; windows: readonly ChipsWindow[] }>
@@ -254,7 +254,7 @@ export type HistoryReading = Trails &
 export type { DayCell, HourCell } from './calendar'
 
 /** The week's day and hour cells, their words, and whether any is known. */
-export type WeekReading = Week &
+type WeekReading = Week &
   WeekWords &
   Readonly<{
     /** No cell measured yet: history fills in as you use Claude. */
