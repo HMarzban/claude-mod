@@ -24,7 +24,7 @@ import {
   resetConversation,
   resolveTtl,
 } from './cache'
-import { COMPACT_NEAR, SEVERE_AT, WARN_AT, contextUsed, fmtCountdown, fmtEta, fmtTokens, utcOffsetOf } from './format'
+import { COMPACT_NEAR, SEVERE_AT, WARN_AT, clipMiddle, contextUsed, fmtCountdown, fmtEta, fmtTokens, utcOffsetOf } from './format'
 import { resolveGlyphs } from './glyphs'
 import {
   fiveHourEtaMs,
@@ -40,9 +40,11 @@ import {
 import { DARK, resolvePalette } from './palette'
 import type { Palette } from './palette'
 import {
+  LAYOUT_KEY,
   RATES_KEY,
   READ_LIMIT,
   SESSIONS_KEY,
+  asLayoutName,
   asRates,
   asSessions,
   lastReplyAt,
@@ -51,7 +53,7 @@ import {
   rememberReply,
   transcriptPath,
 } from './memory'
-import { DEFAULT_LAYOUT } from './snapshot'
+import { DEFAULT_LAYOUT, LAYOUT_NAMES } from './snapshot'
 import type { Glyphs, LayoutName } from './snapshot'
 import { GIT_DIRS_ARGV, GIT_STATUS_ARGV, homeRelative, parseGitState, splitPath } from './workspace'
 import type { Workspace } from './workspace'
@@ -76,7 +78,7 @@ const REPLY = {
   hidden: 'Usage band hidden. /usage-band shows it again.',
   expanded: 'Usage band expanded.',
   collapsed: 'Usage band collapsed.',
-  usage: 'Usage: /usage-band [more | less | show | hide]',
+  usage: 'Usage: /usage-band [more | less | show | hide] · /usage-band layout <name>',
 } as const
 
 /** Everything the band keeps between hooks, in one place. A reload starts it
@@ -224,6 +226,33 @@ const parseCommand = (args: string): BandCommand | undefined => {
   return word === 'more' || word === 'less' || word === 'show' || word === 'hide' ? word : undefined
 }
 
+/** The stored layout, or chips: a name this version doesn't know, or a value
+ *  that isn't a name, draws chips. Never throws. */
+const readLayout = async ($: EngineInterface): Promise<void> => {
+  band.layout = asLayoutName(await $.store.get(LAYOUT_KEY).catch(() => undefined)) ?? DEFAULT_LAYOUT
+}
+
+/** The layouts /usage-band layout offers. */
+const LAYOUT_LIST = `Choose one: ${LAYOUT_NAMES.join(', ')}.`
+/** `layout`, then what follows it, if anything. */
+const LAYOUT_ARG = /^\s*layout(?:\s+(.*))?$/i
+
+/** The reply naming the layout the band draws in. */
+const layoutReply = (name: LayoutName): string => `Usage band layout: ${name}.`
+
+/** `/usage-band layout [name]`: lists, or switches and remembers. Only this writes the layout. */
+const chooseLayout = async ($: EngineInterface, arg: string): Promise<string> => {
+  if (arg.trim() === '') return `${layoutReply(band.layout)} ${LAYOUT_LIST}`
+  const name = asLayoutName(arg)
+  if (name === undefined) return `Unknown layout "${clipMiddle(arg.trim(), 20)}". ${LAYOUT_LIST}`
+  band.layout = name
+  // Remembered for the next session. A store that fails leaves this one
+  // switched until the next turn reads the store back.
+  await $.store.set(LAYOUT_KEY, name).catch(() => undefined)
+  await update($, isHidden, () => false)
+  $.ui.invalidate('ui.render')
+  return name === DEFAULT_LAYOUT ? layoutReply(name) : `${layoutReply(name)} /usage-band layout ${DEFAULT_LAYOUT} goes back.`
+}
 
 export const register: Register = on => {
 
@@ -232,10 +261,10 @@ export const register: Register = on => {
     resetInsights()
     band.warned.clear()
     band.lastPaintKey = ''
-    band.layout = DEFAULT_LAYOUT
     band.workspace = undefined
     band.utcOffsetMin = utcOffsetOf(await $.clock.now())
     band.reads++ // any read still out began before this load
+    await readLayout($)
     notePriceModel(await $.session.model().catch(() => undefined))
     noteLoad(await ledgerUsd($))
     void readWorkspace($)
@@ -275,7 +304,8 @@ export const register: Register = on => {
 
     $.command.register({
       name: 'usage-band',
-      description: 'Show, hide, expand or collapse the session usage band',
+      description: 'Show, hide, expand, collapse or restyle the session usage band',
+      argumentHint: '[more | less | show | hide | layout <name>]',
     })
     return next(e)
   })
@@ -313,6 +343,8 @@ export const register: Register = on => {
       noteTurnEnd(e.turnId, cost)
       void rememberTurn($, cost)
       band.utcOffsetMin = utcOffsetOf(await $.clock.now())
+      // Another session may have chosen a layout since.
+      await readLayout($)
       // A turn may have switched branch, committed or moved the session.
       void readWorkspace($)
       $.ui.invalidate('ui.render')
@@ -395,6 +427,8 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'usage-band' }, async ($, e, next) => {
+    const chosen = LAYOUT_ARG.exec(e.args)
+    if (chosen) return { text: await chooseLayout($, chosen[1] ?? '') }
     const command = parseCommand(e.args)
     switch (command) {
       case 'more':

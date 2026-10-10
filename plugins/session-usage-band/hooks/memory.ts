@@ -1,14 +1,19 @@
 // What the band remembers across sessions, in the plugin's own store: when
-// each session last had a reply, and what a token costs on each model. With
-// them a reopened session, or a reload, says whether its cache is cold and
-// what the next message costs, before any reply of its own.
+// each session last had a reply, what a token costs on each model, and the
+// layout the band draws in. With the first two a reopened session, or a
+// reload, says whether its cache is cold and what the next message costs,
+// before any reply of its own.
 
 import { modelName, weightedTokens } from './cache'
+import { LAYOUT_NAMES } from './snapshot'
+import type { LayoutName } from './snapshot'
 import { stripTrailingSlashes } from './workspace'
 
 /** Store keys. */
 export const SESSIONS_KEY = 'sessions'
 export const RATES_KEY = 'rates'
+export const LAYOUT_KEY = 'layout'
+export const LIMIT_SAMPLES_KEY = 'limitSamples'
 
 /** Sessions kept, newest reply first; the rest are forgotten. */
 export const MAX_SESSIONS = 50
@@ -39,6 +44,14 @@ export const asRates = (v: unknown): Rates =>
         Object.entries(v).filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]) && entry[1] > 0),
       )
     : {}
+
+/** A layout's name from the store or the command: trimmed, any case; anything
+ *  else, a name from a newer version included, is undefined. */
+export const asLayoutName = (v: unknown): LayoutName | undefined => {
+  if (typeof v !== 'string') return undefined
+  const word = v.trim().toLowerCase()
+  return (LAYOUT_NAMES as readonly string[]).includes(word) ? (word as LayoutName) : undefined
+}
 
 /** `sessions` with `id`'s reply at `lastAt`, the oldest dropped past MAX_SESSIONS. */
 export const rememberReply = (sessions: Sessions, id: string, lastAt: number): Sessions =>
