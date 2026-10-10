@@ -61,8 +61,10 @@ def node(n, parent_row=False):
     padx = p.get('paddingX', 0) * COL
     if p.get('borderStyle'):
         st.append(f"border:1px solid {p.get('borderColor', '#55555e')};border-radius:12px;padding:11px {padx}px")
-    elif p.get('backgroundColor'):
+    elif p.get('backgroundColor') and row:
         st.append(f"border-radius:8px;padding:0 {padx}px;height:{ROW + 4}px")
+    elif p.get('backgroundColor'):  # a layout's panel, as tall as its rows
+        st.append(f"border-radius:8px;padding:2px {padx}px")
     elif padx:
         st.append(f"padding:0 {padx}px")
     if p.get('backgroundColor'): st.append(f"background:{p['backgroundColor']}")

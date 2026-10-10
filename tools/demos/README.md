@@ -23,8 +23,8 @@ It needs Claude Code, Google Chrome, Node 22+, Python 3 with Pillow, and ffmpeg.
 3. **Compose.** `film2.py` (on top of `film.py`'s timeline and camera) builds
    the film frame by frame in a light and a dark theme; `term_themed.py` the
    terminal demo; `gen_site.py` fills `site/template.html` with the live
-   band's states; `stills.py` the social card, the expanded band and the
-   states gallery.
+   band's states; `stills.py` the social card, the expanded band, and the
+   states and layouts galleries.
 4. **Render.** `shoot.mjs` screenshots each frame through one headless Chrome
    over the DevTools protocol; ffmpeg turns frames into MP4 and GIF.
 
