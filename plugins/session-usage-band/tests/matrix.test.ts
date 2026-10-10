@@ -1,6 +1,8 @@
 // Every invariant check, proven on a tree that breaks it.
 
 import { test, expect } from 'claude-code/testing'
+import type { RenderChildren } from 'claude-code'
+import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import type { Node } from './helpers'
 import { invariantErrors, visualRows, type InvariantContext } from './matrix'
 
@@ -49,8 +51,14 @@ test('toggle: ▿ shut, ▵ open, once', () => {
   expect(failed(view([row(t('a'), toggle(), toggle())]))).toContain('toggle')
   expect(failed(view([row(t('a'), toggle('v'))]), { glyphs: 'ascii' })).not.toContain('toggle')
 })
-test('width: no wider than the columns, except all-amber below 60', () => {
+test('width: no wider than the row less its slack on the terminal, the row on the desktop, except all-amber below 60', () => {
   expect(failed(view([row(t('x'.repeat(130)), toggle())]))).toContain('width')
+  const wide = view([row(t('x'.repeat(100)), toggle())])
+  const terminal = cellsOf(wide.children[0] as RenderChildren, TERMINAL)
+  expect(failed(wide, { cols: terminal + ROW_SLACK })).not.toContain('width')
+  expect(failed(wide, { cols: terminal + ROW_SLACK - 1 })).toContain('width')
+  const desktop = Math.ceil(cellsOf(wide.children[0] as RenderChildren, DESKTOP))
+  expect(failed(wide, { surface: 'desktop', cols: desktop })).not.toContain('width')
   const clipped = view([row(t(`! 30s left · re-warm ~$1.66 ${'x'.repeat(60)}`), toggle())])
   expect(failed(clipped, { scenario: 'lastMinute', cols: 50 })).not.toContain('width')
   // One amber reading still fits: only all-amber, which lastMinute stands for, clips.
@@ -130,6 +138,14 @@ test('empty: no NaN, undefined, null or empty Text', () => {
   expect(failed(view([row(t('a'), t(''), toggle())]))).toContain('empty')
   // In the ascii tier a glyph-only Text, such as an icon's `↻ `, maps to nothing.
   expect(failed(view([row(t('a'), t(''), toggle('v'))]), { glyphs: 'ascii' })).not.toContain('empty')
+})
+test("emptyState: open, each empty state follows its own section's name", () => {
+  const open = (body: unknown[], said = 'cache 52m left') => view([row(t(said), toggle('▵'))], body)
+  expect(failed(open([t('none reported')]), { expanded: true })).toContain('emptyState')
+  expect(failed(open([t('CONTEXT'), t('none reported')]), { expanded: true })).toContain('emptyState')
+  expect(failed(open([t('LIMITS'), t('none reported'), t('Context'), t('not reported')]), { expanded: true })).not.toContain('emptyState')
+  // The collapsed part says its own: week's `5h · 7d none reported`.
+  expect(failed(open([t('LIMITS')], '5h · 7d none reported'), { expanded: true })).not.toContain('emptyState')
 })
 test("glyphs: the tier's own, and ASCII alone in the ascii tier", () => {
   expect(failed(view([row(t('◐ cache'), toggle())]))).toContain('glyphs')

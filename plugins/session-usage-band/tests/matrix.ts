@@ -221,7 +221,7 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   // Open, a body short of rows keeps a calm section's title, so an empty
   // state is never said without its section's name.
   const body = (tree.children ?? []).slice(1).map(shown).join('')
-  if (ctx.expanded && /(?<!(context|limits)\W*)(not|none) reported/i.test(body)) fail('emptyState', 'an empty state without its section\'s name')
+  if (ctx.expanded && /(?<!context\W*)not reported|(?<!limits\W*)none reported/i.test(body)) fail('emptyState', 'an empty state without its section\'s name')
 
   if (nodes > (ctx.expanded ? 1500 : 400)) fail('size', `${nodes} nodes`)
   if (ctx.expanded) {
