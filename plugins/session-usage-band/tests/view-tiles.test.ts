@@ -4,7 +4,8 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import type { On } from 'claude-code'
+import type { On, RenderChildren } from 'claude-code'
+import { ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { byKey, LONG, shown, svgsOf, textOf, walk } from './helpers'
 import { caseKey, drawCases, viewSuite, visualRows, type Mount, type ScenarioName, type Ttl } from './matrix'
 
@@ -74,6 +75,11 @@ test('at 40 columns the last minute keeps its reason whole once the calm 5h tile
   const mounts = (['terminal', 'desktop'] as const).map((surface): Mount => ({ surface, cols: 40 }))
   const trees = await drawCases($, on, { layout: 'tiles', scenario: 'lastMinute', appearance: 'dark', ttl: '5m' }, mounts)
   for (const m of mounts) expect(`${m.surface}: ${shown(trees[caseKey(m, 'shut')])}`).toMatch(/^\w+: 30s! 30s left · re-warm ~\$[\d.]+$/)
+})
+test('at 40 columns a cold cache is labelled by its price alone, so an amber limit fits beside it', LONG, async ($, on) => {
+  const line = byKey((await at($, on, 'coldLimit80', { surface: 'terminal', cols: 40 }, '5m')).shut, 'line', 'Box')
+  expect(shown(line)).toMatch(/^cold~\$[\d.]+82%! 5h 82%$/)
+  expect(cellsOf(line as RenderChildren, TERMINAL)).toBeLessThanOrEqual(40 - ROW_SLACK - 2)
 })
 test('the cache not measured yet has no re-warm price open', async ($, on) => {
   const t = shown((await at($, on, 'unmeasured')).open)

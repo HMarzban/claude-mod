@@ -6,7 +6,7 @@ import type { RenderChildren } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
 import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, firstRow, shown, walk, type Node } from './helpers'
 import type { Ttl } from '../hooks/cache'
-import { DESKTOP, ROW_PX, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
+import { DESKTOP, ROW_PX, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
 import type { BandActions, BandSnapshot, Glyphs, LayoutName } from '../hooks/snapshot'
 import { VIEWS } from '../hooks/views/index'
@@ -171,10 +171,13 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   if (toggles !== 1) fail('toggle', `${toggles} ${mark} in the collapsed part`)
 
   // All-amber below 60 columns clips by design, ▿ pinned at the end; a
-  // single amber reading still fits.
+  // single amber reading still fits. On the terminal it fits the row less
+  // its slack, as each line is squeezed to; the desktop's estimate keeps the
+  // row's width, since pulse's costs hold its second row there.
   const clipsByDesign = ctx.cols < 60 && ctx.scenario === ALL_AMBER
   const width = cellsOf(collapsed as RenderChildren, ctx.surface === 'desktop' ? DESKTOP : TERMINAL)
-  if (!clipsByDesign && width > ctx.cols) fail('width', `${width} columns at ${ctx.cols}`)
+  const room = ctx.surface === 'terminal' ? ctx.cols - ROW_SLACK : ctx.cols
+  if (!clipsByDesign && width > room) fail('width', `${width} columns at ${ctx.cols}`)
 
   let nodes = 0
   const svgs: Node[] = []

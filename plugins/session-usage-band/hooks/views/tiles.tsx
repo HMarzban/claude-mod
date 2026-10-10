@@ -14,9 +14,10 @@ import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last. Amber never does.
  *  Spec §6 ends at the context tile; at 40 columns an amber 5h or context
- *  tile fits only once the cost's has gone too, and the last minute's
- *  reason only once the 5h's has. */
-const ORDER = ['underline', 'resetText', 'calmSeven', 'calmContext', 'cost', 'calmFive'] as const
+ *  tile fits only once the cost's has gone too, the last minute's reason
+ *  only once the 5h's has, and an amber limit beside a cold cache only once
+ *  the cache's label is its price alone. */
+const ORDER = ['underline', 'resetText', 'calmSeven', 'calmContext', 'cost', 'calmFive', 'cacheWords'] as const
 type Piece = (typeof ORDER)[number]
 /** An underline's length. */
 const UNDER_PX = 64
@@ -93,14 +94,16 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const x = read.context
   // Built once: none of these changes with the squeeze.
   const toggle = toggleButton(kit, read, act)
-  // Cold is a price, so its label names it.
-  const cacheLabel = words(kit, 'l', [[c.condition === 'cold' && c.reWarmText !== undefined ? c.reWarmText : 'cache', 'label']])
+  // Cold is a price, so its label names it, and short, says it alone.
+  const reWarm = c.condition === 'cold' ? c.reWarmText : undefined
+  const cacheLabel = words(kit, 'l', [[reWarm ?? 'cache', 'label']])
+  const cacheShort = reWarm === undefined ? cacheLabel : words(kit, 'l', [[c.estimate, 'label']])
   const contextLabel = words(kit, 'l', [['context', 'label']])
   const costLabel = words(kit, 'l', [['this session', 'label']])
   const cache: Tile = {
     key: 'cache',
     value: valueOf(kit, cacheValue(c), c.amber),
-    label: () => cacheLabel,
+    label: keeps => (keeps.has('cacheWords') ? cacheLabel : cacheShort),
     bar: barOf(kit, c.alt, c.charge, p.warm, c.amber),
     amber: c.amber,
     tone: c.tone,
