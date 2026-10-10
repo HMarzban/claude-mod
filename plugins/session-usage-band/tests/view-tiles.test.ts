@@ -5,7 +5,7 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { LONG, shown, svgsOf } from './helpers'
+import { byKey, LONG, shown, svgsOf, textOf, walk } from './helpers'
 import { caseKey, drawCases, viewSuite, visualRows, type Mount, type ScenarioName, type Ttl } from './matrix'
 
 viewSuite('tiles')
@@ -19,6 +19,14 @@ const at = async ($: Engine, on: On, scenario: ScenarioName, m: Mount = T160, tt
 }
 /** A tree's underlines: its 4 px Svgs. */
 const underlines = (tree: unknown) => svgsOf(tree).filter(n => Number(n.props?.height) === 4)
+/** The colour of the first Text that says exactly `text`. */
+const colorOf = (tree: unknown, text: string): unknown => {
+  let color: unknown
+  walk(tree, n => {
+    if (color === undefined && n.type === 'Text' && textOf(n) === text && n.props?.color !== undefined) color = n.props.color
+  })
+  return color
+}
 
 test('each tile is a value over its label', async ($, on) => {
   const t = shown((await at($, on, 'calm')).shut)
@@ -63,10 +71,16 @@ test('at 40 columns an amber tile still says why, once the cost has gone', async
   expect(t).not.toMatch(/\$2\.41/)
 })
 test('the cache not measured yet has no re-warm price open', async ($, on) => {
-  expect(shown((await at($, on, 'unmeasured')).open)).not.toMatch(/re-warm if cold/)
+  const t = shown((await at($, on, 'unmeasured')).open)
+  expect(t).toMatch(/CACHE\s*–\s*cache/)
+  expect(t).not.toMatch(/re-warm if cold/)
 })
 test('open, every limit has its tiles, an amber gateway spend limit first, with its reason', async ($, on) => {
   expect(shown((await at($, on, 'gatewaySpend')).open)).toMatch(/LIMITS\s*92%\s*! spend 92%.*4%\s*5h.*30%\s*7d/)
+})
+test('open, a limit keeps the colours its tile has shut', async ($, on) => {
+  const { shut, open } = await at($, on, 'calm')
+  for (const name of ['5h', '7d']) expect(colorOf(byKey(byKey(open, 'limits', 'Box'), name, 'Box'), name)).toBe(colorOf(shut, name))
 })
 test('open, a projection is a dashed underline', async ($, on) => {
   expect(svgsOf((await at($, on, 'calm', D160)).open).some(n => /stroke-dasharray/.test(String(n.props?.source)))).toBe(true)

@@ -19,7 +19,7 @@ const ORDER = ['underline', 'resetText', 'calmSeven', 'calmContext', 'cost'] as 
 type Piece = (typeof ORDER)[number]
 /** An underline's length. */
 const UNDER_PX = 64
-/** An underline's height, as charts draws it. */
+/** An underline's height: charts' `UNDERLINE_PX`, which it keeps private. */
 const UNDER_HEIGHT = 4
 
 /** A value over its label, and on the desktop its underline beneath. */
@@ -66,10 +66,17 @@ const drawTile = (kit: Kit, t: Tile, keeps: Keeps<Piece>): RenderChildren => {
     : stack(kit, t.key, t.value, t.label(keeps), keeps.has('underline') ? t.bar : null)
 }
 
+/** A limit's name in its accent; a limit with none has the label's. */
+const nameRole = (l: LimitView): Role => (l.key === '5h' ? 'accent5' : l.key === '7d' ? 'accent7' : 'label')
+
+/** A limit's label: its name, then its reset when it has one. */
+const limitLabel = (l: LimitView): Say =>
+  l.resetGlyph === undefined ? [[l.name, nameRole(l)]] : [[l.name, nameRole(l)], [` ${l.resetGlyph}`, 'label']]
+
 /** A limit's tile: its name in its accent, and its reset while the squeeze allows. */
-const limitTile = (kit: Kit, l: LimitView, role: Role, step?: Piece): Tile => {
-  const named = words(kit, 'l', [[l.name, role]])
-  const reset = l.resetGlyph === undefined ? named : words(kit, 'l', [[l.name, role], [` ${l.resetGlyph}`, 'label']])
+const limitTile = (kit: Kit, l: LimitView, step?: Piece): Tile => {
+  const named = words(kit, 'l', [[l.name, nameRole(l)]])
+  const reset = words(kit, 'l', limitLabel(l))
   return {
     key: l.name,
     value: valueOf(kit, l.passed ? 'reset' : l.value, l.amber),
@@ -110,8 +117,8 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
     tone: x.tone,
     step: 'calmContext',
   }
-  const five = read.fiveHour === undefined ? undefined : limitTile(kit, read.fiveHour, 'accent5')
-  const seven = read.sevenDay === undefined ? undefined : limitTile(kit, read.sevenDay, 'accent7', 'calmSeven')
+  const five = read.fiveHour === undefined ? undefined : limitTile(kit, read.fiveHour)
+  const seven = read.sevenDay === undefined ? undefined : limitTile(kit, read.sevenDay, 'calmSeven')
   const tiles = [cache, cost, context, five, seven].filter((t): t is Tile => t !== undefined)
   return [fitLine(kit, ORDER, lineRoom(kit), keeps => line(kit, 'line', tiles.map(t => drawTile(kit, t, keeps)), toggle, 3))]
 }
@@ -147,10 +154,11 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const deepest = Math.min(pairs, Math.max(2, read.limits.length))
   const barred = deepest * (2 * ROW_PX + UNDER_HEIGHT) <= room * ROW_PX
   /** A tile, or nothing while its value is unknown; amber, its label is the reason. */
-  const tile = (key: string, value: string | undefined, label: string, bar: RenderChildren = null, amber?: Amber): RenderChildren =>
-    value === undefined
-      ? null
-      : stack(kit, key, valueOf(kit, value, amber), words(kit, 'l', [[amber?.long ?? label, amber !== undefined ? 'amber' : 'label']]), barred ? bar : null)
+  const tile = (key: string, value: string | undefined, label: string | Say, bar: RenderChildren = null, amber?: Amber): RenderChildren => {
+    if (value === undefined) return null
+    const said: Say = amber !== undefined ? [[amber.long, 'amber']] : typeof label === 'string' ? [[label, 'label']] : label
+    return stack(kit, key, valueOf(kit, value, amber), words(kit, 'l', said), barred ? bar : null)
+  }
   const group = (key: string, title: string, rows: readonly RenderChildren[], headline: Say): RenderElement =>
     section(kit, key, title, pairs > 0 ? rows : [words(kit, 'head', headline)], pairs > 0 ? pairs : room)
   /** A group with nothing known: its empty words, in a line either way. */
@@ -179,7 +187,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     ], [headOf(x.text, x.amber)]),
     limits.length === 0 ? emptyGroup('limits', 'LIMITS', EMPTY.limits) : group('limits', 'LIMITS', limits.map(l =>
       pair(kit, l.name, [
-        tile('now', l.passed ? 'reset' : l.value, l.resetGlyph === undefined ? l.name : `${l.name} ${l.resetGlyph}`, barOf(kit, l.alt, l.frac, accentOf(kit, l), l.amber), l.amber),
+        tile('now', l.passed ? 'reset' : l.value, limitLabel(l), barOf(kit, l.alt, l.frac, accentOf(kit, l), l.amber), l.amber),
         tile('then', l.projectedText, `${l.name} at its reset`, l.projectedFrac === undefined ? null : barOf(kit, `${l.name} at its reset`, l.projectedFrac, accentOf(kit, l), undefined, true)),
       ]),
     ), limits.flatMap((l, i): Say => (i === 0 ? [headOf(l.text, l.amber)] : [[' · ', 'label'], headOf(l.text, l.amber)]))),
