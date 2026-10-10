@@ -264,8 +264,8 @@ export const recordResponse = (
   state.output += usage.output_tokens
   if (!isMain) return
 
-  // The band already read the cache as cold: a resume the engine called
-  // expired, or a recalled reply past its TTL. This reply rebuilt it.
+  // Read as cold already: a resume the engine called expired, or a recalled
+  // reply past its TTL.
   const coldBefore = isRecalled() && msLeft(sentAt) === 0
   const missesBefore = state.misses
   const prefix = state.cached

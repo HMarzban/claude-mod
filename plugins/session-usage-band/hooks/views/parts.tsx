@@ -211,9 +211,8 @@ export const words = (kit: Kit, key: string, say: Say, bold = false): RenderElem
   )
 }
 
-/** How a view writes a limit's sentence: what leads it while calm, its
- *  value alone (`5h 4%` in `value`) or its words (`5h` a label), which
- *  reset phrase it says, and what joins the phrases. */
+/** How a view writes a limit's sentence: led while calm by its `text` or its
+ *  `say`, the reset phrase it says, and what joins the phrases. */
 export type SentenceStyle = Readonly<{ lead: 'text' | 'say'; reset: 'resetWords' | 'resetGlyph'; sep: ', ' | ' · ' }>
 
 /** A limit as a sentence: its reason while amber, else its value; then its
