@@ -21,7 +21,10 @@ import { DARK } from '../hooks/palette'
 
 export const PLUGIN = 'session-usage-band'
 
-export const props = (cols: number, isWorking = false, maxRows = 40) => ({
+/** The height a mount gets when it names none. */
+export const DEFAULT_MAX_ROWS = 40
+
+export const props = (cols: number, isWorking = false, maxRows = DEFAULT_MAX_ROWS) => ({
   hasSurvey: false,
   isWorking,
   maxRows,

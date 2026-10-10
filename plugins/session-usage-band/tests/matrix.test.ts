@@ -53,6 +53,8 @@ test('width: no wider than the columns, except all-amber below 60', () => {
   expect(failed(view([row(t('x'.repeat(130)), toggle())]))).toContain('width')
   const clipped = view([row(t(`! 30s left · re-warm ~$1.66 ${'x'.repeat(60)}`), toggle())])
   expect(failed(clipped, { scenario: 'lastMinute', cols: 50 })).not.toContain('width')
+  // One amber reading still fits: only all-amber, which lastMinute stands for, clips.
+  expect(failed(view([row(t(`! 5h 82% ${'x'.repeat(60)}`), toggle())]), { scenario: 'limit80', cols: 50 })).toContain('width')
 })
 test('whitespace: none alone on the desktop', () => {
   const spaced = view([{ type: 'Box', props: { flexDirection: 'row' }, children: [t('a'), ' ', toggle()] }])
@@ -65,6 +67,14 @@ test('svgPlacement: Svg only where it draws', () => {
 test('svgProps: every Svg has an alt and a width', () => {
   expect(failed(view([row(t('a'), svg({ width: 20 }), toggle())]), { surface: 'desktop' })).toContain('svgProps')
   expect(failed(view([row(t('a'), svg({ alt: 'x' }), toggle())]), { surface: 'desktop' })).toContain('svgProps')
+})
+test('svgProps: no Svg has an id, a gradient, a pattern or a clipPath', () => {
+  const desk = { surface: 'desktop' } as const
+  expect(failed(view([row(t('a'), svg({ width: 20, alt: 'x', id: 'bar' }), toggle())]), desk)).toContain('svgProps')
+  for (const mark of ['<clipPath id="c"/>', '<linearGradient/>', '<radialGradient/>', '<pattern/>', '<rect id="x"/>'])
+    expect(failed(view([row(t('a'), svg({ width: 20, alt: 'x', source: `<svg>${mark}</svg>` }), toggle())]), desk)).toContain('svgProps')
+  const plain = svg({ width: 20, alt: 'x', source: '<svg><rect width="2" stroke-width="2"/></svg>' })
+  expect(failed(view([row(t('a'), plain, toggle())]), desk)).not.toContain('svgProps')
 })
 test('colour: nothing is red', () => {
   expect(failed(view([row(t('a', { color: '#ff0000' }), toggle())]))).toContain('colour')
@@ -91,10 +101,35 @@ test("amber: each of the scenario's triggers has its words", () => {
   expect(failed(GOOD, { scenario: 'lastMinute' })).toContain('amber')
   expect(failed(view([row(t('! 30s left · re-warm ~$1.66'), toggle())]), { scenario: 'lastMinute' })).not.toContain('amber')
 })
+test("amber: another limit's words are owed only open, where it is drawn", () => {
+  expect(failed(GOOD, { scenario: 'gatewaySpend' })).not.toContain('amber')
+  const open = view([row(t('a'), toggle('▵'))], [t('spend 92%')])
+  expect(failed(open, { scenario: 'gatewaySpend', expanded: true })).toContain('amber')
+  expect(failed(view([row(t('a'), toggle('▵'))], [t('! spend 92%')]), { scenario: 'gatewaySpend', expanded: true })).not.toContain('amber')
+})
 test('estimate: a price or a fill time carries ~', () => {
   expect(failed(view([row(t('re-warm $1.66'), toggle())]))).toContain('estimate')
+  expect(failed(view([row(t('next message $1.66'), toggle())]))).toContain('estimate')
   expect(failed(view([row(t('5h full 14:20'), toggle())]))).toContain('estimate')
+  expect(failed(view([row(t('7d on pace for 50%'), toggle())]))).toContain('estimate')
+  expect(failed(view([row(t('last message $0.21'), toggle())]))).not.toContain('estimate')
   expect(failed(view([row(t('! FULL ~14:20'), toggle())]))).not.toContain('estimate')
+})
+test('projection: a landing of 100% or more says full before reset', () => {
+  expect(failed(view([row(t('7d ~112% at reset'), toggle())]), { scenario: 'sevenFullBeforeReset' })).toContain('projection')
+  expect(failed(view([row(t('7d full before reset'), toggle())]), { scenario: 'sevenFullBeforeReset' })).not.toContain('projection')
+})
+test('unknown: context not reported never reads 0%', () => {
+  for (const said of ['context 0%', 'ctx 0%']) expect(failed(view([row(t(said), toggle())]), { scenario: 'warming' })).toContain('unknown')
+  expect(failed(view([row(t('context –'), toggle())]), { scenario: 'warming' })).not.toContain('unknown')
+})
+test('empty: no NaN, undefined, null or empty Text', () => {
+  for (const said of ['context NaN%', '↻ undefined', 'null left'])
+    expect(failed(view([row(t(said), toggle())]))).toContain('empty')
+  expect(failed(view([row(t('a'), svg({ width: 20, alt: '5h undefined' }), toggle())]), { surface: 'desktop' })).toContain('empty')
+  expect(failed(view([row(t('a'), t(''), toggle())]))).toContain('empty')
+  // In the ascii tier a glyph-only Text, such as an icon's `↻ `, maps to nothing.
+  expect(failed(view([row(t('a'), t(''), toggle('v'))]), { glyphs: 'ascii' })).not.toContain('empty')
 })
 test("glyphs: the tier's own, and ASCII alone in the ascii tier", () => {
   expect(failed(view([row(t('◐ cache'), toggle())]))).toContain('glyphs')

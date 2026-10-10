@@ -6,9 +6,11 @@
 import type { On, RenderChildren, SessionUsage } from 'claude-code'
 import { expect, test, type Engine, type MockClock } from 'claude-code/testing'
 import {
-  HOUR, HOUR_1, LONG, MIN, START, USAGE, FRESH, breakdown, engine, firstRow, mountBand, pacing, resp, respond, setup, shown, turn, walk, type Node,
+  DEFAULT_MAX_ROWS, HOUR, HOUR_1, LONG, MIN, START, USAGE, FRESH, breakdown, engine, firstRow, mountBand, pacing, resp, respond, setup, shown, turn, walk,
+  type Node,
 } from './helpers'
-import { DESKTOP, ROW_PX, TERMINAL, cellsOf } from '../hooks/layout'
+import { TTL_MS, type Ttl } from '../hooks/cache'
+import { DESKTOP, ROW_PX, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
 import type { BandActions, BandSnapshot, Glyphs, LayoutName } from '../hooks/snapshot'
 import { VIEWS } from '../hooks/views/index'
@@ -16,10 +18,7 @@ import { rowsOf } from '../hooks/views/view'
 
 export type Appearance = 'dark' | 'light' | 'plain'
 export type Surface = 'terminal' | 'desktop'
-export type Ttl = '1h' | '5m'
-export type AmberReason = 'cacheLastMinute' | 'nearCompaction' | 'contextNoCompaction' | 'limit80' | 'fiveHourAhead'
-
-const TTL_MS: Readonly<Record<Ttl, number>> = { '1h': HOUR, '5m': 5 * MIN }
+export type AmberReason = 'cacheLastMinute' | 'nearCompaction' | 'contextNoCompaction' | 'limit80' | 'fiveHourAhead' | 'otherLimit80'
 
 export type Scenario = Readonly<{
   usage?: SessionUsage
@@ -78,7 +77,7 @@ export const SCENARIOS = {
   gatewaySpend: {
     usage: { ...USAGE, rateLimits: [...withLimits(4, 30), { kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }] },
     drive: replied,
-    amber: [],
+    amber: ['otherLimit80'],
   },
   resetPassed: { now: 4 * HOUR, drive: replied, amber: [] },
   // A git read that never answers: the strip stays empty, as before the first read.
@@ -97,10 +96,11 @@ export const SCENARIOS = {
 
 export type ScenarioName = keyof typeof SCENARIOS
 export const SCENARIO_NAMES = Object.keys(SCENARIOS) as ScenarioName[]
+/** Spec §7's all-amber: no scenario raises every reason at once, so the
+ *  last minute stands for it, as the ledger rules. */
+const ALL_AMBER = 'lastMinute' satisfies ScenarioName
 
 export type Mount = Readonly<{ surface: Surface; cols: number; maxRows?: number }>
-/** The height a mount gets when it names none, as helpers' props() gives it. */
-const DEFAULT_MAX_ROWS = 40
 export type State = 'shut' | 'open'
 export type CaseOptions = Readonly<{
   scenario: ScenarioName
@@ -177,9 +177,12 @@ export const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
   contextNoCompaction: /! context \d+%|! ctx \d+%|! CONTEXT \d+%/,
   limit80: /! 5h|! NEAR LIMIT/,
   fiveHourAhead: /! 5h|! FULL/,
+  otherLimit80: /! spend \d+%|! NEAR LIMIT/,
 }
+/** Amber the collapsed part never shows: other limits are drawn only open (spec §2.7). */
+const OPEN_ONLY: ReadonlySet<AmberReason> = new Set(['otherLimit80'])
 
-const visible = (k: unknown): boolean => k !== null && k !== undefined && k !== false
+
 /** Height in lines (terminal) or px (desktop): a Text or Button is a row, an
  *  Svg its height (none on the terminal), a column sums with its gaps, a row
  *  takes its tallest; a top margin adds its rows. */
@@ -192,7 +195,7 @@ const heightOf = (n: unknown, px: boolean): number => {
   const margin = (typeof node.props?.marginTop === 'number' ? node.props.marginTop : 0) * unit
   if (node.type === 'Svg') return px ? Number(node.props?.height ?? ROW_PX) + margin : 0
   if (node.type === 'Text' || node.type === 'Button') return unit + margin
-  const kids = (node.children ?? []).filter(visible)
+  const kids = (node.children ?? []).filter(isDrawn)
   if (kids.length === 0) return margin
   const sizes = kids.map(k => heightOf(k, px))
   if (node.props?.flexDirection !== 'column') return Math.max(...sizes) + margin
@@ -265,6 +268,12 @@ const coloursOf = (n: Node): string[] => {
 /** What each glyph tier may draw (spec §3.2): the unicode tier's glyphs and braille, or ASCII alone. */
 const UNICODE_TIER = /^[\x20-\x7e█░▒│·↻Σ◷◔▿▵…±●■–↑↓\u2800-\u28ff]*$/
 const ASCII_TIER = /^[\x20-\x7e]*$/
+/** What a value missing from a phrase leaves drawn (spec §2.8). */
+const NOTHING = /\b(NaN|undefined|null)\b/
+/** What spec §2.9 bars from any Svg's markup: an id, a gradient, a pattern, a clipPath. */
+const SVG_BARRED = /<(linearGradient|radialGradient|pattern|clipPath)\b|\bid=/
+/** A price or a fill time drawn without its `~` (spec §2.4). */
+const UNMARKED = /re-warm \$|next message \$|full (in |at )?\d|on pace for \d/i
 
 /** Each failed check as `<check>: <why>`; none when the tree keeps the spec
  *  §2 contract: the checks spec §7 lists, §9's node budget and §2.6's open height. */
@@ -289,8 +298,9 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   })
   if (toggles !== 1) fail('toggle', `${toggles} ${mark} in the collapsed part`)
 
-  // All-amber below 60 columns clips by design, ▿ pinned at the end.
-  const clipsByDesign = ctx.cols < 60 && amber.length > 0
+  // All-amber below 60 columns clips by design, ▿ pinned at the end; a
+  // single amber reading still fits.
+  const clipsByDesign = ctx.cols < 60 && ctx.scenario === ALL_AMBER
   const width = cellsOf(collapsed as RenderChildren, ctx.surface === 'desktop' ? DESKTOP : TERMINAL)
   if (!clipsByDesign && width > ctx.cols) fail('width', `${width} columns at ${ctx.cols}`)
 
@@ -307,14 +317,29 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   })
   if (!svgDraws && svgs.length > 0) fail('svgPlacement', `${svgs.length} Svg where none draws`)
   for (const s of svgs) {
-    if (typeof s.props?.alt !== 'string' || s.props.alt === '' || typeof s.props?.width !== 'number')
-      fail('svgProps', 'an Svg without an alt or a width')
+    const alt = s.props?.alt
+    if (typeof alt !== 'string' || alt === '' || typeof s.props?.width !== 'number') fail('svgProps', 'an Svg without an alt or a width')
+    if (s.props?.id !== undefined || SVG_BARRED.test(typeof s.props?.source === 'string' ? s.props.source : ''))
+      fail('svgProps', 'an Svg with an id, a gradient, a pattern or a clipPath')
+    if (typeof alt === 'string' && NOTHING.test(alt)) fail('empty', `an alt reads "${alt}"`)
   }
 
   const text = shown(tree)
   if (/send|keep (it )?warm/i.test(text)) fail('wording', 'suggests sending a message')
-  for (const reason of amber) if (!AMBER_WORDS[reason].test(text)) fail('amber', `no words for ${reason}`)
-  if (/re-warm \$/i.test(text) || /full (in |at )?\d/i.test(text)) fail('estimate', 'an estimate without ~')
+  for (const reason of amber)
+    if ((ctx.expanded || !OPEN_ONLY.has(reason)) && !AMBER_WORDS[reason].test(text)) fail('amber', `no words for ${reason}`)
+  if (UNMARKED.test(text)) fail('estimate', 'an estimate without ~')
+  // A landing of 100% or more says `full before reset` (spec §2.1).
+  if (/~\d{3,}%/.test(text)) fail('projection', 'a landing of 100% or more')
+  // No scenario holds an empty context, so 0% is only ever an unreported one.
+  if (/\b(context|ctx) 0%/.test(text)) fail('unknown', 'context 0% where it is unknown')
+  if (NOTHING.test(text)) fail('empty', 'NaN, undefined or null drawn')
+  // In the ascii tier a glyph-only Text, such as an icon's `↻ `, maps to nothing.
+  if (!ascii) {
+    walk(collapsed, n => {
+      if (n.type === 'Text' && shown(n) === '') fail('empty', 'an empty Text in the collapsed part')
+    })
+  }
   if (!(ascii ? ASCII_TIER : UNICODE_TIER).test(text)) fail('glyphs', 'a glyph outside the tier')
 
   if (nodes > (ctx.expanded ? 1500 : 400)) fail('size', `${nodes} nodes`)
@@ -346,7 +371,7 @@ export const suiteCases = (layout: LayoutName): SuiteCase[] => {
     ({ layout, scenario, appearance, ttl: ttlOf(scenario), env })
   return [
     ...SCENARIO_NAMES.map(scenario => ({ name: `${layout}: ${scenario}`, options: optionsOf(scenario), mounts: bothSurfaces(120) })),
-    ...(['calm', 'lastMinute'] as const).flatMap(scenario => [
+    ...(['calm', ALL_AMBER] as const).flatMap(scenario => [
       { name: `${layout}: ${scenario}, light`, options: optionsOf(scenario, 'light'), mounts: bothSurfaces(120) },
       { name: `${layout}: ${scenario}, plain`, options: optionsOf(scenario, 'plain'), mounts: bothSurfaces(120) },
       { name: `${layout}: ${scenario}, ascii`, options: optionsOf(scenario, 'dark', { CC_BAND_GLYPHS: 'ascii' }), mounts: bothSurfaces(120) },

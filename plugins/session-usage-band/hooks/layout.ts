@@ -75,6 +75,9 @@ export const DESKTOP: Measure = { text: 0.75, pxPerCell: 10 }
 
 export const isList = (n: RenderChildren): n is readonly RenderChildren[] => Array.isArray(n)
 
+/** Whether a child draws anything: null, undefined and false draw nothing. */
+export const isDrawn = (child: unknown): boolean => child !== null && child !== undefined && child !== false
+
 /** Columns a drawn tree takes: text, padding, gaps and Button labels. A
  *  column Box takes its widest row; hidden cards take none; an Svg takes its
  *  width in columns, rounded up. */
@@ -92,7 +95,7 @@ export const cellsOf = (n: RenderChildren, m: Measure): number => {
     case 'Text': {
       if (n.props?.position === 'absolute') return 0
       if (n.type === 'Box' && typeof n.props?.width === 'number') return n.props.width
-      const kids = (n.children ?? []).filter(k => k !== null && k !== undefined)
+      const kids = (n.children ?? []).filter(isDrawn)
       const pad = typeof n.props?.paddingX === 'number' ? 2 * n.props.paddingX : 0
       const widths = kids.map(k => cellsOf(k, m))
       const own =

@@ -7,7 +7,7 @@ import type { RenderChildren, RenderElement } from 'claude-code'
 import { clamp01 } from '../format'
 import { asciiText } from '../glyphs'
 import type { Kit } from '../kit'
-import { ROW_SLACK, keepsIn, squeezeToFit } from '../layout'
+import { ROW_SLACK, isDrawn, keepsIn, squeezeToFit } from '../layout'
 import type { LimitKey, Readings, Tone } from '../reading'
 import type { Amber, Role, Say } from '../words'
 
@@ -120,9 +120,6 @@ export type Keeps<P extends string> = Readonly<{
 const AMBER_STEP = 'amberShort'
 /** Asks a `Keeps` which of an amber reading's forms it would pick. */
 const AMBER_PROBE: Amber = { long: 'long', short: 'short' }
-
-/** Whether a child draws anything: null, undefined and false draw nothing. */
-const isDrawn = (child: RenderChildren): boolean => child !== null && child !== undefined && child !== false
 
 /** Columns a collapsed line may take: the row's, less the slack and the panel's padding. */
 export const lineRoom = (kit: Kit): number => kit.columns - ROW_SLACK - 2
