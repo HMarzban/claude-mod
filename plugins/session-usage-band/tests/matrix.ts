@@ -231,9 +231,10 @@ const bothSurfaces = (cols: number, maxRows?: number): Mount[] => [{ surface: 't
 /** The long walks take the 5-minute cache, a twelfth of the hour's ticks. Golden keeps the hour. */
 const ttlOf = (scenario: ScenarioName): Ttl => (scenario === 'lastMinute' || scenario === 'cold' ? '5m' : '1h')
 
-/** The suite's 34 cases, one setup each: every scenario at 120 columns; calm
+/** The suite's 35 cases, one setup each: every scenario at 120 columns; calm
  *  and the last minute in light, plain and the ascii tier, and at every
- *  width; the other amber scenarios narrow; calm short of rows. */
+ *  width; the other amber scenarios narrow; calm and the open-only amber
+ *  short of rows. */
 export const suiteCases = (layout: LayoutName): SuiteCase[] => {
   const optionsOf = (scenario: ScenarioName, appearance: Appearance = 'dark', env?: Record<string, string>): CaseOptions =>
     ({ layout, scenario, appearance, ttl: ttlOf(scenario), env })
@@ -255,6 +256,12 @@ export const suiteCases = (layout: LayoutName): SuiteCase[] => {
       mounts: [40, 50, 60].flatMap(cols => bothSurfaces(cols)),
     })),
     { name: `${layout}: calm, short of rows`, options: optionsOf('calm'), mounts: [4, 8, 13, 40].flatMap(maxRows => bothSurfaces(120, maxRows)) },
+    // The open-only amber, where a section keeps one or two rows, at both grids.
+    {
+      name: `${layout}: gatewaySpend, short of rows`,
+      options: optionsOf('gatewaySpend'),
+      mounts: [80, 120].flatMap(cols => [7, 8, 10].flatMap(maxRows => bothSurfaces(cols, maxRows))),
+    },
   ]
 }
 
