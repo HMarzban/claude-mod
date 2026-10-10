@@ -45,7 +45,9 @@ test('short of rows the body goes, and the buttons stay', () => {
   expect(byKey(tree, 'collapse', 'Button')).toBeDefined()
 })
 test('the strip heads the body while the body keeps a row, then moves to the footer', () => {
-  expect(byKey(opened({ maxRows: 13, workspace: WS }), 'strip', 'Box')).toBeDefined()
+  const tall = opened({ maxRows: 13, workspace: WS })
+  expect(byKey(tall, 'strip', 'Box')).toBeDefined()
+  expect(byKey(byKey(tall, 'actions', 'Box'), 'strip', 'Box')).toBeUndefined()
   expect(byKey(byKey(opened({ maxRows: 5, workspace: WS }), 'actions', 'Box'), 'strip', 'Box')).toBeDefined()
 })
 test("a view's own strip stands in for the shared one", () => {

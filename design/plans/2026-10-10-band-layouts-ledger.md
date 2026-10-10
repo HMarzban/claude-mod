@@ -35,6 +35,7 @@ What the plan's steps record, in the order they happen.
 | Task 8 (merged) | 382 pass, 0 fail, 29 files | `claude plugin test plugins/session-usage-band` |
 | Task 9a | 389 pass, 0 fail, 30 files | `claude plugin test plugins/session-usage-band` |
 | Task 9a (review) | 389 pass, 0 fail, 30 files | `claude plugin test plugins/session-usage-band` |
+| Task 9a (review 2) | 389 pass, 0 fail, 30 files | `claude plugin test plugins/session-usage-band` |
 | Task 10c | 356 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 10c (merged) | 356 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 12 | 354 pass, 0 fail, 26 files | `claude plugin test plugins/session-usage-band` |
@@ -54,6 +55,7 @@ Ruling: `toggleButton`'s Box has no key, and chips' row draws its toggle with it
 Ruling: chips keeps its own buttons, footer-strip room and hint, and `frame()` draws its own copy as Step 5 writes it — Task 14's P1 freeze fixes `frame.tsx`'s exports at `frame`, `bodyRowsFor`, `openView`, `panel`, `toggleButton` and `Strip`, and golden guards chips' copy — no fallback; review reverted a shared `stripAndActions`.
 Pending maintainer: the ascii-tier check `snap.surface === 'terminal' && snap.glyphs === 'ascii'` is in both `band.tsx` and `views/chips.tsx`; one `asciiTier(snap)` beside `asciiText` in `glyphs.ts` (not Task 9a's file) would hold it.
 Pending maintainer: spec §4 file table (line 161) lists `cachePill` under `views/parts.tsx`, while the plan's Task 9a keeps it in `chips.tsx`; drop it from that row, or name Task 13's `layoutCachePill`.
+Pending maintainer: plan Task 13 Step 6's `layoutCachePill` passes `text` to `textBattery` unmapped, against the `textBattery` ruling above; on a terminal in the ascii tier `asciiTree` would then map after the cut. It takes no `snap`, so it needs the ascii check passed in (or `asciiTier(snap)` once it exists) and `ascii ? asciiText(text) : text` on the filled terminal path.
 
 ## Freezes
 - P1 freeze (Task 14):
