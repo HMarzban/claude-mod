@@ -13,9 +13,9 @@ import { toggleButton } from './frame'
 import { accentOf, amberFirst, amberSay, beforeLast, chartsIfRoom, emptyWords, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
-/** What gives way as each row narrows, first to last; `reWarm` is the
- *  narrow-width ruling's. Amber never does. */
-const ORDER = ['tokens', 'resetTexts', 'costRight', 'bars', 'calmCells', 'reWarm'] as const
+/** What gives way as each row narrows, first to last; `reWarm` and `cost`
+ *  are the narrow-width ruling's. Amber never does. */
+const ORDER = ['tokens', 'resetTexts', 'costRight', 'bars', 'calmCells', 'reWarm', 'cost'] as const
 type Piece = (typeof ORDER)[number]
 
 const CACHE_BAR: BarSize = { px: 240, cells: 24 }
@@ -35,7 +35,7 @@ const twoSizes = (full: BarSize, make: (size: BarSize) => RenderChildren): ((isF
 
 /** Row one: the cache's name, its time-left bar once its timing is known, and
  *  its sentence, calm or amber, with the cost and the tokens on the right
- *  until the cost joins it. */
+ *  until the cost joins it. The cost is the last to give way. */
 const cacheRow = (kit: Kit, read: Readings): RenderElement => {
   const c = read.cache
   const s = read.spend
@@ -50,6 +50,7 @@ const cacheRow = (kit: Kit, read: Readings): RenderElement => {
     priced: words(kit, 'say', priced),
     pricedCost: words(kit, 'say', withCost(priced)),
     valueCost: words(kit, 'say', withCost(value)),
+    value: words(kit, 'say', value),
   }
   const cost = words(kit, 'cost', [[s.totalText, 'value']])
   const costTokens = words(kit, 'cost', [[s.totalText, 'value'], [' · ', 'label'], [s.tokensText, 'value'], [' tokens', 'label']])
@@ -58,12 +59,14 @@ const cacheRow = (kit: Kit, read: Readings): RenderElement => {
     const reason = c.amber === undefined ? undefined : amberSay(c.amber, keeps)
     const said =
       reason !== undefined
-        ? words(kit, 'say', onRight ? reason : withCost(reason))
+        ? words(kit, 'say', onRight || !keeps.has('cost') ? reason : withCost(reason))
         : onRight
           ? sentence.priced
           : keeps.has('reWarm')
             ? sentence.pricedCost
-            : sentence.valueCost
+            : keeps.has('cost')
+              ? sentence.valueCost
+              : sentence.value
     return line(
       kit,
       'cache',

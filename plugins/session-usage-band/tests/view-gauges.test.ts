@@ -4,7 +4,7 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { LONG, shown, svgAlts, svgsOf } from './helpers'
+import { LONG, byKey, shown, svgAlts, svgsOf } from './helpers'
 import { caseKey, drawCases, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
 
 viewSuite('gauges')
@@ -57,12 +57,13 @@ test('at 40 columns amber still speaks, short', LONG, async ($, on) => {
   expect(t).toMatch(/^cache\s*! 30s/)
   expect(t).not.toMatch(/left/)
 })
-test('amber, the cost joins the reason as the calm sentence does', LONG, async ($, on) => {
-  const mounts = [60, 40].map((cols): Mount => ({ surface: 'terminal', cols }))
+test('amber, the cost joins the reason as the calm sentence does, and goes before the reason shortens', LONG, async ($, on) => {
+  const mounts = [60, 50, 40].map((cols): Mount => ({ surface: 'terminal', cols }))
   const trees = await drawCases($, on, { layout: 'gauges', scenario: 'lastMinute', appearance: 'dark', ttl: '5m' }, mounts)
-  const [mid, narrow] = mounts.map(m => shown(trees[caseKey(m, 'shut')]))
+  const [mid, held, narrow] = mounts.map(m => shown(byKey(trees[caseKey(m, 'shut')], 'cache', 'Box')))
   expect(mid).toMatch(/! 30s left · re-warm ~\$[\d.]+ · \$2\.41/)
-  expect(narrow).toMatch(/! 30s · \$2\.41/)
+  expect(held).toMatch(/! 30s left · re-warm ~\$[\d.]+$/)
+  expect(narrow).toMatch(/^cache\s*! 30s$/)
 })
 test('a measured pace speaks in amber words', LONG, async ($, on) => {
   expect(shown((await at($, on, 'fiveHourAhead')).shut)).toMatch(/! 5h full in ~/)
