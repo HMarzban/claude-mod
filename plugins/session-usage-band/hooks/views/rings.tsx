@@ -30,7 +30,7 @@ const contextRing = (kit: Kit, x: ContextReading, px: number, centre?: string): 
 const limitRing = (kit: Kit, l: LimitView, px: number, centre?: string): RenderChildren =>
   ring(kit, { key: l.name, alt: l.alt, frac: l.frac, color: kit.onTone(l.tone, accentOf(kit, l)), px, centre, dot: l.gone })
 
-/** A limit's value as its ring's figure: its share, or once passed, that it reset. */
+/** A limit's value on the line: its share, or once passed, that it reset. */
 const limitValue = (l: LimitView): string => (l.passed ? 'reset' : l.value)
 
 /** A reading as the collapsed line draws it: its ring and value, built once;
@@ -71,8 +71,10 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const x = read.context
   // Built once: none of these changes with the squeeze.
   const toggle = toggleButton(kit, read, act)
-  // Long, the cache's label names its condition; cold, the price to re-warm it.
-  const cacheLong = c.condition === 'cold' ? `re-warm ${c.estimate}` : `cache ${c.condition}`
+  // Long, the cache's label names its condition, unless its value already does
+  // (warming, or warm with no countdown); cold, the price to re-warm it.
+  const valueNamesCondition = c.condition === 'warming' || (c.condition === 'warm' && c.leftShort === '')
+  const cacheLong = c.condition === 'cold' ? `re-warm ${c.estimate}` : valueNamesCondition ? 'cache' : `cache ${c.condition}`
   const cache: Figure = {
     key: 'cache',
     tone: c.tone,
@@ -145,7 +147,8 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const splitInks = [p.meterFill, p.label, p.value] as const
   const limitRings = windows.length === 0 ? null : (
     <Box key="rings" flexDirection="row" columnGap={1}>
-      {windows.map(l => limitRing(kit, l, BIG_PX, limitValue(l)))}
+      {/* Passed, the ring draws no figure: `reset` overruns its hole, and the row says it. */}
+      {windows.map(l => limitRing(kit, l, BIG_PX, l.passed ? undefined : l.value))}
     </Box>
   )
   return grid(kit, [

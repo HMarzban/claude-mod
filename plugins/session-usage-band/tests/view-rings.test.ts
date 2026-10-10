@@ -36,6 +36,19 @@ test('amber turns the ring amber too, shut and open', async ($, on) => {
   expect(fives.length).toBe(3)
   for (const n of fives) expect(String(n.props?.source)).toContain(`stroke="${DARK.amberFg}"`)
 })
+test('working, the value says warm and the label only cache', async ($, on) => {
+  expect(shown((await at($, on, 'working')).shut)).toMatch(/warm\s*cache(?! warm)/)
+})
+test('warming, the value says warming and the label only cache', async ($, on) => {
+  expect(shown((await at($, on, 'warming')).shut)).toMatch(/warming\s*cache(?! warming)/)
+})
+test('a passed window says reset on the line, and its big ring draws no figure', async ($, on) => {
+  const { shut, open } = await at($, on, 'resetPassed', D160)
+  expect(shown(shut)).toMatch(/reset\s*5h/)
+  const five = svgsOf(byKey(open, 'rings')).find(n => String(n.props?.alt).startsWith('5h '))
+  expect(five).toBeDefined()
+  expect(String(five?.props?.source)).not.toContain('<text')
+})
 test('open, the limits panel shows the 7d ring beside the 5h', async ($, on) => {
   expect(ringAlts(byKey((await at($, on, 'calm', D160)).open, 'rings'))).toEqual(['5h', '7d'])
 })
