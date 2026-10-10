@@ -47,6 +47,7 @@ What the plan's steps record, in the order they happen.
 | Task 10c (merged) | 356 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 11a | 411 pass, 0 fail, 32 files | `claude plugin test plugins/session-usage-band` |
 | Task 11a (merged) | 434 pass, 0 fail, 34 files | `claude plugin test plugins/session-usage-band` |
+| Task 11b | 439 pass, 0 fail, 35 files | `claude plugin test plugins/session-usage-band` |
 | Task 12 | 354 pass, 0 fail, 26 files | `claude plugin test plugins/session-usage-band` |
 | Task 12 (merged) | 358 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 
@@ -72,6 +73,9 @@ Pending maintainer: spec §2.9 and the Global Constraints forbid an `id`, a grad
 Pending maintainer (for Task 11b): on desktop plain `kit.Svg` is undefined (`palette.filled` is false), so `kit.gap()` returns `' '`, a whitespace-only child the `whitespace` check flags on any desktop surface; any P2 view using `kit.icon` or `kit.gap` fails 11b's plain/desktop cases. Either `gap` returns its empty `width={1}` Box whenever the surface is desktop, or the check runs only where Svg draws; `kit.tsx` is not Task 11a's, so neither was done here.
 Ruling: Task 11a's commit includes `tests/frame.test.ts`, which Step 4's frame pin appends to though Step 5's `git add` leaves it out; the pin passed at once, so it was proven by setting the body's `marginTop` to a constant 1 in `frame.tsx` (9 rows at maxRows 8, failed), then reverted — no fallback.
 Pending maintainer: `tools/golden/capture.sh` runs only on hooks identical to 40943d3, but copies today's `tests/matrix.ts`, which since Task 11a imports `hooks/views/index`, `hooks/views/view` and `ROW_PX` from `hooks/layout`, none of which exist there; a recapture would not load until the capture copies `matrix.ts` from 40943d3 (or the P0 commit) instead.
+Ruling: `viewSuite`'s first run is the pilot's (Task 16) — chips and a stub draw chips' rows and words, so neither can pass a layout's suite; Task 11b tests `suiteCases` as a pure list (34 cases, named apart, every scenario on both surfaces, the 5-minute walks, every width and height, light, plain and ascii), and any fix `matrix.ts` needs on that first run lands in Task 16, before the re-freeze — no fallback.
+Ruling: spec §7's "calm and all-amber" is `calm` and `lastMinute`, as the plan writes it — no scenario raises every amber reason at once, so `fiveHourAhead`, `limit80` and `nearCompaction` each get their own narrow case at 40, 50 and 60 columns — no fallback.
+Ruling: the `kit.gap()` line left for Task 11b stays open for Task 16 — `viewSuite` keeps the `whitespace` check on every desktop mount, plain included, as spec §7 and the Global Constraints write it; whether `gap` draws its empty Box on a plain desktop or the check narrows is decided on the pilot's first real run, since `kit.tsx` is not Task 11b's and no view yet draws through the suite — no fallback.
 
 ## Freezes
 - P1 freeze (Task 14):

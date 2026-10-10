@@ -1,12 +1,12 @@
 // The states every layout is drawn in, and the one way to draw them: one
 // setup and one drive per test, then each mount drawn shut and open.
-// P0 needs SCENARIOS and drawCases; P1 adds the snapshot builder and the
-// invariant checks.
+// P0 needs SCENARIOS and drawCases; P1 adds the snapshot builder, the
+// invariant checks and the suite every layout runs.
 
 import type { On, RenderChildren, SessionUsage } from 'claude-code'
-import { expect, type Engine, type MockClock } from 'claude-code/testing'
+import { expect, test, type Engine, type MockClock } from 'claude-code/testing'
 import {
-  HOUR, HOUR_1, MIN, START, USAGE, FRESH, breakdown, engine, firstRow, mountBand, pacing, resp, respond, setup, shown, turn, walk, type Node,
+  HOUR, HOUR_1, LONG, MIN, START, USAGE, FRESH, breakdown, engine, firstRow, mountBand, pacing, resp, respond, setup, shown, turn, walk, type Node,
 } from './helpers'
 import { DESKTOP, ROW_PX, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
@@ -326,4 +326,63 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
 /** Fails the test with every broken check named. */
 export const expectInvariants = (tree: Node, ctx: InvariantContext): void => {
   expect(invariantErrors(tree, ctx)).toEqual([])
+}
+
+export type SuiteCase = Readonly<{ name: string; options: CaseOptions; mounts: readonly Mount[] }>
+
+const SUITE_WIDTHS = [40, 41, 50, 60, 67, 68, 80, 95, 120, 160, 200] as const
+/** A mount on each surface, at the same width and height. */
+const bothSurfaces = (cols: number, maxRows?: number): Mount[] => [{ surface: 'terminal', cols, maxRows }, { surface: 'desktop', cols, maxRows }]
+/** The long walks take the 5-minute cache: 270 ticks instead of 3,600. Golden keeps the hour. */
+const ttlOf = (scenario: ScenarioName): Ttl => (scenario === 'lastMinute' || scenario === 'cold' ? '5m' : '1h')
+
+/** The suite's 34 cases, one setup each: every scenario at 120 columns; calm
+ *  and the last minute in light, plain and the ascii tier, and at every
+ *  width; the other amber scenarios narrow; calm short of rows. */
+export const suiteCases = (layout: LayoutName): SuiteCase[] => {
+  const optionsOf = (scenario: ScenarioName, appearance: Appearance = 'dark', env?: Record<string, string>): CaseOptions =>
+    ({ layout, scenario, appearance, ttl: ttlOf(scenario), env })
+  return [
+    ...SCENARIO_NAMES.map(scenario => ({ name: `${layout}: ${scenario}`, options: optionsOf(scenario), mounts: bothSurfaces(120) })),
+    ...(['calm', 'lastMinute'] as const).flatMap(scenario => [
+      { name: `${layout}: ${scenario}, light`, options: optionsOf(scenario, 'light'), mounts: bothSurfaces(120) },
+      { name: `${layout}: ${scenario}, plain`, options: optionsOf(scenario, 'plain'), mounts: bothSurfaces(120) },
+      { name: `${layout}: ${scenario}, ascii`, options: optionsOf(scenario, 'dark', { CC_BAND_GLYPHS: 'ascii' }), mounts: bothSurfaces(120) },
+      ...(['terminal', 'desktop'] as const).map(surface => ({
+        name: `${layout}: ${scenario}, every width, ${surface}`,
+        options: optionsOf(scenario),
+        mounts: SUITE_WIDTHS.map(cols => ({ surface, cols })),
+      })),
+    ]),
+    ...(['fiveHourAhead', 'limit80', 'nearCompaction'] as const).map(scenario => ({
+      name: `${layout}: ${scenario}, narrow`,
+      options: optionsOf(scenario),
+      mounts: [40, 50, 60].flatMap(cols => bothSurfaces(cols)),
+    })),
+    { name: `${layout}: calm, short of rows`, options: optionsOf('calm'), mounts: [4, 8, 13, 40].flatMap(maxRows => bothSurfaces(120, maxRows)) },
+  ]
+}
+
+/** Registers one LONG test per case: one drawCases call, every tree checked
+ *  shut and open, each failure named by its mount. */
+export const viewSuite = (layout: LayoutName): void => {
+  for (const c of suiteCases(layout)) {
+    test(c.name, LONG, async ($, on) => {
+      const trees = await drawCases($, on, c.options, c.mounts)
+      const glyphs: Glyphs = c.options.env?.CC_BAND_GLYPHS === 'ascii' ? 'ascii' : 'unicode'
+      for (const m of c.mounts) {
+        for (const state of ['shut', 'open'] as const) {
+          const key = caseKey(m, state)
+          const tree = trees[key]
+          const errors = tree === undefined
+            ? ['missing: not drawn']
+            : invariantErrors(tree, {
+                layout, surface: m.surface, appearance: c.options.appearance, cols: m.cols, maxRows: m.maxRows ?? 40,
+                scenario: c.options.scenario, glyphs, expanded: state === 'open',
+              })
+          expect(`${key} ${errors.join('; ')}`).toBe(`${key} `)
+        }
+      }
+    })
+  }
 }
