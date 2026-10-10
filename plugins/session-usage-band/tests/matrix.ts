@@ -8,6 +8,8 @@ import type { Engine, MockClock } from 'claude-code/testing'
 import {
   HOUR, HOUR_1, MIN, START, USAGE, FRESH, breakdown, engine, mountBand, pacing, resp, respond, setup, turn, type Node,
 } from './helpers'
+import { DARK } from '../hooks/palette'
+import type { BandSnapshot } from '../hooks/snapshot'
 
 export type Appearance = 'dark' | 'light' | 'plain'
 export type Surface = 'terminal' | 'desktop'
@@ -143,3 +145,19 @@ export const drawCases = async ($: Engine, on: On, o: CaseOptions, mounts: reado
 export const GOLDEN_APPEARANCES: readonly Appearance[] = ['dark', 'plain']
 export const GOLDEN_MOUNTS: readonly Mount[] = (['terminal', 'desktop'] as const).flatMap(surface => [40, 95, 200].map(cols => ({ surface, cols })))
 export const goldenKey = (scenario: ScenarioName, appearance: Appearance, drawn: string): string => `${scenario}|${appearance}|${drawn}`
+
+/** A snapshot for pure tests: a calm session at 120 columns, 52 minutes of
+ *  cache left, 38% context with compaction at 190k, 5h at 4% and 7d at 30%. */
+export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({
+  surface: 'terminal', columns: 120, maxRows: 13, isWorking: false, expanded: false, palette: DARK, now: 0,
+  cache: {
+    requests: 1, msLeft: 52 * MIN, ttl: '1h', ttlPinned: true, window: 155_000, hitRatio: 0.96, misses: 0, reWarmUsd: 1.66,
+    savedUsd: 11.4, readShare: 0.05, fresh: true, recalled: false, idleMs: null, tokens: { sent: 18_000, back: 9_000, cached: 198_000 },
+  },
+  costUsd: 3.19, lastTurnUsd: 0.21,
+  context: { tokens: 76_000, window: 200_000, percent: 38, compactAt: 190_000 },
+  fiveHour: { percentUsed: 4, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null },
+  sevenDay: { percentUsed: 30, resetsAt: new Date(67 * HOUR).toISOString() },
+  otherLimits: [], workspace: undefined,
+  ...over,
+})

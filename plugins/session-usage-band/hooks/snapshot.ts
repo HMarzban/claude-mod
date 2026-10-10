@@ -6,6 +6,10 @@ import type { Ttl } from './cache'
 import type { Palette } from './palette'
 import type { Workspace } from './workspace'
 
+/** The glyph tier: the band's own glyphs, or ascii alone where a terminal
+ *  draws ambiguous-width glyphs two columns wide. */
+export type Glyphs = 'unicode' | 'ascii'
+
 export type LimitReading = Readonly<{ percentUsed: number; resetsAt: string | undefined }>
 
 /** Everything the band shows, read by register.tsx. */
@@ -57,6 +61,10 @@ export type BandSnapshot = Readonly<{
   otherLimits: ReadonlyArray<LimitReading & { kind: string }>
   /** The project, home-relative, and git there; undefined until first read. */
   workspace: Workspace | undefined
+  /** The glyph tier; unicode when unset. */
+  glyphs?: Glyphs
+  /** The local zone's offset from UTC, in east-positive minutes. */
+  utcOffsetMin?: number
 }>
 
 export type BandActions = Readonly<{

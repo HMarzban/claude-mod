@@ -3,8 +3,6 @@
 
 import type { ElementTable, RenderChildren, RenderElement } from 'claude-code'
 import {
-  FIVE_HOUR_MS,
-  SEVEN_DAY_MS,
   clamp01,
   fmtCost,
   fmtEstimate,
@@ -31,28 +29,18 @@ import {
 import type { BarSize, Piece } from './layout'
 import { BARE } from './palette'
 import type { Palette } from './palette'
-import {
-  cacheCharge,
-  cacheCopy,
-  cacheMood,
-  contextReading,
-  hasReset as resetPassed,
-  limitTone as toneOf,
-  reWarmEstimate,
-  windowGone as goneOf,
-} from './reading'
-import type { Tone } from './reading'
+import { readingsOf } from './reading'
+import type { ChipsWindow, LimitKey, Tone } from './reading'
 import type { BandActions, BandSnapshot, LimitReading } from './snapshot'
 import { drawStrip } from './strip'
 
 
 // ---- limits ---------------------------------------------------------------
 
-type LimitKey = '5h' | '7d'
+type ChipKey = Exclude<LimitKey, 'other'>
 type Tint = Readonly<{ bg: string; fg: string; accent: string }>
 type LimitSpec = Readonly<{
   icon: Icon
-  windowMs: number
   title: string
   calm: Piece
   reset: Piece
@@ -60,11 +48,10 @@ type LimitSpec = Readonly<{
   tint: (p: Readonly<Palette>) => Tint
 }>
 
-/** The two limit chips: one shape, their own window, tint and steps. */
-const LIMITS: Readonly<Record<LimitKey, LimitSpec>> = {
+/** The two limit chips: one shape, their own tint and steps. */
+const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
   '5h': {
     icon: 'five',
-    windowMs: FIVE_HOUR_MS,
     title: '5-hour limit',
     calm: 'calmFive',
     reset: 'fiveReset',
@@ -73,7 +60,6 @@ const LIMITS: Readonly<Record<LimitKey, LimitSpec>> = {
   },
   '7d': {
     icon: 'week',
-    windowMs: SEVEN_DAY_MS,
     title: 'Weekly limit',
     calm: 'calmWeek',
     reset: 'weekReset',
@@ -101,6 +87,7 @@ type PillSpec = Readonly<{
 export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions): RenderElement => {
   const kit = makeKit(el, snap)
   const { Box, Button, Text, Svg, palette, measure, onTone, hoverCard, gap, icon } = kit
+  const read = readingsOf(snap)
   const c = snap.cache
   // A pill carries its own foreground and background, never one of each. Its
   // card is a child, so the engine counts the pointer on the card as on the
@@ -181,14 +168,8 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   }
 
   // ---- what the pills say, whatever the squeeze ----------------------------
-  const mood = cacheMood(c)
-  const copy = cacheCopy(c, mood, snap.isWorking)
-  const estimate = reWarmEstimate(c)
-  const cacheTone: Tone = mood === 'expiring' ? 'amber' : 'calm'
-  const charge = cacheCharge(c, mood, snap.isWorking)
-
-  const tokenBreakdown = `input ${fmtTokens(c.tokens.sent)} · output ${fmtTokens(c.tokens.back)} · cache reads ${fmtTokens(c.tokens.cached)}`
-  const tokenTotal = c.tokens.sent + c.tokens.back + c.tokens.cached
+  const { mood, estimate, tone: cacheTone, charge } = read.cache
+  const { copy, tokenBreakdown } = read.chips.reading
 
   const ctx = snap.context
   const {
@@ -199,7 +180,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     toCompact,
     nearCompact,
     tone: ctxTone,
-  } = contextReading(ctx)
+  } = read.context
 
   // ---- the cache pill ----------------------------------------------------
   const batteryIcon = (): RenderChildren => {
@@ -268,7 +249,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   // Its usage on a bar and the reset; a pace that fills it early speaks in
   // words. A window whose reset has passed shows as reset: its last reading
   // is from before it.
-  const limitChip = (key: LimitKey, reading: LimitReading, pace: string, tone: Tone, squeeze: number): PillSpec => {
+  const limitChip = (key: ChipKey, reading: LimitReading, pace: string, tone: Tone, squeeze: number): PillSpec => {
     const spec = LIMITS[key]
     const tint = spec.tint(palette)
     const r = resetIn(reading.resetsAt, snap.now)
@@ -311,10 +292,6 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     }
   }
 
-  const windowGone = (reading: LimitReading, windowMs: number | undefined) => goneOf(reading, windowMs, snap.now)
-  const hasReset = (reading: LimitReading) => resetPassed(reading, snap.now)
-  const limitTone = (reading: LimitReading, etaMs: number | null = null) => toneOf(reading, snap.now, etaMs)
-
   // ---- the row, at a given squeeze ---------------------------------------
   const buildPills = (squeeze: number): PillSpec[] => {
     const short = snap.columns < SHORT_BELOW || !keeps(squeeze, 'shortWording')
@@ -335,7 +312,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       pills.push({
         key: 'tokens',
         tone: 'calm',
-        body: [...icon('tokens', palette.label), <Text key="v" color={palette.value}>{fmtTokens(tokenTotal)}</Text>],
+        body: [...icon('tokens', palette.label), <Text key="v" color={palette.value}>{fmtTokens(read.spend.total)}</Text>],
         hover: tokenBreakdown,
       })
     }
@@ -372,7 +349,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
 
     if (snap.fiveHour) {
       const eta = snap.fiveHour.etaMs
-      const tone = limitTone(snap.fiveHour, eta)
+      const tone = read.fiveHour?.tone ?? 'calm'
       if (tone === 'amber' || keeps(squeeze, LIMITS['5h'].calm)) {
         const pace = eta === null ? '' : short ? ` ${fmtEta(eta)}` : ` full in ${fmtEta(eta)}`
         pills.push(limitChip('5h', snap.fiveHour, pace, tone, squeeze))
@@ -380,7 +357,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     }
 
     if (snap.sevenDay) {
-      const tone = limitTone(snap.sevenDay)
+      const tone = read.sevenDay?.tone ?? 'calm'
       if (tone === 'amber' || keeps(squeeze, LIMITS['7d'].calm)) pills.push(limitChip('7d', snap.sevenDay, '', tone, squeeze))
     }
     return pills
@@ -553,9 +530,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       )
     }
 
-    const measured = c.requests > 0
-    // Measured, or recalled from the session's last reply: time and price known.
-    const known = measured || c.recalled
+    const { measured, known } = read.cache
     const cacheView = card(
       'cache',
       'Cache',
@@ -608,51 +583,18 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         )
       : null
 
-    /** A window of the Limits card. `etaMs` is the measured pace the 5h chip
-     *  shows, when there is one; the card says the same. */
-    type Window = Readonly<{
-      name: string
-      reading: LimitReading
-      windowMs: number | undefined
-      accent: string
-      etaMs: number | null
-    }>
-    const windows: Window[] = [
-      ...(snap.fiveHour
-        ? [{ name: '5h', reading: snap.fiveHour, windowMs: LIMITS['5h'].windowMs, accent: LIMITS['5h'].tint(palette).accent, etaMs: snap.fiveHour.etaMs }]
-        : []),
-      ...(snap.sevenDay ? [{ name: '7d', reading: snap.sevenDay, windowMs: LIMITS['7d'].windowMs, accent: LIMITS['7d'].tint(palette).accent, etaMs: null }] : []),
-      ...snap.otherLimits.map(limit => ({
-        name: limit.kind === 'spend_limit' ? 'spend' : limit.kind.replace(/_/g, ' '),
-        reading: limit,
-        windowMs: undefined,
-        accent: palette.meterFill,
-        etaMs: null,
-      })),
-    ]
-    const live = windows.filter(w => !hasReset(w.reading))
-    const valueOf = (reading: LimitReading) => `${Math.round(reading.percentUsed)}%${severityMark(clamp01(reading.percentUsed / 100))}`
+    const { windows, worst } = read.chips.reading
+    /** A window's bar in its chip's own accent; any other window's in the meter's. */
+    const windowAccent = (w: ChipsWindow) => (w.key === 'other' ? palette.meterFill : LIMITS[w.key].tint(palette).accent)
+    const valueOf = (w: ChipsWindow) => `${w.value}${severityMark(w.frac)}`
 
     /** One window: its name, bar and value on a line, then its reset and pace in words. */
-    const limitRows = ({ name, reading, windowMs, accent, etaMs }: Window): readonly [RenderChildren, RenderChildren] => {
-      const r = resetIn(reading.resetsAt, snap.now)
+    const limitRows = (w: ChipsWindow): readonly [RenderChildren, RenderChildren] => {
+      const { name, reset: r, frac, tone, cardPace: pace } = w
       if (r?.kind === 'passed') return [factRow(name, 'reset'), null]
-      const frac = clamp01(reading.percentUsed / 100)
-      const tone = limitTone(reading, etaMs)
-      const gone = windowGone(reading, windowMs)
-      const value = valueOf(reading)
+      const accent = windowAccent(w)
+      const value = valueOf(w)
       const room = Math.max(4, inner - [...name].length - [...value].length - 2)
-      // A measured pace, as the chip says it; else where the window's average
-      // rate ends it. Too early to say, it waits.
-      const projected = gone === undefined || gone < 0.05 ? undefined : reading.percentUsed / gone
-      const pace =
-        etaMs !== null
-          ? ` · full in ${fmtEta(etaMs)}`
-          : projected === undefined
-            ? ''
-            : projected >= 100
-              ? ' · full before reset'
-              : ` · on pace for ~${Math.round(projected)}%`
       return [
         <Box key={`fact:${name}`} flexDirection="row" columnGap={1}>
           <Text color={palette.label}>{name}</Text>
@@ -675,16 +617,14 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       const lines = rows.flat().filter(part => part !== null)
       return lines.length <= bodyRows ? lines : [...rows.map(([bar]) => bar), ...rows.map(([, pace]) => pace)]
     }
-    // The headline is the window closest to its limit.
-    const worst = live.reduce<Window | undefined>((top, w) => (top === undefined || w.reading.percentUsed > top.reading.percentUsed ? w : top), undefined)
     const limitsView =
       windows.length > 0
         ? card(
             'limits',
             'Limits',
             {
-              text: worst === undefined ? 'all reset' : `${worst.name} ${valueOf(worst.reading)}`,
-              tone: worst === undefined ? 'calm' : limitTone(worst.reading, worst.etaMs),
+              text: worst === undefined ? 'all reset' : `${worst.name} ${valueOf(worst)}`,
+              tone: worst === undefined ? 'calm' : worst.tone,
             },
             // Each window's bar is in its own row, so the card has none apart.
             null,
