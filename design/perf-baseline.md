@@ -14,88 +14,88 @@ PERF chips desktop open median=0.729ms p95=2.259ms
 
 ## After the layouts
 
-Captured by `tests/perf.test.ts` at 7aebb0a (`tools/test-only.sh perf`): each layout in a test of its own, chips first, drawn calm at 200 columns and in the last minute (5m TTL) at 60, on both surfaces, shut and open; 200 redraws per case after 20 warm-up redraws, and chips after an untimed pass of its own as well. Every layout passes its budgets: at most 2× chips' median in the same run, at most 400 nodes shut and 1,500 open, and no store write while drawing.
+Captured by `tests/perf.test.ts` in the whole suite (`claude plugin test plugins/session-usage-band`), against 7aebb0a's hooks: each layout in a test of its own, drawn calm at 200 columns and in the last minute (5m TTL) at 60, on both surfaces, shut and open; 200 redraws per case after 20 warm-up redraws. A file's first draws run cold for seconds, so every layout is first drawn once, untimed, and a last test holds each layout to 2× chips' median, case by case. Every layout passes its budgets: at most 2× chips' median in the same run, at most 400 nodes shut and 1,500 open, and no store write while drawing.
 
 ```
-PERF chips calm|terminal|200|shut median=0.598ms
-PERF chips calm|terminal|200|open median=0.880ms
-PERF chips calm|desktop|200|shut median=0.473ms
-PERF chips calm|desktop|200|open median=0.850ms
-PERF gauges calm|terminal|200|shut median=0.434ms
-PERF gauges calm|terminal|200|open median=0.815ms
-PERF gauges calm|desktop|200|shut median=0.365ms
-PERF gauges calm|desktop|200|open median=0.697ms
-PERF ledger calm|terminal|200|shut median=0.293ms
-PERF ledger calm|terminal|200|open median=0.472ms
-PERF ledger calm|desktop|200|shut median=0.262ms
-PERF ledger calm|desktop|200|open median=0.457ms
-PERF rings calm|terminal|200|shut median=0.323ms
-PERF rings calm|terminal|200|open median=0.667ms
-PERF rings calm|desktop|200|shut median=0.302ms
-PERF rings calm|desktop|200|open median=0.648ms
-PERF pulse calm|terminal|200|shut median=0.250ms
-PERF pulse calm|terminal|200|open median=0.539ms
-PERF pulse calm|desktop|200|shut median=0.240ms
-PERF pulse calm|desktop|200|open median=0.542ms
-PERF tiles calm|terminal|200|shut median=0.268ms
-PERF tiles calm|terminal|200|open median=0.685ms
-PERF tiles calm|desktop|200|shut median=0.276ms
-PERF tiles calm|desktop|200|open median=0.702ms
-PERF week calm|terminal|200|shut median=0.291ms
-PERF week calm|terminal|200|open median=0.481ms
-PERF week calm|desktop|200|shut median=0.246ms
-PERF week calm|desktop|200|open median=0.461ms
-PERF departures calm|terminal|200|shut median=0.257ms
-PERF departures calm|terminal|200|open median=0.612ms
-PERF departures calm|desktop|200|shut median=0.243ms
-PERF departures calm|desktop|200|open median=0.599ms
-PERF forecast calm|terminal|200|shut median=0.225ms
-PERF forecast calm|terminal|200|open median=0.565ms
-PERF forecast calm|desktop|200|shut median=0.259ms
-PERF forecast calm|desktop|200|open median=0.576ms
-PERF chips lastMinute|terminal|60|shut median=0.549ms
-PERF chips lastMinute|terminal|60|open median=0.921ms
-PERF chips lastMinute|desktop|60|shut median=0.568ms
-PERF chips lastMinute|desktop|60|open median=0.965ms
-PERF gauges lastMinute|terminal|60|shut median=0.489ms
-PERF gauges lastMinute|terminal|60|open median=0.851ms
-PERF gauges lastMinute|desktop|60|shut median=0.406ms
-PERF gauges lastMinute|desktop|60|open median=0.745ms
-PERF ledger lastMinute|terminal|60|shut median=0.343ms
-PERF ledger lastMinute|terminal|60|open median=0.505ms
-PERF ledger lastMinute|desktop|60|shut median=0.302ms
-PERF ledger lastMinute|desktop|60|open median=0.500ms
-PERF rings lastMinute|terminal|60|shut median=0.438ms
-PERF rings lastMinute|terminal|60|open median=0.776ms
-PERF rings lastMinute|desktop|60|shut median=0.375ms
-PERF rings lastMinute|desktop|60|open median=0.716ms
-PERF pulse lastMinute|terminal|60|shut median=0.360ms
-PERF pulse lastMinute|terminal|60|open median=0.632ms
-PERF pulse lastMinute|desktop|60|shut median=0.345ms
-PERF pulse lastMinute|desktop|60|open median=0.653ms
-PERF tiles lastMinute|terminal|60|shut median=0.322ms
-PERF tiles lastMinute|terminal|60|open median=0.723ms
-PERF tiles lastMinute|desktop|60|shut median=0.314ms
-PERF tiles lastMinute|desktop|60|open median=0.746ms
-PERF week lastMinute|terminal|60|shut median=0.288ms
-PERF week lastMinute|terminal|60|open median=0.474ms
-PERF week lastMinute|desktop|60|shut median=0.249ms
-PERF week lastMinute|desktop|60|open median=0.449ms
-PERF departures lastMinute|terminal|60|shut median=0.279ms
-PERF departures lastMinute|terminal|60|open median=0.627ms
-PERF departures lastMinute|desktop|60|shut median=0.275ms
-PERF departures lastMinute|desktop|60|open median=0.636ms
-PERF forecast lastMinute|terminal|60|shut median=0.230ms
-PERF forecast lastMinute|terminal|60|open median=0.540ms
-PERF forecast lastMinute|desktop|60|shut median=0.284ms
-PERF forecast lastMinute|desktop|60|open median=0.590ms
+PERF chips calm|terminal|200|shut median=0.325ms
+PERF chips calm|terminal|200|open median=0.686ms
+PERF chips calm|desktop|200|shut median=0.341ms
+PERF chips calm|desktop|200|open median=0.706ms
+PERF gauges calm|terminal|200|shut median=0.334ms
+PERF gauges calm|terminal|200|open median=0.685ms
+PERF gauges calm|desktop|200|shut median=0.292ms
+PERF gauges calm|desktop|200|open median=0.626ms
+PERF ledger calm|terminal|200|shut median=0.250ms
+PERF ledger calm|terminal|200|open median=0.426ms
+PERF ledger calm|desktop|200|shut median=0.235ms
+PERF ledger calm|desktop|200|open median=0.418ms
+PERF rings calm|terminal|200|shut median=0.296ms
+PERF rings calm|terminal|200|open median=0.612ms
+PERF rings calm|desktop|200|shut median=0.270ms
+PERF rings calm|desktop|200|open median=0.590ms
+PERF pulse calm|terminal|200|shut median=0.235ms
+PERF pulse calm|terminal|200|open median=0.523ms
+PERF pulse calm|desktop|200|shut median=0.224ms
+PERF pulse calm|desktop|200|open median=0.516ms
+PERF tiles calm|terminal|200|shut median=0.256ms
+PERF tiles calm|terminal|200|open median=0.645ms
+PERF tiles calm|desktop|200|shut median=0.260ms
+PERF tiles calm|desktop|200|open median=0.672ms
+PERF week calm|terminal|200|shut median=0.278ms
+PERF week calm|terminal|200|open median=0.458ms
+PERF week calm|desktop|200|shut median=0.241ms
+PERF week calm|desktop|200|open median=0.429ms
+PERF departures calm|terminal|200|shut median=0.244ms
+PERF departures calm|terminal|200|open median=0.588ms
+PERF departures calm|desktop|200|shut median=0.233ms
+PERF departures calm|desktop|200|open median=0.595ms
+PERF forecast calm|terminal|200|shut median=0.205ms
+PERF forecast calm|terminal|200|open median=0.536ms
+PERF forecast calm|desktop|200|shut median=0.245ms
+PERF forecast calm|desktop|200|open median=0.557ms
+PERF chips lastMinute|terminal|60|shut median=0.529ms
+PERF chips lastMinute|terminal|60|open median=1.014ms
+PERF chips lastMinute|desktop|60|shut median=0.553ms
+PERF chips lastMinute|desktop|60|open median=0.935ms
+PERF gauges lastMinute|terminal|60|shut median=0.463ms
+PERF gauges lastMinute|terminal|60|open median=0.814ms
+PERF gauges lastMinute|desktop|60|shut median=0.384ms
+PERF gauges lastMinute|desktop|60|open median=0.714ms
+PERF ledger lastMinute|terminal|60|shut median=0.313ms
+PERF ledger lastMinute|terminal|60|open median=0.476ms
+PERF ledger lastMinute|desktop|60|shut median=0.287ms
+PERF ledger lastMinute|desktop|60|open median=0.476ms
+PERF rings lastMinute|terminal|60|shut median=0.403ms
+PERF rings lastMinute|terminal|60|open median=0.730ms
+PERF rings lastMinute|desktop|60|shut median=0.358ms
+PERF rings lastMinute|desktop|60|open median=0.685ms
+PERF pulse lastMinute|terminal|60|shut median=0.338ms
+PERF pulse lastMinute|terminal|60|open median=0.615ms
+PERF pulse lastMinute|desktop|60|shut median=0.332ms
+PERF pulse lastMinute|desktop|60|open median=0.649ms
+PERF tiles lastMinute|terminal|60|shut median=0.310ms
+PERF tiles lastMinute|terminal|60|open median=0.696ms
+PERF tiles lastMinute|desktop|60|shut median=0.307ms
+PERF tiles lastMinute|desktop|60|open median=0.725ms
+PERF week lastMinute|terminal|60|shut median=0.281ms
+PERF week lastMinute|terminal|60|open median=0.455ms
+PERF week lastMinute|desktop|60|shut median=0.240ms
+PERF week lastMinute|desktop|60|open median=0.441ms
+PERF departures lastMinute|terminal|60|shut median=0.273ms
+PERF departures lastMinute|terminal|60|open median=0.603ms
+PERF departures lastMinute|desktop|60|shut median=0.269ms
+PERF departures lastMinute|desktop|60|open median=0.610ms
+PERF forecast lastMinute|terminal|60|shut median=0.229ms
+PERF forecast lastMinute|terminal|60|open median=0.518ms
+PERF forecast lastMinute|desktop|60|shut median=0.276ms
+PERF forecast lastMinute|desktop|60|open median=0.565ms
 ```
 
-The slowest layout against chips, per layout, in that run: gauges 0.93×, rings 0.84×, tiles 0.83×, departures 0.70×, pulse 0.69×, forecast 0.68×, ledger 0.62×, week 0.55×. No layout is near its budget, so Task 28 builds no memo and moves no builder.
+Chips reads warm (0.325 ms calm, terminal, shut, against P0's 0.349 ms). The slowest case against chips, per layout, in that run: gauges 1.03×, tiles 0.95×, rings 0.91×, departures 0.86×, week 0.85×, forecast 0.79×, ledger 0.77×, pulse 0.76×; two more runs read within 0.02× of these. No layout is near its budget, so Task 28 builds no memo and moves no builder.
 
 ### Chips against P0
 
-Chips' medians in `perf.test.ts` read high (0.60 ms calm, terminal, shut), since chips' calm test is the file's first and the sandbox runs its first draws cold for longer than its warm-up pass. The like-for-like comparison is P0's own method: the `perf baseline` test from `tools/golden/capture.test.ts`, repeated four times in one file, run against 4882313's hooks (the band before the layouts, with the 0.11.13 hover fix) and against 7aebb0a's, twice each; the fourth round, warm:
+The like-for-like comparison is P0's own method: the `perf baseline` test from `tools/golden/capture.test.ts`, repeated four times in one file, run against 4882313's hooks (the band before the layouts, with the 0.11.13 hover fix) and against 7aebb0a's, twice each; the fourth round, warm:
 
 | Case | P0, run 1 | P0, run 2 | After, run 1 | After, run 2 |
 | --- | --- | --- | --- | --- |
