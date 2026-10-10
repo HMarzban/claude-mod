@@ -185,6 +185,7 @@ What the plan's steps record, in the order they happen.
 | After Task 33, give-way and amber | 1074 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 | Task C3, the give-way review's findings | 1088 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 | Task C3, rebased onto C4 and C5 | 1115 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
+| cleanup C3, give-way and amber (merged) | 1115 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
