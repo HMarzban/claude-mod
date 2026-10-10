@@ -418,9 +418,14 @@ const parseCommand = (args: string): BandCommand | undefined => {
 }
 
 /** The stored layout, or chips: a name this version doesn't know, or a value
- *  that isn't a name, draws chips. Never throws. */
+ *  that isn't a name, draws chips. A read that fails keeps the layout drawn.
+ *  Never throws. */
 const readLayout = async ($: EngineInterface): Promise<void> => {
-  band.layout = asLayoutName(await $.store.get(LAYOUT_KEY).catch(() => undefined)) ?? DEFAULT_LAYOUT
+  const read = await $.store.get(LAYOUT_KEY).then(
+    stored => ({ stored }),
+    () => undefined,
+  )
+  if (read !== undefined) band.layout = asLayoutName(read.stored) ?? DEFAULT_LAYOUT
 }
 
 /** The layouts /usage-band layout offers. */
@@ -461,6 +466,8 @@ export const register: Register = on => {
     band.samples = samplesUpTo((await storedSamples($)) ?? [], now)
     band.utcOffsetMin = utcOffsetOf(now)
     band.reads++ // any read still out began before this load
+    // A read that fails keeps the layout drawn: none yet, so chips.
+    band.layout = DEFAULT_LAYOUT
     await readLayout($)
     notePriceModel(await $.session.model().catch(() => undefined))
     // A resume of this session, said before this load or while it runs, is
