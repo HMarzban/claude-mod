@@ -63,8 +63,9 @@ export type BandSnapshot = Readonly<{
   workspace: Workspace | undefined
   /** The glyph tier; unicode when unset. */
   glyphs?: Glyphs
-  /** The local zone's offset from UTC, in east-positive minutes. */
-  utcOffsetMin?: number
+  /** The local zone's offset from UTC, in east-positive minutes; undefined
+   *  when it can't be read. */
+  utcOffsetMin: number | undefined
 }>
 
 export type BandActions = Readonly<{
