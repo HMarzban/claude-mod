@@ -114,6 +114,14 @@ test('no limits: two rows still, and it says so', async ($, on) => {
   expect(shown(shut)).toMatch(/^limits none reported/)
   expect(shown(open)).toMatch(/LIMITS\s*none reported/)
 })
+test('another limit alone: two rows still, no 5h or 7d, and no word of the other limit collapsed', async ($, on) => {
+  const usage: SessionUsage = { ...USAGE, rateLimits: [{ kind: 'spend_limit', percentUsed: 40, resetsAt: new Date(5 * HOUR).toISOString() }] }
+  const { shut } = await oneWithHistory($, on, T160, { usage })
+  expect(shown(shut)).toMatch(/^5h · 7d none reported/)
+  expect(shown(shut)).not.toMatch(/^limits|spend/)
+  const ctx = { layout: 'week', surface: 'terminal', appearance: 'dark', cols: 160, maxRows: DEFAULT_MAX_ROWS, scenario: 'unmeasured', glyphs: 'unicode', expanded: false } as const
+  expect(shut === undefined ? ['missing: not drawn'] : invariantErrors(shut, ctx)).toEqual([])
+})
 test('no history: the facts stay, and the empty text says so when open', async ($, on) => {
   const trees = await drawCases($, on, { layout: 'week', scenario: 'calm', appearance: 'dark', ttl: '1h' }, [T160, D160])
   expect(shown(trees[caseKey(T160, 'shut')])).toMatch(/7d 30%/)

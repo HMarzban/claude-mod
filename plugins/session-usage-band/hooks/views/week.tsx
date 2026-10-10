@@ -138,7 +138,8 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const toggle = toggleButton(kit, read, act)
   const cost = words(kit, 'cost', [[read.spend.totalText, 'value']])
   const empty = words(kit, 'empty', [[EMPTY.history, 'label']])
-  const noLimits = words(kit, 'none', [['limits ', 'label'], [EMPTY.limits, 'value']])
+  // With no 5h or 7d, row 1 says so; other limits are drawn only open (spec §2.7).
+  const noWindows = words(kit, 'none', [[read.limits.length === 0 ? 'limits ' : '5h · 7d ', 'label'], [EMPTY.limits, 'value']])
   const pieces = windows.map(w => windowPiece(kit, read, w))
   const seven = pieces.find(p => p.key === '7d')
   // On the desktop the cells carry their initials, and the ascii tier names each cell.
@@ -150,7 +151,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   return [
     fitLine(kit, ORDER, lineRoom(kit), keeps => (
       <Box key="rows" flexDirection="column">
-        {line(kit, 'r1', windows.length === 0 ? [noLimits] : pieces.map(p => p.draw(keeps)))}
+        {line(kit, 'r1', windows.length === 0 ? [noWindows] : pieces.map(p => p.draw(keeps)))}
         {line(
           kit,
           'r2',
