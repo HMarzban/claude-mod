@@ -184,17 +184,19 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       ]),
       pair(kit, 'b', [tile('room', x.roomText, 'room left'), tile('window', x.windowText, 'window')]),
     ], [headOf(x.text, x.amber)]),
-    limits.length === 0 ? emptyGroup('limits', 'LIMITS', EMPTY.limits) : group('limits', 'LIMITS', limits.map(l =>
-      pair(kit, l.name, [
+    limits.length === 0 ? emptyGroup('limits', 'LIMITS', EMPTY.limits) : group('limits', 'LIMITS', limits.map(l => {
+      // The landing's dashed underline, drawn where the landing has a figure.
+      const landingBar = l.projectedAlt === undefined || l.projectedFrac === undefined ? null : barOf(kit, l.projectedAlt, l.projectedFrac, accentOf(kit, l), undefined, true)
+      return pair(kit, l.name, [
         // Amber, a limit still says when it resets.
         tile('now', l.passed ? 'reset' : l.value, limitLabel(l), barOf(kit, l.alt, l.frac, accentOf(kit, l), l.amber), l.amber, l.resetGlyph === undefined ? [] : [[` ${l.resetGlyph}`, 'label']]),
         l.projectedText !== undefined
-          ? tile('then', l.projectedText, `${l.name} at its reset`, l.projectedAlt === undefined || l.projectedFrac === undefined ? null : barOf(kit, l.projectedAlt, l.projectedFrac, accentOf(kit, l), undefined, true))
+          ? tile('then', l.projectedText, `${l.name} at its reset`, landingBar)
           : // A landing past the top has no figure: its pace says it fills first,
             // unless the reason is a measured fill, which says it.
             tile('then', l.fullIn === undefined && l.pace !== '' ? l.pace : undefined, `${l.name} at this pace`),
-      ]),
-    ), limits.flatMap((l, i): Say => (i === 0 ? [headOf(l.text, l.amber)] : [[' · ', 'label'], headOf(l.text, l.amber)]))),
+      ])
+    }), limits.flatMap((l, i): Say => (i === 0 ? [headOf(l.text, l.amber)] : [[' · ', 'label'], headOf(l.text, l.amber)]))),
   ], bodyRows)
 }
 
