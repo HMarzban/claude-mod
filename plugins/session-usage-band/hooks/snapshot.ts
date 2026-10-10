@@ -3,6 +3,7 @@
 
 import type { RenderSurface } from 'claude-code'
 import type { Ttl } from './cache'
+import type { Trails } from './insights'
 import type { Palette } from './palette'
 import type { Workspace } from './workspace'
 
@@ -59,6 +60,8 @@ export type BandSnapshot = Readonly<{
   }>
   costUsd: number
   lastTurnUsd: number | null
+  /** This conversation's message costs and context, and the 5h trend. */
+  history: Trails
   context: Readonly<{
     tokens: number | undefined
     window: number

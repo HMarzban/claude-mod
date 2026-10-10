@@ -18,8 +18,10 @@ import {
   fmtTokens,
 } from './format'
 import type { ResetIn } from './format'
+import { lastHourOf } from './insights'
+import type { CostEntry, Trails } from './insights'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
-import type { CacheFacts, CacheMood, ContextFacts, Frame, LimitFacts, SpendFacts } from './reading'
+import type { CacheFacts, CacheMood, ContextFacts, Frame, LimitFacts, LimitView, SpendFacts } from './reading'
 import type { BandSnapshot } from './snapshot'
 import { gitSummary } from './workspace'
 import type { Workspace } from './workspace'
@@ -340,3 +342,56 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
 /** Where the session is, as one line: the path, then git in words. */
 export const workspaceWords = (ws: Workspace | undefined): string | undefined =>
   ws === undefined ? undefined : ws.git === undefined ? ws.path : `${ws.path}, ${gitSummary(ws.git)}`
+/** What the history says: the costs' numbers, and each trail's trend for a reader. */
+export type HistoryWords = Readonly<{
+  /** '$0.21' */
+  lastText: string | undefined
+  /** '$0.18': the average with re-warms left out. */
+  avgText: string | undefined
+  /** '$0.84 re-warm' */
+  maxText: string | undefined
+  /** 'last $0.21 · avg $0.18 · max $0.84 re-warm' */
+  numbersText: string
+  /** 'last $0.21' */
+  numbersShort: string
+  /** 'cost of the last 14 messages, steady' | '…, rising, the newest a re-warm' */
+  costsAlt: string
+  /** '5h usage over the last hour, steady' | '…, rising, full in about 40 minutes' */
+  trailAlt: string
+}>
+
+/** A message costing this many times the average, or this share of it, moves the trend. */
+const TREND_FACTOR = 1.5
+/** Points the 5h reading must rise in an hour to be rising. */
+const TRAIL_RISE = 2
+
+export const historyWords = (record: Trails, fiveHour: LimitView | undefined, now: number): HistoryWords => {
+  const last = record.costs[record.costs.length - 1]
+  const warm = record.costs.filter(e => !e.reWarm)
+  const avg = warm.length === 0 ? undefined : warm.reduce((sum, e) => sum + e.usd, 0) / warm.length
+  const max = record.costs.reduce<CostEntry | undefined>((top, e) => (top === undefined || e.usd > top.usd ? e : top), undefined)
+  const lastText = last === undefined ? undefined : fmtSmallCost(last.usd)
+  const avgText = avg === undefined ? undefined : fmtSmallCost(avg)
+  const maxText = max === undefined ? undefined : `${fmtSmallCost(max.usd)}${max.reWarm ? ' re-warm' : ''}`
+  const trend =
+    last === undefined || avg === undefined
+      ? 'steady'
+      : last.usd > avg * TREND_FACTOR
+        ? 'rising'
+        : last.usd < avg / TREND_FACTOR
+          ? 'falling'
+          : 'steady'
+  const hour = lastHourOf(record.fiveHour, now)
+  const rise = hour.length < 2 ? 0 : (hour[hour.length - 1]?.pct ?? 0) - (hour[0]?.pct ?? 0)
+  const messages = record.costs.length === 1 ? 'the last message' : `the last ${record.costs.length} messages`
+  const fullIn = fiveHour === undefined || fiveHour.etaMs === null ? '' : `, full in ${fmtEtaSpoken(fiveHour.etaMs)}`
+  return {
+    lastText,
+    avgText,
+    maxText,
+    numbersText: [lastText && `last ${lastText}`, avgText && `avg ${avgText}`, maxText && `max ${maxText}`].filter(Boolean).join(' · '),
+    numbersShort: lastText === undefined ? '' : `last ${lastText}`,
+    costsAlt: `cost of ${messages}, ${trend}${last?.reWarm ? ', the newest a re-warm' : ''}`,
+    trailAlt: `5h usage over the last hour, ${rise >= TRAIL_RISE ? 'rising' : 'steady'}${fullIn}`,
+  }
+}

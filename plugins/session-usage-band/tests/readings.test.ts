@@ -164,3 +164,14 @@ test('the workspace is a sentence', () => {
   const workspace = { path: '~/workspace/claude-mod', git: { branch: 'main', commit: 'abc1234', worktree: undefined, changed: 0, ahead: 0, behind: 0 }, repoName: undefined }
   expect(readingsOf(snapOf({ workspace })).workspaceText).toBe('~/workspace/claude-mod, branch main, clean')
 })
+test('the history speaks its numbers and its trend', () => {
+  const history = { costs: [{ usd: 0.2, reWarm: false }, { usd: 0.2, reWarm: false }, { usd: 0.84, reWarm: true }], context: [], fiveHour: [] }
+  const hist = readingsOf(snapOf({ history })).history
+  expect(hist.numbersText).toBe('last $0.84 · avg $0.20 · max $0.84 re-warm')
+  expect(hist.numbersShort).toBe('last $0.84')
+  expect(hist.costsAlt).toBe('cost of the last 3 messages, rising, the newest a re-warm')
+  expect([hist.empty, readingsOf(snapOf()).history.empty]).toEqual([false, true])
+})
+test('the history is read only when a view asks for it', () => {
+  expect(typeof Object.getOwnPropertyDescriptor(readingsOf(snapOf()), 'history')?.get).toBe('function')
+})

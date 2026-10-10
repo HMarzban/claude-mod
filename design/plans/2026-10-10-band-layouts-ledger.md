@@ -61,6 +61,7 @@ What the plan's steps record, in the order they happen.
 | Task 14b (fourth review, on dcae029) | 506 pass, 0 fail, 36 files | `claude plugin test plugins/session-usage-band` |
 | Task 14b (fifth review) | 509 pass, 0 fail, 36 files | `claude plugin test plugins/session-usage-band` |
 | Task 14b, resumed sessions recover their spend and cache state (merged) | 509 pass, 0 fail, 36 files | `claude plugin test plugins/session-usage-band` |
+| Task 23 (built ahead, on Task 8's merge) | 390 pass, 0 fail, 30 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
@@ -130,6 +131,9 @@ Ruling: Task 14b's SessionStart `.catch` has a test of its behaviour, not of the
 Ruling: Task 14b's `transcriptSpend` skips a reply stamped at or after the resume (`Resume.at`, passed through `spendBefore`) — the tail past the record runs after grep returns, so it can hold a reply this process already logged, which the ledger's growth counts: a $30 record and one $0.135 turn read $30.27; a line with no time still counts — no fallback.
 Ruling: Task 14b's `noteRecalled` notes nothing once this band has seen a reply, as `noteTtlSeen` does — a recall landing after the first reply overwrote the model that reply was billed under, so a rate solved after a /model switch was remembered under the old model — no fallback.
 Ruling: Task 14b's `noteResume` clears the seen TTL with the prior spend, as its doc says a resume's facts replace any before them — a second resume with no reset between kept the first one's 5m until its own read, and for good when that read found none — no fallback.
+Ruling (F.4): `Readings.history` is a lazy getter that maps the trails once per draw that reads it (pulse only), over at most 300 entries — a few microseconds, below what the perf test can see — so the push functions keep no parallel arrays — no fallback; Task 28's profile revisits it only if pulse is over budget.
+Ruling: Task 23 built ahead of Task 13 — `historyWords` takes `LimitView` as it stands (`LimitFacts`, which already has `etaMs`), and `readingsOf` hoists `fiveHour`/`sevenDay` into consts, lines Task 13 also edits — the merge keeps both hoists and Task 13's words — no fallback.
+Ruling: the histories keep the plan's names, `trails.costs`, `trails.context` and `trails.fiveHour` (with `COST_TRAIL`, `CONTEXT_TRAIL`, `FIVE_HOUR_TRAIL` and `noteFiveHourTrail`), for spec §4.3's `costTrail`, `contextTrail` and `fiveHourTrail` — pulse (Task 25) reads `hist.costs`/`hist.context` off `Readings.history`, which spreads the trails — no rename; and `turn.complete`, not `noteTurnEnd`, pushes the cost, since the re-warm mark is `cache.ts`' and `insights.ts` stays free of the cache model.
 
 ## Freezes
 - P1 freeze (Task 14), at dc28d40: these interfaces are frozen for P2. Gates green: `claude plugin validate .` and `claude plugin validate plugins/session-usage-band` pass, the suite passes in both zones (456 pass, 0 fail, 35 files), and `tsc` reports no errors.

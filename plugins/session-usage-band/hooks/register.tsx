@@ -28,6 +28,7 @@ import {
   resetForResume,
   resolveTtl,
   spentUsd,
+  takeRebuilt,
 } from './cache'
 import type { ResumedCache, Spend, Ttl } from './cache'
 import { COMPACT_NEAR, SEVERE_AT, WARN_AT, clipMiddle, contextUsed, fmtCountdown, fmtEta, fmtTokens, utcOffsetOf } from './format'
@@ -37,11 +38,15 @@ import {
   forgetTurn,
   insights,
   noteFiveHour,
+  noteFiveHourTrail,
   noteTurnEnd,
   noteTurnStart,
   escalate,
+  pushContext,
+  pushCost,
   resetConversationInsights,
   resetInsights,
+  trails,
 } from './insights'
 import { DARK, resolvePalette } from './palette'
 import type { Palette } from './palette'
@@ -515,8 +520,14 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId === undefined) {
-      const cost = await ledgerUsd($)
-      noteTurnEnd(e.turnId, cost)
+      const usage = await $.session.usage().catch(() => undefined)
+      const cost = usage?.cost?.usd
+      const spent = noteTurnEnd(e.turnId, cost)
+      // Taken every turn, so a rebuild never marks a later turn's cost.
+      const reWarm = takeRebuilt()
+      if (spent !== null) pushCost(spent, reWarm)
+      const used = usage === undefined ? undefined : contextUsed(usage.context)
+      if (used !== undefined) pushContext(used)
       void rememberTurn($, cost)
       band.utcOffsetMin = utcOffsetOf(await $.clock.now())
       // Another session may have chosen a layout since.
@@ -567,6 +578,7 @@ export const register: Register = on => {
     for (const limit of e.rateLimits) {
       if (limit.kind !== FIVE_HOUR) continue
       noteFiveHour(now, limit.percentUsed, limit.resetsAt)
+      noteFiveHourTrail(now, limit.percentUsed)
       note(FIVE_HOUR, limit.percentUsed / 100, [WARN_AT, SEVERE_AT], pct => `You've used ${pct}% of your 5-hour limit.`)
     }
 
@@ -652,6 +664,7 @@ export const register: Register = on => {
         cache: cacheView(now, usage.cost?.usd, contextTokens),
         costUsd: spentUsd(usage.cost?.usd),
         lastTurnUsd: insights.lastTurnUsd,
+        history: trails,
         context: {
           tokens: usage.context.tokens,
           window: usage.context.window,

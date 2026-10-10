@@ -18,9 +18,11 @@ import {
   resetIn,
 } from './format'
 import type { ResetIn } from './format'
+import { lastHourOf } from './insights'
+import type { Trails } from './insights'
 import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
-import { cacheWords, contextWords, limitWords, spendWords, workspaceWords } from './words'
-import type { CacheWords, ContextWords, LimitWords, SpendWords } from './words'
+import { cacheWords, contextWords, historyWords, limitWords, spendWords, workspaceWords } from './words'
+import type { CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords } from './words'
 
 export type Tone = 'calm' | 'amber'
 
@@ -230,6 +232,22 @@ export type ChipsReadings = Readonly<{
   reading: Readonly<{ copy: CacheCopy; tokenBreakdown: string; windows: readonly ChipsWindow[] }>
 }>
 
+/** The conversation's trails, their words, and the series a chart draws. */
+export type HistoryReading = Trails &
+  HistoryWords &
+  Readonly<{
+    /** No cost yet this conversation. */
+    empty: boolean
+    /** Each message's cost, oldest first. */
+    costValues: readonly number[]
+    /** Which of them were re-warms. */
+    reWarms: readonly boolean[]
+    /** The 5h trail's percentages. */
+    fiveHourValues: readonly number[]
+    /** The same over the last hour. */
+    fiveHourHour: readonly number[]
+  }>
+
 export type Readings = Readonly<{
   frame: Frame
   cache: CacheReading
@@ -243,6 +261,8 @@ export type Readings = Readonly<{
   workspace: BandSnapshot['workspace']
   /** The workspace as one line: `~/workspace/claude-mod, branch main, clean`. */
   workspaceText: string | undefined
+  /** Built the first time a view reads it, so chips never pays for it. */
+  history: HistoryReading
   chips: ChipsReadings
 }>
 
@@ -332,17 +352,32 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
   const worstLimit = limits
     .filter(l => !l.passed)
     .reduce<LimitView | undefined>((top, l) => (top === undefined || l.percentUsed > top.percentUsed ? l : top), undefined)
+  const fiveHour = limits.find(l => l.key === '5h')
+  const sevenDay = limits.find(l => l.key === '7d')
+  let history: HistoryReading | undefined
   return {
     frame,
     cache: { ...cache, ...cacheWords(cache, c, frame) },
     spend: { ...spend, ...spendWords(spend) },
     context: { ...context, ...contextWords(context) },
-    fiveHour: limits.find(l => l.key === '5h'),
-    sevenDay: limits.find(l => l.key === '7d'),
+    fiveHour,
+    sevenDay,
     limits,
     worstLimit,
     workspace: snap.workspace,
     workspaceText: workspaceWords(snap.workspace),
+    get history() {
+      const { costs, fiveHour: trail } = snap.history
+      return (history ??= {
+        ...snap.history,
+        ...historyWords(snap.history, fiveHour, snap.now),
+        empty: costs.length === 0,
+        costValues: costs.map(e => e.usd),
+        reWarms: costs.map(e => e.reWarm),
+        fiveHourValues: trail.map(p => p.pct),
+        fiveHourHour: lastHourOf(trail, snap.now).map(p => p.pct),
+      })
+    },
     chips: {
       raw: snap,
       reading: {
