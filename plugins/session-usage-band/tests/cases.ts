@@ -49,6 +49,11 @@ const measured = (context: SessionUsage['context']) => async ($: Engine): Promis
   await replied($)
   await $.session.measure({ context, rateLimits: USAGE.rateLimits, cost: USAGE.cost, changed: [] })
 }
+/** A reply, then the cache's lifetime and a minute more: cold. */
+const cooled = async ($: Engine, clock: MockClock, ttlMs: number): Promise<void> => {
+  await replied($)
+  await clock.advance(ttlMs + MIN)
+}
 const NEAR = contextAt(150_000, 160_000)
 const OFF = contextAt(170_000, undefined)
 
@@ -59,7 +64,7 @@ export const SCENARIOS = {
   // Its last reply 20 minutes ago, as the band remembered it; HOME lets it
   // look for the transcript's cost record too.
   recalled: { store: { sessions: { s1: { lastAt: 0 } } }, now: 20 * MIN, env: { HOME: '/Users/me' }, drive: started, amber: [] },
-  cold: { drive: async ($, clock, ttlMs) => { await replied($); await clock.advance(ttlMs + MIN) }, amber: [] },
+  cold: { drive: cooled, amber: [] },
   lastMinute: { drive: async ($, clock, ttlMs) => { await replied($); await clock.advance(ttlMs - 30_000) }, amber: ['cacheLastMinute'] },
   working: { drive: replied, isWorking: true, amber: [] },
   nearCompaction: { usage: { ...USAGE, context: NEAR }, drive: measured(NEAR), amber: ['nearCompaction'] },
@@ -86,6 +91,8 @@ export const SCENARIOS = {
     },
     amber: [],
   },
+  // Golden's capture predates this one: a cold cache's calm price beside an amber limit.
+  coldLimit80: { usage: { ...USAGE, rateLimits: withLimits(82, 30) }, drive: cooled, amber: ['limit80'] },
 } as const satisfies Record<string, Scenario>
 
 export type ScenarioName = keyof typeof SCENARIOS
@@ -138,8 +145,10 @@ export const drawCases = async ($: Engine, on: On, o: CaseOptions, mounts: reado
   return trees
 }
 
-/** Golden's grid: two surfaces at three widths, each drawn shut and open, in
+/** Golden's grid: the 20 scenarios its capture froze (the one added since has
+ *  no hashes), on two surfaces at three widths, each drawn shut and open, in
  *  dark and plain. 20 scenarios × 2 appearances × 6 mounts × 2 = 480 cases. */
+export const GOLDEN_SCENARIOS: readonly ScenarioName[] = SCENARIO_NAMES.filter(s => s !== 'coldLimit80')
 export const GOLDEN_APPEARANCES: readonly Appearance[] = ['dark', 'plain']
 export const GOLDEN_MOUNTS: readonly Mount[] = (['terminal', 'desktop'] as const).flatMap(surface => [40, 95, 200].map(cols => ({ surface, cols })))
 export const goldenKey = (scenario: ScenarioName, appearance: Appearance, drawn: string): string => `${scenario}|${appearance}|${drawn}`

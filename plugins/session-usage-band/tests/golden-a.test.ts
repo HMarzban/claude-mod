@@ -4,10 +4,10 @@ import { test, expect } from 'claude-code/testing'
 import { GOLDEN } from './golden/chips'
 import { treeHash } from './golden/hash'
 import { goldenSuite } from './golden/suite'
-import { SCENARIO_NAMES, caseKey, drawCases, goldenKey, type Mount } from './matrix'
+import { GOLDEN_SCENARIOS, caseKey, drawCases, goldenKey, type Mount } from './matrix'
 import { LONG } from './helpers'
 
-goldenSuite(SCENARIO_NAMES.slice(0, 10))
+goldenSuite(GOLDEN_SCENARIOS.slice(0, 10))
 
 test('chips stored explicitly draws the same as nothing stored', LONG, async ($, on) => {
   const m: Mount = { surface: 'desktop', cols: 95 }

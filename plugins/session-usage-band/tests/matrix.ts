@@ -238,9 +238,10 @@ const bothSurfaces = (cols: number, maxRows?: number): Mount[] => [{ surface: 't
  *  body of two rows, the strip in the footer. */
 const factRows = (layout: LayoutName, surface: Surface): number => VIEWS[layout].rows[surface] + 5
 /** The long walks take the 5-minute cache, a twelfth of the hour's ticks. Golden keeps the hour. */
-const ttlOf = (scenario: ScenarioName): Ttl => (scenario === 'lastMinute' || scenario === 'cold' ? '5m' : '1h')
+const LONG_WALKS: ReadonlySet<ScenarioName> = new Set(['lastMinute', 'cold', 'coldLimit80'])
+const ttlOf = (scenario: ScenarioName): Ttl => (LONG_WALKS.has(scenario) ? '5m' : '1h')
 
-/** The suite's 35 cases, one setup each: every scenario at 120 columns; calm
+/** The suite's 36 cases, one setup each: every scenario at 120 columns; calm
  *  and the last minute in light, plain and the ascii tier, and at every
  *  width; the other amber scenarios narrow; calm and the open-only amber
  *  short of rows. */
