@@ -94,8 +94,9 @@ const contextCell = (kit: Kit, x: ContextReading): Cell => {
     key: 'ctx',
     amber: x.amber,
     name: words(kit, 'name', [['context', 'label']]),
-    // Measured toward compaction when it is on, so its end is that point: no tick.
-    bar: twoSizes(CELL_BAR, size => meter(kit, { key: 'bar', label: 'context', frac: x.frac, tone: x.tone, accent: kit.palette.meterFill, size })),
+    // Measured toward compaction when it is on, so its end is that point: no
+    // tick. Unreported, it has no bar, as the unmeasured cache has none.
+    bar: !x.known ? () => null : twoSizes(CELL_BAR, size => meter(kit, { key: 'bar', label: 'context', frac: x.frac, tone: x.tone, accent: kit.palette.meterFill, size })),
     value: () => value,
     text: words(kit, 'text', x.say),
   }
@@ -136,12 +137,10 @@ const drawCell = (kit: Kit, cell: Cell, keeps: Keeps<Piece>): RenderElement => {
 /** Row two: the context, 5h and 7d cells, then the toggle. */
 const cellsRow = (kit: Kit, read: Readings, act: BandActions): RenderElement => {
   const toggle = toggleButton(kit, read, act)
-  // Unreported, the context says nothing collapsed; open, its panel says so.
-  const cells = [
-    read.context.known ? contextCell(kit, read.context) : undefined,
-    read.fiveHour === undefined ? undefined : limitCell(kit, read.fiveHour),
-    read.sevenDay === undefined ? undefined : limitCell(kit, read.sevenDay),
-  ].filter((cell): cell is Cell => cell !== undefined)
+  const limits = [read.fiveHour, read.sevenDay].filter((l): l is LimitView => l !== undefined).map(l => limitCell(kit, l))
+  // Unreported, the context says nothing collapsed, and open its panel says
+  // so; with no limit beside it, it says `context –`, so the row isn't empty.
+  const cells = read.context.known || limits.length === 0 ? [contextCell(kit, read.context), ...limits] : limits
   return fitLine(kit, ORDER, lineRoom(kit), keeps => line(kit, 'cells', cells.map(cell => drawCell(kit, cell, keeps)), toggle))
 }
 

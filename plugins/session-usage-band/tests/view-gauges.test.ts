@@ -34,6 +34,11 @@ test('unmeasured, the cache draws no bar', async ($, on) => {
 test('warming, the cache draws no bar', async ($, on) => {
   expect(svgAlts((await at($, on, 'warming', D160)).shut).filter(alt => alt.startsWith('cache'))).toEqual([])
 })
+test('warming, with no limits reported, row two says the context is not known yet', async ($, on) => {
+  const trees = await drawCases($, on, { layout: 'gauges', scenario: 'warming', appearance: 'dark', ttl: '1h' }, [D160, T160])
+  for (const m of [D160, T160]) expect(shown(byKey(trees[caseKey(m, 'shut')], 'cells', 'Box'))).toMatch(/^context\s*–/)
+  expect(svgAlts(trees[caseKey(D160, 'shut')]).filter(alt => alt.startsWith('context'))).toEqual([])
+})
 test('narrow, calm cells become text', async ($, on) => {
   expect(shown((await at($, on, 'calm', { surface: 'terminal', cols: 50 })).shut)).toMatch(/5h 4%/)
 })
