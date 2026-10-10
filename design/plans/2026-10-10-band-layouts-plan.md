@@ -3672,19 +3672,19 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - grep's output is truncated: the band gives up.
   - The tail fails or is truncated: the record alone is seeded.
 - **Pricing.** Each reply after the record is priced at its model's rate in that record, through `weightedTokens`. That keeps every cache write at 1.25×, as the record's own total does, so the `ephemeral_5m`/`ephemeral_1h` split is not used.
-- **Never double count.** The host restores the ledger from the log's cost state (`Jhe`), and on both the in-process `/resume` and the SDK path it does so only after the SessionStart hooks have started (`H7`). So the read may land before the restore, and the ledger at the read is no baseline. Growth counts from the conversation's own baseline instead: `costBase`, which the first `turn.start` takes, after any restore. Before that turn the band shows `max(ledger, transcript total)`; after it, `max(ledger, transcript total + ledger − costBase)`. `ratePerToken`, `costBase` and `lastTurnUsd` stay on the raw ledger.
+- **Never double count.** The host restores the ledger from the log's cost state (`Jhe`), and on both the in-process `/resume` and the SDK path it does so only after the SessionStart hooks have started (`H7`). So the read may land before the restore, and the ledger at the read is no baseline. Growth counts from the conversation's own baseline instead: `costBase`, which the first `turn.start` takes, after any restore. Before that turn the band shows `max(ledger, transcript total)`; after it, `max(ledger, transcript total + ledger − costBase)`. The growth also covers a reply this process logged before the read: `spendBefore`'s tail runs after grep returns, so it can hold one, and `transcriptSpend` skips every reply stamped at or after the resume. `ratePerToken`, `costBase` and `lastTurnUsd` stay on the raw ledger.
 - **Off the hook.** The transcript is read once per resume, with `void`, and redraws when it is done. Its end is read once too: `readResumed` reads it, and when the engine gave no idle time it hands that read to the recall (`recallLastReply` takes a reader, not a path, and returns what it recalls for the caller to note, so `readResumed` notes it under the same guard as the transcript: a recall still out when a /resume moves on to another session is dropped). Two cases still read the end twice. One is a load that recalled before the engine said it resumed, in the launch race with a ledger above $0. The other is a SessionStart with no idle time said before the load, whose recall the load's reset forgets. Sharing either read would mean holding the 1 MiB end for the session's life. Only the totals and the TTL are kept. The SessionStart hook waits only for the clock and the session id. The recall, when the engine gives no idle time, and the transcript read both run off it. The hook has a `.catch` that passes the event on, as `session.compact` has. `session.end` takes `resetForResume` for a resume and `resetConversation` for anything else.
 
 **Files:**
 - Modify: `hooks/cache.ts` (`TokenCounts`, `NO_TOKENS`, `addTokens`, `Spend`, `ResumedCache`; `resumed`, `resumedCache`, `prior` and `ttlSeen` in the state; `noteResume`, `notePrior`, `noteTtlSeen`, `spentUsd`; `resetForResume` beside `resetConversation`; `noteLoad` respects a resume; `msLeft`, `hitRatio`, `savedUsd` and `cacheView` read the prior spend and the engine's verdict)
-- Modify: `hooks/memory.ts` (`COST_RECORD`, `sessionCostRecord`, `transcriptSpend`, `lastWriteTtl`; `rateFromTranscript` shares `recordRate`)
+- Modify: `hooks/memory.ts` (`COST_RECORD`, `sessionCostRecord`, `transcriptSpend`, `lastWriteTtl`; `rateFromTranscript` shares `recordRate`, and `lastReplyAt` shares `loggedAt`)
 - Modify: `hooks/register.tsx` (`classic.SessionStart` with its `.catch`, `resumeConversation`, `applyResume`, `readResumed`, `spendBefore`, `transcriptFile`, `readWhole`, `endOf`; `recallLastReply` takes the session id and a reader of its end, and returns a `RecalledReply` that `noteRecalled` notes; `band.resume`; `session.start` applies a resume again; `session.end` takes `resetForResume` on a resume; `costUsd: spentUsd(…)`)
 - Modify: `hooks/snapshot.ts` (`cache.recovered: boolean`; `ttlPinned`'s doc says it means pinned, or seen before this band's first reply), `hooks/reading.ts` (`measured` is `requests > 0 || recovered`)
 - Modify: `tests/helpers.ts` (`grep`, `tail -c +N`, `sessionIdFails`, `grepFails`, `grepMatchOffsets`, `truncates`, the bottom `classic.SessionStart`; every answer is the one at the call), `tests/matrix.ts` (`snapOf` gains `recovered: false`)
 - Test: `tests/resume-backfill.test.ts` (new)
 
 **Interfaces:**
-- **Produces:** `noteResume(said: ResumedCache | undefined)`, `notePrior(spend: Spend)`, `noteTtlSeen(ttl: Ttl)`, `resetForResume(costNow: number)`, `spentUsd(ledgerNow: number | undefined): number`; `transcriptSpend(transcript: string, sessionId: string): Spend | undefined`, `sessionCostRecord(grepOutput: string, sessionId: string): { offset; line } | undefined`, `lastWriteTtl(transcript: string): Ttl | undefined`; `BandSnapshot.cache.recovered`, and `BandSnapshot.cache.ttlPinned` true for a TTL seen as well as pinned.
+- **Produces:** `noteResume(said: ResumedCache | undefined)`, `notePrior(spend: Spend)`, `noteTtlSeen(ttl: Ttl)`, `resetForResume(costNow: number)`, `spentUsd(ledgerNow: number | undefined): number`; `transcriptSpend(transcript: string, sessionId: string, before: number): Spend | undefined`, `sessionCostRecord(grepOutput: string, sessionId: string): { offset; line } | undefined`, `lastWriteTtl(transcript: string): Ttl | undefined`; `BandSnapshot.cache.recovered`, and `BandSnapshot.cache.ttlPinned` true for a TTL seen as well as pinned.
 - **Consumes:** `weightedTokens`, `modelName`, `READ_LIMIT`, `transcriptPath`, `recallLastReply($, sessionId, readEnd): Promise<RecalledReply | undefined>`.
 
 - [ ] **Step 1: Extend the fake engine**
@@ -3801,7 +3801,7 @@ Add `recovered: false` to `snapOf`'s cache in `tests/matrix.ts`.
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { SessionUsage } from 'claude-code'
-import { CLEAR, HOUR, LONG, MIN, START, USAGE, cardOf, engine, fact, pillOf, resp, respond, setup, shown, startTurn, endTurn, mountBand, usage } from './helpers'
+import { CLEAR, HOUR, LONG, MIN, START, USAGE, cardOf, engine, fact, pillOf, resp, respond, setup, shown, startTurn, endTurn, turn, mountBand, usage } from './helpers'
 
 const ENV = { ENABLE_PROMPT_CACHING_1H: '1', HOME: '/Users/me' }
 const BUILT_PATH = '/Users/me/.claude/projects/-Users-me-workspace-claude-mod/s1.jsonl'
@@ -4175,6 +4175,25 @@ test('a ledger the host restores after the transcript is read is never added to 
   expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$31\.27/)
 })
 
+test('a reply this process logs before the transcript read lands is counted once, by the ledger', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = jsonl(RECORD)
+  let release = (): void => undefined
+  engine.hold = new Promise<void>(resolve => {
+    release = resolve
+  })
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  await turn($, 't1', 0, 0.135)
+  // The turn's reply is logged before the tail past the record is read.
+  engine.transcript += jsonl(...reply('msg_new', 1, REPLY_USAGE).map(line => ({ ...line, timestamp: new Date(3 * HOUR).toISOString() })))
+  release()
+  await clock.settle()
+  // $30 + the ledger's $0.135
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.14/)
+  expect(fact(await mounted($, true), 'output')).toBe('100k')
+})
+
 test('a fork counts its own cost record, not one its parent wrote', async ($, on) => {
   const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
   engine.transcript = jsonl(
@@ -4245,6 +4264,38 @@ test('a TTL read off the transcript after the first reply is no longer news', as
   release()
   await clock.settle()
   expect(fact(await mounted($, true), 'expires')).toBe('1h idle · assumed')
+})
+
+test('a TTL seen on the last resume is forgotten when the same session is resumed again', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: UNPINNED, now: 3 * HOUR })
+  engine.transcript = jsonl(RECORD, ...wroteAt('msg_1', '5m'))
+  await $.session.start(START)
+  await resume($, 2 * MIN, { expired: false })
+  await clock.settle()
+  // Read again, the transcript shows no cache write.
+  engine.transcript = jsonl(RECORD)
+  await resume($, 2 * MIN, { expired: false })
+  await clock.settle()
+  expect(fact(await mounted($, true), 'expires')).toBe('1h idle · assumed')
+})
+
+test("a recall that lands after the first reply leaves that reply's billed model alone", async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = jsonl(RECORD, ...reply('msg_1', 1, REPLY_USAGE, 'claude-sonnet-4-6'))
+  let release = (): void => undefined
+  engine.hold = new Promise<void>(resolve => {
+    release = resolve
+  })
+  await $.session.start(START)
+  await $.classic.SessionStart({ source: 'resume', session_id: 's1', transcript_path: PATH })
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  release()
+  await clock.settle()
+  usage.current = { ...usage.current, cost: { usd: 2.83 } }
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+  await clock.settle()
+  expect(Object.keys(engine.store.rates as Record<string, number>)).toEqual(['claude-opus-5-5'])
 })
 
 test('an hour seen on a resumed transcript is assumed again after a /clear', async ($, on) => {
@@ -4319,7 +4370,7 @@ test("a resume without the engine's idle time reads its transcript's end once, f
 - [ ] **Step 3: Run them and watch them fail**
 
 Run: `tools/test-only.sh resume-backfill`
-Expected: of the first fix's 16 tests, 12 FAIL, with "cache warming" and "$0.00" where a resumed session should be cold and priced. The four that cover the fallbacks and the new-session path already pass. The next six came from the review of the first fix. Against that fix they fail with " ◷ cache warming " (SessionStart first), "$0.00" (the two together), "$60.27" (the ledger restored late), "$50.00" (the fork), " ◷ cache 58m " and "1h idle · assumed" (the TTLs). The second review rewrote the in-process test and added five. Against the fix before them, they fail with "$12.40" (the session left, counted), " ◷ cache 59m " (its reply, recalled), "1h idle" twice (a seen TTL that outlived the first reply, or crossed a /clear), "5m idle" (one read after the first reply) and two end reads where one is expected. The third review added five. Against the fix before them, four fail: " ◷ cache cold · next message 83k tokens " (a seen 5m written into the TTL, outliving the first reply), "5m idle" (the same, carried across a /clear), "$0.00" (a grep that gives the match's offset, its tail parsed from there) and " ◷ cache 59m " (the session left, recalled late at a /resume). The pin's passes, and fails with " ◷ cache 3:00 " if `effectiveTtl` reads the seen TTL over the pin. The fourth review added six. Against the fix before them, the two that resume another session before the load fail with "$30.27" and "5m idle" (a read that landed between the reset and the drop), and the spend test, which now names `grep -a`, fails on its argv. The other four pass. Each fails if its guard is deleted: a truncated grep or tail shows "$30.27" without its `isStdoutTruncated` check, and a subagent's SessionStart runs grep without the `agent_id` filter. The one whose session id fails still passes with the `.catch` deleted, because the kit runs `next(e)` for a failed hook; it pins the behaviour, not the handler.
+Expected: of the first fix's 16 tests, 12 FAIL, with "cache warming" and "$0.00" where a resumed session should be cold and priced. The four that cover the fallbacks and the new-session path already pass. The next six came from the review of the first fix. Against that fix they fail with " ◷ cache warming " (SessionStart first), "$0.00" (the two together), "$60.27" (the ledger restored late), "$50.00" (the fork), " ◷ cache 58m " and "1h idle · assumed" (the TTLs). The second review rewrote the in-process test and added five. Against the fix before them, they fail with "$12.40" (the session left, counted), " ◷ cache 59m " (its reply, recalled), "1h idle" twice (a seen TTL that outlived the first reply, or crossed a /clear), "5m idle" (one read after the first reply) and two end reads where one is expected. The third review added five. Against the fix before them, four fail: " ◷ cache cold · next message 83k tokens " (a seen 5m written into the TTL, outliving the first reply), "5m idle" (the same, carried across a /clear), "$0.00" (a grep that gives the match's offset, its tail parsed from there) and " ◷ cache 59m " (the session left, recalled late at a /resume). The pin's passes, and fails with " ◷ cache 3:00 " if `effectiveTtl` reads the seen TTL over the pin. The fourth review added six. Against the fix before them, the two that resume another session before the load fail with "$30.27" and "5m idle" (a read that landed between the reset and the drop), and the spend test, which now names `grep -a`, fails on its argv. The other four pass. Each fails if its guard is deleted: a truncated grep or tail shows "$30.27" without its `isStdoutTruncated` check, and a subagent's SessionStart runs grep without the `agent_id` filter. The one whose session id fails still passes with the `.catch` deleted, because the kit runs `next(e)` for a failed hook; it pins the behaviour, not the handler. The fifth review added three, and against the fix before them each fails: "$30.27" (a reply this process logged before the tail read, counted in the prior spend and again by the ledger), "5m idle" (a second resume of the session, keeping the first one's seen TTL) and `claude-sonnet-4-6` where `claude-opus-5-5` is expected (a recall landing after the first reply, overwriting its billed model).
 
 - [ ] **Step 4: Implement**
 
@@ -4335,6 +4386,7 @@ export const noteResume = (said: ResumedCache | undefined): void => {
   state.resumed = true
   state.resumedCache = said
   state.prior = undefined
+  state.ttlSeen = undefined
 }
 
 export const notePrior = (spend: Spend): void => {
@@ -4360,7 +4412,7 @@ const allTokens = (): TokenCounts => (state.prior === undefined ? state : addTok
 
 `recalledAt()` is `resumedCache?.lastAt ?? recall?.lastAt`, and `isRecalled`, `msLeft` and `cacheView`'s `idleMs` read it. `msLeft` returns 0 for a recalled cache with `resumedCache.expired === true`. `hitRatio`, `savedUsd` and `cacheView`'s `tokens` read `allTokens()`. A recalled `reWarmUsd` is `resumedCache?.reWarmUsd ?? (rate === null ? null : reWarmAt(rate, contextTokens))`. `cacheView` adds `recovered: state.prior !== undefined`; its `ttl` is `effectiveTtl()`, as `msLeft`'s lifetime is, and its `ttlPinned` is `ttlPinned || ttlSeen !== undefined`. Inference reads `ttlPinned` alone, since it runs only after a reply that has cleared `ttlSeen`. `recordResponse` clears `ttlSeen` on every main-loop reply. `resetConversation(costNow)` (a /clear, fresh) and `resetForResume(costNow)` (not fresh) share one private `switchConversation`, which carries the TTL but not `ttlSeen`.
 
-In `memory.ts`, `transcriptSpend(transcript, sessionId)` takes the session's own last cost record, else the last well-formed one. It sums every model's tokens in it, then adds each `assistant` line after it once by `message.id`, priced at `recordRate(modelUsage[modelName(model)], model)`. `sessionCostRecord` picks the same record from `grep -b` output, with its offset. `lastWriteTtl` walks the transcript from its end to the last main-loop reply whose `usage.cache_creation` wrote anything.
+In `memory.ts`, `transcriptSpend(transcript, sessionId, before)` takes the session's own last cost record, else the last well-formed one. It sums every model's tokens in it, then adds each `assistant` line after it once by `message.id`, priced at `recordRate(modelUsage[modelName(model)], model)`. It skips a line whose `timestamp` is at or after `before`: that reply is this process's own, which the ledger counts. A line with no time still counts. `lastReplyAt` shares the parse (`loggedAt`). `sessionCostRecord` picks the same record from `grep -b` output, with its offset. `lastWriteTtl` walks the transcript from its end to the last main-loop reply whose `usage.cache_creation` wrote anything.
 
 In `register.tsx`:
 
@@ -4371,7 +4423,7 @@ on('classic.SessionStart', async ($, e, next) => {
 }).catch(($, e, next) => next(e)) // a failure here must never stop a session starting
 ```
 
-`resumeConversation` builds a `Resume`: `e.session_id || $.session.id()`; the cache as `lastAt: now − seconds_since_last_response × 1000` with the engine's verdict and price, or `undefined` with no idle time; the transcript path (`''` is none); and no transcript facts yet. It keeps that in `band.resume` and applies it (`applyResume`: `noteResume`, then `notePrior` and `noteTtlSeen` from the facts once read). Then `void readResumed($, resume)`, and it invalidates. `readResumed` starts `transcriptEnd` once. With no idle time it runs `recallLastReply($, sessionId, () => end)` on that read. It runs `spendBefore` (`grep -a`, then `tail -c +N`, else `readWhole`) beside it, and waits on all three. It drops the results unless `band.resume` is still that resume. Otherwise it keeps the facts in `band.resume`, notes the recall and the facts, and invalidates. `session.start` reads `$.session.id()` first, then resets and, in the same step, drops `band.resume` unless its `sessionId` is that id; after the reset it applies the one kept again. It recalls the last reply only if the conversation isn't known fresh and the engine gave no `resumedCache`, reading its own end through `endOf`, and notes it with `noteRecalled`. `session.end` clears `band.resume`, then calls `resetForResume` for `reason: 'resume'` and `resetConversation` for anything else. The snapshot's `costUsd` is `spentUsd(usage.cost?.usd)`.
+`resumeConversation` builds a `Resume`: `e.session_id || $.session.id()`; `at`, the clock when the engine said it; the cache as `lastAt: now − seconds_since_last_response × 1000` with the engine's verdict and price, or `undefined` with no idle time; the transcript path (`''` is none); and no transcript facts yet. It keeps that in `band.resume` and applies it (`applyResume`: `noteResume`, then `notePrior` and `noteTtlSeen` from the facts once read). Then `void readResumed($, resume)`, and it invalidates. `readResumed` starts `transcriptEnd` once. With no idle time it runs `recallLastReply($, sessionId, () => end)` on that read. It runs `spendBefore($, path, sessionId, at)` (`grep -a`, then `tail -c +N`, else `readWhole`) beside it, and waits on all three. It drops the results unless `band.resume` is still that resume. Otherwise it keeps the facts in `band.resume`, notes the recall and the facts, and invalidates. `session.start` reads `$.session.id()` first, then resets and, in the same step, drops `band.resume` unless its `sessionId` is that id; after the reset it applies the one kept again. It recalls the last reply only if the conversation isn't known fresh and the engine gave no `resumedCache`, reading its own end through `endOf`, and notes it with `noteRecalled`, which notes nothing once this band has seen a reply: a recall that lands later would overwrite the billed model that reply set. `session.end` clears `band.resume`, then calls `resetForResume` for `reason: 'resume'` and `resetConversation` for anything else. The snapshot's `costUsd` is `spentUsd(usage.cost?.usd)`.
 
 - [ ] **Step 5: Run the tests**
 
