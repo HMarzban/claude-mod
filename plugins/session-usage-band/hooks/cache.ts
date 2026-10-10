@@ -38,8 +38,8 @@ type CacheState = {
   ttl: Ttl
   /** Set by the environment, so never inferred. */
   ttlPinned: boolean
-  /** Seen on the conversation's last cache write, so never inferred; the
-   *  environment's pin still wins. */
+  /** Seen on the transcript's last cache write, so never inferred before
+   *  this band's first reply; the environment's pin still wins. */
   ttlSeen: boolean
   /** Main-loop requests this conversation. */
   requests: number
@@ -127,8 +127,8 @@ export const resetCache = (): void => {
  *  carry over, everything measured starts again. The baseline is provisional
  *  until the next turn starts and takes the ledger then. */
 const switchConversation = (costNow: number, knownFresh: boolean): void => {
-  const { ttl, ttlPinned, ttlSeen, priceModel, billedModel } = state
-  Object.assign(state, INITIAL, { ttl, ttlPinned, ttlSeen, priceModel, billedModel, costBase: costNow, knownFresh })
+  const { ttl, ttlPinned, priceModel, billedModel } = state
+  Object.assign(state, INITIAL, { ttl, ttlPinned, priceModel, billedModel, costBase: costNow, knownFresh })
 }
 
 /** A /clear: a new conversation starts here. */
@@ -171,9 +171,10 @@ export const notePrior = (spend: Spend): void => {
   state.prior = spend
 }
 
-/** The TTL the conversation's last cache write was made at. */
+/** The TTL the transcript's last cache write was made at: it speaks for
+ *  the cache until this band's first reply. */
 export const noteTtlSeen = (ttl: Ttl): void => {
-  if (state.ttlPinned) return
+  if (state.ttlPinned || state.requests > 0) return
   state.ttl = ttl
   state.ttlSeen = true
 }
@@ -276,6 +277,8 @@ export const recordResponse = (
   }
 
   state.requests += 1
+  // The next request's TTL follows the config in force, not the transcript's.
+  state.ttlSeen = false
   state.window = fresh + hit + written + usage.output_tokens
   state.cached = hit + written
   state.lastAt = sentAt

@@ -6,7 +6,7 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { SessionUsage } from 'claude-code'
-import { CLEAR, HOUR, MIN, START, USAGE, cardOf, engine, fact, pillOf, setup, shown, startTurn, endTurn, mountBand, usage } from './helpers'
+import { CLEAR, HOUR, LONG, MIN, START, USAGE, cardOf, engine, fact, pillOf, resp, respond, setup, shown, startTurn, endTurn, mountBand, usage } from './helpers'
 
 const ENV = { ENABLE_PROMPT_CACHING_1H: '1', HOME: '/Users/me' }
 const BUILT_PATH = '/Users/me/.claude/projects/-Users-me-workspace-claude-mod/s1.jsonl'
@@ -349,4 +349,41 @@ test('an hour seen on the last cache write is no longer assumed', async ($, on) 
   await clock.settle()
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 58m/)
   expect(fact(await mounted($, true), 'expires')).toBe('1h idle')
+})
+
+test('an hour seen on the transcript speaks only until the first reply, so inference can still correct it', LONG, async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: UNPINNED, now: 3 * HOUR })
+  engine.transcript = jsonl(RECORD, ...wroteAt('msg_1', '1h'))
+  await $.session.start(START)
+  await resume($, 2 * MIN, { expired: false })
+  await clock.settle()
+  await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
+  await clock.advance(12 * MIN)
+  await respond(e => $.turn.step(e), resp(82_500, 0, 82_500, 300))
+  expect(fact(await mounted($, true), 'expires')).toBe('5m idle')
+})
+
+test('a TTL read off the transcript after the first reply is no longer news', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: UNPINNED, now: 3 * HOUR })
+  engine.transcript = jsonl(RECORD, ...wroteAt('msg_1', '5m'))
+  let release = (): void => undefined
+  engine.hold = new Promise<void>(resolve => {
+    release = resolve
+  })
+  await $.session.start(START)
+  await resume($, 2 * MIN, { expired: false })
+  await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
+  release()
+  await clock.settle()
+  expect(fact(await mounted($, true), 'expires')).toBe('1h idle · assumed')
+})
+
+test('an hour seen on a resumed transcript is assumed again after a /clear', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: UNPINNED, now: 3 * HOUR })
+  engine.transcript = jsonl(RECORD, ...wroteAt('msg_1', '1h'))
+  await $.session.start(START)
+  await resume($, 2 * MIN, { expired: false })
+  await clock.settle()
+  await $.session.end(CLEAR)
+  expect(fact(await mounted($, true), 'expires')).toBe('1h idle · assumed')
 })
