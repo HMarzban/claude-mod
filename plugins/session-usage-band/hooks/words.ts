@@ -358,6 +358,8 @@ export type HistoryWords = Readonly<{
   numbersShort: string
   /** 'cost of the last 14 messages, steady' | '…, rising, the newest a re-warm' */
   costsAlt: string
+  /** The same for the newest `count` alone, as a chart that draws fewer says them. */
+  costsAltOf: (count: number) => string
   /** '5h usage over the last hour, steady' | '…, rising, full in about 40 minutes' */
   trailAlt: string
 }>
@@ -388,7 +390,10 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, no
           : 'steady'
   const hour = lastHourOf(record.fiveHour, now)
   const rise = hour.length < 2 ? 0 : (hour[hour.length - 1]?.pct ?? 0) - (hour[0]?.pct ?? 0)
-  const messages = record.costs.length === 1 ? 'the last message' : `the last ${record.costs.length} messages`
+  const costsAltOf = (count: number): string => {
+    const drawn = Math.min(count, record.costs.length)
+    return `cost of ${drawn === 1 ? 'the last message' : `the last ${drawn} messages`}, ${trend}${last?.reWarm ? ', the newest a re-warm' : ''}`
+  }
   const fullIn = fiveHour === undefined || fiveHour.etaMs === null ? '' : `, full in ${fmtEtaSpoken(fiveHour.etaMs)}`
   return {
     lastText,
@@ -396,7 +401,8 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, no
     maxText,
     numbersText: [lastText && `last ${lastText}`, avgText && `avg ${avgText}`, maxText && `max ${maxText}`].filter(Boolean).join(' · '),
     numbersShort: lastText === undefined ? '' : `last ${lastText}`,
-    costsAlt: `cost of ${messages}, ${trend}${last?.reWarm ? ', the newest a re-warm' : ''}`,
+    costsAlt: costsAltOf(record.costs.length),
+    costsAltOf,
     trailAlt: `5h usage over the last hour, ${rise >= TRAIL_RISE ? 'rising' : 'steady'}${fullIn}`,
   }
 }

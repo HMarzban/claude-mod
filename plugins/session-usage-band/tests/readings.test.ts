@@ -170,6 +170,9 @@ test('the history speaks its numbers and its trend', () => {
   expect(hist.numbersText).toBe('last $0.84 · avg $0.20 · max $0.84 re-warm')
   expect(hist.numbersShort).toBe('last $0.84')
   expect(hist.costsAlt).toBe('cost of the last 3 messages, rising, the newest a re-warm')
+  expect(hist.costsAltOf(2)).toBe('cost of the last 2 messages, rising, the newest a re-warm')
+  expect(hist.costsAltOf(1)).toBe('cost of the last message, rising, the newest a re-warm')
+  expect(hist.costsAltOf(14)).toBe(hist.costsAlt)
   expect([hist.empty, readingsOf(snapOf()).history.empty]).toEqual([false, true])
 })
 test('the history is read only when a view asks for it', () => {
