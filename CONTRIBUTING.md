@@ -17,6 +17,9 @@ claude plugin test plugins/session-usage-band
 
 # Type-check (after the engine has laid the types, see below)
 npx -y -p typescript@5 tsc -p plugins/session-usage-band
+
+# The views gate: no layout but chips formats or reads a raw fact
+tools/views-gate.sh
 ```
 
 The type check reads the engine's API types from
@@ -67,7 +70,7 @@ Run `/reload-plugins` in your session afterwards.
 | `types/index.d.ts` | The plugin's state contract. |
 | `tests/` | Tests, one file per area, with shared helpers in `helpers.ts`: `setup()` starts a test from a fresh engine, `mountBand()` draws the band, `byKey()` finds a node. |
 | `tests/cases.ts`, `tests/matrix.ts` | The states every layout is drawn in and `drawCases`, which draws them; `snapOf` for pure tests, the invariant checks, and `viewSuite`, which every layout's test file runs. |
-| `tools/golden/capture.sh`, `tests/golden/` | Golden: chips' trees, captured from the band before the layouts work, which `golden-a` and `golden-b` hold chips to. |
+| `tools/golden/capture.sh`, `tests/golden/` | Golden: chips' trees, captured from the band before the layouts work with the 0.11.13 hover fix, which `golden-a` and `golden-b` hold chips to. |
 | `tools/test-only.sh` | Runs only the tests whose names match the globs given, against a scratch copy of the plugin. |
 | `tools/views-gate.sh` | The views gate, run in CI: fails when a layout's view formats or reads a raw fact. |
 
@@ -114,7 +117,7 @@ Run `/reload-plugins` in your session afterwards.
 ## Demos and the website
 
 Every demo in `docs/` (the film, the GIFs, the landing page's live band and
-its states, the social card, the states gallery) is drawn from the band's own output. After a change that alters
+its states, the social card, the states and layouts galleries) is drawn from the band's own output. After a change that alters
 how the band reads, rebuild them with `tools/demos/build.sh`; see
 [tools/demos/README.md](tools/demos/README.md). Edit the landing page in
 `tools/demos/site/template.html`, never in `docs/index.html`.
@@ -131,7 +134,7 @@ subject says what changed. The body, when there is one, says why.
    following [Semantic Versioning](https://semver.org/).
 2. Add an entry to `plugins/session-usage-band/CHANGELOG.md`.
 3. Update the plugin's README if the band reads differently.
-4. Make sure validate, test and the type check all pass.
+4. Make sure validate, test, the type check and the views gate all pass.
 5. Tag the release with `claude plugin tag plugins/session-usage-band`.
 
 ## Pull requests

@@ -117,20 +117,31 @@ split-flap board or a forecast.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/band-layouts-dark.png">
-  <img alt="The nine layouts, one row each, every one drawn from the band's own output: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" src="docs/band-layouts-light.png">
+  <img alt="The nine layouts on the desktop, each drawn twice from the band's own output, calm and in the cache's last minute: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" src="docs/band-layouts-light.png">
 </picture>
 
-A chip turns amber when it needs you: the cache's last minute, context near
-auto-compaction, a limit at 80% or a 5-hour pace that would run out before
-the reset. Nothing is ever red. Hover any chip for a one-line explanation.
+In every layout a reading turns amber when it needs you: the cache's last
+minute, context near auto-compaction, a limit at 80% or a 5-hour pace that
+would run out before the reset. Nothing is ever red. In chips, hover any
+chip for a one-line explanation.
 
-Press `▿` for four cards with every fact labelled, under a line that says
-where you are: the project, its git branch or worktree, uncommitted changes
-and ahead/behind.
+Resume a session (`claude --resume`, `/resume`, or a past session opened in
+the desktop app) and the band doesn't read it as a new one. The countdown
+runs from how long Claude Code says the session has been idle, the cache
+reads cold when Claude Code says it has likely expired, and the re-warm
+price is Claude Code's own estimate where it gives one. The cost picks up
+from what the transcript records, or shows Claude Code's own total if that
+is larger; the two are never added.
+[More on reopening a session](plugins/session-usage-band/README.md#reopening-an-old-session).
+
+Press `▿` to open every fact, under a line that says where you are: the
+project, its git branch or worktree, uncommitted changes and ahead/behind.
+Chips opens four labelled cards; each other layout opens its own view.
 
 ![The band expanded on the desktop: chips for the cache, cost, context and the 5h and 7d limits, then the Cache, Spend, Context and Limits cards, the project path and branch, and the Collapse and Hide band buttons](docs/band-expanded.png)
 
-In the terminal it's text, and it narrows gracefully as the window does:
+In the terminal it's text, and pieces give way, least important first, as the
+window narrows:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/band-demo-terminal-dark.gif">
@@ -160,7 +171,8 @@ and no build step.
   Claude Code's word on its cache and reads what it spent from its
   transcript; reopen one otherwise, and it recalls when the last reply was
   and the rate it solved, or reads them once from the end of the
-  transcript.
+  transcript. It also keeps the layout you chose, and your 5-hour and
+  weekly readings, at most one per 15 minutes, for the week layout's cells.
 - **It stays out of the way.** It never calls a model, never writes files
   and never sends anything anywhere. Besides two read-only git commands for
   the workspace line, it runs only `grep` and `tail`, to read an old
@@ -180,14 +192,20 @@ Anthropic bills a 1-hour cache write at 2×, so per-token API users on a
 
 **How does it know if my cache lasts 5 minutes or an hour?** It can't read
 your billing, so it assumes an hour and corrects itself to 5 minutes if it
-sees the cache rebuild sooner. Set `CLAUDE_CODE_PROMPT_CACHE_TTL=5m` or
-`1h` to remove the guess.
+sees the cache rebuild sooner. On a resumed session, the transcript's last
+cache write says which until the band's first reply. Set
+`CLAUDE_CODE_PROMPT_CACHE_TTL=5m` or `1h` to remove the guess.
 
 **Does the 5-hour pace include my other sessions?** Yes. The limit is shared
 across all your Claude use, so the pace counts every session and device.
 
 **Does it work on light themes?** Yes. Set `CC_BAND_APPEARANCE=light`, or
 `plain` for theme colours only. `NO_COLOR` is respected.
+
+**The row runs past the edge of my terminal.** Some terminals draw the
+band's glyphs (`█ │ · Σ`) two columns wide. In a Japanese, Chinese or
+Korean locale the band draws ASCII by itself; otherwise set
+`CC_BAND_GLYPHS=ascii`, which also suits a screen reader.
 
 ## Contributing
 

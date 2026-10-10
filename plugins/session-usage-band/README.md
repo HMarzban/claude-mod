@@ -1,7 +1,8 @@
 # session-usage-band
 
-One calm row above the Claude Code prompt that answers: is my cache still
-warm, what is this session costing, and am I close to a limit?
+A calm band above the Claude Code prompt that answers: is my cache still
+warm, what is this session costing, and am I close to a limit? By default
+it is one row of chips:
 
 ```
 ◷ cache 52m   $3.19   Σ 225k   ◔ ██░░░░ 76k / 200k   5h ░░░░░░ 4% │ ↻ 3h 00m   7d ██░░░░ 30% │ ↻ 2d 19h   ▿
@@ -12,11 +13,16 @@ drawn as SVG meters:
 
 ![The band expanded on the desktop: chips for the cache, cost, context and the 5h and 7d limits, then the Cache, Spend, Context and Limits cards, the project path and branch, and the Collapse and Hide band buttons](https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-expanded.png)
 
-Try every state live on the [website](https://hmarzban.github.io/claude-mod/),
+Eight more [layouts](#layouts) draw the same readings in other shapes:
+bars, words alone, rings, trends, tiles, day cells, a split-flap board or a
+forecast. Try every state live on the [website](https://hmarzban.github.io/claude-mod/),
 and see the [changelog](CHANGELOG.md) for what changed in each version. Found
 something off? [Open an issue](https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml).
 
 ## Reading it
+
+This section reads chips, the default layout; the others are under
+[Layouts](#layouts).
 
 ![The chip row, labelled: the cache countdown and what a re-warm will cost, the session cost, context toward auto-compaction, the 5-hour limit with its pace, the weekly limit and its reset, and the toggle that opens the cards](https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-anatomy.png)
 
@@ -92,7 +98,12 @@ amber at once, the end of the row is clipped rather than wrapped.
 
 Chips is one of nine layouts. The other eight show the same readings in
 another shape, on a filled panel (bare in `plain`), and each opens with `▿`
-to its own view of every fact, under the same workspace line and buttons.
+to its own view of every fact, under the workspace line and the same
+`Collapse` and `Hide band` buttons. Ledger writes the workspace line in
+plain words and departures as a flap on its board; the others draw it as
+chips does. Every layout turns amber at the same moments, by the same
+rules. Only chips has hover cards on its readings; the workspace line has
+them wherever it is drawn as chips draws it.
 
 | Layout | Shows | Rows (desktop / terminal) |
 | --- | --- | --- |
@@ -113,14 +124,16 @@ to its own view of every fact, under the same workspace line and buttons.
 
 The choice is kept in the plugin's store, so every session draws it, and
 one already open switches after its next reply. Choosing a layout shows a
-hidden band. Below 40 columns every layout draws chips. On the desktop with
-`CC_BAND_APPEARANCE=plain` there are no SVG charts, so a layout draws as
-text and takes its terminal rows.
+hidden band. A name it doesn't know changes nothing, and the reply lists
+the names. If the store can't keep the choice, the reply says so, and the
+layout lasts until Claude's next reply. Below 40 columns every layout
+draws chips. On the desktop with `CC_BAND_APPEARANCE=plain` there are no
+SVG charts, so a layout draws as text and takes its terminal rows.
 
 Pulse and week draw their charts in braille in the terminal, always beside
-their numbers. Week's cells come from a week of 5h and 7d readings the band
-keeps in its store, at most one per 15 minutes, so they cover the days
-before this session.
+their numbers. Week's cells come from the 5h and 7d readings the band keeps
+in its store from every session, at most one per 15 minutes and no more
+than 672, a week's worth, so they cover the days before this session.
 
 ### Glyphs in the terminal
 
@@ -155,7 +168,7 @@ than when (`in 52m`, not `14:32`).
 Claude Code caches the conversation server-side. While the cache is warm,
 re-reading the conversation costs a tenth of the normal input price or
 less, depending on the model (a twentieth on Opus 5.5 and Sonnet 5.5, a
-fortieth on Fable and Mythos 5.1). It
+fortieth on Fable 5.1 and Mythos 5.1). It
 stays warm for a lifetime (5 minutes or an hour) counted from the last
 request. Go idle past that, and the next message rebuilds the whole
 conversation at the cache-write price.
@@ -176,8 +189,9 @@ opened in the desktop app) or fork one, Claude Code says how long it has
 been idle, whether its cache has likely expired, and what re-caching it
 would cost. The band takes its word: the countdown runs from that idle
 time, the cache reads cold when Claude Code says it has likely expired, and
-the price shown is Claude Code's own. The band also reads the session's
-transcript once, never while it draws, for two more facts:
+the price shown is Claude Code's own when it gives one. The band also
+reads the session's transcript once, never while it draws, for two more
+facts:
 
 - What the session spent before you resumed it: its last cost record, and
   each reply logged after it, priced at its model's rate in that record.
@@ -209,7 +223,7 @@ it names the tokens instead. With nothing to recall, it stays at `cache –`.
 No pricing table is reachable from a mod, so the rate is solved from the
 session's own bill. Each kind of token costs a fixed multiple of base input
 (a cache write 1.25×, output 5×, a cache read 0.1×, or 0.05× on Opus 5.5
-and Sonnet 5.5 and 0.025× on Fable and Mythos 5.1, per
+and Sonnet 5.5 and 0.025× on Fable 5.1 and Mythos 5.1, per
 [Anthropic's pricing](https://platform.claude.com/docs/en/about-claude/pricing)),
 which leaves one unknown:
 
@@ -266,9 +280,10 @@ the expanded cards carry the same facts.
 | Command | Effect |
 | --- | --- |
 | `/usage-band` | Toggle visibility |
-| `/usage-band more` / `less` | Open or close the cards |
+| `/usage-band more` / `less` | Open or close the expanded view, and show the band if hidden |
 | `/usage-band show` / `hide` | Set visibility explicitly |
-| `/usage-band layout <name>` | Draw the band in another [layout](#layouts), for every session; without a name, list them |
+| `/usage-band layout <name>` | Draw the band in another [layout](#layouts), for every session, and show it if hidden |
+| `/usage-band layout` | Name the layout in use and list them all |
 
 ## Cache lifetime
 
@@ -307,6 +322,7 @@ The [repository README](https://github.com/HMarzban/claude-mod/blob/main/README.
 claude plugin validate plugins/session-usage-band
 claude plugin test plugins/session-usage-band
 npx -y -p typescript@5 tsc -p plugins/session-usage-band
+tools/views-gate.sh
 ```
 
 [CONTRIBUTING.md](https://github.com/HMarzban/claude-mod/blob/main/CONTRIBUTING.md) has the full loop and the rules the
