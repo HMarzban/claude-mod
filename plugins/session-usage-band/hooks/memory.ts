@@ -93,13 +93,18 @@ function* fromEnd(transcript: string, marker: string): Generator<Record<string, 
   }
 }
 
+/** When a transcript line was logged; undefined where it doesn't say. */
+const loggedAt = (entry: Record<string, unknown>): number | undefined => {
+  const at = typeof entry.timestamp === 'string' ? Date.parse(entry.timestamp) : NaN
+  return Number.isFinite(at) ? at : undefined
+}
+
 /** When a transcript's last assistant reply was. Its file time won't do:
  *  Claude Code writes a cost line each time it opens a session. */
 export const lastReplyAt = (transcript: string): number | undefined => {
   for (const entry of fromEnd(transcript, '"assistant"')) {
-    if (entry.type !== 'assistant' || typeof entry.timestamp !== 'string') continue
-    const at = Date.parse(entry.timestamp)
-    if (Number.isFinite(at)) return at
+    const at = entry.type === 'assistant' ? loggedAt(entry) : undefined
+    if (at !== undefined) return at
   }
   return undefined
 }
@@ -200,13 +205,14 @@ export const sessionCostRecord = (found: string, sessionId: string): Readonly<{ 
   return hits[recordFor(hits.map(hit => costRecordOf(hit.line)), sessionId)]
 }
 
-/** What `sessionId`'s conversation had spent by the end of `transcript`: its
- *  cost record's dollars and every model's tokens in it, then each reply
- *  logged after that record, priced at its model's rate there (a model the
- *  record doesn't name adds its tokens alone). Claude Code logs a reply once
- *  per content block, each line with the same usage, so a reply counts once
- *  by its id. Undefined without a well-formed record. */
-export const transcriptSpend = (transcript: string, sessionId: string): Spend | undefined => {
+/** What `sessionId`'s conversation had spent by `before`, off `transcript`:
+ *  its cost record's dollars and every model's tokens in it, then each reply
+ *  logged after that record and before `before`, priced at its model's rate
+ *  there (a model the record doesn't name adds its tokens alone). A reply
+ *  logged since is this process's own, which its ledger counts. Claude Code
+ *  logs a reply once per content block, each line with the same usage, so a
+ *  reply counts once by its id. Undefined without a well-formed record. */
+export const transcriptSpend = (transcript: string, sessionId: string, before: number): Spend | undefined => {
   const lines = transcript.split('\n')
   const records = lines.map(costRecordOf)
   const at = recordFor(records, sessionId)
@@ -220,7 +226,8 @@ export const transcriptSpend = (transcript: string, sessionId: string): Spend | 
     const line = lines[i] ?? ''
     if (!line.includes('"assistant"')) continue
     const entry = parsed(line)
-    const message = entry?.type === 'assistant' && isRecord(entry.message) ? entry.message : undefined
+    if (entry?.type !== 'assistant' || (loggedAt(entry) ?? -Infinity) >= before) continue
+    const message = isRecord(entry.message) ? entry.message : undefined
     if (message === undefined || typeof message.id !== 'string' || counted.has(message.id) || !isRecord(message.usage)) continue
     counted.add(message.id)
     const reply = replyTokens(message.usage)

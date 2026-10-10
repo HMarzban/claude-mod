@@ -6,7 +6,7 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { SessionUsage } from 'claude-code'
-import { CLEAR, HOUR, LONG, MIN, START, USAGE, cardOf, engine, fact, pillOf, resp, respond, setup, shown, startTurn, endTurn, mountBand, usage } from './helpers'
+import { CLEAR, HOUR, LONG, MIN, START, USAGE, cardOf, engine, fact, pillOf, resp, respond, setup, shown, startTurn, endTurn, turn, mountBand, usage } from './helpers'
 
 const ENV = { ENABLE_PROMPT_CACHING_1H: '1', HOME: '/Users/me' }
 const BUILT_PATH = '/Users/me/.claude/projects/-Users-me-workspace-claude-mod/s1.jsonl'
@@ -378,6 +378,25 @@ test('a ledger the host restores after the transcript is read is never added to 
   await startTurn($, 't1', 30)
   await endTurn($, 't1', 31)
   expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$31\.27/)
+})
+
+test('a reply this process logs before the transcript read lands is counted once, by the ledger', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = jsonl(RECORD)
+  let release = (): void => undefined
+  engine.hold = new Promise<void>(resolve => {
+    release = resolve
+  })
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  await turn($, 't1', 0, 0.135)
+  // The turn's reply is logged before the tail past the record is read.
+  engine.transcript += jsonl(...reply('msg_new', 1, REPLY_USAGE).map(line => ({ ...line, timestamp: new Date(3 * HOUR).toISOString() })))
+  release()
+  await clock.settle()
+  // $30 + the ledger's $0.135
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.14/)
+  expect(fact(await mounted($, true), 'output')).toBe('100k')
 })
 
 test('a fork counts its own cost record, not one its parent wrote', async ($, on) => {

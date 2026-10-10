@@ -100,10 +100,12 @@ type TranscriptFacts = Readonly<{ spend: Spend | undefined; ttl: Ttl | undefined
  *  billed under, where its transcript names one. */
 type RecalledReply = Readonly<{ lastAt: number | undefined; rate: number | null; billed: string | undefined }>
 
-/** A conversation the engine said it resumed: its session, what the engine
- *  said of its cache, where its transcript is, and once read, what that shows. */
+/** A conversation the engine said it resumed: its session, when the engine
+ *  said so, what it said of its cache, where its transcript is, and once
+ *  read, what that shows. */
 type Resume = Readonly<{
   sessionId: string
+  at: number
   cache: ResumedCache | undefined
   path: string | undefined
   transcript: TranscriptFacts | undefined
@@ -187,12 +189,12 @@ const endOf = async ($: EngineInterface, sessionId: string, given: string | unde
   return file === undefined ? undefined : transcriptEnd($, file)
 }
 
-/** What `sessionId`'s conversation spent before this process, off its
- *  transcript: its cost record, which `grep` finds at any size, and the
- *  replies logged after it, which `tail` reads from there. Where grep can't
- *  run, a transcript small enough to read is read whole. Undefined with no
- *  record, or no way to read one. */
-const spendBefore = async ($: EngineInterface, path: string, sessionId: string): Promise<Spend | undefined> => {
+/** What `sessionId`'s conversation spent before this process resumed it at
+ *  `before`, off its transcript: its cost record, which `grep` finds at any
+ *  size, and the replies logged after it, which `tail` reads from there.
+ *  Where grep can't run, a transcript small enough to read is read whole.
+ *  Undefined with no record, or no way to read one. */
+const spendBefore = async ($: EngineInterface, path: string, sessionId: string, before: number): Promise<Spend | undefined> => {
   const run = (argv: readonly string[]) => $.process.run(argv, { timeoutMs: PROCESS_TIMEOUT_MS }).catch(() => undefined)
   // `-a`: a line cut mid-character would otherwise make the file binary to
   // grep, which then prints no lines and still exits 0.
@@ -201,7 +203,7 @@ const spendBefore = async ($: EngineInterface, path: string, sessionId: string):
   if (found?.exitCode === 1) return undefined
   if (found?.exitCode !== 0) {
     const whole = await readWhole($, path)
-    return whole === undefined ? undefined : transcriptSpend(whole, sessionId)
+    return whole === undefined ? undefined : transcriptSpend(whole, sessionId, before)
   }
   const record = found.isStdoutTruncated ? undefined : sessionCostRecord(found.stdout, sessionId)
   if (record === undefined) return undefined
@@ -211,7 +213,7 @@ const spendBefore = async ($: EngineInterface, path: string, sessionId: string):
   // The record is grep's own line and the replies follow its end, so a grep
   // whose offset is the match's, not the line's (ugrep), reads the same.
   const recordEnd = tail.indexOf('\n')
-  return transcriptSpend(recordEnd < 0 ? record.line : record.line + tail.slice(recordEnd), sessionId)
+  return transcriptSpend(recordEnd < 0 ? record.line : record.line + tail.slice(recordEnd), sessionId, before)
 }
 
 /** Recalls when `sessionId` last had a reply, and what a token costs on
@@ -275,7 +277,7 @@ const readResumed = async ($: EngineInterface, mine: Resume): Promise<void> => {
     const end = file === undefined ? Promise.resolve(undefined) : transcriptEnd($, file)
     const [recalled, spend, tail] = await Promise.all([
       mine.cache === undefined ? recallLastReply($, mine.sessionId, () => end) : undefined,
-      file === undefined ? undefined : spendBefore($, file, mine.sessionId),
+      file === undefined ? undefined : spendBefore($, file, mine.sessionId, mine.at),
       end,
     ])
     if (band.resume !== mine) return
@@ -299,6 +301,7 @@ const resumeConversation = async ($: EngineInterface, e: ClassicEventOf['classic
     // The engine names the conversation it resumes; on a /resume, the
     // process switches to it only after this hook.
     sessionId: e.session_id || (await $.session.id()),
+    at: now,
     cache:
       idleSec === undefined
         ? undefined
