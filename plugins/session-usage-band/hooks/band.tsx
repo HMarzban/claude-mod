@@ -32,6 +32,7 @@ import { readingsOf } from './reading'
 import type { ChipsWindow, LimitKey, LimitView, Tone } from './reading'
 import type { BandActions, BandSnapshot } from './snapshot'
 import { drawStrip } from './strip'
+import { paceText } from './words'
 
 
 // ---- limits ---------------------------------------------------------------
@@ -349,7 +350,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     if (five) {
       const eta = five.etaMs
       if (five.tone === 'amber' || keeps(squeeze, LIMITS['5h'].calm)) {
-        const pace = eta === null ? '' : short ? ` ${fmtEta(eta)}` : ` full in ${fmtEta(eta)}`
+        const pace = eta === null ? '' : short ? ` ${fmtEta(eta)}` : ` ${paceText(five)}`
         pills.push(limitChip('5h', five, pace, squeeze))
       }
     }

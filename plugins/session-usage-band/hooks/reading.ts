@@ -151,7 +151,7 @@ export const limitTone = (reading: LimitReading, now: number, etaMs: number | nu
   !hasReset(reading, now) && (clamp01(reading.percentUsed / 100) >= WARN_AT || etaMs !== null) ? 'amber' : 'calm'
 
 // ---- the facts every layout draws from ------------------------------------
-// Moved from band.tsx word for word; words.ts will phrase them.
+// Moved from band.tsx; the card's pace already speaks through words.ts, and the rest will.
 
 export type { Glyphs } from './snapshot'
 
@@ -203,7 +203,7 @@ export type LimitFacts = Readonly<{
   projectedPct: number | undefined
 }>
 
-/** A window as chips' Limits card reads it: the facts, its raw reading, and the card's pace tail. */
+/** A window as chips' Limits card reads it: the facts, its raw reading and window length, and the card's pace tail. */
 export type ChipsWindow = LimitFacts & Readonly<{ reading: LimitReading; windowMs: number | undefined; cardPace: string }>
 
 export type ChipsReadings = Readonly<{
@@ -266,11 +266,9 @@ export const limitFacts = (snap: BandSnapshot): ChipsWindow[] => {
   const one = (name: string, key: LimitKey, reading: LimitReading, windowMs: number | undefined, etaMs: number | null): ChipsWindow => {
     const reset = resetIn(reading.resetsAt, snap.now)
     const gone = windowGone(reading, windowMs, snap.now)
-    // A measured pace, as the chip says it; else where the window's average
-    // rate ends it. Too early to say, it waits.
-    const projected = gone === undefined || gone < 0.05 ? undefined : reading.percentUsed / gone
-    // A measured fill lands it at 100, so the words and the amber agree.
-    const projectedPct = etaMs !== null ? 100 : projected
+    // A measured fill lands it at 100, so the words and the amber agree; else
+    // the average's landing, once 5% of the window has gone.
+    const projectedPct = etaMs !== null ? 100 : gone === undefined || gone < 0.05 ? undefined : reading.percentUsed / gone
     const pace = paceText({ etaMs, projectedPct })
     return {
       name,
