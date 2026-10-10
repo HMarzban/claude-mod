@@ -198,16 +198,16 @@ Open items cleared on `feat/layouts` after 0119b9a.
   - 1052 pass, 0 fail, 48 files.
 - **Departures polish** (C5), in 2ab2087, 30d742b, 68d46f3, bddd3e6, 2a0015f, 0078ea4, e33dfa2 and cb73c83, and after review in 0d04a19, 0543321, e1b31ed, 1b6b8e5, fd559e4, df5fda5, 3f31618 and 690a63f, each with its `Ruling (C5):` line in the ledger:
   - Plain flaps are drawn in spec §3.1's `[ ]`. The brackets are the line's first give-way step, so a single amber reason still fits at 40 columns. The open board keeps them, and its headers sit one cell in. A flap that outgrows its cell truncates its text and keeps its `]`.
-  - The give-way keeps its steps past spec §6's four, `cost` and `calmFive`: without them an amber reason would clip at 40 columns while a calm piece stayed (spec §2.6). Ruled, no change. A third, `coldSince`, follows them (below).
+  - The give-way keeps its steps past spec §6's four, `cost` and `calmFive`: without them an amber reason would clip at 40 columns while a calm piece stayed (spec §2.6). Ruled, no change. `coldSince` (below) and Task C3's `reWarm` follow them, so after the merge the give-way runs five steps beyond §6's four: plain's `brackets` ahead of them, then `cost`, `calmFive`, `coldSince` and `reWarm` after.
   - An amber short form stays lower case (`! 5h 82%`), as spec §2.6 writes the short forms and §2.2 puts `47s` on the board. Upper case would make `! 5h ~1h` read `! 5H ~1H`, the short form §2.12 keeps off the board. Ruled, no change.
   - Where the board can't hold TIME whole and still leave REMARKS 14 cells, a re-warm price's width (below 68 columns on the terminal, 76 where a flap is padded or bracketed), TIME is dropped, and each row's time leads its REMARKS as TIME draws it (`30s` in the last minute).
   - With no UTC offset, a limit's TIME reads `IN 3H 00 MIN` (7d `IN 67H 00 MIN`), from the new `LimitWords.boardTime`, which also holds the clock form `↻ 16:40`. A measured fill's STATUS reads `! FULL IN ~1H 15 MIN`, not `! FULL IN ~1H 15M`, from the new `fmtBoardEta`. STATUS widens from 18 cells to 20 to hold it, so a 1M window's `! COMPACTS IN ~100K` fits too.
   - The board keeps spec §6's row order, CACHE first. Where the rows under the header can't hold CACHE and every amber row (at `gatewaySpend`, one row), an amber row takes CACHE's place, since amber is never cut while a calm piece stays. Pinned by a test, no change.
   - A gateway's spend limit's ITEM reads `SPEND LIMIT`, apart from the session's `SPEND`. ITEM widens from 10 cells to 11 to hold it. Any other limit keeps its own name.
-  - The snapshot holds when a measured cache went cold (`cache.coldAt`), so a cold cache reads `DEPARTED 13:28`. On the collapsed line the clock gives way last, after the 5H flap. A recalled cache still reads `DEPARTED` alone.
+  - The snapshot holds when a measured cache went cold (`cache.coldAt`), so a cold cache reads `DEPARTED 13:28`. On the collapsed line the clock gives way after the 5H flap, before the re-warm price. A recalled cache still reads `DEPARTED` alone.
   - Shared files touched: `words.ts` (`boardTime`, the no-offset fill's board minutes, and `coldSinceClock` reading `coldAt`), `format.ts` (`fmtBoardEta`), `snapshot.ts` and `cache.ts` (`coldAt`, from `measuredColdAt`), and `tests/matrix.ts` (`coldAt: null` in `snapOf`). Golden is unchanged. 1064 pass, 0 fail, 48 files. These change a layout that is new in 0.12.0, so the CHANGELOG's Added line covers them.
 
-- **Give-way and amber**, in 81f49ae to 6ff3e0b and Task C3's review fixes after them, each fix test first:
+- **Give-way and amber**, in 6f3be8e to 71d6a2e and Task C3's review fixes after them, rebased onto C4 and C5, each fix test first:
   - A 21st scenario, `coldLimit80`: the cache cold beside the 5h at 82%. Every view draws it at 120 columns and at 40, 50 and 60. Golden keeps the 20 scenarios its capture froze (`GOLDEN_SCENARIOS`), so chips' 480 hashes are unchanged.
   - The amber reason keeps its long words until the calm pieces of its row have gone:
     - gauges' cost gives way, then its bars, so the last minute reads `! 30s left · re-warm ~$2.13` from 40 columns;
@@ -219,12 +219,12 @@ Open items cleared on `feat/layouts` after 0119b9a.
     - ledger's cold cache takes its short words, `cold ~$2.13`, at a last step, so a 5h at 82% fits beside it at 40 columns, and a countdown keeps its own;
     - gauges' cold cache keeps `re-warm ~$2.13` over the session's total;
     - tiles' cold label gives way to its price alone, `~$2.13`, so a 5h at 82% fits beside it at 40 columns;
-    - departures' calm `RE-WARM ~$2.13` gives way at a last step of its own, after `calmFive`, so the amber limit fits beside it. Departures' give-way now runs three steps past spec §6's four.
+    - departures' calm `RE-WARM ~$2.13` gives way at a last step of its own, `reWarm`, after `calmFive` and C5's `coldSince`, so the amber limit fits beside it (the give-way's steps are under Departures polish, above).
   - Gauges' row two says `context –` when no limit is reported, not ▿ alone.
   - At a body of one row, a section whose first row is amber draws it where its title would be, so every grid view says `! spend 92%` at `gatewaySpend`, and a calm section keeps its title. Departures' board drops its header for its first row, and week's row is the amber limit's sentence. `viewSuite` checks it from that row, and checks that every empty state follows its section's name.
   - `viewSuite` holds a terminal's collapsed lines to their room, not the whole row.
   - Pulse on the desktop is the exception, kept under Open with its options.
-  - 1088 pass, 0 fail, 48 files. These fixes change layouts that are new in 0.12.0, so Added covers them and the CHANGELOG gains no line.
+  - 1115 pass, 0 fail, 48 files, on `feat/layouts` at d56b031 with C4 and C5 merged. These fixes change layouts that are new in 0.12.0, so Added covers them and the CHANGELOG gains no line.
 
 ## Pending the maintainer
 
