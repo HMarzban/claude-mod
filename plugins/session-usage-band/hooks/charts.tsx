@@ -212,6 +212,10 @@ export type SparklineOptions = Readonly<{
   max?: number
   /** Where the line is heading, as a fraction of the scale's top, drawn dashed. */
   projectTo?: number
+  /** A level the line is read against, such as where context compacts, as a
+   *  fraction of the scale's top: a solid rule across the chart. Text draws
+   *  no rule; the words beside it name the level. */
+  level?: number
 }>
 
 /** The newest point's dot radius, and the air it keeps from the edges. */
@@ -221,8 +225,8 @@ const SPARK_AHEAD = 20
 
 /** A line over time, its newest point a dot. Text draws it in braille. */
 export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
-  const { Svg } = kit
-  const { key, alt, values, color, px, height, max, projectTo } = o
+  const { Svg, palette } = kit
+  const { key, alt, values, color, px, height, max, projectTo, level } = o
   const top = max ?? topOf(values)
   if (!Svg) return brailleText(kit, key, values, color, top)
   const end = px - SPARK_DOT - (projectTo === undefined ? 0 : SPARK_AHEAD)
@@ -230,7 +234,8 @@ export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   const y = (frac: number) => tenth(height - SPARK_DOT - clamp01(frac) * (height - 2 * SPARK_DOT))
   const points = values.map((v, i) => [x(i), y(top > 0 ? v / top : 0)] as const)
   const newest = points.at(-1)
-  let marks = ''
+  // Beneath the line, so the line reads over it.
+  let marks = level === undefined ? '' : `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.trackStroke}" stroke-width="1"/>`
   if (points.length > 1) {
     marks += `<polyline points="${points.map(p => p.join(',')).join(' ')}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`
   }
