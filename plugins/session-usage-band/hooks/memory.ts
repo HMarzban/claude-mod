@@ -190,7 +190,8 @@ const recordFor = (records: ReadonlyArray<Record<string, unknown> | undefined>, 
 }
 
 /** The cost record `sessionId`'s spend counts from, in `grep -b` output: the
- *  byte offset its line starts at in the file, and the line. */
+ *  byte offset grep gives it (where its line starts, or with ugrep where the
+ *  match does), and the line. */
 export const sessionCostRecord = (found: string, sessionId: string): Readonly<{ offset: number; line: string }> | undefined => {
   const hits = found.split('\n').flatMap(text => {
     const [, offset, line] = /^(\d+):(.*)$/.exec(text) ?? []

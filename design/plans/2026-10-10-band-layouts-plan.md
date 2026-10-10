@@ -3666,7 +3666,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - **Which session.** During an in-process `/resume`, the 2.1.296 `resume` handler runs `co = await H7(…)`, the SessionStart hooks, and only then calls `A_(xo, "resume" | "fork", …)`, which switches the session. `Mo = K()`, read after H7, is still the old id, so `$.session.id()` in the hook names the session being left. `t7r` builds the SessionStart input from `{ id: WS(r) }` and stamps `session_id` with the resumed id on purpose; at launch that is also the id the conversation continues under (`ut`). So the resume keys on `e.session_id || $.session.id()`, and its cost record, its store lookup and a transcript path the band builds all key on that id. The test kit stamps its own session id (a UUID) unless a test gives one, so the tests' `resume` helper passes `engine.sessionId`, and the in-process tests keep `engine.sessionId` at `'s1'` while SessionStart names `'s2'`.
 - **The one exemption.** `band.resume` is the one thing `session.start` doesn't reset, against the Global Constraints. In the kit, a resume said after the last test's load and one said before this test's load look the same to `session.start`: a resume with no load since. A claim flag can't tell them apart. Either the before-load case breaks, or the usual order (`session.start`, then SessionStart) still leaks. In production `session.start` runs once per module, so only the kit sees the leak. The tests stay independent of the order they run in. Every resume test raises its own SessionStart, which replaces a leaked resume. A test that counts reads counts only those after its SessionStart. "without the engine's idle time…" ends the same either way: a leaked resume with the engine's cache skips the load's recall, a $0 ledger skips it without one, and the test's own SessionStart, which has no idle time, recalls.
 - **The cache.** The engine's idle time becomes the recalled reply's time, and its re-caching price is the price shown. Both are kept as `resumedCache`, beside the band's own `recall`, and stand over it. `prompt_cache_likely_expired: true` makes the cache cold. It never sets the TTL, because the engine also sets the flag for a compaction with no cached reply after it, however short the idle. The TTL comes from where the engine takes it: the last main-loop reply's `usage.cache_creation` split, read from the transcript's tail. Any `ephemeral_1h_input_tokens` gives 1h; `ephemeral_5m_input_tokens` alone gives 5m. A reply that wrote nothing is passed over, and so is a subagent's (`isSidechain`). Until this band's first reply, a TTL seen there is known, not assumed (`ttlSeen`, shown through the snapshot's `ttlPinned`, which means pinned or seen), so inference leaves it alone. It describes the recalled period, as `resumedCache` does, so it is an overlay and never written into `ttl`: `effectiveTtl()` is the pin, else `ttlSeen`, else `ttl`, and `msLeft` and `cacheView` read it. The first main-loop reply clears it, a read that lands after that reply is ignored, and `switchConversation` doesn't carry it, because the next request's TTL follows the config in force, not the transcript. A seen 5m therefore never outlives the recalled period: after the first reply, or a /clear, the band assumes the hour again, as it would have without the transcript. The environment's pin wins in either order, since `effectiveTtl` reads it first. The snapshot's field keeps the name `ttlPinned`, since every layout's view reads it. With no idle time from the engine, the band recalls as before: its store's `lastAt`, then the transcript's tail.
-- **The read.** `grep -b -F '"type":"cost-state"' <path>` finds every cost record at any size; the output is small, one line per reopen. The session's own last record (by `sessionId`) gives the record and its byte offset, else the last well-formed record of any session (a fork's file may hold only its parent's). `tail -c +<offset + 1>` reads only what was logged after it. The fallbacks:
+- **The read.** `grep -b -F '"type":"cost-state"' <path>` finds every cost record at any size; the output is small, one line per reopen. The session's own last record (by `sessionId`) gives the record and its byte offset, else the last well-formed record of any session (a fork's file may hold only its parent's). `tail -c +<offset + 1>` reads only what was logged after it. The record itself is grep's own line, and the replies are what the tail holds past its first newline: BSD and GNU grep give the offset where the line starts, but ugrep gives the match's, which starts the tail mid-line. The fallbacks:
   - grep exits 1: there is no record, so nothing is seeded.
   - grep can't run: the file is read whole if it is ≤ `READ_LIMIT`.
   - grep's output is truncated: the band gives up.
@@ -3689,7 +3689,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Extend the fake engine**
 
-In `tests/helpers.ts`, `grep` answers as `grep -b -F` would, `tail` takes `-c +N`, `grepFails` joins `ENGINE_INITIAL`, and `base` gives `classic.SessionStart` its bottom handler (one handler per event, so tests never register it). Every answer is the one at the call: `git`, `transcript` and `grepFails` are read before the hold, so a held read answers with what it was called with:
+In `tests/helpers.ts`, `grep` answers as `grep -b -F` would, `tail` takes `-c +N`, `grepFails` and `grepMatchOffsets` (each match's offset, as ugrep gives it) join `ENGINE_INITIAL`, and `base` gives `classic.SessionStart` its bottom handler (one handler per event, so tests never register it). Every answer is the one at the call: the fake reads what it answers from before the hold, so a held read answers with what it was called with:
 
 ```diff
 @@ -80,7 +80,7 @@ type EngineFake = {
@@ -3701,24 +3701,28 @@ In `tests/helpers.ts`, `grep` answers as `grep -b -F` would, `tail` takes `-c +N
    hold: Promise<void> | undefined
    ran: string[][]
    /** The session's id and model, as the engine names them. */
-@@ -92,6 +92,8 @@ type EngineFake = {
+@@ -92,6 +92,11 @@ type EngineFake = {
    transcriptBytes: number | undefined
    /** When set, `tail` can't run, as where the host has none. */
    tailFails: boolean
 +  /** When set, `grep` can't run, as where the host has none. */
 +  grepFails: boolean
++  /** When set, `grep -b` gives each match's byte offset, as ugrep does, not
++   *  its line's. */
++  grepMatchOffsets: boolean
    /** Every path the plugin asked the file system about. */
    statted: string[]
    /** The plugin's own store, JSON in and out as the engine keeps it. */
-@@ -120,6 +122,7 @@ const ENGINE_INITIAL: Readonly<EngineFake> = {
+@@ -120,6 +125,8 @@ const ENGINE_INITIAL: Readonly<EngineFake> = {
    transcript: undefined,
    transcriptBytes: undefined,
    tailFails: false,
 +  grepFails: false,
++  grepMatchOffsets: false,
    statted: [],
    root: PROJECT,
    repoRoot: PROJECT,
-@@ -186,18 +189,33 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
+@@ -186,18 +193,33 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
      const quiet = { stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
      if (e.argv[0] === 'tail') {
        if (engine.tailFails || engine.transcript === undefined) return { value: { ...quiet, exitCode: 1, stdout: '', stderr: 'tail: no such file' } }
@@ -3731,7 +3735,7 @@ In `tests/helpers.ts`, `grep` answers as `grep -b -F` would, `tail` takes `-c +N
      }
 -    const git = engine.git
 -    const hold = engine.hold
-+    const { git, transcript, grepFails, hold } = engine
++    const { git, transcript, grepFails, grepMatchOffsets, hold } = engine
      if (hold !== undefined) await hold
 +    if (e.argv[0] === 'grep') {
 +      // `grep -b -F pattern path`: each line holding the pattern, after its byte offset.
@@ -3741,7 +3745,7 @@ In `tests/helpers.ts`, `grep` answers as `grep -b -F` would, `tail` takes `-c +N
 +      let offset = 0
 +      const found: string[] = []
 +      for (const line of transcript.split('\n')) {
-+        if (line.includes(pattern)) found.push(`${offset}:${line}\n`)
++        if (line.includes(pattern)) found.push(`${grepMatchOffsets ? offset + line.indexOf(pattern) : offset}:${line}\n`)
 +        offset += line.length + 1
 +      }
 +      return { value: { ...quiet, exitCode: found.length > 0 ? 0 : 1, stdout: found.join('') } }
@@ -3948,6 +3952,16 @@ test('with no transcript, a resume shows the ledger and no breakdown, as before'
 test('malformed lines are passed over, a record cut short included', async ($, on) => {
   const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
   engine.transcript = `${TRANSCRIPT}{"type":"assistant","message":{"id":"msg_3"\n${JSON.stringify(RECORD).slice(0, 40)}\n`
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
+})
+
+test("a grep that gives the match's offset, not its line's, still counts the record and every reply after it", async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.grepMatchOffsets = true
+  engine.transcript = TRANSCRIPT
   await $.session.start(START)
   await resume($, 10 * MIN)
   await clock.settle()
@@ -4207,7 +4221,7 @@ test("a resume without the engine's idle time reads its transcript's end once, f
 - [ ] **Step 3: Run them and watch them fail**
 
 Run: `tools/test-only.sh resume-backfill`
-Expected: of the first 16 tests, 12 FAIL, with "cache warming" and "$0.00" where a resumed session should be cold and priced. The four that cover the fallbacks and the new-session path already pass. The next six came from the review of the first fix. Against that fix they fail with " ◷ cache warming " (SessionStart first), "$0.00" (the two together), "$60.27" (the ledger restored late), "$50.00" (the fork), " ◷ cache 58m " and "1h idle · assumed" (the TTLs). The second review rewrote the in-process test and added five. Against the fix before them, they fail with "$12.40" (the session left, counted), " ◷ cache 59m " (its reply, recalled), "1h idle" twice (a seen TTL that outlived the first reply, or crossed a /clear), "5m idle" (one read after the first reply) and two end reads where one is expected. The third review added three. Against the fix before them, two fail with " ◷ cache cold · next message 83k tokens " (a seen 5m written into the TTL, outliving the first reply) and "5m idle" (the same, carried across a /clear). The pin's passes, and fails with " ◷ cache 3:00 " if `effectiveTtl` reads the seen TTL over the pin.
+Expected: of the first 16 tests, 12 FAIL, with "cache warming" and "$0.00" where a resumed session should be cold and priced. The four that cover the fallbacks and the new-session path already pass. The next six came from the review of the first fix. Against that fix they fail with " ◷ cache warming " (SessionStart first), "$0.00" (the two together), "$60.27" (the ledger restored late), "$50.00" (the fork), " ◷ cache 58m " and "1h idle · assumed" (the TTLs). The second review rewrote the in-process test and added five. Against the fix before them, they fail with "$12.40" (the session left, counted), " ◷ cache 59m " (its reply, recalled), "1h idle" twice (a seen TTL that outlived the first reply, or crossed a /clear), "5m idle" (one read after the first reply) and two end reads where one is expected. The third review added three. Against the fix before them, two fail with " ◷ cache cold · next message 83k tokens " (a seen 5m written into the TTL, outliving the first reply) and "5m idle" (the same, carried across a /clear). The pin's passes, and fails with " ◷ cache 3:00 " if `effectiveTtl` reads the seen TTL over the pin. It also added the match-offset grep, which fails with "$0.00" against a tail parsed from grep's offset.
 
 - [ ] **Step 4: Implement**
 

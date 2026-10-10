@@ -188,6 +188,16 @@ test('malformed lines are passed over, a record cut short included', async ($, o
   expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
 })
 
+test("a grep that gives the match's offset, not its line's, still counts the record and every reply after it", async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.grepMatchOffsets = true
+  engine.transcript = TRANSCRIPT
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
+})
+
 test('without grep, a transcript small enough to read is read whole', async ($, on) => {
   const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
   engine.grepFails = true

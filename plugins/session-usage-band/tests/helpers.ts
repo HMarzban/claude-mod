@@ -97,6 +97,9 @@ type EngineFake = {
   tailFails: boolean
   /** When set, `grep` can't run, as where the host has none. */
   grepFails: boolean
+  /** When set, `grep -b` gives each match's byte offset, as ugrep does, not
+   *  its line's. */
+  grepMatchOffsets: boolean
   /** Every path the plugin asked the file system about. */
   statted: string[]
   /** The plugin's own store, JSON in and out as the engine keeps it. */
@@ -126,6 +129,7 @@ const ENGINE_INITIAL: Readonly<EngineFake> = {
   transcriptBytes: undefined,
   tailFails: false,
   grepFails: false,
+  grepMatchOffsets: false,
   statted: [],
   root: PROJECT,
   repoRoot: PROJECT,
@@ -197,7 +201,7 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
       const stdout = count.startsWith('+') ? engine.transcript.slice(Number(count.slice(1)) - 1) : engine.transcript.slice(-Number(count))
       return { value: { ...quiet, exitCode: 0, stdout } }
     }
-    const { git, transcript, grepFails, hold } = engine
+    const { git, transcript, grepFails, grepMatchOffsets, hold } = engine
     if (hold !== undefined) await hold
     if (e.argv[0] === 'grep') {
       // `grep -b -F pattern path`: each line holding the pattern, after its byte offset.
@@ -207,7 +211,7 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
       let offset = 0
       const found: string[] = []
       for (const line of transcript.split('\n')) {
-        if (line.includes(pattern)) found.push(`${offset}:${line}\n`)
+        if (line.includes(pattern)) found.push(`${grepMatchOffsets ? offset + line.indexOf(pattern) : offset}:${line}\n`)
         offset += line.length + 1
       }
       return { value: { ...quiet, exitCode: found.length > 0 ? 0 : 1, stdout: found.join('') } }

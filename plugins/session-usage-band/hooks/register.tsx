@@ -200,7 +200,11 @@ const spendBefore = async ($: EngineInterface, path: string, sessionId: string):
   if (record === undefined) return undefined
   const rest = await run(['tail', '-c', `+${record.offset + 1}`, path])
   // Replies past what one read holds are left out rather than half-read; the record still counts.
-  return transcriptSpend(rest?.exitCode === 0 && !rest.isStdoutTruncated ? rest.stdout : record.line, sessionId)
+  const tail = rest?.exitCode === 0 && !rest.isStdoutTruncated ? rest.stdout : ''
+  // The record is grep's own line and the replies follow its end, so a grep
+  // whose offset is the match's, not the line's (ugrep), reads the same.
+  const recordEnd = tail.indexOf('\n')
+  return transcriptSpend(recordEnd < 0 ? record.line : record.line + tail.slice(recordEnd), sessionId)
 }
 
 /** Recalls when `sessionId` last had a reply, and what a token costs on
