@@ -149,12 +149,12 @@ const band: {
   tick: undefined,
 }
 
-/** Where the session's transcript is: where the engine says, else where
+/** Where `sessionId`'s transcript is: where the engine says, else where
  *  Claude Code keeps it for this project; undefined without either. */
-const transcriptFile = async ($: EngineInterface, given: string | undefined): Promise<string | undefined> => {
+const transcriptFile = async ($: EngineInterface, sessionId: string, given: string | undefined): Promise<string | undefined> => {
   if (given !== undefined) return given
   const home = await $.env.get('HOME')
-  return home ? transcriptPath(home, await $.session.root(), await $.session.id()) : undefined
+  return home ? transcriptPath(home, await $.session.root(), sessionId) : undefined
 }
 
 /** A whole transcript, if it is small enough to read. */
@@ -196,20 +196,19 @@ const spendBefore = async ($: EngineInterface, path: string, sessionId: string):
   return transcriptSpend(rest?.exitCode === 0 && !rest.isStdoutTruncated ? rest.stdout : record.line, sessionId)
 }
 
-/** Recalls when this session last had a reply, and what a token costs on
+/** Recalls when `sessionId` last had a reply, and what a token costs on
  *  its model: the band's own memory first; for a session from before the
  *  band, its transcript's last reply and cost record (at `path`, when the
  *  engine names it), if it is small enough to read. Read once at load, and
  *  only those two facts kept. Never throws: unknown stays unknown. */
-const recallLastReply = async ($: EngineInterface, path?: string): Promise<void> => {
+const recallLastReply = async ($: EngineInterface, sessionId: string, path: string | undefined): Promise<void> => {
   try {
-    const id = await $.session.id()
     const model = modelName(await $.session.model())
     const rates = asRates(await $.store.get(RATES_KEY))
-    let lastAt = asSessions(await $.store.get(SESSIONS_KEY))[id]?.lastAt
+    let lastAt = asSessions(await $.store.get(SESSIONS_KEY))[sessionId]?.lastAt
     let rate = rates[model] ?? null
     if (lastAt === undefined || rate === null) {
-      const file = await transcriptFile($, path)
+      const file = await transcriptFile($, sessionId, path)
       const transcript = file === undefined ? undefined : await transcriptEnd($, file)
       if (transcript !== undefined) {
         lastAt ??= lastReplyAt(transcript)
@@ -244,7 +243,7 @@ const applyResume = (resume: Resume): void => {
  *  ledger and the TTL stand. */
 const readResumed = async ($: EngineInterface, mine: Resume): Promise<void> => {
   try {
-    const file = await transcriptFile($, mine.path)
+    const file = await transcriptFile($, mine.sessionId, mine.path)
     if (file === undefined) return
     const [spend, end] = await Promise.all([spendBefore($, file, mine.sessionId), transcriptEnd($, file)])
     if (band.resume !== mine) return
@@ -264,7 +263,9 @@ const resumeConversation = async ($: EngineInterface, e: ClassicEventOf['classic
   const idleSec = e.seconds_since_last_response
   const now = await $.clock.now()
   const resume: Resume = {
-    sessionId: await $.session.id(),
+    // The engine names the conversation it resumes; on a /resume, the
+    // process switches to it only after this hook.
+    sessionId: e.session_id || (await $.session.id()),
     cache:
       idleSec === undefined
         ? undefined
@@ -275,7 +276,7 @@ const resumeConversation = async ($: EngineInterface, e: ClassicEventOf['classic
   }
   band.resume = resume
   applyResume(resume)
-  if (resume.cache === undefined) void recallLastReply($, resume.path)
+  if (resume.cache === undefined) void recallLastReply($, resume.sessionId, resume.path)
   void readResumed($, resume)
   $.ui.invalidate('ui.render')
 }
@@ -391,7 +392,7 @@ export const register: Register = on => {
     void readWorkspace($)
     // Loaded mid-conversation, the band has seen no reply: recall the last,
     // unless the engine said when it was.
-    if (!cache.knownFresh && cache.resumedCache === undefined) await recallLastReply($, band.resume?.path)
+    if (id !== undefined && !cache.knownFresh && cache.resumedCache === undefined) await recallLastReply($, id, band.resume?.path)
 
     band.palette = resolvePalette((await $.env.get('CC_BAND_APPEARANCE'))?.toLowerCase(), await $.env.get('NO_COLOR'))
     band.glyphs = resolveGlyphs({

@@ -66,10 +66,16 @@ const TRANSCRIPT = jsonl(
   ...reply('msg_2', 1, REPLY_USAGE),
 )
 
-/** The engine resuming a conversation last answered `idleMs` ago. */
-const resume = ($: Engine, idleMs: number, fields: { expired?: boolean; reWarmUsd?: number; path?: string; source?: 'resume' | 'fork' } = {}) =>
+/** The engine resuming a conversation last answered `idleMs` ago: by
+ *  default the session's own, as at launch. */
+const resume = (
+  $: Engine,
+  idleMs: number,
+  fields: { expired?: boolean; reWarmUsd?: number; path?: string; source?: 'resume' | 'fork'; sessionId?: string } = {},
+) =>
   $.classic.SessionStart({
     source: fields.source ?? 'resume',
+    session_id: fields.sessionId ?? engine.sessionId,
     transcript_path: fields.path ?? PATH,
     seconds_since_last_response: idleMs / 1000,
     context_tokens: 76_000,
@@ -111,7 +117,7 @@ test('a cache the engine calls expired is cold, however recent the reply', async
 test("without the engine's idle time, the band's own memory of the last reply stands in", async ($, on) => {
   const clock = setup(on, { usage: RESUMED, env: ENV, store: { sessions: { s1: { lastAt: 3 * HOUR - 10 * MIN } } }, now: 3 * HOUR })
   await $.session.start(START)
-  await $.classic.SessionStart({ source: 'resume', transcript_path: PATH })
+  await $.classic.SessionStart({ source: 'resume', session_id: 's1', transcript_path: PATH })
   await clock.settle()
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 50m/)
 })
@@ -220,18 +226,38 @@ test('a /clear while the transcript is read leaves the new conversation alone', 
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache warming/)
 })
 
+/** An in-process /resume of s2 from s1: the engine names s2 in its
+ *  SessionStart, and switches the process to it only after the hooks ran. */
+const RESUME_S2 = { reason: 'resume', sessionId: 's1', resume: { id: 's2' } } as const
+
 test('/resume inside a running session resumes the conversation it names', async ($, on) => {
   const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
-  engine.transcript = TRANSCRIPT
+  // s2 forked from s1, so s1's record, copied, comes before its own.
+  engine.transcript = jsonl(
+    { ...RECORD, sessionId: 's1', totalCostUSD: 12 },
+    ...reply('msg_old', 1, REPLY_USAGE),
+    { ...RECORD, sessionId: 's2' },
+    ...reply('msg_1', 3, REPLY_USAGE),
+    ...reply('msg_2', 1, REPLY_USAGE),
+  )
   await $.session.start(START)
-  await $.session.end({ reason: 'resume', sessionId: 's1', resume: { id: 's1' } })
+  await $.session.end(RESUME_S2)
   // Until the engine says more, the band knows only that it isn't new.
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache –/)
-  engine.sessionId = 's2'
-  await resume($, 48 * HOUR)
+  await resume($, 48 * HOUR, { sessionId: 's2' })
   await clock.settle()
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold/)
   expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
+})
+
+test("/resume without the engine's idle time recalls the resumed session's last reply, not the one left", async ($, on) => {
+  const sessions = { s1: { lastAt: 3 * HOUR - MIN }, s2: { lastAt: 3 * HOUR - 10 * MIN } }
+  const clock = setup(on, { usage: RESUMED, env: ENV, store: { sessions }, now: 3 * HOUR })
+  await $.session.start(START)
+  await $.session.end(RESUME_S2)
+  await $.classic.SessionStart({ source: 'resume', session_id: 's2', transcript_path: PATH })
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 50m/)
 })
 
 test('a new session and a /clear read nothing and stay warming', async ($, on) => {
