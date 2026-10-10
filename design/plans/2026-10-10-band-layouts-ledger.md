@@ -50,6 +50,7 @@ What the plan's steps record, in the order they happen.
 | Task 12 | 354 pass, 0 fail, 26 files | `claude plugin test plugins/session-usage-band` |
 | Task 12 (merged) | 358 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 13 | 422 pass, 0 fail, 32 files | `claude plugin test plugins/session-usage-band` |
+| Task 13 (merged) | 451 pass, 0 fail, 34 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
