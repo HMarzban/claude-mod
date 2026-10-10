@@ -3,6 +3,8 @@
 
 import type { ElementTable, RenderChildren, RenderElement } from 'claude-code'
 import {
+  FIVE_HOUR_MS,
+  SEVEN_DAY_MS,
   clamp01,
   fmtCost,
   fmtEstimate,
@@ -62,7 +64,7 @@ type LimitSpec = Readonly<{
 const LIMITS: Readonly<Record<LimitKey, LimitSpec>> = {
   '5h': {
     icon: 'five',
-    windowMs: 5 * 3600_000,
+    windowMs: FIVE_HOUR_MS,
     title: '5-hour limit',
     calm: 'calmFive',
     reset: 'fiveReset',
@@ -71,7 +73,7 @@ const LIMITS: Readonly<Record<LimitKey, LimitSpec>> = {
   },
   '7d': {
     icon: 'week',
-    windowMs: 7 * 24 * 3600_000,
+    windowMs: SEVEN_DAY_MS,
     title: 'Weekly limit',
     calm: 'calmWeek',
     reset: 'weekReset',
