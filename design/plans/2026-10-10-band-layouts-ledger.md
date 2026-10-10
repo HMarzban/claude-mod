@@ -60,6 +60,7 @@ What the plan's steps record, in the order they happen.
 | Task 14b (third review, on 61fded2) | 488 pass, 0 fail, 36 files | `claude plugin test plugins/session-usage-band` |
 | Task 14b (fourth review, on dcae029) | 506 pass, 0 fail, 36 files | `claude plugin test plugins/session-usage-band` |
 | Task 14b (fifth review) | 509 pass, 0 fail, 36 files | `claude plugin test plugins/session-usage-band` |
+| Task 14b, resumed sessions recover their spend and cache state (merged) | 509 pass, 0 fail, 36 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
