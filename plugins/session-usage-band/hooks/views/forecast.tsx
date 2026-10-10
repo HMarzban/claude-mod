@@ -13,8 +13,9 @@ import { toggleButton } from './frame'
 import { accentOf, amberWords, emptySay, fitLine, line, lineRoom, separatedBy, words, type Keeps } from './parts'
 import { defineView } from './view'
 
-/** What gives way as the line narrows, first to last; `nextChange` is the narrow-width ruling's. Amber never does. */
-const ORDER = ['farSeven', 'farChanges', 'inX', 'detail', 'nextChange'] as const
+/** What gives way as the line narrows, first to last; `nextChange` is the
+ *  narrow-width ruling's, and a cold cache's price goes last. Amber never does. */
+const ORDER = ['farSeven', 'farChanges', 'inX', 'detail', 'nextChange', 'coldPrice'] as const
 type Piece = (typeof ORDER)[number]
 
 /** The most changes the line looks ahead to. */
@@ -116,6 +117,14 @@ const lastMinute = (kit: Kit, c: CacheReading, amber: Amber): Amber => ({
   short: amber.short,
 })
 
+/** Now, calm: its condition; cold with no detail row, its price after it,
+ *  `now · cold · re-warm ~$1.66`, then `now · cold ~$1.66`. */
+const nowCalm = (kit: Kit, c: CacheReading, keeps: Keeps<Piece>): RenderElement => {
+  const price: Say =
+    kit.Svg || c.condition !== 'cold' || !keeps.has('coldPrice') ? [] : [[keeps.has('detail') ? ' · re-warm ' : ' ', 'label'], [c.estimate, 'value']]
+  return words(kit, 'head', [['now · ', 'label'], [c.condition, 'value'], ...price])
+}
+
 /** A change's head: its time, with how far off when it is the next, then what it is. */
 const changeHead = (kit: Kit, ch: Change, next: boolean, keeps: Keeps<Piece>): RenderElement => {
   const when = ch.clock === undefined ? ch.soon : next ? `${ch.clock} · ${ch.soon}` : ch.clock
@@ -148,7 +157,6 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const changes = changesOf(read)
   const weather = WEATHER[c.condition]
   const nowIcon = Svg && weather !== undefined ? icon(weather, onTone(c.tone, palette.warm), c.alt) : []
-  const nowCalm = words(kit, 'head', [['now · ', 'label'], [c.condition, 'value']])
   const nowDetail = nowDetailOf(c)
   const cooling = c.amber === undefined ? undefined : lastMinute(kit, c, c.amber)
   // No change ahead says these, so each says itself; a measured fill is a change.
@@ -159,7 +167,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   return [
     fitLine(kit, ORDER, lineRoom(kit), keeps => {
       const detail = (d: Detail | undefined): string | undefined => (d === undefined ? undefined : keeps.has('detail') ? d.long : d.short)
-      const head = cooling === undefined ? nowCalm : amberWords(kit, 'head', cooling, keeps)
+      const head = cooling === undefined ? nowCalm(kit, c, keeps) : amberWords(kit, 'head', cooling, keeps)
       // An amber change never gives way; the next one only once the rest have.
       const ahead = changes.filter((ch, i) => ch.amberShort !== undefined || keeps.has(i === 0 ? 'nextChange' : ch.seven ? 'farSeven' : 'farChanges'))
       const pieces = [

@@ -14,6 +14,7 @@ viewSuite('forecast')
 
 const T160: Mount = { surface: 'terminal', cols: 160 }
 const D160: Mount = { surface: 'desktop', cols: 160 }
+const T40: Mount = { surface: 'terminal', cols: 40 }
 /** One scenario on one mount: its trees, shut and open. */
 const at = async ($: Engine, on: On, scenario: ScenarioName, m: Mount = T160, ttl: Ttl = '1h') => {
   const trees = await drawCases($, on, { layout: 'forecast', scenario, appearance: 'dark', ttl }, [m])
@@ -31,13 +32,31 @@ test('only the next change says how far off it is', async ($, on) => {
   expect(shown((await at($, on, 'calm')).shut).match(/\bin \d/g)).toEqual(['in 1'])
 })
 test('a cold cache is no change ahead: the next one is the reset', async ($, on) => {
-  expect(shown((await at($, on, 'cold', T160, '5m')).shut)).toMatch(/^now\s*·\s*cold\s*│\s*\d{2}:\d{2}\s*·\s*in \d+h \d+m\s*·\s*5h resets/)
+  expect(shown((await at($, on, 'cold', T160, '5m')).shut)).toMatch(/^now\s*·\s*cold[^│]*│\s*\d{2}:\d{2}\s*·\s*in \d+h \d+m\s*·\s*5h resets/)
+})
+test('in the terminal, a cold cache says its price in its head', LONG, async ($, on) => {
+  expect(shown((await at($, on, 'cold', T160, '5m')).shut)).toMatch(/^now · cold · re-warm ~\$\S+\s*│/)
+})
+test('on a plain desktop, with no detail row, a cold cache says its price in its head', LONG, async ($, on) => {
+  const plain = await drawCases($, on, { layout: 'forecast', scenario: 'cold', appearance: 'plain', ttl: '5m' }, [D160])
+  expect(shown(plain[caseKey(D160, 'shut')])).toMatch(/^now · cold · re-warm ~\$\S+\s*│/)
+})
+test('on the desktop, a cold cache says its price once, beneath now', LONG, async ($, on) => {
+  const t = shown((await at($, on, 'cold', D160, '5m')).shut)
+  expect(t).toMatch(/^now · cold\s*next message ~\$\S+\s*│/)
+  expect(t.match(/~\$/g)).toHaveLength(1)
+})
+test('at 40 columns a cold cache keeps its price short, past the next change', LONG, async ($, on) => {
+  expect(shown((await at($, on, 'cold', T40, '5m')).shut)).toMatch(/^now · cold ~\$[\d.]+$/)
+})
+test('at 40 columns an amber limit still fits beside the cold price', LONG, async ($, on) => {
+  expect(shown((await at($, on, 'coldLimit80', T40, '5m')).shut)).toMatch(/^now · cold ~\$[\d.]+\s*│\s*! 5h 82%$/)
 })
 test('the last minute is "! cooling" with seconds', LONG, async ($, on) => {
   expect(shown((await at($, on, 'lastMinute', T160, '5m')).shut)).toMatch(/^! cooling · 30s left/)
 })
 test('at 40 columns amber still leads, short once the calm changes have given way', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'lastMinute', { surface: 'terminal', cols: 40 }, '5m')).shut)).toMatch(/^! 30s$/)
+  expect(shown((await at($, on, 'lastMinute', T40, '5m')).shut)).toMatch(/^! 30s$/)
 })
 test('in the terminal, the last minute says its price in its head', LONG, async ($, on) => {
   expect(shown((await at($, on, 'lastMinute', T160, '5m')).shut)).toMatch(/^! cooling · 30s left · re-warm ~\$\S+\s*│/)
