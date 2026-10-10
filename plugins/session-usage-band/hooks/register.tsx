@@ -498,7 +498,9 @@ export const register: Register = on => {
         const now = await $.clock.now()
         const left = msLeft(now)
         const eta = fiveHourEtaMs(now)
-        const key = `${Math.floor(now / 60_000)}|${fmtCountdown(left)}|${left > 0}|${eta === null ? '-' : fmtEta(eta)}`
+        // The minute turns just past the boundary, as the countdowns to a
+        // time on the minute do: on it, they still read the minute before.
+        const key = `${Math.ceil(now / 60_000)}|${fmtCountdown(left)}|${left > 0}|${eta === null ? '-' : fmtEta(eta)}`
         if (key !== band.lastPaintKey) {
           band.lastPaintKey = key
           $.ui.invalidate('ui.render')
