@@ -15,7 +15,7 @@ import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last; `costWords`, `pace`
  *  and `calmFive` are the narrow-width ruling's. Amber never does. */
-const ORDER = ['calmContext', 'calmSeven', 'reset', 'barsMany', 'trailChart', 'barsChart', 'costWords', 'pace', 'calmFive'] as const
+const ORDER = ['calmContext', 'calmSeven', 'resetText', 'barsMany', 'trailChart', 'barsChart', 'costWords', 'pace', 'calmFive'] as const
 type Piece = (typeof ORDER)[number]
 
 /** The bars drawn collapsed, before and after they give way. */
@@ -100,9 +100,9 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
       : fiveHourTrail(kit, f, hist.fiveHourHour, hist.trailAlt, TRAIL_PX, CHART_PX, f.amber !== undefined)
   const total = words(kit, 'total', [[read.spend.totalText, 'value']], true)
   // The total over its numbers on the desktop, so the line stays two rows
-  // once the charts give way; beside them on a text surface.
+  // once the charts give way; beside them, a cell apart, on a text surface.
   const costs = (numbers: string): RenderElement => (
-    <Box key="costs" flexDirection={Svg ? 'column' : 'row'} columnGap={1}>
+    <Box key="costs" flexDirection={Svg ? 'column' : 'row'} columnGap={Svg ? 0 : 1}>
       {total}
       {words(kit, 'numbers', [[numbers, 'label']])}
     </Box>
@@ -111,7 +111,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const costsShort = Svg ? costs(hist.empty ? EMPTY.costsShort : hist.numbersShort) : total
   return [
     fitLine(kit, ORDER, lineRoom(kit), keeps => {
-      const reset = f?.resetGlyph !== undefined && keeps.has('reset') ? [[f.resetGlyph, 'label'] as const] : undefined
+      const reset = f?.resetGlyph !== undefined && keeps.has('resetText') ? [[f.resetGlyph, 'label'] as const] : undefined
       const five =
         f === undefined
           ? undefined
@@ -125,7 +125,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
         !x.known ? undefined : x.amber !== undefined ? amberSay(x.amber, keeps) : keeps.has('calmContext') ? x.say : undefined,
         w === undefined ? undefined : w.amber !== undefined ? amberSay(w.amber, keeps) : keeps.has('calmSeven') ? w.say : undefined,
       )
-      // An amber pill shortens at the amber step; a calm one, as chips' does, below SHORT_BELOW.
+      // An amber pill shortens at the amber step; a calm one only below SHORT_BELOW, never by the squeeze.
       const pillIsLong = c.amber !== undefined ? beforeLast(keeps) : kit.columns >= SHORT_BELOW
       return line(kit, 'line', [
         pillIsLong ? pillLong() : pillShort(),
