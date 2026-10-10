@@ -1,6 +1,6 @@
 # Chips' draw times before the layouts work
 
-Captured by `tools/golden/capture.sh` at 93e3f31215faf2f159825e32fc2bcec3d80cf4a7 (hooks identical to 40943d3), with the perf test fixed to shut each surface before the next mounts: 200 redraws per case after 20 warm-up redraws, at 200 columns.
+Captured by `tools/golden/capture.sh` with the perf test as of f83c182, which shuts each surface before the next mounts (hooks identical to 40943d3): 200 redraws per case after 20 warm-up redraws, at 200 columns.
 
 ```
 PERF clockReal true true
