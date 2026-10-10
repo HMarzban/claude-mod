@@ -34,6 +34,7 @@ What the plan's steps record, in the order they happen.
 - Memory, by inspection beside the caps' unit tests (`history.test.ts`, `calendar.test.ts`): the trails are capped on insert (`costTrail` 24, `contextTrail` 40, `fiveHourTrail` 300 and five hours), `limitSamples` 672, `sessions` 50; the pace samples keep 30 minutes; `turnStartCost` holds open turns only (`turn.complete` fires for an aborted or failed turn too) and clears at a clear; `warned` has two keys; the rates are keyed by model. One timer, `band.tick`, cancelled before each new one. No view keeps module state, a timer or a listener.
 - Store writes outside the spec's two keys: `rememberTurn` writes `sessions` and `rates` once each per main-loop turn (as in 0.11); bounded by the turns and by their caps, never while drawing.
 - Final: fixed week's day cells named after the reset's clock time, so before that time of day today, its date and the busiest day were a day behind — `calendar.test`'s `the days are cut at local midnight, so today is the day it is` and `on the reset's own day, before it resets, today is that day` RED→GREEN (`T6 W7 … M12` for `W7 … T13`; `M12` for `T13`), suite 1021/1021
+- Final: fixed pulse never marking the first reply after a resume or a reload as a re-warm, when it rebuilt a cache the band already read as cold — `history.test`'s `the first reply after a resume or a reload rebuilds a cache already cold` and `resume-backfill.test`'s `the first reply after a resume the engine calls expired is pulse's re-warm` RED→GREEN (`takeRebuilt()` false; `cost of the last message, steady`), suite 1023/1023
 
 ## Test counts at each gate
 | Gate | Count | Command |
@@ -116,6 +117,7 @@ What the plan's steps record, in the order they happen.
 | Task 31, docs, changelog and 0.12.0 (merged) | 988 pass, 0 fail, 46 files | `claude plugin test plugins/session-usage-band` |
 | Task 32, the layouts gallery (merged) | 988 pass, 0 fail, 46 files | `claude plugin test plugins/session-usage-band` |
 | Task 29, week's days cut at local midnight | 1021 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
+| Task 29, the first reply after a cold resume is a re-warm | 1023 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->

@@ -6,7 +6,7 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { SessionUsage } from 'claude-code'
-import { CLEAR, HOUR, LONG, MIN, START, USAGE, cardOf, engine, fact, pillOf, resp, respond, setup, shown, startTurn, endTurn, turn, mountBand, usage } from './helpers'
+import { CLEAR, HOUR, LONG, MIN, START, USAGE, cardOf, engine, fact, pillOf, resp, respond, setup, shown, startTurn, endTurn, svgAlts, turn, mountBand, usage } from './helpers'
 
 const ENV = { ENABLE_PROMPT_CACHING_1H: '1', HOME: '/Users/me' }
 const BUILT_PATH = '/Users/me/.claude/projects/-Users-me-workspace-claude-mod/s1.jsonl'
@@ -569,4 +569,20 @@ test("a resume without the engine's idle time reads its transcript's end once, f
   // The recall found the reply logged at the epoch, and the TTL its write.
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold/)
   expect(fact(await mounted($, true), 'expires')).toBe('5m idle')
+})
+
+test("the first reply after a resume the engine calls expired is pulse's re-warm", async ($, on) => {
+  setup(on, { usage: RESUMED, env: ENV, now: 48 * HOUR, store: { layout: 'pulse' } })
+  await $.session.start(START)
+  await resume($, 48 * HOUR, { expired: true, reWarmUsd: 1.23 })
+  await startTurn($, 't1', 0)
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await endTurn($, 't1', 1.5)
+  const ui = await mountBand($, 'desktop', 160)
+  await ui.press({ key: 'more' })
+  const open = await ui.drawn()
+  await ui.unmount()
+  const costs = svgAlts(open).filter(a => a.startsWith('cost of'))
+  expect(costs.length).toBeGreaterThan(0)
+  expect(costs.filter(a => !a.endsWith('the newest a re-warm'))).toEqual([])
 })

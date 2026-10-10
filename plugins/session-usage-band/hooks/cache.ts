@@ -264,6 +264,9 @@ export const recordResponse = (
   state.output += usage.output_tokens
   if (!isMain) return
 
+  // The band already read the cache as cold: a resume the engine called
+  // expired, or a recalled reply past its TTL. This reply rebuilt it.
+  const coldBefore = isRecalled() && msLeft(sentAt) === 0
   const missesBefore = state.misses
   const prefix = state.cached
   const gap = state.requests > 0 ? sentAt - state.lastAt : 0
@@ -283,9 +286,10 @@ export const recordResponse = (
   }
 
   // A rebuild of a cache that existed: its time ran out, it missed, a
-  // compaction rebuilt it, or the model changed. The first build is warming.
+  // compaction rebuilt it, or the model changed. The first build is warming,
+  // unless the cache it rebuilt was already read as cold.
   const missed = state.misses > missesBefore
-  if (state.requests > 0 && (gap > TTL_MS[state.ttl] || missed || state.rebuilding || switched)) state.lastRebuilt = true
+  if (coldBefore || (state.requests > 0 && (gap > TTL_MS[state.ttl] || missed || state.rebuilding || switched))) state.lastRebuilt = true
 
   state.requests += 1
   // The next request's TTL follows the config in force, not the transcript's.
