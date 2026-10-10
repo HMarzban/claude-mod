@@ -94,6 +94,7 @@ What the plan's steps record, in the order they happen.
 | Task 22, every layout merged | 982 pass, 0 fail, 46 files | `claude plugin test plugins/session-usage-band` |
 | the 0.11.13 hover fix (merged), golden re-captured | 988 pass, 0 fail, 46 files | `claude plugin test plugins/session-usage-band` |
 | Task 31, docs, changelog and 0.12.0 (merged) | 988 pass, 0 fail, 46 files | `claude plugin test plugins/session-usage-band` |
+| Task 32, the layouts gallery (merged) | 988 pass, 0 fail, 46 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
