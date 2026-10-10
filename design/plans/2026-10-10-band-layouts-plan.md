@@ -52,7 +52,7 @@ These come from the spec, CONTRIBUTING.md and the test kit as it actually behave
 - **Naming:** names exactly as spec §4.3.
 - **Store:** the store keys are `layout` and `limitSamples`. Only the command writes `layout`.
 - **Production code:** no counters or instrumentation.
-- **Views never format** (spec §2.5). A view reads words from `read` and adds only its own fixed labels. Outside `chips.tsx`, no file in `hooks/views/` contains `.raw`, `.reading.`, `Date.parse`, `.replace(`, `Math.round` or `from '../format'` (Task 30's gate; P2 agents run it before reporting).
+- **Views never format** (spec §2.5). A view reads words from `read` and adds only its own fixed labels. Outside `chips.tsx`, `parts.tsx` and `frame.tsx` (whose moved chips code formats, by design), no file in `hooks/views/` contains `.raw`, `.reading.`, `Date.parse`, `.replace(`, `Math.round` or `from '../format'` (Task 30's gate; P2 agents run it before reporting).
 - **Commits:**
   - Conventional subjects (`feat:`, `fix:`, `test:`, `refactor:`, `docs:`, `chore:`), ending with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
   - Work stays on branch `feat/layouts`. Nothing is pushed.
@@ -253,8 +253,10 @@ Expected: FAIL. The module `./golden/hash` can't be resolved.
 // A drawn tree as a short, stable fingerprint: the golden capture keeps
 // hashes, not trees, so it stays small enough to commit.
 
-/** `v` with object keys sorted and functions dropped: handlers differ by
- *  identity between draws, and key order is not part of what is drawn. */
+/** `v` with object keys sorted, and functions and the engine's `press`
+ *  handles dropped: handlers differ by identity between draws, the engine
+ *  numbers each Button's press handle as a file's tests run, and key order is
+ *  not part of what is drawn. */
 export const canon = (v: unknown): unknown => {
   if (Array.isArray(v)) return v.map(canon)
   if (v === null || typeof v !== 'object') return v
@@ -262,7 +264,7 @@ export const canon = (v: unknown): unknown => {
   return Object.fromEntries(
     Object.keys(o)
       .sort()
-      .filter(k => typeof o[k] !== 'function' && o[k] !== undefined)
+      .filter(k => k !== 'press' && typeof o[k] !== 'function' && o[k] !== undefined)
       .map(k => [k, canon(o[k])]),
   )
 }
@@ -282,6 +284,16 @@ export const treeHash = (tree: unknown): string => {
   const json = JSON.stringify(canon(tree))
   return `${fnv1a(json)}-${json.length}`
 }
+```
+
+Add to `tests/golden-hash.test.ts` (it pins the `press` filter):
+
+```ts
+test("canon drops the engine's press handles, which renumber between tests", () => {
+  const a = { type: 'Button', props: { key: 'more', label: '▿', press: { plugin: 'session-usage-band', handle: 225709673 } } }
+  const b = { type: 'Button', props: { key: 'more', label: '▿', press: { plugin: 'session-usage-band', handle: 225709693 } } }
+  expect(treeHash(a)).toBe(treeHash(b))
+})
 ```
 
 Run: `tools/test-only.sh golden-hash`
@@ -399,14 +411,14 @@ In `base`, replace the two store handlers and add one for `ui.invalidate`, which
     engine.store[e.key] = JSON.parse(JSON.stringify(e.value)) as unknown
     return { value: undefined }
   })
-  // A redraw asked for: counted, then answered as the engine answers it.
-  on('ui.invalidate', () => {
+  // A redraw asked for: counted, then passed on, so the redraw still happens.
+  on('ui.invalidate', ($, e, next) => {
     engine.invalidates++
-    return { value: undefined }
+    return next(e)
   })
 ```
 
-**Ruling: counting invalidates.** `ui.invalidate` is a typed event (`{ event }` in, `void` out), so a handler in `base` sees each call. If adding it turns any existing test red (the kit then stops following an invalidate with a redraw), remove the handler and count draws instead: in the `session.usage` handler, `if (e.breakdown === undefined) engine.invalidates++`. Only a draw reads usage with no breakdown in a walk with no turns, which is where the counter is asserted (Tasks 10b, 27, 28). The field keeps its name either way. Record the outcome in the ledger.
+**Counting invalidates (verified in a scratch run).** The handler must call `next(e)`. A handler that answers by itself swallows the redraw, and 8 existing tests fail (cache pill, 5h pace, reset countdowns). With the pass-through, the existing suite stays green.
 
 - [ ] **Step 7: Write `tests/matrix.ts` with the scenarios and `drawCases`**
 
@@ -567,7 +579,7 @@ Run: `tools/test-only.sh golden-hash scenarios`
 Expected: PASS, every scenario test included. Where a regex misses, read `shown(...)` and fix the scenario's inputs.
 
 Then run the full suite: `claude plugin test plugins/session-usage-band`
-Expected: PASS. The existing suite is untouched by the new handler (see the ruling in Step 6). Record the count in the ledger.
+Expected: PASS, the existing suite included. This holds only with the `press` filter in `canon` (Step 4) and the pass-through `ui.invalidate` handler (Step 6); without them the calm–cold–calm test and 8 existing tests fail. Record the count in the ledger.
 
 - [ ] **Step 9: Commit**
 
@@ -633,7 +645,7 @@ for (const scenario of SCENARIO_NAMES) for (const appearance of GOLDEN_APPEARANC
     for (const [drawn, tree] of Object.entries(trees)) {
       const key = goldenKey(scenario, appearance, drawn)
       console.log(`GOLDEN ${key} ${treeHash(tree)}`)
-      if (FULL.has(key)) console.log(`TREE ${key} ${JSON.stringify(tree)}`)
+      if (FULL.has(key)) console.log(`TREE ${key} ${JSON.stringify(canon(tree))}`)
     }
   })
 }
@@ -812,7 +824,9 @@ P1 is one agent, serial, on `feat/layouts`. Its shared contract, frozen at Task 
 The first is pure: it runs on this test file's own copy of `insights.ts`. The second checks the effect a user would see, through the drawn band.
 
 ```ts
-import { forgetTurn, noteTurnStart, openTurns } from '../hooks/insights'
+// Merge into the file's existing imports: `insights.test.ts` already imports
+// `noteTurnStart` (line 10), and a second binding stops the file loading.
+import { forgetTurn, openTurns } from '../hooks/insights'
 import { fact, mountBand, resp, respond, setup, START, turn } from './helpers'
 
 test('a forgotten turn leaves no start cost behind', () => {
@@ -1992,7 +2006,10 @@ export const frame = (
   const strip = place === undefined || ws === undefined ? null : o.strip !== undefined ? o.strip(kit, read, place, room) : drawStrip(kit, ws, place, 0, room)
   return [
     place === 'top' ? strip : null,
-    bodyRows > 0 ? <Box key="body" flexDirection="column" marginTop={1}>{panel(kit, 'body', o.body(bodyRows))}</Box> : null,
+    // The strip on top brings its own row of air (strip.tsx:140), so the body
+    // adds one only when the strip isn't there, as chips' cards do (band.tsx:709).
+    // A view's own strip must bring its marginTop={1} too.
+    bodyRows > 0 ? <Box key="body" flexDirection="column" marginTop={place === 'top' ? 0 : 1}>{panel(kit, 'body', o.body(bodyRows))}</Box> : null,
     // Chips' actions row (716–727).
     <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>
       {place === 'footer' ? (
@@ -2984,6 +3001,20 @@ export const expectInvariants = (tree: Node, ctx: InvariantContext): void => {
 Run: `tools/test-only.sh matrix`, then the full suite.
 Expected: PASS.
 
+- [ ] **Step: Pin the frame's height** (append to `tests/frame.test.ts`, now that `visualRows` exists; add `visualRows` to its `./matrix` import)
+
+```ts
+test('with the strip on top and a full body, an open view never passes maxRows', () => {
+  const snap = snapOf({ expanded: true, maxRows: 8, workspace: WS })
+  const kit = makeKit(fakeEl, snap)
+  const tree = openView(kit, readingsOf(snap), NO_ACT, panel(kit, 'collapsed', [text('LINE')]), 1, rows => Array.from({ length: rows }, (_, i) => text(`ROW ${i}`))) as unknown as Node
+  expect(visualRows(tree, 'terminal')).toBeLessThanOrEqual(8)
+})
+```
+
+Run: `tools/test-only.sh frame`
+Expected: PASS. It fails if the body adds a row of air under a top strip that already brings its own (Task 9a's frame).
+
 - [ ] **Step 5: Commit**
 
 ```bash
@@ -3124,8 +3155,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: Write the failing test** (append to `tests/design.test.ts`; PLAIN is left out, its theme keys have no contrast to measure)
 
 ```ts
-import { DARK, LIGHT } from '../hooks/palette'
-import { contrast } from './helpers'
+// `design.test.ts` already imports DARK, LIGHT (line 6) and contrast (line 12):
+// no new import lines, since a second binding stops the file loading.
 
 for (const [name, p] of [['dark', DARK], ['light', LIGHT]] as const) {
   test(`${name}: the new layouts' text and marks hold on the card ground and on flaps`, () => {
@@ -3852,6 +3883,11 @@ The pilot exists to find what the shared files lack before five agents copy it. 
 4. commit it alone, as `fix:` or `feat:` with the reason in the body;
 5. record it in the ledger, under "P2.0 re-freeze".
 
+Before the re-freeze, cover the shared pieces ledger doesn't use, so the five views that do use them are not the first to find their bugs. Add one test each to `tests/frame.test.ts`, drawn with `fakeEl` and `snapOf`:
+- **`layoutCachePill`:** in `lastMinute`, its text starts with `! ` and has no `0:` countdown.
+- **The shared strip:** `frame` with a workspace places it at the top at `maxRows` 13, and in the footer at `maxRows` 6.
+- **`meter` with `tick`:** the desktop Svg has `class="tick"`, and the terminal form contains `│`.
+
 A change to a check in `matrix.ts` needs a reason in the ledger that the check was wrong; a check is never loosened to let a view pass.
 
 - [ ] **Step 6: Run the gates and the view gate, then commit the view**
@@ -3859,7 +3895,7 @@ A change to a check in `matrix.ts` needs a reason in the ledger that the check w
 Run the three gates from Global Constraints, then the gate Task 30 enforces:
 
 ```bash
-grep -nE '\.raw\b|\.reading\.|Date\.parse|\.replace\(|Math\.round|from '\''\.\./format'\''' plugins/session-usage-band/hooks/views/*.tsx | grep -v '/chips\.tsx:'
+grep -nE '\.raw\b|\.reading\.|Date\.parse|\.replace\(|Math\.round|from '\''\.\./format'\''' plugins/session-usage-band/hooks/views/*.tsx | grep -vE '/(chips|parts|frame)\.tsx:'
 ```
 
 Expected: the gates pass, and the grep prints nothing.
@@ -5127,7 +5163,11 @@ test('the history is read only when a view asks for it', () => {
       }
     }
     ```
-  - **`reading.ts`:** a lazy getter in `readingsOf`'s returned literal, so chips never pays for it:
+  - **`reading.ts`:** a lazy getter in `readingsOf`'s returned literal, so chips never pays for it.
+
+    **Ruling (F.4).** The getter maps the trails once per draw that reads `history` (pulse only), over at most 300 entries. That is a few microseconds, below anything the perf test can see, so the push functions don't keep parallel arrays. Task 28's profile revisits this only if pulse is over budget.
+
+    The getter:
 
     ```ts
     let history: HistoryReading | undefined
@@ -5182,7 +5222,7 @@ export const addSample: (samples: Sample[], s: Sample) => Sample[]
 /** Two lists as one: one per bucket, the later winning, sorted, capped. */
 export const mergeSamples: (a: readonly Sample[], b: readonly Sample[]) => Sample[]
 export const asLimitSamples: (v: unknown) => Sample[]                           // the store is data, not trusted
-export const sampleOf: (now: number, limits: ReadonlyArray<Readonly<{ kind: string; percentUsed: number; resetsAt: string | undefined }>>) => Sample | undefined
+export const sampleOf: (now: number, limits: ReadonlyArray<Readonly<{ kind: string; percentUsed: number; resetsAt?: string }>>) => Sample | undefined
 // calendar.ts
 export type DayCell = Readonly<{ initial: string; name: string; date: string; pct: number | undefined; text: string; guess: boolean; today: boolean; future: boolean; fullMark: boolean }>
 export type HourCell = Readonly<{ label: string; pct: number | undefined; text: string; guess: boolean; now: boolean; future: boolean; fullMark: boolean }>
@@ -5362,7 +5402,7 @@ test('the week names its cells in words, for a reader and a summary', () => {
       isRecord(v) && (['at', 'fivePct', 'sevenPct', 'fiveResetAt', 'sevenResetAt'] as const).every(k => typeof v[k] === 'number' && Number.isFinite(v[k]))
     export const asLimitSamples = (v: unknown): Sample[] => (Array.isArray(v) ? mergeSamples([], v.filter(isSample)) : [])
 
-    export const sampleOf = (now: number, limits: ReadonlyArray<Readonly<{ kind: string; percentUsed: number; resetsAt: string | undefined }>>): Sample | undefined => {
+    export const sampleOf = (now: number, limits: ReadonlyArray<Readonly<{ kind: string; percentUsed: number; resetsAt?: string }>>): Sample | undefined => {
       const five = limits.find(l => l.kind === 'five_hour')
       const seven = limits.find(l => l.kind === 'seven_day')
       const fiveResetAt = five?.resetsAt === undefined ? NaN : Date.parse(five.resetsAt)
@@ -6036,7 +6076,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 # raw fact. Prints each offending line and fails if there is one.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-if grep -nE '\.raw\b|\.reading\.|Date\.parse|\.replace\(|Math\.round|from '\''\.\./format'\''' "$ROOT"/plugins/session-usage-band/hooks/views/*.tsx | grep -v '/chips\.tsx:'; then
+if grep -nE '\.raw\b|\.reading\.|Date\.parse|\.replace\(|Math\.round|from '\''\.\./format'\''' "$ROOT"/plugins/session-usage-band/hooks/views/*.tsx | grep -vE '/(chips|parts|frame)\.tsx:'; then
   echo "views-gate: a view formats or reads a raw fact (see above)" >&2
   exit 1
 fi
