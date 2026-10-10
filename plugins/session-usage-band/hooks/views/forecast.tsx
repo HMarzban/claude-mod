@@ -47,7 +47,8 @@ type Change = Readonly<{
   /** An amber change's short form, `! 5h ~40m`; none for a calm one. */
   amberShort: string | undefined
   seven: boolean
-  detail: Detail
+  /** None when another column already says it. */
+  detail: Detail | undefined
 }>
 
 /** A limit's reset as a change ahead, when it comes within `withinMs`. */
@@ -81,7 +82,8 @@ const changesOf = (read: Readings): Change[] => {
           label: 'cold',
           amberShort: undefined,
           seven: false,
-          detail: { long: `re-warm ${c.estimate}`, short: c.estimate },
+          // In the last minute, now says the price.
+          detail: c.amber === undefined ? { long: `re-warm ${c.estimate}`, short: c.estimate } : undefined,
         }]
   const fill: Change[] =
     f?.fullIn === undefined || f.etaMs === null
@@ -121,8 +123,8 @@ const changeHead = (kit: Kit, ch: Change, next: boolean, keeps: Keeps<Piece>): R
     : amberWords(kit, 'head', { long: `${when} · ${ch.label}`, short: ch.amberShort }, keeps)
 }
 
-/** A column: on the desktop its head, beside any icon, over its detail; on the terminal, the head alone. */
-const column = (kit: Kit, key: string, head: RenderElement, detail: string, icon: readonly RenderChildren[] = []): RenderElement => {
+/** A column: on the desktop its head, beside any icon, over any detail; on the terminal, the head alone. */
+const column = (kit: Kit, key: string, head: RenderElement, detail: string | undefined, icon: readonly RenderChildren[] = []): RenderElement => {
   const { Box, Svg } = kit
   return Svg ? (
     <Box key={key} flexDirection="column">
@@ -130,7 +132,7 @@ const column = (kit: Kit, key: string, head: RenderElement, detail: string, icon
         {icon}
         {head}
       </Box>
-      {words(kit, 'detail', [[detail, 'label']])}
+      {detail === undefined ? null : words(kit, 'detail', [[detail, 'label']])}
     </Box>
   ) : (
     head
@@ -154,7 +156,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const separated = separatedBy(kit, '│', 6)
   return [
     fitLine(kit, ORDER, lineRoom(kit), keeps => {
-      const detail = (d: Detail): string => (keeps.has('detail') ? d.long : d.short)
+      const detail = (d: Detail | undefined): string | undefined => (d === undefined ? undefined : keeps.has('detail') ? d.long : d.short)
       const head = c.amber === undefined ? nowCalm : amberWords(kit, 'head', lastMinute(kit, c, c.amber), keeps)
       // An amber change never gives way; the next one only once the rest have.
       const ahead = changes.filter((ch, i) => ch.amberShort !== undefined || keeps.has(i === 0 ? 'nextChange' : ch.seven ? 'farSeven' : 'farChanges'))

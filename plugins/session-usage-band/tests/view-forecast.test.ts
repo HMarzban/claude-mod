@@ -47,6 +47,11 @@ test('on a plain desktop, with no detail row, the last minute says its price in 
   const plain = await drawCases($, on, { layout: 'forecast', scenario: 'lastMinute', appearance: 'plain', ttl: '5m' }, mounts)
   for (const m of mounts) expect(shown(plain[caseKey(m, 'shut')])).toMatch(/^! (cooling · )?30s left · re-warm ~\$/)
 })
+test('on the desktop, the last minute says its price once, beneath now', LONG, async ($, on) => {
+  const t = shown((await at($, on, 'lastMinute', D160, '5m')).shut)
+  expect(t).toMatch(/^! cooling · 30s left\s*re-warm ~\$\S+\s*│/)
+  expect(t.match(/re-warm/g)).toHaveLength(1)
+})
 test('a measured fill is a change before the reset', LONG, async ($, on) => {
   const t = shown((await at($, on, 'fiveHourAhead')).shut)
   expect(t).toMatch(/~\d{2}:\d{2}\s*·\s*in ~\S+\s*·\s*! 5h full/)
