@@ -199,9 +199,10 @@ export const section = (kit: Kit, key: string, title: string, rows: readonly Ren
   )
 }
 
-/** Sections to a line: all of them from 100 columns, or when two lines won't fit; else two. */
+/** Sections to a line: all of them from 100 columns, or until two lines each
+ *  keep a row under their titles (5 rows, with the row of air); else two. */
 const perLineOf = (kit: Kit, bodyRows: number, count: number): number =>
-  kit.columns >= 100 || bodyRows < 3 ? count : Math.min(2, count)
+  kit.columns >= 100 || bodyRows < 5 ? count : Math.min(2, count)
 
 /** Rows each section holds under its title, with a row of air between lines. */
 export const gridRoom = (kit: Kit, bodyRows: number, count = 4): number => {

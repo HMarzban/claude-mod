@@ -72,6 +72,10 @@ test('the grid is four to a line from 100 columns, two below, one line when rows
   expect(gridRoom(k(80), 2)).toBe(1)
   expect(gridRoom(k(80), 9, 3)).toBe(3)
 })
+test('below 100 columns the grid goes two by two only when each line keeps a row', () => {
+  // One line holds bodyRows - 1; two hold their titles, a row of air and a row each from 5.
+  expect([1, 2, 3, 4, 5, 6, 7, 8].map(n => gridRoom(kit(80), n))).toEqual([0, 1, 2, 3, 1, 1, 2, 2])
+})
 test('short of rows, charts go before facts', () => {
   expect(chartsIfRoom(3, ['chart'], ['a', 'b'])).toEqual(['chart', 'a', 'b'])
   expect(chartsIfRoom(2, ['chart'], ['a', 'b'])).toEqual(['a', 'b'])
