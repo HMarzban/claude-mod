@@ -34,11 +34,14 @@ export const fmtSmallCost = (usd: number): string => (usd < 0.01 ? '<$0.01' : fm
 export const fmtEstimate = (usd: number): string =>
   usd < 0.01 ? '~<$0.01' : usd >= WHOLE_FROM ? `~$${Math.round(usd)}` : `~$${usd.toFixed(2)}`
 
+/** The countdowns' seconds, drawn and spoken alike. */
+const wholeSeconds = (ms: number): number => Math.max(0, Math.round(ms / 1000))
+
 /** From an hour, `1h 05m`; from ten minutes, whole minutes; below, `M:SS`.
  *  The countdown is still for most of its life and ticks only when ticking
  *  means something. */
 export const fmtCountdown = (ms: number): string => {
-  const secs = Math.max(0, Math.round(ms / 1000))
+  const secs = wholeSeconds(ms)
   if (secs >= 3600) {
     const hours = Math.floor(secs / 3600)
     return `${hours}h ${String(Math.floor((secs % 3600) / 60)).padStart(2, '0')}m`
@@ -127,7 +130,7 @@ export const fmtDayClock = (ms: number, utcOffsetMin: number, now: number): stri
 const secondsLeft = (ms: number): number => Math.max(1, Math.ceil(ms / 1000))
 /** Whole minutes left: rounded up under ten minutes, then as `fmtCountdown`
  *  counts them. */
-const minutesLeft = (ms: number): number => (ms < 600_000 ? Math.ceil(ms / 60_000) : Math.floor(Math.round(ms / 1000) / 60))
+const minutesLeft = (ms: number): number => (ms < 600_000 ? Math.ceil(ms / 60_000) : Math.floor(wholeSeconds(ms) / 60))
 
 /** The cache's last minute in words, where a `0:47` would read as a clock. */
 export const fmtSecondsLeft = (ms: number): string => `${secondsLeft(ms)}s left`

@@ -36,6 +36,12 @@ test('a screen reader hears durations spelled out', () => {
   expect(fmtEtaSpoken(60 * MIN)).toBe('about 1 hour')
   expect(fmtEtaSpoken(75 * MIN)).toBe('about 1 hour 15 minutes')
 })
+test('the spoken countdown counts the minutes the drawn one shows', () => {
+  // Each sits just under a minute, where the rounding decides the minute.
+  expect([fmtLeft(11 * MIN - 400), fmtLeftSpoken(11 * MIN - 400)]).toEqual(['11m left', '11 minutes left'])
+  expect([fmtLeft(60 * MIN - 400), fmtLeftSpoken(60 * MIN - 400)]).toEqual(['1h 00m left', '1 hour left'])
+  expect([fmtLeft(65 * MIN), fmtLeftSpoken(65 * MIN)]).toEqual(['1h 05m left', '1 hour 5 minutes left'])
+})
 test('a reset reads as a duration, never as a clock', () => {
   expect(resetPhrase({ kind: 'in', text: '3h 00m' }, 'words')).toBe('resets in 3h 00m')
   expect(resetPhrase({ kind: 'in', text: '3h 00m' }, 'glyph')).toBe('↻ in 3h 00m')
