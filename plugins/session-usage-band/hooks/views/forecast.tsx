@@ -10,7 +10,7 @@ import type { CacheReading, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber, type CacheCondition, type Say } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberWords, empty, fitLine, line, lineRoom, separatedBy, words, type Keeps } from './parts'
+import { accentOf, amberWords, emptySay, fitLine, line, lineRoom, separatedBy, words, type Keeps } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last; `nextChange` is the narrow-width ruling's. Amber never does. */
@@ -259,9 +259,9 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
                 ? [`compacts in ${x.roomText}, at ${x.compactsAtText}`, `${x.inContextText} in context`]
                 : [`${x.inContextText} in context, compacts at ${x.compactsAtText}`],
         })
-      : outlook('context', 'Context', empty(EMPTY.context)),
+      : outlook('context', 'Context', emptySay(EMPTY.context)),
     ...read.limits.filter(l => l.key !== 'other').map(limit),
-    ...(read.limits.length === 0 ? [outlook('limits', 'Limits', empty(EMPTY.limits))] : []),
+    ...(read.limits.length === 0 ? [outlook('limits', 'Limits', emptySay(EMPTY.limits))] : []),
     outlook('spend', 'Spend', s.totalText, { outcome: [s.lastText === undefined ? undefined : `last ${s.lastText}`, `${s.tokensText} tokens: ${s.split.map(part => `${part.text} ${part.label}`).join(', ')}`] }),
     ...read.limits.filter(l => l.key === 'other').map(limit),
   ]

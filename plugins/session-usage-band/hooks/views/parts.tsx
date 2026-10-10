@@ -212,7 +212,10 @@ export const words = (kit: Kit, key: string, say: Say, bold = false): RenderElem
 }
 
 /** An empty state's words (`EMPTY`), drawn in a label's ink in every view. */
-export const empty = (text: string): Say => [[text, 'label']]
+export const emptySay = (text: string): Say => [[text, 'label']]
+
+/** The same words as their own element. */
+export const emptyWords = (kit: Kit, key: string, text: string): RenderElement => words(kit, key, emptySay(text))
 
 /** How a view writes a limit's sentence: led while calm by its `text` or its
  *  `say`, the reset phrase it says, and what joins the phrases. */

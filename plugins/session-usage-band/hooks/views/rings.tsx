@@ -9,7 +9,7 @@ import type { CacheReading, ContextReading, LimitView, Readings, Tone } from '..
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberFirst, amberSay, beforeLast, chartsIfRoom, empty, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, section, words, type Keeps, type SentenceStyle } from './parts'
+import { accentOf, amberFirst, amberSay, beforeLast, chartsIfRoom, emptyWords, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, section, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last; `marks` and
@@ -132,7 +132,6 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const room = gridRoom(kit, bodyRows)
   // A 64 px ring takes three rows on the desktop, one meter line elsewhere.
   const ringRows = Svg ? 3 : 1
-  const none = (text: string) => words(kit, 'none', empty(text))
   const windows = [read.fiveHour, read.sevenDay].filter((l): l is LimitView => l !== undefined)
   // The donut is drawn as its split bar, a meter per part in spec §2.10's
   // inks (§3.1). A ring draws one window, so 5h and 7d stand side by side.
@@ -156,14 +155,14 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       fact(kit, 'last', 'last message', s.lastText),
       ...s.split.map(part => fact(kit, part.label, part.label, part.text)),
     ]), room),
-    section(kit, 'context', 'CONTEXT', !x.known ? [none(EMPTY.context)] : chartsIfRoom(room, [contextRing(kit, x, BIG_PX, x.valueText)], [
+    section(kit, 'context', 'CONTEXT', !x.known ? [emptyWords(kit, 'none', EMPTY.context)] : chartsIfRoom(room, [contextRing(kit, x, BIG_PX, x.valueText)], [
       words(kit, 'pct', [[`${x.valueText} ${x.towardText}`, 'value']]),
       fact(kit, 'in', 'in context', x.inContextText),
       fact(kit, 'at', 'compacts at', x.compactsAtText),
       fact(kit, 'room', 'room', x.roomText),
     ], ringRows), room),
     // What needs you leads, so a panel short of rows keeps it.
-    section(kit, 'limits', 'LIMITS', read.limits.length === 0 ? [none(EMPTY.limits)] : chartsIfRoom(room, [limitRings], [
+    section(kit, 'limits', 'LIMITS', read.limits.length === 0 ? [emptyWords(kit, 'none', EMPTY.limits)] : chartsIfRoom(room, [limitRings], [
       ...amberFirst(read.limits).map(l => limitSentence(kit, l, SENTENCE)),
     ], ringRows), room),
   ], bodyRows)

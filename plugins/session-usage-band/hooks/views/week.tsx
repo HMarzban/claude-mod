@@ -9,7 +9,7 @@ import type { DayCell, HourCell, LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Role, type Say } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberWords, beforeLast, chartsIfRoom, empty, fitLine, grid, layoutCachePill, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
+import { accentOf, amberWords, beforeLast, chartsIfRoom, emptySay, emptyWords, fitLine, grid, layoutCachePill, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the rows narrow, first to last. Amber never does. The
@@ -141,9 +141,9 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   // Built once: none of these changes with the squeeze.
   const toggle = toggleButton(kit, read, act)
   const cost = words(kit, 'cost', [[read.spend.totalText, 'value']])
-  const noHistory = words(kit, 'empty', empty(EMPTY.history))
+  const noHistory = emptyWords(kit, 'empty', EMPTY.history)
   // With no 5h or 7d, row 1 says so; other limits are drawn only open (spec §2.7).
-  const noWindows = words(kit, 'none', [[read.limits.length === 0 ? 'limits ' : '5h · 7d ', 'label'], ...empty(EMPTY.limits)])
+  const noWindows = words(kit, 'none', [[read.limits.length === 0 ? 'limits ' : '5h · 7d ', 'label'], ...emptySay(EMPTY.limits)])
   const pieces = windows.map(w => windowPiece(kit, read, w))
   const seven = pieces.find(p => p.key === '7d')
   // On the desktop the cells carry their initials, and the ascii tier names each cell.
@@ -187,7 +187,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const x = read.context
   const windows = windowsOf(read)
   // The other three sections, a phrase each.
-  const context: Say = x.known ? [[`${x.valueText} ${x.towardText}`, 'value']] : empty(EMPTY.context)
+  const context: Say = x.known ? [[`${x.valueText} ${x.towardText}`, 'value']] : emptySay(EMPTY.context)
   const facts = words(kit, 'facts', [
     ['CACHE ', 'label'],
     [c.value, 'value'],
@@ -216,8 +216,8 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const rows = [
     ...sentences.filter(s => s.limit.amber !== undefined).map(s => s.row),
     ...sentences.filter(s => s.limit.amber === undefined).map(s => s.row),
-    read.limits.length === 0 ? words(kit, 'none', empty(EMPTY.limits)) : null,
-    read.week.empty ? words(kit, 'empty', empty(EMPTY.history)) : null,
+    read.limits.length === 0 ? emptyWords(kit, 'none', EMPTY.limits) : null,
+    read.week.empty ? emptyWords(kit, 'empty', EMPTY.history) : null,
   ]
   // LIMITS takes the rows its title and the facts line leave; at two rows it
   // keeps one under its title, and the facts line goes.

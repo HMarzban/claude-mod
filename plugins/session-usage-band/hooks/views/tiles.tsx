@@ -9,7 +9,7 @@ import type { CacheReading, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber, type Role, type Say } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberFirst, amberWords, beforeLast, empty, fitLine, grid, gridRoom, line, lineRoom, section, words, type Keeps } from './parts'
+import { accentOf, amberFirst, amberWords, beforeLast, emptySay, emptyWords, fitLine, grid, gridRoom, line, lineRoom, section, words, type Keeps } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last. Amber never does.
@@ -161,7 +161,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const group = (key: string, title: string, rows: readonly RenderChildren[], headline: Say): RenderElement =>
     section(kit, key, title, pairs > 0 ? rows : [words(kit, 'head', headline)], pairs > 0 ? pairs : room)
   /** A group with nothing known: its empty words, in a line either way. */
-  const emptyGroup = (key: string, title: string, text: string): RenderElement => group(key, title, [words(kit, 'none', empty(text))], empty(text))
+  const emptyGroup = (key: string, title: string, text: string): RenderElement => group(key, title, [emptyWords(kit, 'none', text)], emptySay(text))
   return grid(kit, [
     group('cache', 'CACHE', [
       pair(kit, 'a', [

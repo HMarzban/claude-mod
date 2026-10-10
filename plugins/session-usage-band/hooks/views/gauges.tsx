@@ -10,7 +10,7 @@ import type { ContextReading, LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber, type Say, type SpendSplit } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberFirst, amberSay, beforeLast, chartsIfRoom, empty, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
+import { accentOf, amberFirst, amberSay, beforeLast, chartsIfRoom, emptyWords, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
 /** What gives way as each row narrows, first to last; `reWarm` is the
@@ -156,7 +156,6 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const room = gridRoom(kit, bodyRows)
   const bar = (key: string, label: string, frac: number, accent: string, more: Partial<Pick<MeterOptions, 'tone' | 'reads' | 'tick' | 'projectTo'>> = {}) =>
     meter(kit, { key, label, frac, tone: 'calm', accent, size: CELL_BAR, ...more })
-  const none = (text: string) => words(kit, 'none', empty(text))
   // What needs you leads, so a panel short of rows keeps it.
   const limits = amberFirst(read.limits)
   return grid(kit, [
@@ -172,14 +171,14 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       fact(kit, 'last', 'last message', s.lastText),
       ...s.split.map(part => fact(kit, part.label, part.label, part.text)),
     ]), room),
-    section(kit, 'context', 'CONTEXT', !x.known ? [none(EMPTY.context)] : chartsIfRoom(room, [bar('ctx:bar', 'context', x.frac, p.meterFill, { tone: x.tone })], [
+    section(kit, 'context', 'CONTEXT', !x.known ? [emptyWords(kit, 'none', EMPTY.context)] : chartsIfRoom(room, [bar('ctx:bar', 'context', x.frac, p.meterFill, { tone: x.tone })], [
       words(kit, 'pct', [[x.valueText, 'value'], [` ${x.towardText}`, 'label']]),
       fact(kit, 'room', 'room', x.roomText),
       fact(kit, 'at', 'compacts at', x.compactsAtText),
       fact(kit, 'window', 'window', x.windowText),
       fact(kit, 'in', 'in context', x.inContextText),
     ]), room),
-    section(kit, 'limits', 'LIMITS', limits.length === 0 ? [none(EMPTY.limits)] : chartsIfRoom(
+    section(kit, 'limits', 'LIMITS', limits.length === 0 ? [emptyWords(kit, 'none', EMPTY.limits)] : chartsIfRoom(
       room,
       limits.map(l => bar(`${l.name}:bar`, l.name, l.frac, accentOf(kit, l), { tone: l.tone, tick: l.gone, projectTo: l.projectedFrac })),
       limits.map(l => limitSentence(kit, l, SENTENCE)),

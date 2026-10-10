@@ -7,7 +7,7 @@ import type { LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber } from '../words'
 import { toggleButton, type Strip } from './frame'
-import { amberWords, empty, fitLine, grid, gridRoom, limitSentence, line, lineRoom, section, separatedBy, words, type Keeps, type SentenceStyle } from './parts'
+import { amberWords, emptyWords, fitLine, grid, gridRoom, limitSentence, line, lineRoom, section, separatedBy, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last. Amber never does. */
@@ -72,14 +72,14 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       s.lastText === undefined ? null : sentence('last', `last message ${s.lastText}`),
       sentence('tokens', `${s.tokensText} tokens: ${s.split.map(part => `${part.text} ${part.label}`).join(', ')}`),
     ], room),
-    section(kit, 'context', 'CONTEXT', !x.known ? [words(kit, 'none', empty(EMPTY.context))] : [
+    section(kit, 'context', 'CONTEXT', !x.known ? [emptyWords(kit, 'none', EMPTY.context)] : [
       sentence('pct', `${x.valueText} ${x.towardText}`),
       sentence('in', x.compactsAtText === undefined ? `${x.inContextText} in context` : `${x.inContextText} in context, compacts at ${x.compactsAtText}`),
       x.roomText === undefined ? null : sentence('room', `${x.roomText} room in a ${x.windowText} window`),
     ], room),
     // What needs you leads, so a body short of rows keeps it; an amber
     // closest limit is named by its own sentence.
-    section(kit, 'limits', 'LIMITS', read.limits.length === 0 ? [words(kit, 'none', empty(EMPTY.limits))] : [
+    section(kit, 'limits', 'LIMITS', read.limits.length === 0 ? [emptyWords(kit, 'none', EMPTY.limits)] : [
       ...read.limits.filter(l => l.amber !== undefined).map(l => limitSentence(kit, l, SENTENCE)),
       read.worstLimit === undefined || read.worstLimit.amber !== undefined ? null : sentence('closest', `closest is ${read.worstLimit.text}`),
       ...read.limits.filter(l => l.amber === undefined).map(l => limitSentence(kit, l, SENTENCE)),

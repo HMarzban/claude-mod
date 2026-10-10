@@ -10,7 +10,7 @@ import type { HistoryReading, LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Say } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberFirst, amberSay, beforeLast, chartsIfRoom, empty, fact, fitLine, grid, gridRoom, layoutCachePill, limitSentence, line, lineRoom, once, section, sectionCells, words, type SentenceStyle } from './parts'
+import { accentOf, amberFirst, amberSay, beforeLast, chartsIfRoom, emptySay, emptyWords, fact, fitLine, grid, gridRoom, layoutCachePill, limitSentence, line, lineRoom, once, section, sectionCells, words, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last; `costWords`, `pace`
@@ -99,8 +99,8 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
       {words(kit, 'numbers', numbers)}
     </Box>
   )
-  const costsLong = costs(hist.empty ? empty(EMPTY.costs) : [[hist.numbersText, 'label']])
-  const costsShort = Svg ? costs(hist.empty ? empty(EMPTY.costsShort) : [[hist.numbersShort, 'label']]) : total
+  const costsLong = costs(hist.empty ? emptySay(EMPTY.costs) : [[hist.numbersText, 'label']])
+  const costsShort = Svg ? costs(hist.empty ? emptySay(EMPTY.costsShort) : [[hist.numbersShort, 'label']]) : total
   return [
     fitLine(kit, ORDER, lineRoom(kit), keeps => {
       const reset = f?.resetGlyph !== undefined && keeps.has('resetText') ? [[f.resetGlyph, 'label'] as const] : undefined
@@ -161,11 +161,11 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     section(kit, 'spend', 'SPEND', chartsIfRoom(room, [
       charts && !hist.empty ? costBars(kit, hist, hist.costValues.length, OPEN_CHART_PX) : null,
     ], [
-      words(kit, 'costs', hist.empty ? empty(EMPTY.costs) : [[hist.numbersText, 'value']]),
+      words(kit, 'costs', hist.empty ? emptySay(EMPTY.costs) : [[hist.numbersText, 'value']]),
       sentence('total', `${s.totalText} this session`),
       sentence('tokens', `${s.tokensText} tokens`),
     ], chartRows), room),
-    section(kit, 'context', 'CONTEXT', !x.known ? [words(kit, 'none', empty(EMPTY.context))] : chartsIfRoom(room, [
+    section(kit, 'context', 'CONTEXT', !x.known ? [emptyWords(kit, 'none', EMPTY.context)] : chartsIfRoom(room, [
       // Tokens on the window's scale, a rule where it compacts.
       charts && hist.context.length > 1
         ? sparkline(kit, {
@@ -185,7 +185,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       sentence('in', x.compactsAtText === undefined ? `${x.inContextText} in context` : `${x.inContextText} in context, compacts at ${x.compactsAtText}`),
     ], chartRows), room),
     // Amber limits lead the section, so a body short of rows keeps them.
-    section(kit, 'limits', 'LIMITS', read.limits.length === 0 ? [words(kit, 'none', empty(EMPTY.limits))] : chartsIfRoom(room, [
+    section(kit, 'limits', 'LIMITS', read.limits.length === 0 ? [emptyWords(kit, 'none', EMPTY.limits)] : chartsIfRoom(room, [
       charts && f !== undefined && hist.fiveHourWindow.length > 1 ? fiveHourTrail(kit, f, hist.fiveHourWindow, hist.fiveHourWindowAlt, OPEN_TRAIL_PX, OPEN_CHART_PX, true, cells) : null,
     ], [
       ...amberFirst(read.limits).map(l => limitSentence(kit, l, SENTENCE)),
