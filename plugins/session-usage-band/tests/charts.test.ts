@@ -40,6 +40,15 @@ test("the meter's tick is a rect of class tick, and a projection is dashed", () 
   expect(source).toMatch(/<rect class="tick"/)
   expect(source).toMatch(/stroke-dasharray="3 2"/)
 })
+test("the meter's tick stays inside the bar at either end", () => {
+  for (const tick of [0, 1]) {
+    const n = svg(meter(desk, { label: '5h', frac: 0.5, tone: 'calm', accent: '#7fcf8a', tick }))
+    const x = Number(/<rect class="tick" x="([^"]+)"/.exec(n.props.source)?.[1])
+    const tickWidth = Number(/<rect class="tick"[^>]* width="([^"]+)"/.exec(n.props.source)?.[1])
+    expect(x).toBeGreaterThanOrEqual(0)
+    expect(x + tickWidth).toBeLessThanOrEqual(n.props.width)
+  }
+})
 test('a guessed day cell is dashed', () => {
   expect(svg(dayCells(desk, { key: 'd', alt: 'week', values: [6, 7], guess: [false, true], today: 0, color: '#a99cf0', cellPx: 16, height: 16 })).props.source).toMatch(/stroke-dasharray/)
 })

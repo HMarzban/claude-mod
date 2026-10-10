@@ -105,7 +105,7 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
       // Knocked out of the ground, so it reads over the fill and the track alike.
       (tick === undefined
         ? ''
-        : `<rect class="tick" x="${tenth(clamp01(tick) * width - k)}" y="-1" width="${2 * k}" height="${tall + 2}" fill="${palette.value}" stroke="${palette.cardBg}"${scaling}/>`)
+        : `<rect class="tick" x="${Math.max(0, Math.min(width - 2 * k, tenth(clamp01(tick) * width - k)))}" y="-1" width="${2 * k}" height="${tall + 2}" fill="${palette.value}" stroke="${palette.cardBg}"${scaling}/>`)
     const source = svgOf(width, tall, marks, stretch ? ' preserveAspectRatio="none"' : '')
     const alt = `${label} ${Math.round(clamp01(frac) * 100)}% ${reads}`
     return stretch ? (
