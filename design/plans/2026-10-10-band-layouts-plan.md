@@ -109,6 +109,7 @@ Each item is something the spec implies but no task tests directly, together wit
 | `hooks/band.tsx` | modify (T4, T5, T7, T8, T9a, T10a) | Down to: build kit and readings, dispatch, fall back |
 | `hooks/snapshot.ts`, `hooks/memory.ts` | modify (T5, T8, T10a, T10b, T10c, T23, T24) | `Glyphs`, layout names and fields; store keys and guards; samples |
 | `hooks/palette.ts`, `tests/design.test.ts` | modify (T12) | `flap`, `flapText`, `flapDim` and the on-flap inks |
+| `hooks/cache.ts`, `hooks/memory.ts`, `hooks/register.tsx`, `tests/resume-backfill.test.ts` | modify / create (T14b) | A resumed session's cache verdict and re-cache price from `classic.SessionStart`, its spend and tokens from its transcript's last cost record |
 | `hooks/views/ledger.tsx`, `tests/view-ledger.test.ts` | replace stub (T16) | The pilot view, on `feat/layouts` |
 | `hooks/views/{tiles,gauges,rings,departures,forecast}.tsx`, `tests/view-*.test.ts` | replace stubs (T17–T21) | The five parallel P2 views |
 | `hooks/cache.ts`, `hooks/insights.ts` | modify (T23) | `takeRebuilt`; the cost, context and 5h trails |
@@ -3651,6 +3652,429 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 **Maintainer checkpoints 2 and 3.** Report the time-zone result and the freeze note, and wait for both sign-offs before Task 15.
+
+### Task 14b: Resumed sessions recover their spend and cache state
+
+**Why:** resuming an old session (`claude --resume`, `/resume`, or the desktop opening a past session) showed "cache warming", "$0.00", "Breakdown counts from your next message" and "1h idle · assumed"; only the context was right. `session.start` calls `noteLoad(await ledgerUsd($))`, and `noteLoad` sets `knownFresh = !costNow`. A resumed session's ledger can read $0, so the band took it for a new conversation and never recalled its last reply. An in-process `/resume` went `session.end` → `resetConversation` (`knownFresh: true`) and nothing after it.
+
+**What the engine offers** (`.claude-plugin/types/claude-code/index.d.ts`, and the 2.1.296 binary):
+- `classic.SessionStart` with `SessionStartHookInput`: `source` (`'startup' | 'resume' | 'clear' | 'compact' | 'fork'`), `transcript_path`, and on resume or fork `seconds_since_last_response`, `context_tokens`, `prompt_cache_likely_expired` and `estimated_cache_write_usd`. It fires with `source: 'resume'` (or `'fork'`) both at launch and for an in-process `/resume`, after `session.end` with `reason: 'resume'`. The test kit raises it as `$.classic.SessionStart({ … })` and stamps `transcript_path: ''` when none is given.
+- The transcript: `type: "assistant"` lines carry `message.id`, `message.model` and `message.usage`, repeated on every content block of one reply. `type: "cost-state"` lines carry `totalCostUSD` and `modelUsage[model]`. They are cumulative across reopens, include subagent spend, and usually close a run, but a run that didn't exit cleanly leaves replies after the last one. In a 67 MB transcript the last record sat about 1.4 MB from the end, past today's 1 MiB tail.
+
+**Decisions:**
+- **Order.** The types don't say which comes first. `session.start` fires as the module loads, and the startup resume's SessionStart hooks run at the tail of startup, so `session.start` is expected first. A resume noted while `session.start` is still running wins anyway: `noteLoad` leaves `knownFresh` alone once `noteResume` has run, and `session.start` skips its own recall. A SessionStart before `session.start` would be reset by it, and that case is not handled.
+- **The cache.** The engine's idle time becomes the recalled reply's time, and its re-caching price is the price shown. `prompt_cache_likely_expired: true` makes the cache cold. It never sets the TTL, because the engine also sets the flag for a compaction with no cached reply after it, however short the idle. So an unpinned hour still reads "1h idle · assumed". With no idle time from the engine, the band recalls as before: its store's `lastAt`, then the transcript's tail.
+- **The read.** `grep -b -F '"type":"cost-state"' <path>` finds every cost record at any size; the output is small, one line per reopen. The last well-formed line gives the record and its byte offset, and `tail -c +<offset + 1>` reads only what was logged after it. The fallbacks:
+  - grep exits 1: there is no record, so nothing is seeded.
+  - grep can't run: the file is read whole if it is ≤ `READ_LIMIT`.
+  - grep's output is truncated: the band gives up.
+  - The tail fails or is truncated: the record alone is seeded.
+- **Pricing.** Each reply after the record is priced at its model's rate in that record, through `weightedTokens`. That keeps every cache write at 1.25×, as the record's own total does, so the `ephemeral_5m`/`ephemeral_1h` split is not used.
+- **Never double count.** The band shows `max(ledger, transcript total + (ledger − ledger when it was read))`: the larger of the two at the resume, with the ledger's growth on top. `ratePerToken`, `costBase` and `lastTurnUsd` stay on the raw ledger.
+- **Off the hook.** The transcript is read once per resume, with `void`, and redraws when it is done. `band.conversations`, counted at each load and each end, drops a read that ends after a `/clear`. Only the totals are kept.
+
+**Files:**
+- Modify: `hooks/cache.ts` (`TokenCounts`, `NO_TOKENS`, `addTokens`, `Spend`, `ResumedCache`; `resumed` and `prior` in the state; `noteResume`, `notePrior`, `spentUsd`; `resetConversation(costNow, isFresh = true)`; `noteLoad` respects a resume; `msLeft`, `hitRatio`, `savedUsd` and `cacheView` read the prior spend and the engine's verdict)
+- Modify: `hooks/memory.ts` (`COST_RECORD`, `lastCostRecord`, `transcriptSpend`; `rateFromTranscript` shares `recordRate`)
+- Modify: `hooks/register.tsx` (`classic.SessionStart`, `resumeConversation`, `recoverSpend`, `spendBefore`, `transcriptFile`, `readWhole`; `band.conversations`; `session.end` passes `e.reason !== 'resume'`; `costUsd: spentUsd(…)`)
+- Modify: `hooks/snapshot.ts` (`cache.recovered: boolean`), `hooks/reading.ts` (`measured` is `requests > 0 || recovered`)
+- Modify: `tests/helpers.ts` (`grep`, `tail -c +N`, `grepFails`, the bottom `classic.SessionStart`), `tests/matrix.ts` (`snapOf` gains `recovered: false`)
+- Test: `tests/resume-backfill.test.ts` (new)
+
+**Interfaces:**
+- **Produces:** `noteResume(engine: ResumedCache | undefined)`, `notePrior(spend: Spend, ledgerNow: number | undefined)`, `spentUsd(ledgerNow: number | undefined): number`; `transcriptSpend(transcript: string): Spend | undefined`, `lastCostRecord(grepOutput: string): { offset; line } | undefined`; `BandSnapshot.cache.recovered`.
+- **Consumes:** `weightedTokens`, `modelName`, `READ_LIMIT`, `transcriptPath`, `recallLastReply`.
+
+- [ ] **Step 1: Extend the fake engine**
+
+In `tests/helpers.ts`, `grep` answers as `grep -b -F` would, `tail` takes `-c +N`, `grepFails` joins `ENGINE_INITIAL`, and `base` gives `classic.SessionStart` its bottom handler (one handler per event, so tests never register it):
+
+```diff
+@@ -79,7 +79,7 @@ type EngineFake = {
+   root: string
+   repoRoot: string | undefined
+   git: GitAnswer
+-  /** While set, git answers wait on it: its answer is the one at the call. */
++  /** While set, git and grep answers wait on it: each answer is the one at the call. */
+   hold: Promise<void> | undefined
+   ran: string[][]
+   /** The session's id and model, as the engine names them. */
+@@ -91,6 +91,8 @@ type EngineFake = {
+   transcriptBytes: number | undefined
+   /** When set, `tail` can't run, as where the host has none. */
+   tailFails: boolean
++  /** When set, `grep` can't run, as where the host has none. */
++  grepFails: boolean
+   /** Every path the plugin asked the file system about. */
+   statted: string[]
+   /** The plugin's own store, JSON in and out as the engine keeps it. */
+@@ -119,6 +121,7 @@ const ENGINE_INITIAL: Readonly<EngineFake> = {
+   transcript: undefined,
+   transcriptBytes: undefined,
+   tailFails: false,
++  grepFails: false,
+   statted: [],
+   root: PROJECT,
+   repoRoot: PROJECT,
+@@ -185,18 +188,34 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
+     const quiet = { stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
+     if (e.argv[0] === 'tail') {
+       if (engine.tailFails || engine.transcript === undefined) return { value: { ...quiet, exitCode: 1, stdout: '', stderr: 'tail: no such file' } }
+-      const bytes = Number(e.argv[2])
+-      return { value: { ...quiet, exitCode: 0, stdout: engine.transcript.slice(-bytes) } }
++      // `-c N` is the last N bytes, `-c +N` everything from byte N on.
++      const count = String(e.argv[2])
++      const stdout = count.startsWith('+') ? engine.transcript.slice(Number(count.slice(1)) - 1) : engine.transcript.slice(-Number(count))
++      return { value: { ...quiet, exitCode: 0, stdout } }
+     }
+-    const git = engine.git
+     const hold = engine.hold
+     if (hold !== undefined) await hold
++    if (e.argv[0] === 'grep') {
++      // `grep -b -F pattern path`: each line holding the pattern, after its byte offset.
++      if (engine.grepFails) throw new Error('grep: command not found')
++      if (engine.transcript === undefined) return { value: { ...quiet, exitCode: 2, stdout: '', stderr: 'grep: no such file' } }
++      const pattern = String(e.argv.at(-2))
++      let offset = 0
++      const found: string[] = []
++      for (const line of engine.transcript.split('\n')) {
++        if (line.includes(pattern)) found.push(`${offset}:${line}\n`)
++        offset += line.length + 1
++      }
++      return { value: { ...quiet, exitCode: found.length > 0 ? 0 : 1, stdout: found.join('') } }
++    }
++    const git = engine.git
+     if (git === 'fail') throw new Error('git: command not found')
+     if (git === 'none') return { value: { ...quiet, exitCode: 128, stdout: '', stderr: 'fatal: not a git repository' } }
+     return { value: { ...quiet, exitCode: 0, stdout: e.argv.includes('status') ? git.status : git.dirs } }
+   })
+   on('session.start', ($, e) => ({ cwd: e.cwd }))
+   on('session.end', ($, e) => ({ sessionId: e.sessionId }))
++  on('classic.SessionStart', () => ({}))
+   on('command.register', ($, e) => ({ value: { command: e.name } }))
+   on('session.usage', ($, e) => {
+     if (usage.fails) throw new Error('usage unavailable')
+```
+
+Add `recovered: false` to `snapOf`'s cache in `tests/matrix.ts`.
+
+- [ ] **Step 2: Write the failing tests**
+
+```ts
+// tests/resume-backfill.test.ts
+// A past session resumed (`claude --resume`, /resume, or opened again in the
+// desktop app): its ledger may read $0, but the conversation didn't start
+// here. The engine's SessionStart says how long it sat idle and what
+// re-caching costs; its transcript says what it has spent.
+
+import { test, expect } from 'claude-code/testing'
+import type { Engine } from 'claude-code/testing'
+import type { SessionUsage } from 'claude-code'
+import { CLEAR, HOUR, MIN, START, USAGE, cardOf, engine, fact, pillOf, setup, shown, startTurn, endTurn, mountBand } from './helpers'
+
+const ENV = { ENABLE_PROMPT_CACHING_1H: '1', HOME: '/Users/me' }
+const BUILT_PATH = '/Users/me/.claude/projects/-Users-me-workspace-claude-mod/s1.jsonl'
+const PATH = '/Users/me/.claude/projects/-Users-me-elsewhere/s1.jsonl'
+/** A resumed session whose ledger starts again at $0. */
+const RESUMED: SessionUsage = { ...USAGE, cost: { usd: 0 } }
+
+const mounted = async ($: Engine, open = false) => {
+  const ui = await mountBand($, 'terminal', 140)
+  if (open) await ui.press({ key: 'more' })
+  const tree = await ui.drawn()
+  await ui.unmount()
+  return tree
+}
+
+/** A transcript's lines, as Claude Code writes them. */
+const jsonl = (...lines: unknown[]): string => lines.map(line => JSON.stringify(line)).join('\n') + '\n'
+
+/** One reply, logged once per content block, each line with the same usage. */
+const reply = (id: string, blocks: number, usage: Record<string, unknown>, model = 'claude-opus-5-5') =>
+  Array.from({ length: blocks }, (_, i) => ({
+    type: 'assistant',
+    timestamp: new Date(i).toISOString(),
+    isSidechain: false,
+    message: { id, role: 'assistant', model, content: [{ type: 'text', text: `block ${i}` }], usage },
+  }))
+
+/** $30 over 1M uncached + 1.25 × 400k written + 0.05 × 20M read + 5 × 100k
+ *  output = 3M weighted tokens: $0.00001 a token on Opus 5.5. */
+const RECORD = {
+  type: 'cost-state',
+  totalCostUSD: 30,
+  startTime: 0,
+  modelUsage: {
+    'claude-opus-5-5': { inputTokens: 1_000_000, cacheCreationInputTokens: 400_000, cacheReadInputTokens: 20_000_000, outputTokens: 100_000, costUSD: 30 },
+  },
+}
+
+/** 1,000 + 1.25 × 2,000 + 0.05 × 100,000 + 5 × 1,000 = 13,500 weighted
+ *  tokens: $0.135 at the record's rate. */
+const REPLY_USAGE = {
+  input_tokens: 1_000,
+  cache_creation_input_tokens: 2_000,
+  cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 2_000 },
+  cache_read_input_tokens: 100_000,
+  output_tokens: 1_000,
+}
+
+/** An older record, then the last one, then two replies logged after it,
+ *  the first over three content blocks. */
+const TRANSCRIPT = jsonl(
+  { type: 'user', message: { role: 'user', content: 'hi' } },
+  { ...RECORD, totalCostUSD: 12 },
+  ...reply('msg_old', 1, REPLY_USAGE),
+  RECORD,
+  ...reply('msg_1', 3, REPLY_USAGE),
+  ...reply('msg_2', 1, REPLY_USAGE),
+)
+
+/** The engine resuming a conversation last answered `idleMs` ago. */
+const resume = ($: Engine, idleMs: number, fields: { expired?: boolean; reWarmUsd?: number; path?: string; source?: 'resume' | 'fork' } = {}) =>
+  $.classic.SessionStart({
+    source: fields.source ?? 'resume',
+    transcript_path: fields.path ?? PATH,
+    seconds_since_last_response: idleMs / 1000,
+    context_tokens: 76_000,
+    prompt_cache_likely_expired: fields.expired ?? idleMs > HOUR,
+    estimated_cache_write_usd: fields.reWarmUsd ?? 0.95,
+  })
+
+test('resumed two days on with a $0 ledger, the cache is cold at the price the engine names', async ($, on) => {
+  setup(on, { usage: RESUMED, env: ENV, now: 48 * HOUR })
+  await $.session.start(START)
+  await resume($, 48 * HOUR, { reWarmUsd: 1.23 })
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold · next message ~\$1\.23/)
+  const tree = await mounted($, true)
+  expect(fact(tree, 'idle for')).toBe('2d 0h')
+  expect(fact(tree, 'next message')).toBe('~$1.23')
+})
+
+test('resumed ten minutes after its last reply, the cache counts down from that reply', async ($, on) => {
+  setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 50m/)
+})
+
+test('a forked session resumes the same way', async ($, on) => {
+  setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  await $.session.start(START)
+  await resume($, 10 * MIN, { source: 'fork' })
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 50m/)
+})
+
+test('a cache the engine calls expired is cold, however recent the reply', async ($, on) => {
+  setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  await $.session.start(START)
+  await resume($, 2 * MIN, { expired: true })
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold/)
+})
+
+test("without the engine's idle time, the band's own memory of the last reply stands in", async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, store: { sessions: { s1: { lastAt: 3 * HOUR - 10 * MIN } } }, now: 3 * HOUR })
+  await $.session.start(START)
+  await $.classic.SessionStart({ source: 'resume', transcript_path: PATH })
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 50m/)
+})
+
+test("a resumed session's spend and tokens start from its last cost record, each later reply counted once", async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = TRANSCRIPT
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  await clock.settle()
+  expect(engine.ran).toContainEqual(['grep', '-b', '-F', '"type":"cost-state"', PATH])
+  // $30 + 2 × $0.135
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
+  const tree = await mounted($, true)
+  expect(shown(cardOf(tree, 'spend'))).toMatch(/^SPEND\$30\.27/)
+  expect(shown(cardOf(tree, 'spend'))).not.toMatch(/Breakdown counts/)
+  // 1M + 400k sent, 100k back and 20M read, then 3k, 1k and 100k for each reply
+  expect(fact(tree, 'input')).toBe('1.4M')
+  expect(fact(tree, 'output')).toBe('102k')
+  expect(fact(tree, 'cache reads')).toBe('20.2M')
+})
+
+test('the transcript the engine names is read; without one, the band finds it by the project', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = TRANSCRIPT
+  await $.session.start(START)
+  await resume($, 10 * MIN, { path: '' })
+  await clock.settle()
+  expect(engine.ran.find(argv => argv[0] === 'grep')?.at(-1)).toBe(BUILT_PATH)
+})
+
+test('a ledger that already counts the conversation is never added to it', async ($, on) => {
+  const clock = setup(on, { usage: { ...USAGE, cost: { usd: 31 } }, env: ENV, now: 3 * HOUR })
+  engine.transcript = TRANSCRIPT
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$31\.00/)
+})
+
+test('a ledger that counts less than the transcript shows the transcript, and grows from there', async ($, on) => {
+  const clock = setup(on, { usage: { ...USAGE, cost: { usd: 5 } }, env: ENV, now: 3 * HOUR })
+  engine.transcript = TRANSCRIPT
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
+  await startTurn($, 't1', 5)
+  await endTurn($, 't1', 6)
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$31\.27/)
+})
+
+test('with no transcript, a resume shows the ledger and no breakdown, as before', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$0\.00/)
+  expect(shown(cardOf(await mounted($, true), 'spend'))).toMatch(/Breakdown counts from your next message/)
+})
+
+test('malformed lines are passed over, a record cut short included', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = `${TRANSCRIPT}{"type":"assistant","message":{"id":"msg_3"\n${JSON.stringify(RECORD).slice(0, 40)}\n`
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
+})
+
+test('without grep, a transcript small enough to read is read whole', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.grepFails = true
+  engine.transcript = TRANSCRIPT
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
+})
+
+test('without grep, a transcript too big to read leaves the ledger as it is', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.grepFails = true
+  engine.transcript = TRANSCRIPT
+  engine.transcriptBytes = 5 * 1024 * 1024
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$0\.00/)
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 50m/)
+})
+
+test('a /clear while the transcript is read leaves the new conversation alone', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = TRANSCRIPT
+  let release = (): void => undefined
+  engine.hold = new Promise<void>(resolve => {
+    release = resolve
+  })
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  await $.session.end(CLEAR)
+  release()
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$0\.00/)
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache warming/)
+})
+
+test('/resume inside a running session resumes the conversation it names', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = TRANSCRIPT
+  await $.session.start(START)
+  await $.session.end({ reason: 'resume', sessionId: 's1', resume: { id: 's1' } })
+  // Until the engine says more, the band knows only that it isn't new.
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache –/)
+  engine.sessionId = 's2'
+  await resume($, 48 * HOUR)
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold/)
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
+})
+
+test('a new session and a /clear read nothing and stay warming', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = TRANSCRIPT
+  await $.session.start(START)
+  await $.classic.SessionStart({ source: 'startup', transcript_path: PATH })
+  await $.session.end(CLEAR)
+  await $.classic.SessionStart({ source: 'clear', transcript_path: PATH })
+  await clock.settle()
+  expect(engine.ran.filter(argv => argv[0] === 'grep' || argv[0] === 'tail')).toEqual([])
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache warming/)
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$0\.00/)
+})
+```
+
+- [ ] **Step 3: Run them and watch them fail**
+
+Run: `tools/test-only.sh resume-backfill`
+Expected: 12 of 16 FAIL, with "cache warming" and "$0.00" where a resumed session should be cold and priced. The four that cover the fallbacks and the new-session path already pass.
+
+- [ ] **Step 4: Implement**
+
+In `cache.ts`, the pure accounting:
+
+```ts
+export const noteLoad = (costNow: number | undefined): void => {
+  if (!state.resumed) state.knownFresh = !costNow
+}
+
+export const noteResume = (engine: ResumedCache | undefined): void => {
+  state.knownFresh = false
+  state.resumed = true
+  if (engine !== undefined) {
+    state.recall = { lastAt: engine.lastAt, rate: null, expired: engine.expired, reWarmUsd: engine.reWarmUsd }
+  }
+}
+
+export const notePrior = (spend: Spend, ledgerNow: number | undefined): void => {
+  state.prior = { ...spend, ledgerAt: ledgerNow ?? 0 }
+}
+
+export const spentUsd = (ledgerNow: number | undefined): number => {
+  const ledger = ledgerNow ?? 0
+  const prior = state.prior
+  return prior === undefined ? ledger : Math.max(ledger, prior.usd + ledger - prior.ledgerAt)
+}
+
+const allTokens = (): TokenCounts => (state.prior === undefined ? state : addTokens(state, state.prior.tokens))
+```
+
+`msLeft` returns 0 for a recalled cache with `recall.expired === true`. `hitRatio`, `savedUsd` and `cacheView`'s `tokens` read `allTokens()`. A recalled `reWarmUsd` is `recall.reWarmUsd ?? (rate === null ? null : reWarmAt(rate, contextTokens))`. `cacheView` adds `recovered: state.prior !== undefined`.
+
+In `memory.ts`, `transcriptSpend` takes the last well-formed cost record (`findLastIndex`), sums every model's tokens in it, then adds each `assistant` line after it once by `message.id`, priced at `recordRate(modelUsage[modelName(model)], model)`. `lastCostRecord` walks `grep -b` output from the end to the first line whose JSON is a cost record.
+
+In `register.tsx`:
+
+```ts
+on('classic.SessionStart', async ($, e, next) => {
+  if (e.agent_id === undefined && (e.source === 'resume' || e.source === 'fork')) await resumeConversation($, e)
+  return next(e)
+})
+```
+
+`resumeConversation` treats `transcript_path: ''` as none. It calls `noteResume` with `lastAt: now − seconds_since_last_response × 1000` and the engine's verdict and price, or with `undefined` and `await recallLastReply($, path)` when there is no idle time. Then it calls `void recoverSpend($, path)` and invalidates. `recoverSpend` reads `spendBefore` (grep, then `tail -c +N`, else `readWhole`) and drops the result if `band.conversations` moved. It calls `notePrior(spend, await ledgerUsd($))` and invalidates. `session.start` and `session.end` both count `band.conversations++`, and `session.end` calls `resetConversation(ledger ?? 0, e.reason !== 'resume')`. The snapshot's `costUsd` is `spentUsd(usage.cost?.usd)`.
+
+- [ ] **Step 5: Run the tests**
+
+Run: `tools/test-only.sh resume-backfill resume cache-view`, then the full suite.
+Expected: PASS, golden included.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add plugins/session-usage-band/hooks plugins/session-usage-band/tests/helpers.ts plugins/session-usage-band/tests/matrix.ts plugins/session-usage-band/tests/resume-backfill.test.ts
+git commit -m "fix: a resumed session recovers its spend and cache state
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
 
 ---
 ## P2: The pilot, then five views in parallel

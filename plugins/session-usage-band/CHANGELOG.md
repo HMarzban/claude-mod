@@ -15,6 +15,12 @@ version may change how the band reads.
   The repository README adds installing inside a terminal session and for a
   whole team, and keeps the two-step form for Claude Code before 2.1.292.
 
+### Fixed
+- A resumed session (`claude --resume`, `/resume`, or a past session opened
+  in the desktop app) no longer reads as a new one: the cache shows cold or
+  counting down, at the re-caching price Claude Code names, and the spend
+  and token breakdown start from what the transcript records, not $0.00.
+
 ## [0.11.12] - 2026-10-09
 
 ### Fixed
