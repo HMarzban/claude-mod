@@ -104,6 +104,17 @@ export const cellsOf = (n: RenderChildren, m: Measure): number => {
   }
 }
 
+/** The column each of a row's drawn pieces starts at, the pieces `gap`
+ *  columns apart. */
+export const startsOf = (pieces: readonly RenderChildren[], gap: number, m: Measure): number[] => {
+  let at = 0
+  return pieces.map(piece => {
+    const start = at
+    at += cellsOf(piece, m) + gap
+    return start
+  })
+}
+
 /** The first squeeze at which `build` fits `room` columns, or the last tried:
  *  a line drops its pieces in the order its give-way table names them. */
 export const squeezeToFit = (build: (squeeze: number) => RenderElement, steps: number, room: number, m: Measure): RenderElement => {

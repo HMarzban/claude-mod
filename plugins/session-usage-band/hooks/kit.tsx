@@ -9,6 +9,11 @@ import { DESKTOP, TERMINAL } from './layout'
 import type { Tone } from './reading'
 import type { BandSnapshot } from './snapshot'
 
+/** Where a hover card sits in its row: from `left`, its piece's first
+ *  column, slid left only as far as it must to end within `room`; or ending
+ *  where its piece ends, `right` columns short of the row's right edge. */
+export type CardPlace = Readonly<{ left: number; room: number }> | Readonly<{ right: number }>
+
 export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
   const { Box, Button, Text } = el
   const palette = snap.palette
@@ -20,26 +25,31 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
   const onTone = (tone: Tone, calm: string, amber: string = palette.amberFg) => (tone === 'amber' ? amber : calm)
 
   // A piece and its hover card share a hover scope, so the card can sit
-  // apart from the piece: last in their row, where it paints over every
-  // piece (a placed Box paints over those before it, and inside its own
-  // piece the pieces after would paint over it), and across the whole row,
-  // so no edge cuts it. Plain has no background to cover the row with, so
-  // no cards and no scopes.
+  // apart from the piece, after every piece in their row: a placed Box paints
+  // over those before it, so inside its own piece the pieces after would
+  // paint over it. The pointer on a showing card keeps it showing, so a card
+  // is as wide as its text and sits at its piece: moving onto a piece it does
+  // not cover switches cards. Plain has no background to cover the row with,
+  // so no cards and no scopes.
   const scopeOf = (key: string) => `band-${key}`
 
   /** The props that make a keyed Box reveal the hover card drawn for `key`. */
   const hoverable = (key: string) => (palette.filled ? { hover: { scope: scopeOf(key) } } : {})
 
-  /** The one-line explanation `key`'s piece reveals, for the end of its row.
-   *  It has no key: a keyed Box is its own hover scope, and a hidden one
-   *  could never be hovered. */
-  const hoverCard = (key: string, text: string): RenderChildren =>
-    palette.filled ? (
+  /** The one-line explanation `key`'s piece reveals, for after the pieces of
+   *  its row, placed as `place` says. It has no key: a keyed Box is its own
+   *  hover scope, and a hidden one could never be hovered. */
+  const hoverCard = (key: string, text: string, place: CardPlace): RenderChildren => {
+    if (!palette.filled) return null
+    const room = Math.floor('room' in place ? place.room : snap.columns)
+    const width = Math.min(text.length + 2, room)
+    const at = 'room' in place ? { left: Math.max(0, Math.min(Math.round(place.left), room - width)) } : { right: Math.round(place.right) }
+    return (
       <Box
         position="absolute"
         top={0}
-        left={0}
-        right={0}
+        {...at}
+        width={width}
         display="none"
         hover={{ display: 'flex', scope: scopeOf(key) }}
         backgroundColor={palette.tooltipBg}
@@ -49,7 +59,8 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
           {text}
         </Text>
       </Box>
-    ) : null
+    )
+  }
 
   /** A column of air. The desktop drops a string child that is only spaces,
    *  so there the gap is an empty Box; a text surface keeps its space. */
