@@ -43,6 +43,7 @@ What the plan's steps record, in the order they happen.
 | Task 10c (merged) | 356 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 12 | 354 pass, 0 fail, 26 files | `claude plugin test plugins/session-usage-band` |
 | Task 12 (merged) | 358 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
+| Task 11a | 411 pass, 0 fail, 32 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
@@ -59,6 +60,9 @@ Ruling: chips keeps its own buttons, footer-strip room and hint, and `frame()` d
 Pending maintainer: the ascii-tier check `snap.surface === 'terminal' && snap.glyphs === 'ascii'` is in both `band.tsx` and `views/chips.tsx`; one `asciiTier(snap)` beside `asciiText` in `glyphs.ts` (not Task 9a's file) would hold it.
 Pending maintainer: spec §4 file table (line 161) lists `cachePill` under `views/parts.tsx`, while the plan's Task 9a keeps it in `chips.tsx`; drop it from that row, or name Task 13's `layoutCachePill`.
 Pending maintainer: plan Task 13 Step 6's `layoutCachePill` passes `text` to `textBattery` unmapped, against the `textBattery` ruling above; on a terminal in the ascii tier `asciiTree` would then map after the cut. It takes no `snap`, so it needs the ascii check passed in (or `asciiTier(snap)` once it exists) and `ascii ? asciiText(text) : text` on the filled terminal path.
+Ruling: Task 11a's `colour` check tests hue, not the plan's `RED` list — `/^#(f00|ff0000|e5|dc2626)/` flagged greys such as `#e5e5e5`, missed reds such as `#ef4444`, and never looked inside an Svg's `source`; the check now flags the theme key `error` and any hex in any string prop (an Svg's source included) within 15° of pure red at more than half saturation, and every hex in `hooks/` passes (the darkest amber, `#7a4e06`, sits at 37°) — no fallback; `matrix.test.ts` adds a red Svg fill, `color: 'error'`, and a grey and an amber that must pass.
+Ruling: Task 11a's commit includes `tests/frame.test.ts`, which Step 4's frame pin appends to though Step 5's `git add` leaves it out; the pin passed at once, so it was proven by setting the body's `marginTop` to a constant 1 in `frame.tsx` (9 rows at maxRows 8, failed), then reverted — no fallback.
+Pending maintainer: `tools/golden/capture.sh` runs only on hooks identical to 40943d3, but copies today's `tests/matrix.ts`, which since Task 11a imports `hooks/views/index`, `hooks/views/view` and `ROW_PX` from `hooks/layout`, none of which exist there; a recapture would not load until the capture copies `matrix.ts` from 40943d3 (or the P0 commit) instead.
 
 ## Freezes
 - P1 freeze (Task 14):

@@ -6,7 +6,7 @@ import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { bodyRowsFor, openView, panel, toggleButton, type Strip } from '../hooks/views/frame'
 import { byKey, fakeEl, shown, type Node } from './helpers'
-import { NO_ACT, snapOf } from './matrix'
+import { NO_ACT, snapOf, visualRows } from './matrix'
 
 const text = (s: string) => ({ type: 'Text', props: {}, children: [s] }) as unknown as RenderElement
 const opened = (over: Partial<BandSnapshot> = {}, strip?: Strip): Node => {
@@ -52,4 +52,12 @@ test('the strip heads the body while the body keeps a row, then moves to the foo
 })
 test("a view's own strip stands in for the shared one", () => {
   expect(shown(opened({ maxRows: 13, workspace: WS }, () => text('MINE')))).toMatch(/MINE/)
+})
+test('with the strip on top and a full body, an open view never passes maxRows', () => {
+  const snap = snapOf({ expanded: true, maxRows: 8, workspace: WS })
+  const kit = makeKit(fakeEl, snap)
+  const tree = openView(kit, readingsOf(snap), NO_ACT, panel(kit, 'collapsed', [text('LINE')]), 1, rows =>
+    Array.from({ length: rows }, (_, i) => text(`ROW ${i}`)),
+  ) as unknown as Node
+  expect(visualRows(tree, 'terminal')).toBeLessThanOrEqual(8)
 })
