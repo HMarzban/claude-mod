@@ -70,6 +70,7 @@ What the plan's steps record, in the order they happen.
 | Task 24 (second review) | 405 pass, 0 fail, 31 files | `claude plugin test plugins/session-usage-band` |
 | Task 24 (third review, rebased on 5812aca) | 536 pass, 0 fail, 38 files | `claude plugin test plugins/session-usage-band` |
 | Task 24 (third review, `TZ=Asia/Tehran`) | 536 pass, 0 fail, 38 files | `TZ=Asia/Tehran claude plugin test plugins/session-usage-band` |
+| Tasks 23 and 24, the histories, limitSamples and the calendar (merged) | 538 pass, 0 fail, 38 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
