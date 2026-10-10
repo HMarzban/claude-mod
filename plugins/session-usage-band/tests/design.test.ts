@@ -55,6 +55,13 @@ for (const [name, p, hosts] of [
     for (const bg of pillGrounds) expect(contrast(p.trackStroke, bg)).toBeGreaterThanOrEqual(3)
     expect(p.tooltipBg).not.toBe(p.cardBg) // hover cards stand above the cards
   })
+
+  test(`${name}: the new layouts' text and marks hold on the card ground and on flaps`, () => {
+    expect(contrast(p.amberFg, p.cardBg)).toBeGreaterThanOrEqual(4.5)
+    for (const mark of [p.meterFill, p.warm, p.fiveAccent, p.weekAccent]) expect(contrast(mark, p.cardBg)).toBeGreaterThanOrEqual(3)
+    expect(contrast(p.value, p.surface)).toBeGreaterThanOrEqual(4.5)
+    for (const ink of [p.flapText, p.flapDim, p.flapWarm, p.flapAmber, p.flapFive, p.flapWeek, p.flapCoin]) expect(contrast(ink, p.flap)).toBeGreaterThanOrEqual(4.5)
+  })
 }
 
 // ── the chip row ───────────────────────────────────────────────────────
