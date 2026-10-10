@@ -33,7 +33,9 @@ test('the stored layout draws, from 40 columns', () => {
   expect(shown(drawBand(fakeEl, snapOf({ layout: 'ledger', columns: 40 }), NO_ACT, { ...VIEWS, ledger: marker }))).toBe('LEDGER')
 })
 test('below 40 columns every layout draws chips', () => {
-  expect(shown(drawBand(fakeEl, snapOf({ layout: 'ledger', columns: 39 }), NO_ACT, { ...VIEWS, ledger: marker }))).not.toMatch(/LEDGER/)
+  const band = shown(drawBand(fakeEl, snapOf({ layout: 'ledger', columns: 39 }), NO_ACT, { ...VIEWS, ledger: marker }))
+  expect(band).not.toMatch(/LEDGER/)
+  expect(band).toMatch(/cache 52m/)
 })
 test('a view that throws falls back to chips', () => {
   expect(shown(drawBand(fakeEl, snapOf({ layout: 'ledger' }), NO_ACT, { ...VIEWS, ledger: boom }))).toMatch(/\$3\.19/)
