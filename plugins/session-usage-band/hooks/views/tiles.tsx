@@ -4,6 +4,7 @@
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { underline } from '../charts'
 import type { Kit } from '../kit'
+import { ROW_PX } from '../layout'
 import type { CacheReading, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber, type Role, type Say } from '../words'
@@ -18,6 +19,8 @@ const ORDER = ['underline', 'resetText', 'calmSeven', 'calmContext', 'cost'] as 
 type Piece = (typeof ORDER)[number]
 /** An underline's length. */
 const UNDER_PX = 64
+/** An underline's height, as charts draws it. */
+const UNDER_HEIGHT = 4
 
 /** A value over its label, and on the desktop its underline beneath. */
 const stack = (kit: Kit, key: string, value: RenderElement, label: RenderElement, bar: RenderChildren): RenderElement => {
@@ -135,13 +138,19 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const s = read.spend
   // What needs you leads, so a group short of rows keeps it.
   const limits = [...read.limits.filter(l => l.amber !== undefined), ...read.limits.filter(l => l.amber === undefined)]
-  /** A tile, or nothing while its value is unknown; amber, its label is the reason. */
-  const tile = (key: string, value: string | undefined, label: string, bar: RenderChildren = null, amber?: Amber): RenderChildren =>
-    value === undefined ? null : stack(kit, key, valueOf(kit, value, amber), words(kit, 'l', [[amber?.long ?? label, amber !== undefined ? 'amber' : 'label']]), bar)
   const room = gridRoom(kit, bodyRows)
   // A pair is two lines tall: a group holds as many as fit under its title,
-  // and short of one, says its headline in a line.
+  // and short of one, says its headline in a line. A desktop pair's
+  // underlines add 4 px, so they go first: they stay while the deepest
+  // group's pairs fit its room with them. Only the limits hold more than two.
   const pairs = Math.floor(room / 2)
+  const deepest = Math.min(pairs, Math.max(2, read.limits.length))
+  const barred = deepest * (2 * ROW_PX + UNDER_HEIGHT) <= room * ROW_PX
+  /** A tile, or nothing while its value is unknown; amber, its label is the reason. */
+  const tile = (key: string, value: string | undefined, label: string, bar: RenderChildren = null, amber?: Amber): RenderChildren =>
+    value === undefined
+      ? null
+      : stack(kit, key, valueOf(kit, value, amber), words(kit, 'l', [[amber?.long ?? label, amber !== undefined ? 'amber' : 'label']]), barred ? bar : null)
   const group = (key: string, title: string, rows: readonly RenderChildren[], headline: Say): RenderElement =>
     section(kit, key, title, pairs > 0 ? rows : [words(kit, 'head', headline)], pairs > 0 ? pairs : room)
   /** A group with nothing known: its empty words, in a line either way. */
