@@ -102,6 +102,8 @@ export type CaseOptions = Readonly<{
   /** The cache's lifetime: 5m walks a twelfth of the clock 1h does. */
   ttl?: Ttl
 }>
+/** A case's cache lifetime, for the view tests that pick one. */
+export type { Ttl }
 
 /** Where a drawn case was mounted, and whether it was open. */
 export const caseKey = (m: Mount, state: State): string => `${m.surface}|${m.cols}|${m.maxRows ?? DEFAULT_MAX_ROWS}|${state}`
