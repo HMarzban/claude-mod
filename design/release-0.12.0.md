@@ -207,6 +207,21 @@ Open items cleared on `feat/layouts` after 0119b9a.
   - The snapshot holds when a measured cache went cold (`cache.coldAt`), so a cold cache reads `DEPARTED 13:28`. On the collapsed line the clock gives way last, after the 5H flap. A recalled cache still reads `DEPARTED` alone.
   - Shared files touched: `words.ts` (`boardTime`, the no-offset fill's board minutes, and `coldSinceClock` reading `coldAt`), `format.ts` (`fmtBoardEta`), `snapshot.ts` and `cache.ts` (`coldAt`, from `measuredColdAt`), and `tests/matrix.ts` (`coldAt: null` in `snapOf`). Golden is unchanged. 1064 pass, 0 fail, 48 files. These change a layout that is new in 0.12.0, so the CHANGELOG's Added line covers them.
 
+- **Give-way and amber**, in 81f49ae to 6ff3e0b, each fix test first:
+  - A 21st scenario, `coldLimit80`: the cache cold beside the 5h at 82%. Every view draws it at 120 columns and at 40, 50 and 60. Golden keeps the 20 scenarios its capture froze (`GOLDEN_SCENARIOS`), so chips' 480 hashes are unchanged.
+  - The amber reason keeps its long words until the calm pieces of its row have gone:
+    - gauges' cost gives way last, so at 50 columns the last minute reads `! 30s left · re-warm ~$2.13`;
+    - pulse's costs give way last on a text surface;
+    - tiles' 5h tile gives way last, after the cost.
+  - A cold cache keeps its price:
+    - rings' short label is `~$2.13`, so a narrow line reads `cold ~$2.13`, not `cold cache`;
+    - ledger's cold cache takes its short words, `cold ~$2.13`, at a last step, so a 5h at 82% fits beside it at 40 columns;
+    - departures' calm `RE-WARM ~$2.13` gives way at a last step of its own, after `calmFive`, so the amber limit fits beside it. Departures' give-way now runs three steps past spec §6's four.
+  - Gauges' row two says `context –` when no limit is reported, not ▿ alone.
+  - At a body of one row, a section draws its first row where its title would be, so every grid view says `! spend 92%` at `gatewaySpend`. Departures' board drops its header for its first row, and week's row is the amber limit's sentence. `viewSuite` checks it from that row.
+  - Pulse on the desktop is the exception, kept under Open with its options.
+  - 1074 pass, 0 fail, 48 files. These fixes change layouts that are new in 0.12.0, so Added covers them and the CHANGELOG gains no line.
+
 ## Pending the maintainer
 
 ### Checkpoints
@@ -266,11 +281,7 @@ Each is a `Pending maintainer:` line, or Task 29's deferred findings, still open
 - Whether a nested subagent's `turn.complete` can carry its parent's `turnId`. If it can, `forgetTurn` would drop the parent's start cost.
 
 **Give-way at narrow widths**
-- At 40–50 columns an amber cache shortens to `! 30s` and loses its price while a calm piece stays, in gauges, pulse and tiles.
-- Rings' cold cache loses its price with its long label.
-- Gauges' warming row two draws only ▿.
-- A cold cache with an amber limit at 40 columns would clip the amber in departures and ledger. No scenario holds that combination yet.
-- At bodyRows 1, every section is a bare title. An open view then can't say open-only amber (`gatewaySpend`'s `! spend 92%`).
+- On the desktop at 40–45 columns, pulse still shortens the last minute to `! 30s` beside `$2.41` and `No costs.`: those costs are the line's second row, so they stay (the ledger's ruling). The options are a two-row amber form on the desktop, or accepting the costs as the row's structure.
 
 **Words**
 - `EMPTY.costsShort` reads `No costs.`, where the plan wrote `No costs yet.`.
