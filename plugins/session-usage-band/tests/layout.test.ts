@@ -102,7 +102,7 @@ test('a 30-column band fits one row with cache and cost', LONG, async ($, on) =>
 })
 
 for (const cols of [60, 70, 84]) {
-  test(`a 5h pill amber from its pace fits one row at ${cols} columns and keeps its warning`, async ($, on) => {
+  test(`a 5h pill amber from its pace fits one row at ${cols} columns and keeps its warning`, LONG, async ($, on) => {
     const clock = setup(on)
     await pacing($, clock)
     await $.turn.start({ text: 'hi', turnId: 't1' })
@@ -118,7 +118,7 @@ for (const cols of [60, 70, 84]) {
     await ui.unmount()
   })
 
-  test(`an amber 5h pill fits beside an expiring cache at ${cols} columns`, async ($, on) => {
+  test(`an amber 5h pill fits beside an expiring cache at ${cols} columns`, LONG, async ($, on) => {
     const clock = setup(on, {
       usage: {
         ...USAGE,
@@ -144,7 +144,7 @@ for (const cols of [60, 70, 84]) {
 }
 
 for (const cols of [60, 70]) {
-  test(`four amber chips still fit ${cols} columns and keep the toggle`, async ($, on) => {
+  test(`four amber chips still fit ${cols} columns and keep the toggle`, LONG, async ($, on) => {
     const clock = setup(on, {
       usage: {
         ...USAGE,
