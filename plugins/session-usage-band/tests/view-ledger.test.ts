@@ -27,6 +27,22 @@ test('narrow, the resets give way first and the cache stays', async ($, on) => {
   expect(t).toMatch(/cache 1h 00m left/)
   expect(t).not.toMatch(/resets in/)
 })
+test('calm gives way in spec order: the reset words, the reset times, 7d, the context, the cost, then 5h', async ($, on) => {
+  // Each width sits inside its step's band, not at its edge.
+  const mounts = [120, 95, 86, 60, 40].map((cols): Mount => ({ surface: 'terminal', cols }))
+  const trees = await drawCases($, on, { layout: 'ledger', scenario: 'calm', appearance: 'dark', ttl: '1h' }, mounts)
+  const [whole, glyph, noResets, noSeven, cacheAndFive] = mounts.map(m => shown(trees[caseKey(m, 'shut')]))
+  expect(whole).toMatch(/5h 4%, resets in 3h 00m\s*·\s*7d 30%, resets in 2d 19h/)
+  expect(whole).not.toMatch(/↻/)
+  expect(glyph).toMatch(/5h 4%, ↻ in 3h 00m\s*·\s*7d 30%, ↻ in 2d 19h/)
+  expect(glyph).not.toMatch(/resets in/)
+  expect(noResets).toMatch(/7d 30%/)
+  expect(noResets).not.toMatch(/↻|resets in/)
+  expect(noSeven).toMatch(/context 38%\s*·\s*5h 4%/)
+  expect(noSeven).not.toMatch(/7d/)
+  expect(cacheAndFive).toMatch(/^cache 1h 00m left\s*·\s*5h 4%/)
+  expect(cacheAndFive).not.toMatch(/\$2\.41|context/)
+})
 test('at 40 columns amber still leads', LONG, async ($, on) => {
   expect(shown((await at($, on, 'lastMinute', { surface: 'terminal', cols: 40 }, '5m')).shut)).toMatch(/^! 30s/)
 })
