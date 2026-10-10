@@ -25,6 +25,10 @@ const message = async ($: Engine, id: string, from: number, to: number) => {
   usage.current = { ...usage.current, cost: { usd: to } }
   await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: id, reason: 'answer' })
 }
+/** Twenty messages, $0.20 each, the ledger from $2.41. */
+const twentyMessages = async ($: Engine) => {
+  for (let i = 0; i < 20; i++) await message($, `t${i}`, 2.41 + i * 0.2, 2.41 + (i + 1) * 0.2)
+}
 /** A calm 5h trail, 4% then 6% twenty minutes on, then twenty messages' costs. */
 const calmTrend = async ($: Engine, on: On) => {
   const clock = setup(on, { store: { layout: 'pulse' } })
@@ -35,7 +39,7 @@ const calmTrend = async ($: Engine, on: On) => {
     await $.session.measure({ context: u.context, rateLimits: u.rateLimits, cost: u.cost, changed: [] })
     await clock.advance(wait)
   }
-  for (let i = 0; i < 20; i++) await message($, `t${i}`, 2.41 + i * 0.2, 2.41 + (i + 1) * 0.2)
+  await twentyMessages($)
 }
 
 test('the cost bars sit beside their numbers', LONG, async ($, on) => {
@@ -95,6 +99,16 @@ test('calm gives way in spec order: context, 7d, the reset, bars 14 to 8, the tr
   expect(shortCosts.text).not.toMatch(/avg/)
   expect(noPace.text).toMatch(/5h 6%/)
   expect(noPace.text).not.toMatch(/on pace/)
+})
+test('an amber 5h trail stays past where a calm one gives way, until the amber step', LONG, async ($, on) => {
+  const clock = setup(on, { store: { layout: 'pulse' } })
+  await pacing($, clock)
+  await twentyMessages($)
+  // At 84 columns a calm trail has given way, as the give-way test's noBars shows.
+  const ui = await mountBand($, 'desktop', 84)
+  const trail = svgsOf(await ui.drawn()).find(n => /^5h usage over the last hour/.test(String(n.props?.alt)))
+  await ui.unmount()
+  expect(String(trail?.props?.source)).toMatch(/stroke-dasharray/)
 })
 test('open: the cache first, then spend, context and limits', async ($, on) => {
   const t = shown((await at($, on, 'fullHistory')).open)
