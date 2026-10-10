@@ -89,6 +89,8 @@ type EngineFake = {
   /** The session's id and model, as the engine names them. */
   sessionId: string
   model: string
+  /** When set, the engine can't say the session's id. */
+  sessionIdFails: boolean
   /** The session's transcript as Claude Code writes it; undefined when it isn't there. */
   transcript: string | undefined
   /** Its size on disk, when a test needs it larger than its text. */
@@ -100,6 +102,8 @@ type EngineFake = {
   /** When set, `grep -b` gives each match's byte offset, as ugrep does, not
    *  its line's. */
   grepMatchOffsets: boolean
+  /** The command whose output runs past what one read holds, if any. */
+  truncates: 'grep' | 'tail' | undefined
   /** Every path the plugin asked the file system about. */
   statted: string[]
   /** The plugin's own store, JSON in and out as the engine keeps it. */
@@ -125,11 +129,13 @@ const ENGINE_INITIAL: Readonly<EngineFake> = {
   hold: undefined,
   sessionId: 's1',
   model: 'claude-opus-5-5',
+  sessionIdFails: false,
   transcript: undefined,
   transcriptBytes: undefined,
   tailFails: false,
   grepFails: false,
   grepMatchOffsets: false,
+  truncates: undefined,
   statted: [],
   root: PROJECT,
   repoRoot: PROJECT,
@@ -173,7 +179,10 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
     return { value: undefined }
   })
   on('store.keys', () => ({ value: Object.keys(engine.store) }))
-  on('session.id', () => ({ value: engine.sessionId }))
+  on('session.id', () => {
+    if (engine.sessionIdFails) throw new Error('session id unavailable')
+    return { value: engine.sessionId }
+  })
   on('session.model', () => ({ value: engine.model }))
   on('fs.stat', ($, e) => {
     engine.statted.push(e.path)
@@ -199,9 +208,9 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
       // `-c N` is the last N bytes, `-c +N` everything from byte N on.
       const count = String(e.argv[2])
       const stdout = count.startsWith('+') ? engine.transcript.slice(Number(count.slice(1)) - 1) : engine.transcript.slice(-Number(count))
-      return { value: { ...quiet, exitCode: 0, stdout } }
+      return { value: { ...quiet, exitCode: 0, stdout, isStdoutTruncated: engine.truncates === 'tail' } }
     }
-    const { git, transcript, grepFails, grepMatchOffsets, hold } = engine
+    const { git, transcript, grepFails, grepMatchOffsets, truncates, hold } = engine
     if (hold !== undefined) await hold
     if (e.argv[0] === 'grep') {
       // `grep -b -F pattern path`: each line holding the pattern, after its byte offset.
@@ -214,7 +223,7 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
         if (line.includes(pattern)) found.push(`${grepMatchOffsets ? offset + line.indexOf(pattern) : offset}:${line}\n`)
         offset += line.length + 1
       }
-      return { value: { ...quiet, exitCode: found.length > 0 ? 0 : 1, stdout: found.join('') } }
+      return { value: { ...quiet, exitCode: found.length > 0 ? 0 : 1, stdout: found.join(''), isStdoutTruncated: truncates === 'grep' } }
     }
     if (git === 'fail') throw new Error('git: command not found')
     if (git === 'none') return { value: { ...quiet, exitCode: 128, stdout: '', stderr: 'fatal: not a git repository' } }

@@ -220,6 +220,30 @@ test('without grep, a transcript too big to read leaves the ledger as it is', as
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 50m/)
 })
 
+test('a grep whose output runs past one read leaves the ledger as it is', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.truncates = 'grep'
+  engine.transcript = TRANSCRIPT
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$0\.00/)
+})
+
+test('a tail past the record that runs past one read counts the record alone', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.truncates = 'tail'
+  engine.transcript = TRANSCRIPT
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.00/)
+  const tree = await mounted($, true)
+  expect(fact(tree, 'input')).toBe('1.4M')
+  expect(fact(tree, 'output')).toBe('100k')
+  expect(fact(tree, 'cache reads')).toBe('20.0M')
+})
+
 test('a /clear while the transcript is read leaves the new conversation alone', async ($, on) => {
   const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
   engine.transcript = TRANSCRIPT
@@ -291,6 +315,25 @@ test('a new session and a /clear read nothing and stay warming', async ($, on) =
   await clock.settle()
   expect(engine.ran.filter(argv => argv[0] === 'grep' || argv[0] === 'tail')).toEqual([])
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache warming/)
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$0\.00/)
+})
+
+test("a subagent's SessionStart reads nothing and leaves the conversation warming", async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = TRANSCRIPT
+  await $.session.start(START)
+  await $.classic.SessionStart({ source: 'resume', agent_id: 'a1', session_id: 's1', transcript_path: PATH })
+  await clock.settle()
+  expect(engine.ran.filter(argv => argv[0] === 'grep' || argv[0] === 'tail')).toEqual([])
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache warming/)
+})
+
+test('a SessionStart whose session the engine cannot name still lets the session start', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  await $.session.start(START)
+  engine.sessionIdFails = true
+  await $.classic.SessionStart({ source: 'resume', session_id: '' })
+  await clock.settle()
   expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$0\.00/)
 })
 
