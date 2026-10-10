@@ -342,6 +342,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
 /** Where the session is, as one line: the path, then git in words. */
 export const workspaceWords = (ws: Workspace | undefined): string | undefined =>
   ws === undefined ? undefined : ws.git === undefined ? ws.path : `${ws.path}, ${gitSummary(ws.git)}`
+
 /** What the history says: the costs' numbers, and each trail's trend for a reader. */
 export type HistoryWords = Readonly<{
   /** '$0.21' */
@@ -413,8 +414,7 @@ export type WeekWords = Readonly<{
 
 /** The cells known or guessed, each named, a guess said as about. */
 const cellsSpoken = <C extends DayCell | HourCell>(title: string, cells: readonly C[], name: (c: C) => string): string => {
-  // A guess's text is '~7%', said as 'about 7%'.
-  const said = cells.filter(c => c.pct !== undefined).map(c => `${name(c)} ${c.guess ? `about ${c.text.slice(1)}` : c.text}`)
+  const said = cells.flatMap(c => (c.pct === undefined ? [] : [`${name(c)} ${c.guess ? `about ${Math.round(c.pct)}%` : c.text}`]))
   return `${title}: ${said.length === 0 ? 'not known yet' : said.join(', ')}`
 }
 
