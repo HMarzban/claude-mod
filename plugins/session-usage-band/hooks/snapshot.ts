@@ -10,6 +10,12 @@ import type { Workspace } from './workspace'
  *  draws ambiguous-width glyphs two columns wide. */
 export type Glyphs = 'unicode' | 'ascii'
 
+/** Every layout the band can be drawn in. */
+export const LAYOUT_NAMES = ['chips', 'gauges', 'ledger', 'rings', 'pulse', 'tiles', 'week', 'departures', 'forecast'] as const
+export type LayoutName = (typeof LAYOUT_NAMES)[number]
+/** Chips, the band as it has always been, until the command chooses another. */
+export const DEFAULT_LAYOUT: LayoutName = 'chips'
+
 export type LimitReading = Readonly<{ percentUsed: number; resetsAt: string | undefined }>
 
 /** Everything the band shows, read by register.tsx. */
@@ -61,6 +67,8 @@ export type BandSnapshot = Readonly<{
   otherLimits: ReadonlyArray<LimitReading & { kind: string }>
   /** The project, home-relative, and git there; undefined until first read. */
   workspace: Workspace | undefined
+  /** The layout chosen with /usage-band layout. */
+  layout: LayoutName
   /** The glyph tier, resolved once per session. */
   glyphs: Glyphs
   /** The local zone's offset from UTC, in east-positive minutes; undefined

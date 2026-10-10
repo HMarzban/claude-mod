@@ -36,6 +36,7 @@ import { paceText } from '../words'
 import { toggleButton } from './frame'
 import { batteryIcon, pill, textBattery } from './parts'
 import type { PillSpec } from './parts'
+import type { View } from './view'
 
 // ---- limits ---------------------------------------------------------------
 
@@ -545,3 +546,5 @@ export const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderEle
     </Box>
   )
 }
+
+export const chipsView: View = { name: 'chips', rows: { desktop: 1, terminal: 1 }, draw: drawChips }

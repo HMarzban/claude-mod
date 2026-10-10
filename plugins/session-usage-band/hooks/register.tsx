@@ -51,7 +51,8 @@ import {
   rememberReply,
   transcriptPath,
 } from './memory'
-import type { Glyphs } from './snapshot'
+import { DEFAULT_LAYOUT } from './snapshot'
+import type { Glyphs, LayoutName } from './snapshot'
 import { GIT_DIRS_ARGV, GIT_STATUS_ARGV, homeRelative, parseGitState, splitPath } from './workspace'
 import type { Workspace } from './workspace'
 
@@ -82,6 +83,8 @@ const REPLY = {
  *  over with the module; session.start resets the rest. */
 const band: {
   palette: Readonly<Palette>
+  /** The layout the band draws in. */
+  layout: LayoutName
   /** The terminal's glyph tier, read from the environment at session.start. */
   glyphs: Glyphs
   /** Where auto-compaction runs, as the context breakdown last said; read
@@ -104,6 +107,7 @@ const band: {
   tick: Timer | undefined
 } = {
   palette: DARK,
+  layout: DEFAULT_LAYOUT,
   glyphs: 'unicode',
   compactAt: undefined,
   autoCompactOff: false,
@@ -228,6 +232,7 @@ export const register: Register = on => {
     resetInsights()
     band.warned.clear()
     band.lastPaintKey = ''
+    band.layout = DEFAULT_LAYOUT
     band.workspace = undefined
     band.utcOffsetMin = utcOffsetOf(await $.clock.now())
     band.reads++ // any read still out began before this load
@@ -431,6 +436,7 @@ export const register: Register = on => {
         isWorking: e.props.isWorking,
         expanded: await read($, isExpanded),
         palette: band.palette,
+        layout: band.layout,
         glyphs: band.glyphs,
         now,
         cache: cacheView(now, usage.cost?.usd, contextTokens),
