@@ -2,6 +2,7 @@
 // It never sees `$`, so everything it shows arrives in the snapshot.
 
 import type { ElementTable, RenderChildren, RenderElement } from 'claude-code'
+import { meter } from './charts'
 import {
   clamp01,
   fmtCost,
@@ -12,7 +13,6 @@ import {
   fmtTokens,
   severityMark,
 } from './format'
-import { meter } from './charts'
 import type { Icon } from './icons'
 import { makeKit } from './kit'
 import {

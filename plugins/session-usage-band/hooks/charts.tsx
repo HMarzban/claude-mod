@@ -11,14 +11,20 @@ import type { Tone } from './reading'
 /** One decimal: enough for an Svg coordinate, short enough to read. */
 const tenth = (n: number): number => Math.round(n * 10) / 10
 
-/** What a dashed mark means in every chart: a projection or a guess. */
-const DASH = 'stroke-dasharray="3 2"'
+/** A projection's dash, in every chart: where a mark is heading. */
+const PROJECTION_DASH = 'stroke-dasharray="3 2"'
+/** A guess's dash: a day cell whose value is yet to come. */
+const GUESS_DASH = 'stroke-dasharray="2 2"'
 
 /** The largest value, 0 for none: the top of a chart's scale. */
 const topOf = (values: ReadonlyArray<number | undefined>): number => Math.max(0, ...values.filter(v => v !== undefined))
 
 /** Text set inside Svg markup, escaped. */
 const svgText = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/** Marks wrapped in an Svg of this size, one unit to a pixel. */
+const svgOf = (width: number, height: number, marks: string): string =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${marks}</svg>`
 
 // ---- braille --------------------------------------------------------------
 
@@ -37,6 +43,16 @@ export const braille = (values: readonly number[], max: number): string => {
     out += String.fromCodePoint(0x2800 + bits)
   }
   return out
+}
+
+/** A line or bar chart in text: braille against its largest value. */
+const brailleText = (kit: Kit, key: string, values: readonly number[], color: string): RenderChildren => {
+  const { Text } = kit
+  return (
+    <Text key={key} color={color}>
+      {braille(values, topOf(values))}
+    </Text>
+  )
 }
 
 // ---- meter ----------------------------------------------------------------
@@ -81,7 +97,7 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
       `<rect x="${0.5 * k}" y="1.5" width="${width - k}" height="5" rx="${2.5 * k}" ry="2.5" fill="${palette.meterTrack}" stroke="${palette.trackStroke}"${scaling}/>` +
       (projectTo === undefined
         ? ''
-        : `<line class="projection" x1="${fillWidth}" y1="4" x2="${Math.round(clamp01(projectTo) * width)}" y2="4" stroke="${fill}" stroke-width="2" ${DASH}${scaling}/>`) +
+        : `<line class="projection" x1="${fillWidth}" y1="4" x2="${Math.round(clamp01(projectTo) * width)}" y2="4" stroke="${fill}" stroke-width="2" ${PROJECTION_DASH}${scaling}/>`) +
       (fillWidth > 0
         ? `<rect class="fill" y="1" width="${fillWidth}" height="6" rx="${3 * k}" ry="3" fill="${fill}"/>` +
           `<rect class="thumb" x="${Math.min(width - 2 * k, fillWidth - k)}" y="0" width="${2 * k}" height="${tall}" rx="${k}" ry="1" fill="${palette.value}"/>`
@@ -173,8 +189,7 @@ export const ring = (kit: Kit, o: RingOptions): RenderChildren => {
   if (centre !== undefined) {
     marks += `<text x="${mid}" y="${mid}" text-anchor="middle" dominant-baseline="central" font-family="system-ui, sans-serif" font-size="${Math.round(px * 0.28)}" fill="${palette.value}">${svgText(centre)}</text>`
   }
-  const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}" viewBox="0 0 ${px} ${px}">${marks}</svg>`
-  return <Svg key={key} source={source} alt={alt} width={px} height={px} />
+  return <Svg key={key} source={svgOf(px, px, marks)} alt={alt} width={px} height={px} />
 }
 
 // ---- sparkline ------------------------------------------------------------
@@ -197,16 +212,10 @@ const SPARK_AHEAD = 20
 
 /** A line over time, its newest point a dot. Text draws it in braille. */
 export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
-  const { Svg, Text } = kit
+  const { Svg } = kit
   const { key, alt, values, color, px, height, projectTo } = o
+  if (!Svg) return brailleText(kit, key, values, color)
   const top = topOf(values)
-  if (!Svg) {
-    return (
-      <Text key={key} color={color}>
-        {braille(values, top)}
-      </Text>
-    )
-  }
   const end = px - SPARK_DOT - (projectTo === undefined ? 0 : SPARK_AHEAD)
   const x = (i: number) => (values.length <= 1 ? end : tenth(SPARK_DOT + (i * (end - SPARK_DOT)) / (values.length - 1)))
   const y = (frac: number) => tenth(height - SPARK_DOT - clamp01(frac) * (height - 2 * SPARK_DOT))
@@ -219,12 +228,11 @@ export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   if (newest !== undefined) {
     const [nx, ny] = newest
     if (projectTo !== undefined) {
-      marks += `<line x1="${nx}" y1="${ny}" x2="${px - SPARK_DOT}" y2="${y(projectTo)}" stroke="${color}" stroke-width="1.6" stroke-linecap="round" ${DASH}/>`
+      marks += `<line x1="${nx}" y1="${ny}" x2="${px - SPARK_DOT}" y2="${y(projectTo)}" stroke="${color}" stroke-width="1.6" stroke-linecap="round" ${PROJECTION_DASH}/>`
     }
     marks += `<circle cx="${nx}" cy="${ny}" r="${SPARK_DOT}" fill="${color}"/>`
   }
-  const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${height}" viewBox="0 0 ${px} ${height}">${marks}</svg>`
-  return <Svg key={key} source={source} alt={alt} width={px} height={height} />
+  return <Svg key={key} source={svgOf(px, height, marks)} alt={alt} width={px} height={height} />
 }
 
 // ---- bar chart ------------------------------------------------------------
@@ -250,16 +258,10 @@ const CAP_ROOM = CAP_PX + 1
 
 /** A bar per value, oldest first. Text draws them in braille. */
 export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
-  const { Svg, Text } = kit
+  const { Svg } = kit
   const { key, alt, values, marked, color, markColor, newestColor, px, height } = o
+  if (!Svg) return brailleText(kit, key, values, color)
   const top = topOf(values)
-  if (!Svg) {
-    return (
-      <Text key={key} color={color}>
-        {braille(values, top)}
-      </Text>
-    )
-  }
   const room = height - CAP_ROOM
   const marks = values.map((v, i) => {
     const tall = top > 0 ? Math.max(1, Math.round((v / top) * room)) : 1
@@ -270,8 +272,7 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
     const bar = `<rect x="${x}" y="${y}" width="${BAR_PX}" height="${tall}" rx="1" fill="${ink}"/>`
     return isMarked ? `${bar}<rect class="cap" x="${x}" y="${y - CAP_ROOM}" width="${BAR_PX}" height="${CAP_PX}" rx="1" fill="${markColor}"/>` : bar
   })
-  const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${height}" viewBox="0 0 ${px} ${height}">${marks.join('')}</svg>`
-  return <Svg key={key} source={source} alt={alt} width={px} height={height} />
+  return <Svg key={key} source={svgOf(px, height, marks.join(''))} alt={alt} width={px} height={height} />
 }
 
 // ---- day cells ------------------------------------------------------------
@@ -325,7 +326,7 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
     const outline =
       i === today
         ? `<rect x="${x}" y="${DAY_EDGE}" width="${cellPx}" height="${height}" rx="3" fill="none" stroke="${palette.value}" stroke-width="2"/>`
-        : `<rect x="${x + 0.5}" y="${DAY_EDGE + 0.5}" width="${cellPx - 1}" height="${height - 1}" rx="3" fill="none" stroke="${palette.trackStroke}"${v === undefined || isGuess(i) ? ' stroke-dasharray="2 2"' : ''}/>`
+        : `<rect x="${x + 0.5}" y="${DAY_EDGE + 0.5}" width="${cellPx - 1}" height="${height - 1}" rx="3" fill="none" stroke="${palette.trackStroke}"${v === undefined || isGuess(i) ? ` ${GUESS_DASH}` : ''}/>`
     const label = labels?.[i]
     const caption =
       label === undefined
@@ -333,8 +334,7 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
         : `<text x="${x + cellPx / 2}" y="${tall - 1}" text-anchor="middle" font-family="system-ui, sans-serif" font-size="${LABEL_PX}" fill="${i === today ? palette.value : palette.label}">${svgText(label)}</text>`
     return filled + outline + caption
   })
-  const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${tall}" viewBox="0 0 ${width} ${tall}">${marks.join('')}</svg>`
-  return <Svg key={key} source={source} alt={alt} width={width} height={tall} />
+  return <Svg key={key} source={svgOf(width, tall, marks.join(''))} alt={alt} width={width} height={tall} />
 }
 
 // ---- underline ------------------------------------------------------------
@@ -362,10 +362,8 @@ export const underline = (kit: Kit, o: UnderlineOptions): RenderChildren => {
     reach === 0
       ? ''
       : dashed
-        ? `<line x1="0" y1="${mid}" x2="${reach}" y2="${mid}" stroke="${color}" stroke-width="2" ${DASH}/>`
+        ? `<line x1="0" y1="${mid}" x2="${reach}" y2="${mid}" stroke="${color}" stroke-width="2" ${PROJECTION_DASH}/>`
         : `<rect class="fill" width="${reach}" height="${UNDERLINE_PX}" rx="${mid}" fill="${color}"/>`
-  const source =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${UNDERLINE_PX}" viewBox="0 0 ${px} ${UNDERLINE_PX}">` +
-    `<rect width="${px}" height="${UNDERLINE_PX}" rx="${mid}" fill="${palette.meterTrack}"/>${filled}</svg>`
+  const source = svgOf(px, UNDERLINE_PX, `<rect width="${px}" height="${UNDERLINE_PX}" rx="${mid}" fill="${palette.meterTrack}"/>${filled}`)
   return <Svg key={key} source={source} alt={alt} width={px} height={UNDERLINE_PX} />
 }
