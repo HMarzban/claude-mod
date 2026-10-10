@@ -184,15 +184,17 @@ test('open where TIME can\'t fit whole beside REMARKS\' least, the board drops t
   const remarks = (open: unknown, row: string) => shown(byKey(byKey(byKey(open, 'body', 'Box'), row, 'Box'), 'remarks', 'Box'))
   expect(remarks(fits, 'cache')).not.toMatch(/IN 1H/)
   expect(remarks(narrow, 'cache')).toMatch(/^IN 1H 00 MIN · RE-WARM/)
-  expect(remarks(narrow, '5H')).toMatch(/^↻ \d{2}:\d{2} · 4% USED/)
+  expect(remarks(narrow, '5H')).toMatch(/^↻ ([A-Z]{3} )?\d{2}:\d{2} · 4% USED/)
 })
-test('in ascii, a narrow board\'s reset leads REMARKS with its noun, and a wide board\'s TIME holds a reset past today whole', LONG, async ($, on) => {
-  const narrow: Mount = { surface: 'terminal', cols: 67 }
-  const trees = await drawCases($, on, { layout: 'departures', scenario: 'calm', appearance: 'dark', ttl: '1h', env: { CC_BAND_GLYPHS: 'ascii' } }, [narrow, T160])
-  const cell = (m: Mount, row: string, column: string) => shown(byKey(byKey(byKey(trees[caseKey(m, 'open')], 'body', 'Box'), row, 'Box'), column, 'Box'))
-  expect(cell(narrow, '5H', 'remarks')).toMatch(/^RESET \d{2}:\d{2} - 4% USED/)
-  expect(cell(T160, '5H', 'time')).toMatch(/^RESET \d{2}:\d{2}$/)
-  expect(cell(T160, '7D', 'time')).toMatch(/^[A-Z]{3} \d{2}:\d{2}$/)
+test('in ascii, a narrow board\'s reset leads REMARKS with its noun, and a wide board\'s TIME holds a reset past today whole', () => {
+  // Drawn directly, the zone pinned, so the 5h reset 3h on falls today and the 7d one 67h on doesn't.
+  const cell = (columns: number, row: string, column: string) => {
+    const open = drawBand(fakeEl, snapOf({ layout: 'departures', columns, glyphs: 'ascii', expanded: true, utcOffsetMin: 0 }), NO_ACT)
+    return shown(byKey(byKey(byKey(open, 'body', 'Box'), row, 'Box'), column, 'Box'))
+  }
+  expect(cell(67, '5H', 'remarks')).toMatch(/^RESET \d{2}:\d{2} - 4% USED/)
+  expect(cell(160, '5H', 'time')).toMatch(/^RESET \d{2}:\d{2}$/)
+  expect(cell(160, '7D', 'time')).toMatch(/^[A-Z]{3} \d{2}:\d{2}$/)
 })
 test('open on a narrow board in the last minute, REMARKS leads with the seconds as TIME draws them', LONG, async ($, on) => {
   const open = (await at($, on, 'lastMinute', { surface: 'terminal', cols: 50 }, '5m')).open

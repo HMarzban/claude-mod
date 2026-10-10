@@ -4,9 +4,12 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On, RenderChildren, SessionUsage } from 'claude-code'
+import { drawBand } from '../hooks/band'
+import { DAY_MS, utcOffsetOf } from '../hooks/format'
 import { ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
-import { DEFAULT_MAX_ROWS, HOUR, HOUR_1, LONG, START, USAGE, byKey, mountBand, setup, shown, svgAlts, svgsOf, widthOf, type Node } from './helpers'
-import { caseKey, drawCases, expectInvariants, invariantErrors, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
+import type { Sample } from '../hooks/memory'
+import { DEFAULT_MAX_ROWS, HOUR, HOUR_1, LONG, MIN, START, USAGE, byKey, fakeEl, mountBand, setup, shown, svgAlts, svgsOf, widthOf, type Node } from './helpers'
+import { NO_ACT, caseKey, drawCases, expectInvariants, invariantErrors, snapOf, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
 
 viewSuite('week')
 
@@ -18,14 +21,26 @@ const at = async ($: Engine, on: On, scenario: ScenarioName, m: Mount = T160, tt
   return { shut: trees[caseKey(m, 'shut')], open: trees[caseKey(m, 'open')] }
 }
 
-/** A sample of the windows USAGE reports (5h resets at 3h, 7d at 67h), `hours` from now. */
-const sample = (hours: number, five: number, seven: number) => ({ at: hours * HOUR, fivePct: five, sevenPct: seven, fiveResetAt: 3 * HOUR, sevenResetAt: 67 * HOUR })
+/** The week below is laid out for a clock that reads 03:30. Which day each
+ *  sample lands on depends on the zone, and the kit's is the host's (the
+ *  ledger's Time zone), so the clock starts NOW, the first moment from 0 the
+ *  host reads 03:30, and every time in the week counts from it. */
+const NOW = (((((3 * 60 + 30) - (utcOffsetOf(0) ?? 0)) * MIN) % DAY_MS) + DAY_MS) % DAY_MS
+/** A sample of the windows USAGE reports (5h resets 3h on, 7d 67h on), `hours` from `now`. */
+const sampleFrom = (now: number) => (hours: number, five: number, seven: number): Sample =>
+  ({ at: now + hours * HOUR, fivePct: five, sevenPct: seven, fiveResetAt: now + 3 * HOUR, sevenResetAt: now + 67 * HOUR })
+const sample = sampleFrom(NOW)
 /** A week of samples: today is the fifth day, up 6 points, and the 5h window's first two hours are known. */
 const SAMPLES = [sample(-100, 0, 5), sample(-60, 0, 10), sample(-40, 0, 15), sample(-10, 0, 22), sample(-1.5, 1, 27), sample(-0.5, 3, 28)]
+/** A usage's resets, written as from 0, moved to count from NOW. */
+const fromNow = (u: SessionUsage): SessionUsage => ({
+  ...u,
+  rateLimits: u.rateLimits.map(l => (l.resetsAt === undefined ? l : { ...l, resetsAt: new Date(NOW + Date.parse(l.resetsAt)).toISOString() })),
+})
 type HistoryOptions = Readonly<{ env?: Record<string, string>; usage?: SessionUsage }>
 /** The band with that week stored, each mount drawn shut and open. */
 const withHistory = async ($: Engine, on: On, mounts: readonly Mount[], o: HistoryOptions = {}) => {
-  setup(on, { store: { layout: 'week', limitSamples: SAMPLES }, env: { ...HOUR_1, ...o.env }, usage: o.usage })
+  setup(on, { store: { layout: 'week', limitSamples: SAMPLES }, env: { ...HOUR_1, ...o.env }, usage: fromNow(o.usage ?? USAGE), now: NOW })
   await $.session.start(START)
   const trees: Record<string, Node> = {}
   for (const m of mounts) {
@@ -242,3 +257,56 @@ for (const scenario of ['calm', 'limit80', 'nearCompaction'] as const)
       expect(cellsOf(row as RenderChildren, TERMINAL)).toBeLessThanOrEqual(T40.cols - ROW_SLACK - 2)
     }
   })
+
+// The zone matrix: the week drawn straight from a snapshot at four zones, so
+// what holds on the host holds in each of them too.
+/** 12:00 UTC on a Thursday: another hour of the day in each zone. */
+const NOON = Date.UTC(2026, 9, 8, 12)
+const ZONES = [0, -420, 330, 840] as const
+/** The last local midnight at or before `now`, `utcOffsetMin` east of UTC. */
+const midnightBefore = (now: number, utcOffsetMin: number): number => now - ((((now + utcOffsetMin * MIN) % DAY_MS) + DAY_MS) % DAY_MS)
+/** The ascii terminal's week at `now`, the windows as USAGE reports them, shut and open. */
+const drawWeek = (now: number, utcOffsetMin: number, samples: readonly Sample[]) => {
+  const snap = (expanded: boolean) => snapOf({
+    layout: 'week', columns: 160, glyphs: 'ascii', now, utcOffsetMin, samples, expanded,
+    fiveHour: { percentUsed: 4, resetsAt: new Date(now + 3 * HOUR).toISOString(), etaMs: null },
+    sevenDay: { percentUsed: 30, resetsAt: new Date(now + 67 * HOUR).toISOString() },
+  })
+  return { shut: shown(drawBand(fakeEl, snap(false), NO_ACT)), open: drawBand(fakeEl, snap(true), NO_ACT) }
+}
+/** Open, a window's cells in words, one each. */
+const cellWords = (open: unknown, key: string): string[] => shown(byKey(byKey(open, key), 'cells')).split(/ {2,}/)
+/** Today's initial and date where it is `now`, `utcOffsetMin` east of UTC. */
+const todayAt = (now: number, utcOffsetMin: number) => {
+  const local = new Date(now + utcOffsetMin * MIN)
+  return { initial: 'SMTWTFS'[local.getUTCDay()], date: local.getUTCDate() }
+}
+for (const off of ZONES) {
+  test(`at UTC${off < 0 ? '' : '+'}${off / 60}, today is in brackets with its rise and the days ahead are guesses`, () => {
+    const now = NOON
+    const midnight = midnightBefore(now, off)
+    // One sample late yesterday and one early today, a quarter hour off the edges.
+    const since = (midnight - now) / HOUR
+    const at = sampleFrom(now)
+    const { shut, open } = drawWeek(now, off, [at(since - 2.25, 0, 22), at(since + 0.25, 1, 28)])
+    const { initial, date } = todayAt(now, off)
+    expect(shut).toContain(`[${initial} 6%]`)
+    const days = cellWords(open, '7d:cells')
+    const today = days.findIndex(c => c.startsWith('['))
+    expect(days.filter(c => c.startsWith('['))).toEqual([`[${initial} ${date} 6%]`])
+    expect(days.slice(today + 1).every(c => /~\d+%$/.test(c))).toBe(true)
+    expect(days.length - today).toBeGreaterThan(1)
+    expect(days.some(c => / 0%\]?$/.test(c))).toBe(false)
+    expect(cellWords(open, '5h:cells').filter(c => c.startsWith('['))).toHaveLength(1)
+  })
+  test(`at UTC${off < 0 ? '' : '+'}${off / 60}, a minute past midnight with no sample since, today is in brackets and unknown, never 0%`, () => {
+    const now = midnightBefore(NOON, off) + MIN
+    const at = sampleFrom(now)
+    // Yesterday is known, so the cells are drawn; today has no sample yet.
+    const { open } = drawWeek(now, off, [at(-26.25, 0, 15), at(-2.25, 0, 22)])
+    const { initial, date } = todayAt(now, off)
+    const days = cellWords(open, '7d:cells')
+    expect(days.filter(c => c.startsWith('['))).toEqual([`[${initial} ${date}]`])
+    expect(days.some(c => / 0%\]?$/.test(c))).toBe(false)
+  })
+}
