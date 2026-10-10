@@ -182,9 +182,6 @@ export const noteTtlSeen = (ttl: Ttl): void => {
  *  else the one assumed or inferred. */
 const effectiveTtl = (): Ttl => (state.ttlPinned ? state.ttl : (state.ttlSeen ?? state.ttl))
 
-/** The TTL is known, not assumed: pinned, or seen on a cache write. */
-const isTtlKnown = (): boolean => state.ttlPinned || state.ttlSeen !== undefined
-
 /** What the session has cost, to show: the ledger, or for a resumed
  *  conversation the larger of the ledger and its transcript's total, with
  *  the ledger's growth since the conversation's first turn on top. Never
@@ -271,7 +268,7 @@ export const recordResponse = (
     const shortfall = prefix - hit
     if (shortfall >= MISS_MIN_TOKENS && shortfall > prefix * MISS_MIN_SHARE) {
       // An assumed hour that read nothing after five idle minutes was five.
-      if (!isTtlKnown() && state.ttl === '1h' && hit === 0 && gap > TTL_MS['5m']) {
+      if (!state.ttlPinned && state.ttl === '1h' && hit === 0 && gap > TTL_MS['5m']) {
         state.ttl = '5m'
       } else {
         state.misses += 1
@@ -402,7 +399,8 @@ export const cacheView = (now: number, sessionCost: number | undefined, contextT
     requests: state.requests,
     msLeft: msLeft(now),
     ttl: effectiveTtl(),
-    ttlPinned: isTtlKnown(),
+    // Known, not assumed: pinned, or seen on the transcript's last cache write.
+    ttlPinned: state.ttlPinned || state.ttlSeen !== undefined,
     window: recalled ? contextTokens : state.window,
     hitRatio: hitRatio(),
     misses: state.misses,
