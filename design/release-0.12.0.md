@@ -1,6 +1,6 @@
 # Release 0.12.0: layouts
 
-Task 33, Steps 1 and 2, on `feat/layouts`: the production gate (spec §10) run item by item, the evidence, and the drafts for the PR and issue #1. The gate was first run at 0119b9a. Its evidence was run again at d3bbf73, after the cleanup and the final review's fixes; the docs commit after d3bbf73 changes no code. Nothing is pushed, tagged, released or posted; Step 3 waits on the maintainer's go-ahead.
+Task 33, Steps 1 and 2, on `feat/layouts`: the production gate (spec §10) run item by item, the evidence, and the drafts for the PR and issue #1. The gate was first run at 0119b9a. Its evidence was run again at d3bbf73, after the cleanup and the final review's fixes; the docs commits after d3bbf73 change no code. Nothing is pushed, tagged, released or posted; Step 3 waits on the maintainer's go-ahead.
 
 ## The production gate
 
@@ -14,7 +14,7 @@ Task 33, Steps 1 and 2, on `feat/layouts`: the production gate (spec §10) run i
 | golden chips matches | met | `golden-a` 21 pass, `golden-b` 20, `golden-hash` 3; `chips.ts` has its two ruled commits alone; golden keeps the 20 scenarios its capture froze |
 | every view suite is green, and with it the §2 contract | met | the eight `view-*.test.ts` files, 512 pass, each drawing all 21 scenarios |
 | contrast meets §2.10 in every palette | met | `design.test.ts`, 29 pass |
-| performance and memory within §9, with the numbers in the PR | met | every layout at most 0.98× chips; the soak's three tests pass |
+| performance and memory within §9, with the numbers in the PR | met | every layout at most 1.34× chips over four runs; the soak's three tests pass |
 | an independent reviewer read the whole branch, every Critical or Important finding fixed test first | met | Task 29: nine fixes, each RED→GREEN in the ledger |
 | a final quality pass leaves no dead code, debug output, TODOs, commented-out code, names off §4.3, comments out of house style or typos | met | Task 30, and its greps re-run at d3bbf73 (below) |
 | CHANGELOG `0.12.0`, under Added | met | with a Fixed line for 7aebb0a, a fix to chips (below) |
@@ -92,7 +92,7 @@ d69a9bf
 
 ### Performance
 
-Every layout against chips' median in the same run, the gate's at d3bbf73, 200 redraws per case after 20 warm-up redraws; the slowest is tiles, calm, desktop, open, at 0.98×, against a budget of 2×. The perf test's 28 tests also hold every layout within 400 nodes shut and 1,500 open, and with no store write while drawing.
+Every layout against chips' median in the same run, 200 redraws per case after 20 warm-up redraws, against a budget of 2×. The runs are noisy, so the hooks were measured four times: the gate's run at d3bbf73, the suite's run before it (on the same hooks but `boardTime`, which these cases don't reach), and `perf.test.ts` alone twice. The highest ratio of the four is 1.34×, rings, calm, terminal, shut, in the first `perf.test.ts` run, whose terminal cases all read high; the gate's run, below, peaks at 0.98×, tiles, calm, desktop, open. The perf test's 28 tests also hold every layout within 400 nodes shut and 1,500 open, and with no store write while drawing.
 
 | Layout | calm 200, terminal, shut | calm 200, terminal, open | calm 200, desktop, shut | calm 200, desktop, open | last minute 60, terminal, shut | last minute 60, terminal, open | last minute 60, desktop, shut | last minute 60, desktop, open |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -165,7 +165,7 @@ These Task 29 fixes change what users see in a layout that is new in 0.12.0, so 
 
 ### The rulings
 
-The ledger's Rulings section holds 162 `Ruling:` lines, each with its why and whether a fallback was taken, and its `Pending maintainer:` lines, those still open listed under Open design questions below. A reviewer meets these in the drawn band:
+The ledger's Rulings section holds 162 `Ruling` lines, each with its why and whether a fallback was taken, and its `Pending maintainer:` lines, those still open listed under Open design questions below. A reviewer meets these in the drawn band:
 - Golden was re-captured once, for 0.11.13's hover fix; with the fix's own marks taken out, all 10 kept trees are deep-equal to the first capture.
 - The ascii tier maps each glyph to one character at most, or drops it with its following space. A dropped `↻` where a phrase needs its noun reads `RESET` or `resets 16:40`, and on departures' board `RESET 06:30` (past today, `SAT 22:30`, which TIME's 14 cells hold).
 - Below 60 columns, only `lastMinute`, the stand-in for all-amber, may clip. A single amber reading must still fit at 40 and 50 columns, so several views give way past spec §6's steps. At 0119b9a they were gauges' `reWarm`, rings' `marks` and `calmFive`, pulse's `costWords`, `pace` and `calmFive`, departures' `cost` and `calmFive`, and week's `emptyText` and `cost`. Since then, gauges gains `cost` and `smallBars`, rings `amberRing`, pulse `cost`, tiles `calmFive` and `cacheWords`, ledger `cacheWords`, departures `brackets`, `coldSince` and `reWarm`, and forecast `coldPrice` (see Done).
@@ -385,18 +385,19 @@ default, and with no layout stored it draws exactly as before.
 
 - **Draw time.** Each layout's median draw against chips' in the same
   run, at 200 columns calm and at 60 in the last minute, on both
-  surfaces, shut and open. The budget is 2×.
+  surfaces, shut and open, over four runs; each layout's slowest case
+  of the four. The budget is 2×.
 
   | Layout | slowest case | ratio |
   | --- | --- | --- |
-  | gauges | calm, desktop, shut | 0.90× |
-  | ledger | calm, desktop, shut | 0.72× |
-  | rings | calm, terminal, open | 0.86× |
-  | pulse | calm, desktop, open | 0.70× |
-  | tiles | calm, desktop, open | 0.98× |
-  | week | calm, desktop, shut | 0.70× |
-  | departures | calm, desktop, open | 0.82× |
-  | forecast | calm, desktop, open | 0.77× |
+  | gauges | calm, terminal, open | 1.27× |
+  | ledger | calm, terminal, shut | 0.83× |
+  | rings | calm, terminal, shut | 1.34× |
+  | pulse | calm, terminal, shut | 1.20× |
+  | tiles | calm, terminal, open | 1.08× |
+  | week | calm, terminal, shut | 1.02× |
+  | departures | calm, terminal, open | 1.11× |
+  | forecast | calm, terminal, open | 0.99× |
 
 - **Chips** reads 0.359 ms calm, desktop, shut (P0: 0.358 ms), and
   0.448 ms on the terminal (P0: 0.349 ms; 0.361 ms in the run before).
@@ -439,8 +440,8 @@ As the spec asked:
   same everywhere.
 - **Amber stays.** In every scenario the suite draws, a single amber
   reading keeps its words at 40 columns.
-- **Within budget.** No layout draws slower than 0.98× chips (the budget
-  is 2×). Each stays within 400 nodes shut and 1,500 open.
+- **Within budget.** Over four runs, no layout drew slower than 1.34×
+  chips (the budget is 2×). Each stays within 400 nodes shut and 1,500 open.
 - **The terminal.** Charts are braille, with an ASCII tier
   (`CC_BAND_GLYPHS=ascii`, and by itself in a CJK locale).
 - **Chips unchanged.** With no layout stored, chips draws exactly as it
