@@ -169,6 +169,9 @@ export const amberSay = <P extends string>(amber: Amber, keeps: Keeps<P>): Say =
 export const amberWords = <P extends string>(kit: Kit, key: string, amber: Amber, keeps: Keeps<P>): RenderElement =>
   words(kit, key, amberSay(amber, keeps))
 
+/** Whether any item needs you, so `amberFirst` leads with one. */
+export const anyAmber = (items: readonly Readonly<{ amber: Amber | undefined }>[]): boolean => items.some(i => i.amber !== undefined)
+
 /** What needs you first: the amber items, then the calm, each in its order. */
 export const amberFirst = <T extends Readonly<{ amber: Amber | undefined }>>(items: readonly T[]): T[] => [
   ...items.filter(i => i.amber !== undefined),
@@ -234,15 +237,16 @@ export const fact = (kit: Kit, key: string, label: string, value: string | undef
   value === undefined ? null : words(kit, key, [[`${label} `, 'label'], [value, 'value']])
 
 /** A titled column: its title, then as many of its rows as `room` holds.
- *  With no room under the title, its first row takes the title's place, so
- *  a body of one row still says what leads each section. */
-export const section = (kit: Kit, key: string, title: string, rows: readonly RenderChildren[], room: number): RenderElement => {
+ *  With no room under the title, a first row that is amber (`amberLeads`)
+ *  takes the title's place, so a body of one row still says what needs you. */
+export const section = (kit: Kit, key: string, title: string, rows: readonly RenderChildren[], room: number, amberLeads = false): RenderElement => {
   const { Box } = kit
   const drawn = rows.filter(isDrawn)
+  const lifted = amberLeads && room <= 0 && drawn.length > 0
   return (
     <Box key={key} flexDirection="column" flexGrow={1} width={0} minWidth={0}>
-      {room > 0 || drawn.length === 0 ? words(kit, 'title', [[title, 'label']], true) : null}
-      {drawn.slice(0, Math.max(1, room))}
+      {lifted ? null : words(kit, 'title', [[title, 'label']], true)}
+      {drawn.slice(0, lifted ? 1 : Math.max(0, room))}
     </Box>
   )
 }

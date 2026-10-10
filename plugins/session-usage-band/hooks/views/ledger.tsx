@@ -7,7 +7,7 @@ import type { LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber } from '../words'
 import { toggleButton, type Strip } from './frame'
-import { amberWords, emptyWords, fitLine, grid, gridRoom, limitSentence, line, lineRoom, section, separatedBy, words, type Keeps, type SentenceStyle } from './parts'
+import { amberWords, anyAmber, emptyWords, fitLine, grid, gridRoom, limitSentence, line, lineRoom, section, separatedBy, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last; `cacheWords` is the
@@ -86,7 +86,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       ...read.limits.filter(l => l.amber !== undefined).map(l => limitSentence(kit, l, SENTENCE)),
       read.worstLimit === undefined || read.worstLimit.amber !== undefined ? null : sentence('closest', `closest is ${read.worstLimit.text}`),
       ...read.limits.filter(l => l.amber === undefined).map(l => limitSentence(kit, l, SENTENCE)),
-    ], room),
+    ], room, anyAmber(read.limits)),
   ], bodyRows)
 }
 

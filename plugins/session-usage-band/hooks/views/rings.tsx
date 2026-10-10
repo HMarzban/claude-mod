@@ -9,7 +9,7 @@ import type { CacheReading, ContextReading, LimitView, Readings, Tone } from '..
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberFirst, amberSay, chartsIfRoom, emptyWords, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, section, words, type Keeps, type SentenceStyle } from './parts'
+import { accentOf, amberFirst, amberSay, anyAmber, chartsIfRoom, emptyWords, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, section, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last; `marks`, `calmFive`
@@ -167,7 +167,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     // What needs you leads, so a panel short of rows keeps it.
     section(kit, 'limits', 'LIMITS', read.limits.length === 0 ? [emptyWords(kit, 'none', EMPTY.limits)] : chartsIfRoom(room, [limitRings], [
       ...amberFirst(read.limits).map(l => limitSentence(kit, l, SENTENCE)),
-    ], ringRows), room),
+    ], ringRows), room, anyAmber(read.limits)),
   ], bodyRows)
 }
 

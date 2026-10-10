@@ -10,7 +10,7 @@ import type { ContextReading, LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber, type Say, type SpendSplit } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberFirst, amberSay, chartsIfRoom, emptyWords, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
+import { accentOf, amberFirst, amberSay, anyAmber, chartsIfRoom, emptyWords, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
 /** What gives way as each row narrows, first to last; `reWarm`, `cost` and
@@ -191,7 +191,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       room,
       limits.map(l => bar(`${l.name}:bar`, l.name, l.frac, accentOf(kit, l), { tone: l.tone, tick: l.gone, projectTo: l.projectedFrac })),
       limits.map(l => limitSentence(kit, l, SENTENCE)),
-    ), room),
+    ), room, anyAmber(limits)),
   ], bodyRows)
 }
 

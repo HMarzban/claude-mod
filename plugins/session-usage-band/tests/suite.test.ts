@@ -6,9 +6,9 @@ import type { LayoutName } from '../hooks/snapshot'
 import { SCENARIO_NAMES, suiteCases, type Surface } from './matrix'
 
 const cases = suiteCases('ledger')
-test('37 cases, named apart', () => {
-  expect(cases).toHaveLength(37)
-  expect(new Set(cases.map(c => c.name)).size).toBe(37)
+test('38 cases, named apart', () => {
+  expect(cases).toHaveLength(38)
+  expect(new Set(cases.map(c => c.name)).size).toBe(38)
 })
 test('every scenario is drawn, on both surfaces', () => {
   for (const s of SCENARIO_NAMES) expect(cases.some(c => c.options.scenario === s && c.mounts.some(m => m.surface === 'terminal') && c.mounts.some(m => m.surface === 'desktop'))).toBe(true)

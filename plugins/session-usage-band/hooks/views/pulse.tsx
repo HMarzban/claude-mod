@@ -10,7 +10,7 @@ import type { HistoryReading, LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Say } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberFirst, amberSay, beforeLast, chartsIfRoom, emptySay, emptyWords, fact, fitLine, grid, gridRoom, layoutCachePill, limitSentence, line, lineRoom, once, section, sectionCells, words, type SentenceStyle } from './parts'
+import { accentOf, amberFirst, amberSay, anyAmber, beforeLast, chartsIfRoom, emptySay, emptyWords, fact, fitLine, grid, gridRoom, layoutCachePill, limitSentence, line, lineRoom, once, section, sectionCells, words, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last; `costWords`, `pace`,
@@ -191,7 +191,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       charts && f !== undefined && hist.fiveHourWindow.length > 1 ? fiveHourTrail(kit, f, hist.fiveHourWindow, hist.fiveHourWindowAlt, OPEN_TRAIL_PX, OPEN_CHART_PX, true, cells) : null,
     ], [
       ...amberFirst(read.limits).map(l => limitSentence(kit, l, SENTENCE)),
-    ], chartRows), room),
+    ], chartRows), room, anyAmber(read.limits)),
   ], bodyRows)
 }
 

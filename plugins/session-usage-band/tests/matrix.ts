@@ -218,6 +218,11 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   }
   if (!(ascii ? ASCII_TIER : UNICODE_TIER).test(text)) fail('glyphs', 'a glyph outside the tier')
 
+  // Open, a body short of rows keeps a calm section's title, so an empty
+  // state is never said without its section's name.
+  const body = (tree.children ?? []).slice(1).map(shown).join('')
+  if (ctx.expanded && /(?<!(context|limits)\W*)(not|none) reported/i.test(body)) fail('emptyState', 'an empty state without its section\'s name')
+
   if (nodes > (ctx.expanded ? 1500 : 400)) fail('size', `${nodes} nodes`)
   if (ctx.expanded) {
     const tall = visualRows(tree, ctx.surface)
@@ -244,10 +249,10 @@ const rowsForBody = (layout: LayoutName, surface: Surface, bodyRows: number): nu
 const LONG_WALKS: ReadonlySet<ScenarioName> = new Set(['lastMinute', 'cold', 'coldLimit80'])
 const ttlOf = (scenario: ScenarioName): Ttl => (LONG_WALKS.has(scenario) ? '5m' : '1h')
 
-/** The suite's 37 cases, one setup each: every scenario at 120 columns; calm
+/** The suite's 38 cases, one setup each: every scenario at 120 columns; calm
  *  and the last minute in light, plain and the ascii tier, and at every
- *  width; the other amber scenarios narrow; calm and the open-only amber
- *  short of rows. */
+ *  width; the other amber scenarios narrow; calm, the open-only amber and
+ *  the empty states short of rows. */
 export const suiteCases = (layout: LayoutName): SuiteCase[] => {
   const optionsOf = (scenario: ScenarioName, appearance: Appearance = 'dark', env?: Record<string, string>): CaseOptions =>
     ({ layout, scenario, appearance, ttl: ttlOf(scenario), env })
@@ -277,6 +282,13 @@ export const suiteCases = (layout: LayoutName): SuiteCase[] => {
       options: optionsOf('gatewaySpend'),
       mounts: [80, 120].flatMap(cols => (['terminal', 'desktop'] as const).flatMap(surface =>
         [...new Set([rowsForBody(layout, surface, 1), rowsForBody(layout, surface, 2), 7, 8, 10])].map((maxRows): Mount => ({ surface, cols, maxRows })))),
+    },
+    // The empty states from a body of one row, where each title stays alone,
+    // and of two, which says each under its title.
+    {
+      name: `${layout}: warming, short of rows`,
+      options: optionsOf('warming'),
+      mounts: (['terminal', 'desktop'] as const).flatMap(surface => [1, 2].map((bodyRows): Mount => ({ surface, cols: 120, maxRows: rowsForBody(layout, surface, bodyRows) }))),
     },
   ]
 }

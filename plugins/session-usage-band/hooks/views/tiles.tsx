@@ -9,7 +9,7 @@ import type { CacheReading, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber, type Role, type Say } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberFirst, amberWords, beforeLast, emptySay, emptyWords, fitLine, grid, gridRoom, line, lineRoom, section, words, type Keeps } from './parts'
+import { accentOf, amberFirst, amberWords, anyAmber, beforeLast, emptySay, emptyWords, fitLine, grid, gridRoom, line, lineRoom, section, words, type Keeps } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last. Amber never does.
@@ -162,8 +162,10 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     const said: Say = amber !== undefined ? [[amber.long, 'amber'], ...keeps] : typeof label === 'string' ? [[label, 'label']] : label
     return stack(kit, key, valueOf(kit, value, amber), words(kit, 'l', said), barred ? bar : null)
   }
-  const group = (key: string, title: string, rows: readonly RenderChildren[], headline: Say): RenderElement =>
-    section(kit, key, title, pairs > 0 ? rows : [words(kit, 'head', headline)], pairs > 0 ? pairs : room)
+  /** A group of pairs, or short of a pair its headline, which takes the
+   *  title's place in a body of one row while it is amber (`amberLeads`). */
+  const group = (key: string, title: string, rows: readonly RenderChildren[], headline: Say, amberLeads = false): RenderElement =>
+    section(kit, key, title, pairs > 0 ? rows : [words(kit, 'head', headline)], pairs > 0 ? pairs : room, amberLeads)
   /** A group with nothing known: its empty words, in a line either way. */
   const emptyGroup = (key: string, title: string, text: string): RenderElement => group(key, title, [emptyWords(kit, 'none', text)], emptySay(text))
   return grid(kit, [
@@ -173,7 +175,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
         tile('reWarm', c.known ? c.estimate : undefined, c.condition === 'cold' ? 'next message' : 're-warm if cold'),
       ]),
       pair(kit, 'b', [tile('saved', c.savedText, 'saved'), tile('hit', c.hitText, 'hit rate')]),
-    ], [headOf(c.text, c.amber)]),
+    ], [headOf(c.text, c.amber)], c.amber !== undefined),
     group('spend', 'SPEND', [
       pair(kit, 'a', [tile('total', s.totalText, 'this session'), tile('last', s.lastText, 'last message')]),
       pair(kit, 'b', [tile('tokens', s.tokensText, 'tokens'), tile('reads', s.split.find(part => part.label === 'cache reads')?.text, 'cache reads')]),
@@ -184,7 +186,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
         tile('in', x.inContextText, 'in context'),
       ]),
       pair(kit, 'b', [tile('room', x.roomText, 'room left'), tile('window', x.windowText, 'window')]),
-    ], [headOf(x.text, x.amber)]),
+    ], [headOf(x.text, x.amber)], x.amber !== undefined),
     limits.length === 0 ? emptyGroup('limits', 'LIMITS', EMPTY.limits) : group('limits', 'LIMITS', limits.map(l => {
       // The landing's dashed underline, drawn where the landing has a figure.
       const landingBar = l.projectedAlt === undefined || l.projectedFrac === undefined ? null : barOf(kit, l.projectedAlt, l.projectedFrac, accentOf(kit, l), undefined, true)
@@ -197,7 +199,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
             // unless the reason is a measured fill, which says it.
             tile('then', l.fullIn === undefined && l.pace !== '' ? l.pace : undefined, `${l.name} at this pace`),
       ])
-    }), limits.flatMap((l, i): Say => (i === 0 ? [headOf(l.text, l.amber)] : [[' · ', 'label'], headOf(l.text, l.amber)]))),
+    }), limits.flatMap((l, i): Say => (i === 0 ? [headOf(l.text, l.amber)] : [[' · ', 'label'], headOf(l.text, l.amber)])), anyAmber(limits)),
   ], bodyRows)
 }
 
