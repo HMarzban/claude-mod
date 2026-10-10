@@ -400,14 +400,19 @@ export const hitRatio = (): number | null => {
   return total > 0 ? read / total : null
 }
 
+/** When a measured cache goes or went cold: a lifetime after the last reply
+ *  this band saw; none before one. */
+const measuredColdAt = (): number | null => (state.requests > 0 ? state.lastAt + TTL_MS[effectiveTtl()] : null)
+
 /** The cache's time left: from the last reply this band saw, else the one
  *  it recalls, none if the engine called it expired; a full lifetime before
  *  either. */
 export const msLeft = (now: number): number => {
   if (isRecalled() && state.resumedCache?.expired === true) return 0
-  const from = state.requests > 0 ? state.lastAt : isRecalled() ? recalledAt() : undefined
   const ttlMs = TTL_MS[effectiveTtl()]
-  return from === undefined ? ttlMs : Math.max(0, from + ttlMs - now)
+  const recalled = isRecalled() ? recalledAt() : undefined
+  const coldAt = measuredColdAt() ?? (recalled === undefined ? null : recalled + ttlMs)
+  return coldAt === null ? ttlMs : Math.max(0, coldAt - now)
 }
 
 /** The cache as the band shows it, at `now`: measured once a reply has been
@@ -432,7 +437,7 @@ export const cacheView = (now: number, sessionCost: number | undefined, contextT
     reWarmUsd: recalled ? recalledPrice : reWarmUsd(sessionCost),
     recalled,
     idleMs: recalled && lastAt !== undefined ? now - lastAt : null,
-    coldAt: state.requests > 0 ? state.lastAt + TTL_MS[effectiveTtl()] : null,
+    coldAt: measuredColdAt(),
     savedUsd: savedUsd(sessionCost),
     readShare: readShare(),
     fresh: state.knownFresh,
