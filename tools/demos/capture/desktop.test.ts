@@ -1,9 +1,13 @@
 // Demo capture, not a test: the band's real desktop output, for the film (every
-// minute of the hour, then the last minute in seconds) and the site's live band.
+// minute of the hour, then the last minute in seconds), the site's live band,
+// its states and the layouts gallery.
 // tools/demos/build.sh copies this into the plugin's tests/ only while it runs.
 import { test, expect } from 'claude-code/testing'
-import type { Engine, On } from 'claude-code/testing'
-import { MIN, START, breakdown, mountBand, resp, respond, setup, usage, FRESH, HOUR_1 } from './helpers'
+import type { Engine } from 'claude-code/testing'
+import type { On } from 'claude-code'
+import { LAYOUT_NAMES, type LayoutName } from '../hooks/snapshot'
+import { caseKey, drawCases, type Mount, type ScenarioName, type Ttl } from './cases'
+import { LONG, MIN, START, breakdown, mountBand, resp, respond, setup, usage, FRESH, HOUR_1 } from './helpers'
 
 const LIMITS = [
   { kind: 'five_hour' as const, percentUsed: 55, resetsAt: new Date(3 * 60 * MIN).toISOString() },
@@ -90,3 +94,20 @@ test('capture: near compaction', async ($, on) => state($, on, 'compact', { toke
 test('capture: fast pace', async ($, on) => state($, on, 'pace', { pace: true }))
 test('capture: weekly limit', async ($, on) => state($, on, 'week', { week: 83 }))
 test('capture: everything at once', async ($, on) => state($, on, 'all', { tokens: 880_000, threshold: 957_000, pace: true, week: 83 }))
+
+// ---- every layout, calm and in the cache's last minute, for the layouts gallery ----
+
+const DEMO: Mount = { surface: 'desktop', cols: 94, maxRows: 13 }
+
+/** One layout in one of the suite's scenarios, drawn collapsed and open. */
+async function layoutState($: Engine, on: On, name: string, layout: LayoutName, scenario: ScenarioName, ttl: Ttl) {
+  const trees = await drawCases($, on, { layout, scenario, appearance: 'dark', ttl }, [DEMO])
+  console.log('STATE ' + name + ' ' + JSON.stringify(trees[caseKey(DEMO, 'shut')]))
+  console.log('STATE ' + name + 'Open ' + JSON.stringify(trees[caseKey(DEMO, 'open')]))
+  expect(1).toBe(1)
+}
+
+for (const layout of LAYOUT_NAMES) {
+  test(`capture: the ${layout} layout`, async ($, on) => layoutState($, on, `layout-${layout}`, layout, 'calm', '1h'))
+  test(`capture: the ${layout} layout, amber`, LONG, async ($, on) => layoutState($, on, `layout-${layout}-amber`, layout, 'lastMinute', '5m'))
+}
