@@ -10,12 +10,12 @@ import type { ContextReading, LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber, type Say, type SpendSplit } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberFirst, amberSay, beforeLast, chartsIfRoom, emptyWords, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
+import { accentOf, amberFirst, amberSay, anyAmber, chartsIfRoom, emptyWords, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
-/** What gives way as each row narrows, first to last; `reWarm` is the
- *  narrow-width ruling's. Amber never does. */
-const ORDER = ['tokens', 'resetTexts', 'costRight', 'bars', 'calmCells', 'reWarm'] as const
+/** What gives way as each row narrows, first to last; `reWarm`, `cost` and
+ *  `smallBars` are the narrow-width ruling's. Amber's words never do. */
+const ORDER = ['tokens', 'resetTexts', 'costRight', 'bars', 'calmCells', 'reWarm', 'cost', 'smallBars'] as const
 type Piece = (typeof ORDER)[number]
 
 const CACHE_BAR: BarSize = { px: 240, cells: 24 }
@@ -35,7 +35,8 @@ const twoSizes = (full: BarSize, make: (size: BarSize) => RenderChildren): ((isF
 
 /** Row one: the cache's name, its time-left bar once its timing is known, and
  *  its sentence, calm or amber, with the cost and the tokens on the right
- *  until the cost joins it. */
+ *  until the cost joins it. The cost is the last of its words to give way,
+ *  then the bar, so an amber reason shortens only once both have gone. */
 const cacheRow = (kit: Kit, read: Readings): RenderElement => {
   const c = read.cache
   const s = read.spend
@@ -50,24 +51,33 @@ const cacheRow = (kit: Kit, read: Readings): RenderElement => {
     priced: words(kit, 'say', priced),
     pricedCost: words(kit, 'say', withCost(priced)),
     valueCost: words(kit, 'say', withCost(value)),
+    value: words(kit, 'say', value),
   }
   const cost = words(kit, 'cost', [[s.totalText, 'value']])
   const costTokens = words(kit, 'cost', [[s.totalText, 'value'], [' · ', 'label'], [s.tokensText, 'value'], [' tokens', 'label']])
+  /** The calm sentence once the cost has joined it: the re-warm words go,
+   *  then the cost; cold, the cost goes first, since a cold cache is a price. */
+  const calmJoined = (keeps: Keeps<Piece>): RenderElement =>
+    keeps.has('reWarm')
+      ? sentence.pricedCost
+      : c.condition === 'cold'
+        ? sentence.priced
+        : keeps.has('cost')
+          ? sentence.valueCost
+          : sentence.value
   return fitLine(kit, ORDER, lineRoom(kit), keeps => {
     const onRight = keeps.has('costRight')
     const reason = c.amber === undefined ? undefined : amberSay(c.amber, keeps)
     const said =
       reason !== undefined
-        ? words(kit, 'say', onRight ? reason : withCost(reason))
+        ? words(kit, 'say', onRight || !keeps.has('cost') ? reason : withCost(reason))
         : onRight
           ? sentence.priced
-          : keeps.has('reWarm')
-            ? sentence.pricedCost
-            : sentence.valueCost
+          : calmJoined(keeps)
     return line(
       kit,
       'cache',
-      [name, c.known && (reason === undefined || beforeLast(keeps)) ? bar(keeps.has('bars')) : null, said],
+      [name, c.known && keeps.has('smallBars') ? bar(keeps.has('bars')) : null, said],
       onRight ? (keeps.has('tokens') ? costTokens : cost) : null,
       1,
     )
@@ -91,8 +101,9 @@ const contextCell = (kit: Kit, x: ContextReading): Cell => {
     key: 'ctx',
     amber: x.amber,
     name: words(kit, 'name', [['context', 'label']]),
-    // Measured toward compaction when it is on, so its end is that point: no tick.
-    bar: twoSizes(CELL_BAR, size => meter(kit, { key: 'bar', label: 'context', frac: x.frac, tone: x.tone, accent: kit.palette.meterFill, size })),
+    // Measured toward compaction when it is on, so its end is that point: no
+    // tick. Unreported, it has no bar, as the unmeasured cache has none.
+    bar: !x.known ? () => null : twoSizes(CELL_BAR, size => meter(kit, { key: 'bar', label: 'context', frac: x.frac, tone: x.tone, accent: kit.palette.meterFill, size })),
     value: () => value,
     text: words(kit, 'text', x.say),
   }
@@ -113,13 +124,13 @@ const limitCell = (kit: Kit, l: LimitView): Cell => {
   }
 }
 
-/** A cell at a squeeze: amber, its bar and its reason; calm, its name, bar
- *  and value, or its words alone. */
+/** A cell at a squeeze: amber, its bar until `smallBars` and its reason;
+ *  calm, its name, bar and value, or its words alone. */
 const drawCell = (kit: Kit, cell: Cell, keeps: Keeps<Piece>): RenderElement => {
   const { Box } = kit
   const pieces =
     cell.amber !== undefined
-      ? [beforeLast(keeps) ? cell.bar(keeps.has('bars')) : null, words(kit, 'amber', amberSay(cell.amber, keeps))]
+      ? [keeps.has('smallBars') ? cell.bar(keeps.has('bars')) : null, words(kit, 'amber', amberSay(cell.amber, keeps))]
       : keeps.has('calmCells')
         ? [cell.name, cell.bar(keeps.has('bars')), cell.value(keeps)]
         : [cell.text]
@@ -133,12 +144,10 @@ const drawCell = (kit: Kit, cell: Cell, keeps: Keeps<Piece>): RenderElement => {
 /** Row two: the context, 5h and 7d cells, then the toggle. */
 const cellsRow = (kit: Kit, read: Readings, act: BandActions): RenderElement => {
   const toggle = toggleButton(kit, read, act)
-  // Unreported, the context says nothing collapsed; open, its panel says so.
-  const cells = [
-    read.context.known ? contextCell(kit, read.context) : undefined,
-    read.fiveHour === undefined ? undefined : limitCell(kit, read.fiveHour),
-    read.sevenDay === undefined ? undefined : limitCell(kit, read.sevenDay),
-  ].filter((cell): cell is Cell => cell !== undefined)
+  const limits = [read.fiveHour, read.sevenDay].filter((l): l is LimitView => l !== undefined).map(l => limitCell(kit, l))
+  // Unreported, the context says nothing collapsed, and open its panel says
+  // so; with no limit beside it, it says `context –`, so the row isn't empty.
+  const cells = read.context.known || limits.length === 0 ? [contextCell(kit, read.context), ...limits] : limits
   return fitLine(kit, ORDER, lineRoom(kit), keeps => line(kit, 'cells', cells.map(cell => drawCell(kit, cell, keeps)), toggle))
 }
 
@@ -182,7 +191,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       room,
       limits.map(l => bar(`${l.name}:bar`, l.name, l.frac, accentOf(kit, l), { tone: l.tone, tick: l.gone, projectTo: l.projectedFrac })),
       limits.map(l => limitSentence(kit, l, SENTENCE)),
-    ), room),
+    ), room, anyAmber(limits)),
   ], bodyRows)
 }
 

@@ -52,6 +52,15 @@ test('a passed window says reset on the line, and its big ring draws no figure',
 test('open, a share\'s bar says its share, neither used nor left', async ($, on) => {
   expect(svgAlts((await at($, on, 'calm', D160)).open).filter(alt => /^(hit rate|input|output|cache reads) /.test(alt))).toEqual(['input 94%', 'output 6%', 'cache reads 0%'])
 })
+test('a cold cache keeps its price once the labels shorten', LONG, async ($, on) => {
+  const mounts = [{ surface: 'terminal', cols: 40 }, { surface: 'terminal', cols: 80 }, { surface: 'desktop', cols: 80 }] as const
+  const trees = await drawCases($, on, { layout: 'rings', scenario: 'cold', appearance: 'dark', ttl: '5m' }, mounts)
+  for (const m of mounts) expect(`${m.surface} ${m.cols}: ${shown(byKey(trees[caseKey(m, 'shut')], 'cache', 'Box'))}`).toMatch(/: [░]*cold~\$[\d.]+$/)
+})
+test('at 45 columns the last minute\'s meter goes before its reason shortens', LONG, async ($, on) => {
+  const m: Mount = { surface: 'terminal', cols: 45 }
+  expect(shown(byKey((await at($, on, 'lastMinute', m, '5m')).shut, 'line', 'Box'))).toMatch(/^30s! 30s left · re-warm ~\$[\d.]+$/)
+})
 test('open, the limits panel shows the 7d ring beside the 5h', async ($, on) => {
   expect(ringAlts(byKey((await at($, on, 'calm', D160)).open, 'rings'))).toEqual(['5h', '7d'])
 })

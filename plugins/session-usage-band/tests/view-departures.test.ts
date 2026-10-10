@@ -198,6 +198,7 @@ for (const appearance of ['dark', 'plain'] as const)
     ['nearCompaction', '1h', /! ctx \d+%$/],
     ['fiveHourAhead', '1h', /! 5h ~1h$/],
     ['lastMinute', '5m', /LAST CALL\s*30s$/],
+    ['coldLimit80', '5m', /! 5h 82%$/],
   ] as const)
     test(`${appearance} at 40 columns, ${scenario} keeps its amber whole within the line's room`, LONG, async ($, on) => {
       const line = byKey((await at($, on, scenario, T40, ttl, appearance)).shut, 'line', 'Box')
@@ -243,6 +244,11 @@ test('open, a 1M window\'s ! COMPACTS IN ~100K fits its STATUS cell', () => {
   const open = byKey(drawBand(fakeEl, snapOf({ layout: 'departures', columns: 160, expanded: true, context: { tokens: 900_000, window: 1_000_000, percent: 90, compactAt: 1_000_000, autoCompactOff: false } }), NO_ACT), 'body', 'Box')
   expect(shown(open)).toMatch(/CONTEXT\s*! COMPACTS IN ~100K/)
   expect(clipped(open)).toEqual([])
+})
+test('open with a body of one row, the board drops its header for what needs you', async ($, on) => {
+  const open = shown((await at($, on, 'gatewaySpend', { surface: 'terminal', cols: 80, maxRows: 5 })).open)
+  expect(open).toMatch(/SPEND LIMIT\s*! NEAR LIMIT/)
+  expect(open).not.toMatch(/ITEM/)
 })
 test('open, compaction not known yet says nothing of it', LONG, async ($, on) => {
   // Calm reads no breakdown: compaction is unknown, not off.

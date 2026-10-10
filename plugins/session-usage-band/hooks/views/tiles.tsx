@@ -9,13 +9,15 @@ import type { CacheReading, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber, type Role, type Say } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberFirst, amberWords, beforeLast, emptySay, emptyWords, fitLine, grid, gridRoom, line, lineRoom, section, words, type Keeps } from './parts'
+import { accentOf, amberFirst, amberWords, anyAmber, beforeLast, emptySay, emptyWords, fitLine, grid, gridRoom, line, lineRoom, section, words, type Keeps } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last. Amber never does.
  *  Spec §6 ends at the context tile; at 40 columns an amber 5h or context
- *  tile fits only once the cost's has gone too. */
-const ORDER = ['underline', 'resetText', 'calmSeven', 'calmContext', 'cost'] as const
+ *  tile fits only once the cost's has gone too, the last minute's reason
+ *  only once the 5h's has, and an amber limit beside a cold cache only once
+ *  the cache's label is its price alone. */
+const ORDER = ['underline', 'resetText', 'calmSeven', 'calmContext', 'cost', 'calmFive', 'cacheWords'] as const
 type Piece = (typeof ORDER)[number]
 /** An underline's length. */
 const UNDER_PX = 64
@@ -92,14 +94,16 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const x = read.context
   // Built once: none of these changes with the squeeze.
   const toggle = toggleButton(kit, read, act)
-  // Cold is a price, so its label names it.
-  const cacheLabel = words(kit, 'l', [[c.condition === 'cold' && c.reWarmText !== undefined ? c.reWarmText : 'cache', 'label']])
+  // Cold is a price, so its label names it, and short, says it alone.
+  const reWarm = c.condition === 'cold' ? c.reWarmText : undefined
+  const cacheLabel = words(kit, 'l', [[reWarm ?? 'cache', 'label']])
+  const cacheShort = reWarm === undefined ? cacheLabel : words(kit, 'l', [[c.estimate, 'label']])
   const contextLabel = words(kit, 'l', [['context', 'label']])
   const costLabel = words(kit, 'l', [['this session', 'label']])
   const cache: Tile = {
     key: 'cache',
     value: valueOf(kit, cacheValue(c), c.amber),
-    label: () => cacheLabel,
+    label: keeps => (keeps.has('cacheWords') ? cacheLabel : cacheShort),
     bar: barOf(kit, c.alt, c.charge, p.warm, c.amber),
     amber: c.amber,
     tone: c.tone,
@@ -115,7 +119,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
     tone: x.tone,
     step: 'calmContext',
   }
-  const five = read.fiveHour === undefined ? undefined : limitTile(kit, read.fiveHour)
+  const five = read.fiveHour === undefined ? undefined : limitTile(kit, read.fiveHour, 'calmFive')
   const seven = read.sevenDay === undefined ? undefined : limitTile(kit, read.sevenDay, 'calmSeven')
   const tiles = [cache, cost, context, five, seven].filter((t): t is Tile => t !== undefined)
   return [fitLine(kit, ORDER, lineRoom(kit), keeps => line(kit, 'line', tiles.map(t => drawTile(kit, t, keeps)), toggle, 3))]
@@ -158,8 +162,10 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     const said: Say = amber !== undefined ? [[amber.long, 'amber'], ...keeps] : typeof label === 'string' ? [[label, 'label']] : label
     return stack(kit, key, valueOf(kit, value, amber), words(kit, 'l', said), barred ? bar : null)
   }
-  const group = (key: string, title: string, rows: readonly RenderChildren[], headline: Say): RenderElement =>
-    section(kit, key, title, pairs > 0 ? rows : [words(kit, 'head', headline)], pairs > 0 ? pairs : room)
+  /** A group of pairs, or short of a pair its headline, which takes the
+   *  title's place in a body of one row while it is amber (`amberLeads`). */
+  const group = (key: string, title: string, rows: readonly RenderChildren[], headline: Say, amberLeads = false): RenderElement =>
+    section(kit, key, title, pairs > 0 ? rows : [words(kit, 'head', headline)], pairs > 0 ? pairs : room, amberLeads)
   /** A group with nothing known: its empty words, in a line either way. */
   const emptyGroup = (key: string, title: string, text: string): RenderElement => group(key, title, [emptyWords(kit, 'none', text)], emptySay(text))
   return grid(kit, [
@@ -169,7 +175,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
         tile('reWarm', c.known ? c.estimate : undefined, c.condition === 'cold' ? 'next message' : 're-warm if cold'),
       ]),
       pair(kit, 'b', [tile('saved', c.savedText, 'saved'), tile('hit', c.hitText, 'hit rate')]),
-    ], [headOf(c.text, c.amber)]),
+    ], [headOf(c.text, c.amber)], c.amber !== undefined),
     group('spend', 'SPEND', [
       pair(kit, 'a', [tile('total', s.totalText, 'this session'), tile('last', s.lastText, 'last message')]),
       pair(kit, 'b', [tile('tokens', s.tokensText, 'tokens'), tile('reads', s.split.find(part => part.label === 'cache reads')?.text, 'cache reads')]),
@@ -180,7 +186,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
         tile('in', x.inContextText, 'in context'),
       ]),
       pair(kit, 'b', [tile('room', x.roomText, 'room left'), tile('window', x.windowText, 'window')]),
-    ], [headOf(x.text, x.amber)]),
+    ], [headOf(x.text, x.amber)], x.amber !== undefined),
     limits.length === 0 ? emptyGroup('limits', 'LIMITS', EMPTY.limits) : group('limits', 'LIMITS', limits.map(l => {
       // The landing's dashed underline, drawn where the landing has a figure.
       const landingBar = l.projectedAlt === undefined || l.projectedFrac === undefined ? null : barOf(kit, l.projectedAlt, l.projectedFrac, accentOf(kit, l), undefined, true)
@@ -193,7 +199,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
             // unless the reason is a measured fill, which says it.
             tile('then', l.fullIn === undefined && l.pace !== '' ? l.pace : undefined, `${l.name} at this pace`),
       ])
-    }), limits.flatMap((l, i): Say => (i === 0 ? [headOf(l.text, l.amber)] : [[' · ', 'label'], headOf(l.text, l.amber)]))),
+    }), limits.flatMap((l, i): Say => (i === 0 ? [headOf(l.text, l.amber)] : [[' · ', 'label'], headOf(l.text, l.amber)])), anyAmber(limits)),
   ], bodyRows)
 }
 

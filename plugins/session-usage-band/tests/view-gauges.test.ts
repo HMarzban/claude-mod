@@ -4,7 +4,7 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { LONG, shown, svgAlts, svgsOf } from './helpers'
+import { LONG, byKey, shown, svgAlts, svgsOf } from './helpers'
 import { caseKey, drawCases, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
 
 viewSuite('gauges')
@@ -34,6 +34,11 @@ test('unmeasured, the cache draws no bar', async ($, on) => {
 test('warming, the cache draws no bar', async ($, on) => {
   expect(svgAlts((await at($, on, 'warming', D160)).shut).filter(alt => alt.startsWith('cache'))).toEqual([])
 })
+test('warming, with no limits reported, row two says the context is not known yet', async ($, on) => {
+  const trees = await drawCases($, on, { layout: 'gauges', scenario: 'warming', appearance: 'dark', ttl: '1h' }, [D160, T160])
+  for (const m of [D160, T160]) expect(shown(byKey(trees[caseKey(m, 'shut')], 'cells', 'Box'))).toMatch(/^context\s*–/)
+  expect(svgAlts(trees[caseKey(D160, 'shut')]).filter(alt => alt.startsWith('context'))).toEqual([])
+})
 test('narrow, calm cells become text', async ($, on) => {
   expect(shown((await at($, on, 'calm', { surface: 'terminal', cols: 50 })).shut)).toMatch(/5h 4%/)
 })
@@ -52,18 +57,24 @@ test('each row gives way in its own spec order', async ($, on) => {
   expect(joined).toMatch(/cache[█░]{6}1h 00m left · re-warm ~\$[\d.]+ · \$2\.41context[█░]{6}38%/)
   expect(text).toMatch(/cache[█░]{6}1h 00m left · \$2\.41context 38%\s*5h 4%\s*7d 30%/)
 })
-test('at 40 columns amber still speaks, short', LONG, async ($, on) => {
-  const t = shown((await at($, on, 'lastMinute', { surface: 'terminal', cols: 40 }, '5m')).shut)
-  expect(t).toMatch(/^cache\s*! 30s/)
-  expect(t).not.toMatch(/left/)
-})
-test('amber, the cost joins the reason as the calm sentence does', LONG, async ($, on) => {
-  const mounts = [60, 40].map((cols): Mount => ({ surface: 'terminal', cols }))
+test('amber, the cost joins the reason as the calm sentence does, and goes before the reason shortens', LONG, async ($, on) => {
+  const mounts = [60, 50].map((cols): Mount => ({ surface: 'terminal', cols }))
   const trees = await drawCases($, on, { layout: 'gauges', scenario: 'lastMinute', appearance: 'dark', ttl: '5m' }, mounts)
-  const [mid, narrow] = mounts.map(m => shown(trees[caseKey(m, 'shut')]))
+  const [mid, held] = mounts.map(m => shown(byKey(trees[caseKey(m, 'shut')], 'cache', 'Box')))
   expect(mid).toMatch(/! 30s left · re-warm ~\$[\d.]+ · \$2\.41/)
-  expect(narrow).toMatch(/! 30s · \$2\.41/)
+  expect(held).toMatch(/^cache[█░]+! 30s left · re-warm ~\$[\d.]+$/)
 })
+test('at 40 and 45 columns the last minute\'s bar goes before its reason shortens', LONG, async ($, on) => {
+  const mounts = [40, 45].map((cols): Mount => ({ surface: 'terminal', cols }))
+  const trees = await drawCases($, on, { layout: 'gauges', scenario: 'lastMinute', appearance: 'dark', ttl: '5m' }, mounts)
+  for (const m of mounts) expect(`${m.cols}: ${shown(byKey(trees[caseKey(m, 'shut')], 'cache', 'Box'))}`).toMatch(/^\d+: cache! 30s left · re-warm ~\$[\d.]+$/)
+})
+for (const scenario of ['cold', 'coldLimit80'] as const)
+  test(`at 40 columns ${scenario}'s cold cache keeps its price over the session's total`, LONG, async ($, on) => {
+    const mounts = (['terminal', 'desktop'] as const).map((surface): Mount => ({ surface, cols: 40 }))
+    const trees = await drawCases($, on, { layout: 'gauges', scenario, appearance: 'dark', ttl: '5m' }, mounts)
+    for (const m of mounts) expect(`${m.surface}: ${shown(byKey(trees[caseKey(m, 'shut')], 'cache', 'Box'))}`).toMatch(/^\w+: cache[░]*cold · re-warm ~\$[\d.]+$/)
+  })
 test('a measured pace speaks in amber words', LONG, async ($, on) => {
   expect(shown((await at($, on, 'fiveHourAhead')).shut)).toMatch(/! 5h full in ~/)
 })

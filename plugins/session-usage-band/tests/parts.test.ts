@@ -61,6 +61,14 @@ test('a section is its title and as many rows as fit', () => {
   const rows = [fact(k, 'a', 'a', '1'), null, fact(k, 'b', 'b', '2'), fact(k, 'c', 'c', '3')]
   expect(shown(section(k, 's', 'CACHE', rows, 2))).toBe('CACHEa 1b 2')
 })
+test('a section with no row under its title keeps the title, unless its first row is amber', () => {
+  const k = kit()
+  const rows = [null, fact(k, 'a', 'a', '1'), fact(k, 'b', 'b', '2')]
+  expect(shown(section(k, 's', 'CACHE', rows, 0))).toBe('CACHE')
+  expect(shown(section(k, 's', 'CACHE', rows, 0, true))).toBe('a 1')
+  expect(shown(section(k, 's', 'CACHE', rows, 1, true))).toBe('CACHEa 1')
+  expect(shown(section(k, 's', 'CACHE', [], 0, true))).toBe('CACHE')
+})
 test('the grid is four to a line from 100 columns, two below, one line when rows are short', () => {
   const k = (cols: number) => kit(cols)
   const four = (c: ReturnType<typeof kit>) => ['A', 'B', 'C', 'D'].map(t => section(c, t, t, [], 0))

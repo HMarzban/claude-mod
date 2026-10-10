@@ -1,7 +1,7 @@
 // tools/golden/capture.test.ts — copied into a scratch copy of the plugin by
 // capture.sh for one run; prints GOLDEN, TREE and PERF lines, never asserts.
 import { test } from 'claude-code/testing'
-import { GOLDEN_APPEARANCES, GOLDEN_MOUNTS, SCENARIO_NAMES, drawCases, goldenKey } from './cases'
+import { GOLDEN_APPEARANCES, GOLDEN_MOUNTS, GOLDEN_SCENARIOS, drawCases, goldenKey } from './cases'
 import { canon, treeHash } from './golden/hash'
 import { LONG, START, mountBand, resp, respond, setup } from './helpers'
 
@@ -13,7 +13,7 @@ const FULL = new Set([
   'working|dark|terminal|200|40|shut',
 ])
 
-for (const scenario of SCENARIO_NAMES) for (const appearance of GOLDEN_APPEARANCES) {
+for (const scenario of GOLDEN_SCENARIOS) for (const appearance of GOLDEN_APPEARANCES) {
   test(`golden ${scenario} ${appearance}`, LONG, async ($, on) => {
     const trees = await drawCases($, on, { scenario, appearance }, GOLDEN_MOUNTS)
     for (const [drawn, tree] of Object.entries(trees)) {

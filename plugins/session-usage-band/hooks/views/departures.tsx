@@ -13,8 +13,9 @@ import { beforeLast, fitLine, line, lineRoom, once, words, type Keeps } from './
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last. Amber never does.
- *  Plain's brackets go first: they mark a flap's edges and say nothing. */
-const ORDER = ['brackets', 'fiveProjection', 'boardMinutes', 'calmSeven', 'calmFiveGroup', 'cost', 'calmFive', 'coldSince'] as const
+ *  Plain's brackets go first: they mark a flap's edges and say nothing.
+ *  A calm price, `reWarm`, goes last: the narrow-width ruling's. */
+const ORDER = ['brackets', 'fiveProjection', 'boardMinutes', 'calmSeven', 'calmFiveGroup', 'cost', 'calmFive', 'coldSince', 'reWarm'] as const
 type Piece = (typeof ORDER)[number]
 
 /** Each ink a flap is drawn in, made for the flap ground. */
@@ -144,13 +145,13 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
         [
           group(kit, 'cache', [
             label,
-            // When it went cold gives way last, after the 5h, so its price still fits.
+            // When it went cold gives way after the 5h and before its price.
             keeps.has('coldSince') ? status : statusShort,
             // The minutes give way to the clock time alone; with no clock they
             // go with the 5h, at `calmFive`, so an amber reason still fits.
             // LAST CALL keeps its seconds.
             c.amber !== undefined || keeps.has(c.coldAtClock === undefined ? 'calmFive' : 'boardMinutes') ? left : null,
-            c.amber === undefined || beforeLast(keeps) ? reWarm : null,
+            (c.amber === undefined ? keeps.has('reWarm') : beforeLast(keeps)) ? reWarm : null,
           ]),
           five === undefined
             ? null
@@ -261,7 +262,9 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     ]),
     ...read.limits.filter(l => l.key === 'other').map(limitRow),
   ]
-  return [boardLine(kit, 'head', [head('item', 'ITEM'), head('status', 'STATUS'), timed ? head('time', 'TIME') : null, head('remarks', 'REMARKS')]), ...fitRows(rows, bodyRows - 1)]
+  const header = boardLine(kit, 'head', [head('item', 'ITEM'), head('status', 'STATUS'), timed ? head('time', 'TIME') : null, head('remarks', 'REMARKS')])
+  // With no row under the header, the header goes: each board row names itself in ITEM, and fitRows keeps an amber row first.
+  return bodyRows > 1 ? [header, ...fitRows(rows, bodyRows - 1)] : fitRows(rows, bodyRows)
 }
 
 /** Departures' own strip: the workspace on a flap, heading the board. */

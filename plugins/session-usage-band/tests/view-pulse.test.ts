@@ -129,6 +129,17 @@ test('an amber 5h trail stays past where a calm one gives way, until the amber s
   await ui.unmount()
   expect(String(trail?.props?.source)).toMatch(/stroke-dasharray/)
 })
+test('on a text surface the last minute keeps its reason whole until the costs have gone', LONG, async ($, on) => {
+  const mounts = [40, 45, 50].map((cols): Mount => ({ surface: 'terminal', cols }))
+  const trees = await drawCases($, on, { layout: 'pulse', scenario: 'lastMinute', appearance: 'dark', ttl: '5m' }, mounts)
+  const [narrow, ...wider] = mounts.map(m => `${m.cols}: ${shown(trees[caseKey(m, 'shut')])}`)
+  expect(narrow).toMatch(/^40: +! 30s left · re-warm ~\$[\d.]+\s*$/)
+  for (const line of wider) expect(line).toMatch(/^\d+: +! 30s left · re-warm ~\$/)
+})
+test('on the desktop the costs hold the second row, so at 40 columns they stay', LONG, async ($, on) => {
+  const m: Mount = { surface: 'desktop', cols: 40 }
+  expect(shown((await at($, on, 'lastMinute', m, '5m')).shut)).toMatch(/\$2\.41No costs\.$/)
+})
 test('open: the cache first, then spend, context and limits', async ($, on) => {
   const t = shown((await at($, on, 'fullHistory')).open)
   const at4 = ['CACHE', 'SPEND', 'CONTEXT', 'LIMITS'].map(title => t.indexOf(title))

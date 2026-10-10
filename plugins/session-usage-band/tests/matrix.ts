@@ -6,7 +6,7 @@ import type { RenderChildren } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
 import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, firstRow, shown, walk, type Node } from './helpers'
 import type { Ttl } from '../hooks/cache'
-import { DESKTOP, ROW_PX, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
+import { DESKTOP, ROW_PX, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
 import type { BandActions, BandSnapshot, Glyphs, LayoutName } from '../hooks/snapshot'
 import { VIEWS } from '../hooks/views/index'
@@ -171,10 +171,13 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   if (toggles !== 1) fail('toggle', `${toggles} ${mark} in the collapsed part`)
 
   // All-amber below 60 columns clips by design, ▿ pinned at the end; a
-  // single amber reading still fits.
+  // single amber reading still fits. On the terminal it fits the row less
+  // its slack, as each line is squeezed to; the desktop's estimate keeps the
+  // row's width, since pulse's costs hold its second row there.
   const clipsByDesign = ctx.cols < 60 && ctx.scenario === ALL_AMBER
   const width = cellsOf(collapsed as RenderChildren, ctx.surface === 'desktop' ? DESKTOP : TERMINAL)
-  if (!clipsByDesign && width > ctx.cols) fail('width', `${width} columns at ${ctx.cols}`)
+  const room = ctx.surface === 'terminal' ? ctx.cols - ROW_SLACK : ctx.cols
+  if (!clipsByDesign && width > room) fail('width', `${width} columns at ${ctx.cols}`)
 
   let nodes = 0
   const svgs: Node[] = []
@@ -215,6 +218,11 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   }
   if (!(ascii ? ASCII_TIER : UNICODE_TIER).test(text)) fail('glyphs', 'a glyph outside the tier')
 
+  // Open, a body short of rows keeps a calm section's title, so an empty
+  // state is never said without its section's name.
+  const body = (tree.children ?? []).slice(1).map(shown).join('')
+  if (ctx.expanded && /(?<!context\W*)not reported|(?<!limits\W*)none reported/i.test(body)) fail('emptyState', 'an empty state without its section\'s name')
+
   if (nodes > (ctx.expanded ? 1500 : 400)) fail('size', `${nodes} nodes`)
   if (ctx.expanded) {
     const tall = visualRows(tree, ctx.surface)
@@ -233,17 +241,18 @@ export type SuiteCase = Readonly<{ name: string; options: CaseOptions; mounts: r
 const SUITE_WIDTHS = [40, 41, 50, 60, 67, 68, 80, 95, 120, 160, 200] as const
 /** A mount on each surface, at the same width and height. */
 const bothSurfaces = (cols: number, maxRows?: number): Mount[] => [{ surface: 'terminal', cols, maxRows }, { surface: 'desktop', cols, maxRows }]
-/** The fewest rows that leave an open view a fact under each section title:
- *  its own rows, the air above the body and the buttons, the buttons, and a
- *  body of two rows, the strip in the footer. */
-const factRows = (layout: LayoutName, surface: Surface): number => VIEWS[layout].rows[surface] + 5
+/** The rows that leave an open view a body of `bodyRows`: its own rows, the
+ *  air above the body and the buttons, the buttons, and the body, the strip
+ *  in the footer. At two, each section title keeps a fact under it. */
+const rowsForBody = (layout: LayoutName, surface: Surface, bodyRows: number): number => VIEWS[layout].rows[surface] + 3 + bodyRows
 /** The long walks take the 5-minute cache, a twelfth of the hour's ticks. Golden keeps the hour. */
-const ttlOf = (scenario: ScenarioName): Ttl => (scenario === 'lastMinute' || scenario === 'cold' ? '5m' : '1h')
+export const LONG_WALKS: ReadonlySet<ScenarioName> = new Set(['lastMinute', 'cold', 'coldLimit80'])
+const ttlOf = (scenario: ScenarioName): Ttl => (LONG_WALKS.has(scenario) ? '5m' : '1h')
 
-/** The suite's 35 cases, one setup each: every scenario at 120 columns; calm
+/** The suite's 38 cases, one setup each: every scenario at 120 columns; calm
  *  and the last minute in light, plain and the ascii tier, and at every
- *  width; the other amber scenarios narrow; calm and the open-only amber
- *  short of rows. */
+ *  width; the other amber scenarios narrow; calm, the open-only amber and
+ *  the empty states short of rows. */
 export const suiteCases = (layout: LayoutName): SuiteCase[] => {
   const optionsOf = (scenario: ScenarioName, appearance: Appearance = 'dark', env?: Record<string, string>): CaseOptions =>
     ({ layout, scenario, appearance, ttl: ttlOf(scenario), env })
@@ -259,19 +268,27 @@ export const suiteCases = (layout: LayoutName): SuiteCase[] => {
         mounts: SUITE_WIDTHS.map(cols => ({ surface, cols })),
       })),
     ]),
-    ...(['fiveHourAhead', 'limit80', 'nearCompaction'] as const).map(scenario => ({
+    ...(['fiveHourAhead', 'limit80', 'nearCompaction', 'coldLimit80'] as const).map(scenario => ({
       name: `${layout}: ${scenario}, narrow`,
       options: optionsOf(scenario),
       mounts: [40, 50, 60].flatMap(cols => bothSurfaces(cols)),
     })),
     { name: `${layout}: calm, short of rows`, options: optionsOf('calm'), mounts: [4, 8, 13, 40].flatMap(maxRows => bothSurfaces(120, maxRows)) },
-    // The open-only amber short of rows, on both grids, from the fewest rows
-    // that keep a fact under each title.
+    // The open-only amber short of rows, on both grids, from a body of one
+    // row, which has no room under its titles, and of two, which keeps a fact
+    // under each.
     {
       name: `${layout}: gatewaySpend, short of rows`,
       options: optionsOf('gatewaySpend'),
       mounts: [80, 120].flatMap(cols => (['terminal', 'desktop'] as const).flatMap(surface =>
-        [...new Set([factRows(layout, surface), 7, 8, 10])].map((maxRows): Mount => ({ surface, cols, maxRows })))),
+        [...new Set([rowsForBody(layout, surface, 1), rowsForBody(layout, surface, 2), 7, 8, 10])].map((maxRows): Mount => ({ surface, cols, maxRows })))),
+    },
+    // The empty states from a body of one row, where each title stays alone,
+    // and of two, which says each under its title.
+    {
+      name: `${layout}: warming, short of rows`,
+      options: optionsOf('warming'),
+      mounts: (['terminal', 'desktop'] as const).flatMap(surface => [1, 2].map((bodyRows): Mount => ({ surface, cols: 120, maxRows: rowsForBody(layout, surface, bodyRows) }))),
     },
   ]
 }

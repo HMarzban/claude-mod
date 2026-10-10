@@ -1,6 +1,6 @@
 // tests/golden-b.test.ts — golden, scenarios 11–20. Golden doesn't cover the
 // light palette, maxRows under 40, or the ascii tier.
 import { goldenSuite } from './golden/suite'
-import { SCENARIO_NAMES } from './matrix'
+import { GOLDEN_SCENARIOS } from './matrix'
 
-goldenSuite(SCENARIO_NAMES.slice(10))
+goldenSuite(GOLDEN_SCENARIOS.slice(10))

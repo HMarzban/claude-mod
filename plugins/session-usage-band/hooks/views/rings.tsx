@@ -9,12 +9,12 @@ import type { CacheReading, ContextReading, LimitView, Readings, Tone } from '..
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, amberFirst, amberSay, beforeLast, chartsIfRoom, emptyWords, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, section, words, type Keeps, type SentenceStyle } from './parts'
+import { accentOf, amberFirst, amberSay, anyAmber, chartsIfRoom, emptyWords, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, section, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
-/** What gives way as the line narrows, first to last; `marks` and
- *  `calmFive` are the narrow-width ruling's. Amber never does. */
-const ORDER = ['labelsLong', 'resetText', 'calmSeven', 'cost', 'calmContext', 'marks', 'calmFive'] as const
+/** What gives way as the line narrows, first to last; `marks`, `calmFive`
+ *  and `amberRing` are the narrow-width ruling's. Amber's words never do. */
+const ORDER = ['labelsLong', 'resetText', 'calmSeven', 'cost', 'calmContext', 'marks', 'calmFive', 'amberRing'] as const
 type Piece = (typeof ORDER)[number]
 /** The collapsed ring, within spec §3.1's 22–30 px, and the expanded one. */
 const RING_PX = 26
@@ -46,11 +46,12 @@ type Figure = Readonly<{
 const valueWords = (kit: Kit, text: string, tone: Tone): RenderElement => words(kit, 'value', [[text, tone === 'amber' ? 'amber' : 'value']], true)
 
 /** A figure at a squeeze: amber, its label is its reason, and its ring stays
- *  until the amber step; calm, its ring gives way at `marks`. */
+ *  until `amberRing`, so it goes before the reason shortens; calm, its ring
+ *  gives way at `marks`. */
 const drawFigure = (kit: Kit, f: Figure, keeps: Keeps<Piece>): RenderElement => {
   const { Box, Svg } = kit
   const label = words(kit, 'label', f.amber !== undefined ? amberSay(f.amber, keeps) : [[f.label(keeps), 'label']])
-  const ringKept = f.amber !== undefined ? beforeLast(keeps) : keeps.has('marks')
+  const ringKept = keeps.has(f.amber !== undefined ? 'amberRing' : 'marks')
   return (
     <Box key={f.key} flexDirection="row" columnGap={1} alignItems="center">
       {ringKept ? f.ring : null}
@@ -69,16 +70,18 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   // Built once: none of these changes with the squeeze.
   const toggle = toggleButton(kit, read, act)
   // Long, the cache's label names its condition, unless its value already does
-  // (warming, or warm with no countdown); cold, the price to re-warm it.
+  // (warming, or warm with no countdown); cold, the price to re-warm it, which
+  // stays once the labels shorten, since a cold cache is a price.
   const valueNamesCondition = c.condition === 'warming' || (c.condition === 'warm' && c.leftShort === '')
   const cacheLong = c.condition === 'cold' ? `re-warm ${c.estimate}` : valueNamesCondition ? 'cache' : `cache ${c.condition}`
+  const cacheShort = c.condition === 'cold' ? c.estimate : 'cache'
   const cache: Figure = {
     key: 'cache',
     tone: c.tone,
     amber: c.amber,
     ring: cacheRing(kit, c, RING_PX),
     value: valueWords(kit, c.leftShort === '' ? c.value : c.leftShort, c.tone),
-    label: keeps => (keeps.has('labelsLong') ? cacheLong : 'cache'),
+    label: keeps => (keeps.has('labelsLong') ? cacheLong : cacheShort),
   }
   // Unreported, the context says nothing collapsed; open, its section says so.
   const context: Figure | undefined = !x.known ? undefined : {
@@ -164,7 +167,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     // What needs you leads, so a panel short of rows keeps it.
     section(kit, 'limits', 'LIMITS', read.limits.length === 0 ? [emptyWords(kit, 'none', EMPTY.limits)] : chartsIfRoom(room, [limitRings], [
       ...amberFirst(read.limits).map(l => limitSentence(kit, l, SENTENCE)),
-    ], ringRows), room),
+    ], ringRows), room, anyAmber(read.limits)),
   ], bodyRows)
 }
 

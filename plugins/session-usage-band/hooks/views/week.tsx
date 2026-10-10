@@ -196,15 +196,6 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     ['  CONTEXT ', 'label'],
     ...context,
   ])
-  if (bodyRows < 2) return [facts]
-  const charts = windows
-    .filter(w => hasCells(read, w))
-    .map(w => (
-      <Box key={`${w.limit.key}:cells`} flexDirection="row" columnGap={1}>
-        {nameOf(kit, w)}
-        {cellsChart(kit, read, w, BIG)}
-      </Box>
-    ))
   // What needs you leads, so a body short of rows keeps it.
   const sentences = [
     ...windows.map(w => ({
@@ -213,12 +204,23 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     })),
     ...read.limits.filter(l => l.key === 'other').map(l => ({ limit: l, row: limitSentence(kit, l, SENTENCE) })),
   ]
+  const amberRows = sentences.filter(s => s.limit.amber !== undefined).map(s => s.row)
+  // A body of one row is the facts line, unless a limit needs you.
+  if (bodyRows < 2) return [amberRows[0] ?? facts]
   const rows = [
-    ...sentences.filter(s => s.limit.amber !== undefined).map(s => s.row),
+    ...amberRows,
     ...sentences.filter(s => s.limit.amber === undefined).map(s => s.row),
     read.limits.length === 0 ? emptyWords(kit, 'none', EMPTY.limits) : null,
     read.week.empty ? emptyWords(kit, 'empty', EMPTY.history) : null,
   ]
+  const charts = windows
+    .filter(w => hasCells(read, w))
+    .map(w => (
+      <Box key={`${w.limit.key}:cells`} flexDirection="row" columnGap={1}>
+        {nameOf(kit, w)}
+        {cellsChart(kit, read, w, BIG)}
+      </Box>
+    ))
   // LIMITS takes the rows its title and the facts line leave; at two rows it
   // keeps one under its title, and the facts line goes.
   const room = Math.max(1, bodyRows - 2)

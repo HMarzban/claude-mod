@@ -7,11 +7,12 @@ import type { LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber } from '../words'
 import { toggleButton, type Strip } from './frame'
-import { amberWords, emptyWords, fitLine, grid, gridRoom, limitSentence, line, lineRoom, section, separatedBy, words, type Keeps, type SentenceStyle } from './parts'
+import { amberWords, anyAmber, emptyWords, fitLine, grid, gridRoom, limitSentence, line, lineRoom, section, separatedBy, words, type Keeps, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
-/** What gives way as the line narrows, first to last. Amber never does. */
-const ORDER = ['resetWords', 'resetTimes', 'calmSeven', 'calmContext', 'cost', 'calmFive'] as const
+/** What gives way as the line narrows, first to last; `cacheWords` is the
+ *  narrow-width ruling's. Amber never does. */
+const ORDER = ['resetWords', 'resetTimes', 'calmSeven', 'calmContext', 'cost', 'calmFive', 'cacheWords'] as const
 type Piece = (typeof ORDER)[number]
 
 /** A reading that can turn amber: its reason while amber, else its calm piece. */
@@ -33,12 +34,14 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const toggle = toggleButton(kit, read, act)
   const cost = words(kit, 'cost', [[read.spend.totalText, 'value']])
   const calmCache = words(kit, 'cache', c.say)
+  // Cold, the short words keep the price: `cold ~$2.13`; a countdown keeps its words.
+  const calmCacheShort = c.condition === 'cold' ? words(kit, 'cache', c.sayShort) : calmCache
   const calmContext = words(kit, 'ctx', x.say)
   const separated = separatedBy(kit, '·', 4)
   return [
     fitLine(kit, ORDER, lineRoom(kit), keeps => {
       const pieces = [
-        amberOr(kit, 'cache', c.amber, keeps, calmCache),
+        amberOr(kit, 'cache', c.amber, keeps, keeps.has('cacheWords') ? calmCache : calmCacheShort),
         keeps.has('cost') ? cost : null,
         // Unreported, the context says nothing collapsed; open, its section says so.
         x.known ? amberOr(kit, 'ctx', x.amber, keeps, keeps.has('calmContext') ? calmContext : null) : null,
@@ -83,7 +86,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       ...read.limits.filter(l => l.amber !== undefined).map(l => limitSentence(kit, l, SENTENCE)),
       read.worstLimit === undefined || read.worstLimit.amber !== undefined ? null : sentence('closest', `closest is ${read.worstLimit.text}`),
       ...read.limits.filter(l => l.amber === undefined).map(l => limitSentence(kit, l, SENTENCE)),
-    ], room),
+    ], room, anyAmber(read.limits)),
   ], bodyRows)
 }
 

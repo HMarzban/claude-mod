@@ -3,8 +3,9 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import type { On } from 'claude-code'
-import { LONG, shown } from './helpers'
+import type { On, RenderChildren } from 'claude-code'
+import { ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
+import { LONG, byKey, shown } from './helpers'
 import { caseKey, drawCases, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
 
 viewSuite('ledger')
@@ -45,6 +46,14 @@ test('calm gives way in spec order: the reset words, the reset times, 7d, the co
 })
 test('at 40 columns amber still leads', LONG, async ($, on) => {
   expect(shown((await at($, on, 'lastMinute', { surface: 'terminal', cols: 40 }, '5m')).shut)).toMatch(/^! 30s/)
+})
+test('at 40 columns a cold cache says its short words, so an amber limit fits beside it', LONG, async ($, on) => {
+  const line = byKey((await at($, on, 'coldLimit80', { surface: 'terminal', cols: 40 }, '5m')).shut, 'line', 'Box')
+  expect(shown(line)).toMatch(/^cold ~\$[\d.]+\s*·\s*! 5h 82%$/)
+  expect(cellsOf(line as RenderChildren, TERMINAL)).toBeLessThanOrEqual(40 - ROW_SLACK - 2)
+})
+test('at 40 columns a warm countdown keeps its words beside an amber context', async ($, on) => {
+  expect(shown(byKey((await at($, on, 'nearCompaction', { surface: 'terminal', cols: 40 })).shut, 'line', 'Box'))).toMatch(/^cache 1h 00m left·! ctx 94%$/)
 })
 test('a limit at 80% says why, in words', async ($, on) => {
   expect(shown((await at($, on, 'limit80')).shut)).toMatch(/! 5h 82%/)
