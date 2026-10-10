@@ -13,9 +13,10 @@ import { toggleButton } from './frame'
 import { accentOf, amberFirst, amberSay, beforeLast, chartsIfRoom, emptySay, emptyWords, fact, fitLine, grid, gridRoom, layoutCachePill, limitSentence, line, lineRoom, once, section, sectionCells, words, type SentenceStyle } from './parts'
 import { defineView } from './view'
 
-/** What gives way as the line narrows, first to last; `costWords`, `pace`
- *  and `calmFive` are the narrow-width ruling's. Amber never does. */
-const ORDER = ['calmContext', 'calmSeven', 'resetText', 'barsMany', 'trailChart', 'barsChart', 'costWords', 'pace', 'calmFive'] as const
+/** What gives way as the line narrows, first to last; `costWords`, `pace`,
+ *  `calmFive` and `cost`, on a text surface, are the narrow-width ruling's.
+ *  Amber never does. */
+const ORDER = ['calmContext', 'calmSeven', 'resetText', 'barsMany', 'trailChart', 'barsChart', 'costWords', 'pace', 'calmFive', 'cost'] as const
 
 /** The bars drawn collapsed, before and after they give way. */
 const BARS_MANY = 14
@@ -122,7 +123,8 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
       return line(kit, 'line', [
         pillIsLong ? pillLong() : pillShort(),
         charts && !hist.empty && keeps.has('barsChart') ? (keeps.has('barsMany') ? barsMany() : barsFew()) : null,
-        keeps.has('costWords') ? costsLong : costsShort,
+        // On the desktop the costs hold the line's second row, so they never go.
+        keeps.has('costWords') ? costsLong : keeps.has('cost') || Svg ? costsShort : null,
         // An amber trail stays until the amber step, a calm one gives way in turn.
         (f?.amber !== undefined ? beforeLast(keeps) : keeps.has('trailChart')) ? trail : null,
         five === undefined ? null : words(kit, '5h', five),
