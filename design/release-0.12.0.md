@@ -279,7 +279,7 @@ Each is a `Pending maintainer:` line, or Task 29's deferred findings, still open
 - The ink of the sparkline's `level` rule (`trackStroke`).
 
 **The spec**
-- §6 asks open pulse for an average line on its costs and for now marked on the 5h window. Neither is built: the line needs the warm average as a number, which no reading holds, and the mark an x-scale in time. Until then the costs say the average in words (the ledger, Task 25's second round).
+- §6 asks open pulse for an average line on its costs and for a mark at now on the 5h window. Neither is built: the line needs the warm average as a number, which no reading holds, and the mark an x-scale in time. Until then the costs say the average in words (the ledger, Task 25's second round).
 
 **Deferred follow-ups (Task 29's minor findings)**
 - `cacheWords` taking the snapshot's cache, and `CacheFacts.estimate` and `LimitFacts.value` holding words: a pure move between the layers.
