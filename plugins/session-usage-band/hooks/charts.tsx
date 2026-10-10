@@ -69,7 +69,8 @@ export type MeterOptions = Readonly<{
   /** Chips' cards alone: an Svg with no width, capped by its slot, which
    *  spec §2.9 bars from every other view. */
   stretch?: boolean
-  reads?: 'used' | 'left'
+  /** What the fill is: what's used, what's left, or a share its label names. */
+  reads?: 'used' | 'left' | 'share'
   /** A mark across the bar at this fraction: a line the fill is measured against. */
   tick?: number
   /** Where the fill is heading, drawn dashed from its end. */
@@ -78,8 +79,9 @@ export type MeterOptions = Readonly<{
 
 /** A bar: `frac` filled, with a thumb where the fill ends, so the eye finds
  *  the number's place on it at once. `label` names it for a reader, and
- *  `reads` says whether the fill is what's used or what's left. A stretched bar has no width of its
- *  own: drawn wider than any slot, the slot caps it, so it spans its card. */
+ *  `reads` says what the fill is: a share's alt says its percent alone. A
+ *  stretched bar has no width of its own: drawn wider than any slot, the slot
+ *  caps it, so it spans its card. */
 export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
   const { Svg, Text, palette, onTone } = kit
   const { key = 'meter', label, frac, tone, accent, size = CHIP_BAR, stretch = false, reads = 'used', tick, projectTo } = o
@@ -113,7 +115,8 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
         : `<rect class="knockout" x="${tenth(tickX - k)}" y="-1" width="${4 * k}" height="${tall + 2}" fill="${palette.cardBg}"/>` +
           `<rect class="tick" x="${tickX}" y="-1" width="${2 * k}" height="${tall + 2}" fill="${palette.value}"/>`)
     const source = svgOf(width, tall, marks, stretch ? ' preserveAspectRatio="none"' : '')
-    const alt = `${label} ${Math.round(clamp01(frac) * 100)}% ${reads}`
+    const pct = `${label} ${Math.round(clamp01(frac) * 100)}%`
+    const alt = reads === 'share' ? pct : `${pct} ${reads}`
     return stretch ? (
       <Svg key={key} source={source} alt={alt} height={tall} />
     ) : (

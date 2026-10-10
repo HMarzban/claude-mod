@@ -63,6 +63,9 @@ test("the meter's tick has a 1 px knockout of the card's ground either side", ()
   expect(tick.tag).not.toMatch(/stroke=/)
   expect(source.indexOf('class="knockout"')).toBeLessThan(source.indexOf('class="tick"'))
 })
+test('a meter of a share says its percent alone, neither used nor left', () => {
+  expect(svg(meter(desk, { label: 'hit rate', frac: 0.96, tone: 'calm', accent: '#7fcf8a', reads: 'share' })).props.alt).toBe('hit rate 96%')
+})
 test('a guessed day cell is dashed', () => {
   expect(svg(dayCells(desk, { key: 'd', alt: 'week', values: [6, 7], guess: [false, true], today: 0, color: '#a99cf0', cellPx: 16, height: 16 })).props.source).toMatch(/stroke-dasharray/)
 })

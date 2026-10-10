@@ -5,7 +5,7 @@ import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import { DARK } from '../hooks/palette'
-import { byKey, LONG, shown, svgsOf } from './helpers'
+import { byKey, LONG, shown, svgAlts, svgsOf } from './helpers'
 import { caseKey, drawCases, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
 
 viewSuite('rings')
@@ -48,6 +48,9 @@ test('a passed window says reset on the line, and its big ring draws no figure',
   const five = svgsOf(byKey(open, 'rings')).find(n => String(n.props?.alt).startsWith('5h '))
   expect(five).toBeDefined()
   expect(String(five?.props?.source)).not.toContain('<text')
+})
+test('open, a share\'s bar says its share, neither used nor left', async ($, on) => {
+  expect(svgAlts((await at($, on, 'calm', D160)).open).filter(alt => /^(hit rate|input|output|cache reads) /.test(alt))).toEqual(['input 94%', 'output 6%', 'cache reads 0%'])
 })
 test('open, the limits panel shows the 7d ring beside the 5h', async ($, on) => {
   expect(ringAlts(byKey((await at($, on, 'calm', D160)).open, 'rings'))).toEqual(['5h', '7d'])

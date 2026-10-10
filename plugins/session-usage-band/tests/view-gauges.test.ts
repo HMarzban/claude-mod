@@ -95,6 +95,9 @@ test('open, a limit filling before its reset says so once', LONG, async ($, on) 
   expect(limits).toMatch(/! 5h full in ~1h · resets in/)
   expect(limits.match(/full in/g)?.length).toBe(1)
 })
+test('open, a share\'s bar says its share, neither used nor left', async ($, on) => {
+  expect(svgAlts((await at($, on, 'calm', D160)).open).filter(alt => /^(hit rate|input|output|cache reads) /.test(alt))).toEqual(['hit rate 0%', 'input 94%', 'output 6%', 'cache reads 0%'])
+})
 test('open, the context says its share beside its bar', async ($, on) => {
   expect(shown((await at($, on, 'calm')).open)).toMatch(/CONTEXT.*38% of the window/)
 })
