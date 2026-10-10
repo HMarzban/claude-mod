@@ -49,6 +49,9 @@ export type BandSnapshot = Readonly<{
     recalled: boolean
     /** How long since that recalled reply. */
     idleMs: number | null
+    /** A resumed conversation's spend and tokens from before this process
+     *  are counted, as its transcript records them. */
+    recovered: boolean
     /** Every token since the conversation began, subagents included. */
     tokens: Readonly<{ sent: number; back: number; cached: number }>
   }>

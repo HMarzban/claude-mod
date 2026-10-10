@@ -250,7 +250,8 @@ export type Readings = Readonly<{
 export const cacheFacts = (snap: BandSnapshot): CacheFacts => {
   const c = snap.cache
   const mood = cacheMood(c)
-  const measured = c.requests > 0
+  // Measured: a reply seen, or a resumed conversation's tokens read off its transcript.
+  const measured = c.requests > 0 || c.recovered
   // Mid-turn every step restarts the TTL, so a countdown would only bounce.
   const counting = mood === 'expiring' || (mood === 'warm' && !snap.isWorking)
   return {

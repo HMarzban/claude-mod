@@ -2,7 +2,7 @@
 // into the pure modules, and ui.render hands drawBand a snapshot of them.
 
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, Timer } from 'claude-code'
+import type { ClassicEventOf, EngineInterface, Register, Timer } from 'claude-code'
 import { drawBand } from './band'
 import {
   cache,
@@ -12,7 +12,9 @@ import {
   noteConversationStart,
   noteLedger,
   noteLoad,
+  notePrior,
   noteRecall,
+  noteResume,
   modelName,
   noteBilledModel,
   notePriceModel,
@@ -23,7 +25,9 @@ import {
   resetCache,
   resetConversation,
   resolveTtl,
+  spentUsd,
 } from './cache'
+import type { Spend } from './cache'
 import { COMPACT_NEAR, SEVERE_AT, WARN_AT, clipMiddle, contextUsed, fmtCountdown, fmtEta, fmtTokens, utcOffsetOf } from './format'
 import { resolveGlyphs } from './glyphs'
 import {
@@ -40,6 +44,7 @@ import {
 import { DARK, resolvePalette } from './palette'
 import type { Palette } from './palette'
 import {
+  COST_RECORD,
   LAYOUT_KEY,
   RATES_KEY,
   READ_LIMIT,
@@ -47,11 +52,13 @@ import {
   asLayoutName,
   asRates,
   asSessions,
+  lastCostRecord,
   lastReplyAt,
   lastReplyModel,
   rateFromTranscript,
   rememberReply,
   transcriptPath,
+  transcriptSpend,
 } from './memory'
 import { DEFAULT_LAYOUT, LAYOUT_NAMES } from './snapshot'
 import type { Glyphs, LayoutName } from './snapshot'
@@ -102,6 +109,9 @@ const band: {
   workspace: Workspace | undefined
   /** Reads begun, so one that ends after a newer one never overwrites it. */
   reads: number
+  /** Conversations begun, counted at each load and each end, so a transcript
+   *  read for one never lands on the next. */
+  conversations: number
   /** What the band last drew, so the timer repaints only when it would change. */
   lastPaintKey: string
   /** Each toast's level reached, so it speaks once per crossing. */
@@ -116,9 +126,26 @@ const band: {
   utcOffsetMin: undefined,
   workspace: undefined,
   reads: 0,
+  conversations: 0,
   lastPaintKey: '',
   warned: new Map(),
   tick: undefined,
+}
+
+/** Where the session's transcript is: where the engine says, else where
+ *  Claude Code keeps it for this project; undefined without either. */
+const transcriptFile = async ($: EngineInterface, given: string | undefined): Promise<string | undefined> => {
+  if (given !== undefined) return given
+  const home = await $.env.get('HOME')
+  return home ? transcriptPath(home, await $.session.root(), await $.session.id()) : undefined
+}
+
+/** A whole transcript, if it is small enough to read. */
+const readWhole = async ($: EngineInterface, path: string): Promise<string | undefined> => {
+  const stat = await $.fs.stat(path).catch(() => undefined)
+  if (stat === undefined || stat.size > READ_LIMIT) return undefined
+  const text = await $.fs.read(path).catch(() => undefined)
+  return typeof text === 'string' ? text : undefined
 }
 
 /** A transcript's end, where its last reply and cost record are: its last
@@ -128,19 +155,36 @@ const transcriptEnd = async ($: EngineInterface, path: string): Promise<string |
   const tail = await $.process
     .run(['tail', '-c', String(TAIL_BYTES), path], { timeoutMs: PROCESS_TIMEOUT_MS })
     .catch(() => undefined)
-  if (tail?.exitCode === 0) return tail.stdout
-  const stat = await $.fs.stat(path).catch(() => undefined)
-  if (stat === undefined || stat.size > READ_LIMIT) return undefined
-  const text = await $.fs.read(path).catch(() => undefined)
-  return typeof text === 'string' ? text : undefined
+  return tail?.exitCode === 0 ? tail.stdout : readWhole($, path)
+}
+
+/** What a resumed conversation spent before this process, off its
+ *  transcript: its last cost record, which `grep` finds at any size, and the
+ *  replies logged after it, which `tail` reads from there. Where grep can't
+ *  run, a transcript small enough to read is read whole. Undefined with no
+ *  record, or no way to read one. */
+const spendBefore = async ($: EngineInterface, path: string): Promise<Spend | undefined> => {
+  const run = (argv: readonly string[]) => $.process.run(argv, { timeoutMs: PROCESS_TIMEOUT_MS }).catch(() => undefined)
+  const found = await run(['grep', '-b', '-F', COST_RECORD, path])
+  // grep exits 1 when nothing matches, 2 when it fails.
+  if (found?.exitCode === 1) return undefined
+  if (found?.exitCode !== 0) {
+    const whole = await readWhole($, path)
+    return whole === undefined ? undefined : transcriptSpend(whole)
+  }
+  const last = found.isStdoutTruncated ? undefined : lastCostRecord(found.stdout)
+  if (last === undefined) return undefined
+  const rest = await run(['tail', '-c', `+${last.offset + 1}`, path])
+  // Replies past what one read holds are left out rather than half-read; the record still counts.
+  return transcriptSpend(rest?.exitCode === 0 && !rest.isStdoutTruncated ? rest.stdout : last.line)
 }
 
 /** Recalls when this session last had a reply, and what a token costs on
  *  its model: the band's own memory first; for a session from before the
- *  band, its transcript's last reply and cost record, if it is small enough
- *  to read. Read once at load, and only those two facts kept. Never throws:
- *  unknown stays unknown. */
-const recallLastReply = async ($: EngineInterface): Promise<void> => {
+ *  band, its transcript's last reply and cost record (at `path`, when the
+ *  engine names it), if it is small enough to read. Read once at load, and
+ *  only those two facts kept. Never throws: unknown stays unknown. */
+const recallLastReply = async ($: EngineInterface, path?: string): Promise<void> => {
   try {
     const id = await $.session.id()
     const model = modelName(await $.session.model())
@@ -148,8 +192,8 @@ const recallLastReply = async ($: EngineInterface): Promise<void> => {
     let lastAt = asSessions(await $.store.get(SESSIONS_KEY))[id]?.lastAt
     let rate = rates[model] ?? null
     if (lastAt === undefined || rate === null) {
-      const home = await $.env.get('HOME')
-      const transcript = home ? await transcriptEnd($, transcriptPath(home, await $.session.root(), id)) : undefined
+      const file = await transcriptFile($, path)
+      const transcript = file === undefined ? undefined : await transcriptEnd($, file)
       if (transcript !== undefined) {
         lastAt ??= lastReplyAt(transcript)
         // /model may name an alias; the last reply names the model it was billed under.
@@ -162,6 +206,40 @@ const recallLastReply = async ($: EngineInterface): Promise<void> => {
   } catch {
     // nothing to recall
   }
+}
+
+/** Counts what a resumed conversation spent before this process, then
+ *  redraws. Callers don't wait on it, and it never throws: a read that ends
+ *  after the conversation changed is dropped, and failing, the ledger stands. */
+const recoverSpend = async ($: EngineInterface, path: string | undefined): Promise<void> => {
+  const mine = band.conversations
+  try {
+    const file = await transcriptFile($, path)
+    const spend = file === undefined ? undefined : await spendBefore($, file)
+    if (spend === undefined || mine !== band.conversations) return
+    notePrior(spend, await ledgerUsd($))
+    $.ui.invalidate('ui.render')
+  } catch {
+    // the ledger stands
+  }
+}
+
+/** A conversation resumed or forked: never new, its cache as the engine
+ *  judges it, or as the band recalls it where the engine doesn't say; then,
+ *  off the hook, what it has spent. */
+const resumeConversation = async ($: EngineInterface, e: ClassicEventOf['classic.SessionStart']): Promise<void> => {
+  // '' when the session keeps no local transcript.
+  const path = e.transcript_path === '' ? undefined : e.transcript_path
+  const idleSec = e.seconds_since_last_response
+  const now = await $.clock.now()
+  noteResume(
+    idleSec === undefined
+      ? undefined
+      : { lastAt: now - idleSec * 1000, expired: e.prompt_cache_likely_expired, reWarmUsd: e.estimated_cache_write_usd },
+  )
+  if (idleSec === undefined) await recallLastReply($, path)
+  void recoverSpend($, path)
+  $.ui.invalidate('ui.render')
 }
 
 /** Remembers this session's last reply and the rate its bill solves to, for
@@ -264,12 +342,14 @@ export const register: Register = on => {
     band.workspace = undefined
     band.utcOffsetMin = utcOffsetOf(await $.clock.now())
     band.reads++ // any read still out began before this load
+    band.conversations++
     await readLayout($)
     notePriceModel(await $.session.model().catch(() => undefined))
     noteLoad(await ledgerUsd($))
     void readWorkspace($)
     // Loaded mid-conversation, the band has seen no reply: recall the last.
-    if (!cache.knownFresh) await recallLastReply($)
+    // A resume already noted recalls its own.
+    if (!cache.knownFresh && !cache.resumed) await recallLastReply($)
 
     band.palette = resolvePalette((await $.env.get('CC_BAND_APPEARANCE'))?.toLowerCase(), await $.env.get('NO_COLOR'))
     band.glyphs = resolveGlyphs({
@@ -311,9 +391,11 @@ export const register: Register = on => {
   })
 
   // /clear and resume end the conversation but not the process, and no
-  // session.start follows, so the next conversation starts from here.
+  // session.start follows, so the next conversation starts from here. A
+  // resume's is under way already, and its SessionStart says what it was.
   on('session.end', async ($, e, next) => {
-    resetConversation((await ledgerUsd($)) ?? 0)
+    band.conversations++
+    resetConversation((await ledgerUsd($)) ?? 0, e.reason !== 'resume')
     // The context warning is this conversation's; the 5-hour one is the
     // account's, and /clear changes nothing about it.
     resetConversationInsights()
@@ -322,6 +404,13 @@ export const register: Register = on => {
     // A resume may be another project.
     void readWorkspace($)
     $.ui.invalidate('ui.render')
+    return next(e)
+  })
+
+  // A conversation resumed at launch (`claude --resume`, the desktop opening
+  // a past session) or by /resume: the ledger may read $0, but it is no new one.
+  on('classic.SessionStart', async ($, e, next) => {
+    if (e.agent_id === undefined && (e.source === 'resume' || e.source === 'fork')) await resumeConversation($, e)
     return next(e)
   })
 
@@ -474,7 +563,7 @@ export const register: Register = on => {
         glyphs: band.glyphs,
         now,
         cache: cacheView(now, usage.cost?.usd, contextTokens),
-        costUsd: usage.cost?.usd ?? 0,
+        costUsd: spentUsd(usage.cost?.usd),
         lastTurnUsd: insights.lastTurnUsd,
         context: {
           tokens: usage.context.tokens,
