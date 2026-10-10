@@ -1,5 +1,5 @@
 import { test, expect } from 'claude-code/testing'
-import { barChart, braille, dayCells, meter, ring, sparkline, underline } from '../hooks/charts'
+import { barChart, barsWidth, braille, dayCells, meter, ring, sparkline, underline } from '../hooks/charts'
 import { makeKit } from '../hooks/kit'
 import { METER_CELLS } from '../hooks/layout'
 import { byKey, fakeEl, textOf, type Node } from './helpers'
@@ -81,6 +81,14 @@ test("the text meter's tick and projection take a cell each, never widening it",
   expect(textOf(meter(term, { label: '5h', frac: 0.2, tone: 'calm', accent: '#7fcf8a', size, tick: 0.5 }))).toBe('██░░░│░░░░')
   expect(textOf(meter(term, { label: '5h', frac: 0.2, tone: 'calm', accent: '#7fcf8a', size, projectTo: 0.5 }))).toBe('██▒▒▒░░░░░')
   expect(textOf(meter(term, { label: '5h', frac: 0.2, tone: 'calm', accent: '#7fcf8a', size, tick: 1, projectTo: 1 }))).toBe('██▒▒▒▒▒▒▒│')
+})
+test('each bar starts where the bars before it end, so barsWidth holds them all', () => {
+  const values = [1, 2, 9]
+  const source = svg(barChart(desk, { key: 'b', alt: 'cost', values, marked: [false, false, false], color: '#888888', markColor: '#eeeeee', px: barsWidth(values.length), height: 36 })).props.source
+  const bars = [...source.matchAll(/<rect x="(\d+)" [^>]*width="(\d+)"/g)].map(m => ({ x: Number(m[1]), width: Number(m[2]) }))
+  expect(bars.map(b => b.x)).toEqual(values.map((_, i) => barsWidth(i)))
+  const last = bars.at(-1)
+  expect((last?.x ?? 0) + (last?.width ?? 0)).toBeLessThan(barsWidth(values.length))
 })
 test('in text, a ring is a meter, a line or bar chart is braille, and an underline is nothing', () => {
   expect(textOf(ring(term, { key: 'r', alt: 'cache', frac: 1, color: '#7fcf8a', px: 30 }))).toBe('█'.repeat(METER_CELLS))
