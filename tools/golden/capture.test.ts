@@ -1,7 +1,7 @@
 // tools/golden/capture.test.ts — copied into a scratch copy of the plugin by
 // capture.sh for one run; prints GOLDEN, TREE and PERF lines, never asserts.
 import { test } from 'claude-code/testing'
-import { GOLDEN_APPEARANCES, GOLDEN_MOUNTS, SCENARIO_NAMES, drawCases, goldenKey } from './matrix'
+import { GOLDEN_APPEARANCES, GOLDEN_MOUNTS, SCENARIO_NAMES, drawCases, goldenKey } from './cases'
 import { canon, treeHash } from './golden/hash'
 import { LONG, START, mountBand, resp, respond, setup } from './helpers'
 

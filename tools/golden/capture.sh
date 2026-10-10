@@ -10,12 +10,13 @@ if ! git -C "$ROOT" diff --quiet 40943d3 -- plugins/session-usage-band/hooks; th
 fi
 COMMIT="$(git -C "$ROOT" rev-parse HEAD)"
 # Run in a scratch copy holding only what the capture imports, so it never
-# depends on the golden suite or the chips.ts it is about to replace.
+# depends on the golden suite or the chips.ts it is about to replace. The
+# cases come from cases.ts, never matrix.ts, which imports the views.
 SCRATCH="$(mktemp -d)"
 trap 'rm -rf "$SCRATCH"' EXIT
 find "$PLUGIN" -mindepth 1 -maxdepth 1 ! -name tests -exec cp -R {} "$SCRATCH/" \;
 mkdir -p "$SCRATCH/tests/golden"
-cp "$PLUGIN"/tests/{helpers.ts,matrix.ts,globals.d.ts} "$SCRATCH/tests/"
+cp "$PLUGIN"/tests/{helpers.ts,cases.ts,globals.d.ts} "$SCRATCH/tests/"
 cp "$PLUGIN/tests/golden/hash.ts" "$SCRATCH/tests/golden/"
 cp "$HERE/capture.test.ts" "$SCRATCH/tests/golden-capture.test.ts"
 START_S=$(date +%s)

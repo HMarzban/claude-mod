@@ -12,7 +12,7 @@ trap 'rm -rf "$SCRATCH"' EXIT
 find "$PLUGIN" -mindepth 1 -maxdepth 1 ! -name tests -exec cp -R {} "$SCRATCH/" \;
 mkdir -p "$SCRATCH/tests"
 # The shared test modules every test file may import.
-for shared in helpers.ts matrix.ts globals.d.ts; do
+for shared in helpers.ts cases.ts matrix.ts globals.d.ts; do
   if [ -f "$PLUGIN/tests/$shared" ]; then cp "$PLUGIN/tests/$shared" "$SCRATCH/tests/"; fi
 done
 if [ -d "$PLUGIN/tests/golden" ]; then cp -R "$PLUGIN/tests/golden" "$SCRATCH/tests/"; fi
