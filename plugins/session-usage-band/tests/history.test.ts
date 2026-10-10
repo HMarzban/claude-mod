@@ -1,6 +1,7 @@
 import { test, expect } from 'claude-code/testing'
 import { recordResponse, resetCache, takeRebuilt } from '../hooks/cache'
 import { COST_TRAIL, CONTEXT_TRAIL, FIVE_HOUR_TRAIL, noteFiveHourTrail, pushContext, pushCost, resetConversationInsights, resetInsights, trails } from '../hooks/insights'
+import { asLimitSamples } from '../hooks/memory'
 import { HOUR, HOUR_1, LONG, MIN, START, USAGE, engine, resp, setup, turn, usage } from './helpers'
 
 test('the cost trail keeps the last 24 messages', () => {
@@ -66,6 +67,8 @@ test('samples are written once per new 15-minute bucket, the percentages rising'
   const writes = engine.storeSets.filter(k => k === 'limitSamples').length
   expect(writes).toBeGreaterThanOrEqual(8)
   expect(writes).toBeLessThanOrEqual(9)
+  const kept = asLimitSamples(engine.store.limitSamples).map(x => x.sevenPct)
+  expect(kept.every((pct, i) => i === 0 || pct > (kept[i - 1] ?? Infinity))).toBe(true)
 })
 test('a session reads the stored samples at start and at each new bucket, never within one', async ($, on) => {
   setup(on, { store: { limitSamples: [] } })
@@ -85,4 +88,17 @@ test('a failing store never throws, and nothing is written', async ($, on) => {
   await turn($, 't1', 2.41, 2.5)
   expect(engine.store.limitSamples).toBeUndefined()
   expect(engine.invalidates).toBeGreaterThan(redraws)
+})
+test('a failed read writes nothing over what other sessions stored, and the next bucket writes', LONG, async ($, on) => {
+  const clock = setup(on)
+  await $.session.start(START)
+  engine.storeReadFails = true
+  rising(0)
+  await turn($, 't1', 2.41, 2.5)
+  expect(engine.storeSets.filter(k => k === 'limitSamples')).toHaveLength(0)
+  engine.storeReadFails = false
+  await clock.advance(15 * MIN)
+  rising(1)
+  await turn($, 't2', 2.5, 2.6)
+  expect(asLimitSamples(engine.store.limitSamples).map(x => x.sevenPct)).toEqual([30, 31])
 })
