@@ -81,12 +81,74 @@ hides the band; `/usage-band` brings it back.
 
 ## When the band is narrow
 
-The row stays on one line. As it narrows, pieces give way in this
+Chips' row stays on one line. As it narrows, pieces give way in this
 order: the tokens chip, the 7d reset time, the 5h reset time, the context
 meter, a calm 7d chip, the limit bars, long wording, a calm context chip,
 then a calm 5h chip. An amber chip keeps its words longest; its reset time
 is the very last thing to go. Below about 55 columns, with several chips
 amber at once, the end of the row is clipped rather than wrapped.
+
+## Layouts
+
+Chips is one of nine layouts. The other eight show the same readings in
+another shape, on a filled panel, and each opens with `▿` to its own view of
+every fact, under the same workspace line and buttons.
+
+| Layout | Shows | Rows (desktop / terminal) |
+| --- | --- | --- |
+| `chips` | The row of chips above, and four cards behind `▿`; the default | 1 / 1 |
+| `gauges` | Two rows of labelled bars: the cache's time left, context up to compaction, and the 5h and 7d limits with a tick for how much of each window has gone | 2 / 2 |
+| `ledger` | The band in words alone, `·`-separated, with `! ` leading what needs you | 1 / 1 |
+| `rings` | A ring per reading, its value over its label, with a dot on each limit for how much of the window has gone; the terminal draws a bar | 2 / 1 |
+| `pulse` | Trends rather than totals: each message's cost as bars, and which way the 5-hour limit is heading | 2 / 1 |
+| `tiles` | Each reading as a bold value over a small label, with a thin underline on the desktop | 2 / 2 |
+| `week` | Where your limits went: the weekly limit as day cells and the 5-hour limit as hour cells, each filled to its rise | 2 / 2 |
+| `departures` | A split-flap board: the cache `DEPARTS` at its clock time, and its last minute is `LAST CALL` | 1 / 1 |
+| `forecast` | The band read like the weather: now, then up to three changes ahead at their clock times, soonest first | 2 / 1 |
+
+```
+/usage-band layout pulse    # draw pulse; /usage-band layout chips goes back
+/usage-band layout          # name the layout in use and list them all
+```
+
+The choice is kept in the plugin's store, so every session draws it, and
+one already open switches after its next reply. Choosing a layout shows a
+hidden band. Below 40 columns every layout draws chips. On the desktop with
+`CC_BAND_APPEARANCE=plain` there are no SVG charts, so a layout draws as
+text and takes its terminal rows.
+
+Pulse and week draw their charts in braille in the terminal, always beside
+their numbers. Week's cells come from a week of 5h and 7d readings the band
+keeps in its store, at most one per 15 minutes, so they cover the days
+before this session.
+
+### Glyphs in the terminal
+
+```bash
+CC_BAND_GLYPHS=ascii     # ASCII alone
+CC_BAND_GLYPHS=unicode   # the band's own glyphs, even in a CJK locale
+```
+
+A terminal in a CJK locale draws some of the band's glyphs (`█ │ · Σ …`)
+two columns wide where the band counts one, so the row runs past the
+window's edge, and so does a terminal set to draw ambiguous-width
+characters wide. In a CJK locale (the first of `LC_ALL`, `LC_CTYPE` and
+`LANG` that is set starts with `ja`, `zh` or `ko`) the band draws ASCII by
+itself. The terminal setting can't be detected, so set
+`CC_BAND_GLYPHS=ascii` if you use it, and with a screen reader, which reads
+braille as dots. In ASCII each glyph becomes one character or is dropped
+(`█` is `#`, `▿` is `v`, `◷` goes), and braille charts give way to their
+numbers. It applies to every layout, chips included, and only in the
+terminal.
+
+### Clock times
+
+Week, departures and forecast name clock times in your local zone. The band
+reads the zone's offset from UTC off the clock when the session starts and
+after each reply, so a change of zone shows by the next reply. Where it
+can't be read, week names its days and hours in UTC, and its reset, like
+every time on departures and forecast, says how long until it comes rather
+than when (`in 52m`, not `14:32`).
 
 ## The cache countdown
 
@@ -107,7 +169,28 @@ counts as an unexpected rebuild.
 ## Reopening an old session
 
 A session the band hasn't seen a reply in yet, because you reopened it or
-the band reloaded, still says what the cache is doing. It recalls when the
+the band reloaded, still says what the cache is doing and what it has cost.
+
+When you resume a session (`claude --resume`, `/resume`, or a past session
+opened in the desktop app) or fork one, Claude Code says how long it has
+been idle, whether its cache has likely expired, and what re-caching it
+would cost. The band takes its word: the countdown runs from that idle
+time, the cache reads cold when Claude Code says it has likely expired, and
+the price shown is Claude Code's own. The band also reads the session's
+transcript once, never while it draws, for two more facts:
+
+- What the session spent before you resumed it: its last cost record, and
+  each reply logged after it, priced at its model's rate in that record.
+  The cost shows that plus what you've spent since resuming, or Claude
+  Code's own total if it is larger; the two totals are never added. The
+  tokens chip and the Spend card's breakdown count from it too, rather than
+  waiting for your next message.
+- How long the cache was last written for: an hour or 5 minutes, from the
+  last reply in the main conversation that wrote to it. Until the band's
+  first reply, the Cache card says `1h idle` or `5m idle` with no
+  `· assumed`. A lifetime set in the environment still wins.
+
+Where Claude Code doesn't say, or the band reloaded, it recalls when the
 session's last reply was and what a token costs on its model:
 
 - from its own memory, which keeps each session's last reply (the newest 50)
@@ -185,6 +268,7 @@ the expanded cards carry the same facts.
 | `/usage-band` | Toggle visibility |
 | `/usage-band more` / `less` | Open or close the cards |
 | `/usage-band show` / `hide` | Set visibility explicitly |
+| `/usage-band layout <name>` | Draw the band in another [layout](#layouts), for every session; without a name, list them |
 
 ## Cache lifetime
 
@@ -192,7 +276,9 @@ The default lifetime depends on billing: an hour on a subscription within
 plan usage, five minutes on usage credits or an API key. A mod can't read
 which applies, so the band assumes an hour and says `· assumed`. If it
 then sees the cache rebuild after a gap longer than five minutes, with the
-same model, it corrects itself to `5m`.
+same model, it corrects itself to `5m`. On a resumed session, the
+transcript's last cache write says which until the band's first reply (see
+[Reopening an old session](#reopening-an-old-session)).
 
 To remove the guess, set one of:
 - `CLAUDE_CODE_PROMPT_CACHE_TTL=5m` or `1h`
@@ -226,11 +312,14 @@ npx -y -p typescript@5 tsc -p plugins/session-usage-band
 [CONTRIBUTING.md](https://github.com/HMarzban/claude-mod/blob/main/CONTRIBUTING.md) has the full loop and the rules the
 code follows.
 
-Only `hooks/register.tsx` touches the engine (`$`). It reads a snapshot for
-`hooks/band.tsx`, a pure drawing function. The cache model, insights,
-memory, formatting, workspace and palettes are plain modules. The tests
-drive the band through the engine's test kit, and test the plain modules
-directly.
+Only `hooks/register.tsx` touches the engine (`$`). It reads a snapshot
+(`hooks/snapshot.ts`) for `hooks/band.tsx`, a pure drawing function, which
+turns it into readings (`hooks/reading.ts`, its words from
+`hooks/words.ts`) and draws the chosen layout from `hooks/views/`. Every
+layout but chips draws those words and formats nothing itself. The cache
+model, insights, memory, formatting, workspace and palettes are plain
+modules. The tests drive the band through the engine's test kit, and test
+the plain modules directly.
 
 ## Help make it better
 

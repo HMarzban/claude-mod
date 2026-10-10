@@ -5,7 +5,29 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
-## [Unreleased]
+## [0.12.0] - 2026-10-10
+
+### Added
+- Nine layouts, chosen with `/usage-band layout <name>`: chips, the band as
+  it was and still the default, and eight more that show the same readings
+  as labelled bars (`gauges`), words alone (`ledger`), rings (`rings`),
+  trends (`pulse`), bold values (`tiles`), day and hour cells (`week`), a
+  split-flap board (`departures`) and a weather-style outlook
+  (`forecast`). Each opens with `▿` to its own view of every fact. The
+  choice is kept for every session; below 40 columns every layout draws
+  chips. `/usage-band layout` alone names the layout in use and lists
+  them. The README's Layouts section gives each one's rows.
+- The band keeps a week of 5h and 7d readings in its store, at most one per
+  15 minutes, for week's cells.
+- Glyph tiers in the terminal: `CC_BAND_GLYPHS=ascii` draws ASCII alone,
+  for a terminal that draws ambiguous-width characters wide or a screen
+  reader, and `CC_BAND_GLYPHS=unicode` keeps the band's own glyphs.
+
+### Changed
+- In the terminal in a CJK locale (`LC_ALL`, `LC_CTYPE` or `LANG` starting
+  with `ja`, `zh` or `ko`), chips draws ASCII: such a terminal draws some
+  of its glyphs two columns wide, so the row ran past the window's edge.
+  `CC_BAND_GLYPHS=unicode` keeps the glyphs.
 
 ### Fixed
 - A resumed session (`claude --resume`, `/resume`, or a past session opened
@@ -13,6 +35,8 @@ version may change how the band reads.
   counting down, at the re-caching price Claude Code names and for as long
   as its last cache write was made for, and the spend and token breakdown
   start from what the transcript records, not $0.00.
+- Inside, not on screen: a turn that ends outside the main conversation
+  drops any start cost it noted, so a subagent's turns can't build up.
 
 ## [0.11.13] - 2026-10-10
 

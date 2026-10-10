@@ -2,6 +2,8 @@
 
 v3 · 2026-10-09 · issue HMarzban/claude-mod#1 · visual reference: the "Usage band layouts" canvas, Keepers row.
 
+Status: Implemented in 0.12.0.
+
 **Where the canvas and this spec differ, the spec wins.** The canvas is refreshed to match before P2.
 
 Maintainer decisions:

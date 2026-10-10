@@ -43,20 +43,32 @@ Run `/reload-plugins` in your session afterwards.
 | --- | --- |
 | `hooks/register.tsx` | The hooks. The only module that touches the engine (`$`). |
 | `hooks/snapshot.ts` | The snapshot and actions: the one contract between `register.tsx` and the drawing. |
-| `hooks/band.tsx` | `drawBand(elements, snapshot, actions)`: a pure function from a snapshot to a tree; the chips and the cards. |
+| `hooks/band.tsx` | `drawBand(elements, snapshot, actions)`: a pure function from a snapshot to a tree. It builds the kit and the readings, draws the chosen layout, and falls back to chips. |
 | `hooks/kit.tsx` | The drawing kit made once per draw: elements, the Svg gate, palette, measure, hover cards, gaps, icons. |
+| `hooks/reading.ts` | `readingsOf`: everything a view reads, built once per draw. Each section's facts, with its words from `words.ts`. |
+| `hooks/words.ts` | The phrasebook: every phrase a new layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. |
+| `hooks/views/view.ts` | `View`, `rowsOf` and `defineView`, which makes a layout from its rows, its collapsed lines and its body. |
+| `hooks/views/index.ts` | `VIEWS`: every layout by name. |
+| `hooks/views/frame.tsx` | The expanded scaffold the new layouts share: the workspace strip, the view's body and the buttons. |
+| `hooks/views/parts.tsx` | The pieces several layouts draw: pills, the shared cache pill, and the lines, sections and grid they're laid out with. |
+| `hooks/views/<name>.tsx` | One file per layout: `chips`, `gauges`, `ledger`, `rings`, `pulse`, `tiles`, `week`, `departures`, `forecast`. Chips keeps its own pills and cards. |
 | `hooks/strip.tsx` | The workspace strip: project, branch or worktree, changes, ahead/behind. |
-| `hooks/reading.ts` | Pure readings of the snapshot: the cache's mood and every word about it, the context's fill, a limit's tone. |
+| `hooks/charts.tsx` | The charts: `meter`, `ring`, `sparkline`, `barChart`, `dayCells`, `underline`, `braille`. Each is an Svg on the desktop and text elsewhere. |
+| `hooks/glyphs.ts` | The terminal's glyph tier (`CC_BAND_GLYPHS`, a CJK locale) and the ASCII mapping. |
+| `hooks/calendar.ts` | Week's day and hour cells, read off the limit samples. |
 | `hooks/layout.ts` | Give-way orders, sizes, and how many columns a drawn tree takes. |
 | `hooks/icons.ts` | The icons' SVG bodies, glyphs and names. |
-| `hooks/cache.ts` | The prompt-cache model: TTL, misses, recall, re-warm and savings estimates, and the cache's view for the band. |
-| `hooks/insights.ts` | Last message cost and the 5-hour pace. |
+| `hooks/cache.ts` | The prompt-cache model: TTL, misses, recall, a resume, re-warm and savings estimates, and the cache's view for the band. |
+| `hooks/insights.ts` | Last message cost, the 5-hour pace, and the trails pulse draws. |
 | `hooks/format.ts` | Numbers, times, thresholds and escalation marks. |
 | `hooks/palette.ts` | The dark, light and plain palettes, and the colours for the band's bare ground. |
 | `hooks/workspace.ts` | The workspace strip's git state and path, parsed from git's output. |
-| `hooks/memory.ts` | What the band remembers across sessions, and what it reads off a transcript's end. |
+| `hooks/memory.ts` | What the band remembers across sessions (last replies, rates, the layout, the limit samples), and what it reads off a transcript. |
 | `types/index.d.ts` | The plugin's state contract. |
 | `tests/` | Tests, one file per area, with shared helpers in `helpers.ts`: `setup()` starts a test from a fresh engine, `mountBand()` draws the band, `byKey()` finds a node. |
+| `tests/cases.ts`, `tests/matrix.ts` | The states every layout is drawn in and `drawCases`, which draws them; `snapOf` for pure tests, the invariant checks, and `viewSuite`, which every layout's test file runs. |
+| `tools/golden/capture.sh`, `tests/golden/` | Golden: chips' trees, captured from the band before the layouts work, which `golden-a` and `golden-b` hold chips to. |
+| `tools/test-only.sh` | Runs only the tests whose names match the globs given, against a scratch copy of the plugin. |
 
 ## Rules the code follows
 
@@ -66,7 +78,8 @@ Run `/reload-plugins` in your session afterwards.
 - **No whitespace-only string children on the desktop.** It drops them, so
   a gap there is a spacer `Box`. Text surfaces keep their spaces.
 - **Svg is desktop-only.** Other surfaces hold the element but draw
-  nothing, so every Svg sits behind the `surface === 'desktop'` check.
+  nothing, so every Svg goes through `kit.Svg`, which is undefined
+  elsewhere and in the plain palette.
 - **No SVG names an id.** Svgs can share a page, where a repeated id
   resolves to the first, so a drawing rounds its own ends rather than clip.
 - **A hover card has no key.** A keyed Box is its own hover scope, and a
@@ -84,6 +97,12 @@ Run `/reload-plugins` in your session afterwards.
 - **Colour is never the only signal.** Escalation also adds words or
   `!` / `!!`. Text meets WCAG AA contrast (4.5:1) and edges and tracks meet
   3:1, in every palette. The design tests check both, over every palette.
+- **A new layout** is a name in `LAYOUT_NAMES`, one file in `views/` made
+  with `defineView`, one test file running `viewSuite`, and an entry in
+  `VIEWS`. It draws only words from `read`: outside `chips.tsx`,
+  `parts.tsx` and `frame.tsx`, no file in `views/` contains `.raw`,
+  `.reading.`, `Date.parse`, `.replace(`, `Math.round` or an import of
+  `../format`.
 - **Test first.** Write the failing test, watch it fail, then make it pass.
 - **Settle on the clock.** Work a hook starts without awaiting finishes
   under the mocked clock: `await clock.settle()`, never a spin of
