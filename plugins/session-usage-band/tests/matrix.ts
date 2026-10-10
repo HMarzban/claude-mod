@@ -213,21 +213,48 @@ export type InvariantContext = Readonly<{
   expanded: boolean
 }>
 
-const HEX = /#([0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3,4})\b/gi
-/** A hex colour (`fff`, `ffff`, `ffffff` or `ffffff80`) whose hue lies
- *  within 15° of pure red at more than half saturation. Amber sits near 40°. */
-const isRedHex = (hex: string): boolean => {
-  const digits = hex.length <= 4 ? [...hex.slice(0, 3)].map(c => c + c) : [hex.slice(0, 2), hex.slice(2, 4), hex.slice(4, 6)]
-  const [r = 0, g = 0, b = 0] = digits.map(d => parseInt(d, 16))
+/** A colour prop, at the top of a node's props or inside its `hover`. */
+const COLOUR_PROPS: ReadonlySet<string> = new Set(['color', 'backgroundColor', 'borderColor'])
+/** The red names a colour prop takes: the theme's error key and Ink's red keywords. */
+const RED_NAME = /^(error|red|redBright)$/i
+const RGB = /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i
+/** A hex colour, `fff` to `ffffff80`; not a character reference such as `&#8230;`. */
+const HEX = /(?<!&)#([0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3,4})\b/gi
+/** An Svg paint named red rather than written in hex. */
+const SVG_RED = /\b(fill|stroke|stop-color)="red"/i
+
+/** Whether a colour's hue lies within 15° of pure red at more than half
+ *  saturation. Amber sits near 40°. */
+const isRed = (r: number, g: number, b: number): boolean => {
   const max = Math.max(r, g, b)
   const chroma = max - Math.min(r, g, b)
   // With red the largest, the hue is 60° × (g − b) / chroma, either side of 0°.
   return max === r && chroma > max / 2 && Math.abs((60 * (g - b)) / chroma) <= 15
 }
-/** The red in a prop's value: the theme's error key, or a red hex anywhere in
- *  it (an Svg's source included). */
-const redIn = (value: string): string | undefined =>
-  value === 'error' ? value : [...value.matchAll(HEX)].find(m => isRedHex(m[1] ?? ''))?.[0]
+const isRedHex = (hex: string): boolean => {
+  const digits = hex.length <= 4 ? [...hex.slice(0, 3)].map(c => c + c) : [hex.slice(0, 2), hex.slice(2, 4), hex.slice(4, 6)]
+  const [r = 0, g = 0, b = 0] = digits.map(d => parseInt(d, 16))
+  return isRed(r, g, b)
+}
+/** The red a colour prop names: a red name, or an `rgb()` that is red. */
+const redName = (value: string): string | undefined => {
+  const rgb = value.match(RGB)
+  const red = RED_NAME.test(value) || (rgb !== null && isRed(Number(rgb[1]), Number(rgb[2]), Number(rgb[3])))
+  return red ? value : undefined
+}
+/** The red written in any string: a red hex anywhere (an Svg's source
+ *  included), or an Svg paint named red. */
+const redWritten = (value: string): string | undefined =>
+  [...value.matchAll(HEX)].find(m => isRedHex(m[1] ?? ''))?.[0] ?? value.match(SVG_RED)?.[0]
+/** Every red in a node's props, and in an object-valued prop such as `hover`. */
+const redsIn = (props: Readonly<Record<string, unknown>>, nested = true): string[] =>
+  Object.entries(props).flatMap(([key, value]) => {
+    if (typeof value === 'string') {
+      const red = (COLOUR_PROPS.has(key) ? redName(value) : undefined) ?? redWritten(value)
+      return red === undefined ? [] : [red]
+    }
+    return nested && typeof value === 'object' && value !== null ? redsIn(value as Record<string, unknown>, false) : []
+  })
 
 /** What each glyph tier may draw (spec §3.2): the unicode tier's glyphs and braille, or ASCII alone. */
 const UNICODE_TIER = /^[\x20-\x7e█░▒│·↻Σ◷◔▿▵…±●■–↑↓\u2800-\u28ff]*$/
@@ -266,10 +293,7 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   walk(tree, n => {
     nodes++
     if (n.type === 'Svg') svgs.push(n)
-    for (const v of Object.values(n.props ?? {})) {
-      const red = typeof v === 'string' ? redIn(v) : undefined
-      if (red !== undefined) fail('colour', `red ${red}`)
-    }
+    for (const red of redsIn(n.props ?? {})) fail('colour', `red ${red}`)
     if (ctx.surface === 'desktop')
       for (const k of n.children ?? []) if (typeof k === 'string' && /^\s+$/.test(k)) fail('whitespace', `a whitespace-only child of a ${n.type}`)
   })

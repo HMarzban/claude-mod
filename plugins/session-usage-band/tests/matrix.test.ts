@@ -46,6 +46,7 @@ test('rows: the collapsed part takes the rows its view declares', () => {
 test('toggle: ▿ shut, ▵ open, once', () => {
   expect(failed(view([row(t('a'))]))).toContain('toggle')
   expect(failed(GOOD, { expanded: true })).toContain('toggle')
+  expect(failed(view([row(t('a'), toggle(), toggle())]))).toContain('toggle')
   expect(failed(view([row(t('a'), toggle('v'))]), { glyphs: 'ascii' })).not.toContain('toggle')
 })
 test('width: no wider than the columns, except all-amber below 60', () => {
@@ -68,6 +69,14 @@ test('colour: nothing is red', () => {
   const redFill = svg({ width: 20, alt: 'x', source: '<svg><rect fill="#e5484d"/></svg>' })
   expect(failed(view([row(t('a'), redFill, toggle())]), { surface: 'desktop' })).toContain('colour')
   expect(failed(view([row(t('a', { color: 'error' }), toggle())]), { appearance: 'plain' })).toContain('colour')
+  for (const red of ['red', 'redBright', 'rgb(220, 38, 38)', '#f00', '#ff000080'])
+    expect(failed(view([row(t('a', { color: red }), toggle())]))).toContain('colour')
+  expect(failed(view([row({ type: 'Box', props: { hover: { color: '#ff0000' } }, children: [t('a')] }, toggle())]))).toContain('colour')
+  const keywordFill = svg({ width: 20, alt: 'x', source: '<svg><rect fill="red"/></svg>' })
+  expect(failed(view([row(t('a'), keywordFill, toggle())]), { surface: 'desktop' })).toContain('colour')
+  expect(failed(view([row({ type: 'Box', props: { key: 'error' }, children: [t('a')] }, toggle())]))).not.toContain('colour')
+  const escaped = svg({ width: 20, alt: 'x', source: '<svg><text>52m&#8230;&#8212;</text></svg>' })
+  expect(failed(view([row(t('a'), escaped, toggle())]), { surface: 'desktop' })).not.toContain('colour')
   expect(failed(view([row(t('a', { color: '#e5e5e5' }), toggle())]))).not.toContain('colour')
   expect(failed(view([row(t('a', { backgroundColor: '#7a4e06' }), toggle())]))).not.toContain('colour')
 })
