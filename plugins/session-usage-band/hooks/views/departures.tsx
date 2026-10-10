@@ -20,17 +20,22 @@ type Piece = (typeof ORDER)[number]
 const INK = { text: 'flapText', dim: 'flapDim', warm: 'flapWarm', amber: 'flapAmber', five: 'flapFive', week: 'flapWeek', coin: 'flapCoin' } as const
 type Ink = keyof typeof INK
 
-/** The board's fixed columns, ITEM, STATUS and TIME, in cells; REMARKS takes the rest. */
+/** The board's fixed columns, ITEM, STATUS and TIME, in cells of text; REMARKS takes the rest. */
 const COLUMNS = [10, 18, 14] as const
 
 const up = (text: string): string => text.toUpperCase()
 
-/** One flap: the flap ground and an ink made for it. Padded on the desktop
- *  alone: on the terminal the 1-column gap between flaps shows the ground. */
+/** How far a flap's text sits in from its edge: its padding, on the filled
+ *  desktop alone. On the terminal the 1-column gap between flaps shows the
+ *  ground; plain has none, and brackets would cost the line the room a
+ *  single amber reason needs at 40 columns. */
+const inset = (kit: Kit): number => (kit.Svg === undefined ? 0 : 1)
+
+/** One flap: the flap ground and an ink made for it. */
 const flap = (kit: Kit, key: string, text: string, ink: Ink = 'text'): RenderElement => {
-  const { Box, Text, Svg, palette } = kit
+  const { Box, Text, palette } = kit
   return (
-    <Box key={key} flexShrink={0} {...(palette.filled ? { backgroundColor: palette.flap, paddingX: Svg ? 1 : 0 } : {})}>
+    <Box key={key} flexShrink={0} {...(palette.filled ? { backgroundColor: palette.flap, paddingX: inset(kit) } : {})}>
       <Text color={palette[INK[ink]]} bold wrap="truncate-end">
         {text}
       </Text>
@@ -128,19 +133,21 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
 /** A row of the board, and whether it is amber, so a board short of rows keeps it. */
 type BoardRow = Readonly<{ amber: boolean; line: RenderElement }>
 
-/** One board line: three fixed columns, each clipping what outgrows it, then
- *  REMARKS, which truncates first. */
+/** One board line: three fixed columns, each as wide as its text and a
+ *  flap's two edges and clipping what outgrows that, then REMARKS, which
+ *  truncates first. */
 const boardLine = (kit: Kit, key: string, [item, status, time, remarks]: readonly [RenderElement, RenderElement, RenderElement, RenderElement]): RenderElement => {
   const { Box } = kit
+  const edges = 2 * inset(kit)
   return (
     <Box key={key} flexDirection="row" columnGap={1} overflow="hidden">
-      <Box key="item" width={COLUMNS[0]} flexShrink={0} overflow="hidden">
+      <Box key="item" width={COLUMNS[0] + edges} flexShrink={0} overflow="hidden">
         {item}
       </Box>
-      <Box key="status" width={COLUMNS[1]} flexShrink={0} overflow="hidden">
+      <Box key="status" width={COLUMNS[1] + edges} flexShrink={0} overflow="hidden">
         {status}
       </Box>
-      <Box key="time" width={COLUMNS[2]} flexShrink={0} overflow="hidden">
+      <Box key="time" width={COLUMNS[2] + edges} flexShrink={0} overflow="hidden">
         {time}
       </Box>
       <Box key="remarks" flexGrow={1} width={0} minWidth={0} overflow="hidden">
@@ -165,7 +172,13 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const c = read.cache
   const x = read.context
   const s = read.spend
-  const head = (key: string, title: string) => words(kit, key, [[title, 'label']], true)
+  const { Box } = kit
+  // Each title sits over its column's text, as far in as a flap's.
+  const head = (key: string, title: string) => (
+    <Box key={key} paddingLeft={inset(kit)}>
+      {words(kit, 'title', [[title, 'label']], true)}
+    </Box>
+  )
   /** A row of flaps; a time or remarks not known read `–`. */
   const row = (key: string, item: readonly [string, Ink?], status: readonly [string, Ink], time: string | undefined, remarks: readonly (string | undefined)[]): BoardRow => {
     const said = remarks.filter((r): r is string => r !== undefined && r !== '')

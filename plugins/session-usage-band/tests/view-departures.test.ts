@@ -3,16 +3,18 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import type { On } from 'claude-code'
-import { LONG, shown } from './helpers'
-import { caseKey, drawCases, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
+import type { On, RenderChildren } from 'claude-code'
+import { ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
+import { LONG, byKey, shown, walk, widthOf, type Node } from './helpers'
+import { caseKey, drawCases, viewSuite, type Appearance, type Mount, type ScenarioName, type Ttl } from './matrix'
 
 viewSuite('departures')
 
 const T160: Mount = { surface: 'terminal', cols: 160 }
+const D160: Mount = { surface: 'desktop', cols: 160 }
 /** One scenario on one mount: its trees, shut and open. */
-const at = async ($: Engine, on: On, scenario: ScenarioName, m: Mount = T160, ttl: Ttl = '1h') => {
-  const trees = await drawCases($, on, { layout: 'departures', scenario, appearance: 'dark', ttl }, [m])
+const at = async ($: Engine, on: On, scenario: ScenarioName, m: Mount = T160, ttl: Ttl = '1h', appearance: Appearance = 'dark') => {
+  const trees = await drawCases($, on, { layout: 'departures', scenario, appearance, ttl }, [m])
   return { shut: trees[caseKey(m, 'shut')], open: trees[caseKey(m, 'open')] }
 }
 
@@ -90,3 +92,44 @@ test('open with no context, the board says so', async ($, on) => {
 test('open, the context near compaction reads its board words', async ($, on) => {
   expect(shown((await at($, on, 'nearCompaction')).open)).toMatch(/CONTEXT\s*! COMPACTS IN ~10K/)
 })
+/** How far in each header's title sits in its column's cell. */
+const headInsets = (open: unknown): unknown[] =>
+  ['item', 'status', 'time', 'remarks'].map(column => (byKey(byKey(open, 'head', 'Box'), column, 'Box')?.children?.[0] as Node | undefined)?.props?.paddingLeft)
+test('open on the filled desktop, each header sits one cell in, over its padded flaps\' text', async ($, on) => {
+  expect(headInsets((await at($, on, 'calm', D160)).open)).toEqual([1, 1, 1, 1])
+})
+test('open on plain, each header sits at its column\'s edge, as a bare flap does', async ($, on) => {
+  expect(headInsets((await at($, on, 'calm', D160, '1h', 'plain')).open)).toEqual([0, 0, 0, 0])
+})
+test('open on the filled terminal, a header sits at its column\'s edge, as an unpadded flap does', async ($, on) => {
+  expect(headInsets((await at($, on, 'calm')).open)).toEqual([0, 0, 0, 0])
+})
+/** Each fixed board cell whose flap outgrows it: its text, its width and the cell's. */
+const clipped = (open: unknown): string[] => {
+  const out: string[] = []
+  walk(open, (n: Node) => {
+    if (typeof n.props?.width !== 'number' || !['item', 'status', 'time'].includes(String(n.props.key))) return
+    const used = widthOf(n.children?.[0])
+    if (used > n.props.width) out.push(`${shown(n)}: ${used} > ${n.props.width}`)
+  })
+  return out
+}
+for (const appearance of ['dark', 'plain'] as const)
+  test(`open in ${appearance}, an amber status fits its cell, a flap's padding included`, async ($, on) => {
+    const trees = await drawCases($, on, { layout: 'departures', scenario: 'nearCompaction', appearance, ttl: '1h' }, [T160, D160])
+    for (const m of [T160, D160]) expect(clipped(trees[caseKey(m, 'open')])).toEqual([])
+  })
+/** At 40 columns a single amber reason stays whole, and the line within its room. */
+const T40: Mount = { surface: 'terminal', cols: 40 }
+for (const appearance of ['dark', 'plain'] as const)
+  for (const [scenario, ttl, amber] of [
+    ['limit80', '1h', /! 5h 82%$/],
+    ['nearCompaction', '1h', /! ctx \d+%$/],
+    ['fiveHourAhead', '1h', /! 5h ~1h$/],
+    ['lastMinute', '5m', /LAST CALL\s*30s$/],
+  ] as const)
+    test(`${appearance} at 40 columns, ${scenario} keeps its amber whole within the line's room`, LONG, async ($, on) => {
+      const line = byKey((await at($, on, scenario, T40, ttl, appearance)).shut, 'line', 'Box')
+      expect(shown(line)).toMatch(amber)
+      expect(cellsOf(line as RenderChildren, TERMINAL)).toBeLessThanOrEqual(T40.cols - ROW_SLACK - 2)
+    })
