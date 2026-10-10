@@ -2,6 +2,7 @@
 // plugin, canned usage, and readers for the drawn tree.
 
 import type {
+  ElementTable,
   HookStream,
   ModelUsage,
   On,
@@ -20,7 +21,10 @@ import { DARK } from '../hooks/palette'
 
 export const PLUGIN = 'session-usage-band'
 
-export const props = (cols: number, isWorking = false, maxRows = 40) => ({
+/** The height a mount gets when it names none. */
+export const DEFAULT_MAX_ROWS = 40
+
+export const props = (cols: number, isWorking = false, maxRows = DEFAULT_MAX_ROWS) => ({
   hasSurvey: false,
   isWorking,
   maxRows,
@@ -79,34 +83,62 @@ type EngineFake = {
   root: string
   repoRoot: string | undefined
   git: GitAnswer
-  /** While set, git answers wait on it: its answer is the one at the call. */
+  /** While set, git and grep answers wait on it: each answer is the one at the call. */
   hold: Promise<void> | undefined
   ran: string[][]
   /** The session's id and model, as the engine names them. */
   sessionId: string
   model: string
+  /** When set, the engine can't say the session's id. */
+  sessionIdFails: boolean
   /** The session's transcript as Claude Code writes it; undefined when it isn't there. */
   transcript: string | undefined
   /** Its size on disk, when a test needs it larger than its text. */
   transcriptBytes: number | undefined
   /** When set, `tail` can't run, as where the host has none. */
   tailFails: boolean
+  /** When set, `grep` can't run, as where the host has none. */
+  grepFails: boolean
+  /** When set, `grep -b` gives each match's byte offset, as ugrep does, not
+   *  its line's. */
+  grepMatchOffsets: boolean
+  /** The command whose output runs past what one read holds, if any. */
+  truncates: 'grep' | 'tail' | undefined
   /** Every path the plugin asked the file system about. */
   statted: string[]
   /** The plugin's own store, JSON in and out as the engine keeps it. */
   store: Record<string, unknown>
+  /** Every key the plugin read from its store, in order. */
+  storeGets: string[]
+  /** Every key the plugin asked to write to its store, refused writes included, in order. */
+  storeSets: string[]
+  /** When true, every store write rejects, as an unavailable store would. */
+  storeFails: boolean
+  /** When true, every store read rejects, as a store that fails for a moment would. */
+  storeReadFails: boolean
+  /** How many times the plugin asked for a redraw (`$.ui.invalidate`). */
+  invalidates: number
 }
 
 /** Each test's engine, as `base` restores it: every default written once, so
  *  a field added to EngineFake can't be left out of the reset. */
 const ENGINE_INITIAL: Readonly<EngineFake> = {
   store: {},
+  storeGets: [],
+  storeSets: [],
+  storeFails: false,
+  storeReadFails: false,
+  invalidates: 0,
   hold: undefined,
   sessionId: 's1',
   model: 'claude-opus-5-5',
+  sessionIdFails: false,
   transcript: undefined,
   transcriptBytes: undefined,
   tailFails: false,
+  grepFails: false,
+  grepMatchOffsets: false,
+  truncates: undefined,
   statted: [],
   root: PROJECT,
   repoRoot: PROJECT,
@@ -117,9 +149,10 @@ const ENGINE_INITIAL: Readonly<EngineFake> = {
   gate: undefined,
 }
 
-// Cloned, not spread: `ran` and `statted` are pushed to, and a shallow copy
-// would carry one test's pushes into the defaults. structuredClone keeps the
-// undefined fields too, which a JSON round-trip would drop from the reset.
+// Cloned, not spread: `ran`, `statted` and the store logs are pushed to, and
+// a shallow copy would carry one test's pushes into the defaults.
+// structuredClone keeps the undefined fields too, which a JSON round-trip
+// would drop from the reset.
 export const engine: EngineFake = structuredClone(ENGINE_INITIAL)
 
 /** Every toast the plugin raised since `base` ran. */
@@ -134,8 +167,14 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
   nextUsage = null
   Object.assign(engine, structuredClone(ENGINE_INITIAL))
   engine.store = JSON.parse(JSON.stringify(store)) as Record<string, unknown>
-  on('store.get', ($, e) => ({ value: engine.store[e.key] }))
+  on('store.get', ($, e) => {
+    engine.storeGets.push(e.key)
+    if (engine.storeReadFails) throw new Error('store unavailable')
+    return { value: engine.store[e.key] }
+  })
   on('store.set', ($, e) => {
+    engine.storeSets.push(e.key)
+    if (engine.storeFails) throw new Error('store unavailable')
     engine.store[e.key] = JSON.parse(JSON.stringify(e.value)) as unknown
     return { value: undefined }
   })
@@ -144,7 +183,10 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
     return { value: undefined }
   })
   on('store.keys', () => ({ value: Object.keys(engine.store) }))
-  on('session.id', () => ({ value: engine.sessionId }))
+  on('session.id', () => {
+    if (engine.sessionIdFails) throw new Error('session id unavailable')
+    return { value: engine.sessionId }
+  })
   on('session.model', () => ({ value: engine.model }))
   on('fs.stat', ($, e) => {
     engine.statted.push(e.path)
@@ -167,18 +209,33 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
     const quiet = { stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
     if (e.argv[0] === 'tail') {
       if (engine.tailFails || engine.transcript === undefined) return { value: { ...quiet, exitCode: 1, stdout: '', stderr: 'tail: no such file' } }
-      const bytes = Number(e.argv[2])
-      return { value: { ...quiet, exitCode: 0, stdout: engine.transcript.slice(-bytes) } }
+      // `-c N` is the last N bytes, `-c +N` everything from byte N on.
+      const count = String(e.argv[2])
+      const stdout = count.startsWith('+') ? engine.transcript.slice(Number(count.slice(1)) - 1) : engine.transcript.slice(-Number(count))
+      return { value: { ...quiet, exitCode: 0, stdout, isStdoutTruncated: engine.truncates === 'tail' } }
     }
-    const git = engine.git
-    const hold = engine.hold
+    const { git, transcript, grepFails, grepMatchOffsets, truncates, hold } = engine
     if (hold !== undefined) await hold
+    if (e.argv[0] === 'grep') {
+      // `grep -a -b -F pattern path`: each line holding the pattern, after its byte offset.
+      if (grepFails) throw new Error('grep: command not found')
+      if (transcript === undefined) return { value: { ...quiet, exitCode: 2, stdout: '', stderr: 'grep: no such file' } }
+      const pattern = String(e.argv.at(-2))
+      let offset = 0
+      const found: string[] = []
+      for (const line of transcript.split('\n')) {
+        if (line.includes(pattern)) found.push(`${grepMatchOffsets ? offset + line.indexOf(pattern) : offset}:${line}\n`)
+        offset += line.length + 1
+      }
+      return { value: { ...quiet, exitCode: found.length > 0 ? 0 : 1, stdout: found.join(''), isStdoutTruncated: truncates === 'grep' } }
+    }
     if (git === 'fail') throw new Error('git: command not found')
     if (git === 'none') return { value: { ...quiet, exitCode: 128, stdout: '', stderr: 'fatal: not a git repository' } }
     return { value: { ...quiet, exitCode: 0, stdout: e.argv.includes('status') ? git.status : git.dirs } }
   })
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.end', ($, e) => ({ sessionId: e.sessionId }))
+  on('classic.SessionStart', () => ({}))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
   on('session.usage', ($, e) => {
     if (usage.fails) throw new Error('usage unavailable')
@@ -194,6 +251,11 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
     return { value: undefined }
   })
   on('ui.render', () => ({ type: 'Box' as const, children: [] }))
+  // A redraw asked for: counted, then passed on, so the redraw still happens.
+  on('ui.invalidate', ($, e, next) => {
+    engine.invalidates++
+    return next(e)
+  })
   on('turn.step', async function* ($, e) {
     if (engine.gate !== undefined) await engine.gate
     return {
@@ -236,6 +298,14 @@ export type Node = {
   hover?: Record<string, unknown>
   children?: unknown[]
 }
+
+/** Element constructors for drawing outside a mount: each returns the plain
+ *  node a surface would, its children flattened. */
+const plainNode = (type: string) => (p: Readonly<Record<string, unknown>> | null): Node => {
+  const { children, ...props } = p ?? {}
+  return { type, props, children: children === undefined ? [] : [children].flat(Infinity) }
+}
+export const fakeEl = { Box: plainNode('Box'), Text: plainNode('Text'), Button: plainNode('Button'), Svg: plainNode('Svg') } as unknown as ElementTable
 
 /** Whether a node is a hover card: a Box placed out of the flow. */
 export const isCard = (n: unknown): n is Node => (n as Node | null)?.props?.position === 'absolute'
@@ -298,6 +368,13 @@ export const START = { cwd: '/tmp', surface: 'terminal', isInteractive: true } a
 export const HOUR_1 = { ENABLE_PROMPT_CACHING_1H: '1' }
 export const MIN = 60_000
 export const HOUR = 60 * MIN
+/** The weekday a clock time at `ms`, drawn at `now`, leads with on this host:
+ *  '' on the same local day, else `Thu `. The kit's zone is the host's, so it
+ *  is read off the host's own calendar, not the band's formatters. */
+export const weekdayLead = (ms: number, now: number): string => {
+  const day = new Date(ms).toDateString()
+  return day === new Date(now).toDateString() ? '' : `${day.slice(0, 3)} `
+}
 /** The time budget of a test that walks the clock through many minutes, or
  *  draws the band at many widths. The band ticks every second, so an hour
  *  walked is 3,600 ticks: under a second on a laptop, but a shared CI runner
@@ -418,19 +495,25 @@ export const textMeters = async (ui: {
 
 // ── driving the engine ─────────────────────────────────────────────────
 
-/** One main-loop turn (or, with `agentId`, a subagent's) that moves the
- *  ledger from `from` to `to`. */
-export const turn = async (
-  $: Engine,
-  id: string,
-  from: number,
-  to: number,
-  extra: { agentId?: string; isAborted?: boolean; reason?: 'answer' | 'aborted' | 'error' } = {},
-): Promise<void> => {
-  usage.current = { ...usage.current, cost: { usd: from } }
-  if (extra.agentId === undefined) await $.turn.start({ text: 'hi', turnId: id })
-  usage.current = { ...usage.current, cost: { usd: to } }
+type TurnEnd = { agentId?: string; isAborted?: boolean; reason?: 'answer' | 'aborted' | 'error' }
+
+/** A main-loop turn's `turn.start`, with the ledger at `at`. */
+export const startTurn = async ($: Engine, id: string, at: number): Promise<void> => {
+  usage.current = { ...usage.current, cost: { usd: at } }
+  await $.turn.start({ text: 'hi', turnId: id })
+}
+
+/** A turn's `turn.complete` (with `agentId`, a subagent's), with the ledger at `at`. */
+export const endTurn = async ($: Engine, id: string, at: number, extra: TurnEnd = {}): Promise<void> => {
+  usage.current = { ...usage.current, cost: { usd: at } }
   await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: id, reason: 'answer', ...extra })
+}
+
+/** One main-loop turn (or, with `agentId`, a subagent's, which raises no
+ *  `turn.start`) that moves the ledger from `from` to `to`. */
+export const turn = async ($: Engine, id: string, from: number, to: number, extra: TurnEnd = {}): Promise<void> => {
+  if (extra.agentId === undefined) await startTurn($, id, from)
+  await endTurn($, id, to, extra)
 }
 
 /** Starts the session and feeds a 5h pace: 40% then 50% twelve minutes on,

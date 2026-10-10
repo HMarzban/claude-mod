@@ -4,12 +4,15 @@ import { test, expect } from 'claude-code/testing'
 import { fmtEta } from '../hooks/format'
 import {
   fiveHourEtaMs,
+  forgetTurn,
   insights,
   noteFiveHour,
   noteTurnEnd,
   noteTurnStart,
+  openTurns,
   resetInsights,
 } from '../hooks/insights'
+import { endTurn, fact, mountBand, resp, respond, setup, START, startTurn } from './helpers'
 
 const MIN = 60_000
 const cents = (n: number | null): number | null => (n === null ? null : Math.round(n * 100))
@@ -112,4 +115,35 @@ test('the ETA rounds to 5 minutes under an hour and 15 from an hour', () => {
   expect(fmtEta(67 * MIN)).toBe('~1h')
   expect(fmtEta(68 * MIN)).toBe('~1h 15m')
   expect(fmtEta(130 * MIN)).toBe('~2h 15m')
+})
+
+test('a forgotten turn leaves no start cost behind', () => {
+  resetInsights()
+  noteTurnStart('s', 1)
+  expect(openTurns()).toBe(1)
+  forgetTurn('s')
+  expect(openTurns()).toBe(0)
+})
+
+test('forgetting a turn keeps the other turns open', () => {
+  resetInsights()
+  noteTurnStart('a', 1)
+  noteTurnStart('b', 2)
+  forgetTurn('b')
+  expect(openTurns()).toBe(1)
+  noteTurnEnd('a', 1.5)
+  expect(cents(insights.lastTurnUsd)).toBe(50)
+})
+
+test("a subagent's turn inside an open turn doesn't change what the last message cost", async ($, on) => {
+  setup(on)
+  await $.session.start(START)
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await startTurn($, 'main-1', 2.41)
+  await endTurn($, 'sub-1', 2.5, { agentId: 'agent-1' })
+  await endTurn($, 'main-1', 2.62)
+  const ui = await mountBand($, 'terminal', 110)
+  await ui.press({ key: 'more' })
+  expect(fact(await ui.drawn(), 'last message')).toBe('$0.21')
+  await ui.unmount()
 })

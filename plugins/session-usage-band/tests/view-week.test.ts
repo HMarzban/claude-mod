@@ -1,0 +1,312 @@
+// Week, the limits as days and hours: its two rows calm and amber, how they
+// give way as they narrow, and LIMITS and the facts line behind ▿.
+
+import { test, expect } from 'claude-code/testing'
+import type { Engine } from 'claude-code/testing'
+import type { On, RenderChildren, SessionUsage } from 'claude-code'
+import { drawBand } from '../hooks/band'
+import { DAY_MS, utcOffsetOf } from '../hooks/format'
+import { ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
+import type { Sample } from '../hooks/memory'
+import { DEFAULT_MAX_ROWS, HOUR, HOUR_1, LONG, MIN, START, USAGE, byKey, fakeEl, mountBand, setup, shown, svgAlts, svgsOf, widthOf, type Node } from './helpers'
+import { NO_ACT, caseKey, drawCases, expectInvariants, invariantErrors, snapOf, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
+
+viewSuite('week')
+
+const T160: Mount = { surface: 'terminal', cols: 160 }
+const D160: Mount = { surface: 'desktop', cols: 160 }
+/** One scenario on one mount: its trees, shut and open. */
+const at = async ($: Engine, on: On, scenario: ScenarioName, m: Mount = T160, ttl: Ttl = '1h') => {
+  const trees = await drawCases($, on, { layout: 'week', scenario, appearance: 'dark', ttl }, [m])
+  return { shut: trees[caseKey(m, 'shut')], open: trees[caseKey(m, 'open')] }
+}
+
+/** The week below is laid out for a clock that reads 03:30. Which day each
+ *  sample lands on depends on the zone, and the kit's is the host's (the
+ *  ledger's Time zone), so the clock starts NOW, the first moment from 0 the
+ *  host reads 03:30, and every time in the week counts from it. */
+const NOW = (((((3 * 60 + 30) - (utcOffsetOf(0) ?? 0)) * MIN) % DAY_MS) + DAY_MS) % DAY_MS
+/** A sample of the windows USAGE reports (5h resets 3h on, 7d 67h on), `hours` from `now`. */
+const sampleFrom = (now: number) => (hours: number, five: number, seven: number): Sample =>
+  ({ at: now + hours * HOUR, fivePct: five, sevenPct: seven, fiveResetAt: now + 3 * HOUR, sevenResetAt: now + 67 * HOUR })
+const sample = sampleFrom(NOW)
+/** A week of samples: today is the fifth day, up 6 points, and the 5h window's first two hours are known. */
+const SAMPLES = [sample(-100, 0, 5), sample(-60, 0, 10), sample(-40, 0, 15), sample(-10, 0, 22), sample(-1.5, 1, 27), sample(-0.5, 3, 28)]
+/** A usage's resets, written as from 0, moved to count from NOW. */
+const fromNow = (u: SessionUsage): SessionUsage => ({
+  ...u,
+  rateLimits: u.rateLimits.map(l => (l.resetsAt === undefined ? l : { ...l, resetsAt: new Date(NOW + Date.parse(l.resetsAt)).toISOString() })),
+})
+type HistoryOptions = Readonly<{ env?: Record<string, string>; usage?: SessionUsage }>
+/** The band with that week stored, each mount drawn shut and open. */
+const withHistory = async ($: Engine, on: On, mounts: readonly Mount[], o: HistoryOptions = {}) => {
+  setup(on, { store: { layout: 'week', limitSamples: SAMPLES }, env: { ...HOUR_1, ...o.env }, usage: fromNow(o.usage ?? USAGE), now: NOW })
+  await $.session.start(START)
+  const trees: Record<string, Node> = {}
+  for (const m of mounts) {
+    const ui = await mountBand($, m.surface, m.cols, { maxRows: m.maxRows })
+    trees[caseKey(m, 'shut')] = (await ui.drawn()) as Node
+    await ui.press({ key: 'more' })
+    trees[caseKey(m, 'open')] = (await ui.drawn()) as Node
+    await ui.press({ key: 'more' })
+    await ui.unmount()
+  }
+  return trees
+}
+/** One mount's trees from `withHistory`. */
+const oneWithHistory = async ($: Engine, on: On, m: Mount, o: HistoryOptions = {}) => {
+  const trees = await withHistory($, on, [m], o)
+  return { shut: trees[caseKey(m, 'shut')], open: trees[caseKey(m, 'open')] }
+}
+/** A reset after ↻: a clock time once the offset is known, else a duration. */
+const RESET = String.raw`↻ (in \d+[hd] \d+[hm]|(\w{3} )?\d{2}:\d{2})`
+const BRAILLE = /[⠀-⣿]/
+
+test('calm, with no history yet: each window, its value and reset; then the empty text, the cache pill and the cost', async ($, on) => {
+  const t = shown((await at($, on, 'calm')).shut)
+  expect(t).toMatch(new RegExp(String.raw`^7d 30% ${RESET}\s*5h 4% ${RESET}`))
+  expect(t).toMatch(/History fills in as you use Claude\.\s*cache 1h 00m left\s*\$2\.41/)
+})
+test('the desktop draws day cells and hour cells as Svgs', async ($, on) => {
+  const alts = svgAlts((await oneWithHistory($, on, D160)).shut)
+  expect(alts.some(a => /^weekly limit by day/.test(a))).toBe(true)
+  expect(alts.some(a => /^5-hour limit by hour/.test(a))).toBe(true)
+})
+test('the terminal marks today in brackets and puts the initials beneath', async ($, on) => {
+  const t = shown((await oneWithHistory($, on, T160)).shut)
+  expect(t).toMatch(/\[[⠀-⣿]\]/)
+  expect(t).toMatch(/[MTWFS]{7}/)
+})
+test('each initial sits beneath its 7d cell', async ($, on) => {
+  const { shut } = await oneWithHistory($, on, T160)
+  // Row 1's 7d piece and row 2's initials start in the same column.
+  const seven = byKey(shut, '7d', 'Box')
+  const [name, chart] = seven?.children ?? []
+  // `dayCells` draws cell i at column 2i + 1 of its text.
+  expect([...shown(chart)].filter((_, i) => i % 2 === 1).join('')).toMatch(/^[⠀-⣿·]{7}$/)
+  const initials = byKey(shut, 'initials', 'Box')
+  expect(byKey(initials, 'pad')?.props?.width).toBe(widthOf(name) + Number(seven?.props?.columnGap) + 1)
+  expect((initials?.children ?? []).slice(1).map(d => (d as Node).props?.width)).toEqual([2, 2, 2, 2, 2, 2, 2])
+})
+test('in ascii the cells become numbers, today in brackets', async ($, on) => {
+  const t = shown((await oneWithHistory($, on, T160, { env: { CC_BAND_GLYPHS: 'ascii' } })).shut)
+  expect(t).toMatch(/\[[A-Z] 6%\]/)
+  expect(t).not.toMatch(BRAILLE)
+})
+test('the day a guess fills the weekly limit is marked !', async ($, on) => {
+  // 70% used with 60% of the window gone lands at ~117%: the last day fills it.
+  const usage: SessionUsage = {
+    ...USAGE,
+    rateLimits: [
+      { kind: 'five_hour', percentUsed: 4, resetsAt: new Date(3 * HOUR).toISOString() },
+      { kind: 'seven_day', percentUsed: 70, resetsAt: new Date(67 * HOUR).toISOString() },
+    ],
+  }
+  const trees = await withHistory($, on, [T160, D160], { usage })
+  expect(shown(trees[caseKey(T160, 'shut')])).toMatch(/[MTWFS]{6}!/)
+  const days = svgsOf(trees[caseKey(D160, 'shut')]).find(s => /^weekly limit by day/.test(String(s.props?.alt)))
+  expect(String(days?.props?.source)).toMatch(/>!<\/text>/)
+})
+test('calm gives way in spec order: the reset text, the 5h cells, then the 7d cells with their initials', LONG, async ($, on) => {
+  // The terminal's initials need row 2's room, so its 7d cells go with the 5h cells.
+  const mounts = ([['terminal', 120], ['terminal', 60], ['terminal', 45], ['desktop', 120], ['desktop', 50], ['desktop', 40]] as const)
+    .map(([surface, cols]): Mount => ({ surface, cols }))
+  const trees = await withHistory($, on, mounts)
+  const [t120, t60, t45, d120, d50, d40] = mounts.map(m => trees[caseKey(m, 'shut')])
+  expect(shown(t120)).toMatch(/↻[\s\S]*↻/)
+  expect(shown(t120)).toMatch(/[MTWFS]{7}/)
+  expect(shown(t60)).not.toMatch(/↻/)
+  expect(shown(t60)).toMatch(/^7d [⠀-⣿·[\] ]+30%\s*5h [⠀-⣿·[\] ]+4%/)
+  expect(shown(t60)).toMatch(/[MTWFS]{7}/)
+  expect(shown(t45)).toMatch(/^7d 30%\s*5h 4%\s*cache/)
+  expect(shown(t45)).not.toMatch(BRAILLE)
+  expect(svgAlts(d120).filter(a => /limit by/.test(a))).toHaveLength(2)
+  expect(shown(d120)).toMatch(/↻/)
+  expect(svgAlts(d50).filter(a => /limit by/.test(a))).toHaveLength(2)
+  expect(shown(d50)).not.toMatch(/↻/)
+  expect(svgAlts(d40).filter(a => /limit by/.test(a))).toEqual([expect.stringMatching(/^weekly limit by day/)])
+  expect(shown(d40)).toMatch(/5h 4%/)
+})
+test('with no history, the empty text gives way before the resets, so row 1 keeps them where it fits', async ($, on) => {
+  const t = shown((await at($, on, 'calm', { surface: 'terminal', cols: 60 })).shut)
+  expect(t).toMatch(/↻[\s\S]*↻/)
+  expect(t).not.toMatch(/History fills in/)
+})
+test('the cache pill turns short only once every calm piece has gone: at 60 columns the last minute keeps its price', LONG, async ($, on) => {
+  const t = shown((await at($, on, 'lastMinute', { surface: 'terminal', cols: 60 }, '5m')).shut)
+  expect(t).toMatch(/↻[\s\S]*! 30s left · re-warm ~\$/)
+})
+test('near compaction at 40 columns, the cost gives way so row 2 fits', async ($, on) => {
+  const t = shown((await at($, on, 'nearCompaction', { surface: 'terminal', cols: 40 })).shut)
+  expect(t).toMatch(/! ctx \d+%/)
+  expect(t).not.toMatch(/\$2\.41/)
+})
+test('a limit at 80% says why, in words', async ($, on) => {
+  expect(shown((await at($, on, 'limit80')).shut)).toMatch(/! 5h 82%/)
+})
+test('the last minute: the cache pill says why and the price', LONG, async ($, on) => {
+  expect(shown((await at($, on, 'lastMinute', T160, '5m')).shut)).toMatch(/! 30s left · re-warm ~\$/)
+})
+test('context, which week does not show, says why near compaction', async ($, on) => {
+  expect(shown((await at($, on, 'nearCompaction')).shut)).toMatch(/! context \d+% · compacts in ~/)
+})
+test('no limits: two rows still, and it says so', async ($, on) => {
+  const { shut, open } = await at($, on, 'noLimits')
+  expect(shown(shut)).toMatch(/^limits none reported/)
+  expect(shown(open)).toMatch(/LIMITS\s*none reported/)
+})
+test('another limit alone: two rows still, no 5h or 7d, and no word of the other limit collapsed', async ($, on) => {
+  const usage: SessionUsage = { ...USAGE, rateLimits: [{ kind: 'spend_limit', percentUsed: 40, resetsAt: new Date(5 * HOUR).toISOString() }] }
+  const { shut } = await oneWithHistory($, on, T160, { usage })
+  expect(shown(shut)).toMatch(/^5h · 7d none reported/)
+  expect(shown(shut)).not.toMatch(/^limits|spend/)
+  const ctx = { layout: 'week', surface: 'terminal', appearance: 'dark', cols: 160, maxRows: DEFAULT_MAX_ROWS, scenario: 'unmeasured', glyphs: 'unicode', expanded: false } as const
+  expect(shut).toBeDefined()
+  if (shut !== undefined) expectInvariants(shut, ctx)
+})
+/** With no history the empty text takes the cells' place, never the facts'. */
+const expectFactsWithoutCells = (trees: Readonly<Record<string, Node>>) => {
+  for (const m of [T160, D160]) {
+    const open = trees[caseKey(m, 'open')]
+    expect(shown(open)).toMatch(/History fills in as you use Claude\.[\s\S]*CACHE[\s\S]*SPEND[\s\S]*CONTEXT/)
+    expect(svgAlts(open).filter(a => /limit by/.test(a))).toEqual([])
+  }
+}
+test('no history: the facts stay, and the empty text says so when open', async ($, on) => {
+  const trees = await drawCases($, on, { layout: 'week', scenario: 'calm', appearance: 'dark', ttl: '1h' }, [T160, D160])
+  expect(shown(trees[caseKey(T160, 'shut')])).toMatch(/7d 30%/)
+  expect(shown(trees[caseKey(T160, 'open')])).toMatch(/LIMITS\s*7d 30% used[\s\S]*History fills in as you use Claude\./)
+  expectFactsWithoutCells(trees)
+})
+test('a fresh session with no history: the facts stay', async ($, on) => {
+  expectFactsWithoutCells(await drawCases($, on, { layout: 'week', scenario: 'emptyHistory', appearance: 'dark', ttl: '1h' }, [T160, D160]))
+})
+test('open with a body of one row, an amber limit takes it from the facts line', async ($, on) => {
+  const open = shown((await at($, on, 'gatewaySpend', { surface: 'terminal', cols: 80, maxRows: 6 })).open)
+  expect(open).toMatch(/! spend 92%, resets in 5h 00m/)
+  expect(open).not.toMatch(/SPEND/)
+})
+test('open: large day and hour cells, a summary per window, then the facts line', async ($, on) => {
+  const { open } = await oneWithHistory($, on, D160)
+  const t = shown(open)
+  expect(t).toMatch(/7d 30% used · on pace for ~50% by \w{3} \d{2}:\d{2} · busiest \w{3}/)
+  expect(t).toMatch(/5h 4% used · on pace for ~\d+% by \d{2}:\d{2}/)
+  expect(t).toMatch(/CACHE\s*\S+\s*SPEND\s*\$2\.41 this session\s*CONTEXT\s*38%/)
+  const days = svgsOf(open).filter(s => /^weekly limit by day/.test(String(s.props?.alt)))
+  // Open, the days ahead show their guess.
+  expect(days.map(s => String(s.props?.source)).some(source => /~10%/.test(source))).toBe(true)
+})
+/** Open without Svgs, the cells say their date and rise, today in brackets and the days ahead as a guess. */
+const expectCellsInWords = (open: Node | undefined) => {
+  const days = shown(byKey(open, '7d:cells'))
+  expect(days).toMatch(/\[\w \d+ \d+%\]/)
+  expect(days).toMatch(/~\d+%/)
+  expect(days).not.toMatch(BRAILLE)
+  // The hours by clock hour, the current one in brackets.
+  expect(shown(byKey(open, '5h:cells'))).toMatch(/\d{2} \d+%[\s\S]*\[\d{2}/)
+}
+test('open on a terminal, the cells say their date and rise', async ($, on) => {
+  expectCellsInWords((await oneWithHistory($, on, T160)).open)
+})
+test('open on a plain desktop, the cells say their date and rise', async ($, on) => {
+  expectCellsInWords((await oneWithHistory($, on, D160, { env: { CC_BAND_APPEARANCE: 'plain' } })).open)
+})
+test('open, an amber other limit leads LIMITS in its words', async ($, on) => {
+  expect(shown((await at($, on, 'gatewaySpend')).open)).toMatch(/LIMITS\s*! spend 92%, resets in 5h 00m/)
+})
+test('open with history and short of rows, it still fits', LONG, async ($, on) => {
+  const mounts = [6, 7, 8, 9, 10, 13].flatMap(maxRows => (['terminal', 'desktop'] as const).map((surface): Mount => ({ surface, cols: 120, maxRows })))
+  const trees = await withHistory($, on, mounts)
+  for (const m of mounts) {
+    const key = caseKey(m, 'open')
+    const tree = trees[key]
+    const errors = tree === undefined
+      ? ['missing: not drawn']
+      : invariantErrors(tree, { layout: 'week', surface: m.surface, appearance: 'dark', cols: m.cols, maxRows: m.maxRows ?? DEFAULT_MAX_ROWS, scenario: 'unmeasured', glyphs: 'unicode', expanded: true })
+    expect(`${key} ${errors.join('; ')}`).toBe(`${key} `)
+  }
+})
+test('open once the 5h window has passed, only the 7d cells are drawn', LONG, async ($, on) => {
+  const usage: SessionUsage = {
+    ...USAGE,
+    rateLimits: [
+      { kind: 'five_hour', percentUsed: 4, resetsAt: new Date(-HOUR).toISOString() },
+      { kind: 'seven_day', percentUsed: 30, resetsAt: new Date(67 * HOUR).toISOString() },
+    ],
+  }
+  const d20: Mount = { ...D160, maxRows: 20 }
+  const d13: Mount = { ...D160, maxRows: 13 }
+  const trees = await withHistory($, on, [d20, d13, T160], { usage })
+  for (const m of [d20, d13]) {
+    const open = trees[caseKey(m, 'open')]
+    const charts = svgsOf(open).filter(s => /limit by/.test(String(s.props?.alt)))
+    expect(charts.every(s => /^weekly limit by day/.test(String(s.props?.alt)) && Number(s.props?.width) > 0)).toBe(true)
+    expect(svgAlts(byKey(open, '7d:cells'))).toEqual([expect.stringMatching(/^weekly limit by day/)])
+  }
+  expect(byKey(trees[caseKey(T160, 'open')], '5h:cells')).toBeUndefined()
+})
+/** The ascii tier says `resets Mon 08:40` where unicode says `↻ Mon 08:40`: wider words the squeeze must still fit. */
+const T40: Mount = { surface: 'terminal', cols: 40 }
+for (const scenario of ['calm', 'limit80', 'nearCompaction'] as const)
+  test(`in ascii at 40 columns, ${scenario}'s rows stay within the line's room`, LONG, async ($, on) => {
+    const trees = await drawCases($, on, { layout: 'week', scenario, appearance: 'dark', ttl: '1h', env: { CC_BAND_GLYPHS: 'ascii' } }, [T40, T160])
+    expect(shown(trees[caseKey(T160, 'shut')])).toMatch(/resets \w{3} \d{2}:\d{2}/)
+    for (const key of ['r1', 'r2']) {
+      const row = byKey(trees[caseKey(T40, 'shut')], key, 'Box')
+      expect(row).toBeDefined()
+      expect(cellsOf(row as RenderChildren, TERMINAL)).toBeLessThanOrEqual(T40.cols - ROW_SLACK - 2)
+    }
+  })
+
+// The zone matrix: the week drawn straight from a snapshot at four zones, so
+// what holds on the host holds in each of them too.
+/** 12:00 UTC on a Thursday: another hour of the day in each zone. */
+const NOON = Date.UTC(2026, 9, 8, 12)
+const ZONES = [0, -420, 330, 840] as const
+/** The last local midnight at or before `now`, `utcOffsetMin` east of UTC. */
+const midnightBefore = (now: number, utcOffsetMin: number): number => now - ((((now + utcOffsetMin * MIN) % DAY_MS) + DAY_MS) % DAY_MS)
+/** The ascii terminal's week at `now`, the windows as USAGE reports them, shut and open. */
+const drawWeek = (now: number, utcOffsetMin: number, samples: readonly Sample[]) => {
+  const snap = (expanded: boolean) => snapOf({
+    layout: 'week', columns: 160, glyphs: 'ascii', now, utcOffsetMin, samples, expanded,
+    fiveHour: { percentUsed: 4, resetsAt: new Date(now + 3 * HOUR).toISOString(), etaMs: null },
+    sevenDay: { percentUsed: 30, resetsAt: new Date(now + 67 * HOUR).toISOString() },
+  })
+  return { shut: shown(drawBand(fakeEl, snap(false), NO_ACT)), open: drawBand(fakeEl, snap(true), NO_ACT) }
+}
+/** Open, a window's cells in words, one each. */
+const cellWords = (open: unknown, key: string): string[] => shown(byKey(byKey(open, key), 'cells')).split(/ {2,}/)
+/** Today's initial and date where it is `now`, `utcOffsetMin` east of UTC. */
+const todayAt = (now: number, utcOffsetMin: number) => {
+  const local = new Date(now + utcOffsetMin * MIN)
+  return { initial: 'SMTWTFS'[local.getUTCDay()], date: local.getUTCDate() }
+}
+for (const off of ZONES) {
+  test(`at UTC${off < 0 ? '' : '+'}${off / 60}, today is in brackets with its rise and the days ahead are guesses`, () => {
+    const now = NOON
+    const midnight = midnightBefore(now, off)
+    // One sample late yesterday and one early today, a quarter hour off the edges.
+    const since = (midnight - now) / HOUR
+    const at = sampleFrom(now)
+    const { shut, open } = drawWeek(now, off, [at(since - 2.25, 0, 22), at(since + 0.25, 1, 28)])
+    const { initial, date } = todayAt(now, off)
+    expect(shut).toContain(`[${initial} 6%]`)
+    const days = cellWords(open, '7d:cells')
+    const today = days.findIndex(c => c.startsWith('['))
+    expect(days.filter(c => c.startsWith('['))).toEqual([`[${initial} ${date} 6%]`])
+    expect(days.slice(today + 1).every(c => /~\d+%$/.test(c))).toBe(true)
+    expect(days.length - today).toBeGreaterThan(1)
+    expect(days.some(c => / 0%\]?$/.test(c))).toBe(false)
+    expect(cellWords(open, '5h:cells').filter(c => c.startsWith('['))).toHaveLength(1)
+  })
+  test(`at UTC${off < 0 ? '' : '+'}${off / 60}, a minute past midnight with no sample since, today is in brackets and unknown, never 0%`, () => {
+    const now = midnightBefore(NOON, off) + MIN
+    const at = sampleFrom(now)
+    // Yesterday is known, so the cells are drawn; today has no sample yet.
+    const { open } = drawWeek(now, off, [at(-26.25, 0, 15), at(-2.25, 0, 22)])
+    const { initial, date } = todayAt(now, off)
+    const days = cellWords(open, '7d:cells')
+    expect(days.filter(c => c.startsWith('['))).toEqual([`[${initial} ${date}]`])
+    expect(days.some(c => / 0%\]?$/.test(c))).toBe(false)
+  })
+}

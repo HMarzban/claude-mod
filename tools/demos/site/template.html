@@ -59,7 +59,11 @@
     { "@type": "Question", "name": "How do I see my Claude Code 5-hour and weekly limits?",
       "acceptedAnswer": { "@type": "Answer", "text": "Install session-usage-band. Its 5h and 7d chips show how much of each limit you have used and when it resets, and the 5h chip warns when your pace would run out before the reset." } },
     { "@type": "Question", "name": "Does it work in the Claude desktop app?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Yes. It draws in the desktop app's Code tab, with icons and meters, and in the terminal as text." } }
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. It draws in the desktop app's Code tab, with icons and meters, and in the terminal as text." } },
+    { "@type": "Question", "name": "I resumed a session. Does the band start again from $0.00?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. On a session resumed with claude --resume or /resume, the band takes Claude Code's word on how long it has been idle and what re-caching it would cost, so the cache reads cold or counting down. It also reads the session's transcript once, for what the session spent before and how long the cache was last written for, so the cost and tokens start from there." } },
+    { "@type": "Question", "name": "The band runs past the edge of my terminal. What can I do?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Set CC_BAND_GLYPHS=ascii. A terminal in a Chinese, Japanese or Korean locale, or one set to draw ambiguous-width characters wide, draws some of the band's glyphs two columns wide. In such a locale the band draws ASCII by itself; the terminal setting can't be detected. Set it with a screen reader too, which reads the braille charts as dots." } }
   ]
 }
 </script>
@@ -198,7 +202,7 @@
   .states .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .35; }
   .states button.amber .dot { background: var(--amber); opacity: 1; }
   .states button[aria-selected=true] .dot { opacity: 1; }
-  #fitbox { transition: height .36s var(--ease-out); overflow: hidden; }
+  #fitbox, #lfitbox { transition: height .36s var(--ease-out); overflow: hidden; }
   .band [data-key] { transition: box-shadow .3s var(--ease-out); border-radius: 8px; }
   .band .spot { box-shadow: inset 0 0 0 2px rgba(232,147,111,.95), inset 0 0 14px rgba(217,119,87,.28); }
   .band .changed { animation: changed .9s var(--ease-out); }
@@ -286,6 +290,25 @@
   .tile:hover .ti { transform: rotate(-6deg) scale(1.06); }
   .tile p { color: var(--text-2); font-size: 15.5px; margin-top: 6px; }
 
+  /* the layouts: each one's real drawings */
+  .lay { margin-top: var(--s6); max-width: 1040px; position: relative; }
+  .laypick { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; margin-bottom: var(--s3); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; width: fit-content; max-width: 100%; }
+  .laypick button, .seg button { font: 600 14px var(--mono); color: var(--text-2); background: transparent; border: 0; border-radius: 10px; padding: 8px 12px; cursor: pointer; transition: background .15s, color .15s; }
+  .laypick button:hover, .seg button:hover { color: var(--text); background: var(--sunk); }
+  .laypick button[aria-pressed=true], .seg button[aria-pressed=true] { color: var(--on-ink); background: var(--ink); box-shadow: inset 0 0 0 1px var(--line-2); }
+  :root[data-theme=dark] .laypick button[aria-pressed=true], :root[data-theme=dark] .seg button[aria-pressed=true] { background: var(--line-2); box-shadow: inset 0 0 0 1px var(--accent); }
+  .seg { display: inline-flex; gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+  .seg button { font-family: -apple-system, system-ui, sans-serif; }
+  .layfoot { display: grid; grid-template-columns: 1fr auto; gap: var(--s4) var(--s5); align-items: start; margin-top: var(--s4); }
+  .layfoot .what { color: var(--text-2); max-width: 62ch; text-wrap: pretty; }
+  .layfoot .what b { color: var(--text); font-weight: 650; font-family: var(--mono); font-size: .95em; margin-right: var(--s2); }
+  .layfoot .rows { display: block; margin-top: 2px; font-size: var(--t-sm); color: var(--text-3); }
+  .layctl { display: flex; gap: var(--s2); flex-wrap: wrap; justify-content: flex-end; }
+  .laycmd { margin-top: var(--s3); }
+  .laycmd pre { font-size: 14px; }
+  .gallery summary { margin-top: var(--s2); }
+  .gallery img { display: block; width: 100%; max-width: 1100px; height: auto; margin-top: var(--s3); border-radius: 16px; box-shadow: var(--frame); }
+
   /* how it works */
   .formula { margin-top: var(--s5); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: var(--s4) var(--s5); font: 15px/1.7 var(--mono); overflow-x: auto; white-space: nowrap; }
   .formula .r { color: var(--accent); } .formula .k { color: var(--m); }
@@ -344,6 +367,7 @@
     .bento { grid-template-columns: 1fr 1fr; } .tile, .tile.wide { grid-column: span 1; } .tile.last { grid-column: span 2; }
     .points { grid-template-columns: 1fr; }
     .join { grid-template-columns: 1fr; }
+    .layfoot { grid-template-columns: 1fr; } .layctl { justify-content: flex-start; }
     footer { grid-template-columns: 1fr 1fr; } footer .about { grid-column: 1 / -1; }
   }
   @media (max-width: 640px) {
@@ -359,6 +383,7 @@
     .ghost { width: 100%; justify-content: center; }
     .stagebox { padding: 14px 10px 10px; }
     .states { width: 100%; } .states button { min-height: 44px; }
+    .laypick { width: 100%; } .laypick button, .seg button { min-height: 44px; padding: 8px 10px; }
     .swipe { display: block; }
     .trust .n { font-size: 42px; }
     section { padding-top: var(--s9); }
@@ -392,6 +417,7 @@
   <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4.5 16.5a7.5 7.5 0 1 1 15 0"/><path d="M12 16.5l3.6-4.6"/></symbol>
   <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14" rx="2.5"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></symbol>
   <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 4l8.5 4.5L12 13 3.5 8.5z"/><path d="M3.5 12.5L12 17l8.5-4.5M3.5 16.5L12 21l8.5-4.5"/></symbol>
   <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3.5h6M10 3.5v5.2l-4.8 8.6a2.2 2.2 0 0 0 1.9 3.2h9.8a2.2 2.2 0 0 0 1.9-3.2L14 8.7V3.5"/><path d="M7.6 14h8.8"/></symbol>
   <symbol id="i-offline" viewBox="0 0 24 24"><path d="M3 3l18 18M8.5 16.4a5 5 0 0 1 7 0M5 12.9a10 10 0 0 1 5.3-2.8M14.2 10.2A10 10 0 0 1 19 12.9M2 9.4a15 15 0 0 1 4.6-2.9M10.3 5A15 15 0 0 1 22 9.4"/><circle cx="12" cy="19.5" r=".6"/></symbol>
   <symbol id="i-token" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 15.5l7-7M8.8 9h.01M15.2 15h.01"/></symbol>
@@ -423,6 +449,7 @@
     <a class="name" href="./"><img src="favicon.svg" alt="">session-usage-band</a>
     <div class="links">
       <a class="hide-sm" href="#lunch">The cost</a>
+      <a class="hide-sm" href="#layouts">Layouts</a>
       <a class="hide-sm" href="#how">How it works</a>
       <a class="hide-sm" href="#faq">FAQ</a>
       <button class="chip" id="theme" type="button" aria-label="Switch light or dark"><svg class="i sun"><use href="#i-sun"/></svg><svg class="i moon"><use href="#i-moon"/></svg></button>
@@ -431,7 +458,7 @@
   </nav>
 
   <header class="hero">
-    <a class="eyebrow" href="https://github.com/HMarzban/claude-mod/releases/latest"><b>New</b>Now prices Sonnet 5.5's cache right <span class="arr">→</span></a>
+    <a class="eyebrow" href="#layouts"><b>New</b>Nine layouts to choose from <span class="arr">→</span></a>
     <h1>Know what your next Claude Code message <span class="em uline">costs.<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M3 13 C 45 4, 90 18, 135 9 S 185 8, 197 6"/></svg></span></h1>
     <p class="lede">Step away for lunch and Claude Code's cache goes cold. Your next message then pays to rewrite the whole conversation: <b class="mark" id="lede-mark">25× what re-reading it costs</b> on Opus 5.5. This band shows the countdown and the price, right above the prompt.</p>
     <div class="cta">
@@ -465,7 +492,7 @@
   </header>
 
   <div class="trust reveal" aria-label="At a glance">
-    <div><span class="n">264</span><span class="l"><svg class="i"><use href="#i-flask"/></svg>tests, in CI on every push</span></div>
+    <div><span class="n">1,122</span><span class="l"><svg class="i"><use href="#i-flask"/></svg>tests, in CI on every push</span></div>
     <div><span class="n">0</span><span class="l"><svg class="i"><use href="#i-offline"/></svg>network calls</span></div>
     <div><span class="n">0</span><span class="l"><svg class="i"><use href="#i-token"/></svg>tokens spent</span></div>
     <div><span class="n">1</span><span class="l"><svg class="i"><use href="#i-term"/></svg>command to install</span></div>
@@ -524,6 +551,46 @@
     </div>
   </section>
 
+  <section id="layouts" class="reveal">
+    <span class="badge"><svg class="i"><use href="#i-layers"/></svg></span>
+    <h2>The same readings, in <span class="em">nine</span> shapes.</h2>
+    <p class="sub">Chips is the default. <code>/usage-band layout &lt;name&gt;</code> draws another, and every session draws it from then on; <code>/usage-band layout</code> alone lists them. Each opens with ▿ to its own view of every fact.</p>
+    <div class="lay" id="lay">
+      <div class="laypick" role="group" aria-label="Layout">
+        <button type="button" data-layout="chips" aria-pressed="true">chips</button>
+        <button type="button" data-layout="gauges" aria-pressed="false">gauges</button>
+        <button type="button" data-layout="ledger" aria-pressed="false">ledger</button>
+        <button type="button" data-layout="rings" aria-pressed="false">rings</button>
+        <button type="button" data-layout="pulse" aria-pressed="false">pulse</button>
+        <button type="button" data-layout="tiles" aria-pressed="false">tiles</button>
+        <button type="button" data-layout="week" aria-pressed="false">week</button>
+        <button type="button" data-layout="departures" aria-pressed="false">departures</button>
+        <button type="button" data-layout="forecast" aria-pressed="false">forecast</button>
+      </div>
+      <div class="stagebox">
+        <div class="scroller" id="lscroller"><div id="lfitbox"><div class="fit" id="lfit"><div id="layhost"></div><div class="prompt">Type / for commands</div></div></div></div>
+        <div class="swipe" id="lswipe">Swipe to see the whole band →</div>
+      </div>
+      <div class="tip" id="ltip"></div>
+      <div class="layfoot">
+        <div>
+          <p class="what" id="laywhat" aria-live="polite" data-name="chips"><b>chips</b>The row of chips, with four cards behind ▿. The default.<span class="rows">1 row on the desktop, 1 row in the terminal</span></p>
+          <div class="install laycmd">
+            <pre id="laycmd">/usage-band layout chips</pre>
+            <button class="copy" type="button" id="laycopy" data-copy="/usage-band layout chips"><svg class="i ic"><use href="#i-copy"/></svg><svg class="i ok"><use href="#i-check"/></svg><span class="lbl">Copy</span></button>
+          </div>
+        </div>
+        <div class="layctl">
+          <div class="seg" role="group" aria-label="Moment"><button type="button" data-amber="false" aria-pressed="true">Calm</button><button type="button" data-amber="true" aria-pressed="false">Last minute</button></div>
+          <div class="seg"><button type="button" id="layopen" aria-pressed="false">Open ▿</button></div>
+        </div>
+      </div>
+      <p class="livebar">The band's own drawings on the desktop, from one session sixteen replies in. Below 40 columns every layout draws chips.</p>
+    </div>
+    <noscript><ul style="margin:24px 0 0 20px;color:var(--text-2)"><li><code>chips</code> The row of chips, with four cards behind ▿. The default.</li><li><code>gauges</code> Two rows of labelled bars: the cache's time left, context up to compaction, and the 5h and 7d limits, each with a tick for how much of its window has gone.</li><li><code>ledger</code> The band in words alone, <code>·</code>-separated, with <code>!</code> leading what needs you.</li><li><code>rings</code> A ring per reading, its value over its label, with a dot on each limit for how much of the window has gone. The terminal draws a bar.</li><li><code>pulse</code> Trends rather than totals: each message's cost as bars, and which way the 5-hour limit is heading.</li><li><code>tiles</code> Each reading as a bold value over a small label, with a thin underline on the desktop.</li><li><code>week</code> Where your limits went: the weekly limit as day cells, the 5-hour limit as hour cells.</li><li><code>departures</code> A split-flap board: the cache <code>DEPARTS</code> at its clock time, and its last minute is <code>LAST CALL</code>.</li><li><code>forecast</code> The band read like the weather: now, then up to three changes ahead at their clock times.</li></ul><img src="band-layouts-light.png" alt="The nine layouts, one panel each, drawn calm and then in the cache's last minute: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" style="display:block;width:100%;height:auto;margin-top:24px"></noscript>
+    <details class="how gallery"><summary><svg class="i"><use href="#i-grid"/></svg>All nine at once</summary><img id="laygallery" src="band-layouts-light.png" alt="The nine layouts, one panel each, drawn calm and then in the cache's last minute: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" loading="lazy"></details>
+  </section>
+
   <section id="how" class="reveal">
     <span class="badge"><svg class="i"><use href="#i-sigma"/></svg></span>
     <h2>The price comes from <span class="em">your own</span> bill.</h2>
@@ -533,7 +600,7 @@
       <li><span class="pi"><svg class="i"><use href="#i-snow"/></svg></span><span><b>A re-warm is the whole context, written again</b>always shown with <code>~</code>, since it's an estimate.</span></li>
       <li><span class="pi"><svg class="i"><use href="#i-history"/></svg></span><span><b>It remembers old sessions</b>reopen one and it recalls the last reply and a token's price, or reads them once from the transcript.</span></li>
       <li><span class="pi"><svg class="i"><use href="#i-shield"/></svg></span><span><b>It stays out of your way</b>it never calls a model, writes files or sends anything. Besides two read-only git commands, it runs only <code>tail</code>.</span></li>
-      <li><span class="pi"><svg class="i"><use href="#i-plug"/></svg></span><span><b>It's a mod, nothing to build</b>Claude Code's function-hooks API: TypeScript and JSX, no dependencies, 260+ tests.</span></li>
+      <li><span class="pi"><svg class="i"><use href="#i-plug"/></svg></span><span><b>It's a mod, nothing to build</b>Claude Code's function-hooks API: TypeScript and JSX, no dependencies, over 1,100 tests.</span></li>
     </ul>
   </section>
 
@@ -546,6 +613,8 @@
       <details><summary>Is the re-warm price exact?<span class="pl"><svg class="i"><use href="#i-plus"/></svg></span></summary><p>It's an estimate, shown with <code>~</code>. It follows Claude Code's own ledger, which prices every cache write at 1.25×. Anthropic bills a 1-hour cache write at 2×, so per-token API users on a 1-hour cache may pay up to 1.6× the estimate.</p></details>
       <details><summary>How does it know if my cache lasts 5 minutes or an hour?<span class="pl"><svg class="i"><use href="#i-plus"/></svg></span></summary><p>Claude Code uses the hour on a subscription within your plan's usage and 5 minutes on an API key or usage credits. The band can't read your billing, so it assumes an hour and corrects itself to 5 minutes if it sees the cache rebuild sooner. Set <code>CLAUDE_CODE_PROMPT_CACHE_TTL=5m</code> or <code>1h</code> to remove the guess.</p></details>
       <details><summary>Does it work in the Claude desktop app?<span class="pl"><svg class="i"><use href="#i-plus"/></svg></span></summary><p>Yes. It draws in the desktop app's Code tab with icons and meters, and in the terminal as text. Tested on Claude Code 2.1.295.</p></details>
+      <details><summary>I resumed a session. Does the band start again from $0.00?<span class="pl"><svg class="i"><use href="#i-plus"/></svg></span></summary><p>No. On a session resumed with <code>claude --resume</code> or <code>/resume</code>, the band takes Claude Code's word on how long it has been idle and what re-caching it would cost, so the cache reads cold or counting down. It also reads the session's transcript once, for what the session spent before and how long the cache was last written for, so the cost and tokens start from there.</p></details>
+      <details><summary>The band runs past the edge of my terminal. What can I do?<span class="pl"><svg class="i"><use href="#i-plus"/></svg></span></summary><p>Set <code>CC_BAND_GLYPHS=ascii</code>. A terminal in a Chinese, Japanese or Korean locale, or one set to draw ambiguous-width characters wide, draws some of the band's glyphs two columns wide. In such a locale the band draws ASCII by itself; the terminal setting can't be detected. Set it with a screen reader too, which reads the braille charts as dots.</p></details>
       <details><summary>Does it work on light themes?<span class="pl"><svg class="i"><use href="#i-plus"/></svg></span></summary><p>Yes. Set <code>CC_BAND_APPEARANCE=light</code>, or <code>plain</code> for theme colours only. <code>NO_COLOR</code> is respected.</p></details>
     </div>
   </section>
@@ -593,6 +662,42 @@
 <template id="t-weekOpen">{{weekOpen}}</template>
 <template id="t-all">{{all}}</template>
 <template id="t-allOpen">{{allOpen}}</template>
+<template id="t-layout-chips">{{layout-chips}}</template>
+<template id="t-layout-chipsOpen">{{layout-chipsOpen}}</template>
+<template id="t-layout-chips-amber">{{layout-chips-amber}}</template>
+<template id="t-layout-chips-amberOpen">{{layout-chips-amberOpen}}</template>
+<template id="t-layout-gauges">{{layout-gauges}}</template>
+<template id="t-layout-gaugesOpen">{{layout-gaugesOpen}}</template>
+<template id="t-layout-gauges-amber">{{layout-gauges-amber}}</template>
+<template id="t-layout-gauges-amberOpen">{{layout-gauges-amberOpen}}</template>
+<template id="t-layout-ledger">{{layout-ledger}}</template>
+<template id="t-layout-ledgerOpen">{{layout-ledgerOpen}}</template>
+<template id="t-layout-ledger-amber">{{layout-ledger-amber}}</template>
+<template id="t-layout-ledger-amberOpen">{{layout-ledger-amberOpen}}</template>
+<template id="t-layout-rings">{{layout-rings}}</template>
+<template id="t-layout-ringsOpen">{{layout-ringsOpen}}</template>
+<template id="t-layout-rings-amber">{{layout-rings-amber}}</template>
+<template id="t-layout-rings-amberOpen">{{layout-rings-amberOpen}}</template>
+<template id="t-layout-pulse">{{layout-pulse}}</template>
+<template id="t-layout-pulseOpen">{{layout-pulseOpen}}</template>
+<template id="t-layout-pulse-amber">{{layout-pulse-amber}}</template>
+<template id="t-layout-pulse-amberOpen">{{layout-pulse-amberOpen}}</template>
+<template id="t-layout-tiles">{{layout-tiles}}</template>
+<template id="t-layout-tilesOpen">{{layout-tilesOpen}}</template>
+<template id="t-layout-tiles-amber">{{layout-tiles-amber}}</template>
+<template id="t-layout-tiles-amberOpen">{{layout-tiles-amberOpen}}</template>
+<template id="t-layout-week">{{layout-week}}</template>
+<template id="t-layout-weekOpen">{{layout-weekOpen}}</template>
+<template id="t-layout-week-amber">{{layout-week-amber}}</template>
+<template id="t-layout-week-amberOpen">{{layout-week-amberOpen}}</template>
+<template id="t-layout-departures">{{layout-departures}}</template>
+<template id="t-layout-departuresOpen">{{layout-departuresOpen}}</template>
+<template id="t-layout-departures-amber">{{layout-departures-amber}}</template>
+<template id="t-layout-departures-amberOpen">{{layout-departures-amberOpen}}</template>
+<template id="t-layout-forecast">{{layout-forecast}}</template>
+<template id="t-layout-forecastOpen">{{layout-forecastOpen}}</template>
+<template id="t-layout-forecast-amber">{{layout-forecast-amber}}</template>
+<template id="t-layout-forecast-amberOpen">{{layout-forecast-amberOpen}}</template>
 
 <script>
 (() => {
@@ -607,12 +712,14 @@
     const s = video.querySelector('source')
     if (s.getAttribute('src') !== src) { s.setAttribute('src', src); video.load(); if (!reduce) video.play().catch(() => {}) }
   }
-  filmFor(document.documentElement.dataset.theme === 'dark')
+  const gallery = $('#laygallery')
+  const themed = dark => { filmFor(dark); gallery.src = dark ? 'band-layouts-dark.png' : 'band-layouts-light.png' }
+  themed(document.documentElement.dataset.theme === 'dark')
   $('#theme').addEventListener('click', () => {
     const dark = document.documentElement.dataset.theme !== 'dark'
     if (dark) document.documentElement.dataset.theme = 'dark'; else delete document.documentElement.dataset.theme
     try { localStorage.setItem('theme', dark ? 'dark' : 'light') } catch {}
-    filmFor(dark)
+    themed(dark)
   })
 
   // ---- copy buttons ----
@@ -674,14 +781,15 @@
     }
     scale()
   }
-  function scale() {
-    const sc = $('#scroller'), box = $('#fitbox'), w = sc.clientWidth
+  function fitBand(sc, box, inner, swipe) {
+    const w = sc.clientWidth
     // on a phone, keep the band readable and let it scroll sideways
     const k = Math.max(w < 700 ? 0.7 : 0, Math.min(1, w / 964))
-    fit.style.width = '964px'; fit.style.transform = `scale(${k})`
-    box.style.width = (964 * k) + 'px'; box.style.height = (fit.offsetHeight * k) + 'px'
-    $('#swipe').style.visibility = 964 * k > w + 2 ? 'visible' : 'hidden'
+    inner.style.width = '964px'; inner.style.transform = `scale(${k})`
+    box.style.width = (964 * k) + 'px'; box.style.height = (inner.offsetHeight * k) + 'px'
+    swipe.style.visibility = 964 * k > w + 2 ? 'visible' : 'hidden'
   }
+  const scale = () => fitBand($('#scroller'), $('#fitbox'), fit, $('#swipe'))
   function moveIndicator() {
     const t = tabs.find(b => b.dataset.mode === S.mode)
     ind.style.width = t.offsetWidth + 'px'
@@ -729,25 +837,81 @@
     const t = tabs[(j + tabs.length) % tabs.length]; setMode(t.dataset.mode); t.focus()
   })
   $('#replay').onclick = () => { stopTour(); startTour() }
-  addEventListener('resize', () => { scale(); moveIndicator() })
-  live.addEventListener('mouseover', e => {
-    const el = e.target.closest('[data-tip]')
-    if (!el) { tip.classList.remove('on'); return }
-    tip.textContent = el.dataset.tip
-    const lr = live.getBoundingClientRect(), r = el.getBoundingClientRect()
-    tip.style.left = Math.max(0, Math.min(lr.width - Math.min(340, lr.width), r.left - lr.left)) + 'px'
-    const above = r.top - lr.top - tip.offsetHeight - 10
-    tip.style.top = (above < 0 ? r.bottom - lr.top + 10 : above) + 'px'
-    tip.classList.add('on')
-  })
-  live.addEventListener('mouseleave', () => tip.classList.remove('on'))
-  // touch screens have no hover: a tap on a chip shows its words, a tap elsewhere hides them
-  live.addEventListener('click', e => {
-    if (!matchMedia('(hover: none)').matches) return
-    const el = e.target.closest('[data-tip]')
-    if (el) el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); else tip.classList.remove('on')
-  })
-  $('#scroller').addEventListener('scroll', () => tip.classList.remove('on'))
+  addEventListener('resize', () => { scale(); moveIndicator(); lscale() })
+  // a piece's hover card, shown over the stage the piece is in
+  function hoverCards(box, tip, sc) {
+    box.addEventListener('mouseover', e => {
+      const el = e.target.closest('[data-tip]')
+      if (!el) { tip.classList.remove('on'); return }
+      tip.textContent = el.dataset.tip
+      const lr = box.getBoundingClientRect(), r = el.getBoundingClientRect()
+      tip.style.left = Math.max(0, Math.min(lr.width - Math.min(340, lr.width), r.left - lr.left)) + 'px'
+      const above = r.top - lr.top - tip.offsetHeight - 10
+      tip.style.top = (above < 0 ? r.bottom - lr.top + 10 : above) + 'px'
+      tip.classList.add('on')
+    })
+    box.addEventListener('mouseleave', () => tip.classList.remove('on'))
+    // touch screens have no hover: a tap on a piece shows its words, a tap elsewhere hides them
+    box.addEventListener('click', e => {
+      if (!matchMedia('(hover: none)').matches) return
+      const el = e.target.closest('[data-tip]')
+      if (el) el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); else tip.classList.remove('on')
+    })
+    sc.addEventListener('scroll', () => tip.classList.remove('on'))
+  }
+  hoverCards(live, tip, $('#scroller'))
+
+  // ---- the layouts: each one's own drawings, calm or in the last minute, collapsed or open ----
+  const lay = $('#lay'), lhost = $('#layhost'), lfit = $('#lfit')
+  const lscale = () => fitBand($('#lscroller'), $('#lfitbox'), lfit, $('#lswipe'))
+  const LAYOUTS = {
+    chips: ['The row of chips, with four cards behind ▿. The default.', 1, 1],
+    gauges: ['Two rows of labelled bars: the cache\'s time left, context up to compaction, and the 5h and 7d limits, each with a tick for how much of its window has gone.', 2, 2],
+    ledger: ['The band in words alone, <code>·</code>-separated, with <code>!</code> leading what needs you.', 1, 1],
+    rings: ['A ring per reading, its value over its label, with a dot on each limit for how much of the window has gone. The terminal draws a bar.', 2, 1],
+    pulse: ['Trends rather than totals: each message\'s cost as bars, and which way the 5-hour limit is heading.', 2, 1],
+    tiles: ['Each reading as a bold value over a small label, with a thin underline on the desktop.', 2, 2],
+    week: ['Where your limits went: the weekly limit as day cells, the 5-hour limit as hour cells.', 2, 2],
+    departures: ['A split-flap board: the cache <code>DEPARTS</code> at its clock time, and its last minute is <code>LAST CALL</code>.', 1, 1],
+    forecast: ['The band read like the weather: now, then up to three changes ahead at their clock times.', 2, 1],
+  }
+  const rows = n => n + (n === 1 ? ' row' : ' rows')
+  const L = { name: 'chips', amber: false, open: false, hidden: false }
+  const pick = [...lay.querySelectorAll('[data-layout]')], moment = [...lay.querySelectorAll('[data-amber]')], lopen = $('#layopen')
+  function ldraw(animate) {
+    if (L.hidden) {
+      lhost.innerHTML = '<div class="hidden-note"><span>Band hidden. It comes back with</span><button type="button">/usage-band</button></div>'
+      lhost.querySelector('button').onclick = () => { L.hidden = false; ldraw(true) }
+    } else {
+      lhost.innerHTML = `<div class="band${animate ? ' enter' : ''}">${tpl('layout-' + L.name + (L.amber ? '-amber' : '') + (L.open ? 'Open' : ''))}</div>`
+      const more = lhost.querySelector('[data-key=more]')
+      if (more) more.onclick = () => { L.open = !L.open; ldraw(true) }
+      for (const b of lhost.querySelectorAll('.btn')) {
+        const label = b.textContent.trim()
+        if (label.startsWith('Collapse')) b.onclick = () => { L.open = false; ldraw(true) }
+        if (label.startsWith('Hide band')) b.onclick = () => { L.hidden = true; L.open = false; ldraw(true) }
+      }
+    }
+    for (const b of pick) b.setAttribute('aria-pressed', b.dataset.layout === L.name)
+    for (const b of moment) b.setAttribute('aria-pressed', b.dataset.amber === String(L.amber))
+    lopen.setAttribute('aria-pressed', L.open)
+    // the line is a live region: rewrite it only when the layout changes
+    const whatEl = $('#laywhat')
+    if (whatEl.dataset.name !== L.name) {
+      const [what, desk, term] = LAYOUTS[L.name]
+      whatEl.innerHTML = `<b>${L.name}</b>${what}<span class="rows">${rows(desk)} on the desktop, ${rows(term)} in the terminal</span>`
+      whatEl.dataset.name = L.name
+    }
+    $('#laycmd').textContent = $('#laycopy').dataset.copy = '/usage-band layout ' + L.name
+    $('#ltip').classList.remove('on')
+    lscale()
+  }
+  for (const b of pick) b.addEventListener('click', () => { L.name = b.dataset.layout; L.hidden = false; ldraw(true) })
+  for (const b of moment) b.addEventListener('click', () => { L.amber = b.dataset.amber === 'true'; L.hidden = false; ldraw(true) })
+  lopen.addEventListener('click', () => { L.open = !L.open; L.hidden = false; ldraw(true) })
+  hoverCards(lay, $('#ltip'), $('#lscroller'))
+  ldraw(false)
+
   setMode('last')
   // the tour starts once the band is in view, and only once
   let toured = false

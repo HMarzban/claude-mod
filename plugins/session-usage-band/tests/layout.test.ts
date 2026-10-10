@@ -2,6 +2,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import { DARK } from '../hooks/palette'
+import { cellsOf, ROW_PX, TERMINAL } from '../hooks/layout'
 import {
   LONG,
   USAGE,
@@ -101,7 +102,7 @@ test('a 30-column band fits one row with cache and cost', LONG, async ($, on) =>
 })
 
 for (const cols of [60, 70, 84]) {
-  test(`a 5h pill amber from its pace fits one row at ${cols} columns and keeps its warning`, async ($, on) => {
+  test(`a 5h pill amber from its pace fits one row at ${cols} columns and keeps its warning`, LONG, async ($, on) => {
     const clock = setup(on)
     await pacing($, clock)
     await $.turn.start({ text: 'hi', turnId: 't1' })
@@ -117,7 +118,7 @@ for (const cols of [60, 70, 84]) {
     await ui.unmount()
   })
 
-  test(`an amber 5h pill fits beside an expiring cache at ${cols} columns`, async ($, on) => {
+  test(`an amber 5h pill fits beside an expiring cache at ${cols} columns`, LONG, async ($, on) => {
     const clock = setup(on, {
       usage: {
         ...USAGE,
@@ -143,7 +144,7 @@ for (const cols of [60, 70, 84]) {
 }
 
 for (const cols of [60, 70]) {
-  test(`four amber chips still fit ${cols} columns and keep the toggle`, async ($, on) => {
+  test(`four amber chips still fit ${cols} columns and keep the toggle`, LONG, async ($, on) => {
     const clock = setup(on, {
       usage: {
         ...USAGE,
@@ -227,4 +228,17 @@ test('a window whose reset has passed gives way like a calm one', LONG, async ($
   const ui = await mountBand($, 'terminal', 30)
   expect(widthOf(firstRow(await ui.drawn()))).toBeLessThanOrEqual(30)
   await ui.unmount()
+})
+
+test('a column Box is as wide as its widest row', () => {
+  const col = {
+    type: 'Box',
+    props: { flexDirection: 'column' },
+    children: [
+      { type: 'Text', props: {}, children: ['abcdef'] },
+      { type: 'Text', props: {}, children: ['abc'] },
+    ],
+  }
+  expect(cellsOf(col as never, TERMINAL)).toBe(6)
+  expect(ROW_PX).toBe(24)
 })

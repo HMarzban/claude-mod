@@ -22,6 +22,12 @@ const tracking = (g: GitState): string => {
   const sides = [g.ahead ? `${commits(g.ahead)} to push` : '', g.behind ? `${g.behind} to pull` : ''].filter(Boolean)
   return sides.length === 0 ? 'up to date with its upstream' : sides.join(', ')
 }
+/** Where a strip sits: on top, under a row of air, its text lined up with
+ *  the cards' (`edge` is their border width); in the footer, in the room the
+ *  buttons leave. */
+export const stripPlacement = (place: 'top' | 'footer', edge: number) =>
+  place === 'top' ? { paddingX: 1 + edge / 2, marginTop: 1 } : { flexGrow: 1, flexShrink: 1, minWidth: 0 }
+
 /** The key a drawn Box goes by, if any. */
 const keyOf = (n: RenderChildren): string | undefined => {
   const key = typeof n === 'object' && n !== null && !isList(n) && n.type === 'Box' ? n.props?.key : undefined
@@ -138,7 +144,8 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
 
   // Each card at its piece: on the path's side from where the piece starts,
   // on the state's ending where it ends. A separator is a Text, not a Box, so no card.
-  const pad = place === 'top' ? 1 + edge / 2 : 0
+  const placement = stripPlacement(place, edge)
+  const pad = placement.paddingX ?? 0
   const spacing = Svg ? 2 : 0
   const whereLine = joined('where', where)
   const stateLine = joined('state', state)
@@ -162,7 +169,7 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
       flexWrap="nowrap"
       overflow="hidden"
       height={1}
-      {...(place === 'top' ? { paddingX: pad, marginTop: 1 } : { flexGrow: 1, flexShrink: 1, minWidth: 0 })}
+      {...placement}
     >
       <Box key="ws:where" flexDirection="row" columnGap={spacing} flexShrink={1} minWidth={0} overflow="hidden">
         {whereLine}
