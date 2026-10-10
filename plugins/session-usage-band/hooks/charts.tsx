@@ -22,9 +22,10 @@ const topOf = (values: ReadonlyArray<number | undefined>): number => Math.max(0,
 /** Text set inside Svg markup, escaped. */
 const svgText = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-/** Marks wrapped in an Svg of this size, one unit to a pixel. */
-const svgOf = (width: number, height: number, marks: string): string =>
-  `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${marks}</svg>`
+/** Marks wrapped in an Svg of this size, one unit to a pixel; `attrs` adds
+ *  to the root tag. */
+const svgOf = (width: number, height: number, marks: string, attrs = ''): string =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"${attrs}>${marks}</svg>`
 
 // ---- braille --------------------------------------------------------------
 
@@ -92,8 +93,7 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
     // No clipPath: ids are document-wide where Svgs share a page, so a
     // rounded fill draws its own ends.
     const fillWidth = frac > 0 ? Math.max(6 * k, Math.round(clamp01(frac) * width)) : 0
-    const source =
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${tall}" viewBox="0 0 ${width} ${tall}"${stretch ? ' preserveAspectRatio="none"' : ''}>` +
+    const marks =
       `<rect x="${0.5 * k}" y="1.5" width="${width - k}" height="5" rx="${2.5 * k}" ry="2.5" fill="${palette.meterTrack}" stroke="${palette.trackStroke}"${scaling}/>` +
       (projectTo === undefined
         ? ''
@@ -105,8 +105,8 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
       // Knocked out of the ground, so it reads over the fill and the track alike.
       (tick === undefined
         ? ''
-        : `<rect class="tick" x="${tenth(clamp01(tick) * width - k)}" y="-1" width="${2 * k}" height="${tall + 2}" fill="${palette.value}" stroke="${palette.cardBg}"${scaling}/>`) +
-      '</svg>'
+        : `<rect class="tick" x="${tenth(clamp01(tick) * width - k)}" y="-1" width="${2 * k}" height="${tall + 2}" fill="${palette.value}" stroke="${palette.cardBg}"${scaling}/>`)
+    const source = svgOf(width, tall, marks, stretch ? ' preserveAspectRatio="none"' : '')
     const alt = `${label} ${Math.round(clamp01(frac) * 100)}% ${reads}`
     return stretch ? (
       <Svg key={key} source={source} alt={alt} height={tall} />
@@ -321,8 +321,8 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
   const tall = height + 2 * DAY_EDGE + (labels === undefined ? 0 : LABEL_ROOM)
   const marks = values.map((v, i) => {
     const x = DAY_EDGE + i * step
-    const charge = v === undefined || top <= 0 ? 0 : Math.round((v / top) * (height - 2))
-    const filled = charge > 0 ? `<rect x="${x + 1}" y="${DAY_EDGE + height - 1 - charge}" width="${cellPx - 2}" height="${charge}" rx="2" fill="${color}"/>` : ''
+    const fillPx = v === undefined || top <= 0 ? 0 : Math.round((v / top) * (height - 2))
+    const filled = fillPx > 0 ? `<rect x="${x + 1}" y="${DAY_EDGE + height - 1 - fillPx}" width="${cellPx - 2}" height="${fillPx}" rx="2" fill="${color}"/>` : ''
     const outline =
       i === today
         ? `<rect x="${x}" y="${DAY_EDGE}" width="${cellPx}" height="${height}" rx="3" fill="none" stroke="${palette.value}" stroke-width="2"/>`
