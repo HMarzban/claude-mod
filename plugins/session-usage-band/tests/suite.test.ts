@@ -3,7 +3,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { LayoutName } from '../hooks/snapshot'
-import { SCENARIO_NAMES, suiteCases, type Surface } from './matrix'
+import { LONG_WALKS, SCENARIO_NAMES, suiteCases, type Surface } from './matrix'
 
 const cases = suiteCases('ledger')
 test('38 cases, named apart', () => {
@@ -14,7 +14,7 @@ test('every scenario is drawn, on both surfaces', () => {
   for (const s of SCENARIO_NAMES) expect(cases.some(c => c.options.scenario === s && c.mounts.some(m => m.surface === 'terminal') && c.mounts.some(m => m.surface === 'desktop'))).toBe(true)
 })
 test('the long walks use the 5-minute cache', () => {
-  for (const c of cases) if (['lastMinute', 'cold', 'coldLimit80'].includes(c.options.scenario)) expect(c.options.ttl).toBe('5m')
+  for (const c of cases) if (LONG_WALKS.has(c.options.scenario)) expect(c.options.ttl).toBe('5m')
 })
 test('every width and every height is covered', () => {
   for (const cols of [40, 41, 50, 60, 67, 68, 80, 95, 120, 160, 200]) expect(cases.some(c => c.options.scenario === 'lastMinute' && c.mounts.some(m => m.cols === cols))).toBe(true)
