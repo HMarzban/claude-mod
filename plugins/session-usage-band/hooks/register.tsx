@@ -232,23 +232,26 @@ const readLayout = async ($: EngineInterface): Promise<void> => {
   band.layout = asLayoutName(await $.store.get(LAYOUT_KEY).catch(() => undefined)) ?? DEFAULT_LAYOUT
 }
 
+/** The layouts /usage-band layout offers. */
 const LAYOUT_LIST = `Choose one: ${LAYOUT_NAMES.join(', ')}.`
+/** `layout`, then what follows it, if anything. */
 const LAYOUT_ARG = /^\s*layout(?:\s+(.*))?$/i
 
+/** The reply naming the layout the band draws in. */
+const layoutReply = (name: LayoutName): string => `Usage band layout: ${name}.`
+
 /** `/usage-band layout [name]`: lists, or switches and remembers. Only this writes the layout. */
-const chooseLayout = async ($: EngineInterface, word: string): Promise<string> => {
-  if (word.trim() === '') return `Usage band layout: ${band.layout}. ${LAYOUT_LIST}`
-  const name = asLayoutName(word)
-  if (name === undefined) return `Unknown layout "${clipMiddle(word.trim(), 20)}". ${LAYOUT_LIST}`
+const chooseLayout = async ($: EngineInterface, arg: string): Promise<string> => {
+  if (arg.trim() === '') return `${layoutReply(band.layout)} ${LAYOUT_LIST}`
+  const name = asLayoutName(arg)
+  if (name === undefined) return `Unknown layout "${clipMiddle(arg.trim(), 20)}". ${LAYOUT_LIST}`
   band.layout = name
   // Remembered for the next session. A store that fails leaves this one
   // switched until the next turn reads the store back.
   await $.store.set(LAYOUT_KEY, name).catch(() => undefined)
   await update($, isHidden, () => false)
   $.ui.invalidate('ui.render')
-  return name === DEFAULT_LAYOUT
-    ? `Usage band layout: ${name}.`
-    : `Usage band layout: ${name}. /usage-band layout ${DEFAULT_LAYOUT} goes back.`
+  return name === DEFAULT_LAYOUT ? layoutReply(name) : `${layoutReply(name)} /usage-band layout ${DEFAULT_LAYOUT} goes back.`
 }
 
 export const register: Register = on => {

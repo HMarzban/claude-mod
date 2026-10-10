@@ -1,7 +1,8 @@
 // What the band remembers across sessions, in the plugin's own store: when
-// each session last had a reply, and what a token costs on each model. With
-// them a reopened session, or a reload, says whether its cache is cold and
-// what the next message costs, before any reply of its own.
+// each session last had a reply, what a token costs on each model, and the
+// layout the band draws in. With the first two a reopened session, or a
+// reload, says whether its cache is cold and what the next message costs,
+// before any reply of its own.
 
 import { modelName, weightedTokens } from './cache'
 import { LAYOUT_NAMES } from './snapshot'
