@@ -368,6 +368,13 @@ export const START = { cwd: '/tmp', surface: 'terminal', isInteractive: true } a
 export const HOUR_1 = { ENABLE_PROMPT_CACHING_1H: '1' }
 export const MIN = 60_000
 export const HOUR = 60 * MIN
+/** The weekday a clock time at `ms`, drawn at `now`, leads with on this host:
+ *  '' on the same local day, else `Thu `. The kit's zone is the host's, so it
+ *  is read off the host's own calendar, not the band's formatters. */
+export const weekdayLead = (ms: number, now: number): string => {
+  const day = new Date(ms).toDateString()
+  return day === new Date(now).toDateString() ? '' : `${day.slice(0, 3)} `
+}
 /** The time budget of a test that walks the clock through many minutes, or
  *  draws the band at many widths. The band ticks every second, so an hour
  *  walked is 3,600 ticks: under a second on a laptop, but a shared CI runner

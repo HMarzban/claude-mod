@@ -6,7 +6,7 @@ import type { Engine } from 'claude-code/testing'
 import type { On, RenderChildren } from 'claude-code'
 import { drawBand } from '../hooks/band'
 import { ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
-import { HOUR, LONG, MIN, byKey, fakeEl, shown, walk, widthOf, type Node } from './helpers'
+import { HOUR, LONG, MIN, byKey, fakeEl, shown, walk, weekdayLead, widthOf, type Node } from './helpers'
 import { NO_ACT, caseKey, drawCases, snapOf, viewSuite, type Appearance, type Mount, type ScenarioName, type Ttl } from './matrix'
 
 viewSuite('departures')
@@ -18,6 +18,10 @@ const at = async ($: Engine, on: On, scenario: ScenarioName, m: Mount = T160, tt
   const trees = await drawCases($, on, { layout: 'departures', scenario, appearance, ttl }, [m])
   return { shut: trees[caseKey(m, 'shut')], open: trees[caseKey(m, 'open')] }
 }
+/** One cell of an open board: a row's column. */
+const boardCell = (open: unknown, row: string, column: string): string => shown(byKey(byKey(byKey(open, 'body', 'Box'), row, 'Box'), column, 'Box'))
+/** The weekday calm's 5h reset, 3h on, leads with on this host: '' today. */
+const FIVE_RESET_DAY = weekdayLead(3 * HOUR, 0).toUpperCase()
 
 test('warm, the cache departs in minutes, never "52M"', async ($, on) => {
   const t = shown((await at($, on, 'calm')).shut)
@@ -181,20 +185,15 @@ test('open where TIME can\'t fit whole beside REMARKS\' least, the board drops t
   const [fits, narrow] = mounts.map(m => trees[caseKey(m, 'open')])
   expect(titles(fits)).toEqual(['ITEM', 'STATUS', 'TIME', 'REMARKS'])
   expect(titles(narrow)).toEqual(['ITEM', 'STATUS', 'REMARKS'])
-  const remarks = (open: unknown, row: string) => shown(byKey(byKey(byKey(open, 'body', 'Box'), row, 'Box'), 'remarks', 'Box'))
-  expect(remarks(fits, 'cache')).not.toMatch(/IN 1H/)
-  expect(remarks(narrow, 'cache')).toMatch(/^IN 1H 00 MIN · RE-WARM/)
-  expect(remarks(narrow, '5H')).toMatch(/^↻ ([A-Z]{3} )?\d{2}:\d{2} · 4% USED/)
+  expect(boardCell(fits, 'cache', 'remarks')).not.toMatch(/IN 1H/)
+  expect(boardCell(narrow, 'cache', 'remarks')).toMatch(/^IN 1H 00 MIN · RE-WARM/)
+  expect(boardCell(narrow, '5H', 'remarks')).toMatch(new RegExp(String.raw`^↻ ${FIVE_RESET_DAY}\d{2}:\d{2} · 4% USED`))
 })
-test('in ascii, a narrow board\'s reset leads REMARKS with its noun, and a wide board\'s TIME holds a reset past today whole', () => {
-  // Drawn directly, the zone pinned, so the 5h reset 3h on falls today and the 7d one 67h on doesn't.
-  const cell = (columns: number, row: string, column: string) => {
-    const open = drawBand(fakeEl, snapOf({ layout: 'departures', columns, glyphs: 'ascii', expanded: true, utcOffsetMin: 0 }), NO_ACT)
-    return shown(byKey(byKey(byKey(open, 'body', 'Box'), row, 'Box'), column, 'Box'))
-  }
-  expect(cell(67, '5H', 'remarks')).toMatch(/^RESET \d{2}:\d{2} - 4% USED/)
-  expect(cell(160, '5H', 'time')).toMatch(/^RESET \d{2}:\d{2}$/)
-  expect(cell(160, '7D', 'time')).toMatch(/^[A-Z]{3} \d{2}:\d{2}$/)
+test('in ascii, a reset today leads REMARKS with its noun on a narrow board, and keeps it in a wide board\'s TIME', () => {
+  // Drawn directly, the zone pinned, so the 5h reset 3h on falls today on every host.
+  const open = (columns: number) => drawBand(fakeEl, snapOf({ layout: 'departures', columns, glyphs: 'ascii', expanded: true, utcOffsetMin: 0 }), NO_ACT)
+  expect(boardCell(open(67), '5H', 'remarks')).toMatch(/^RESET \d{2}:\d{2} - 4% USED/)
+  expect(boardCell(open(160), '5H', 'time')).toMatch(/^RESET \d{2}:\d{2}$/)
 })
 test('open on a narrow board in the last minute, REMARKS leads with the seconds as TIME draws them', LONG, async ($, on) => {
   const open = (await at($, on, 'lastMinute', { surface: 'terminal', cols: 50 }, '5m')).open
@@ -267,11 +266,13 @@ test('open, compaction not known yet says nothing of it', LONG, async ($, on) =>
 test('open, the board says auto-compaction is off when the engine says so', LONG, async ($, on) => {
   expect(shown((await at($, on, 'compactionOff')).open)).toMatch(/AUTO-COMPACTION OFF/)
 })
-test('in ascii, a landing and a fill before the reset keep their noun', LONG, async ($, on) => {
+test('in ascii, a landing and a fill before the reset keep their noun, and a reset past today its weekday in TIME', LONG, async ($, on) => {
   const trees = await drawCases($, on, { layout: 'departures', scenario: 'calm', appearance: 'dark', ttl: '1h', env: { CC_BAND_GLYPHS: 'ascii' } }, [T160])
   const shut = shown(trees[caseKey(T160, 'shut')])
   expect(shut).toMatch(/~\d+% AT RESET/)
   expect(shut).not.toMatch(/\bAT\b(?! RESET)/)
+  // The 7d reset, 67h on, is past today on every host: TIME holds it whole, its weekday in place of RESET.
+  expect(boardCell(trees[caseKey(T160, 'open')], '7D', 'time')).toMatch(/^[A-Z]{3} \d{2}:\d{2}$/)
 })
 for (const [scenario, amber] of [
   ['calm', /\$2\.41/],

@@ -7,7 +7,7 @@ import type { On } from 'claude-code'
 import { makeKit } from '../hooks/kit'
 import { readingsOf } from '../hooks/reading'
 import { forecastView } from '../hooks/views/forecast'
-import { HOUR, LONG, fakeEl, shown, svgsOf } from './helpers'
+import { HOUR, LONG, MIN, fakeEl, shown, svgsOf, weekdayLead } from './helpers'
 import { NO_ACT, caseKey, drawCases, snapOf, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
 
 viewSuite('forecast')
@@ -20,10 +20,16 @@ const at = async ($: Engine, on: On, scenario: ScenarioName, m: Mount = T160, tt
   const trees = await drawCases($, on, { layout: 'forecast', scenario, appearance: 'dark', ttl }, [m])
   return { shut: trees[caseKey(m, 'shut')], open: trees[caseKey(m, 'open')] }
 }
+/** The weekday the 5h reset leads with on this host, '' today: calm's, 3h on
+ *  and drawn at 0; cold's at 5m, drawn a minute past its 5 minutes; and
+ *  fiveHourAhead's, 4h on and drawn 12 minutes in. */
+const CALM_RESET_DAY = weekdayLead(3 * HOUR, 0)
+const COLD_RESET_DAY = weekdayLead(3 * HOUR, 6 * MIN)
+const PACED_RESET_DAY = weekdayLead(4 * HOUR, 12 * MIN)
 
 test('now, then the changes ahead in time order, at most three', async ($, on) => {
   const t = shown((await at($, on, 'calm')).shut)
-  expect(t).toMatch(/^now\s*·\s*warm\s*│\s*\d{2}:\d{2}\s*·\s*in 1h 00m\s*·\s*cold\s*│\s*(\w{3} )?\d{2}:\d{2}\s*·\s*5h resets/)
+  expect(t).toMatch(new RegExp(String.raw`^now\s*·\s*warm\s*│\s*\d{2}:\d{2}\s*·\s*in 1h 00m\s*·\s*cold\s*│\s*${CALM_RESET_DAY}\d{2}:\d{2}\s*·\s*5h resets`))
   expect((t.match(/│/g) ?? []).length).toBeLessThanOrEqual(3)
   // The 7d reset, 67h off, is past the day a change ahead looks to.
   expect(t).not.toMatch(/7d resets/)
@@ -32,7 +38,7 @@ test('only the next change says how far off it is', async ($, on) => {
   expect(shown((await at($, on, 'calm')).shut).match(/\bin \d/g)).toEqual(['in 1'])
 })
 test('a cold cache is no change ahead: the next one is the reset', async ($, on) => {
-  expect(shown((await at($, on, 'cold', T160, '5m')).shut)).toMatch(/^now\s*·\s*cold[^│]*│\s*(\w{3} )?\d{2}:\d{2}\s*·\s*in \d+h \d+m\s*·\s*5h resets/)
+  expect(shown((await at($, on, 'cold', T160, '5m')).shut)).toMatch(new RegExp(String.raw`^now\s*·\s*cold[^│]*│\s*${COLD_RESET_DAY}\d{2}:\d{2}\s*·\s*in \d+h \d+m\s*·\s*5h resets`))
 })
 test('in the terminal, a cold cache says its price in its head', LONG, async ($, on) => {
   expect(shown((await at($, on, 'cold', T160, '5m')).shut)).toMatch(/^now · cold · re-warm ~\$\S+\s*│/)
@@ -114,7 +120,7 @@ test('open, an outlook row for each reading, in spec order', async ($, on) => {
   const t = shown((await at($, on, 'calm')).open)
   expect(t).toMatch(/Cache\s*1h 00m left\S*\s*cold at \d{2}:\d{2}, then re-warm ~\$\S+\s*Context/)
   expect(t).toMatch(/Context\s*38%\S*\s*76k of a 200k window\s*5h/)
-  expect(t).toMatch(/5h\s*4%\S*\s*on pace for ~\d+%\s*·\s*↻ (\w{3} )?\d{2}:\d{2}\s*7d/)
+  expect(t).toMatch(new RegExp(String.raw`5h\s*4%\S*\s*on pace for ~\d+%\s*·\s*↻ ${CALM_RESET_DAY}\d{2}:\d{2}\s*7d`))
   expect(t).toMatch(/7d\s*30%\S*\s*on pace for ~\d+%\s*·\s*↻ \S+ \d{2}:\d{2}\s*Spend/)
   expect(t).toMatch(/Spend\s*\$2\.41\s*\d+k tokens/)
 })
@@ -143,7 +149,7 @@ test('open with no limits, their row says so', async ($, on) => {
   expect(shown((await at($, on, 'noLimits')).open)).toMatch(/Context\s*38%.*Limits\s*none reported\s*Spend/)
 })
 test('open, a fill says it once, in its reason', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'fiveHourAhead')).open)).toMatch(/! 5h full in ~\S+\s*·\s*↻ (\w{3} )?\d{2}:\d{2}(?!.*full)/)
+  expect(shown((await at($, on, 'fiveHourAhead')).open)).toMatch(new RegExp(String.raw`! 5h full in ~\S+\s*·\s*↻ ${PACED_RESET_DAY}\d{2}:\d{2}(?!.*full)`))
 })
 test('open and short of rows, an amber limit keeps its words', async ($, on) => {
   const mounts = ([[120, 6], [80, 7], [120, 13]] as const).flatMap(([cols, maxRows]) =>
@@ -163,7 +169,7 @@ test('with the offset unknown, each change reads as a duration, and a 7d reset w
 test('in ascii, an outlook says when a limit resets in words', LONG, async ($, on) => {
   const trees = await drawCases($, on, { layout: 'forecast', scenario: 'calm', appearance: 'dark', ttl: '1h', env: { CC_BAND_GLYPHS: 'ascii' } }, [T160])
   const open = shown(trees[caseKey(T160, 'open')])
-  expect(open).toMatch(/on pace for ~\d+%\s*-\s*resets (\w{3} )?\d{2}:\d{2}/)
+  expect(open).toMatch(new RegExp(String.raw`on pace for ~\d+%\s*-\s*resets ${CALM_RESET_DAY}\d{2}:\d{2}`))
 })
 test('open, an unmeasured cache draws no bar, so no alt says 0% left', LONG, async ($, on) => {
   const trees = await drawCases($, on, { layout: 'forecast', scenario: 'unmeasured', appearance: 'dark', ttl: '1h' }, [D160])
