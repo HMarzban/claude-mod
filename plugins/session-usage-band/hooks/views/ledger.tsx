@@ -34,8 +34,8 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const toggle = toggleButton(kit, read, act)
   const cost = words(kit, 'cost', [[read.spend.totalText, 'value']])
   const calmCache = words(kit, 'cache', c.say)
-  // Cold, the short words keep the price: `cold ~$2.13`.
-  const calmCacheShort = words(kit, 'cache', c.sayShort)
+  // Cold, the short words keep the price: `cold ~$2.13`; a countdown keeps its words.
+  const calmCacheShort = c.condition === 'cold' ? words(kit, 'cache', c.sayShort) : calmCache
   const calmContext = words(kit, 'ctx', x.say)
   const separated = separatedBy(kit, '·', 4)
   return [

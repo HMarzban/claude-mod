@@ -52,6 +52,9 @@ test('at 40 columns a cold cache says its short words, so an amber limit fits be
   expect(shown(line)).toMatch(/^cold ~\$[\d.]+\s*·\s*! 5h 82%$/)
   expect(cellsOf(line as RenderChildren, TERMINAL)).toBeLessThanOrEqual(40 - ROW_SLACK - 2)
 })
+test('at 40 columns a warm countdown keeps its words beside an amber context', async ($, on) => {
+  expect(shown(byKey((await at($, on, 'nearCompaction', { surface: 'terminal', cols: 40 })).shut, 'line', 'Box'))).toMatch(/^cache 1h 00m left·! ctx 94%$/)
+})
 test('a limit at 80% says why, in words', async ($, on) => {
   expect(shown((await at($, on, 'limit80')).shut)).toMatch(/! 5h 82%/)
 })
