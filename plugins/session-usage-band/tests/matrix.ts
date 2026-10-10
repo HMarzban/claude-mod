@@ -241,7 +241,7 @@ const factRows = (layout: LayoutName, surface: Surface): number => VIEWS[layout]
 const LONG_WALKS: ReadonlySet<ScenarioName> = new Set(['lastMinute', 'cold', 'coldLimit80'])
 const ttlOf = (scenario: ScenarioName): Ttl => (LONG_WALKS.has(scenario) ? '5m' : '1h')
 
-/** The suite's 36 cases, one setup each: every scenario at 120 columns; calm
+/** The suite's 37 cases, one setup each: every scenario at 120 columns; calm
  *  and the last minute in light, plain and the ascii tier, and at every
  *  width; the other amber scenarios narrow; calm and the open-only amber
  *  short of rows. */
@@ -260,7 +260,7 @@ export const suiteCases = (layout: LayoutName): SuiteCase[] => {
         mounts: SUITE_WIDTHS.map(cols => ({ surface, cols })),
       })),
     ]),
-    ...(['fiveHourAhead', 'limit80', 'nearCompaction'] as const).map(scenario => ({
+    ...(['fiveHourAhead', 'limit80', 'nearCompaction', 'coldLimit80'] as const).map(scenario => ({
       name: `${layout}: ${scenario}, narrow`,
       options: optionsOf(scenario),
       mounts: [40, 50, 60].flatMap(cols => bothSurfaces(cols)),
