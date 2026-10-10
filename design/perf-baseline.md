@@ -14,7 +14,7 @@ PERF chips desktop open median=0.729ms p95=2.259ms
 
 ## After the layouts
 
-Captured by `tests/perf.test.ts` in the whole suite (`claude plugin test plugins/session-usage-band`), against 7aebb0a's hooks: each layout in a test of its own, drawn calm at 200 columns and in the last minute (5m TTL) at 60, on both surfaces, shut and open; 200 redraws per case after 20 warm-up redraws. A file's first draws run cold for seconds, so every layout is first drawn once, untimed, and a last test holds each layout to 2× chips' median, case by case. Every layout passes its budgets: at most 2× chips' median in the same run, at most 400 nodes shut and 1,500 open, and no store write while drawing.
+Captured by `tests/perf.test.ts` in the whole suite (`claude plugin test plugins/session-usage-band`), against f120387's hooks: each layout in a test of its own, drawn calm at 200 columns and in the last minute (5m TTL) at 60, on both surfaces, shut and open; 200 redraws per case after 20 warm-up redraws. A file's first draws run cold for seconds, so every layout is first drawn once, untimed, and a last test holds each layout to 2× chips' median, case by case. Every layout passes its budgets: at most 2× chips' median in the same run, at most 400 nodes shut and 1,500 open, and no store write while drawing.
 
 ```
 PERF chips calm|terminal|200|shut median=0.325ms
@@ -95,7 +95,7 @@ Chips reads warm (0.325 ms calm, terminal, shut, against P0's 0.349 ms). The slo
 
 ### Chips against P0
 
-The like-for-like comparison is P0's own method: the `perf baseline` test from `tools/golden/capture.test.ts`, repeated four times in one file, run against 4882313's hooks (the band before the layouts, with the 0.11.13 hover fix) and against 7aebb0a's, twice each; the fourth round, warm:
+The like-for-like comparison is P0's own method: the `perf baseline` test from `tools/golden/capture.test.ts`, repeated four times in one file, run against 4882313's hooks (the band before the layouts, with the 0.11.13 hover fix) and against f120387's, twice each; the fourth round, warm:
 
 | Case | P0, run 1 | P0, run 2 | After, run 1 | After, run 2 |
 | --- | --- | --- | --- | --- |
@@ -110,13 +110,13 @@ Chips is within noise of its baseline. Against P0 on the same machine and day, i
 
 Counted from the test side (`engine.invalidates`), terminal, 120 columns, the 1h TTL from a reply at 0; the same for every layout, since the timer reads no layout:
 
-| Walk | Before 7aebb0a | After |
+| Walk | Before f120387 | After |
 | --- | --- | --- |
 | A calm ten minutes | 20 | 10 |
 | The first hour | 700 | 650 |
 | The cache's last ten minutes | 600 | 600 |
 | The cache's last minute | 60 | 60 |
 
-Before 7aebb0a, the timer's minute turned on the boundary while the countdowns turn just past it, so each minute repainted twice, once with nothing new; with the cache cold, a reset countdown stood a minute stale.
+Before f120387, the timer's minute turned on the boundary while the countdowns turn just past it, so each minute repainted twice, once with nothing new; with the cache cold, a reset countdown stood a minute stale.
 
 Other repaints, over one main-loop turn: 50 steps with usage gave 52 invalidates (50 steps, each changing the tree, and 2 timer ticks); the turn's end gave 2 (`turn.complete` and its git read), for one change: the git read repaints though the workspace is unchanged, one redraw of about 0.5 ms a turn, below what spec §9 asks of a change. No step repaints for nothing, so Task 28 adds no paint key.

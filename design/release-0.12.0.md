@@ -1,6 +1,6 @@
 # Release 0.12.0: layouts
 
-Task 33, Steps 1 and 2, on `feat/layouts`: the production gate (spec §10) run item by item, the evidence, and the drafts for the PR and issue #1. The gate was first run at 0119b9a. Its evidence was run again at d3bbf73, after the cleanup and the final review's fixes; the docs commits after d3bbf73 change no code. Nothing is pushed, tagged, released or posted; Step 3 waits on the maintainer's go-ahead.
+Task 33, Steps 1 and 2, on `feat/layouts`: the production gate (spec §10) run item by item, the evidence, and the drafts for the PR and issue #1. The gate was first run at 553bb07. Its evidence was run again at a726859, after the cleanup and the final review's fixes; the docs commits after a726859 change no code. Nothing is pushed, tagged, released or posted; Step 3 waits on the maintainer's go-ahead.
 
 ## The production gate
 
@@ -16,19 +16,19 @@ Task 33, Steps 1 and 2, on `feat/layouts`: the production gate (spec §10) run i
 | contrast meets §2.10 in every palette | met | `design.test.ts`, 29 pass |
 | performance and memory within §9, with the numbers in the PR | met | every layout at most 1.34× chips over four runs; the soak's three tests pass |
 | an independent reviewer read the whole branch, every Critical or Important finding fixed test first | met | Task 29: nine fixes, each RED→GREEN in the ledger |
-| a final quality pass leaves no dead code, debug output, TODOs, commented-out code, names off §4.3, comments out of house style or typos | met | Task 30, and its greps re-run at d3bbf73 (below) |
-| CHANGELOG `0.12.0`, under Added | met | with a Fixed line for 7aebb0a, a fix to chips (below) |
+| a final quality pass leaves no dead code, debug output, TODOs, commented-out code, names off §4.3, comments out of house style or typos | met | Task 30, and its greps re-run at a726859 (below) |
+| CHANGELOG `0.12.0`, under Added | met | with a Fixed line for f120387, a fix to chips (below) |
 | the version bump | met | `plugin.json` reads `0.12.0`; the marketplace pins no version |
 | the plugin README's Layouts section, with row counts and `CC_BAND_GLYPHS` | met | `plugins/session-usage-band/README.md`, "Layouts" |
 | the root README | met | the Layouts line and the gallery under "What it shows" |
 | the CONTRIBUTING file table | met | every new file, and the rule for a new layout |
-| the demos rebuilt | met for the gallery at 0119b9a but one still | forecast's last-minute still predates c87e9d8, and the gallery wasn't captured again after the cleanup; the film, the terminal GIF and the site's live band predate 7aebb0a (below) |
+| the demos rebuilt | met for the gallery at 553bb07 but one still | forecast's last-minute still predates c87e9d8, and the gallery wasn't captured again after the cleanup; the film, the terminal GIF and the site's live band predate f120387 (below) |
 | issue #1 updated | pending the go-ahead | draft below |
 | the maintainer checks each layout on the desktop and in a terminal, collapsed and expanded | pending | checkpoint 6, below |
 
 ## Evidence
 
-All of it at d3bbf73, from the repo root, but the demos (at 0119b9a).
+All of it at a726859, from the repo root, but the demos (at 553bb07).
 
 ### Validate
 
@@ -77,22 +77,22 @@ CI can't run it: the engine writes its API types only when a signed-in session l
 
 ### The existing suite
 
-- Against 4882313, 0.11.13's tip, which descends from main: `git diff 4882313 HEAD` over main's test files removes no `expect` line, re-checked at d3bbf73. What it removes is in `helpers.ts` (the fake engine's handlers, taken into the new counters and `storeFails`) and one import line in `format.test.ts`, which gains `fmtPct`.
+- Against 4882313, 0.11.13's tip, which descends from main: `git diff 4882313 HEAD` over main's test files removes no `expect` line, re-checked at a726859. What it removes is in `helpers.ts` (the fake engine's handlers, taken into the new counters and `storeFails`) and one import line in `format.test.ts`, which gains `fmtPct`.
 - Against main (0.11.12), five files' assertions changed, all in 0.11.13's hover fix (420cac0, 53126bf, ecb8939, 4882313): `hover`, `cost`, `consistency`, `context-and-tokens` and `workspace-strip`. Each card moved out of its chip, so those tests read it with `hoverCardOf` in place of `pillOf`.
 
 ### Golden
 
 ```
 $ git log --format=%h -- plugins/session-usage-band/tests/golden/chips.ts
-d69a9bf
+ae356e1
 93e3f31
 ```
 
-93e3f31 is Task 2's capture, and d69a9bf its ruled re-capture for 0.11.13's hover fix (the ledger's golden ruling). Golden asserts 480 hashes with no stored layout and with `chips` stored. The views draw a 21st scenario, `coldLimit80`; golden keeps the 20 its capture froze (`GOLDEN_SCENARIOS`), since the band before the layouts work can't draw a new scenario's capture (the ledger's ruling).
+93e3f31 is Task 2's capture, and ae356e1 its ruled re-capture for 0.11.13's hover fix (the ledger's golden ruling). Golden asserts 480 hashes with no stored layout and with `chips` stored. The views draw a 21st scenario, `coldLimit80`; golden keeps the 20 its capture froze (`GOLDEN_SCENARIOS`), since the band before the layouts work can't draw a new scenario's capture (the ledger's ruling).
 
 ### Performance
 
-Every layout against chips' median in the same run, 200 redraws per case after 20 warm-up redraws, against a budget of 2×. The runs are noisy, so the hooks were measured four times: the gate's run at d3bbf73, the suite's run before it (on the same hooks but `boardTime`, which these cases don't reach), and `perf.test.ts` alone twice. The highest ratio of the four is 1.34×, rings, calm, terminal, shut, in the first `perf.test.ts` run, whose terminal cases all read high; the gate's run, below, peaks at 0.98×, tiles, calm, desktop, open. The perf test's 28 tests also hold every layout within 400 nodes shut and 1,500 open, and with no store write while drawing.
+Every layout against chips' median in the same run, 200 redraws per case after 20 warm-up redraws, against a budget of 2×. The runs are noisy, so the hooks were measured four times: the gate's run at a726859, the suite's run before it (on the same hooks but `boardTime`, which these cases don't reach), and `perf.test.ts` alone twice. The highest ratio of the four is 1.34×, rings, calm, terminal, shut, in the first `perf.test.ts` run, whose terminal cases all read high; the gate's run, below, peaks at 0.98×, tiles, calm, desktop, open. The perf test's 28 tests also hold every layout within 400 nodes shut and 1,500 open, and with no store write while drawing.
 
 | Layout | calm 200, terminal, shut | calm 200, terminal, open | calm 200, desktop, shut | calm 200, desktop, open | last minute 60, terminal, shut | last minute 60, terminal, open | last minute 60, desktop, shut | last minute 60, desktop, open |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -124,7 +124,7 @@ Task 28 measured chips like for like, P0's own test against both hooks: within n
 - One timer, `band.tick`. No view keeps module state, a timer or a listener.
 - Heap can't be measured in the test sandbox; the bounded structures are the proof (spec §9).
 
-### The quality pass, re-run at d3bbf73
+### The quality pass, re-run at a726859
 
 Task 30 ran these before its last commits; they are run again here, on the tip. Each prints nothing:
 
@@ -137,16 +137,16 @@ Task 30 ran these before its last commits; they are run again here, on the tip. 
 
 ### The demos
 
-The layouts gallery (`docs/band-layouts-{light,dark}.png`, Task 32 at 8d74d20) is drawn from the collapsed calm and last-minute states. It was last checked at 0119b9a: captured again there in a scratch copy, those 18 trees are identical to 8d74d20's, with the Buttons' handles set aside. So the gallery was current then, but for one still since: c87e9d8 drops the cold column's repeated `re-warm ~$X` from forecast in the last minute (see Done). It hasn't been captured again since the cleanup.
+The layouts gallery (`docs/band-layouts-{light,dark}.png`, Task 32 at c4c45c8) is drawn from the collapsed calm and last-minute states. It was last checked at 553bb07: captured again there in a scratch copy, those 18 trees are identical to c4c45c8's, with the Buttons' handles set aside. So the gallery was current then, but for one still since: c87e9d8 drops the cold column's repeated `re-warm ~$X` from forecast in the last minute (see Done). It hasn't been captured again since the cleanup.
 
 The other captures differ:
-- Open departures no longer says `NO AUTO-COMPACTION` (fd0dd70).
+- Open departures no longer says `NO AUTO-COMPACTION` (2e08091).
 - Open pulse joins each limit's sentence into one Text.
 - Open tiles keys its re-warm Box `reWarm`.
 
 No still draws those three states.
 
-The film, the terminal GIF and the site's live band are chips, and 7aebb0a's minute fix moves them:
+The film, the terminal GIF and the site's live band are chips, and f120387's minute fix moves them:
 - 51 film frames draw the cache battery a step apart from the committed film.
 - The cold frame's 5h card reads `resets in 1h 59m`, not `2h 00m`.
 
@@ -154,9 +154,9 @@ The film, the terminal GIF and the site's live band are chips, and 7aebb0a's min
 
 ### The CHANGELOG
 
-These Task 29 fixes change what users see in a layout that is new in 0.12.0, so Added covers them: 8aa0f4b, ef6ec96, db0bdf5, 3da7087, 10a5107, 800ada3, fd0dd70, 716ca55 and beb41e8.
+These Task 29 fixes change what users see in a layout that is new in 0.12.0, so Added covers them: 0ea008c, 65605f2, 79e2b8d, a794eb3, c7310b8, 4659862, 2e08091, fc14ffc and 842bd6b.
 
-7aebb0a fixes chips as 0.11 ships it, so Added doesn't cover it. Its line under Fixed (bbf20dc):
+f120387 fixes chips as 0.11 ships it, so Added doesn't cover it. Its line under Fixed (bbf20dc):
 
 ```
 - A reset countdown no longer stands a minute stale while the cache is
@@ -168,7 +168,7 @@ These Task 29 fixes change what users see in a layout that is new in 0.12.0, so 
 The ledger's Rulings section holds 162 `Ruling` lines, each with its why and whether a fallback was taken, and its `Pending maintainer:` lines, those still open listed under Open design questions below. A reviewer meets these in the drawn band:
 - Golden was re-captured once, for 0.11.13's hover fix; with the fix's own marks taken out, all 10 kept trees are deep-equal to the first capture.
 - The ascii tier maps each glyph to one character at most, or drops it with its following space. A dropped `↻` where a phrase needs its noun reads `RESET` or `resets 16:40`, and on departures' board `RESET 06:30` (past today, `SAT 22:30`, which TIME's 14 cells hold).
-- Below 60 columns, only `lastMinute`, the stand-in for all-amber, may clip. A single amber reading must still fit at 40 and 50 columns, so several views give way past spec §6's steps. At 0119b9a they were gauges' `reWarm`, rings' `marks` and `calmFive`, pulse's `costWords`, `pace` and `calmFive`, departures' `cost` and `calmFive`, and week's `emptyText` and `cost`. Since then, gauges gains `cost` and `smallBars`, rings `amberRing`, pulse `cost`, tiles `calmFive` and `cacheWords`, ledger `cacheWords`, departures `brackets`, `coldSince` and `reWarm`, and forecast `coldPrice` (see Done).
+- Below 60 columns, only `lastMinute`, the stand-in for all-amber, may clip. A single amber reading must still fit at 40 and 50 columns, so several views give way past spec §6's steps. At 553bb07 they were gauges' `reWarm`, rings' `marks` and `calmFive`, pulse's `costWords`, `pace` and `calmFive`, departures' `cost` and `calmFive`, and week's `emptyText` and `cost`. Since then, gauges gains `cost` and `smallBars`, rings `amberRing`, pulse `cost`, tiles `calmFive` and `cacheWords`, ledger `cacheWords`, departures `brackets`, `coldSince` and `reWarm`, and forecast `coldPrice` (see Done).
 - An unknown context reads `–`, never `0%`. A landing at 100% or more reads `full before reset`. An unmeasured cache draws no bar, so no alt says `0% left`.
 - No paint key (Task 28): the repaints that change nothing cost about 0.5 ms a turn, below spec §9's bar for adopting one.
 - Week's day cells are cut at local midnight. A reset off midnight folds a part day into its neighbour, so there are always seven cells.
@@ -176,14 +176,14 @@ The ledger's Rulings section holds 162 `Ruling` lines, each with its why and whe
 
 ## Done since the gate
 
-Open items cleared on `feat/layouts` after 0119b9a.
+Open items cleared on `feat/layouts` after 553bb07.
 
-- **The memory caps** (Task 29's deferred `memory.test` unit), in 127a140, 7b206b4 and 0c80b5d:
+- **The memory caps** (Task 29's deferred `memory.test` unit), in 0624a31, 4e7a2d9 and 5d9d52e:
   - `memory.test.ts` now holds the samples' store tests, moved from `calendar.test.ts`. It holds `limitSamples` at `MAX_SAMPLES` with every limit at 99.9 and 13-digit times: 73,249 bytes of JSON, under the test's 75,000. The engine gives a limit at most one decimal, so the 91 KB figure took floats it never sends, and `sampleOf` doesn't round.
   - A stored list past the cap reads as its newest week. A stored record past `MAX_SESSIONS` is written back as its newest 50. Malformed entries are dropped from both. Fifty sessions at UUIDs and 13-digit times are 3,201 bytes (bound 4,000).
   - The soak starts from a stored week at the cap, so its 100,000-byte bound now sees it: the list stays at 672 as each new bucket evicts the oldest, and the whole store reads 61,239 bytes.
   - With the caps lifted, each of these fails. 1046 pass, 0 fail, 48 files. Users see no change, so the CHANGELOG has no line.
-- **The alt text** (Task 29's deferred `projectedAlt` and share `reads`), in bec9ac8, e17359c and 12b5c1f:
+- **The alt text** (Task 29's deferred `projectedAlt` and share `reads`), in 6a5fd4b, 9b261fa and 7d18ba0:
   - Open tiles' dashed underline reads `5h limit about 10 percent at its reset`, from `LimitWords.projectedAlt`, where it read `5h at its reset`.
   - `meter`'s `reads` gains `share`. Gauges' hit rate and the split bars in gauges and rings say `hit rate 96%` and `input 94%`, where they said `hit rate 0% used` and `input 94% used`.
   - A sweep of every alt the views draw, on the desktop at 200 columns in all 20 scenarios, shut and open, found no other.
@@ -196,9 +196,9 @@ Open items cleared on `feat/layouts` after 0119b9a.
   - Every new view draws its empty states in a label's ink, through one `emptySay()` in `parts.tsx` (5d78811, named so in Task C4); ledger, pulse, week and forecast drew some in `value`. Departures keeps its board's ink.
   - A layout the store can't save replies `It couldn't be saved, so it lasts until Claude's next reply.` after its usual words (d741e3e); spec §4.2 gains the row.
   - The spec's errata (5b5a7a8): §4 names `layoutCachePill`, §4.1 says the list comes from `LAYOUT_NAMES`, and `avgWarmUsd`, which no reading builds, is ruled out of §4.1 and §5. §6 now says forecast's Spend row draws no bar, as it has nothing to land at (Task C4).
-  - The CHANGELOG gains its Fixed line for 7aebb0a (bbf20dc). The rest change layouts and a command new in 0.12.0, so Added covers them.
+  - The CHANGELOG gains its Fixed line for f120387 (bbf20dc). The rest change layouts and a command new in 0.12.0, so Added covers them.
   - 1052 pass, 0 fail, 48 files.
-- **Departures polish** (C5), in 2ab2087, 30d742b, 68d46f3, bddd3e6, 2a0015f, 0078ea4, e33dfa2 and cb73c83, and after review in 0d04a19, 0543321, e1b31ed, 1b6b8e5, fd559e4, df5fda5, 3f31618 and 690a63f, each with its `Ruling (C5):` line in the ledger:
+- **Departures polish** (C5), in 5b8cd8f, a27266d, b6f0aec, 8aa8cf5, c177249, 8842dd3, 5a1d39f and 94da868, and after review in 3479113, 6357c63, d4c205a, 20282bf, c4e7223, 526b582, 388ceed and 227e933, each with its `Ruling (C5):` line in the ledger:
   - Plain flaps are drawn in spec §3.1's `[ ]`. The brackets are the line's first give-way step, so a single amber reason still fits at 40 columns. The open board keeps them, and its headers sit one cell in. A flap that outgrows its cell truncates its text and keeps its `]`.
   - The give-way keeps its steps past spec §6's four, `cost` and `calmFive`: without them an amber reason would clip at 40 columns while a calm piece stayed (spec §2.6). Ruled, no change. `coldSince` (below) and Task C3's `reWarm` follow them, so after the merge the give-way runs five steps beyond §6's four: plain's `brackets` ahead of them, then `cost`, `calmFive`, `coldSince` and `reWarm` after.
   - An amber short form stays lower case (`! 5h 82%`), as spec §2.6 writes the short forms and §2.2 puts `47s` on the board. Upper case would make `! 5h ~1h` read `! 5H ~1H`, the short form §2.12 keeps off the board. Ruled, no change.
@@ -209,7 +209,7 @@ Open items cleared on `feat/layouts` after 0119b9a.
   - The snapshot holds when a measured cache went cold (`cache.coldAt`), so a cold cache reads `DEPARTED 13:28`. On the collapsed line the clock gives way after the 5H flap, before the re-warm price. A recalled cache still reads `DEPARTED` alone.
   - Shared files touched: `words.ts` (`boardTime`, the no-offset fill's board minutes, and `coldSinceClock` reading `coldAt`), `format.ts` (`fmtBoardEta`), `snapshot.ts` and `cache.ts` (`coldAt`, from `measuredColdAt`), and `tests/matrix.ts` (`coldAt: null` in `snapOf`). Golden is unchanged. 1074 pass, 0 fail, 48 files, merged. These change a layout that is new in 0.12.0, so the CHANGELOG's Added line covers them.
 
-- **Give-way and amber**, in 6f3be8e to 71d6a2e and Task C3's review fixes after them, rebased onto C4 and C5, each fix test first:
+- **Give-way and amber**, in fe0a7a6 to a20aef5 and Task C3's review fixes after them, rebased onto C4 and C5, each fix test first:
   - A 21st scenario, `coldLimit80`: the cache cold beside the 5h at 82%. Every view draws it at 120 columns and at 40, 50 and 60. Golden keeps the 20 scenarios its capture froze (`GOLDEN_SCENARIOS`), so chips' 480 hashes are unchanged.
   - The amber reason keeps its long words until the calm pieces of its row have gone:
     - gauges' cost gives way, then its bars, so the last minute reads `! 30s left · re-warm ~$2.13` from 40 columns;
@@ -227,12 +227,12 @@ Open items cleared on `feat/layouts` after 0119b9a.
   - At a body of one row, a section whose first row is amber draws it where its title would be, so every grid view says `! spend 92%` at `gatewaySpend`, and a calm section keeps its title. Departures' board drops its header for its first row, and week's row is the amber limit's sentence. `viewSuite` checks it from that row, and checks that every empty state follows its section's name.
   - `viewSuite` holds a terminal's collapsed lines to their room, not the whole row.
   - Pulse on the desktop is the exception, kept under Open with its options.
-  - 1115 pass, 0 fail, 48 files, on `feat/layouts` at d56b031 with C4 and C5 merged. These fixes change layouts that are new in 0.12.0, so Added covers them and the CHANGELOG gains no line.
+  - 1115 pass, 0 fail, 48 files, on `feat/layouts` at 6f8e14f with C4 and C5 merged. These fixes change layouts that are new in 0.12.0, so Added covers them and the CHANGELOG gains no line.
 - **The final review**, each fix test first, with its ruling in the ledger:
-  - Forecast's cold cache says its price on a text surface (d94c00f). With no detail row, on the terminal and a plain desktop, now reads `now · cold · re-warm ~$2.13`, then `now · cold ~$2.13`, and the price goes at a last calm step, `coldPrice`, so at 40 columns `coldLimit80` reads `now · cold ~$2.13│! 5h 82%`. The desktop keeps it once, beneath now.
-  - Departures' board says a reset's noun in the ascii tier (d3bbf73): `RESET 06:30`, where C5's narrow board read `06:30 - 4% USED` in REMARKS; past today, `SAT 22:30`. `format.ts` gains `isToday`, which `fmtDayClock` reads.
+  - Forecast's cold cache says its price on a text surface (ecc2712). With no detail row, on the terminal and a plain desktop, now reads `now · cold · re-warm ~$2.13`, then `now · cold ~$2.13`, and the price goes at a last calm step, `coldPrice`, so at 40 columns `coldLimit80` reads `now · cold ~$2.13│! 5h 82%`. The desktop keeps it once, beneath now.
+  - Departures' board says a reset's noun in the ascii tier (a726859): `RESET 06:30`, where C5's narrow board read `06:30 - 4% USED` in REMARKS; past today, `SAT 22:30`. `format.ts` gains `isToday`, which `fmtDayClock` reads.
   - Spec §6 says departures drops TIME where it can't fit whole beside REMARKS' least, and forecast's cold now says its price; the ledger marks the pending lines C3 settled.
-  - 1122 pass, 0 fail, 48 files, at d3bbf73. These change layouts new in 0.12.0, so Added covers them.
+  - 1122 pass, 0 fail, 48 files, at a726859. These change layouts new in 0.12.0, so Added covers them.
 
 ## Pending the maintainer
 
@@ -242,8 +242,8 @@ The ledger records no sign-off for any of these:
 
 1. After Task 2: 480 hashes, capture commit 6540ef3, two identical captures, 7s each.
 2. The time-zone check, live (below).
-3. The P1 freeze, at dc28d40.
-4. The P2.0 re-freeze, at ba45eea, with the pilot's shared-file changes (the ledger marks it "review-gated").
+3. The P1 freeze, at 8137f8d.
+4. The P2.0 re-freeze, at 3e76ff0, with the pilot's shared-file changes (the ledger marks it "review-gated").
 5. After Task 22: the merges, the full gates, golden untouched.
 6. Before Task 33: the hand check of every layout (below), and the go-ahead for anything outward.
 
@@ -280,7 +280,7 @@ The ledger records no sign-off for any of these:
 
 ### Open design questions, from the ledger
 
-Each is a `Pending maintainer:` line, or one of Task 29's deferred findings, still open at d3bbf73: a decision only the maintainer can make.
+Each is a `Pending maintainer:` line, or one of Task 29's deferred findings, still open at a726859: a decision only the maintainer can make.
 
 **Behaviour**
 - A layout chosen while the store fails to write lasts only until the next main-loop turn.
