@@ -137,7 +137,7 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
   }
 
   // Each card at its piece: on the path's side from where the piece starts,
-  // on the state's ending where it ends. A separator has no key, so no card.
+  // on the state's ending where it ends. A separator is a Text, not a Box, so no card.
   const pad = place === 'top' ? 1 + edge / 2 : 0
   const spacing = Svg ? 2 : 0
   const whereLine = joined('where', where)

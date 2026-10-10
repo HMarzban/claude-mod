@@ -317,7 +317,7 @@ test("on a narrow terminal a card on the state's side still ends within the stri
   expectStripCardsAt(strip, 24)
 })
 
-test('a footer strip with no room for its cards still draws', async ($, on) => {
+test('a footer strip with no room for its cards still draws, and shows no card too narrow to read', async ($, on) => {
   const clock = setup(on, { env: HOME })
   engine.root = WORKTREE
   engine.git = { status: DIRTY, dirs: WORKTREE_DIRS }
@@ -325,7 +325,8 @@ test('a footer strip with no room for its cards still draws', async ($, on) => {
   for (const surface of ['terminal', 'desktop'] as const) {
     const strip = stripOf(byKey(await expanded($, clock, surface, 24, 12), 'actions', 'Box'))
     expect(strip).toBeDefined()
-    for (const [, card] of cards(strip)) expect(card.props?.width).toBeGreaterThanOrEqual(0)
+    // Its padding and one character, or the hover shows a bare patch.
+    for (const [, card] of cards(strip)) expect(card.props?.width).toBeGreaterThanOrEqual(3)
   }
 })
 

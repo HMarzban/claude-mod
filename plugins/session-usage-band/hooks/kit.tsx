@@ -51,14 +51,17 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
 
   /** The one-line explanation `key`'s piece reveals, for after the pieces of
    *  its row, placed as `place` says. It has no key: a keyed Box is its own
-   *  hover scope, and a hidden one could never be hovered. */
+   *  hover scope, and a hidden one could never be hovered. A card with no
+   *  room past its padding for one character isn't drawn. */
   const hoverCard = (key: string, text: string, place: CardPlace): RenderChildren => {
     if (!palette.filled) return null
+    const span = cardSpan(place, text.length + 2)
+    if (span.width < 3) return null
     return (
       <Box
         position="absolute"
         top={0}
-        {...cardSpan(place, text.length + 2)}
+        {...span}
         display="none"
         hover={{ display: 'flex', scope: scopeOf(key) }}
         backgroundColor={palette.tooltipBg}
