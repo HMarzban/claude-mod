@@ -2,6 +2,8 @@
 // redraws stays bounded.
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
+import { MAX_SAMPLES } from '../hooks/memory'
+import type { Sample } from '../hooks/memory'
 import { LAYOUT_NAMES } from '../hooks/snapshot'
 import { CLEAR, LONG, MIN, START, engine, mountBand, resp, respond, setup, shown, svgAlts, turn, usage, walk } from './helpers'
 
@@ -29,6 +31,11 @@ const pulseSize = async ($: Engine) => {
 }
 /** The soak's tick: 1,000 of them are six hours. */
 const TICK = 21_600
+/** A week of samples stored before the soak starts: limitSamples at its cap. */
+const STORED_WEEK: Sample[] = Array.from({ length: MAX_SAMPLES }, (_, i) => {
+  const at = (i - MAX_SAMPLES) * 15 * MIN
+  return { at, fivePct: 99.9, sevenPct: 99.9, fiveResetAt: at + 5 * HOUR, sevenResetAt: 0 }
+})
 /** The limits rising with every turn, the 5h window rolling over every five hours. */
 const rising = (i: number, now: number): void => {
   usage.current = { ...usage.current, rateLimits: [
@@ -38,7 +45,7 @@ const rising = (i: number, now: number): void => {
 }
 
 test('six hours, a thousand turns, three clears: writes, size and trees stay bounded', { timeoutMs: 180_000 }, async ($, on) => {
-  const clock = setup(on)
+  const clock = setup(on, { store: { limitSamples: STORED_WEEK } })
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   let cost = 2.41
@@ -66,6 +73,12 @@ test('six hours, a thousand turns, three clears: writes, size and trees stay bou
   expect(sampleWrites).toBeGreaterThanOrEqual(20)
   expect(sampleWrites).toBeLessThanOrEqual(25)
   expect(engine.storeSets.filter(k => k === 'layout').length).toBe(commands)
+  // The stored week stays at its cap: each new bucket evicts the oldest.
+  const samples = engine.store.limitSamples as Sample[]
+  const added = samples.filter(x => x.at >= 0).length
+  expect(samples).toHaveLength(MAX_SAMPLES)
+  expect(added).toBeGreaterThanOrEqual(20)
+  expect(samples[0]).toEqual(STORED_WEEK[added])
   expect(JSON.stringify(engine.store).length).toBeLessThan(100_000)
   // The cost and context trails at their caps: 50 more turns draw no more, give or
   // take the figures' widths. The 5h trail is windowed when drawn, so no tree shows
