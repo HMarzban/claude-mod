@@ -233,13 +233,16 @@ export const limitSentence = (kit: Kit, l: LimitView, style: SentenceStyle): Ren
 export const fact = (kit: Kit, key: string, label: string, value: string | undefined): RenderChildren =>
   value === undefined ? null : words(kit, key, [[`${label} `, 'label'], [value, 'value']])
 
-/** A titled column: its title, then as many of its rows as `room` holds. */
+/** A titled column: its title, then as many of its rows as `room` holds.
+ *  With no room under the title, its first row takes the title's place, so
+ *  a body of one row still says what leads each section. */
 export const section = (kit: Kit, key: string, title: string, rows: readonly RenderChildren[], room: number): RenderElement => {
   const { Box } = kit
+  const drawn = rows.filter(isDrawn)
   return (
     <Box key={key} flexDirection="column" flexGrow={1} width={0} minWidth={0}>
-      {words(kit, 'title', [[title, 'label']], true)}
-      {rows.filter(isDrawn).slice(0, Math.max(0, room))}
+      {room > 0 || drawn.length === 0 ? words(kit, 'title', [[title, 'label']], true) : null}
+      {drawn.slice(0, Math.max(1, room))}
     </Box>
   )
 }
