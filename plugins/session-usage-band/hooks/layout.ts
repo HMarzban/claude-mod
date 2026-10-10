@@ -94,12 +94,13 @@ export const cellsOf = (n: RenderChildren, m: Measure): number => {
       if (n.type === 'Box' && typeof n.props?.width === 'number') return n.props.width
       const kids = (n.children ?? []).filter(k => k !== null && k !== undefined)
       const pad = typeof n.props?.paddingX === 'number' ? 2 * n.props.paddingX : 0
-      const gap = typeof n.props?.columnGap === 'number' ? n.props.columnGap * Math.max(0, kids.length - 1) : 0
       const widths = kids.map(k => cellsOf(k, m))
       const own =
         n.type === 'Box' && n.props?.flexDirection === 'column'
           ? Math.max(0, ...widths) + pad
-          : widths.reduce((sum, w) => sum + w, 0) + pad + gap
+          : widths.reduce((sum, w) => sum + w, 0) +
+            pad +
+            (typeof n.props?.columnGap === 'number' ? n.props.columnGap * Math.max(0, kids.length - 1) : 0)
       return n.type === 'Box' && typeof n.props?.minWidth === 'number' ? Math.max(n.props.minWidth, own) : own
     }
     default:
