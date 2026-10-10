@@ -122,11 +122,22 @@ test('another limit alone: two rows still, no 5h or 7d, and no word of the other
   const ctx = { layout: 'week', surface: 'terminal', appearance: 'dark', cols: 160, maxRows: DEFAULT_MAX_ROWS, scenario: 'unmeasured', glyphs: 'unicode', expanded: false } as const
   expect(shut === undefined ? ['missing: not drawn'] : invariantErrors(shut, ctx)).toEqual([])
 })
+/** With no history the empty text takes the cells' place, never the facts'. */
+const expectFactsWithoutCells = (trees: Readonly<Record<string, Node>>) => {
+  for (const m of [T160, D160]) {
+    const open = trees[caseKey(m, 'open')]
+    expect(shown(open)).toMatch(/History fills in as you use Claude\.[\s\S]*CACHE[\s\S]*SPEND[\s\S]*CONTEXT/)
+    expect(svgAlts(open).filter(a => /limit by/.test(a))).toEqual([])
+  }
+}
 test('no history: the facts stay, and the empty text says so when open', async ($, on) => {
   const trees = await drawCases($, on, { layout: 'week', scenario: 'calm', appearance: 'dark', ttl: '1h' }, [T160, D160])
   expect(shown(trees[caseKey(T160, 'shut')])).toMatch(/7d 30%/)
   expect(shown(trees[caseKey(T160, 'open')])).toMatch(/LIMITS\s*7d 30% used[\s\S]*History fills in as you use Claude\./)
-  expect(svgAlts(trees[caseKey(D160, 'open')]).filter(a => /limit by/.test(a))).toEqual([])
+  expectFactsWithoutCells(trees)
+})
+test('a fresh session with no history: the facts stay', async ($, on) => {
+  expectFactsWithoutCells(await drawCases($, on, { layout: 'week', scenario: 'emptyHistory', appearance: 'dark', ttl: '1h' }, [T160, D160]))
 })
 test('open: large day and hour cells, a summary per window, then the facts line', async ($, on) => {
   const { open } = await oneWithHistory($, on, D160)
