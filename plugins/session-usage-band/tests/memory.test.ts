@@ -1,9 +1,23 @@
 // What the band remembers across sessions, and what it reads back from a
 // transcript: the store's entries taken as untrusted data, the newest
-// sessions kept, where a transcript lives, its last reply and its rate.
+// sessions and a week of limit samples kept, where a transcript lives, its
+// last reply and its rate.
 
 import { test, expect } from 'claude-code/testing'
-import { asRates, asSessions, lastReplyAt, lastReplyModel, rateFromTranscript, rememberReply, transcriptPath } from '../hooks/memory'
+import {
+  MAX_SAMPLES,
+  addSample,
+  asLimitSamples,
+  asRates,
+  asSessions,
+  lastReplyAt,
+  lastReplyModel,
+  mergeSamples,
+  rateFromTranscript,
+  rememberReply,
+  sampleOf,
+  transcriptPath,
+} from '../hooks/memory'
 
 const iso = (ms: number): string => new Date(ms).toISOString()
 const jsonl = (...lines: unknown[]): string => lines.map(line => (typeof line === 'string' ? line : JSON.stringify(line))).join('\n') + '\n'
@@ -72,6 +86,43 @@ test('a reply older than all 50 kept is itself the one forgotten', () => {
 
 test("a session's newer reply replaces its older one", () => {
   expect(rememberReply({ a: { lastAt: 1 }, b: { lastAt: 2 } }, 'a', 9)).toEqual({ a: { lastAt: 9 }, b: { lastAt: 2 } })
+})
+
+// ── the limit samples kept ─────────────────────────────────────────────
+
+const H = 3600_000
+const T0 = Date.UTC(2026, 9, 6, 8, 40) // Tue 08:40 UTC, the 7d window's start
+const s = (hours: number, seven: number, five = 0) => ({ at: T0 + hours * H, fivePct: five, sevenPct: seven, fiveResetAt: T0 + (Math.floor(hours / 5) + 1) * 5 * H, sevenResetAt: T0 + 168 * H })
+
+test('one sample per 15-minute bucket, the latest winning, appended in place, capped', () => {
+  const held = addSample([], s(0, 1))
+  expect(addSample(held, { ...s(0, 2), at: T0 + 60_000 })).toBe(held)
+  expect(held).toHaveLength(1)
+  expect(held[0]?.sevenPct).toBe(2)
+  let all = held
+  for (let i = 1; i < 800; i++) all = addSample(all, s(i * 0.25, i % 100))
+  // 800 buckets, so the oldest 128 go.
+  expect(all).toHaveLength(MAX_SAMPLES)
+  expect([all[0]?.at, all.at(-1)?.at]).toEqual([T0 + 128 * 0.25 * H, T0 + 799 * 0.25 * H])
+  expect(JSON.stringify(all).length).toBeLessThan(75_000)
+})
+
+test('merging keeps one sample per bucket, the later winning, sorted', () => {
+  expect(mergeSamples([s(0, 1), s(1, 2)], [{ ...s(0, 5), at: T0 + 60_000 }, s(0.5, 3)]).map(x => x.sevenPct)).toEqual([5, 3, 2])
+})
+
+test('the store is data, not trusted', () => {
+  expect(asLimitSamples([s(0, 1), { at: 'x' }, null, 42])).toHaveLength(1)
+  expect(asLimitSamples({})).toEqual([])
+})
+
+test('a sample needs both windows and their resets', () => {
+  const both = [
+    { kind: 'five_hour', percentUsed: 4, resetsAt: new Date(T0 + 3 * H).toISOString() },
+    { kind: 'seven_day', percentUsed: 30, resetsAt: new Date(T0 + 67 * H).toISOString() },
+  ]
+  expect(sampleOf(T0, both)).toEqual({ at: T0, fivePct: 4, sevenPct: 30, fiveResetAt: T0 + 3 * H, sevenResetAt: T0 + 67 * H })
+  expect(sampleOf(T0, both.slice(0, 1))).toBeUndefined()
 })
 
 // ── where a transcript lives ───────────────────────────────────────────

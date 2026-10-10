@@ -1,5 +1,4 @@
 import { test, expect } from 'claude-code/testing'
-import { MAX_SAMPLES, addSample, asLimitSamples, mergeSamples, sampleOf } from '../hooks/memory'
 import { weekOf } from '../hooks/calendar'
 import { weekWords } from '../hooks/words'
 
@@ -8,33 +7,6 @@ const T0 = Date.UTC(2026, 9, 6, 8, 40) // Tue 08:40 UTC, the 7d window's start
 const s = (hours: number, seven: number, five = 0) => ({ at: T0 + hours * H, fivePct: five, sevenPct: seven, fiveResetAt: T0 + (Math.floor(hours / 5) + 1) * 5 * H, sevenResetAt: T0 + 168 * H })
 const seven = (percentUsed: number, projectedPct: number) => ({ percentUsed, projectedPct, resetsAt: T0 + 168 * H })
 
-test('one sample per 15-minute bucket, the latest winning, appended in place, capped', () => {
-  const held = addSample([], s(0, 1))
-  expect(addSample(held, { ...s(0, 2), at: T0 + 60_000 })).toBe(held)
-  expect(held).toHaveLength(1)
-  expect(held[0]?.sevenPct).toBe(2)
-  let all = held
-  for (let i = 1; i < 800; i++) all = addSample(all, s(i * 0.25, i % 100))
-  // 800 buckets, so the oldest 128 go.
-  expect(all).toHaveLength(MAX_SAMPLES)
-  expect([all[0]?.at, all.at(-1)?.at]).toEqual([T0 + 128 * 0.25 * H, T0 + 799 * 0.25 * H])
-  expect(JSON.stringify(all).length).toBeLessThan(75_000)
-})
-test('merging keeps one sample per bucket, the later winning, sorted', () => {
-  expect(mergeSamples([s(0, 1), s(1, 2)], [{ ...s(0, 5), at: T0 + 60_000 }, s(0.5, 3)]).map(x => x.sevenPct)).toEqual([5, 3, 2])
-})
-test('the store is data, not trusted', () => {
-  expect(asLimitSamples([s(0, 1), { at: 'x' }, null, 42])).toHaveLength(1)
-  expect(asLimitSamples({})).toEqual([])
-})
-test('a sample needs both windows and their resets', () => {
-  const both = [
-    { kind: 'five_hour', percentUsed: 4, resetsAt: new Date(T0 + 3 * H).toISOString() },
-    { kind: 'seven_day', percentUsed: 30, resetsAt: new Date(T0 + 67 * H).toISOString() },
-  ]
-  expect(sampleOf(T0, both)).toEqual({ at: T0, fivePct: 4, sevenPct: 30, fiveResetAt: T0 + 3 * H, sevenResetAt: T0 + 67 * H })
-  expect(sampleOf(T0, both.slice(0, 1))).toBeUndefined()
-})
 test("a day cell is that day's rise in the weekly limit", () => {
   const wk = weekOf({ samples: [s(0, 0), s(15, 6), s(39, 15), s(63, 26), s(77, 30)], seven: seven(30, 50), five: undefined, now: T0 + 77 * H, utcOffsetMin: 0 })
   expect(wk.days.map(d => d.initial).join('')).toBe('TWTFSSM')
