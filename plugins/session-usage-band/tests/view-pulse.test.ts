@@ -103,8 +103,21 @@ test('open: the cache first, then spend, context and limits', async ($, on) => {
   expect(t).toMatch(/last \$0\.20 · avg \$0\.20 · max \$0\.20/)
 })
 test('open, the 5h chart draws the window so far and says so', LONG, async ($, on) => {
-  const alts = svgAlts((await at($, on, 'fiveHourAhead', D160)).open)
-  expect(alts.some(a => /^5h usage this window, \w+, full in /.test(a))).toBe(true)
+  const clock = setup(on, { store: { layout: 'pulse' } })
+  await $.session.start(START)
+  // 40% in a window that resets at 1h; then, past it, 2% and 4% in the next.
+  for (const [pct, resetH, wait] of [[40, 1, 2 * HOUR], [2, 7, 10 * MIN], [4, 7, 0]] as const) {
+    usage.current = { ...USAGE, rateLimits: [{ kind: 'five_hour', percentUsed: pct, resetsAt: new Date(resetH * HOUR).toISOString() }, ...USAGE.rateLimits.slice(1)] }
+    const u = usage.current
+    await $.session.measure({ context: u.context, rateLimits: u.rateLimits, cost: u.cost, changed: [] })
+    await clock.advance(wait)
+  }
+  const ui = await mountBand($, 'desktop', 160)
+  await ui.press({ key: 'more' })
+  const chart = svgsOf(await ui.drawn()).find(n => /^5h usage this window, rising/.test(String(n.props?.alt)))
+  await ui.unmount()
+  const [, points = ''] = String(chart?.props?.source).match(/<polyline points="([^"]+)"/) ?? []
+  expect(points.split(' ')).toHaveLength(2)
 })
 test('open, the context chart runs to the window, a rule where it compacts', LONG, async ($, on) => {
   setup(on, { store: { layout: 'pulse' } })
