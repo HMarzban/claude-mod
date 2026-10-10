@@ -73,9 +73,9 @@ export const frame = (
     <Button key="collapse" label="Collapse" variant="secondary" hotkey="c" onPress={act.toggleExpanded} />,
     <Button key="hide" label="Hide band" variant="secondary" hotkey="h" onPress={act.hide} />,
   ]
-  // The strip heads the view while the body keeps a row; short of that it
-  // takes the footer, in place of the hint.
-  const place = ws === undefined ? undefined : bodyRowsFor(read.frame.maxRows, o.collapsedRows, 1) >= 1 ? 'top' : 'footer'
+  // The strip heads the view while the body keeps a row under its titles;
+  // short of that it takes the footer, in place of the hint.
+  const place = ws === undefined ? undefined : bodyRowsFor(read.frame.maxRows, o.collapsedRows, 1) >= 2 ? 'top' : 'footer'
   const bodyRows = bodyRowsFor(read.frame.maxRows, o.collapsedRows, place === 'top' ? 1 : 0)
   // In the footer it shares the line with the buttons and their hotkey marks.
   const room = kit.columns - ROW_SLACK - (place === 'footer' ? cellsOf(buttons, measure) + 2 * HOTKEY_MARK + 2 : 0)

@@ -44,17 +44,19 @@ test('short of rows the body goes, and the buttons stay', () => {
   expect(shown(tree)).not.toMatch(/BODY/)
   expect(byKey(tree, 'collapse', 'Button')).toBeDefined()
 })
-test('the strip heads the body while the body keeps a row, then moves to the footer', () => {
+test('the strip heads the body while the body keeps a row under its titles, then moves to the footer', () => {
   const tall = opened({ maxRows: 13, workspace: WS })
   expect(byKey(tall, 'strip', 'Box')).toBeDefined()
   expect(byKey(byKey(tall, 'actions', 'Box'), 'strip', 'Box')).toBeUndefined()
   expect(byKey(byKey(opened({ maxRows: 5, workspace: WS }), 'actions', 'Box'), 'strip', 'Box')).toBeDefined()
 })
-test('a two-row view keeps the strip on top at 13 rows, and in the footer at 6', () => {
-  const tall = opened({ maxRows: 13, workspace: WS }, undefined, 2)
-  expect(byKey(tall, 'strip', 'Box')).toBeDefined()
-  expect(byKey(byKey(tall, 'actions', 'Box'), 'strip', 'Box')).toBeUndefined()
-  expect(byKey(byKey(opened({ maxRows: 6, workspace: WS }, undefined, 2), 'actions', 'Box'), 'strip', 'Box')).toBeDefined()
+test("a one-row view's strip takes the footer at 6 rows, so its body keeps a row under its titles", () => {
+  const top = opened({ maxRows: 7, workspace: WS })
+  expect(byKey(byKey(top, 'actions', 'Box'), 'strip', 'Box')).toBeUndefined()
+  expect(shown(top)).toMatch(/BODY 2/)
+  const footer = opened({ maxRows: 6, workspace: WS })
+  expect(byKey(byKey(footer, 'actions', 'Box'), 'strip', 'Box')).toBeDefined()
+  expect(shown(footer)).toMatch(/BODY 2/)
 })
 test("a view's own strip stands in for the shared one", () => {
   expect(shown(opened({ maxRows: 13, workspace: WS }, () => text('MINE')))).toMatch(/MINE/)
