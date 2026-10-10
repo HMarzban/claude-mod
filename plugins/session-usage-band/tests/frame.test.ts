@@ -1,6 +1,5 @@
 import { test, expect } from 'claude-code/testing'
 import type { RenderElement } from 'claude-code'
-import { drawBand } from '../hooks/band'
 import { makeKit } from '../hooks/kit'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
@@ -23,12 +22,13 @@ test('the body gets what is left of the rows, never less than none', () => {
   expect(bodyRowsFor(4, 2, 1)).toBe(0)
   expect(bodyRowsFor(4, 2, 0)).toBe(0)
 })
-test("the toggle is chips' own Button", () => {
-  const snap = snapOf()
-  const chips = byKey(drawBand(fakeEl, snap, NO_ACT), 'more', 'Button')
-  const mine = byKey(toggleButton(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT), 'more', 'Button')
-  expect(chips).toBeDefined()
-  expect(mine?.props).toEqual(chips?.props)
+test("the toggle is golden's Button: bare on the terminal, framed on the desktop", () => {
+  const toggleOf = (over: Partial<BandSnapshot>) => {
+    const snap = snapOf(over)
+    return byKey(toggleButton(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT), 'more', 'Button')?.props
+  }
+  expect(toggleOf({})).toEqual({ key: 'more', label: '▿', plain: true, dimColor: true, onPress: NO_ACT.toggleExpanded })
+  expect(toggleOf({ surface: 'desktop', expanded: true })).toEqual({ key: 'more', label: '▵', variant: 'secondary', onPress: NO_ACT.toggleExpanded })
 })
 test('shut, a view draws its collapsed part alone', () => {
   expect(shown(opened({ expanded: false }))).toBe('LINE')

@@ -16,6 +16,12 @@ const drawnText = async ($: Engine): Promise<string> => {
   await ui.unmount()
   return t
 }
+/** The band as drawn, then as chips draws it once the command chooses chips. */
+const drawnBesideChips = async ($: Engine): Promise<readonly [string, string]> => {
+  const drawn = await drawnText($)
+  await run($, 'layout chips')
+  return [drawn, await drawnText($)]
+}
 const LIST = 'Choose one: chips, gauges, ledger, rings, pulse, tiles, week, departures, forecast.'
 
 test('asLayoutName takes a name in any case and spacing, and nothing else', () => {
@@ -56,12 +62,14 @@ test('a stored layout is read when the session starts', async ($, on) => {
 test("a stored layout this version doesn't know draws chips", async ($, on) => {
   setup(on, { store: { layout: 'sparkle' } }); await $.session.start(START)
   expect(await run($, 'layout')).toMatch(/^Usage band layout: chips\./)
-  expect(await drawnText($)).toMatch(/\$2\.41/)
+  const [drawn, chips] = await drawnBesideChips($)
+  expect(drawn).toBe(chips)
 })
 test("a stored layout that isn't a string draws chips", async ($, on) => {
   setup(on, { store: { layout: 42 } }); await $.session.start(START)
   expect(await run($, 'layout')).toMatch(/^Usage band layout: chips\./)
-  expect(await drawnText($)).toMatch(/\$2\.41/)
+  const [drawn, chips] = await drawnBesideChips($)
+  expect(drawn).toBe(chips)
 })
 test('setting a layout shows a hidden band and asks for a redraw', async ($, on) => {
   setup(on); await $.session.start(START)
@@ -69,6 +77,7 @@ test('setting a layout shows a hidden band and asks for a redraw', async ($, on)
   const before = engine.invalidates
   await run($, 'layout ledger')
   expect(engine.invalidates).toBeGreaterThan(before)
+  // The band shows again: this checks it draws, not which layout.
   expect(await drawnText($)).toMatch(/\$2\.41/)
 })
 test('a store that fails to write still switches the layout', async ($, on) => {

@@ -1,5 +1,5 @@
-// Every layout by name. The compiler rejects a missing one, and the
-// command's list of names reads in this order.
+// Every layout by name. The compiler rejects a missing one; the command
+// lists the names in LAYOUT_NAMES' order, not this one's.
 
 import type { LayoutName } from '../snapshot'
 import { chipsView } from './chips'
