@@ -70,6 +70,7 @@ import {
   rememberReply,
   sameBucket,
   sampleOf,
+  samplesUpTo,
   sessionCostRecord,
   transcriptPath,
   transcriptSpend,
@@ -399,7 +400,7 @@ const noteSample = async ($: EngineInterface, sample: Sample): Promise<void> => 
     band.samples = addSample(band.samples, sample)
     return
   }
-  band.samples = addSample(mergeSamples(band.samples, stored), sample)
+  band.samples = addSample(samplesUpTo(mergeSamples(band.samples, stored), sample.at), sample)
   await $.store.set(LIMIT_SAMPLES_KEY, band.samples).catch(() => undefined)
 }
 
@@ -456,8 +457,9 @@ export const register: Register = on => {
     band.warned.clear()
     band.lastPaintKey = ''
     band.workspace = undefined
-    band.samples = (await storedSamples($)) ?? []
-    band.utcOffsetMin = utcOffsetOf(await $.clock.now())
+    const now = await $.clock.now()
+    band.samples = samplesUpTo((await storedSamples($)) ?? [], now)
+    band.utcOffsetMin = utcOffsetOf(now)
     band.reads++ // any read still out began before this load
     await readLayout($)
     notePriceModel(await $.session.model().catch(() => undefined))

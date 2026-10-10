@@ -101,6 +101,10 @@ export const addSample = (samples: Sample[], s: Sample): Sample[] => {
   return samples
 }
 
+/** The samples taken by `now`: one dated later, from a clock that ran ahead,
+ *  would stay last and open a new bucket every turn. */
+export const samplesUpTo = (samples: readonly Sample[], now: number): Sample[] => samples.filter(s => s.at <= now)
+
 const SAMPLE_FIELDS = ['at', 'fivePct', 'sevenPct', 'fiveResetAt', 'sevenResetAt'] as const
 
 const isSample = (v: unknown): v is Sample => isRecord(v) && SAMPLE_FIELDS.every(k => Number.isFinite(v[k]))

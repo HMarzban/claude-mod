@@ -80,6 +80,16 @@ test('a session reads the stored samples at start and at each new bucket, never 
   await turn($, 't2', 2.5, 2.6)
   expect(engine.storeGets.filter(k => k === 'limitSamples')).toHaveLength(2)
 })
+test('a stored sample dated ahead of the clock is dropped, so one bucket writes once', async ($, on) => {
+  const ahead = { at: 168 * HOUR, fivePct: 90, sevenPct: 90, fiveResetAt: 171 * HOUR, sevenResetAt: 235 * HOUR }
+  const clock = setup(on, { store: { limitSamples: [ahead] } })
+  await $.session.start(START)
+  await turn($, 't1', 2.41, 2.5)
+  await clock.advance(5 * MIN)
+  await turn($, 't2', 2.5, 2.6)
+  expect(engine.storeSets.filter(k => k === 'limitSamples')).toHaveLength(1)
+  expect(asLimitSamples(engine.store.limitSamples).map(x => x.sevenPct)).toEqual([30])
+})
 test('a failing store never throws, and nothing is written', async ($, on) => {
   const clock = setup(on)
   engine.storeFails = true
