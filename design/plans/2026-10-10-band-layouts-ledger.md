@@ -78,7 +78,8 @@ What the plan's steps record, in the order they happen.
   - Rings: `at 45 columns the last minute's meter goes before its reason shortens` (`30s! 30s`), 1158988.
   - Ledger: `at 40 columns a warm countdown keeps its words beside an amber context` (`cache 1h 00m·! ctx 94%`), 5e6b771.
   - A body of one row: `parts.test`'s section test, now `a section with no row under its title keeps the title, unless its first row is amber` (`a 1`), and `viewSuite`'s warming case at a body of one row and of two, whose `emptyState` check failed in gauges, ledger, pulse, rings and tiles, 4201924; and `suite.test` reads `LONG_WALKS` from the matrix, 77cb9bb.
-  - Suite 1087/1087.
+  - `matrix.test` proves the terminal's width bound and `emptyState`, each empty state after its own section's name, on trees that break them, 481a7fa.
+  - Suite 1088/1088.
 
 ## Test counts at each gate
 | Gate | Count | Command |
@@ -178,7 +179,7 @@ What the plan's steps record, in the order they happen.
 | cleanup C4, forecast and words (merged) | 1056 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 | cleanup C5, departures polish (merged) | 1074 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 | After Task 33, give-way and amber | 1074 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
-| Task C3, the give-way review's findings | 1087 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
+| Task C3, the give-way review's findings | 1088 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->

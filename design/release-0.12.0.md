@@ -224,7 +224,7 @@ Open items cleared on `feat/layouts` after 0119b9a.
   - At a body of one row, a section whose first row is amber draws it where its title would be, so every grid view says `! spend 92%` at `gatewaySpend`, and a calm section keeps its title. Departures' board drops its header for its first row, and week's row is the amber limit's sentence. `viewSuite` checks it from that row, and checks that every empty state follows its section's name.
   - `viewSuite` holds a terminal's collapsed lines to their room, not the whole row.
   - Pulse on the desktop is the exception, kept under Open with its options.
-  - 1087 pass, 0 fail, 48 files. These fixes change layouts that are new in 0.12.0, so Added covers them and the CHANGELOG gains no line.
+  - 1088 pass, 0 fail, 48 files. These fixes change layouts that are new in 0.12.0, so Added covers them and the CHANGELOG gains no line.
 
 ## Pending the maintainer
 
