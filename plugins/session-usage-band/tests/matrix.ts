@@ -99,6 +99,8 @@ export type ScenarioName = keyof typeof SCENARIOS
 export const SCENARIO_NAMES = Object.keys(SCENARIOS) as ScenarioName[]
 
 export type Mount = Readonly<{ surface: Surface; cols: number; maxRows?: number }>
+/** The height a mount gets when it names none, as helpers' props() gives it. */
+const DEFAULT_MAX_ROWS = 40
 export type State = 'shut' | 'open'
 export type CaseOptions = Readonly<{
   scenario: ScenarioName
@@ -111,7 +113,7 @@ export type CaseOptions = Readonly<{
 }>
 
 /** Where a drawn case was mounted, and whether it was open. */
-export const caseKey = (m: Mount, state: State): string => `${m.surface}|${m.cols}|${m.maxRows ?? 40}|${state}`
+export const caseKey = (m: Mount, state: State): string => `${m.surface}|${m.cols}|${m.maxRows ?? DEFAULT_MAX_ROWS}|${state}`
 
 /** One setup and one drive, then for each mount, always in this order: draw
  *  it shut, press ▿, draw it open, press ▵, let it go. */
@@ -333,7 +335,7 @@ export type SuiteCase = Readonly<{ name: string; options: CaseOptions; mounts: r
 const SUITE_WIDTHS = [40, 41, 50, 60, 67, 68, 80, 95, 120, 160, 200] as const
 /** A mount on each surface, at the same width and height. */
 const bothSurfaces = (cols: number, maxRows?: number): Mount[] => [{ surface: 'terminal', cols, maxRows }, { surface: 'desktop', cols, maxRows }]
-/** The long walks take the 5-minute cache: 270 ticks instead of 3,600. Golden keeps the hour. */
+/** The long walks take the 5-minute cache, a twelfth of the hour's ticks. Golden keeps the hour. */
 const ttlOf = (scenario: ScenarioName): Ttl => (scenario === 'lastMinute' || scenario === 'cold' ? '5m' : '1h')
 
 /** The suite's 34 cases, one setup each: every scenario at 120 columns; calm
@@ -377,7 +379,7 @@ export const viewSuite = (layout: LayoutName): void => {
           const errors = tree === undefined
             ? ['missing: not drawn']
             : invariantErrors(tree, {
-                layout, surface: m.surface, appearance: c.options.appearance, cols: m.cols, maxRows: m.maxRows ?? 40,
+                layout, surface: m.surface, appearance: c.options.appearance, cols: m.cols, maxRows: m.maxRows ?? DEFAULT_MAX_ROWS,
                 scenario: c.options.scenario, glyphs, expanded: state === 'open',
               })
           expect(`${key} ${errors.join('; ')}`).toBe(`${key} `)
