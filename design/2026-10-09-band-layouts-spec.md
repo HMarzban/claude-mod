@@ -340,7 +340,7 @@ type View = Readonly<{
   2. `IN 52 MIN`;
   3. 7d;
   4. 5h becomes `5H 4%`.
-- **Expanded:** a header row of flaps from the workspace, then the board, ITEM · STATUS · TIME · REMARKS, with CACHE, CONTEXT, 5H, 7D, SPEND and `otherLimits`. REMARKS truncates first.
+- **Expanded:** a header row of flaps from the workspace, then the board, ITEM · STATUS · TIME · REMARKS, with CACHE, CONTEXT, 5H, 7D, SPEND and `otherLimits`. REMARKS truncates first; where TIME can't fit whole beside REMARKS' least, TIME is dropped and its words lead REMARKS. The ledger's C3 and C5 rulings widen the board's cells and give-way past these lines.
 - **Colours:** new palette tokens `flap`, `flapText` and `flapDim`, contrast-tested.
 
 ### forecast
@@ -350,12 +350,14 @@ type View = Readonly<{
   - 5h resets;
   - 7d resets, only within 24 h.
 
-  Each column has a time and condition (`now · warm`, `14:32 · cold`), with a detail row on the desktop (`52m left`, `re-warm ~$1.66`). Only the next event shows "in Xm". The terminal shows one row of columns split by `│`. "Cooling" is the `expiring` mood.
+  Each column has a time and condition (`now · warm`, `14:32 · cold`), with a detail row on the desktop (`52m left`, `re-warm ~$1.66`). Where there is no detail row, a cold now says its price after it, `now · cold · re-warm ~$1.66`. Only the next event shows "in Xm". The terminal shows one row of columns split by `│`. "Cooling" is the `expiring` mood.
 - **Escalation:** now becomes `! cooling · 47s left`, with `re-warm ~$1.66` in its detail row on the desktop, or after it where there is no detail row; short, `! 47s` (§2.6). `! 5h full` is placed in time order.
 - **Give-way:**
   1. far events, 7d first;
   2. the "in Xm";
-  3. the desktop detail text shortens.
+  3. the desktop detail text shortens, and a cold now's price to `now · cold ~$1.66`;
+  4. the next event (the ledger's narrow-width ruling);
+  5. a cold now's price.
 - **Expanded:** an outlook row for each of Cache, Context, 5h, 7d, Spend and `otherLimits`. Each row gives the value now and the outcome in words, and every row but Spend's a range bar to where it lands (ring = now, dashed = ahead, tick = the line). Spend has nothing to land at, no line of its own (a gateway's budget is its own `otherLimits` row) and no count of messages ahead, so its row gives the total, the last message and the tokens.
 
 ## 7. Testing
