@@ -196,7 +196,7 @@ Open items cleared on `feat/layouts` after 0119b9a.
   - The spec's errata (5b5a7a8): §4 names `layoutCachePill`, §4.1 says the list comes from `LAYOUT_NAMES`, and `avgWarmUsd`, which no reading builds, is ruled out of §4.1 and §5. §6 now says forecast's Spend row draws no bar, as it has nothing to land at (Task C4).
   - The CHANGELOG gains its Fixed line for 7aebb0a (bbf20dc). The rest change layouts and a command new in 0.12.0, so Added covers them.
   - 1052 pass, 0 fail, 48 files.
-- **Departures polish** (C5), in 16deca8, 39e53b5, 8901dd6, 6d0b2db, 2387976, 25d6940, e47fe61 and 45660cd, and after review in 7ab8cc7, 52449d3, 5129a0b, 6629589, a1f4d5c, ba4d14e, d4500a3 and 8ef677c, each with its `Ruling (C5):` line in the ledger:
+- **Departures polish** (C5), in 2ab2087, 30d742b, 68d46f3, bddd3e6, 2a0015f, 0078ea4, e33dfa2 and cb73c83, and after review in 0d04a19, 0543321, e1b31ed, 1b6b8e5, fd559e4, df5fda5, 3f31618 and 690a63f, each with its `Ruling (C5):` line in the ledger:
   - Plain flaps are drawn in spec §3.1's `[ ]`. The brackets are the line's first give-way step, so a single amber reason still fits at 40 columns. The open board keeps them, and its headers sit one cell in. A flap that outgrows its cell truncates its text and keeps its `]`.
   - The give-way keeps its steps past spec §6's four, `cost` and `calmFive`: without them an amber reason would clip at 40 columns while a calm piece stayed (spec §2.6). Ruled, no change. A third, `coldSince`, follows them (below).
   - An amber short form stays lower case (`! 5h 82%`), as spec §2.6 writes the short forms and §2.2 puts `47s` on the board. Upper case would make `! 5h ~1h` read `! 5H ~1H`, the short form §2.12 keeps off the board. Ruled, no change.
