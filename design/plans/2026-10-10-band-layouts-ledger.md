@@ -35,6 +35,7 @@ What the plan's steps record, in the order they happen.
 - Store writes outside the spec's two keys: `rememberTurn` writes `sessions` and `rates` once each per main-loop turn (as in 0.11); bounded by the turns and by their caps, never while drawing.
 - Final: fixed week's day cells named after the reset's clock time, so before that time of day today, its date and the busiest day were a day behind — `calendar.test`'s `the days are cut at local midnight, so today is the day it is` and `on the reset's own day, before it resets, today is that day` RED→GREEN (`T6 W7 … M12` for `W7 … T13`; `M12` for `T13`), suite 1021/1021
 - Final: fixed pulse never marking the first reply after a resume or a reload as a re-warm, when it rebuilt a cache the band already read as cold — `history.test`'s `the first reply after a resume or a reload rebuilds a cache already cold` and `resume-backfill.test`'s `the first reply after a resume the engine calls expired is pulse's re-warm` RED→GREEN (`takeRebuilt()` false; `cost of the last message, steady`), suite 1023/1023
+- Final: fixed open pulse's braille trails running past their section on a text surface (the 5h window's 120 cells of 27 at 120 columns, the context trail's 20 of 17 at 80 columns and 9 rows), wrapping over rows the band never declared — `view-pulse.test`'s `open on a text surface, each braille chart fits its section, however long its trail` RED→GREEN (`120x40 limits: 120 cells of 27`), suite 1024/1024
 
 ## Test counts at each gate
 | Gate | Count | Command |
@@ -118,6 +119,7 @@ What the plan's steps record, in the order they happen.
 | Task 32, the layouts gallery (merged) | 988 pass, 0 fail, 46 files | `claude plugin test plugins/session-usage-band` |
 | Task 29, week's days cut at local midnight | 1021 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 | Task 29, the first reply after a cold resume is a re-warm | 1023 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
+| Task 29, pulse's braille fits its section | 1024 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
@@ -260,6 +262,7 @@ Ruling: the 5h trail's bound is held by `history.test.ts`, not the soak — spec
 Ruling: no paint key (Task 28, Step 3) — steps that change nothing do repaint: the turn's end repaints an unchanged workspace for its git read, and a `session.measure` repaints when a unit moves but what is drawn does not (5h 4.1% to 4.2%, both drawn `4%`), about 0.5 ms a turn; spec §9's "adopted only if the profile shows it matters" outranks the plan's conditional — no fallback.
 Pending maintainer: week's `amberWords` and `limitSentence` copy ledger's file-local helpers word for word; a follow-up moves both into `parts.tsx`, with a `parts.test` case, and has ledger and week import them — Task 26's files are `week.tsx` and its test, so the move was not taken there.
 Ruling: Task 29's day cells are cut at local midnight, and a reset off midnight leaves a part day at each end of the 7d window, of which the one today isn't in, else the shorter, folds into its neighbour — spec §6 draws seven day cells, and the review's other two forms either drew eight or named a folded part day wrong while today was in it (folding the oldest always: right after a reset, today read as tomorrow; the midpoint name: wrong up to 12 hours a day); a folded day is named by its whole day, and the guesses ahead still split evenly per day, so every earlier calendar assertion holds (an 08:40 reset folds its reset morning into Monday: `TWTFSSM`) — no fallback; the hour cells keep their cut from the 5h reset (the `startClock` ruling).
+Ruling: Task 29's braille cap is `sparkline`'s `cells` option, the trail drawn at the highest of each run of points so its whole window shows, with `parts.tsx`' new `sectionCells` giving a section's share of its grid line (the same `perLineOf` as `grid`, `GRID_GAP` apart), and `brailleText` drawn `truncate-end` as a backstop — a view may not round (the views gate), so the share is the grid's own arithmetic; the highest rather than the last of each run, so a context peak before a compaction stays; only pulse draws `sparkline` and `barChart`, so golden is untouched — no fallback.
 
 ## Freezes
 - P1 freeze (Task 14), at dc28d40: these interfaces are frozen for P2. Gates green: `claude plugin validate .` and `claude plugin validate plugins/session-usage-band` pass, the suite passes in both zones (456 pass, 0 fail, 35 files), and `tsc` reports no errors.

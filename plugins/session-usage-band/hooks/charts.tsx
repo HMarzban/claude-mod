@@ -47,11 +47,11 @@ export const braille = (values: readonly number[], max: number): string => {
 }
 
 /** A line or bar chart in text: braille against the top of its scale, by
- *  default its largest value. */
+ *  default its largest value. It never wraps: a row too narrow cuts it. */
 const brailleText = (kit: Kit, key: string, values: readonly number[], color: string, top = topOf(values)): RenderChildren => {
   const { Text } = kit
   return (
-    <Text key={key} color={color}>
+    <Text key={key} color={color} wrap="truncate-end">
       {braille(values, top)}
     </Text>
   )
@@ -216,6 +216,9 @@ export type SparklineOptions = Readonly<{
    *  fraction of the scale's top: a solid rule across the chart. Text draws
    *  no rule; the words beside it name the level. */
   level?: number
+  /** The most cells the text form takes: a longer trail is drawn at the
+   *  highest of each run of points, so the whole of it shows in the room. */
+  cells?: number
 }>
 
 /** The newest point's dot radius, and the air it keeps from the edges. */
@@ -223,12 +226,18 @@ const SPARK_DOT = 2
 /** The width a projection takes beyond the newest point. */
 const SPARK_AHEAD = 20
 
+/** `values` cut into at most `count` runs, each drawn at its highest. */
+const peaksOf = (values: readonly number[], count: number): number[] =>
+  values.length <= count
+    ? [...values]
+    : Array.from({ length: count }, (_, i) => Math.max(...values.slice(Math.floor((i * values.length) / count), Math.floor(((i + 1) * values.length) / count))))
+
 /** A line over time, its newest point a dot. Text draws it in braille. */
 export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   const { Svg, palette } = kit
-  const { key, alt, values, color, px, height, max, projectTo, level } = o
+  const { key, alt, values, color, px, height, max, projectTo, level, cells } = o
   const top = max ?? topOf(values)
-  if (!Svg) return brailleText(kit, key, values, color, top)
+  if (!Svg) return brailleText(kit, key, cells === undefined ? values : peaksOf(values, 2 * cells), color, top)
   const end = px - SPARK_DOT - (projectTo === undefined ? 0 : SPARK_AHEAD)
   const x = (i: number) => (values.length <= 1 ? end : tenth(SPARK_DOT + (i * (end - SPARK_DOT)) / (values.length - 1)))
   const y = (frac: number) => tenth(height - SPARK_DOT - clamp01(frac) * (height - 2 * SPARK_DOT))

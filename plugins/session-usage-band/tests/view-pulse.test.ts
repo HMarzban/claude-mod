@@ -5,7 +5,7 @@ import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import { DARK } from '../hooks/palette'
-import { CLEAR, HOUR, LONG, MIN, START, USAGE, breakdown, mountBand, pacing, resp, respond, setup, shown, svgAlts, svgsOf, usage } from './helpers'
+import { CLEAR, HOUR, LONG, MIN, START, USAGE, breakdown, mountBand, pacing, resp, respond, setup, shown, svgAlts, svgsOf, usage, walk, widthOf, type Node } from './helpers'
 import { caseKey, drawCases, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
 
 viewSuite('pulse')
@@ -165,6 +165,46 @@ test('open, the context chart runs to the window, a rule where it compacts', LON
   await ui.unmount()
   // 160k of a 200k window: 80% of the way up a 40 px chart, 2 px in from each edge.
   expect(String(chart?.props?.source)).toMatch(/<line class="level" [^>]*y1="9\.2"/)
+})
+test('open on a text surface, each braille chart fits its section, however long its trail', LONG, async ($, on) => {
+  const clock = setup(on, { store: { layout: 'pulse' } })
+  await $.session.start(START)
+  // Four hours of the 5h trail, a reading a minute, then 45 turns of context.
+  for (let m = 0; m < 240; m++) {
+    usage.current = { ...USAGE, rateLimits: [{ kind: 'five_hour', percentUsed: 4 + m / 10, resetsAt: new Date(4.5 * HOUR).toISOString() }, ...USAGE.rateLimits.slice(1)] }
+    const u = usage.current
+    await $.session.measure({ context: u.context, rateLimits: u.rateLimits, cost: u.cost, changed: ['rateLimits'] })
+    await clock.advance(MIN)
+  }
+  for (let i = 0; i < 45; i++) {
+    usage.current = { ...usage.current, context: { tokens: 40_000 + i * 2_000, window: 200_000, percent: 20 + i } }
+    await message($, `t${i}`, 2.41 + i * 0.2, 2.41 + (i + 1) * 0.2)
+  }
+  for (const [cols, maxRows] of [[120, 40], [80, 40], [80, 9]] as const) {
+    const ui = await mountBand($, 'terminal', cols, { maxRows })
+    await ui.press({ key: 'more' })
+    const open = await ui.drawn()
+    // Being open is kept: shut it again for the next mount.
+    await ui.press({ key: 'more' })
+    await ui.unmount()
+    // Each grid line shares the panel's room between its sections, 2 apart.
+    const overs: string[] = []
+    let charts = 0
+    walk(open, line => {
+      if (!/^line\d$/.test(String(line.props?.key))) return
+      const sections = (line.children ?? []) as Node[]
+      const share = Math.floor((cols - 6 - 2 * (sections.length - 1)) / sections.length)
+      for (const section of sections) {
+        walk(section, n => {
+          const text = n.type === 'Text' ? (n.children ?? []).join('') : ''
+          if (!/^[⠀-⣿]+$/.test(text)) return
+          charts += 1
+          if (widthOf(n) > share) overs.push(`${cols}x${maxRows} ${String(section.props?.key)}: ${widthOf(n)} cells of ${share}`)
+        })
+      }
+    })
+    expect({ mount: `${cols}x${maxRows}`, charts: charts > 0, overs }).toEqual({ mount: `${cols}x${maxRows}`, charts: true, overs: [] })
+  }
 })
 test('in ascii the charts give way to numbers', LONG, async ($, on) => {
   const trees = await drawCases($, on, { layout: 'pulse', scenario: 'fullHistory', appearance: 'dark', env: { CC_BAND_GLYPHS: 'ascii' } }, [T160])

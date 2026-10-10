@@ -10,7 +10,7 @@ import type { HistoryReading, LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber, type Say } from '../words'
 import { toggleButton } from './frame'
-import { accentOf, beforeLast, chartsIfRoom, fact, fitLine, grid, gridRoom, layoutCachePill, line, lineRoom, section, words, type Keeps } from './parts'
+import { accentOf, beforeLast, chartsIfRoom, fact, fitLine, grid, gridRoom, layoutCachePill, line, lineRoom, section, sectionCells, words, type Keeps } from './parts'
 import { defineView } from './view'
 
 /** What gives way as the line narrows, first to last; `costWords`, `pace`
@@ -66,7 +66,7 @@ const costBars = (kit: Kit, hist: HistoryReading, count: number, height: number)
 /** The 5h trail on the limit's own scale, in its accent or, amber, in amber.
  *  Amber, it gains a dashed line to where the window lands, or to the top
  *  when no landing is measured; `open`, a calm trail gains its landing too. */
-const fiveHourTrail = (kit: Kit, f: LimitView, values: readonly number[], alt: string, px: number, height: number, open: boolean): RenderChildren =>
+const fiveHourTrail = (kit: Kit, f: LimitView, values: readonly number[], alt: string, px: number, height: number, open: boolean, cells?: number): RenderChildren =>
   sparkline(kit, {
     key: 'trail',
     alt,
@@ -76,6 +76,7 @@ const fiveHourTrail = (kit: Kit, f: LimitView, values: readonly number[], alt: s
     height,
     max: PERCENT,
     projectTo: f.amber !== undefined ? (f.projectedFrac ?? 1) : open ? f.projectedFrac : undefined,
+    cells,
   })
 
 const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
@@ -158,6 +159,8 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const hist = read.history
   const charts = read.frame.glyphs === 'unicode'
   const room = gridRoom(kit, bodyRows)
+  // A trail's braille takes no more than its section's width.
+  const cells = sectionCells(kit, bodyRows)
   // An open chart takes two desktop rows; braille takes one line.
   const chartRows = Svg ? 2 : 1
   const sentence = (key: string, text: string | undefined): RenderChildren => (text === undefined ? null : words(kit, key, [[text, 'value']]))
@@ -188,6 +191,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
             height: OPEN_CHART_PX,
             max: x.window,
             level: x.compactAt === undefined ? undefined : x.compactAt / x.window,
+            cells,
           })
         : null,
     ], [
@@ -196,7 +200,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     ], chartRows), room),
     // Amber limits lead the section, so a body short of rows keeps them.
     section(kit, 'limits', 'LIMITS', read.limits.length === 0 ? [sentence('none', EMPTY.limits)] : chartsIfRoom(room, [
-      charts && f !== undefined && hist.fiveHourWindow.length > 1 ? fiveHourTrail(kit, f, hist.fiveHourWindow, hist.fiveHourWindowAlt, OPEN_TRAIL_PX, OPEN_CHART_PX, true) : null,
+      charts && f !== undefined && hist.fiveHourWindow.length > 1 ? fiveHourTrail(kit, f, hist.fiveHourWindow, hist.fiveHourWindowAlt, OPEN_TRAIL_PX, OPEN_CHART_PX, true, cells) : null,
     ], [
       ...read.limits.filter(l => l.amber !== undefined).map(l => limitSentence(kit, l)),
       ...read.limits.filter(l => l.amber === undefined).map(l => limitSentence(kit, l)),

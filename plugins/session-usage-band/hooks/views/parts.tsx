@@ -197,10 +197,19 @@ export const section = (kit: Kit, key: string, title: string, rows: readonly Ren
   )
 }
 
+/** Cells between a grid line's sections. */
+const GRID_GAP = 2
+
 /** Sections to a line: all of them from 100 columns, or until two lines each
  *  keep a row under their titles (5 rows, with the row of air); else two. */
 const perLineOf = (kit: Kit, bodyRows: number, count: number): number =>
   kit.columns >= 100 || bodyRows < 5 ? count : Math.min(2, count)
+
+/** Cells each section has across its line, `GRID_GAP` apart. */
+export const sectionCells = (kit: Kit, bodyRows: number, count = 4): number => {
+  const perLine = perLineOf(kit, bodyRows, count)
+  return Math.floor((lineRoom(kit) - GRID_GAP * (perLine - 1)) / perLine)
+}
 
 /** Rows each section holds under its title, with a row of air between lines. */
 export const gridRoom = (kit: Kit, bodyRows: number, count = 4): number => {
@@ -213,7 +222,7 @@ export const grid = (kit: Kit, sections: readonly RenderElement[], bodyRows: num
   const { Box } = kit
   const perLine = perLineOf(kit, bodyRows, sections.length)
   return Array.from({ length: Math.ceil(sections.length / perLine) }, (_, i) => (
-    <Box key={`line${i}`} flexDirection="row" columnGap={2} {...(i > 0 ? { marginTop: 1 } : {})}>
+    <Box key={`line${i}`} flexDirection="row" columnGap={GRID_GAP} {...(i > 0 ? { marginTop: 1 } : {})}>
       {sections.slice(i * perLine, (i + 1) * perLine)}
     </Box>
   ))
