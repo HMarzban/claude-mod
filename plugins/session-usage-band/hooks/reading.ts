@@ -3,7 +3,7 @@
 // Pure, so each can be checked without mounting the band.
 
 import { TTL_MS } from './cache'
-import { weekOf } from './calendar'
+import { isKnown, weekOf } from './calendar'
 import type { Week, WindowNow } from './calendar'
 import {
   COMPACT_NEAR,
@@ -380,7 +380,7 @@ export const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, f
   return {
     ...week,
     ...weekWords(week, sevenDay, fiveHour),
-    empty: ![...week.days, ...week.hours].some(c => !c.guess && c.pct !== undefined),
+    empty: ![...week.days, ...week.hours].some(isKnown),
   }
 }
 

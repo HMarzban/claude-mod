@@ -66,6 +66,7 @@ What the plan's steps record, in the order they happen.
 | Task 14b, resumed sessions recover their spend and cache state (merged) | 509 pass, 0 fail, 36 files | `claude plugin test plugins/session-usage-band` |
 | Task 23 (built ahead, on Task 8's merge) | 390 pass, 0 fail, 30 files | `claude plugin test plugins/session-usage-band` |
 | Task 24 (built ahead, on Task 23's branch) | 403 pass, 0 fail, 31 files | `claude plugin test plugins/session-usage-band` |
+| Task 24 (review) | 405 pass, 0 fail, 31 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
@@ -141,6 +142,7 @@ Ruling: the histories keep the plan's names, `trails.costs`, `trails.context` an
 Ruling: Task 24 built ahead of Tasks 10b and 13 — `memory.ts` gains only `LIMIT_SAMPLES_KEY` of Task 10b's names, and `LimitFacts` gains Task 13's `resetInMs` with Task 13's own definition, so the merges reconcile identical lines; `weekWords` calls `paceText(l)` where Task 13 gives `l.pace`, and its summaries leave out ` by ${resetClock}` until `LimitView.resetClock` exists (spec §6 asks only for used, on pace for and busiest) — no fallback; merge note: with Task 13 in, `weekWords` reads `l.pace` and adds ` by ${l.resetClock}` when known (`'30% used · on pace for ~50% by Mon 08:40 · busiest Thu'`).
 Ruling: the plan's first calendar test replaced its sample at `T0 + 5 min`, which is 08:45, the first instant of the next 15-minute bucket after 08:40; the test uses `T0 + 1 min` (as the merge test does), so the replace in place it asserts is what it exercises — every assertion unchanged.
 Ruling: a slice's `fullMark` is the slice holding a measured fill (`fullAt`) for days and hours alike, else the first slice ahead where the guesses reach 100, found as `ceil((100 − used) / (landing − used) × slicesAhead)` so a landing of exactly 100 marks the last slice without float drift — the 7d window never has a measured fill, so the days take the guess — no fallback.
+Ruling: the calendar's alt text says `EMPTY.cells` (`'not known yet'`) when no cell is measured or guessed, so the phrasebook keeps every empty state in `EMPTY`; Task 4's `empty states read like the band` test pins the new entry — no fallback.
 Ruling: the plan's `a failing store never throws` test passed before the code and still passed with the `limitSamples` write's `.catch` removed, since the engine drops a hook that throws without a sign; it also asserts `turn.complete`'s closing redraw, and fails with that `.catch` removed — no assertion changed, one added — no fallback.
 
 ## Freezes

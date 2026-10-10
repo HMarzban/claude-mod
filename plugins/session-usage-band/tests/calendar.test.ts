@@ -59,3 +59,12 @@ test('the hour cells are the five hours before the 5h reset, with the fill marke
   expect(wk.hours[2]?.now).toBe(true)
   expect(wk.hours.findIndex(c => c.fullMark)).toBe(4)
 })
+test('a landing of exactly 100 fills on the last day', () => {
+  const wk = weekOf({ samples: [], seven: seven(30, 100), five: undefined, now: T0 + 77 * H, utcOffsetMin: 0 })
+  expect(wk.days.findIndex(d => d.fullMark)).toBe(6)
+})
+test('a measured fill marks its hour over the guess', () => {
+  const five = { percentUsed: 40, projectedPct: 100, resetsAt: T0 + 5 * H, fullAt: T0 + 3.5 * H }
+  const wk = weekOf({ samples: [], seven: undefined, five, now: T0 + 2.5 * H, utcOffsetMin: 0 })
+  expect(wk.hours.findIndex(c => c.fullMark)).toBe(3)
+})

@@ -55,6 +55,8 @@ export const EMPTY = {
   history: 'History fills in as you use Claude.',
   context: 'not reported',
   limits: 'none reported',
+  /** A calendar with no cell measured or guessed. */
+  cells: 'not known yet',
 } as const
 
 /** A reset as a duration: words in sentences, the glyph on tight rows. */
@@ -413,14 +415,15 @@ export type WeekWords = Readonly<{
 
 /** The cells known or guessed, each named, a guess said as about. */
 const cellsSpoken = <C extends DayCell | HourCell>(title: string, cells: readonly C[], name: (c: C) => string): string => {
-  const said = cells.filter(c => c.pct !== undefined).map(c => `${name(c)} ${c.guess ? `about ${Math.round(c.pct ?? 0)}%` : c.text}`)
-  return `${title}: ${said.length === 0 ? 'not known yet' : said.join(', ')}`
+  // A guess's text is '~7%', said as 'about 7%'.
+  const said = cells.filter(c => c.pct !== undefined).map(c => `${name(c)} ${c.guess ? `about ${c.text.slice(1)}` : c.text}`)
+  return `${title}: ${said.length === 0 ? EMPTY.cells : said.join(', ')}`
 }
 
 /** A window's summary: its use and its pace, then the busiest day when given. */
 const summaryOf = (l: LimitView | undefined, busiest?: string): string | undefined => {
   if (l === undefined) return undefined
-  const standing = l.passed ? ['reset'] : [`${l.value} used`, paceText(l)]
+  const standing = l.reset?.kind === 'passed' ? [resetPhrase(l.reset, 'words')] : [`${l.value} used`, paceText(l)]
   return [...standing, busiest === undefined ? '' : `busiest ${busiest}`].filter(Boolean).join(' · ')
 }
 

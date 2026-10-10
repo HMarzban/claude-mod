@@ -80,6 +80,7 @@ test('empty states read like the band', () => {
     history: 'History fills in as you use Claude.',
     context: 'not reported',
     limits: 'none reported',
+    cells: 'not known yet',
   })
 })
 test('alt text is words: no ~ and no ↻', () => {

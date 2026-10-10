@@ -46,6 +46,10 @@ export type Week = Readonly<{
   busiest: string | undefined
 }>
 
+type Known<C> = C & Readonly<{ pct: number }>
+/** A cell measured: neither a guess nor unknown. */
+export const isKnown = <C extends DayCell | HourCell>(c: C): c is Known<C> => !c.guess && c.pct !== undefined
+
 const HOUR_MS = 3600_000
 const DAY_MS = 24 * HOUR_MS
 // resetsAt readings of one window can differ by a few seconds.
@@ -124,8 +128,6 @@ export const weekOf = (o: Readonly<{ samples: readonly Sample[]; seven: WindowNo
   const hours = slicesOf(o.samples, o.five, BY_HOUR, o.now).map(
     ({ start, current, ...slice }): HourCell => ({ ...slice, label: String(local(start).getUTCHours()).padStart(2, '0'), now: current }),
   )
-  const busiest = days
-    .filter(d => !d.guess && d.pct !== undefined)
-    .reduce<DayCell | undefined>((top, d) => (top === undefined || (d.pct ?? 0) > (top.pct ?? 0) ? d : top), undefined)
+  const busiest = days.filter(isKnown).reduce<Known<DayCell> | undefined>((top, d) => (top === undefined || d.pct > top.pct ? d : top), undefined)
   return { days, hours, busiest: busiest?.name.slice(0, 3) }
 }
