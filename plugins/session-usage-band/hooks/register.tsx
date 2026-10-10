@@ -82,7 +82,7 @@ const REPLY = {
  *  over with the module; session.start resets the rest. */
 const band: {
   palette: Readonly<Palette>
-  /** The terminal's glyph tier, from the environment at load. */
+  /** The terminal's glyph tier, read from the environment at session.start. */
   glyphs: Glyphs
   /** Where auto-compaction runs, as the context breakdown last said; read
    *  after each turn, not on every redraw. Undefined when off or unknown. */

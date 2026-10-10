@@ -134,7 +134,7 @@ From Unicode `EastAsianWidth-18.0.0.txt`:
 | `unicode` | the default | What the band ships today (`█ ░ │ · ↻ Σ ◷ ◔ ▿ ▵ … ±`), `▒` for a projection, and braille for charts |
 | `ascii` | `CC_BAND_GLYPHS=ascii`, or a CJK locale (the first of `LC_ALL` / `LC_CTYPE` / `LANG` that is set starts `ja`, `zh` or `ko`) unless `CC_BAND_GLYPHS=unicode` | ASCII only. Charts give way to their numbers. `█#` `░-` `▒:` `│\|` `·-` `▿v` `▵^` `….` `±+` `●*` `■#` `–-` `↑+` `↓-`, and `↻` `Σ` `◷` `◔` are dropped. |
 
-- **Never wider.** Every ascii mapping is one character at most, because the squeeze measures the row before the mapping. Any other non-ASCII character is dropped too. A dropped glyph takes the one space after it (`◷ cache` becomes `cache`); nothing else collapses, so deliberate padding survives.
+- **Never wider.** Every ascii mapping is one character at most, because the squeeze measures the row before the mapping. A glyph the map drops takes the one space after it (`◷ cache` becomes `cache`); any other non-ASCII character is dropped alone. Nothing else collapses, so deliberate padding survives.
 - **Banned in every new layout:** `○◐◑◕`, weather symbols, `▮▯▰▱`, `▁–▇`, emoji and VS16. Forecast says "warm / cooling / cold" in words.
 - **Braille charts:** two values per cell (left and right dot columns), four heights each.
 - **Charts never stand alone.** A braille chart always sits beside its numbers, because braille reads as "braille pattern dots". The README recommends `ascii` for screen-reader users.

@@ -26,16 +26,17 @@ export const ASCII_MAP: Readonly<Record<string, string>> = {
   '↻': '', 'Σ': '', '◷': '', '◔': '',
 }
 
-/** `s` in ASCII: each glyph mapped; one with no mapping, or mapped to nothing,
- *  is dropped with the one space after it, so no gap is left where it was. */
+/** `s` in ASCII: each glyph mapped, and any other non-ASCII character
+ *  dropped alone. A glyph mapped to nothing takes the one space after it, so
+ *  no gap is left where it was. */
 export const asciiText = (s: string): string => {
   const chars = [...s]
   let out = ''
   for (let i = 0; i < chars.length; i++) {
     const ch = chars[i] ?? ''
-    const to = ch in ASCII_MAP ? (ASCII_MAP[ch] ?? '') : ch.charCodeAt(0) < 0x80 ? ch : ''
-    if (to === '' && chars[i + 1] === ' ') i++
-    out += to
+    const mapped = ASCII_MAP[ch]
+    if (mapped === '' && chars[i + 1] === ' ') i++
+    out += mapped ?? (ch.charCodeAt(0) < 0x80 ? ch : '')
   }
   return out
 }

@@ -1,9 +1,25 @@
+// The glyph tiers: which one a session picks, the ascii mapping, and chips drawn in it.
+
 import { test, expect } from 'claude-code/testing'
 import { ASCII_MAP, asciiText, resolveGlyphs } from '../hooks/glyphs'
 import { ROW_SLACK } from '../hooks/layout'
 import { caseKey, drawCases, type Mount } from './matrix'
 import {
-  HOUR_1, LONG, MIN, START, byKey, cards, firstRow, mountBand, pillOf, resp, respond, segments, setup, textOf, widthOf,
+  HOUR_1,
+  LONG,
+  MIN,
+  START,
+  byKey,
+  cards,
+  firstRow,
+  mountBand,
+  pillOf,
+  resp,
+  respond,
+  segments,
+  setup,
+  textOf,
+  widthOf,
 } from './helpers'
 
 test('unicode by default, ascii on request or in a CJK locale', () => {
@@ -23,11 +39,13 @@ test('ascii text is pure ASCII, a dropped glyph takes its space, and padding sta
   expect(asciiText('◷ cache 52m · ↻ 3h 00m Σ 225k ↑2 ↓1 cache – ●… █░▒│▿▵■ ◔ ±')).toMatch(/^[\x20-\x7e]*$/)
   expect(asciiText('◷ cache 52m')).toBe('cache 52m')
   expect(asciiText('↻ in 3h 00m')).toBe('in 3h 00m')
+  expect(asciiText('café latte')).toBe('caf latte') // an unmapped character goes alone
   expect(asciiText('ITEM      STATUS')).toBe('ITEM      STATUS')
 })
 test('chips in the ascii tier draws only ASCII, within the row, shut and open', LONG, async ($, on) => {
   const m: Mount = { surface: 'terminal', cols: 120 }
-  const trees = await drawCases($, on, { scenario: 'calm', appearance: 'dark', env: { CC_BAND_GLYPHS: 'ascii' } }, [m])
+  const desktop: Mount = { surface: 'desktop', cols: 120 }
+  const trees = await drawCases($, on, { scenario: 'calm', appearance: 'dark', env: { CC_BAND_GLYPHS: 'ascii' } }, [m, desktop])
   const shut = trees[caseKey(m, 'shut')]
   const open = trees[caseKey(m, 'open')]
   expect(textOf(shut)).toMatch(/^[\x20-\x7e]*$/)
@@ -37,6 +55,8 @@ test('chips in the ascii tier draws only ASCII, within the row, shut and open', 
   expect(cards(open).length).toBeGreaterThan(0)
   expect(textOf(open)).toMatch(/^[\x20-\x7e]*$/)
   expect(byKey(open, 'more', 'Button')?.props?.label).toBe('^')
+  // The tier is the terminal's: the desktop draws its own glyphs.
+  expect(byKey(trees[caseKey(desktop, 'shut')], 'more', 'Button')?.props?.label).toBe('▿')
 })
 test('the ascii battery drops its glyph before the cut, so its charge and spacing hold', LONG, async ($, on) => {
   const clock = setup(on, { env: { ...HOUR_1, CC_BAND_GLYPHS: 'ascii' } })
