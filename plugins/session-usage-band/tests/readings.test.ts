@@ -1,11 +1,11 @@
 import { test, expect } from 'claude-code/testing'
 import { readingsOf } from '../hooks/reading'
+import { HOUR, MIN } from './helpers'
 import { snapOf } from './matrix'
-
-const HOUR = 3600_000
 
 test('readings name every limit with its tone, value, reset and projection', () => {
   const r = readingsOf(snapOf())
+  expect(r.fiveHour?.tone).toBe('calm')
   expect(r.fiveHour?.value).toBe('4%')
   expect(r.fiveHour?.reset).toEqual({ kind: 'in', text: '3h 00m' })
   expect(Math.abs((r.sevenDay?.projectedPct ?? 0) - 30 / (1 - 67 / 168))).toBeLessThan(1e-5)
@@ -21,7 +21,7 @@ test('a limit at 82% reads 5h 82%, with no mark, and is amber', () => {
   expect(r.fiveHour?.tone).toBe('amber')
 })
 test('a measured 5h fill sets its projection to 100', () => {
-  const r = readingsOf(snapOf({ fiveHour: { percentUsed: 84, resetsAt: new Date(70 * 60_000).toISOString(), etaMs: 40 * 60_000 } }))
+  const r = readingsOf(snapOf({ fiveHour: { percentUsed: 84, resetsAt: new Date(70 * MIN).toISOString(), etaMs: 40 * MIN } }))
   expect(r.fiveHour?.projectedPct).toBe(100)
   expect(r.fiveHour?.tone).toBe('amber')
   expect(r.chips.reading.windows[0]?.cardPace).toBe(' · full in ~40m')

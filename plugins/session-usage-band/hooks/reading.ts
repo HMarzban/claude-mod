@@ -13,12 +13,12 @@ import {
   contextUsed,
   fmtCountdown,
   fmtEstimate,
-  fmtEta,
   fmtTokens,
   resetIn,
 } from './format'
 import type { ResetIn } from './format'
 import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
+import { paceText } from './words'
 
 export type Tone = 'calm' | 'amber'
 
@@ -232,6 +232,7 @@ export type Readings = Readonly<{
   chips: ChipsReadings
 }>
 
+/** The cache's mood, tone, charge and re-warm price, and whether its timing is known. */
 export const cacheFacts = (snap: BandSnapshot): CacheFacts => {
   const c = snap.cache
   const mood = cacheMood(c)
@@ -247,18 +248,20 @@ export const cacheFacts = (snap: BandSnapshot): CacheFacts => {
   }
 }
 
+/** The context's fill, with the compaction point and the model window it is read against. */
 export const contextFacts = (snap: BandSnapshot): ContextFacts => ({
   ...contextReading(snap.context),
   compactAt: snap.context.compactAt,
   window: snap.context.window,
 })
 
+/** The session's cost and its tokens: sent, back, read from cache, and their total. */
 export const spendFacts = (snap: BandSnapshot): SpendFacts => {
   const t = snap.cache.tokens
   return { totalUsd: snap.costUsd, lastTurnUsd: snap.lastTurnUsd, sent: t.sent, back: t.back, cached: t.cached, total: t.sent + t.back + t.cached }
 }
 
-/** Each window the engine reports, 5h, 7d, then the rest, as the Limits card read them. */
+/** Each window the engine reports, 5h, 7d, then the rest, as the Limits card reads them. */
 export const limitFacts = (snap: BandSnapshot): ChipsWindow[] => {
   const one = (name: string, key: LimitKey, reading: LimitReading, windowMs: number | undefined, etaMs: number | null): ChipsWindow => {
     const reset = resetIn(reading.resetsAt, snap.now)
@@ -266,14 +269,9 @@ export const limitFacts = (snap: BandSnapshot): ChipsWindow[] => {
     // A measured pace, as the chip says it; else where the window's average
     // rate ends it. Too early to say, it waits.
     const projected = gone === undefined || gone < 0.05 ? undefined : reading.percentUsed / gone
-    const cardPace =
-      etaMs !== null
-        ? ` · full in ${fmtEta(etaMs)}`
-        : projected === undefined
-          ? ''
-          : projected >= 100
-            ? ' · full before reset'
-            : ` · on pace for ~${Math.round(projected)}%`
+    // A measured fill lands it at 100, so the words and the amber agree.
+    const projectedPct = etaMs !== null ? 100 : projected
+    const pace = paceText({ etaMs, projectedPct })
     return {
       name,
       key,
@@ -282,14 +280,13 @@ export const limitFacts = (snap: BandSnapshot): ChipsWindow[] => {
       etaMs,
       reset,
       gone,
-      cardPace,
+      cardPace: pace === '' ? '' : ` · ${pace}`,
       percentUsed: reading.percentUsed,
       frac: clamp01(reading.percentUsed / 100),
       tone: limitTone(reading, snap.now, etaMs),
       value: `${Math.round(reading.percentUsed)}%`,
       passed: reset?.kind === 'passed',
-      // A measured fill lands it at 100, so the words and the amber agree.
-      projectedPct: etaMs !== null ? 100 : projected,
+      projectedPct,
     }
   }
   return [
@@ -299,6 +296,7 @@ export const limitFacts = (snap: BandSnapshot): ChipsWindow[] => {
   ]
 }
 
+/** Everything a view reads, built once per draw: the frame, the facts, and chips' own inputs. */
 export const readingsOf = (snap: BandSnapshot): Readings => {
   const c = snap.cache
   const cache = cacheFacts(snap)

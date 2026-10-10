@@ -10,7 +10,6 @@ import {
   fmtEta,
   fmtSmallCost,
   fmtTokens,
-  resetIn,
   severityMark,
 } from './format'
 import type { Icon } from './icons'
@@ -30,8 +29,8 @@ import type { BarSize, Piece } from './layout'
 import { BARE } from './palette'
 import type { Palette } from './palette'
 import { readingsOf } from './reading'
-import type { ChipsWindow, LimitKey, Tone } from './reading'
-import type { BandActions, BandSnapshot, LimitReading } from './snapshot'
+import type { ChipsWindow, LimitKey, LimitView, Tone } from './reading'
+import type { BandActions, BandSnapshot } from './snapshot'
 import { drawStrip } from './strip'
 
 
@@ -249,10 +248,10 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   // Its usage on a bar and the reset; a pace that fills it early speaks in
   // words. A window whose reset has passed shows as reset: its last reading
   // is from before it.
-  const limitChip = (key: ChipKey, reading: LimitReading, pace: string, tone: Tone, squeeze: number): PillSpec => {
+  const limitChip = (key: ChipKey, w: LimitView, pace: string, squeeze: number): PillSpec => {
     const spec = LIMITS[key]
     const tint = spec.tint(palette)
-    const r = resetIn(reading.resetsAt, snap.now)
+    const { reset: r, frac, tone } = w
     if (r?.kind === 'passed') {
       return {
         key,
@@ -264,7 +263,6 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     }
     const fg = onTone(tone, tint.fg)
     const accent = onTone(tone, tint.accent)
-    const frac = clamp01(reading.percentUsed / 100)
     const bar = keeps(squeeze, 'limitBars') ? [gap('g-bar'), meter(key, frac, tone, tint.accent)] : []
     const reset =
       r !== undefined && keeps(squeeze, tone === 'amber' ? spec.amberReset : spec.reset)
@@ -281,7 +279,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
         </Text>,
         ...bar,
         <Text key="v" color={fg} bold>
-          {` ${Math.round(reading.percentUsed)}%${severityMark(frac)}${pace}`}
+          {` ${w.value}${severityMark(frac)}${pace}`}
         </Text>,
         ...reset,
       ],
@@ -308,7 +306,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       },
     ]
 
-    if (c.requests > 0 && keeps(squeeze, 'tokens')) {
+    if (read.cache.measured && keeps(squeeze, 'tokens')) {
       pills.push({
         key: 'tokens',
         tone: 'calm',
@@ -347,19 +345,17 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
       })
     }
 
-    if (snap.fiveHour) {
-      const eta = snap.fiveHour.etaMs
-      const tone = read.fiveHour?.tone ?? 'calm'
-      if (tone === 'amber' || keeps(squeeze, LIMITS['5h'].calm)) {
+    const five = read.fiveHour
+    if (five) {
+      const eta = five.etaMs
+      if (five.tone === 'amber' || keeps(squeeze, LIMITS['5h'].calm)) {
         const pace = eta === null ? '' : short ? ` ${fmtEta(eta)}` : ` full in ${fmtEta(eta)}`
-        pills.push(limitChip('5h', snap.fiveHour, pace, tone, squeeze))
+        pills.push(limitChip('5h', five, pace, squeeze))
       }
     }
 
-    if (snap.sevenDay) {
-      const tone = read.sevenDay?.tone ?? 'calm'
-      if (tone === 'amber' || keeps(squeeze, LIMITS['7d'].calm)) pills.push(limitChip('7d', snap.sevenDay, '', tone, squeeze))
-    }
+    const seven = read.sevenDay
+    if (seven && (seven.tone === 'amber' || keeps(squeeze, LIMITS['7d'].calm))) pills.push(limitChip('7d', seven, '', squeeze))
     return pills
   }
 
