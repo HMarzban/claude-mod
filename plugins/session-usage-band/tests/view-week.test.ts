@@ -4,7 +4,7 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On, SessionUsage } from 'claude-code'
-import { DEFAULT_MAX_ROWS, HOUR, HOUR_1, LONG, START, USAGE, byKey, mountBand, setup, shown, svgAlts, svgsOf, type Node } from './helpers'
+import { DEFAULT_MAX_ROWS, HOUR, HOUR_1, LONG, START, USAGE, byKey, mountBand, setup, shown, svgAlts, svgsOf, widthOf, type Node } from './helpers'
 import { caseKey, drawCases, invariantErrors, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
 
 viewSuite('week')
@@ -60,6 +60,17 @@ test('the terminal marks today in brackets and puts the initials beneath', async
   const t = shown((await oneWithHistory($, on, T160)).shut)
   expect(t).toMatch(/\[[⠀-⣿]\]/)
   expect(t).toMatch(/[MTWFS]{7}/)
+})
+test('each initial sits beneath its 7d cell', async ($, on) => {
+  const { shut } = await oneWithHistory($, on, T160)
+  // Row 1's 7d piece and row 2's initials start in the same column.
+  const seven = byKey(shut, '7d', 'Box')
+  const [name, chart] = seven?.children ?? []
+  // `dayCells` draws cell i at column 2i + 1 of its text.
+  expect([...shown(chart)].filter((_, i) => i % 2 === 1).join('')).toMatch(/^[⠀-⣿·]{7}$/)
+  const initials = byKey(shut, 'initials', 'Box')
+  expect(byKey(initials, 'pad')?.props?.width).toBe(widthOf(name) + Number(seven?.props?.columnGap) + 1)
+  expect((initials?.children ?? []).slice(1).map(d => (d as Node).props?.width)).toEqual([2, 2, 2, 2, 2, 2, 2])
 })
 test('in ascii the cells become numbers, today in brackets', async ($, on) => {
   const t = shown((await oneWithHistory($, on, T160, { env: { CC_BAND_GLYPHS: 'ascii' } })).shut)
