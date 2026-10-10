@@ -77,12 +77,18 @@ test('on plain, each flap is drawn in [ ], until the line needs the room', async
 })
 test('on plain, a flap shrinks to a cell narrower than its text, so the text truncates and its ] stays', async ($, on) => {
   // The board's cells and the strip constrain a flap; the line's pieces never shrink, so there it keeps its width.
-  const shrinks: unknown[] = []
+  // Each bracket sits in a Box that never shrinks, so the text between is all that gives way.
+  const flaps: Array<readonly [Node, Node, Node, Node]> = []
   walk((await at($, on, 'calm', T160, '1h', 'plain')).open, (n: Node) => {
-    if (n.type === 'Box' && n.children?.some(c => shown(c) === ']')) shrinks.push([n.props?.flexShrink, n.props?.minWidth])
+    const [open, text, close] = (n.children ?? []) as Array<Node | undefined>
+    if (n.type === 'Box' && n.children?.length === 3 && open && text && close && shown(open) === '[' && shown(close) === ']') flaps.push([n, open, text, close])
   })
-  expect(shrinks.length).toBeGreaterThan(0)
-  expect(new Set(shrinks.map(String))).toEqual(new Set(['1,0']))
+  expect(flaps.length).toBeGreaterThan(0)
+  for (const [f, open, text, close] of flaps) {
+    expect([f.props?.flexShrink, f.props?.minWidth]).toEqual([1, 0])
+    expect([open.type, open.props?.flexShrink, close.type, close.props?.flexShrink]).toEqual(['Box', 0, 'Box', 0])
+    expect([text.type, text.props?.wrap]).toEqual(['Text', 'truncate-end'])
+  }
 })
 test('a measured fill is ! FULL', LONG, async ($, on) => {
   expect(shown((await at($, on, 'fiveHourAhead')).shut)).toMatch(/! FULL/)

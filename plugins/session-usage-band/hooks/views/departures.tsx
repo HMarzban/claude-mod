@@ -22,8 +22,8 @@ const INK = { text: 'flapText', dim: 'flapDim', warm: 'flapWarm', amber: 'flapAm
 type Ink = keyof typeof INK
 
 /** The board's fixed columns, in cells of text: ITEM, as wide as `SPEND LIMIT`;
- *  STATUS, as wide as `! FULL IN ~4H 45 MIN`, which any fill before a 5h
- *  reset is; and TIME. REMARKS takes the rest. */
+ *  STATUS, as wide as `! FULL IN ~4H 45 MIN`, the widest a fill before a 5h
+ *  reset reads; and TIME. REMARKS takes the rest. */
 const COLUMNS = [11, 20, 14] as const
 /** The least REMARKS keeps beside TIME, as wide as `RE-WARM ~$2.13`. */
 const MIN_REMARKS = 14
@@ -45,11 +45,15 @@ const inset = (kit: Kit): number => (kit.Svg !== undefined || !kit.palette.fille
 const flap = (kit: Kit, key: string, text: string, ink: Ink = 'text', bracketed = true): RenderElement => {
   const { Box, Text, palette } = kit
   const color = palette[INK[ink]]
+  // A Text shrinks as Ink's does, so each bracket sits in a Box that never
+  // shrinks, and only the text gives way.
   const edge = (bracket: string) =>
     bracketed && !palette.filled ? (
-      <Text color={color} bold>
-        {bracket}
-      </Text>
+      <Box flexShrink={0}>
+        <Text color={color} bold>
+          {bracket}
+        </Text>
+      </Box>
     ) : null
   return (
     <Box key={key} flexShrink={1} minWidth={0} {...(palette.filled ? { backgroundColor: palette.flap, paddingX: inset(kit) } : {})}>
