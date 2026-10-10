@@ -20,8 +20,8 @@ type Piece = (typeof ORDER)[number]
 const INK = { text: 'flapText', dim: 'flapDim', warm: 'flapWarm', amber: 'flapAmber', five: 'flapFive', week: 'flapWeek', coin: 'flapCoin' } as const
 type Ink = keyof typeof INK
 
-/** The board's fixed columns, ITEM, STATUS and TIME, in cells of text; REMARKS takes the rest. */
-const COLUMNS = [10, 18, 14] as const
+/** The board's fixed columns, ITEM (as wide as `SPEND LIMIT`), STATUS and TIME, in cells of text; REMARKS takes the rest. */
+const COLUMNS = [11, 18, 14] as const
 
 const up = (text: string): string => text.toUpperCase()
 
@@ -201,8 +201,11 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       ]),
     }
   }
-  const limitRow = (l: LimitView): BoardRow =>
-    row(l.name, [up(l.name), limitInk(l)], [l.boardAmber ?? l.boardShort ?? l.value, l.boardAmber !== undefined ? 'amber' : 'text'], l.boardTime, l.passed ? [] : [`${l.value} used`])
+  const limitRow = (l: LimitView): BoardRow => {
+    // An other limit is named by its kind, `spend`, so its item says it is a limit, apart from SPEND.
+    const item = l.key === 'other' ? `${up(l.name)} LIMIT` : up(l.name)
+    return row(item, [item, limitInk(l)], [l.boardAmber ?? l.boardShort ?? l.value, l.boardAmber !== undefined ? 'amber' : 'text'], l.boardTime, l.passed ? [] : [`${l.value} used`])
+  }
   const rows: BoardRow[] = [
     row('cache', ['CACHE'], [cacheStatus(c), cacheInk(c)], c.boardLeft === '' ? undefined : c.boardLeft, [
       c.known ? `re-warm ${c.estimate}` : undefined,
