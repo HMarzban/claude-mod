@@ -1,6 +1,8 @@
 // Hover cards: one per pill, drawn over the row at the pill it explains.
 
+import type { RenderChildren } from 'claude-code'
 import { test, expect } from 'claude-code/testing'
+import { DESKTOP, cellsOf } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
 import {
   LONG,
@@ -25,10 +27,10 @@ import {
  *  after every pill, so it paints over them all, and before ▿, which stacks
  *  over it and so stays pressable; revealed by the scope it shares with its
  *  own pill; a hidden one-line Box with no key, on the tooltip ground, as wide
- *  as its text. The pointer on a showing card keeps it showing, so on the
- *  terminal, where cells are exact, a card starts at its own pill, slid left
- *  only as far as it must to end short of ▿: the pills to its left still
- *  switch it. */
+ *  as its text, ending short of ▿. The pointer on a showing card keeps it
+ *  showing, so on the terminal, where cells are exact, a card starts at its
+ *  own pill, slid left only as far as it must to end short of ▿: the pills to
+ *  its left still switch it. */
 const expectCardsAt = (row: unknown, found: Array<[string, Node]>, cols: number, surface: 'terminal' | 'desktop') => {
   const kids = ((row as Node).children ?? []).filter(Boolean) as Node[]
   const toggle = kids[kids.length - 1]
@@ -58,9 +60,16 @@ const expectCardsAt = (row: unknown, found: Array<[string, Node]>, cols: number,
     if (surface === 'terminal') {
       expect(width).toBe(Math.min(textOf(card).length + 2, room))
       expect(left).toBe(Math.max(0, Math.min(startOf(key), room - width)))
-    } else expect(left + width).toBeLessThanOrEqual(cols)
+    } else {
+      // The desktop has no exact count of its own to check against, so its
+      // room comes from the band's measure.
+      expect(left + width).toBeLessThanOrEqual(Math.floor(cols - cellsOf(toggle as RenderChildren, DESKTOP) - 1))
+    }
   }
 }
+
+/** The pills a wide row draws once a reply has landed, in order. */
+const PILLS = ['cache', 'cost', 'tokens', 'ctx', '5h', '7d']
 
 test('every pill explains itself on hover, on a card drawn over the row at its pill', async ($, on) => {
   setup(on)
@@ -72,7 +81,7 @@ test('every pill explains itself on hover, on a card drawn over the row at its p
     const ui = await mountBand($, surface, cols)
     const tree = await ui.drawn()
     const found = cards(tree)
-    expect(found.map(([key]) => key).join(',')).toBe('cache,cost,tokens,ctx,5h,7d')
+    expect(found.map(([key]) => key)).toEqual(PILLS)
     expectCardsAt(firstRow(tree), found, cols, surface)
     for (const [, card] of found) expect(textOf(card).length).toBeLessThan(60)
     expect(textOf(found[0]?.[1])).toBe('Warm cache bills input at 5%; expires 1h after a reply')
@@ -91,27 +100,26 @@ test('on a wide terminal row each card starts at its own pill, so it covers none
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   const ui = await mountBand($, 'terminal', 160)
   const row = firstRow(await ui.drawn()) as Node
+  const pills = ((row.children ?? []) as Node[]).filter(k => k?.props?.key !== undefined)
+  expect(pills.map(pill => pill.props?.key)).toEqual(PILLS)
   let at = 0
-  for (const pill of ((row.children ?? []) as Node[]).filter(k => k?.props?.key !== undefined && k.hover?.scope !== undefined)) {
+  for (const pill of pills) {
     expect(cards(row).find(([key]) => key === pill.props?.key)?.[1].props?.left).toBe(at)
     at += widthOf(pill) + 1
   }
   await ui.unmount()
 })
 
-test('a pill and its card share one hover scope, apart from every other pill', async ($, on) => {
+test('every pill reveals a card of its own, in the order the pills are drawn', async ($, on) => {
   setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await mountBand($, surface, 160)
     const row = firstRow(await ui.drawn()) as Node
-    const pills = ((row.children ?? []) as Node[]).filter(k => k?.props?.key !== undefined && k.hover?.scope !== undefined)
-    expect(pills.length).toBeGreaterThan(1)
-    for (const pill of pills) {
-      const card = cards(row).find(([key]) => key === pill.props?.key)?.[1]
-      expect(card?.hover?.scope).toBe(pill.hover?.scope)
-    }
+    const pills = ((row.children ?? []) as Node[]).filter(k => k?.props?.key !== undefined)
+    expect(pills.map(pill => pill.props?.key)).toEqual(PILLS)
+    expect(cards(row).map(([key]) => key)).toEqual(PILLS)
     await ui.unmount()
   }
 })

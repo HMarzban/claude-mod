@@ -23,8 +23,10 @@ const tracking = (g: GitState): string => {
   return sides.length === 0 ? 'up to date with its upstream' : sides.join(', ')
 }
 /** The key a drawn Box goes by, if any. */
-const keyOf = (n: RenderChildren): unknown =>
-  typeof n === 'object' && n !== null && !isList(n) && n.type === 'Box' ? n.props?.key : undefined
+const keyOf = (n: RenderChildren): string | undefined => {
+  const key = typeof n === 'object' && n !== null && !isList(n) && n.type === 'Box' ? n.props?.key : undefined
+  return typeof key === 'string' ? key : undefined
+}
 
 const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'footer', edge: number, room: number): RenderElement => {
   const { Box, Text, Svg, measure, hoverable, hoverCard, icon } = kit
@@ -40,12 +42,12 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
       i === 0 || Svg ? [piece] : [<Text key={`${side}-sep${i}`} color={BARE.label}>{' · '}</Text>, piece],
     )
 
-  // Each piece that explains itself on hover, in drawing order: its key and
-  // its card's text, for the end of the strip; see the kit's hoverCard.
-  const explained: Array<readonly [string, string]> = []
+  // The card text each piece that explains itself on hover reveals, by the
+  // piece's key, for the end of the strip; see the kit's hoverCard.
+  const explained = new Map<string, string>()
   /** The props of a piece keyed `key` that reveals `text` on hover. */
   const explains = (key: string, text: string) => {
-    explained.push([key, text])
+    explained.set(key, text)
     return { key, ...hoverable(key) }
   }
 
@@ -135,17 +137,23 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
   }
 
   // Each card at its piece: on the path's side from where the piece starts,
-  // on the state's ending where it ends.
+  // on the state's ending where it ends. A separator has no key, so no card.
   const pad = place === 'top' ? 1 + edge / 2 : 0
   const spacing = Svg ? 2 : 0
   const whereLine = joined('where', where)
   const stateLine = joined('state', state)
-  const stateFromEnd = [...stateLine].reverse()
-  const placeOf = new Map<unknown, CardPlace>([
-    ...startsOf(whereLine, spacing, measure).map((start, i) => [keyOf(whereLine[i]), { left: pad + start, room }] as const),
-    ...startsOf(stateFromEnd, spacing, measure).map((end, i) => [keyOf(stateFromEnd[i]), { right: pad + end }] as const),
-  ])
-  const cards = explained.map(([key, text]) => hoverCard(key, text, placeOf.get(key) ?? { left: pad, room }))
+  /** The cards of `line`'s pieces, in its order, each placed by `at` from
+   *  how far into the strip its piece's first column sits. */
+  const cardsOf = (line: readonly RenderChildren[], at: (offset: number) => CardPlace) =>
+    startsOf(line, spacing, measure).flatMap((offset, i) => {
+      const key = keyOf(line[i])
+      const text = key === undefined ? undefined : explained.get(key)
+      return key === undefined || text === undefined ? [] : [hoverCard(key, text, at(pad + offset))]
+    })
+  const cards = [
+    ...cardsOf(whereLine, left => ({ left, room })),
+    ...cardsOf([...stateLine].reverse(), right => ({ right, room })).reverse(),
+  ]
 
   return (
     <Box

@@ -33,7 +33,9 @@ def lift_hovers(tree):
         for c in n.get('children') or []:
             p = (c.get('props') or {}) if isinstance(c, dict) else {}
             if p.get('position') == 'absolute' and p.get('display') == 'none':
-                tips[(c.get('hover') or {}).get('scope')] = ' '.join(text(c).split())
+                scope = (c.get('hover') or {}).get('scope')
+                if scope is not None:
+                    tips[scope] = ' '.join(text(c).split())
             else:
                 keep.append(c)
                 drop(c)

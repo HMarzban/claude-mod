@@ -20,7 +20,8 @@ version may change how the band reads.
   read in fragments between them, and a card from a chip mid-row was cut at
   the row's right edge. On both surfaces each card now draws after every
   chip, at its own chip and slid left only as far as it must to end short
-  of ▿. The workspace strip's cards do the same.
+  of ▿. The workspace strip's cards draw after the strip too, each at its
+  own piece.
 
 ## [0.11.12] - 2026-10-09
 

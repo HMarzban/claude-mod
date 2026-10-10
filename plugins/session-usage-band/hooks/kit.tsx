@@ -9,10 +9,23 @@ import { DESKTOP, TERMINAL } from './layout'
 import type { Tone } from './reading'
 import type { BandSnapshot } from './snapshot'
 
-/** Where a hover card sits in its row: from `left`, its piece's first
- *  column, slid left only as far as it must to end within `room`; or ending
- *  where its piece ends, `right` columns short of the row's right edge. */
-export type CardPlace = Readonly<{ left: number; room: number }> | Readonly<{ right: number }>
+/** Where a hover card sits in its row, which has `room` columns: from
+ *  `left`, its piece's first column, slid left only as far as it must to end
+ *  within the room; or ending where its piece ends, `right` columns short of
+ *  the row's right edge, as wide as the room left of that end allows. */
+export type CardPlace = Readonly<{ left: number; room: number }> | Readonly<{ right: number; room: number }>
+
+/** The columns a card `cells` wide takes at `place`: its own width or the
+ *  room it has, whichever is less, and none where a row has no room. */
+const cardSpan = (place: CardPlace, cells: number) => {
+  const room = Math.floor(place.room)
+  if ('right' in place) {
+    const right = Math.round(place.right)
+    return { right, width: Math.max(0, Math.min(cells, room - right)) }
+  }
+  const width = Math.max(0, Math.min(cells, room))
+  return { left: Math.max(0, Math.min(Math.round(place.left), room - width)), width }
+}
 
 export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
   const { Box, Button, Text } = el
@@ -41,15 +54,11 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
    *  hover scope, and a hidden one could never be hovered. */
   const hoverCard = (key: string, text: string, place: CardPlace): RenderChildren => {
     if (!palette.filled) return null
-    const room = Math.floor('room' in place ? place.room : snap.columns)
-    const width = Math.min(text.length + 2, room)
-    const at = 'room' in place ? { left: Math.max(0, Math.min(Math.round(place.left), room - width)) } : { right: Math.round(place.right) }
     return (
       <Box
         position="absolute"
         top={0}
-        {...at}
-        width={width}
+        {...cardSpan(place, text.length + 2)}
         display="none"
         hover={{ display: 'flex', scope: scopeOf(key) }}
         backgroundColor={palette.tooltipBg}

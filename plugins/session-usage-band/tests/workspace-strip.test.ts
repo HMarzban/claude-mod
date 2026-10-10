@@ -266,14 +266,13 @@ test("the strip's hover cards are drawn after all of it, each sharing its own pi
   }
 })
 
-test("on the terminal a card on the path's side starts at its piece, and one on the state's side ends at its own", async ($, on) => {
-  const clock = setup(on, { env: HOME })
-  engine.root = WORKTREE
-  engine.git = { status: DIRTY, dirs: WORKTREE_DIRS }
-  await $.session.start(START)
-  const strip = stripOf(await expanded($, clock, 'terminal', 120))
+/** Where the terminal's top strip, `cols` wide, puts its cards: on the
+ *  path's side from where the piece starts, slid left only as far as it must
+ *  to end within the strip's room; on the state's side ending where the piece
+ *  ends, as wide as its text or the room left of that end. */
+const expectStripCardsAt = (strip: Node | undefined, cols: number) => {
   const pad = Number(strip?.props?.paddingX)
-  const room = 120 - ROW_SLACK
+  const room = cols - ROW_SLACK
   const side = (key: string) => ((byKey(strip, key, 'Box')?.children ?? []) as Node[]).filter(Boolean)
   let at = pad
   for (const piece of side('ws:where')) {
@@ -291,10 +290,43 @@ test("on the terminal a card on the path's side starts at its piece, and one on 
     if (card !== undefined) {
       expect(card.props?.right).toBe(end)
       expect(card.props?.left).toBeUndefined()
+      expect(card.props?.width).toBe(Math.min(textOf(card).length + 2, room - end))
     }
     end += widthOf(piece)
   }
-  expect(hoverCardOf(strip, 'ws:changes')?.props?.right).toBeGreaterThan(pad)
+}
+
+test("on the terminal a card on the path's side starts at its piece, and one on the state's side ends at its own", async ($, on) => {
+  const clock = setup(on, { env: HOME })
+  engine.root = WORKTREE
+  engine.git = { status: DIRTY, dirs: WORKTREE_DIRS }
+  await $.session.start(START)
+  const strip = stripOf(await expanded($, clock, 'terminal', 120))
+  expectStripCardsAt(strip, 120)
+  expect(hoverCardOf(strip, 'ws:changes')?.props?.right).toBeGreaterThan(Number(strip?.props?.paddingX))
+})
+
+test("on a narrow terminal a card on the state's side still ends within the strip", async ($, on) => {
+  const clock = setup(on, { env: HOME })
+  engine.root = WORKTREE
+  engine.git = { status: DIRTY, dirs: WORKTREE_DIRS }
+  await $.session.start(START)
+  const strip = stripOf(await expanded($, clock, 'terminal', 24))
+  const changes = hoverCardOf(strip, 'ws:changes')
+  expect(textOf(changes).length + 2).toBeGreaterThan(24 - ROW_SLACK - Number(changes?.props?.right))
+  expectStripCardsAt(strip, 24)
+})
+
+test('a footer strip with no room for its cards still draws', async ($, on) => {
+  const clock = setup(on, { env: HOME })
+  engine.root = WORKTREE
+  engine.git = { status: DIRTY, dirs: WORKTREE_DIRS }
+  await $.session.start(START)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const strip = stripOf(byKey(await expanded($, clock, surface, 24, 12), 'actions', 'Box'))
+    expect(strip).toBeDefined()
+    for (const [, card] of cards(strip)) expect(card.props?.width).toBeGreaterThanOrEqual(0)
+  }
 })
 
 test('one commit to push reads as one', async ($, on) => {
