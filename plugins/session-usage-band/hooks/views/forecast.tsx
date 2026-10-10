@@ -19,7 +19,8 @@ type Piece = (typeof ORDER)[number]
 
 /** The most changes the line looks ahead to. */
 const AHEAD = 3
-/** A 7d reset is a change ahead only this close. */
+/** A 7d reset is a change ahead only this close; format.ts' DAY_MS, which a
+ *  view doesn't import. */
 const DAY_MS = 24 * 3600_000
 
 /** The weather each condition reads as; none before the cache is measured. */

@@ -2,7 +2,7 @@
 // the 5-hour one, read off the limit samples, with a guess for the slices
 // ahead. Pure, so the cells can be checked without the store.
 
-import { fmtClock } from './format'
+import { DAY_MS, fmtClock } from './format'
 import type { Sample } from './memory'
 
 export type DayCell = Readonly<{
@@ -54,7 +54,6 @@ type Known<C> = C & Readonly<{ pct: number }>
 export const isKnown = <C extends DayCell | HourCell>(c: C): c is Known<C> => !c.guess && c.pct !== undefined
 
 const HOUR_MS = 3600_000
-const DAY_MS = 24 * HOUR_MS
 // resetsAt readings of one window can differ by a few seconds.
 const SAME_RESET_MS = 60_000
 

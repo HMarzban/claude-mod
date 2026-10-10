@@ -105,7 +105,8 @@ export const clipMiddle = (text: string, max: number): string => {
 /** How long ago, coarsely: `2d 4h`, `3h 05m`, `12m`; under a minute is `now`. */
 export const fmtAgo = (ms: number): string => (ms < 60_000 ? 'now' : fmtSpan(ms))
 
-const DAY_MS = 24 * 3600_000
+/** A day. */
+export const DAY_MS = 24 * 3600_000
 /** The 5-hour limit's window. */
 export const FIVE_HOUR_MS = 5 * 3600_000
 /** The weekly limit's window. */
