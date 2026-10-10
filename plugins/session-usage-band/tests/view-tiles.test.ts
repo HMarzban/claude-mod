@@ -85,6 +85,10 @@ test('open, a limit keeps the colours its tile has shut', async ($, on) => {
 test('open, a projection is a dashed underline', async ($, on) => {
   expect(svgsOf((await at($, on, 'calm', D160)).open).some(n => /stroke-dasharray/.test(String(n.props?.source)))).toBe(true)
 })
+test("open, a projection's underline says where the limit lands", async ($, on) => {
+  const dashed = svgsOf((await at($, on, 'calm', D160)).open).filter(n => /stroke-dasharray/.test(String(n.props?.source)))
+  expect(dashed.map(n => n.props?.alt)).toEqual(['5h limit about 10 percent at its reset', '7d limit about 50 percent at its reset'])
+})
 const desktop = (cols: number, maxRows: number): Mount => ({ surface: 'desktop', cols, maxRows })
 /** Four rows under each title, at 160 columns. */
 const FOUR_ROWS = desktop(160, 11)

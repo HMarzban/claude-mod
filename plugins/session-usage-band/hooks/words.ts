@@ -146,7 +146,10 @@ export type ContextWords = Readonly<{
   alt: string
 }>
 
-export type SpendSplit = Readonly<{ label: 'input' | 'output' | 'cache reads'; tokens: number; text: string; frac: number }>
+/** The kinds the session's tokens split into, in the order they are drawn. */
+export const SPLIT_LABELS = ['input', 'output', 'cache reads'] as const
+
+export type SpendSplit = Readonly<{ label: (typeof SPLIT_LABELS)[number]; tokens: number; text: string; frac: number }>
 
 export type SpendWords = Readonly<{
   /** `$3.19`, the last message's `$0.21`, and the tokens, `225k`. */
@@ -174,6 +177,9 @@ export type LimitWords = Readonly<{
   /** Where the window lands at its reset, `~10%`; none at 100% or more,
    *  where `pace` says `full before reset`. */
   projectedText: string | undefined
+  /** The landing for a reader, `5h limit about 10 percent at its reset`,
+   *  set where `projectedText` is. */
+  projectedAlt: string | undefined
   /** A measured fill, `~40m`, and when, `~14:20` (the offset known). */
   fullIn: string | undefined
   fullAtClock: string | undefined
@@ -288,18 +294,18 @@ export const contextWords = (f: ContextFacts): ContextWords => {
 }
 
 /** The session's cost and tokens in words, the tokens split by kind. */
-export const spendWords = (f: SpendFacts): SpendWords => ({
-  totalText: fmtCost(f.totalUsd),
-  lastText: f.lastTurnUsd === null ? undefined : fmtSmallCost(f.lastTurnUsd),
-  tokensText: fmtTokens(f.total),
-  split: (
-    [
-      ['input', f.sent],
-      ['output', f.back],
-      ['cache reads', f.cached],
-    ] as const
-  ).map(([label, tokens]) => ({ label, tokens, text: fmtTokens(tokens), frac: f.total > 0 ? tokens / f.total : 0 })),
-})
+export const spendWords = (f: SpendFacts): SpendWords => {
+  const tokensByLabel: Readonly<Record<SpendSplit['label'], number>> = { input: f.sent, output: f.back, 'cache reads': f.cached }
+  return {
+    totalText: fmtCost(f.totalUsd),
+    lastText: f.lastTurnUsd === null ? undefined : fmtSmallCost(f.lastTurnUsd),
+    tokensText: fmtTokens(f.total),
+    split: SPLIT_LABELS.map(label => {
+      const tokens = tokensByLabel[label]
+      return { label, tokens, text: fmtTokens(tokens), frac: f.total > 0 ? tokens / f.total : 0 }
+    }),
+  }
+}
 
 /** A limit window in words; once it has passed, only that it reset. */
 export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
@@ -307,7 +313,9 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const live = !f.passed
   const projected = live ? f.projectedPct : undefined
   const fills = projected !== undefined && fillsBeforeReset(projected)
-  const projectedText = projected === undefined || fills ? undefined : `~${Math.round(projected)}%`
+  const lands = projected !== undefined && !fills
+  const projectedText = lands ? `~${Math.round(projected)}%` : undefined
+  const landing = lands ? `about ${Math.round(projected)} percent at its reset` : undefined
   const etaMs = live ? f.etaMs : null
   const fullIn = etaMs !== null ? fmtEta(etaMs) : undefined
   const fullAtClock = etaMs !== null && off !== undefined ? `~${fmtClock(frame.now + etaMs, off)}` : undefined
@@ -326,6 +334,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     resetClock,
     resetAtGlyph: resetClock === undefined ? resetGlyph : `${ascii ? 'resets' : '↻'} ${resetClock}`,
     projectedText,
+    projectedAlt: landing === undefined ? undefined : altOf(`${f.name} limit`, landing),
     fullIn,
     fullAtClock,
     amber: f.tone !== 'amber' ? undefined : fullIn !== undefined ? AMBER.limitPace(f.name, fullIn) : AMBER.limit(f.name, f.percentUsed),
@@ -346,9 +355,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
         ? `full in ${fmtEtaSpoken(etaMs)}`
         : fills
           ? 'full before its reset'
-          : projected !== undefined
-            ? `about ${Math.round(projected)} percent at its reset`
-            : undefined,
+          : landing,
     ),
   }
 }

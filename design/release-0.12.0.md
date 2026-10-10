@@ -181,6 +181,12 @@ Open items cleared on `feat/layouts` after 0119b9a.
   - A stored list past the cap reads as its newest week. A stored record past `MAX_SESSIONS` is written back as its newest 50. Malformed entries are dropped from both. Fifty sessions at UUIDs and 13-digit times are 3,201 bytes (bound 4,000).
   - The soak starts from a stored week at the cap, so its 100,000-byte bound now sees it: the list stays at 672 as each new bucket evicts the oldest, and the whole store reads 61,239 bytes.
   - With the caps lifted, each of these fails. 1046 pass, 0 fail, 48 files. Users see no change, so the CHANGELOG has no line.
+- **The alt text** (Task 29's deferred `projectedAlt` and share `reads`), in bec9ac8, e17359c and 12b5c1f:
+  - Open tiles' dashed underline reads `5h limit about 10 percent at its reset`, from `LimitWords.projectedAlt`, where it read `5h at its reset`.
+  - `meter`'s `reads` gains `share`. Gauges' hit rate and the split bars in gauges and rings say `hit rate 96%` and `input 94%`, where they said `hit rate 0% used` and `input 94% used`.
+  - A sweep of every alt the views draw, on the desktop at 200 columns in all 20 scenarios, shut and open, found no other.
+  - `matrix.ts` now fails an alt that says a share is used or left, or a landing without its figure. Against the hooks before the fixes, 85 of the gauges, rings and tiles suites' 105 cases fail it.
+  - 1050 pass, 0 fail, 48 files. Golden is unchanged. These layouts are new in 0.12.0, so Added covers the change and the CHANGELOG has no line.
 
 ## Pending the maintainer
 
@@ -274,8 +280,6 @@ Each is a `Pending maintainer:` line, or Task 29's deferred findings, still open
 - §4.1 says "The list reply comes from it" of `VIEWS`. The command's list is built from `LAYOUT_NAMES`.
 
 **Deferred follow-ups (Task 29's minor findings)**
-- A `projectedAlt` on `LimitWords`, for open tiles' underline alt, which reads `5h at its reset` with no value.
-- A `reads` option for a share on `meter`. Gauges' `hit rate 0% used` and the split bars' `input 94% used` misstate a share.
 - `LimitWords.valueText`, for the four `l.passed ? 'reset' : l.value` copies.
 - `cacheWords` taking the snapshot's cache, and `CacheFacts.estimate` and `LimitFacts.value` holding words: a pure move between the layers.
 

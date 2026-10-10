@@ -154,19 +154,19 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const x = read.context
   const s = read.spend
   const room = gridRoom(kit, bodyRows)
-  const bar = (key: string, label: string, frac: number, accent: string, more: Partial<Pick<MeterOptions, 'tone' | 'tick' | 'projectTo'>> = {}) =>
+  const bar = (key: string, label: string, frac: number, accent: string, more: Partial<Pick<MeterOptions, 'tone' | 'reads' | 'tick' | 'projectTo'>> = {}) =>
     meter(kit, { key, label, frac, tone: 'calm', accent, size: CELL_BAR, ...more })
   const none = (text: string) => words(kit, 'none', [[text, 'label']])
   // What needs you leads, so a panel short of rows keeps it.
   const limits = amberFirst(read.limits)
   return grid(kit, [
-    section(kit, 'cache', 'CACHE', chartsIfRoom(room, [c.hitFrac === undefined ? null : bar('hit:bar', 'hit rate', c.hitFrac, p.warm)], [
+    section(kit, 'cache', 'CACHE', chartsIfRoom(room, [c.hitFrac === undefined ? null : bar('hit:bar', 'hit rate', c.hitFrac, p.warm, { reads: 'share' })], [
       fact(kit, 'hit', 'hit rate', c.hitText),
       fact(kit, 'saved', 'saved', c.savedText),
       fact(kit, 'lasts', 'lasts', c.lastsText),
       c.reWarmText === undefined ? null : words(kit, 'reWarm', [[c.reWarmText, 'value']]),
     ]), room),
-    section(kit, 'spend', 'SPEND', chartsIfRoom(room, s.split.map(part => bar(`${part.label}:bar`, part.label, part.frac, p[SPLIT_INK[part.label]])), [
+    section(kit, 'spend', 'SPEND', chartsIfRoom(room, s.split.map(part => bar(`${part.label}:bar`, part.label, part.frac, p[SPLIT_INK[part.label]], { reads: 'share' })), [
       fact(kit, 'total', 'session', s.totalText),
       fact(kit, 'tokens', 'tokens', s.tokensText),
       fact(kit, 'last', 'last message', s.lastText),

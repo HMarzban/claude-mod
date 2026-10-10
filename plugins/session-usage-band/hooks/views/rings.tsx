@@ -154,7 +154,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       fact(kit, 'hit', 'hit rate', c.hitText),
       fact(kit, 'lasts', 'lasts', c.lastsText),
     ], ringRows), room),
-    section(kit, 'spend', 'SPEND', chartsIfRoom(room, s.split.map((part, i) => meter(kit, { key: `split${i}`, label: part.label, frac: part.frac, tone: 'calm', accent: splitInks[i] ?? p.meterFill })), [
+    section(kit, 'spend', 'SPEND', chartsIfRoom(room, s.split.map((part, i) => meter(kit, { key: `split${i}`, label: part.label, frac: part.frac, tone: 'calm', accent: splitInks[i] ?? p.meterFill, reads: 'share' })), [
       fact(kit, 'total', 'session', s.totalText),
       fact(kit, 'last', 'last message', s.lastText),
       ...s.split.map(part => fact(kit, part.label, part.label, part.text)),

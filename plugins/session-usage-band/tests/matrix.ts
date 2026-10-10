@@ -10,6 +10,7 @@ import { DESKTOP, ROW_PX, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
 import type { BandActions, BandSnapshot, Glyphs, LayoutName } from '../hooks/snapshot'
 import { VIEWS } from '../hooks/views/index'
+import { SPLIT_LABELS } from '../hooks/words'
 import { rowsOf } from '../hooks/views/view'
 import { SCENARIOS, SCENARIO_NAMES, caseKey, drawCases, type AmberReason, type Appearance, type CaseOptions, type Mount, type ScenarioName, type Surface } from './cases'
 
@@ -140,6 +141,9 @@ const ASCII_TIER = /^[\x20-\x7e]*$/
 const NOTHING = /\b(NaN|undefined|null)\b/i
 /** What spec §2.9 bars from any Svg's markup: an id, a gradient, a pattern, a clipPath. */
 const SVG_BARRED = /<(linearGradient|radialGradient|pattern|clipPath)\b|\bid=/
+/** An alt that misstates its reading (spec §2.13): a share said as used or
+ *  left, or a landing without its figure. */
+const MISSTATED = new RegExp(`\\b(hit rate|${SPLIT_LABELS.join('|')}) \\d+% (used|left)|(?<!\\d percent) at its reset`)
 /** A price or a fill time drawn without its `~` (spec §2.4). */
 const UNMARKED = /re-warm \$|next message \$|full (in |at )?\d|on pace for \d/i
 
@@ -190,6 +194,7 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
     if (s.props?.id !== undefined || SVG_BARRED.test(typeof s.props?.source === 'string' ? s.props.source : ''))
       fail('svgProps', 'an Svg with an id, a gradient, a pattern or a clipPath')
     if (typeof alt === 'string' && NOTHING.test(alt)) fail('empty', `an alt reads "${alt}"`)
+    if (typeof alt === 'string' && MISSTATED.test(alt)) fail('alt', `an alt reads "${alt}"`)
   }
 
   const text = shown(tree)

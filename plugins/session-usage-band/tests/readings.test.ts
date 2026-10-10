@@ -107,6 +107,7 @@ test('limits speak in words, amber with one "! "', () => {
   expect(r.fiveHour?.boardAmber).toBe('! NEAR LIMIT')
   expect([r.fiveHour?.resetWords, r.fiveHour?.resetGlyph, r.fiveHour?.resetInMs]).toEqual(['resets in 3h 00m', '↻ in 3h 00m', 3 * HOUR])
   expect([r.sevenDay?.projectedText, r.sevenDay?.pace, r.sevenDay?.boardShort]).toEqual(['~50%', 'on pace for ~50%', '~50% AT ↻'])
+  expect(r.sevenDay?.projectedAlt).toBe('7d limit about 50 percent at its reset')
   expect(Math.abs((r.sevenDay?.projectedFrac ?? 0) - 30 / (1 - 67 / 168) / 100)).toBeLessThan(1e-5)
 })
 test('a measured fill is an estimate, with ~, in words and on the board', () => {
@@ -121,6 +122,7 @@ test('a landing at or over 100% is full before reset, never ~112%', () => {
   const r = readingsOf(snapOf({ sevenDay: { percentUsed: 79, resetsAt: new Date(50 * HOUR).toISOString() } }))
   expect(r.sevenDay?.projectedPct ?? 0).toBeGreaterThan(100)
   expect([r.sevenDay?.tone, r.sevenDay?.pace, r.sevenDay?.projectedText, r.sevenDay?.boardShort]).toEqual(['calm', 'full before reset', undefined, 'FULL BEFORE ↻'])
+  expect(r.sevenDay?.projectedAlt).toBeUndefined()
   expect(r.sevenDay?.alt).toBe('7d limit 79 percent used, fine, full before its reset')
 })
 test('a measured fill lands at 100, so it too is full before reset', () => {
