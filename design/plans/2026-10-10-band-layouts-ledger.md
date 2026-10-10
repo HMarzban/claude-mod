@@ -68,6 +68,8 @@ What the plan's steps record, in the order they happen.
 | Task 24 (built ahead, on Task 23's branch) | 403 pass, 0 fail, 31 files | `claude plugin test plugins/session-usage-band` |
 | Task 24 (review) | 405 pass, 0 fail, 31 files | `claude plugin test plugins/session-usage-band` |
 | Task 24 (second review) | 405 pass, 0 fail, 31 files | `claude plugin test plugins/session-usage-band` |
+| Task 24 (third review, rebased on 5812aca) | 536 pass, 0 fail, 38 files | `claude plugin test plugins/session-usage-band` |
+| Task 24 (third review, `TZ=Asia/Tehran`) | 536 pass, 0 fail, 38 files | `TZ=Asia/Tehran claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
@@ -146,6 +148,10 @@ Ruling: a slice's `fullMark` is the slice holding a measured fill (`fullAt`) for
 Ruling: the calendar's alt text says `'not known yet'` inline in `cellsSpoken` when no cell is measured or guessed, not as a new `EMPTY` entry, so Task 4's `empty states read like the band` assertion stays unchanged — no fallback.
 Ruling: the plan's `a sample from another window is ignored` test passed with the window filter removed, since its unsorted samples left the stale one before `s(20, 5)`, the last inside day 0; the test keeps the samples sorted with the stale one last (`s(0, 0), s(10, 5), { ...s(15, 50), sevenResetAt: T0 - H }`), and fails with the filter removed — every assertion unchanged — no fallback.
 Ruling: the plan's `a failing store never throws` test passed before the code and still passed with the `limitSamples` write's `.catch` removed, since the engine drops a hook that throws without a sign; it also asserts `turn.complete`'s closing redraw, and fails with that `.catch` removed — no assertion changed, one added — no fallback.
+Ruling: Task 24 rebased onto 5812aca, with Tasks 10b, 13 and 14b in — the built-ahead stand-ins go: `LimitView` is Task 13's `LimitFacts & LimitWords`, `LimitFacts` keeps Task 13's one `resetInMs`, `memory.ts` keeps 10b's `LAYOUT_KEY` beside `LIMIT_SAMPLES_KEY`, `readingsOf` hoists `fiveHour`/`sevenDay` for `history`, `week` and its fields, and `turn.complete` takes one `now` for the sample and the offset before `await readLayout($)`; the merge note above is settled, `weekWords` reading `l.pace` — no fallback.
+Ruling: a week summary adds ` by ${resetClock}` to a landing alone (`projectedText` set, so `pace` reads `on pace for ~N%`) — a measured fill keeps `full in ~40m`, since ` by 16:40` would give the reset as the fill's time, and `full before reset` already names the reset; `'30% used · on pace for ~65% by Thu 00:00 · busiest Sat'` — no fallback; the review's form added it to every pace.
+Ruling: `HourCell` gains `startClock` (`fmtClock` of the slice's start), and `hoursAlt` speaks it — the hours are cut from the 5h reset, so `08:00` for an hour from 08:40 was up to 59 minutes off, and the plan's `08:00` form holds only for a reset on the hour; `label` stays the clock hour the views draw — no fallback.
+Ruling: `storedSamples` gives undefined on a failed read, and `noteSample` then keeps the sample in memory alone, writing at the next bucket — a write after a failed read laid this session's copy over every sample other sessions had stored since its last good read; `helpers.ts` gains `storeReadFails`, since a `store.get` hook that throws rejects the plugin's read — no fallback.
 
 ## Freezes
 - P1 freeze (Task 14), at dc28d40: these interfaces are frozen for P2. Gates green: `claude plugin validate .` and `claude plugin validate plugins/session-usage-band` pass, the suite passes in both zones (456 pass, 0 fail, 35 files), and `tsc` reports no errors.
