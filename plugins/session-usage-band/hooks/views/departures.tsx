@@ -201,7 +201,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const x = read.context
   const s = read.spend
   const { Box } = kit
-  // Where the room can't hold TIME whole, its words lead REMARKS, never cut mid-word.
+  // Where the room can't hold TIME whole, its words lead REMARKS as TIME draws them, never cut mid-word.
   const timed = fixedCells(kit) <= lineRoom(kit)
   // Each title sits over its column's text, as far in as a flap's.
   const head = (key: string, title: string) => (
@@ -211,14 +211,14 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   )
   /** A row of flaps; a time or remarks not known read `–`. */
   const row = (key: string, item: readonly [string, Ink?], status: readonly [string, Ink], time: string | undefined, remarks: readonly (string | undefined)[]): BoardRow => {
-    const said = [timed ? undefined : time, ...remarks].filter((r): r is string => r !== undefined && r !== '')
+    const said = [...(timed || time === undefined ? [] : [time]), ...remarks.filter((r): r is string => r !== undefined && r !== '').map(up)]
     return {
       amber: status[1] === 'amber',
       line: boardLine(kit, key, [
         flap(kit, 'item', ...item),
         flap(kit, 'status', ...status),
         timed ? flap(kit, 'time', time ?? '–') : null,
-        flap(kit, 'remarks', said.length === 0 ? '–' : up(said.join(' · ')), 'dim'),
+        flap(kit, 'remarks', said.length === 0 ? '–' : said.join(' · '), 'dim'),
       ]),
     }
   }

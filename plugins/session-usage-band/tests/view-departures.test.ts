@@ -167,6 +167,10 @@ test('open where TIME can\'t fit whole, the board drops the column and its words
   expect(remarks(narrow, 'cache')).toMatch(/^IN 1H 00 MIN · RE-WARM/)
   expect(remarks(narrow, '5H')).toMatch(/^↻ \d{2}:\d{2} · 4% USED/)
 })
+test('open on a narrow board in the last minute, REMARKS leads with the seconds as TIME draws them', LONG, async ($, on) => {
+  const open = (await at($, on, 'lastMinute', { surface: 'terminal', cols: 50 }, '5m')).open
+  expect(shown(byKey(byKey(byKey(open, 'body', 'Box'), 'cache', 'Box'), 'remarks', 'Box'))).toMatch(/^30s · RE-WARM/)
+})
 /** At 40 columns a single amber reason stays whole, and the line within its room. */
 const T40: Mount = { surface: 'terminal', cols: 40 }
 for (const appearance of ['dark', 'plain'] as const)
