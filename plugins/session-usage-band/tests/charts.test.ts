@@ -49,6 +49,19 @@ test("the meter's tick stays inside the bar at either end", () => {
     expect(x + tickWidth).toBeLessThanOrEqual(n.props.width)
   }
 })
+test("the meter's tick has a 1 px knockout of the card's ground either side", () => {
+  const source = svg(meter(desk, { label: '5h', frac: 0.5, tone: 'calm', accent: '#7fcf8a', tick: 0.5 })).props.source
+  const rect = (cls: string) => {
+    const tag = new RegExp(`<rect class="${cls}"[^>]*>`).exec(source)?.[0] ?? ''
+    return { x: Number(/ x="([^"]+)"/.exec(tag)?.[1]), width: Number(/ width="([^"]+)"/.exec(tag)?.[1]), tag }
+  }
+  const tick = rect('tick')
+  const knockout = rect('knockout')
+  expect([knockout.x, knockout.width]).toEqual([tick.x - 1, tick.width + 2])
+  expect(knockout.tag).toMatch(new RegExp(`fill="${snapOf().palette.cardBg}"`))
+  expect(tick.tag).not.toMatch(/stroke=/)
+  expect(source.indexOf('class="knockout"')).toBeLessThan(source.indexOf('class="tick"'))
+})
 test('a guessed day cell is dashed', () => {
   expect(svg(dayCells(desk, { key: 'd', alt: 'week', values: [6, 7], guess: [false, true], today: 0, color: '#a99cf0', cellPx: 16, height: 16 })).props.source).toMatch(/stroke-dasharray/)
 })

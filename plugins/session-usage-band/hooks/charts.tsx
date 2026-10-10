@@ -65,6 +65,8 @@ export type MeterOptions = Readonly<{
   tone: Tone
   accent: string
   size?: BarSize
+  /** Chips' cards alone: an Svg with no width, capped by its slot, which
+   *  spec §2.9 bars from every other view. */
   stretch?: boolean
   reads?: 'used' | 'left'
   /** A mark across the bar at this fraction: a line the fill is measured against. */
@@ -93,6 +95,7 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
     // No clipPath: ids are document-wide where Svgs share a page, so a
     // rounded fill draws its own ends.
     const fillWidth = frac > 0 ? Math.max(6 * k, Math.round(clamp01(frac) * width)) : 0
+    const tickX = tick === undefined ? undefined : Math.max(0, Math.min(width - 2 * k, tenth(clamp01(tick) * width - k)))
     const marks =
       `<rect x="${0.5 * k}" y="1.5" width="${width - k}" height="5" rx="${2.5 * k}" ry="2.5" fill="${palette.meterTrack}" stroke="${palette.trackStroke}"${scaling}/>` +
       (projectTo === undefined
@@ -102,10 +105,12 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
         ? `<rect class="fill" y="1" width="${fillWidth}" height="6" rx="${3 * k}" ry="3" fill="${fill}"/>` +
           `<rect class="thumb" x="${Math.min(width - 2 * k, fillWidth - k)}" y="0" width="${2 * k}" height="${tall}" rx="${k}" ry="1" fill="${palette.value}"/>`
         : '') +
-      // Knocked out of the ground, so it reads over the fill and the track alike.
-      (tick === undefined
+      // Knocked out of the ground a pixel either side, so it reads over the
+      // fill and the track alike.
+      (tickX === undefined
         ? ''
-        : `<rect class="tick" x="${Math.max(0, Math.min(width - 2 * k, tenth(clamp01(tick) * width - k)))}" y="-1" width="${2 * k}" height="${tall + 2}" fill="${palette.value}" stroke="${palette.cardBg}"${scaling}/>`)
+        : `<rect class="knockout" x="${tenth(tickX - k)}" y="-1" width="${4 * k}" height="${tall + 2}" fill="${palette.cardBg}"/>` +
+          `<rect class="tick" x="${tickX}" y="-1" width="${2 * k}" height="${tall + 2}" fill="${palette.value}"/>`)
     const source = svgOf(width, tall, marks, stretch ? ' preserveAspectRatio="none"' : '')
     const alt = `${label} ${Math.round(clamp01(frac) * 100)}% ${reads}`
     return stretch ? (
