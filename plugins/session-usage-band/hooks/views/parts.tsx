@@ -95,7 +95,7 @@ export const layoutCachePill = (kit: Kit, read: Readings, short: boolean): Rende
   const c = read.cache
   const text = c.amber !== undefined ? (short ? c.amber.short : c.amber.long) : short ? c.textShort : c.text
   const fg = onTone(c.tone, palette.value)
-  // The ascii text is mapped before the battery's cut, as chips maps its own.
+  // The ascii text is mapped before the battery's cut, as chips maps its own on a terminal.
   const body = Svg
     ? [batteryIcon(kit, c.charge, c.tone, c.alt), <Text key="c" color={fg}>{` ${text}`}</Text>]
     : palette.filled

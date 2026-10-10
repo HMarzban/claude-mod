@@ -175,7 +175,7 @@ export type CacheFacts = Readonly<{
   known: boolean
   /** The hit ratio, once measured. */
   hitFrac: number | undefined
-  /** Time to cold while it counts down: warm or expiring, and Claude not working. */
+  /** Time to cold while it counts down: expiring, or warm while Claude isn't working. */
   coldInMs: number | undefined
 }>
 

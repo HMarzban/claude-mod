@@ -192,8 +192,8 @@ const BOARD: Readonly<Record<CacheMood, string>> = {
 
 /** The cache in words, from its facts: it counts down only while `coldInMs` is set. */
 export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame): CacheWords => {
-  const working = f.mood === 'warm' && frame.isWorking
   const counting = f.coldInMs !== undefined
+  const working = f.mood === 'warm' && !counting
   const left = counting ? fmtLeft(f.coldInMs) : ''
   const leftShort = counting ? fmtLeftShort(f.coldInMs) : ''
   const off = frame.utcOffsetMin
@@ -235,11 +235,11 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
         ? 'cache not measured yet'
         : f.mood === 'warming'
           ? 'cache warming'
-          : working
-            ? altOf('cache', 'warm', 'Claude is working')
-            : f.mood === 'cold'
-              ? altOf('cache', 'cold', `re-warm about ${price}`)
-              : altOf('cache', fmtLeftSpoken(c.msLeft), CONDITION[f.mood], f.mood === 'expiring' ? `re-warm about ${price}` : undefined),
+          : f.mood === 'cold'
+            ? altOf('cache', 'cold', `re-warm about ${price}`)
+            : counting
+              ? altOf('cache', fmtLeftSpoken(f.coldInMs), CONDITION[f.mood], f.mood === 'expiring' ? `re-warm about ${price}` : undefined)
+              : altOf('cache', 'warm', 'Claude is working'),
   }
 }
 
@@ -287,8 +287,9 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const live = !f.passed
   const projected = live ? f.projectedPct : undefined
   const projectedText = projected === undefined ? undefined : `~${Math.round(projected)}%`
-  const fullIn = f.etaMs !== null ? fmtEta(f.etaMs) : undefined
-  const fullAtClock = f.etaMs !== null && off !== undefined ? `~${fmtClock(frame.now + f.etaMs, off)}` : undefined
+  const etaMs = live ? f.etaMs : null
+  const fullIn = etaMs !== null ? fmtEta(etaMs) : undefined
+  const fullAtClock = etaMs !== null && off !== undefined ? `~${fmtClock(frame.now + etaMs, off)}` : undefined
   const say: Say = [[`${f.name} `, 'label'], [live ? f.value : 'reset', 'value']]
   return {
     text: joined(say),
@@ -314,7 +315,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
       `${f.name} limit`,
       live ? `${Math.round(f.percentUsed)} percent used` : 'reset',
       f.tone === 'amber' ? 'needs attention' : 'fine',
-      f.etaMs !== null ? `full in ${fmtEtaSpoken(f.etaMs)}` : projected !== undefined ? `about ${Math.round(projected)} percent at its reset` : undefined,
+      etaMs !== null ? `full in ${fmtEtaSpoken(etaMs)}` : projected !== undefined ? `about ${Math.round(projected)} percent at its reset` : undefined,
     ),
   }
 }

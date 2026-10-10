@@ -45,7 +45,7 @@ What the plan's steps record, in the order they happen.
 | Task 10c (merged) | 356 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 12 | 354 pass, 0 fail, 26 files | `claude plugin test plugins/session-usage-band` |
 | Task 12 (merged) | 358 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
-| Task 13 | 420 pass, 0 fail, 32 files | `claude plugin test plugins/session-usage-band` |
+| Task 13 | 422 pass, 0 fail, 32 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
@@ -63,9 +63,11 @@ Pending maintainer: the ascii-tier check `snap.surface === 'terminal' && snap.gl
 Pending maintainer: spec §4 file table (line 161) lists `cachePill` under `views/parts.tsx`, while the plan's Task 9a keeps it in `chips.tsx`; drop it from that row, or name Task 13's `layoutCachePill`.
 Pending maintainer: plan Task 13 Step 6's `layoutCachePill` passes `text` to `textBattery` unmapped, against the `textBattery` ruling above; on a terminal in the ascii tier `asciiTree` would then map after the cut. It takes no `snap`, so it needs the ascii check passed in (or `asciiTier(snap)` once it exists) and `ascii ? asciiText(text) : text` on the filled terminal path.
 Ruling: Task 13's `layoutCachePill` maps its text with `asciiText` before `textBattery` cuts it, when `read.frame.glyphs` is `'ascii'` on the filled path without Svg — this settles the pending line above with no new parameter and no `snap`, as the `textBattery` ruling asks; `parts.test` pins it on a direct call, since through `drawBand` every cache phrase maps one character to one — no fallback.
-Ruling: Task 13 holds the countdown rule once — `cacheFacts.coldInMs` is set while the cache counts down (expiring, or warm and Claude not working), and `cacheWords` reads it rather than re-deriving it; `hitText` is built from `hitFrac` with `words.ts`' `pct` — the facts feed the words, as spec §4.1 layers them — no fallback.
+Ruling: Task 13 holds the countdown rule once — `cacheFacts.coldInMs` is set while the cache counts down (expiring, or warm while Claude isn't working), and `cacheWords` reads it for `left`, `leftShort`, `boardLeft` and the counting alt, and derives `working` from it rather than from `isWorking`; only the clock reads `c.msLeft`, since a cold cache's `coldSinceClock` has no countdown; `hitText` is built from `hitFrac` with `words.ts`' `pct` — the facts feed the words, as spec §4.1 layers them — no fallback.
 Ruling: Task 13's `fmtLeftShort` and `fmtBoardLeft` are built on `format.ts`' own `secondsLeft` and `minutesLeft`, and `fmtLeft` becomes `` `${fmtLeftShort(ms)} left` `` — the same output at every input, which `phrases.test` pins — no fallback.
 Ruling: Task 13's `readings.test` drops the plan's `const MIN = 60_000`, because the file already imports `MIN` from `helpers.ts` and a second declaration would stop it loading; the test imports are merged at the top — no assertion changed — no fallback.
+Ruling: Task 13's `fmtSecondsLeft` is kept with no production caller — `fmtLeft` now covers its output, but spec §4.3 names it for the views to come; `phrases.test` pins it — no fallback.
+Ruling: Task 13's `limitWords` reads a window's fill time only while it is live (`etaMs` is `null` once it has passed), as `pace` and `projectedText` do — `fiveHourEtaMs` can still give a fill just after a reset, which drew `fullIn: '~5m'` and "full in" on a reset window; `readings.test` pins it — no fallback.
 Pending maintainer: `layoutCachePill` maps ascii on any filled surface without Svg, while chips and `band.tsx` map only when `surface === 'terminal'`; `RenderSurface` also has `mobile` and `vscode`, where a CJK locale would map the cache pill alone. The kit carries no `surface`, though spec §4.1 says it holds one; with `kit.surface` (Task 13 doesn't own `kit.tsx`) the guard would match chips'.
 
 ## Freezes

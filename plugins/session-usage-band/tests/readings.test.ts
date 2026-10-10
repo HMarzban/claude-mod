@@ -67,6 +67,12 @@ test('working, the cache shows no countdown', () => {
   expect([c.text, c.board, c.left]).toEqual(['cache warm', 'BOARDING', ''])
   expect(c.coldInMs).toBeUndefined()
 })
+test('working, an expiring cache still counts down', () => {
+  const c = readingsOf(snapOf({ isWorking: true, cache: cacheAt(47_000) })).cache
+  expect(c.coldInMs).toBe(47_000)
+  expect([c.condition, c.board]).toEqual(['cooling', 'LAST CALL'])
+  expect(c.amber).toBeDefined()
+})
 test('cold is a price', () => {
   const c = readingsOf(snapOf({ cache: cacheAt(-MIN) })).cache
   expect([c.text, c.textShort, c.reWarmText, c.board]).toEqual(['cache cold · re-warm ~$1.66', 'cold ~$1.66', 'next message ~$1.66', 'DEPARTED'])
@@ -78,7 +84,11 @@ test('an hour left is said in full, on the board and to a reader', () => {
   expect(c.alt).toBe('cache 1 hour left, warm')
 })
 test('the countdown never looks like a clock', () => {
-  for (const ms of [52 * MIN, 9.5 * MIN, 47_000]) expect(readingsOf(snapOf({ cache: cacheAt(ms) })).cache.left).not.toMatch(/\d:\d\d/)
+  for (const ms of [52 * MIN, 9.5 * MIN, 47_000]) {
+    const { left } = readingsOf(snapOf({ cache: cacheAt(ms) })).cache
+    expect(left).toMatch(/^\d+[hms].* left$/)
+    expect(left).not.toMatch(/\d:\d\d/)
+  }
 })
 test('clock times appear only when the offset is known', () => {
   expect(readingsOf(snapOf()).cache.coldAtClock).toBeUndefined()
@@ -108,6 +118,11 @@ test('a measured fill is an estimate, with ~, in words and on the board', () => 
 test('a passed window has no reset words', () => {
   const r = readingsOf(snapOf({ now: 4 * HOUR }))
   expect([r.fiveHour?.text, r.fiveHour?.resetWords, r.fiveHour?.resetGlyph, r.fiveHour?.boardShort]).toEqual(['5h reset', undefined, undefined, 'RESET'])
+})
+test('a passed window has no fill time', () => {
+  const r = readingsOf(snapOf({ now: 4 * HOUR, fiveHour: { percentUsed: 84, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 0 } }))
+  expect([r.fiveHour?.fullIn, r.fiveHour?.fullAtClock]).toEqual([undefined, undefined])
+  expect(r.fiveHour?.alt).not.toMatch(/full in/)
 })
 test('context speaks toward compaction, or of the window when it is off', () => {
   const near = readingsOf(snapOf({ context: { tokens: 176_000, window: 200_000, percent: 88, compactAt: 190_000 } })).context
