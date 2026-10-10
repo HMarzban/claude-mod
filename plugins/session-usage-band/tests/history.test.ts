@@ -68,6 +68,8 @@ test('samples are written once per new 15-minute bucket, the percentages rising'
   expect(writes).toBeGreaterThanOrEqual(8)
   expect(writes).toBeLessThanOrEqual(9)
   const kept = asLimitSamples(engine.store.limitSamples).map(x => x.sevenPct)
+  // Each write holds one bucket more, the last one the newest.
+  expect(kept).toHaveLength(writes)
   expect(kept.every((pct, i) => i === 0 || pct > (kept[i - 1] ?? Infinity))).toBe(true)
 })
 test('a session reads the stored samples at start and at each new bucket, never within one', async ($, on) => {
