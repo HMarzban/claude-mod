@@ -161,6 +161,8 @@ export type SpendWords = Readonly<{
 }>
 
 export type LimitWords = Readonly<{
+  /** `4%`, or once its window has passed, `reset`. */
+  valueText: string
   /** `5h 4%`, or once its window has passed, `5h reset`. */
   text: string
   say: Say
@@ -319,13 +321,15 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const etaMs = live ? f.etaMs : null
   const fullIn = etaMs !== null ? fmtEta(etaMs) : undefined
   const fullAtClock = etaMs !== null && off !== undefined ? `~${fmtClock(frame.now + etaMs, off)}` : undefined
-  const say: Say = [[`${f.name} `, 'label'], [live ? f.value : 'reset', 'value']]
+  const valueText = live ? f.value : 'reset'
+  const say: Say = [[`${f.name} `, 'label'], [valueText, 'value']]
   const resetGlyph = f.reset?.kind === 'in' ? resetPhrase(f.reset, 'glyph') : undefined
   const resetClock = f.resetInMs !== undefined && off !== undefined ? fmtDayClock(frame.now + f.resetInMs, off, frame.now) : undefined
   // The ascii tier drops `↻`, so a phrase whose object is the glyph says its word.
   const ascii = frame.glyphs === 'ascii'
   const boardReset = ascii ? 'RESET' : '↻'
   return {
+    valueText,
     text: joined(say),
     say,
     pace: live ? paceText(f) : '',

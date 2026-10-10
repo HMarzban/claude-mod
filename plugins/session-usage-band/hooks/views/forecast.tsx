@@ -222,7 +222,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   // Counting down, when it goes cold and what then; else what the next message costs.
   const cacheOutcome = coldAt === undefined ? (c.reWarmText ?? `lasts ${c.lastsText}`) : c.amber !== undefined ? coldAt : `${coldAt}, then re-warm ${c.estimate}`
   const limit = (l: LimitView): Outlook =>
-    outlook(`limit ${l.name}`, l.name, l.passed ? 'reset' : l.value, {
+    outlook(`limit ${l.name}`, l.name, l.valueText, {
       tone: l.tone,
       bar: l.passed
         ? undefined

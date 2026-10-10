@@ -77,7 +77,7 @@ const limitTile = (kit: Kit, l: LimitView, step?: Piece): Tile => {
   const reset = words(kit, 'l', limitLabel(l))
   return {
     key: l.name,
-    value: valueOf(kit, l.passed ? 'reset' : l.value, l.amber),
+    value: valueOf(kit, l.valueText, l.amber),
     label: keeps => (keeps.has('resetText') ? reset : named),
     bar: barOf(kit, l.alt, l.frac, accentOf(kit, l), l.amber),
     amber: l.amber,
@@ -189,7 +189,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       const landingBar = l.projectedAlt === undefined || l.projectedFrac === undefined ? null : barOf(kit, l.projectedAlt, l.projectedFrac, accentOf(kit, l), undefined, true)
       return pair(kit, l.name, [
         // Amber, a limit still says when it resets.
-        tile('now', l.passed ? 'reset' : l.value, limitLabel(l), barOf(kit, l.alt, l.frac, accentOf(kit, l), l.amber), l.amber, l.resetGlyph === undefined ? [] : [[` ${l.resetGlyph}`, 'label']]),
+        tile('now', l.valueText, limitLabel(l), barOf(kit, l.alt, l.frac, accentOf(kit, l), l.amber), l.amber, l.resetGlyph === undefined ? [] : [[` ${l.resetGlyph}`, 'label']]),
         l.projectedText !== undefined
           ? tile('then', l.projectedText, `${l.name} at its reset`, landingBar)
           : // A landing past the top has no figure: its pace says it fills first,

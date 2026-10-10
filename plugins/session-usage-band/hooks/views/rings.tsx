@@ -30,9 +30,6 @@ const contextRing = (kit: Kit, x: ContextReading, px: number, centre?: string): 
 const limitRing = (kit: Kit, l: LimitView, px: number, centre?: string): RenderChildren =>
   ring(kit, { key: l.name, alt: l.alt, frac: l.frac, color: kit.onTone(l.tone, accentOf(kit, l)), px, centre, dot: l.gone })
 
-/** A limit's value on the line: its share, or once passed, that it reset. */
-const limitValue = (l: LimitView): string => (l.passed ? 'reset' : l.value)
-
 /** A reading as the collapsed line draws it: its ring and value, built once;
  *  its label, chosen by the squeeze; and the step it gives way at, if any. */
 type Figure = Readonly<{
@@ -98,7 +95,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
     tone: l.tone,
     amber: l.amber,
     ring: limitRing(kit, l, RING_PX),
-    value: valueWords(kit, limitValue(l), l.tone),
+    value: valueWords(kit, l.valueText, l.tone),
     // The reset is its own step: it gives way after the long labels, whatever they say.
     label: keeps => {
       const name = keeps.has('labelsLong') ? `${l.name} limit` : l.name
