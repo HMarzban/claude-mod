@@ -48,3 +48,9 @@ test('open with no context, the section says so', async ($, on) => {
 test('open and short of rows, an amber limit keeps its words', async ($, on) => {
   expect(shown((await at($, on, 'gatewaySpend', { surface: 'desktop', cols: 120, maxRows: 8 })).open)).toMatch(/! spend 92%, resets in 5h 00m/)
 })
+test('open, an amber limit keeps its pace', async ($, on) => {
+  expect(shown((await at($, on, 'limit80')).open)).toMatch(/! 5h 82%, resets in 3h 00m, full before reset/)
+})
+test('open, a limit filling before its reset says so once', LONG, async ($, on) => {
+  expect(shown((await at($, on, 'fiveHourAhead')).open)).toMatch(/! 5h full in ~1h, resets in \d+h \d+m(?!, full)/)
+})

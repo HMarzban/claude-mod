@@ -49,9 +49,9 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
 }
 
 /** A limit as a sentence: its reason while amber, else its value; then its
- *  reset, and a calm one's pace. */
+ *  reset and its pace, unless the reason is a measured fill, which says it. */
 const limitSentence = (kit: Kit, l: LimitView): RenderElement => {
-  const tail = [l.resetWords, l.amber === undefined ? l.pace : undefined].filter((t): t is string => t !== undefined && t !== '')
+  const tail = [l.resetWords, l.fullIn === undefined ? l.pace : undefined].filter((t): t is string => t !== undefined && t !== '')
   return words(kit, l.name, [l.amber !== undefined ? [l.amber.long, 'amber'] : [l.text, 'value'], ...tail.map(t => [`, ${t}`, 'label'] as const)])
 }
 
