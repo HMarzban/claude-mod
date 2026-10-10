@@ -270,7 +270,7 @@ The ledger records no sign-off for any of these:
 
 ### Release decisions
 
-- **0.11.13.** Main is at 0.11.12. 0.11.13 (216ab96, "chore: release 0.11.13", and the hover fix to 4882313) exists only on this branch and has no tag. Tag it at 216ab96 first, or let 0.12.0 carry it.
+- **0.11.13.** Main is at 0.11.12. 0.11.13 lives on `fix/hover-cards` (main..4882313) and has no tag. Do not tag 216ab96 ("chore: release 0.11.13"): it sits before the hover fixes and carries the first, row-wide card design that covered ▿. Squash `fix/hover-cards` onto main, tag that commit `session-usage-band--v0.11.13`, or let 0.12.0 carry it.
 - **The demos.** Run `tools/demos/build.sh` before the release, which also re-captures the gallery (above), or ship the film, GIF and gallery as they are.
 - **Step 3, in order:**
   1. Push `feat/layouts`.
