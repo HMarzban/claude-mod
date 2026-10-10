@@ -110,10 +110,11 @@ const nowDetailOf = (c: CacheReading): Detail => {
 }
 
 /** The cache's last minute, as now says it: `! cooling · 47s left`, its price
- *  beneath, then the readings' short form. With no detail row the price joins
- *  it, and the short form is the readings' long one, so the price stays. */
-const lastMinute = (kit: Kit, c: CacheReading, amber: Amber): Amber =>
-  kit.Svg ? { long: `! cooling · ${c.left}`, short: amber.short } : { long: `! cooling · ${c.left} · re-warm ${c.estimate}`, short: amber.long }
+ *  beneath, or with no detail row, after it; then the readings' short form. */
+const lastMinute = (kit: Kit, c: CacheReading, amber: Amber): Amber => ({
+  long: kit.Svg ? `! cooling · ${c.left}` : `! cooling · ${c.left} · re-warm ${c.estimate}`,
+  short: amber.short,
+})
 
 /** A change's head: its time, with how far off when it is the next, then what it is. */
 const changeHead = (kit: Kit, ch: Change, next: boolean, keeps: Keeps<Piece>): RenderElement => {
