@@ -34,7 +34,9 @@ const up = (text: string): string => text.toUpperCase()
 const inset = (kit: Kit): number => (kit.Svg !== undefined || !kit.palette.filled ? 1 : 0)
 
 /** One flap: the flap ground and an ink made for it. Plain has no ground,
- *  so `[ ]` draws its edges, unless it is drawn bare. */
+ *  so `[ ]` draws its edges, unless it is drawn bare. In a cell narrower
+ *  than its text the flap shrinks and its text truncates, so `]` stays;
+ *  the line's pieces never shrink, so there it keeps its width. */
 const flap = (kit: Kit, key: string, text: string, ink: Ink = 'text', bracketed = true): RenderElement => {
   const { Box, Text, palette } = kit
   const color = palette[INK[ink]]
@@ -45,7 +47,7 @@ const flap = (kit: Kit, key: string, text: string, ink: Ink = 'text', bracketed 
       </Text>
     ) : null
   return (
-    <Box key={key} flexShrink={0} {...(palette.filled ? { backgroundColor: palette.flap, paddingX: inset(kit) } : {})}>
+    <Box key={key} flexShrink={1} minWidth={0} {...(palette.filled ? { backgroundColor: palette.flap, paddingX: inset(kit) } : {})}>
       {edge('[')}
       <Text color={color} bold wrap="truncate-end">
         {text}
@@ -162,8 +164,8 @@ type BoardRow = Readonly<{ amber: boolean; line: RenderElement }>
 const fixedCells = (kit: Kit): number => COLUMNS.reduce((sum, cells) => sum + cells + 2 * inset(kit), COLUMNS.length - 1)
 
 /** One board line: the fixed columns, each as wide as its text and a flap's
- *  two edges and clipping what outgrows that, then REMARKS, which truncates
- *  first. TIME is null where the board has no room for it whole. */
+ *  two edges and truncating what outgrows that, then REMARKS, which
+ *  truncates first. TIME is null where the board has no room for it whole. */
 const boardLine = (kit: Kit, key: string, [item, status, time, remarks]: readonly [RenderElement, RenderElement, RenderElement | null, RenderElement]): RenderElement => {
   const { Box } = kit
   const edges = 2 * inset(kit)

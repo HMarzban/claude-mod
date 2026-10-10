@@ -75,6 +75,15 @@ test('on plain, each flap is drawn in [ ], until the line needs the room', async
   expect(shown(byKey(narrow, 'line', 'Box'))).not.toMatch(/[[\]]/)
   expect(shown(byKey(trees[caseKey(T160, 'open')], 'body', 'Box'))).toMatch(/\[CACHE\]\[DEPARTS \d{2}:\d{2}\]\[IN 1H 00 MIN\]/)
 })
+test('on plain, a flap shrinks to a cell narrower than its text, so the text truncates and its ] stays', async ($, on) => {
+  // The board's cells and the strip constrain a flap; the line's pieces never shrink, so there it keeps its width.
+  const shrinks: unknown[] = []
+  walk((await at($, on, 'calm', T160, '1h', 'plain')).open, (n: Node) => {
+    if (n.type === 'Box' && n.children?.some(c => shown(c) === ']')) shrinks.push([n.props?.flexShrink, n.props?.minWidth])
+  })
+  expect(shrinks.length).toBeGreaterThan(0)
+  expect(new Set(shrinks.map(String))).toEqual(new Set(['1,0']))
+})
 test('a measured fill is ! FULL', LONG, async ($, on) => {
   expect(shown((await at($, on, 'fiveHourAhead')).shut)).toMatch(/! FULL/)
 })
