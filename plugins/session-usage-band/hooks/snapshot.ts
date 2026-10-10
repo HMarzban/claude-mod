@@ -4,6 +4,7 @@
 import type { RenderSurface } from 'claude-code'
 import type { Ttl } from './cache'
 import type { Trails } from './insights'
+import type { Sample } from './memory'
 import type { Palette } from './palette'
 import type { Workspace } from './workspace'
 
@@ -71,6 +72,8 @@ export type BandSnapshot = Readonly<{
   }>
   fiveHour: (LimitReading & { etaMs: number | null }) | undefined
   sevenDay: LimitReading | undefined
+  /** The limit samples of the last week, every session's, oldest first. */
+  samples: readonly Sample[]
   /** Any other window the engine reports, such as a gateway's spend_limit. */
   otherLimits: ReadonlyArray<LimitReading & { kind: string }>
   /** The project, home-relative, and git there; undefined until first read. */

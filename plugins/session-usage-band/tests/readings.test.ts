@@ -175,3 +175,18 @@ test('the history speaks its numbers and its trend', () => {
 test('the history is read only when a view asks for it', () => {
   expect(typeof Object.getOwnPropertyDescriptor(readingsOf(snapOf()), 'history')?.get).toBe('function')
 })
+test('the week is read only when a view asks for it', () => {
+  expect(typeof Object.getOwnPropertyDescriptor(readingsOf(snapOf()), 'week')?.get).toBe('function')
+})
+test('the week names its cells in words, for a reader and a summary', () => {
+  const now = 77 * HOUR
+  const T = (hours: number, seven: number) => ({ at: hours * HOUR, fivePct: 0, sevenPct: seven, fiveResetAt: 80 * HOUR, sevenResetAt: 168 * HOUR })
+  const wk = readingsOf(snapOf({
+    now, utcOffsetMin: 0,
+    samples: [T(0, 0), T(15, 6), T(39, 15), T(63, 26), T(77, 30)],
+    sevenDay: { percentUsed: 30, resetsAt: new Date(168 * HOUR).toISOString() },
+  })).week
+  expect(wk.empty).toBe(false)
+  expect(wk.daysAlt).toMatch(/^weekly limit by day: \w+day 6%, \w+day 9%/)
+  expect(wk.summary7).toMatch(/^30% used · on pace for ~\d+%/)
+})

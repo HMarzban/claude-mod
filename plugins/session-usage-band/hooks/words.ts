@@ -2,6 +2,7 @@
 // readings hold. Pure, and the one place a layout's words are written, so
 // amber, pace, resets, empty states and alt text read the same everywhere.
 
+import type { DayCell, HourCell, Week } from './calendar'
 import {
   fmtBoardLeft,
   fmtClock,
@@ -397,3 +398,35 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, no
     trailAlt: `5h usage over the last hour, ${rise >= TRAIL_RISE ? 'rising' : 'steady'}${fullIn}`,
   }
 }
+
+/** What the week says: its cells for a reader, and a summary per window. */
+export type WeekWords = Readonly<{
+  /** 'weekly limit by day: Tuesday 6%, Wednesday 9%, Saturday about 7%' */
+  daysAlt: string
+  /** '5-hour limit by hour: 08:00 10%, 09:00 15%' */
+  hoursAlt: string
+  /** '30% used · on pace for ~50% · busiest Thu' */
+  summary7: string | undefined
+  /** '4% used · on pace for ~10%' */
+  summary5: string | undefined
+}>
+
+/** The cells known or guessed, each named, a guess said as about. */
+const cellsSpoken = <C extends DayCell | HourCell>(title: string, cells: readonly C[], name: (c: C) => string): string => {
+  const said = cells.filter(c => c.pct !== undefined).map(c => `${name(c)} ${c.guess ? `about ${Math.round(c.pct ?? 0)}%` : c.text}`)
+  return `${title}: ${said.length === 0 ? 'not known yet' : said.join(', ')}`
+}
+
+/** A window's summary: its use and its pace, then the busiest day when given. */
+const summaryOf = (l: LimitView | undefined, busiest?: string): string | undefined => {
+  if (l === undefined) return undefined
+  const standing = l.passed ? ['reset'] : [`${l.value} used`, paceText(l)]
+  return [...standing, busiest === undefined ? '' : `busiest ${busiest}`].filter(Boolean).join(' · ')
+}
+
+export const weekWords = (w: Week, seven: LimitView | undefined, five: LimitView | undefined): WeekWords => ({
+  daysAlt: cellsSpoken('weekly limit by day', w.days, d => d.name),
+  hoursAlt: cellsSpoken('5-hour limit by hour', w.hours, c => `${c.label}:00`),
+  summary7: summaryOf(seven, w.busiest),
+  summary5: summaryOf(five),
+})

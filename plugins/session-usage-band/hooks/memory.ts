@@ -1,10 +1,11 @@
 // What the band remembers across sessions, in the plugin's own store: when
-// each session last had a reply, what a token costs on each model, and the
-// layout the band draws in. With the first two a reopened session, or a
-// reload, says whether its cache is cold and what the next message costs,
-// before any reply of its own. What a session has spent, and how long its
-// cache was last written for, are read off its transcript, which Claude Code
-// keeps.
+// each session last had a reply, what a token costs on each model, the
+// layout the band draws in, and a week of limit samples. With the first two a
+// reopened session, or a reload, says whether its cache is cold and what the
+// next message costs, before any reply of its own, and with the samples the
+// week shows the days before this session. What a session has spent, and how
+// long its cache was last written for, are read off its transcript, which
+// Claude Code keeps.
 
 import { NO_TOKENS, addTokens, modelName, weightedTokens } from './cache'
 import type { Spend, TokenCounts, Ttl } from './cache'
@@ -63,6 +64,56 @@ export const rememberReply = (sessions: Sessions, id: string, lastAt: number): S
       .sort(([, a], [, b]) => b.lastAt - a.lastAt)
       .slice(0, MAX_SESSIONS),
   )
+
+/** Both limits at one moment, with the resets that name their windows (epoch ms). */
+export type Sample = Readonly<{ at: number; fivePct: number; sevenPct: number; fiveResetAt: number; sevenResetAt: number }>
+
+/** A week of 15-minute buckets: 7 × 96. */
+export const MAX_SAMPLES = 672
+const BUCKET_MS = 15 * 60_000
+
+/** The 15-minute bucket `at` falls in. */
+export const bucketOf = (at: number): number => Math.floor(at / BUCKET_MS)
+
+/** Two lists as one: one per bucket, the later winning, sorted, capped. */
+export const mergeSamples = (a: readonly Sample[], b: readonly Sample[]): Sample[] => {
+  const byBucket = new Map<number, Sample>()
+  for (const s of [...a, ...b]) {
+    const bucket = bucketOf(s.at)
+    const had = byBucket.get(bucket)
+    if (had === undefined || s.at >= had.at) byBucket.set(bucket, s)
+  }
+  return [...byBucket.values()].sort((x, y) => x.at - y.at).slice(-MAX_SAMPLES)
+}
+
+/** Into the samples held in memory, in place: the last replaced when `s` is in
+ *  its bucket, else appended (O(1)); only an out-of-order sample goes through
+ *  mergeSamples. Capped. */
+export const addSample = (samples: Sample[], s: Sample): Sample[] => {
+  const last = samples[samples.length - 1]
+  if (last !== undefined && bucketOf(last.at) === bucketOf(s.at)) samples[samples.length - 1] = s
+  else if (last === undefined || s.at > last.at) samples.push(s)
+  else return mergeSamples(samples, [s])
+  if (samples.length > MAX_SAMPLES) samples.splice(0, samples.length - MAX_SAMPLES)
+  return samples
+}
+
+const SAMPLE_FIELDS = ['at', 'fivePct', 'sevenPct', 'fiveResetAt', 'sevenResetAt'] as const
+
+const isSample = (v: unknown): v is Sample => isRecord(v) && SAMPLE_FIELDS.every(k => Number.isFinite(v[k]))
+
+/** The store's samples, keeping only well-formed ones, one per bucket, sorted. */
+export const asLimitSamples = (v: unknown): Sample[] => (Array.isArray(v) ? mergeSamples([], v.filter(isSample)) : [])
+
+/** Both limits now, as one sample; undefined unless each is reported with a readable reset. */
+export const sampleOf = (now: number, limits: ReadonlyArray<Readonly<{ kind: string; percentUsed: number; resetsAt?: string }>>): Sample | undefined => {
+  const five = limits.find(l => l.kind === 'five_hour')
+  const seven = limits.find(l => l.kind === 'seven_day')
+  const fiveResetAt = Date.parse(five?.resetsAt ?? '')
+  const sevenResetAt = Date.parse(seven?.resetsAt ?? '')
+  if (five === undefined || seven === undefined || !Number.isFinite(fiveResetAt) || !Number.isFinite(sevenResetAt)) return undefined
+  return { at: now, fivePct: five.percentUsed, sevenPct: seven.percentUsed, fiveResetAt, sevenResetAt }
+}
 
 /** Where Claude Code keeps a session's transcript: its project folder named
  *  for the project root, every character but a letter or digit a dash. */

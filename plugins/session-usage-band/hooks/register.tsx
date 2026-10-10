@@ -53,21 +53,28 @@ import type { Palette } from './palette'
 import {
   COST_RECORD,
   LAYOUT_KEY,
+  LIMIT_SAMPLES_KEY,
   RATES_KEY,
   READ_LIMIT,
   SESSIONS_KEY,
+  addSample,
   asLayoutName,
+  asLimitSamples,
   asRates,
   asSessions,
+  bucketOf,
   lastReplyAt,
   lastReplyModel,
   lastWriteTtl,
+  mergeSamples,
   rateFromTranscript,
   rememberReply,
+  sampleOf,
   sessionCostRecord,
   transcriptPath,
   transcriptSpend,
 } from './memory'
+import type { Sample } from './memory'
 import { DEFAULT_LAYOUT, LAYOUT_NAMES } from './snapshot'
 import type { Glyphs, LayoutName } from './snapshot'
 import { GIT_DIRS_ARGV, GIT_STATUS_ARGV, homeRelative, parseGitState, splitPath } from './workspace'
@@ -135,6 +142,9 @@ const band: {
   /** Where the session is: its project, home-relative, and git there. Read
    *  between redraws, never while drawing, since git takes a process. */
   workspace: Workspace | undefined
+  /** The limit samples of the last week, every session's: read from the store
+   *  at load and at each new 15-minute bucket, written once per bucket. */
+  samples: Sample[]
   /** Reads begun, so one that ends after a newer one never overwrites it. */
   reads: number
   /** The conversation the engine last said it resumed, until it ends. The
@@ -154,6 +164,7 @@ const band: {
   autoCompactOff: false,
   utcOffsetMin: undefined,
   workspace: undefined,
+  samples: [],
   reads: 0,
   resume: undefined,
   lastPaintKey: '',
@@ -372,6 +383,20 @@ const readWorkspace = async ($: EngineInterface): Promise<void> => {
   }
 }
 
+/** Keeps a limit sample: within the last one's bucket, in memory alone; at a
+ *  new bucket, merged with what other sessions stored, then written once.
+ *  Never throws: a store that fails leaves the samples in memory. */
+const noteSample = async ($: EngineInterface, sample: Sample): Promise<void> => {
+  const last = band.samples[band.samples.length - 1]
+  if (last !== undefined && bucketOf(last.at) === bucketOf(sample.at)) {
+    band.samples = addSample(band.samples, sample)
+    return
+  }
+  const stored = asLimitSamples(await $.store.get(LIMIT_SAMPLES_KEY).catch(() => undefined))
+  band.samples = addSample(mergeSamples(band.samples, stored), sample)
+  await $.store.set(LIMIT_SAMPLES_KEY, band.samples).catch(() => undefined)
+}
+
 /** What the session has cost so far, if the host keeps a ledger; undefined
  *  when it has none, or the read fails. */
 const ledgerUsd = async ($: EngineInterface): Promise<number | undefined> =>
@@ -425,6 +450,7 @@ export const register: Register = on => {
     band.warned.clear()
     band.lastPaintKey = ''
     band.workspace = undefined
+    band.samples = asLimitSamples(await $.store.get(LIMIT_SAMPLES_KEY).catch(() => undefined))
     band.utcOffsetMin = utcOffsetOf(await $.clock.now())
     band.reads++ // any read still out began before this load
     await readLayout($)
@@ -529,7 +555,10 @@ export const register: Register = on => {
       const used = usage === undefined ? undefined : contextUsed(usage.context)
       if (used !== undefined) pushContext(used)
       void rememberTurn($, cost)
-      band.utcOffsetMin = utcOffsetOf(await $.clock.now())
+      const now = await $.clock.now()
+      const sample = usage === undefined ? undefined : sampleOf(now, usage.rateLimits)
+      if (sample !== undefined) await noteSample($, sample)
+      band.utcOffsetMin = utcOffsetOf(now)
       // Another session may have chosen a layout since.
       await readLayout($)
       // A turn may have switched branch, committed or moved the session.
@@ -673,6 +702,7 @@ export const register: Register = on => {
         },
         fiveHour: five ? { percentUsed: five.percentUsed, resetsAt: five.resetsAt, etaMs: fiveHourEtaMs(now) } : undefined,
         sevenDay: seven ? { percentUsed: seven.percentUsed, resetsAt: seven.resetsAt } : undefined,
+        samples: band.samples,
         workspace: band.workspace,
         utcOffsetMin: band.utcOffsetMin,
         otherLimits: usage.rateLimits

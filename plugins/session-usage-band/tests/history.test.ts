@@ -1,7 +1,7 @@
 import { test, expect } from 'claude-code/testing'
 import { recordResponse, resetCache, takeRebuilt } from '../hooks/cache'
 import { COST_TRAIL, CONTEXT_TRAIL, FIVE_HOUR_TRAIL, noteFiveHourTrail, pushContext, pushCost, resetConversationInsights, resetInsights, trails } from '../hooks/insights'
-import { HOUR, MIN, resp } from './helpers'
+import { HOUR, HOUR_1, LONG, MIN, START, USAGE, engine, resp, setup, turn, usage } from './helpers'
 
 test('the cost trail keeps the last 24 messages', () => {
   resetInsights()
@@ -47,4 +47,42 @@ test('a warm read is no re-warm', () => {
   takeRebuilt()
   recordResponse(resp(2_000, 196_000, 4_000, 3_000), MIN, true, 'claude-opus-5-5')
   expect(takeRebuilt()).toBe(false)
+})
+
+const rising = (i: number) => {
+  usage.current = { ...USAGE, rateLimits: [
+    { kind: 'five_hour', percentUsed: 4 + i, resetsAt: new Date(3 * 3600_000).toISOString() },
+    { kind: 'seven_day', percentUsed: 30 + i, resetsAt: new Date(67 * 3600_000).toISOString() },
+  ] }
+}
+test('samples are written once per new 15-minute bucket, the percentages rising', LONG, async ($, on) => {
+  const clock = setup(on, { env: HOUR_1 })
+  await $.session.start(START)
+  for (let i = 0; i < 24; i++) {
+    rising(i)
+    await turn($, `t${i}`, 2.41 + i * 0.1, 2.51 + i * 0.1)
+    await clock.advance(5 * MIN)
+  }
+  const writes = engine.storeSets.filter(k => k === 'limitSamples').length
+  expect(writes).toBeGreaterThanOrEqual(8)
+  expect(writes).toBeLessThanOrEqual(9)
+})
+test('a session reads the stored samples at start and at each new bucket, never within one', async ($, on) => {
+  setup(on, { store: { limitSamples: [] } })
+  await $.session.start(START)
+  expect(engine.storeGets.filter(k => k === 'limitSamples')).toHaveLength(1)
+  await turn($, 't1', 2.41, 2.5)
+  await turn($, 't2', 2.5, 2.6)
+  expect(engine.storeGets.filter(k => k === 'limitSamples')).toHaveLength(2)
+})
+test('a failing store never throws, and nothing is written', async ($, on) => {
+  const clock = setup(on)
+  engine.storeFails = true
+  await $.session.start(START)
+  await clock.settle()
+  // A hook that throws is dropped silently: its closing redraw shows it ran to the end.
+  const redraws = engine.invalidates
+  await turn($, 't1', 2.41, 2.5)
+  expect(engine.store.limitSamples).toBeUndefined()
+  expect(engine.invalidates).toBeGreaterThan(redraws)
 })
