@@ -12,6 +12,7 @@ import {
   fmtTokens,
   severityMark,
 } from './format'
+import { asciiTree } from './glyphs'
 import type { Icon } from './icons'
 import { makeKit } from './kit'
 import {
@@ -667,10 +668,13 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     ]
   }
 
-  return (
+  const tree = (
     <Box flexDirection="column">
       {row}
       {snap.expanded ? expandedView() : null}
     </Box>
   )
+  // Mapped last: the squeeze measured the row in the band's own glyphs, and
+  // no mapping widens one.
+  return snap.surface === 'terminal' && snap.glyphs === 'ascii' ? asciiTree(tree) : tree
 }

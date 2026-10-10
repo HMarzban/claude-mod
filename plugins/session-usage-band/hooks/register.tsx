@@ -25,6 +25,7 @@ import {
   resolveTtl,
 } from './cache'
 import { COMPACT_NEAR, SEVERE_AT, WARN_AT, contextUsed, fmtCountdown, fmtEta, fmtTokens } from './format'
+import { resolveGlyphs } from './glyphs'
 import {
   fiveHourEtaMs,
   forgetTurn,
@@ -50,6 +51,7 @@ import {
   rememberReply,
   transcriptPath,
 } from './memory'
+import type { Glyphs } from './snapshot'
 import { GIT_DIRS_ARGV, GIT_STATUS_ARGV, homeRelative, parseGitState, splitPath } from './workspace'
 import type { Workspace } from './workspace'
 
@@ -80,6 +82,8 @@ const REPLY = {
  *  over with the module; session.start resets the rest. */
 const band: {
   palette: Readonly<Palette>
+  /** The terminal's glyph tier, from the environment at load. */
+  glyphs: Glyphs
   /** Where auto-compaction runs, as the context breakdown last said; read
    *  after each turn, not on every redraw. Undefined when off or unknown. */
   compactAt: number | undefined
@@ -97,6 +101,7 @@ const band: {
   tick: Timer | undefined
 } = {
   palette: DARK,
+  glyphs: 'unicode',
   compactAt: undefined,
   autoCompactOff: false,
   workspace: undefined,
@@ -228,6 +233,12 @@ export const register: Register = on => {
     if (!cache.knownFresh) await recallLastReply($)
 
     band.palette = resolvePalette((await $.env.get('CC_BAND_APPEARANCE'))?.toLowerCase(), await $.env.get('NO_COLOR'))
+    band.glyphs = resolveGlyphs({
+      CC_BAND_GLYPHS: await $.env.get('CC_BAND_GLYPHS'),
+      LC_ALL: await $.env.get('LC_ALL'),
+      LC_CTYPE: await $.env.get('LC_CTYPE'),
+      LANG: await $.env.get('LANG'),
+    })
     const pinned = resolveTtl({
       force5m: await $.env.get('FORCE_PROMPT_CACHING_5M'),
       chosen: await $.env.get('CLAUDE_CODE_PROMPT_CACHE_TTL'),
@@ -414,6 +425,7 @@ export const register: Register = on => {
         isWorking: e.props.isWorking,
         expanded: await read($, isExpanded),
         palette: band.palette,
+        glyphs: band.glyphs,
         now,
         cache: cacheView(now, usage.cost?.usd, contextTokens),
         costUsd: usage.cost?.usd ?? 0,
