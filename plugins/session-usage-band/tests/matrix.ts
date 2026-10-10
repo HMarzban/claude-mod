@@ -30,8 +30,9 @@ export type Scenario = Readonly<{
   amber: readonly AmberReason[]
 }>
 
+const started = async ($: Engine): Promise<void> => { await $.session.start(START) }
 const replied = async ($: Engine): Promise<void> => {
-  await $.session.start(START)
+  await started($)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
 }
 const withLimits = (five: number, seven: number, fiveResetH = 3, sevenResetH = 67): SessionUsage['rateLimits'] => [
@@ -55,11 +56,11 @@ const OFF = contextAt(170_000, undefined)
 
 export const SCENARIOS = {
   calm: { drive: replied, amber: [] },
-  unmeasured: { drive: async $ => { await $.session.start(START) }, amber: [] },
-  warming: { usage: FRESH, drive: async $ => { await $.session.start(START) }, amber: [] },
+  unmeasured: { drive: started, amber: [] },
+  warming: { usage: FRESH, drive: started, amber: [] },
   // Its last reply 20 minutes ago, as the band remembered it; HOME lets it
   // look for the transcript's cost record too.
-  recalled: { store: { sessions: { s1: { lastAt: 0 } } }, now: 20 * MIN, env: { HOME: '/Users/me' }, drive: async $ => { await $.session.start(START) }, amber: [] },
+  recalled: { store: { sessions: { s1: { lastAt: 0 } } }, now: 20 * MIN, env: { HOME: '/Users/me' }, drive: started, amber: [] },
   cold: { drive: async ($, clock, ttlMs) => { await replied($); await clock.advance(ttlMs + MIN) }, amber: [] },
   lastMinute: { drive: async ($, clock, ttlMs) => { await replied($); await clock.advance(ttlMs - 30_000) }, amber: ['cacheLastMinute'] },
   working: { drive: replied, isWorking: true, amber: [] },
@@ -75,10 +76,11 @@ export const SCENARIOS = {
     amber: [],
   },
   resetPassed: { now: 4 * HOUR, drive: replied, amber: [] },
+  // A git read that never answers: the strip stays empty, as before the first read.
   noWorkspace: { prepare: () => { engine.hold = new Promise(() => undefined) }, drive: replied, amber: [] },
   notARepo: { prepare: () => { engine.git = 'none' }, drive: replied, amber: [] },
   gitFails: { prepare: () => { engine.git = 'fail' }, drive: replied, amber: [] },
-  emptyHistory: { usage: FRESH, drive: async $ => { await $.session.start(START) }, amber: [] },
+  emptyHistory: { usage: FRESH, drive: started, amber: [] },
   fullHistory: {
     drive: async $ => {
       await replied($)

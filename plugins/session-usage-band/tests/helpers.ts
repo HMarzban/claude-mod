@@ -97,7 +97,7 @@ type EngineFake = {
   store: Record<string, unknown>
   /** Every key the plugin read from its store, in order. */
   storeGets: string[]
-  /** Every key the plugin wrote to its store, in order. */
+  /** Every key the plugin asked to write to its store, refused writes included, in order. */
   storeSets: string[]
   /** When true, every store write rejects, as an unavailable store would. */
   storeFails: boolean

@@ -172,6 +172,7 @@ declare const console: { log(...a: unknown[]): void }
 # copy of the plugin: the red and green steps of a task. Every commit still
 # runs the whole suite. Usage: tools/test-only.sh golden-hash 'view-ledger'
 set -euo pipefail
+if [ "$#" -eq 0 ]; then echo "no test globs given" >&2; exit 1; fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PLUGIN="$ROOT/plugins/session-usage-band"
 SCRATCH="$(mktemp -d)"
@@ -184,7 +185,6 @@ for shared in helpers.ts matrix.ts globals.d.ts; do
   if [ -f "$PLUGIN/tests/$shared" ]; then cp "$PLUGIN/tests/$shared" "$SCRATCH/tests/"; fi
 done
 if [ -d "$PLUGIN/tests/golden" ]; then cp -R "$PLUGIN/tests/golden" "$SCRATCH/tests/"; fi
-if [ "$#" -eq 0 ]; then echo "no test globs given" >&2; exit 1; fi
 # Every glob must match at least one file, so a typo fails instead of
 # quietly running fewer tests.
 for glob in "$@"; do
@@ -338,14 +338,14 @@ reaches('warming', /cache warming/, /Warming/)
 reaches('recalled', /cache 40m/, /CACHE/)
 reaches('cold', /cache cold/, /next message/)
 reaches('lastMinute', /0:30 left · re-warm ~\$/)
-reaches('working', /cache warm/)
+reaches('working', /cache warm \$/)
 reaches('nearCompaction', /compacts in ~10k/, /CONTEXT/)
 reaches('compactionOff', /170k \/ 200k!/, /85% full!/)
 reaches('limit80', /82%!/)
 reaches('fiveHourAhead', /full in ~/)
-reaches('sevenFullBeforeReset', /7d/, /full before reset/)
+reaches('sevenFullBeforeReset', /7d \S+ 79%/, /full before reset/)
 reaches('noLimits', /\$2\.41/, /CACHE/, /LIMITS/)
-reaches('gatewaySpend', /\$2\.41/, /spend/)
+reaches('gatewaySpend', /\$2\.41/, /spend 92%!/)
 reaches('resetPassed', /5h reset/)
 reaches('noWorkspace', /\$2\.41/, /CACHE/, /claude-mod/)
 reaches('notARepo', /\$2\.41/, /claude-mod/, /on main/)
@@ -397,7 +397,7 @@ In `EngineFake`, after `store`:
 ```ts
   /** Every key the plugin read from its store, in order. */
   storeGets: string[]
-  /** Every key the plugin wrote to its store, in order. */
+  /** Every key the plugin asked to write to its store, refused writes included, in order. */
   storeSets: string[]
   /** When true, every store write rejects, as an unavailable store would. */
   storeFails: boolean
@@ -471,8 +471,9 @@ export type Scenario = Readonly<{
   amber: readonly AmberReason[]
 }>
 
+const started = async ($: Engine): Promise<void> => { await $.session.start(START) }
 const replied = async ($: Engine): Promise<void> => {
-  await $.session.start(START)
+  await started($)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
 }
 const withLimits = (five: number, seven: number, fiveResetH = 3, sevenResetH = 67): SessionUsage['rateLimits'] => [
@@ -496,11 +497,11 @@ const OFF = contextAt(170_000, undefined)
 
 export const SCENARIOS = {
   calm: { drive: replied, amber: [] },
-  unmeasured: { drive: async $ => { await $.session.start(START) }, amber: [] },
-  warming: { usage: FRESH, drive: async $ => { await $.session.start(START) }, amber: [] },
+  unmeasured: { drive: started, amber: [] },
+  warming: { usage: FRESH, drive: started, amber: [] },
   // Its last reply 20 minutes ago, as the band remembered it; HOME lets it
   // look for the transcript's cost record too.
-  recalled: { store: { sessions: { s1: { lastAt: 0 } } }, now: 20 * MIN, env: { HOME: '/Users/me' }, drive: async $ => { await $.session.start(START) }, amber: [] },
+  recalled: { store: { sessions: { s1: { lastAt: 0 } } }, now: 20 * MIN, env: { HOME: '/Users/me' }, drive: started, amber: [] },
   cold: { drive: async ($, clock, ttlMs) => { await replied($); await clock.advance(ttlMs + MIN) }, amber: [] },
   lastMinute: { drive: async ($, clock, ttlMs) => { await replied($); await clock.advance(ttlMs - 30_000) }, amber: ['cacheLastMinute'] },
   working: { drive: replied, isWorking: true, amber: [] },
@@ -516,10 +517,11 @@ export const SCENARIOS = {
     amber: [],
   },
   resetPassed: { now: 4 * HOUR, drive: replied, amber: [] },
+  // A git read that never answers: the strip stays empty, as before the first read.
   noWorkspace: { prepare: () => { engine.hold = new Promise(() => undefined) }, drive: replied, amber: [] },
   notARepo: { prepare: () => { engine.git = 'none' }, drive: replied, amber: [] },
   gitFails: { prepare: () => { engine.git = 'fail' }, drive: replied, amber: [] },
-  emptyHistory: { usage: FRESH, drive: async $ => { await $.session.start(START) }, amber: [] },
+  emptyHistory: { usage: FRESH, drive: started, amber: [] },
   fullHistory: {
     drive: async $ => {
       await replied($)

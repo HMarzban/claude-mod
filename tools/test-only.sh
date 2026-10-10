@@ -3,6 +3,7 @@
 # copy of the plugin: the red and green steps of a task. Every commit still
 # runs the whole suite. Usage: tools/test-only.sh golden-hash 'view-ledger'
 set -euo pipefail
+if [ "$#" -eq 0 ]; then echo "no test globs given" >&2; exit 1; fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PLUGIN="$ROOT/plugins/session-usage-band"
 SCRATCH="$(mktemp -d)"
@@ -15,7 +16,6 @@ for shared in helpers.ts matrix.ts globals.d.ts; do
   if [ -f "$PLUGIN/tests/$shared" ]; then cp "$PLUGIN/tests/$shared" "$SCRATCH/tests/"; fi
 done
 if [ -d "$PLUGIN/tests/golden" ]; then cp -R "$PLUGIN/tests/golden" "$SCRATCH/tests/"; fi
-if [ "$#" -eq 0 ]; then echo "no test globs given" >&2; exit 1; fi
 # Every glob must match at least one file, so a typo fails instead of
 # quietly running fewer tests.
 for glob in "$@"; do
