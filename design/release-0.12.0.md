@@ -191,9 +191,9 @@ Open items cleared on `feat/layouts` after 0119b9a.
   - Forecast's last minute on a text surface says its price (0aafad8, and its short form's follow-up). With no detail row, on the terminal and a plain desktop, now reads `! cooling · 30s left · re-warm ~$1.66`; at 40 columns, with nothing calm left, it turns short as every layout's cache does, `! 30s` (spec §2.6).
   - On the desktop it says `re-warm ~$X` once, beneath now (c87e9d8). The cold change, calm, draws its head alone. The gallery's forecast still in the last minute predates this.
   - `LimitWords.valueText`, `4%` or `reset`, replaces the copies in rings, tiles and forecast (85dc6d2).
-  - Every new view draws its empty states in a label's ink, through one `empty()` in `parts.tsx` (5d78811); ledger, pulse, week and forecast drew some in `value`. Departures keeps its board's ink.
+  - Every new view draws its empty states in a label's ink, through one `emptySay()` in `parts.tsx` (5d78811, named so in Task C4); ledger, pulse, week and forecast drew some in `value`. Departures keeps its board's ink.
   - A layout the store can't save replies `It couldn't be saved, so it lasts until Claude's next reply.` after its usual words (d741e3e); spec §4.2 gains the row.
-  - The spec's errata (5b5a7a8): §4 names `layoutCachePill`, §4.1 says the list comes from `LAYOUT_NAMES`, and `avgWarmUsd`, which no reading builds and nothing needs, is ruled out of §4.1 and §5.
+  - The spec's errata (5b5a7a8): §4 names `layoutCachePill`, §4.1 says the list comes from `LAYOUT_NAMES`, and `avgWarmUsd`, which no reading builds, is ruled out of §4.1 and §5. §6 now says forecast's Spend row draws no bar, as it has nothing to land at (Task C4).
   - The CHANGELOG gains its Fixed line for 7aebb0a (bbf20dc). The rest change layouts and a command new in 0.12.0, so Added covers them.
   - 1052 pass, 0 fail, 48 files.
 
@@ -277,6 +277,9 @@ Each is a `Pending maintainer:` line, or Task 29's deferred findings, still open
 - In the ascii tier `…` maps to `.`, which can read as part of a path.
 - A view's own strip draws `workspaceText` whole and lets it clip. A short phrase (`workspaceShort`) would need a name outside spec §4.3.
 - The ink of the sparkline's `level` rule (`trackStroke`).
+
+**The spec**
+- §6 asks open pulse for an average line on its costs and for now marked on the 5h window. Neither is built: the line needs the warm average as a number, which no reading holds, and the mark an x-scale in time. Until then the costs say the average in words (the ledger, Task 25's second round).
 
 **Deferred follow-ups (Task 29's minor findings)**
 - `cacheWords` taking the snapshot's cache, and `CacheFacts.estimate` and `LimitFacts.value` holding words: a pure move between the layers.

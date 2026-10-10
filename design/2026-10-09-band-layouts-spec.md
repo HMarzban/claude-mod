@@ -356,7 +356,7 @@ type View = Readonly<{
   1. far events, 7d first;
   2. the "in Xm";
   3. the desktop detail text shortens.
-- **Expanded:** an outlook row for each of Cache, Context, 5h, 7d, Spend and `otherLimits`. Each row gives the value now, a range bar to where it lands (ring = now, dashed = ahead, tick = the line), and the outcome in words.
+- **Expanded:** an outlook row for each of Cache, Context, 5h, 7d, Spend and `otherLimits`. Each row gives the value now and the outcome in words, and every row but Spend's a range bar to where it lands (ring = now, dashed = ahead, tick = the line). Spend has nothing to land at, no budget and no count of messages ahead, so its row gives the total, the last message and the tokens.
 
 ## 7. Testing
 
