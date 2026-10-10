@@ -28,6 +28,7 @@ What the plan's steps record, in the order they happen.
 | Task 7 | 367 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 7 (review) | 368 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 7 (review 2) | 369 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
+| Task 7 (merged) | 376 pass, 0 fail, 28 files | `claude plugin test plugins/session-usage-band` |
 | Task 10c | 356 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 10c (merged) | 356 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 12 | 354 pass, 0 fail, 26 files | `claude plugin test plugins/session-usage-band` |
