@@ -13,7 +13,7 @@ import { toggleButton } from './frame'
 import { accentOf, fitLine, line, lineRoom, words, type Keeps } from './parts'
 import { defineView } from './view'
 
-/** What gives way as the line narrows, first to last. Amber never does. */
+/** What gives way as the line narrows, first to last; `nextChange` is the narrow-width ruling's. Amber never does. */
 const ORDER = ['farSeven', 'farChanges', 'inX', 'detail', 'nextChange'] as const
 type Piece = (typeof ORDER)[number]
 
@@ -93,7 +93,7 @@ const changesOf = (read: Readings): Change[] => {
           label: `! ${f.name} full`,
           amberShort: f.amber?.short,
           seven: false,
-          detail: { long: 'at this pace', short: 'at this pace' },
+          detail: { long: 'at this pace', short: 'pace' },
         }]
   return [...cold, ...fill, ...resetChange(f), ...resetChange(read.sevenDay, DAY_MS)].sort((a, b) => a.inMs - b.inMs).slice(0, AHEAD)
 }
@@ -164,7 +164,8 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   ]
 }
 
-/** The name and value columns, wide enough that every row's bar lines up. */
+/** The name column's least width and the value column's, so every row's bar
+ *  lines up; a longer limit name widens the name column for every row. */
 const NAME_COLS = 8
 const NOW_COLS = 13
 const OUTLOOK: BarSize = { px: 200, cells: 20 }
@@ -182,8 +183,9 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const c = read.cache
   const x = read.context
   const s = read.spend
+  const nameCols = Math.max(NAME_COLS, ...read.limits.map(l => l.name.length))
   // The bars take their column while the rows keep room for their outcomes.
-  const barred = lineRoom(kit) >= NAME_COLS + NOW_COLS + OUTLOOK.cells + OUTCOME_COLS + 3 * OUTLOOK_GAP
+  const barred = lineRoom(kit) >= nameCols + NOW_COLS + OUTLOOK.cells + OUTCOME_COLS + 3 * OUTLOOK_GAP
   const outlook = (
     key: string,
     name: string,
@@ -199,7 +201,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       amber,
       row: (
         <Box key={key} flexDirection="row" columnGap={OUTLOOK_GAP}>
-          <Box key="name" width={NAME_COLS} flexShrink={0}>
+          <Box key="name" width={nameCols} flexShrink={0}>
             {words(kit, 'name', [[name, 'label']], true)}
           </Box>
           <Box key="now" width={NOW_COLS} flexShrink={0}>
@@ -233,7 +235,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       tone: c.tone,
       bar: meter(kit, { key: 'bar', label: 'cache', frac: c.charge, tone: c.tone, accent: palette.warm, size: OUTLOOK, reads: 'left' }),
       reason: c.amber?.long,
-      outcome: [cacheOutcome],
+      outcome: [cacheOutcome, c.savedText === undefined || c.hitText === undefined ? undefined : `saved ${c.savedText}, ${c.hitText} hit rate`],
     }),
     x.known
       ? outlook('context', 'Context', x.valueText, {
@@ -241,13 +243,18 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
           // With compaction on, it lands where it compacts.
           bar: meter(kit, { key: 'bar', label: 'context', frac: x.frac, tone: x.tone, accent: palette.meterFill, size: OUTLOOK, projectTo: x.compactsAtText === undefined ? undefined : 1 }),
           reason: x.amber?.long,
-          // Near compaction, the reason says how close.
-          outcome: [x.roomText === undefined ? `${x.inContextText} of a ${x.windowText} window` : x.amber === undefined ? `compacts in ${x.roomText}` : undefined],
+          // Toward compaction, how close and where; near it, the reason says how close.
+          outcome:
+            x.roomText === undefined || x.compactsAtText === undefined
+              ? [`${x.inContextText} of a ${x.windowText} window`]
+              : x.amber === undefined
+                ? [`compacts in ${x.roomText}, at ${x.compactsAtText}`, `${x.inContextText} in context`]
+                : [`${x.inContextText} in context, compacts at ${x.compactsAtText}`],
         })
       : outlook('context', 'Context', EMPTY.context),
     ...read.limits.filter(l => l.key !== 'other').map(limit),
     ...(read.limits.length === 0 ? [outlook('limits', 'Limits', EMPTY.limits)] : []),
-    outlook('spend', 'Spend', s.totalText, { outcome: [s.lastText === undefined ? undefined : `last ${s.lastText}`, `${s.tokensText} tokens`] }),
+    outlook('spend', 'Spend', s.totalText, { outcome: [s.lastText === undefined ? undefined : `last ${s.lastText}`, `${s.tokensText} tokens: ${s.split.map(part => `${part.text} ${part.label}`).join(', ')}`] }),
     ...read.limits.filter(l => l.key === 'other').map(limit),
   ]
   // What needs you is kept first, so a body short of rows still says it.

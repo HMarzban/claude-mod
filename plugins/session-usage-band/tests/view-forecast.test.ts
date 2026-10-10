@@ -84,6 +84,18 @@ test('open, an outlook row for each reading, in spec order', async ($, on) => {
   expect(t).toMatch(/7d\s*30%\S*\s*on pace for ~\d+%\s*·\s*↻ \S+ \d{2}:\d{2}\s*Spend/)
   expect(t).toMatch(/Spend\s*\$2\.41\s*\d+k tokens/)
 })
+test('open, the outlook keeps the facts every view shows behind ▿, and a long name whole', () => {
+  // Drawn directly: no scenario measures what the cache saved.
+  const snap = snapOf({ layout: 'forecast', columns: 160, expanded: true, otherLimits: [{ kind: 'seven_day_opus', percentUsed: 12, resetsAt: undefined }] })
+  const t = shown(forecastView.draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT))
+  expect(t).toMatch(/re-warm ~\$1\.66\s*·\s*saved ~\$11\.40, 96% hit rate\s*Context/)
+  expect(t).toMatch(/compacts in ~114k, at 190k\s*·\s*76k in context\s*5h/)
+  expect(t).toMatch(/225k tokens: 18k input, 9\.0k output, 198k cache reads/)
+  expect(t).toMatch(/seven day opus\s*12%/)
+})
+test('open near compaction, the reason says how close and the outcome where', async ($, on) => {
+  expect(shown((await at($, on, 'nearCompaction')).open)).toMatch(/! context 94% · compacts in ~10k\s*·\s*\d+k in context, compacts at \d+k\s*5h/)
+})
 test('open, the context bar dashes to compaction, where it lands', async ($, on) => {
   expect(shown((await at($, on, 'nearCompaction')).open)).toMatch(/Context\s*\S+\s*█+▒+[^░]/)
 })
