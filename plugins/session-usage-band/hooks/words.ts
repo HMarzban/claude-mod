@@ -50,8 +50,9 @@ export const AMBER = {
 
 export const EMPTY = {
   costs: "Costs show after Claude's next reply.",
-  /** Pulse's, where the full sentence won't fit. */
-  costsShort: 'No costs yet.',
+  /** Pulse's, where the full sentence won't fit: at most 10 characters, the
+   *  room a 40-column desktop line leaves it. */
+  costsShort: 'No costs.',
   history: 'History fills in as you use Claude.',
   context: 'not reported',
   limits: 'none reported',

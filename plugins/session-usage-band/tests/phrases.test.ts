@@ -76,7 +76,7 @@ test('every amber phrase, long and short, starts with "! " once', () => {
 test('empty states read like the band', () => {
   expect(EMPTY).toEqual({
     costs: "Costs show after Claude's next reply.",
-    costsShort: 'No costs yet.',
+    costsShort: 'No costs.',
     history: 'History fills in as you use Claude.',
     context: 'not reported',
     limits: 'none reported',
