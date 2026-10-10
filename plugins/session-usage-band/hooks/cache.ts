@@ -14,10 +14,34 @@ export const TTL_MS: Readonly<Record<Ttl, number>> = { '5m': 5 * 60_000, '1h': 6
 const MISS_MIN_TOKENS = 2000
 const MISS_MIN_SHARE = 0.05
 
+/** Tokens by kind, as a bill counts them. */
+export type TokenCounts = Readonly<{ uncached: number; written: number; read: number; output: number }>
+
+export const NO_TOKENS: TokenCounts = { uncached: 0, written: 0, read: 0, output: 0 }
+
+export const addTokens = (a: TokenCounts, b: TokenCounts): TokenCounts => ({
+  uncached: a.uncached + b.uncached,
+  written: a.written + b.written,
+  read: a.read + b.read,
+  output: a.output + b.output,
+})
+
+/** What a conversation has spent: its dollars and its tokens. */
+export type Spend = Readonly<{ usd: number; tokens: TokenCounts }>
+
+/** What the engine says of a resumed conversation's cache: when its last
+ *  reply was, whether its cache has likely expired, and what re-caching it
+ *  costs. */
+export type ResumedCache = Readonly<{ lastAt: number; expired: boolean | undefined; reWarmUsd: number | undefined }>
+
 type CacheState = {
   ttl: Ttl
   /** Set by the environment, so never inferred. */
   ttlPinned: boolean
+  /** The TTL the transcript's last cache write was made at, until this
+   *  band's first reply: it speaks for the recalled cache, never for the next
+   *  request, and the environment's pin still wins. */
+  ttlSeen: Ttl | undefined
   /** Main-loop requests this conversation. */
   requests: number
   // Every token since the conversation began, subagents included.
@@ -46,9 +70,18 @@ type CacheState = {
   /** The conversation is known to start here (a new session, a /clear), so
    *  its cache is warming; after a reload mid-conversation it is unmeasured. */
   knownFresh: boolean
+  /** The engine said this conversation was resumed, so it never starts here,
+   *  whatever the ledger says. */
+  resumed: boolean
+  /** What the engine said of the resumed conversation's cache, when it said;
+   *  before this band's first reply it stands over anything recalled. */
+  resumedCache: ResumedCache | undefined
   /** Before this band's first reply: when the conversation's last reply was,
    *  and the base rate per token on its model, as recalled. */
   recall: Readonly<{ lastAt: number; rate: number | null }> | undefined
+  /** A resumed conversation's spend before this process, as its transcript
+   *  records it. */
+  prior: Spend | undefined
   /** The model /model has in force, as it names it: perhaps an alias. */
   priceModel: string | undefined
   /** The model the main loop's last reply was billed under, as the API names
@@ -59,6 +92,7 @@ type CacheState = {
 const INITIAL: Readonly<CacheState> = {
   ttl: '1h',
   ttlPinned: false,
+  ttlSeen: undefined,
   requests: 0,
   read: 0,
   written: 0,
@@ -73,7 +107,10 @@ const INITIAL: Readonly<CacheState> = {
   costBase: 0,
   baselined: false,
   knownFresh: false,
+  resumed: false,
+  resumedCache: undefined,
   recall: undefined,
+  prior: undefined,
   priceModel: undefined,
   billedModel: undefined,
 }
@@ -87,27 +124,82 @@ export const resetCache = (): void => {
   Object.assign(state, INITIAL)
 }
 
-/** A new conversation in the same process (/clear, resume): the billing mode
- *  and its TTL carry over, everything measured starts again. The baseline is
- *  provisional until the next turn starts and takes the ledger then. */
-export const resetConversation = (costNow: number): void => {
+/** Another conversation in the same process: the billing mode and its TTL
+ *  carry over, everything measured starts again. The baseline is provisional
+ *  until the next turn starts and takes the ledger then. */
+const switchConversation = (costNow: number, knownFresh: boolean): void => {
   const { ttl, ttlPinned, priceModel, billedModel } = state
-  Object.assign(state, INITIAL, { ttl, ttlPinned, priceModel, billedModel, costBase: costNow, knownFresh: true })
+  Object.assign(state, INITIAL, { ttl, ttlPinned, priceModel, billedModel, costBase: costNow, knownFresh })
 }
+
+/** A /clear: a new conversation starts here. */
+export const resetConversation = (costNow: number): void => switchConversation(costNow, true)
+
+/** A /resume: the process moves to a conversation already under way. */
+export const resetForResume = (costNow: number): void => switchConversation(costNow, false)
 
 /** What the band recalls of the conversation's last reply, before its own. */
 export const noteRecall = (lastAt: number, rate: number | null): void => {
   state.recall = { lastAt, rate }
 }
 
+/** When the conversation's last reply was, before this band's own: as the
+ *  engine said on a resume, else as recalled. */
+const recalledAt = (): number | undefined => state.resumedCache?.lastAt ?? state.recall?.lastAt
+
 /** Whether the cache stands as recalled: no reply seen yet, a conversation
  *  that didn't start here, and something to recall. */
-const isRecalled = (): boolean => state.requests === 0 && !state.knownFresh && state.recall !== undefined
+const isRecalled = (): boolean => state.requests === 0 && !state.knownFresh && recalledAt() !== undefined
 
-/** At load: a ledger that has spent nothing is a new conversation. */
+/** At load: a ledger that has spent nothing is a new conversation, unless
+ *  the engine has already said it resumed one. */
 export const noteLoad = (costNow: number | undefined): void => {
-  state.knownFresh = !costNow
+  if (!state.resumed) state.knownFresh = !costNow
 }
+
+/** A resumed conversation didn't start here, whatever the ledger says; what
+ *  the engine knows of its cache, when it says, stands over anything
+ *  recalled. A resume's facts replace any noted before them. */
+export const noteResume = (said: ResumedCache | undefined): void => {
+  state.knownFresh = false
+  state.resumed = true
+  state.resumedCache = said
+  state.prior = undefined
+  state.ttlSeen = undefined
+}
+
+/** What a resumed conversation spent before this process. */
+export const notePrior = (spend: Spend): void => {
+  state.prior = spend
+}
+
+/** The TTL the transcript's last cache write was made at: it speaks for
+ *  the cache until this band's first reply. */
+export const noteTtlSeen = (ttl: Ttl): void => {
+  if (state.requests === 0) state.ttlSeen = ttl
+}
+
+/** The TTL the cache stands at: the pin, else one seen on the transcript,
+ *  else the one assumed or inferred. */
+const effectiveTtl = (): Ttl => (state.ttlPinned ? state.ttl : (state.ttlSeen ?? state.ttl))
+
+/** What the session has cost, to show: the ledger, or for a resumed
+ *  conversation the larger of the ledger and its transcript's total, with
+ *  the ledger's growth since the conversation's first turn on top. Never
+ *  both summed: a host may restore the ledger on a resume, or may not, and
+ *  may restore it only after the transcript is read, so the growth counts
+ *  from the baseline that turn takes, never from the ledger at the read. */
+export const spentUsd = (ledgerNow: number | undefined): number => {
+  const ledger = ledgerNow ?? 0
+  const prior = state.prior
+  if (prior === undefined) return ledger
+  const growth = state.baselined ? ledger - state.costBase : 0
+  return Math.max(ledger, prior.usd + growth)
+}
+
+/** Every token since the conversation began: a resumed one's earlier tokens
+ *  with this process's. */
+const allTokens = (): TokenCounts => (state.prior === undefined ? state : addTokens(state, state.prior.tokens))
 
 /** The TTL the environment pins, if it pins one. */
 export const resolveTtl = (env: {
@@ -186,6 +278,8 @@ export const recordResponse = (
   }
 
   state.requests += 1
+  // The next request's TTL follows the config in force, not the transcript's.
+  state.ttlSeen = undefined
   state.window = fresh + hit + written + usage.output_tokens
   state.cached = hit + written
   state.lastAt = sentAt
@@ -236,10 +330,8 @@ export const readShare = (): number => readMultiplier(pricedModel())
 
 /** Tokens weighted by their price against base input on `model`: the one
  *  unknown left is the base rate itself. */
-export const weightedTokens = (
-  t: Readonly<{ uncached: number; written: number; read: number; output: number }>,
-  model: string | undefined,
-): number => t.uncached + WRITE_MULT * t.written + readMultiplier(model) * t.read + OUTPUT_MULT * t.output
+export const weightedTokens = (t: TokenCounts, model: string | undefined): number =>
+  t.uncached + WRITE_MULT * t.written + readMultiplier(model) * t.read + OUTPUT_MULT * t.output
 
 /** The base rate per token, in dollars.
  *
@@ -274,19 +366,24 @@ export const reWarmUsd = (sessionCost: number | undefined): number | null => {
  *  the same tokens: the rest of the base rate on every cache read. */
 export const savedUsd = (sessionCost: number | undefined): number | null => {
   const rate = ratePerToken(sessionCost)
-  return rate === null || state.read <= 0 ? null : rate * (1 - readShare()) * state.read
+  const { read } = allTokens()
+  return rate === null || read <= 0 ? null : rate * (1 - readShare()) * read
 }
 
 export const hitRatio = (): number | null => {
-  const total = state.read + state.written + state.uncached
-  return total > 0 ? state.read / total : null
+  const { read, written, uncached } = allTokens()
+  const total = read + written + uncached
+  return total > 0 ? read / total : null
 }
 
 /** The cache's time left: from the last reply this band saw, else the one
- *  it recalls; a full lifetime before either. */
+ *  it recalls, none if the engine called it expired; a full lifetime before
+ *  either. */
 export const msLeft = (now: number): number => {
-  const from = state.requests > 0 ? state.lastAt : isRecalled() ? state.recall?.lastAt : undefined
-  return from === undefined ? TTL_MS[state.ttl] : Math.max(0, from + TTL_MS[state.ttl] - now)
+  if (isRecalled() && state.resumedCache?.expired === true) return 0
+  const from = state.requests > 0 ? state.lastAt : isRecalled() ? recalledAt() : undefined
+  const ttlMs = TTL_MS[effectiveTtl()]
+  return from === undefined ? ttlMs : Math.max(0, from + ttlMs - now)
 }
 
 /** The cache as the band shows it, at `now`: measured once a reply has been
@@ -294,21 +391,27 @@ export const msLeft = (now: number): number => {
  *  which a recalled cold cache would rebuild. */
 export const cacheView = (now: number, sessionCost: number | undefined, contextTokens: number): CacheView => {
   const recalled = isRecalled()
+  const lastAt = recalledAt()
   const rate = state.recall?.rate ?? null
+  // A resume's price is the engine's own; else it is solved from the rate recalled.
+  const recalledPrice = state.resumedCache?.reWarmUsd ?? (rate === null ? null : reWarmAt(rate, contextTokens))
+  const tokens = allTokens()
   return {
     requests: state.requests,
     msLeft: msLeft(now),
-    ttl: state.ttl,
-    ttlPinned: state.ttlPinned,
+    ttl: effectiveTtl(),
+    // Known, not assumed: pinned, or seen on the transcript's last cache write.
+    ttlPinned: state.ttlPinned || state.ttlSeen !== undefined,
     window: recalled ? contextTokens : state.window,
     hitRatio: hitRatio(),
     misses: state.misses,
-    reWarmUsd: recalled ? (rate === null ? null : reWarmAt(rate, contextTokens)) : reWarmUsd(sessionCost),
+    reWarmUsd: recalled ? recalledPrice : reWarmUsd(sessionCost),
     recalled,
-    idleMs: recalled && state.recall !== undefined ? now - state.recall.lastAt : null,
+    idleMs: recalled && lastAt !== undefined ? now - lastAt : null,
     savedUsd: savedUsd(sessionCost),
     readShare: readShare(),
     fresh: state.knownFresh,
-    tokens: { sent: state.uncached + state.written, back: state.output, cached: state.read },
+    recovered: state.prior !== undefined,
+    tokens: { sent: tokens.uncached + tokens.written, back: tokens.output, cached: tokens.read },
   }
 }

@@ -32,6 +32,8 @@ export type BandSnapshot = Readonly<{
     requests: number
     msLeft: number
     ttl: Ttl
+    /** The TTL is known, not assumed: pinned by the environment, or seen on
+     *  the transcript's last cache write before this band's first reply. */
     ttlPinned: boolean
     window: number
     hitRatio: number | null
@@ -49,6 +51,9 @@ export type BandSnapshot = Readonly<{
     recalled: boolean
     /** How long since that recalled reply. */
     idleMs: number | null
+    /** A resumed conversation's spend and tokens from before this process
+     *  are counted, as its transcript records them. */
+    recovered: boolean
     /** Every token since the conversation began, subagents included. */
     tokens: Readonly<{ sent: number; back: number; cached: number }>
   }>

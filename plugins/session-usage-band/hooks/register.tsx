@@ -2,7 +2,7 @@
 // into the pure modules, and ui.render hands drawBand a snapshot of them.
 
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, Timer } from 'claude-code'
+import type { ClassicEventOf, EngineInterface, Register, Timer } from 'claude-code'
 import { drawBand } from './band'
 import {
   cache,
@@ -12,7 +12,10 @@ import {
   noteConversationStart,
   noteLedger,
   noteLoad,
+  notePrior,
   noteRecall,
+  noteResume,
+  noteTtlSeen,
   modelName,
   noteBilledModel,
   notePriceModel,
@@ -22,8 +25,11 @@ import {
   recordResponse,
   resetCache,
   resetConversation,
+  resetForResume,
   resolveTtl,
+  spentUsd,
 } from './cache'
+import type { ResumedCache, Spend, Ttl } from './cache'
 import { COMPACT_NEAR, SEVERE_AT, WARN_AT, clipMiddle, contextUsed, fmtCountdown, fmtEta, fmtTokens, utcOffsetOf } from './format'
 import { resolveGlyphs } from './glyphs'
 import {
@@ -40,6 +46,7 @@ import {
 import { DARK, resolvePalette } from './palette'
 import type { Palette } from './palette'
 import {
+  COST_RECORD,
   LAYOUT_KEY,
   RATES_KEY,
   READ_LIMIT,
@@ -49,9 +56,12 @@ import {
   asSessions,
   lastReplyAt,
   lastReplyModel,
+  lastWriteTtl,
   rateFromTranscript,
   rememberReply,
+  sessionCostRecord,
   transcriptPath,
+  transcriptSpend,
 } from './memory'
 import { DEFAULT_LAYOUT, LAYOUT_NAMES } from './snapshot'
 import type { Glyphs, LayoutName } from './snapshot'
@@ -81,6 +91,26 @@ const REPLY = {
   usage: 'Usage: /usage-band [more | less | show | hide] · /usage-band layout <name>',
 } as const
 
+/** What a resumed conversation's transcript shows: its spend before this
+ *  process, and the TTL of its last cache write. */
+type TranscriptFacts = Readonly<{ spend: Spend | undefined; ttl: Ttl | undefined }>
+
+/** What the band recalls of a conversation's last reply, before its own:
+ *  when it was, the base rate per token on its model, and the model it was
+ *  billed under, where its transcript names one. */
+type RecalledReply = Readonly<{ lastAt: number | undefined; rate: number | null; billed: string | undefined }>
+
+/** A conversation the engine said it resumed: its session, when the engine
+ *  said so, what it said of its cache, where its transcript is, and once
+ *  read, what that shows. */
+type Resume = Readonly<{
+  sessionId: string
+  at: number
+  cache: ResumedCache | undefined
+  path: string | undefined
+  transcript: TranscriptFacts | undefined
+}>
+
 /** Everything the band keeps between hooks, in one place. A reload starts it
  *  over with the module; session.start resets the rest. */
 const band: {
@@ -102,6 +132,10 @@ const band: {
   workspace: Workspace | undefined
   /** Reads begun, so one that ends after a newer one never overwrites it. */
   reads: number
+  /** The conversation the engine last said it resumed, until it ends. The
+   *  engine may say so before session.start, or while it runs, and its reset
+   *  forgets it, so it outlives that reset and session.start notes it again. */
+  resume: Resume | undefined
   /** What the band last drew, so the timer repaints only when it would change. */
   lastPaintKey: string
   /** Each toast's level reached, so it speaks once per crossing. */
@@ -116,9 +150,26 @@ const band: {
   utcOffsetMin: undefined,
   workspace: undefined,
   reads: 0,
+  resume: undefined,
   lastPaintKey: '',
   warned: new Map(),
   tick: undefined,
+}
+
+/** Where `sessionId`'s transcript is: where the engine says, else where
+ *  Claude Code keeps it for this project; undefined without either. */
+const transcriptFile = async ($: EngineInterface, sessionId: string, given: string | undefined): Promise<string | undefined> => {
+  if (given !== undefined) return given
+  const home = await $.env.get('HOME')
+  return home ? transcriptPath(home, await $.session.root(), sessionId) : undefined
+}
+
+/** A whole transcript, if it is small enough to read. */
+const readWhole = async ($: EngineInterface, path: string): Promise<string | undefined> => {
+  const stat = await $.fs.stat(path).catch(() => undefined)
+  if (stat === undefined || stat.size > READ_LIMIT) return undefined
+  const text = await $.fs.read(path).catch(() => undefined)
+  return typeof text === 'string' ? text : undefined
 }
 
 /** A transcript's end, where its last reply and cost record are: its last
@@ -128,40 +179,143 @@ const transcriptEnd = async ($: EngineInterface, path: string): Promise<string |
   const tail = await $.process
     .run(['tail', '-c', String(TAIL_BYTES), path], { timeoutMs: PROCESS_TIMEOUT_MS })
     .catch(() => undefined)
-  if (tail?.exitCode === 0) return tail.stdout
-  const stat = await $.fs.stat(path).catch(() => undefined)
-  if (stat === undefined || stat.size > READ_LIMIT) return undefined
-  const text = await $.fs.read(path).catch(() => undefined)
-  return typeof text === 'string' ? text : undefined
+  return tail?.exitCode === 0 ? tail.stdout : readWhole($, path)
 }
 
-/** Recalls when this session last had a reply, and what a token costs on
+/** The end of `sessionId`'s transcript (at `given`, when the engine names
+ *  it); undefined where there is none to read. */
+const endOf = async ($: EngineInterface, sessionId: string, given: string | undefined): Promise<string | undefined> => {
+  const file = await transcriptFile($, sessionId, given)
+  return file === undefined ? undefined : transcriptEnd($, file)
+}
+
+/** What `sessionId`'s conversation spent before this process resumed it at
+ *  `before`, off its transcript: its cost record, which `grep` finds at any
+ *  size, and the replies logged after it, which `tail` reads from there.
+ *  Where grep can't run, a transcript small enough to read is read whole.
+ *  Undefined with no record, or no way to read one. */
+const spendBefore = async ($: EngineInterface, path: string, sessionId: string, before: number): Promise<Spend | undefined> => {
+  const run = (argv: readonly string[]) => $.process.run(argv, { timeoutMs: PROCESS_TIMEOUT_MS }).catch(() => undefined)
+  // `-a`: a line cut mid-character would otherwise make the file binary to
+  // grep, which then prints no lines and still exits 0.
+  const found = await run(['grep', '-a', '-b', '-F', COST_RECORD, path])
+  // grep exits 1 when nothing matches, 2 when it fails.
+  if (found?.exitCode === 1) return undefined
+  if (found?.exitCode !== 0) {
+    const whole = await readWhole($, path)
+    return whole === undefined ? undefined : transcriptSpend(whole, sessionId, before)
+  }
+  const record = found.isStdoutTruncated ? undefined : sessionCostRecord(found.stdout, sessionId)
+  if (record === undefined) return undefined
+  const rest = await run(['tail', '-c', `+${record.offset + 1}`, path])
+  // Replies past what one read holds are left out rather than half-read; the record still counts.
+  const tail = rest?.exitCode === 0 && !rest.isStdoutTruncated ? rest.stdout : ''
+  // The record is grep's own line and the replies follow its end, so a grep
+  // whose offset is the match's, not the line's (ugrep), reads the same.
+  const recordEnd = tail.indexOf('\n')
+  return transcriptSpend(recordEnd < 0 ? record.line : record.line + tail.slice(recordEnd), sessionId, before)
+}
+
+/** Recalls when `sessionId` last had a reply, and what a token costs on
  *  its model: the band's own memory first; for a session from before the
- *  band, its transcript's last reply and cost record, if it is small enough
- *  to read. Read once at load, and only those two facts kept. Never throws:
- *  unknown stays unknown. */
-const recallLastReply = async ($: EngineInterface): Promise<void> => {
+ *  band, its transcript's last reply and cost record, from the end
+ *  `readEnd` reads. Recalled once per load or resume, and only those facts
+ *  kept; the caller notes them. Never throws: unknown stays unknown. */
+const recallLastReply = async (
+  $: EngineInterface,
+  sessionId: string,
+  readEnd: () => Promise<string | undefined>,
+): Promise<RecalledReply | undefined> => {
   try {
-    const id = await $.session.id()
     const model = modelName(await $.session.model())
     const rates = asRates(await $.store.get(RATES_KEY))
-    let lastAt = asSessions(await $.store.get(SESSIONS_KEY))[id]?.lastAt
+    let lastAt = asSessions(await $.store.get(SESSIONS_KEY))[sessionId]?.lastAt
     let rate = rates[model] ?? null
+    let billed: string | undefined
     if (lastAt === undefined || rate === null) {
-      const home = await $.env.get('HOME')
-      const transcript = home ? await transcriptEnd($, transcriptPath(home, await $.session.root(), id)) : undefined
+      const transcript = await readEnd()
       if (transcript !== undefined) {
         lastAt ??= lastReplyAt(transcript)
         // /model may name an alias; the last reply names the model it was billed under.
-        const billed = lastReplyModel(transcript)
-        if (billed !== undefined) noteBilledModel(billed)
+        billed = lastReplyModel(transcript)
         rate ??= billed === undefined ? rateFromTranscript(transcript, model) : (rates[billed] ?? rateFromTranscript(transcript, billed))
       }
     }
-    if (lastAt !== undefined) noteRecall(lastAt, rate)
+    return { lastAt, rate, billed }
   } catch {
-    // nothing to recall
+    return undefined // nothing to recall
   }
+}
+
+/** What the band recalls of the last reply, noted in the cache model until
+ *  this band's first reply, which speaks for itself. */
+const noteRecalled = (recalled: RecalledReply | undefined): void => {
+  if (cache.requests > 0) return
+  if (recalled?.billed !== undefined) noteBilledModel(recalled.billed)
+  if (recalled?.lastAt !== undefined) noteRecall(recalled.lastAt, recalled.rate)
+}
+
+/** What a resumed conversation's transcript shows, noted in the cache model. */
+const noteTranscript = (facts: TranscriptFacts): void => {
+  if (facts.spend !== undefined) notePrior(facts.spend)
+  if (facts.ttl !== undefined) noteTtlSeen(facts.ttl)
+}
+
+/** A resume, applied to the cache model: the engine's word on its cache, and
+ *  its transcript's once read. */
+const applyResume = (resume: Resume): void => {
+  noteResume(resume.cache)
+  if (resume.transcript !== undefined) noteTranscript(resume.transcript)
+}
+
+/** Reads what a resumed conversation's transcript shows, keeps it with the
+ *  resume and redraws; where the engine gave no idle time, recalls the last
+ *  reply off the same read of its end. Callers don't wait on it, and it
+ *  never throws: a read or recall that ends after the conversation ended is
+ *  dropped, and failing, the ledger and the TTL stand. */
+const readResumed = async ($: EngineInterface, mine: Resume): Promise<void> => {
+  try {
+    const file = await transcriptFile($, mine.sessionId, mine.path)
+    const end = file === undefined ? Promise.resolve(undefined) : transcriptEnd($, file)
+    const [recalled, spend, tail] = await Promise.all([
+      mine.cache === undefined ? recallLastReply($, mine.sessionId, () => end) : undefined,
+      file === undefined ? undefined : spendBefore($, file, mine.sessionId, mine.at),
+      end,
+    ])
+    if (band.resume !== mine) return
+    const transcript = { spend, ttl: tail === undefined ? undefined : lastWriteTtl(tail) }
+    band.resume = { ...mine, transcript }
+    noteRecalled(recalled)
+    noteTranscript(transcript)
+    $.ui.invalidate('ui.render')
+  } catch {
+    // the ledger and the TTL stand
+  }
+}
+
+/** A conversation resumed or forked: never new, its cache as the engine
+ *  judges it, or as the band recalls it where the engine doesn't say; then,
+ *  off the hook, what its transcript shows. */
+const resumeConversation = async ($: EngineInterface, e: ClassicEventOf['classic.SessionStart']): Promise<void> => {
+  const idleSec = e.seconds_since_last_response
+  const now = await $.clock.now()
+  const resume: Resume = {
+    // The engine names the conversation it resumes; on a /resume, the
+    // process switches to it only after this hook.
+    sessionId: e.session_id || (await $.session.id()),
+    at: now,
+    cache:
+      idleSec === undefined
+        ? undefined
+        : { lastAt: now - idleSec * 1000, expired: e.prompt_cache_likely_expired, reWarmUsd: e.estimated_cache_write_usd },
+    // '' when the session keeps no local transcript.
+    path: e.transcript_path === '' ? undefined : e.transcript_path,
+    transcript: undefined,
+  }
+  band.resume = resume
+  applyResume(resume)
+  void readResumed($, resume)
+  $.ui.invalidate('ui.render')
 }
 
 /** Remembers this session's last reply and the rate its bill solves to, for
@@ -257,7 +411,11 @@ const chooseLayout = async ($: EngineInterface, arg: string): Promise<string> =>
 export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
+    const id = await $.session.id().catch(() => undefined)
     resetCache()
+    // A resume of another session is no longer news. It is dropped in the
+    // same step as the reset, so no read of it can land in between.
+    if (band.resume?.sessionId !== id) band.resume = undefined
     resetInsights()
     band.warned.clear()
     band.lastPaintKey = ''
@@ -266,10 +424,17 @@ export const register: Register = on => {
     band.reads++ // any read still out began before this load
     await readLayout($)
     notePriceModel(await $.session.model().catch(() => undefined))
+    // A resume of this session, said before this load or while it runs, is
+    // noted again after the reset.
+    if (band.resume !== undefined) applyResume(band.resume)
     noteLoad(await ledgerUsd($))
     void readWorkspace($)
-    // Loaded mid-conversation, the band has seen no reply: recall the last.
-    if (!cache.knownFresh) await recallLastReply($)
+    // Loaded mid-conversation, the band has seen no reply: recall the last,
+    // unless the engine said when it was.
+    if (id !== undefined && !cache.knownFresh && cache.resumedCache === undefined) {
+      const path = band.resume?.path
+      noteRecalled(await recallLastReply($, id, () => endOf($, id, path)))
+    }
 
     band.palette = resolvePalette((await $.env.get('CC_BAND_APPEARANCE'))?.toLowerCase(), await $.env.get('NO_COLOR'))
     band.glyphs = resolveGlyphs({
@@ -311,9 +476,13 @@ export const register: Register = on => {
   })
 
   // /clear and resume end the conversation but not the process, and no
-  // session.start follows, so the next conversation starts from here.
+  // session.start follows, so the next conversation starts from here. A
+  // resume's is under way already, and its SessionStart says what it was.
   on('session.end', async ($, e, next) => {
-    resetConversation((await ledgerUsd($)) ?? 0)
+    band.resume = undefined // and any read of it still out is dropped
+    const costNow = (await ledgerUsd($)) ?? 0
+    if (e.reason === 'resume') resetForResume(costNow)
+    else resetConversation(costNow)
     // The context warning is this conversation's; the 5-hour one is the
     // account's, and /clear changes nothing about it.
     resetConversationInsights()
@@ -324,6 +493,13 @@ export const register: Register = on => {
     $.ui.invalidate('ui.render')
     return next(e)
   })
+
+  // A conversation resumed at launch (`claude --resume`, the desktop opening
+  // a past session) or by /resume: the ledger may read $0, but it is no new one.
+  on('classic.SessionStart', async ($, e, next) => {
+    if (e.agent_id === undefined && (e.source === 'resume' || e.source === 'fork')) await resumeConversation($, e)
+    return next(e)
+  }).catch(($, e, next) => next(e)) // a failure here must never stop a session starting
 
   on('turn.start', async ($, e, next) => {
     // /model may have switched what the session's tokens are priced at.
@@ -474,7 +650,7 @@ export const register: Register = on => {
         glyphs: band.glyphs,
         now,
         cache: cacheView(now, usage.cost?.usd, contextTokens),
-        costUsd: usage.cost?.usd ?? 0,
+        costUsd: spentUsd(usage.cost?.usd),
         lastTurnUsd: insights.lastTurnUsd,
         context: {
           tokens: usage.context.tokens,

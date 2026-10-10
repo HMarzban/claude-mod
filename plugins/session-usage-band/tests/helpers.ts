@@ -83,18 +83,27 @@ type EngineFake = {
   root: string
   repoRoot: string | undefined
   git: GitAnswer
-  /** While set, git answers wait on it: its answer is the one at the call. */
+  /** While set, git and grep answers wait on it: each answer is the one at the call. */
   hold: Promise<void> | undefined
   ran: string[][]
   /** The session's id and model, as the engine names them. */
   sessionId: string
   model: string
+  /** When set, the engine can't say the session's id. */
+  sessionIdFails: boolean
   /** The session's transcript as Claude Code writes it; undefined when it isn't there. */
   transcript: string | undefined
   /** Its size on disk, when a test needs it larger than its text. */
   transcriptBytes: number | undefined
   /** When set, `tail` can't run, as where the host has none. */
   tailFails: boolean
+  /** When set, `grep` can't run, as where the host has none. */
+  grepFails: boolean
+  /** When set, `grep -b` gives each match's byte offset, as ugrep does, not
+   *  its line's. */
+  grepMatchOffsets: boolean
+  /** The command whose output runs past what one read holds, if any. */
+  truncates: 'grep' | 'tail' | undefined
   /** Every path the plugin asked the file system about. */
   statted: string[]
   /** The plugin's own store, JSON in and out as the engine keeps it. */
@@ -120,9 +129,13 @@ const ENGINE_INITIAL: Readonly<EngineFake> = {
   hold: undefined,
   sessionId: 's1',
   model: 'claude-opus-5-5',
+  sessionIdFails: false,
   transcript: undefined,
   transcriptBytes: undefined,
   tailFails: false,
+  grepFails: false,
+  grepMatchOffsets: false,
+  truncates: undefined,
   statted: [],
   root: PROJECT,
   repoRoot: PROJECT,
@@ -166,7 +179,10 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
     return { value: undefined }
   })
   on('store.keys', () => ({ value: Object.keys(engine.store) }))
-  on('session.id', () => ({ value: engine.sessionId }))
+  on('session.id', () => {
+    if (engine.sessionIdFails) throw new Error('session id unavailable')
+    return { value: engine.sessionId }
+  })
   on('session.model', () => ({ value: engine.model }))
   on('fs.stat', ($, e) => {
     engine.statted.push(e.path)
@@ -189,18 +205,33 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
     const quiet = { stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
     if (e.argv[0] === 'tail') {
       if (engine.tailFails || engine.transcript === undefined) return { value: { ...quiet, exitCode: 1, stdout: '', stderr: 'tail: no such file' } }
-      const bytes = Number(e.argv[2])
-      return { value: { ...quiet, exitCode: 0, stdout: engine.transcript.slice(-bytes) } }
+      // `-c N` is the last N bytes, `-c +N` everything from byte N on.
+      const count = String(e.argv[2])
+      const stdout = count.startsWith('+') ? engine.transcript.slice(Number(count.slice(1)) - 1) : engine.transcript.slice(-Number(count))
+      return { value: { ...quiet, exitCode: 0, stdout, isStdoutTruncated: engine.truncates === 'tail' } }
     }
-    const git = engine.git
-    const hold = engine.hold
+    const { git, transcript, grepFails, grepMatchOffsets, truncates, hold } = engine
     if (hold !== undefined) await hold
+    if (e.argv[0] === 'grep') {
+      // `grep -a -b -F pattern path`: each line holding the pattern, after its byte offset.
+      if (grepFails) throw new Error('grep: command not found')
+      if (transcript === undefined) return { value: { ...quiet, exitCode: 2, stdout: '', stderr: 'grep: no such file' } }
+      const pattern = String(e.argv.at(-2))
+      let offset = 0
+      const found: string[] = []
+      for (const line of transcript.split('\n')) {
+        if (line.includes(pattern)) found.push(`${grepMatchOffsets ? offset + line.indexOf(pattern) : offset}:${line}\n`)
+        offset += line.length + 1
+      }
+      return { value: { ...quiet, exitCode: found.length > 0 ? 0 : 1, stdout: found.join(''), isStdoutTruncated: truncates === 'grep' } }
+    }
     if (git === 'fail') throw new Error('git: command not found')
     if (git === 'none') return { value: { ...quiet, exitCode: 128, stdout: '', stderr: 'fatal: not a git repository' } }
     return { value: { ...quiet, exitCode: 0, stdout: e.argv.includes('status') ? git.status : git.dirs } }
   })
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.end', ($, e) => ({ sessionId: e.sessionId }))
+  on('classic.SessionStart', () => ({}))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
   on('session.usage', ($, e) => {
     if (usage.fails) throw new Error('usage unavailable')

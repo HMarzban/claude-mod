@@ -2,9 +2,12 @@
 // each session last had a reply, what a token costs on each model, and the
 // layout the band draws in. With the first two a reopened session, or a
 // reload, says whether its cache is cold and what the next message costs,
-// before any reply of its own.
+// before any reply of its own. What a session has spent, and how long its
+// cache was last written for, are read off its transcript, which Claude Code
+// keeps.
 
-import { modelName, weightedTokens } from './cache'
+import { NO_TOKENS, addTokens, modelName, weightedTokens } from './cache'
+import type { Spend, TokenCounts, Ttl } from './cache'
 import { LAYOUT_NAMES } from './snapshot'
 import type { LayoutName } from './snapshot'
 import { stripTrailingSlashes } from './workspace'
@@ -90,13 +93,18 @@ function* fromEnd(transcript: string, marker: string): Generator<Record<string, 
   }
 }
 
+/** When a transcript line was logged; undefined where it doesn't say. */
+const loggedAt = (entry: Record<string, unknown>): number | undefined => {
+  const at = typeof entry.timestamp === 'string' ? Date.parse(entry.timestamp) : NaN
+  return Number.isFinite(at) ? at : undefined
+}
+
 /** When a transcript's last assistant reply was. Its file time won't do:
  *  Claude Code writes a cost line each time it opens a session. */
 export const lastReplyAt = (transcript: string): number | undefined => {
   for (const entry of fromEnd(transcript, '"assistant"')) {
-    if (entry.type !== 'assistant' || typeof entry.timestamp !== 'string') continue
-    const at = Date.parse(entry.timestamp)
-    if (Number.isFinite(at)) return at
+    const at = entry.type === 'assistant' ? loggedAt(entry) : undefined
+    if (at !== undefined) return at
   }
   return undefined
 }
@@ -111,26 +119,123 @@ export const lastReplyModel = (transcript: string): string | undefined => {
   return undefined
 }
 
+/** A count the transcript gives, or 0 for anything that isn't one. */
+const countOf = (record: Record<string, unknown>, key: string): number => {
+  const v = record[key]
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0
+}
+
+/** One model's tokens in a cost record. */
+const recordTokens = (m: Record<string, unknown>): TokenCounts => ({
+  uncached: countOf(m, 'inputTokens'),
+  written: countOf(m, 'cacheCreationInputTokens'),
+  read: countOf(m, 'cacheReadInputTokens'),
+  output: countOf(m, 'outputTokens'),
+})
+
+/** One reply's tokens, as the API reports its usage. */
+const replyTokens = (usage: Record<string, unknown>): TokenCounts => ({
+  uncached: countOf(usage, 'input_tokens'),
+  written: countOf(usage, 'cache_creation_input_tokens'),
+  read: countOf(usage, 'cache_read_input_tokens'),
+  output: countOf(usage, 'output_tokens'),
+})
+
+/** The base rate per token a cost record's entry for `model` solves to: its
+ *  dollars over its weighted tokens. */
+const recordRate = (m: Record<string, unknown>, model: string): number | null => {
+  const weighted = weightedTokens(recordTokens(m), model)
+  const rate = weighted > 0 ? countOf(m, 'costUSD') / weighted : 0
+  return Number.isFinite(rate) && rate > 0 ? rate : null
+}
+
 /** The base rate per token on `model`, solved from the transcript's last
- *  cost record: its dollars over its weighted tokens. */
+ *  cost record. */
 export const rateFromTranscript = (transcript: string, model: string): number | null => {
   for (const entry of fromEnd(transcript, '"cost-state"')) {
     if (entry.type !== 'cost-state') continue
     const usage = entry.modelUsage
     const m = isRecord(usage) ? usage[modelName(model)] : undefined
-    if (!isRecord(m)) return null
-    const n = (k: string) => (typeof m[k] === 'number' ? (m[k] as number) : 0)
-    const weighted = weightedTokens(
-      {
-        uncached: n('inputTokens'),
-        written: n('cacheCreationInputTokens'),
-        read: n('cacheReadInputTokens'),
-        output: n('outputTokens'),
-      },
-      model,
-    )
-    const rate = weighted > 0 ? n('costUSD') / weighted : 0
-    return Number.isFinite(rate) && rate > 0 ? rate : null
+    return isRecord(m) ? recordRate(m, model) : null
   }
   return null
+}
+
+/** The TTL the transcript's last main-loop cache write was made at: an hour
+ *  if it wrote any for an hour, else five minutes if it wrote any. A
+ *  subagent's reply says nothing of the main loop's cache. */
+export const lastWriteTtl = (transcript: string): Ttl | undefined => {
+  for (const entry of fromEnd(transcript, '"cache_creation"')) {
+    if (entry.type !== 'assistant' || entry.isSidechain === true || !isRecord(entry.message)) continue
+    const usage = entry.message.usage
+    const written = isRecord(usage) ? usage.cache_creation : undefined
+    if (!isRecord(written)) continue
+    if (countOf(written, 'ephemeral_1h_input_tokens') > 0) return '1h'
+    if (countOf(written, 'ephemeral_5m_input_tokens') > 0) return '5m'
+  }
+  return undefined
+}
+
+/** What marks a cost record's line, for `grep -F` to find. */
+export const COST_RECORD = '"type":"cost-state"'
+
+/** A line's cost record, parsed; undefined for any other line, or one cut short. */
+const costRecordOf = (line: string): Record<string, unknown> | undefined => {
+  if (!line.includes(COST_RECORD)) return undefined
+  const entry = parsed(line)
+  return entry?.type === 'cost-state' ? entry : undefined
+}
+
+/** Which of `records` a session's spend counts from: its own last one, else
+ *  the last of any session's, as a fork's file may hold only its parent's.
+ *  -1 with none. */
+const recordFor = (records: ReadonlyArray<Record<string, unknown> | undefined>, sessionId: string): number => {
+  const own = records.findLastIndex(record => record?.sessionId === sessionId)
+  return own >= 0 ? own : records.findLastIndex(record => record !== undefined)
+}
+
+/** The cost record `sessionId`'s spend counts from, in `grep -b` output: the
+ *  byte offset grep gives it (where its line starts, or with ugrep where the
+ *  match does), and the line. */
+export const sessionCostRecord = (found: string, sessionId: string): Readonly<{ offset: number; line: string }> | undefined => {
+  const hits = found.split('\n').flatMap(text => {
+    const [, offset, line] = /^(\d+):(.*)$/.exec(text) ?? []
+    return offset === undefined || line === undefined ? [] : [{ offset: Number(offset), line }]
+  })
+  return hits[recordFor(hits.map(hit => costRecordOf(hit.line)), sessionId)]
+}
+
+/** What `sessionId`'s conversation had spent by `before`, off `transcript`:
+ *  its cost record's dollars and every model's tokens in it, then each reply
+ *  logged after that record and before `before`, priced at its model's rate
+ *  there (a model the record doesn't name adds its tokens alone). A reply
+ *  logged since is this process's own, which its ledger counts. Claude Code
+ *  logs a reply once per content block, each line with the same usage, so a
+ *  reply counts once by its id. Undefined without a well-formed record. */
+export const transcriptSpend = (transcript: string, sessionId: string, before: number): Spend | undefined => {
+  const lines = transcript.split('\n')
+  const records = lines.map(costRecordOf)
+  const at = recordFor(records, sessionId)
+  const record = records[at]
+  if (record === undefined) return undefined
+  const models = isRecord(record.modelUsage) ? record.modelUsage : {}
+  let usd = countOf(record, 'totalCostUSD')
+  let tokens = Object.values(models).filter(isRecord).map(recordTokens).reduce(addTokens, NO_TOKENS)
+  const counted = new Set<string>()
+  for (let i = at + 1; i < lines.length; i++) {
+    const line = lines[i] ?? ''
+    if (!line.includes('"assistant"')) continue
+    const entry = parsed(line)
+    if (entry?.type !== 'assistant' || (loggedAt(entry) ?? -Infinity) >= before) continue
+    const message = isRecord(entry.message) ? entry.message : undefined
+    if (message === undefined || typeof message.id !== 'string' || counted.has(message.id) || !isRecord(message.usage)) continue
+    counted.add(message.id)
+    const reply = replyTokens(message.usage)
+    tokens = addTokens(tokens, reply)
+    const model = typeof message.model === 'string' ? message.model : undefined
+    const priced = model === undefined ? undefined : models[modelName(model)]
+    const rate = model !== undefined && isRecord(priced) ? recordRate(priced, model) : null
+    if (rate !== null) usd += rate * weightedTokens(reply, model)
+  }
+  return { usd, tokens }
 }
