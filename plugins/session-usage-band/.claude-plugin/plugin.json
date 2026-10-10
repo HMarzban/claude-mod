@@ -1,6 +1,6 @@
 {
   "name": "session-usage-band",
-  "version": "0.11.12",
+  "version": "0.11.13",
   "description": "See what your next message costs: a live band above the prompt with the prompt-cache countdown, the re-warm price, session cost, context and your 5h/7d limits.",
   "types": "./types/index.d.ts",
   "author": {

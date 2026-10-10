@@ -15,6 +15,14 @@ version may change how the band reads.
   The repository README adds installing inside a terminal session and for a
   whole team, and keeps the two-step form for Claude Code before 2.1.292.
 
+## [0.11.13] - 2026-10-10
+
+### Fixed
+- In the terminal, a chip's hover card drew under the chips after it, so it
+  read in fragments between them, and a card from a chip mid-row was cut at
+  the row's right edge. Each card now draws over the whole row, after every
+  chip; the workspace strip's cards do the same.
+
 ## [0.11.12] - 2026-10-09
 
 ### Fixed
