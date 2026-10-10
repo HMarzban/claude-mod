@@ -237,8 +237,10 @@ export const fact = (kit: Kit, key: string, label: string, value: string | undef
   value === undefined ? null : words(kit, key, [[`${label} `, 'label'], [value, 'value']])
 
 /** A titled column: its title, then as many of its rows as `room` holds.
- *  With no room under the title, a first row that is amber (`amberLeads`)
- *  takes the title's place, so a body of one row still says what needs you. */
+ *  With no room under the title, a first row that is amber takes the
+ *  title's place, so a body of one row still says what needs you.
+ *  `amberLeads` is the caller's word that its first row is amber, as an
+ *  `amberFirst` list's is while any item is; `section` can't see a row's tone. */
 export const section = (kit: Kit, key: string, title: string, rows: readonly RenderChildren[], room: number, amberLeads = false): RenderElement => {
   const { Box } = kit
   const drawn = rows.filter(isDrawn)
