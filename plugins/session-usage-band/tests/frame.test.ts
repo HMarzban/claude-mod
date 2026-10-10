@@ -8,11 +8,11 @@ import { byKey, fakeEl, shown, type Node } from './helpers'
 import { NO_ACT, snapOf, visualRows } from './matrix'
 
 const text = (s: string) => ({ type: 'Text', props: {}, children: [s] }) as unknown as RenderElement
-const opened = (over: Partial<BandSnapshot> = {}, strip?: Strip): Node => {
+const opened = (over: Partial<BandSnapshot> = {}, strip?: Strip, collapsedRows = 1): Node => {
   const snap = snapOf({ expanded: true, ...over })
   const kit = makeKit(fakeEl, snap)
   const read = readingsOf(snap)
-  return openView(kit, read, NO_ACT, panel(kit, 'collapsed', [text('LINE')]), 1, rows => [text(`BODY ${rows}`)], strip) as unknown as Node
+  return openView(kit, read, NO_ACT, panel(kit, 'collapsed', [text('LINE')]), collapsedRows, rows => [text(`BODY ${rows}`)], strip) as unknown as Node
 }
 const WS = { path: '/Users/me/workspace/claude-mod', git: undefined, repoName: undefined }
 
@@ -49,6 +49,12 @@ test('the strip heads the body while the body keeps a row, then moves to the foo
   expect(byKey(tall, 'strip', 'Box')).toBeDefined()
   expect(byKey(byKey(tall, 'actions', 'Box'), 'strip', 'Box')).toBeUndefined()
   expect(byKey(byKey(opened({ maxRows: 5, workspace: WS }), 'actions', 'Box'), 'strip', 'Box')).toBeDefined()
+})
+test('a two-row view keeps the strip on top at 13 rows, and in the footer at 6', () => {
+  const tall = opened({ maxRows: 13, workspace: WS }, undefined, 2)
+  expect(byKey(tall, 'strip', 'Box')).toBeDefined()
+  expect(byKey(byKey(tall, 'actions', 'Box'), 'strip', 'Box')).toBeUndefined()
+  expect(byKey(byKey(opened({ maxRows: 6, workspace: WS }, undefined, 2), 'actions', 'Box'), 'strip', 'Box')).toBeDefined()
 })
 test("a view's own strip stands in for the shared one", () => {
   expect(shown(opened({ maxRows: 13, workspace: WS }, () => text('MINE')))).toMatch(/MINE/)
