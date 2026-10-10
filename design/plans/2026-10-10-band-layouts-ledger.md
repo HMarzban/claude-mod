@@ -29,6 +29,9 @@ What the plan's steps record, in the order they happen.
 | Task 7 (review) | 368 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 7 (review 2) | 369 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 7 (merged) | 376 pass, 0 fail, 28 files | `claude plugin test plugins/session-usage-band` |
+| Task 8 | 357 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
+| Task 8 (review) | 358 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
+| Task 8 (review 2) | 358 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 10c | 356 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 10c (merged) | 356 pass, 0 fail, 27 files | `claude plugin test plugins/session-usage-band` |
 | Task 12 | 354 pass, 0 fail, 26 files | `claude plugin test plugins/session-usage-band` |
@@ -40,6 +43,8 @@ Ruling: `noWorkspace` keeps the held workspace read (`engine.hold` that never re
 Ruling: `forgetTurn` kept as a guard — index.d.ts:12643 says a subagent's run raises no turn.start, so no subagent entry is written today; 50eaa33 corrects 1987ba7's body — kept per plan, no fallback.
 Pending maintainer: whether a nested subagent's turn.complete can carry its parent's turnId (TurnStepInput.turnId's doc implies distinct ids but never says so); if it can, `forgetTurn` would drop the parent's start cost and 'last message' would go stale.
 Ruling: `fakeEl`'s `plainNode` kept as the plan writes it — the kit's `h` calls a function component with the JSX `key` in its props and the children under `children`, so `meter(makeKit(fakeEl, snapOf()), …)` keeps key `meter` and its `track` Text (charts.test.ts pins it); the `drawBand(fakeEl, …)` and `byKey(…, 'more', 'Button')` half of the check lands with `NO_ACT` in Task 10a — no adjustment needed.
+Ruling: every ascii mapping is one character at most (`↻` and `Σ` dropped, `…` becomes `.`, `±` becomes `+`), and a glyph the map drops takes one following space while any other non-ASCII character is dropped alone (`Résumé Builder` reads `Rsum Builder`), with no global collapse of double spaces; spec §3.2 updated to match — the squeeze measures before the mapping, so a mapping must never widen a row — no fallback; the cost is slightly terser ascii text, and a clipped path can read as a real one (`~/./claude-mod`, `feat/lo.ts`).
+Pending maintainer: whether `…` should map to a character other than `.` in the ascii tier; `~` is no clean win, since `~/~/claude-mod` reads as a path too.
 Ruling: Task 12's flap tokens taken as the plan's table, no lightness changed — every `cardBg` check passed (lowest: dark `trackStroke` 3.45:1, light `warm`/`fiveAccent` 3.95:1) and the lowest on-flap ink is light `flapDim` at 7.12:1 — no separate token added, so spec §2.10 gains none; `flapWarm`, `flapAmber`, `flapFive`, `flapWeek` and `flapCoin` extend the three spec §6 names for departures.
 
 ## Freezes

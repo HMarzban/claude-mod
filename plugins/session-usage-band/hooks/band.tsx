@@ -13,6 +13,7 @@ import {
   fmtTokens,
   severityMark,
 } from './format'
+import { asciiText, asciiTree } from './glyphs'
 import type { Icon } from './icons'
 import { makeKit } from './kit'
 import {
@@ -89,6 +90,7 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   const { Box, Button, Text, Svg, palette, measure, onTone, hoverCard, gap, icon } = kit
   const read = readingsOf(snap)
   const c = snap.cache
+  const ascii = snap.surface === 'terminal' && snap.glyphs === 'ascii'
   // A pill carries its own foreground and background, never one of each. Its
   // card is a child, so the engine counts the pointer on the card as on the
   // pill and reading it keeps the pill hovered. The card has no key: a keyed
@@ -148,9 +150,11 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
   }
 
   // On a text surface the battery is the pill itself: its charge painted as
-  // the background of the leading characters, draining right to left.
+  // the background of the leading characters, draining right to left. The
+  // ascii label is mapped before the cut, so a dropped glyph neither leaves
+  // a gap at the cut nor takes its cells from the charge.
   const textBattery = (text: string): RenderChildren[] => {
-    const chars = [...` ${text} `]
+    const chars = [...` ${ascii ? asciiText(text) : text} `]
     const cut = Math.round(clamp01(charge) * chars.length)
     const fg = onTone(cacheTone, palette.value)
     return [
@@ -616,10 +620,13 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
     ]
   }
 
-  return (
+  const tree = (
     <Box flexDirection="column">
       {row}
       {snap.expanded ? expandedView() : null}
     </Box>
   )
+  // Mapped last: the squeeze measured the row in the band's own glyphs, and
+  // no mapping widens one.
+  return ascii ? asciiTree(tree) : tree
 }

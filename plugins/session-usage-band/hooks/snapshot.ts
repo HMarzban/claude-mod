@@ -61,8 +61,8 @@ export type BandSnapshot = Readonly<{
   otherLimits: ReadonlyArray<LimitReading & { kind: string }>
   /** The project, home-relative, and git there; undefined until first read. */
   workspace: Workspace | undefined
-  /** The glyph tier; unicode when unset. */
-  glyphs?: Glyphs
+  /** The glyph tier, resolved once per session. */
+  glyphs: Glyphs
   /** The local zone's offset from UTC, in east-positive minutes; undefined
    *  when it can't be read. */
   utcOffsetMin: number | undefined
