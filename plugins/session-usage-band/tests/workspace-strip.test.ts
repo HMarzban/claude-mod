@@ -3,6 +3,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
+import { ROW_SLACK } from '../hooks/layout'
 import { BARE, LIGHT } from '../hooks/palette'
 import {
   GIT_CLEAN,
@@ -12,11 +13,15 @@ import {
   DARK_HOSTS,
   LIGHT_HOSTS,
   byKey,
+  cards,
   contrast,
   engine,
+  hoverCardOf,
+  isCard,
   props,
   shown,
   svgsOf,
+  textOf,
   walk,
   widthOf,
   type Node,
@@ -231,11 +236,98 @@ test("the path's hover card says the whole state, so nothing a narrow line drops
   const clock = setup(on, { env: HOME })
   engine.git = { status: DIRTY, dirs: GIT_MAIN_TREE }
   await $.session.start({ ...START, surface: 'desktop' })
-  let card = ''
-  walk(byKey(stripOf(await expanded($, clock, 'desktop')), 'ws:path'), k => {
-    if (k.type === 'Box' && k.props?.position === 'absolute') card = String((k.children as Node[] | undefined)?.map(c => shown(c)).join(''))
-  })
-  expect(card).toBe('~/workspace/claude-mod: branch main, 3 changed, 2 ahead, 1 behind')
+  const card = hoverCardOf(stripOf(await expanded($, clock, 'desktop')), 'ws:path')
+  expect(textOf(card)).toBe('~/workspace/claude-mod: branch main, 3 changed, 2 ahead, 1 behind')
+})
+
+test("the strip's hover cards are drawn after all of it, each sharing its own piece's scope", async ($, on) => {
+  const clock = setup(on, { env: HOME })
+  engine.root = WORKTREE
+  engine.git = { status: DIRTY, dirs: WORKTREE_DIRS }
+  await $.session.start(START)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const strip = stripOf(await expanded($, clock, surface))
+    const kids = ((strip?.children ?? []) as Node[]).filter(Boolean)
+    const first = kids.findIndex(isCard)
+    const found = cards(strip)
+    const tracking = surface === 'desktop' ? ['ws:ahead', 'ws:behind'] : ['ws:ab']
+    expect(found.map(([key]) => key)).toEqual(['ws:path', 'ws:head', 'ws:worktree', 'ws:changes', ...tracking])
+    expect(kids.slice(first)).toEqual(found.map(([, card]) => card))
+    expect(kids.slice(0, first).map(k => k.props?.key)).toEqual(['ws:where', 'ws:fill', 'ws:state'])
+    expect(new Set(found.map(([, card]) => card.hover?.scope)).size).toBe(found.length)
+    for (const [key, card] of found) {
+      expect(byKey(strip, key, 'Box')?.hover?.scope).toBe(card.hover?.scope)
+      expect(card.props).toMatchObject({ top: 0, display: 'none' })
+      expect(card.props?.key).toBeUndefined()
+      expect(card.hover?.display).toBe('flex')
+    }
+    // Ahead and behind, apart on the desktop, each explain the same.
+    expect(new Set(tracking.map(key => textOf(hoverCardOf(strip, key))))).toEqual(new Set(['2 commits to push, 1 to pull']))
+  }
+})
+
+/** Where the terminal's top strip, `cols` wide, puts its cards: on the
+ *  path's side from where the piece starts, slid left only as far as it must
+ *  to end within the strip's room; on the state's side ending where the piece
+ *  ends, as wide as its text or the room left of that end. */
+const expectStripCardsAt = (strip: Node | undefined, cols: number) => {
+  const pad = Number(strip?.props?.paddingX)
+  const room = cols - ROW_SLACK
+  const side = (key: string) => ((byKey(strip, key, 'Box')?.children ?? []) as Node[]).filter(Boolean)
+  let at = pad
+  for (const piece of side('ws:where')) {
+    const card = hoverCardOf(strip, String(piece.props?.key))
+    if (card !== undefined) {
+      const width = Math.min(textOf(card).length + 2, room)
+      expect(card.props?.width).toBe(width)
+      expect(card.props?.left).toBe(Math.max(0, Math.min(at, room - width)))
+    }
+    at += widthOf(piece)
+  }
+  let end = pad
+  for (const piece of side('ws:state').reverse()) {
+    const card = hoverCardOf(strip, String(piece.props?.key))
+    if (card !== undefined) {
+      expect(card.props?.right).toBe(end)
+      expect(card.props?.left).toBeUndefined()
+      expect(card.props?.width).toBe(Math.min(textOf(card).length + 2, room - end))
+    }
+    end += widthOf(piece)
+  }
+}
+
+test("on the terminal a card on the path's side starts at its piece, and one on the state's side ends at its own", async ($, on) => {
+  const clock = setup(on, { env: HOME })
+  engine.root = WORKTREE
+  engine.git = { status: DIRTY, dirs: WORKTREE_DIRS }
+  await $.session.start(START)
+  const strip = stripOf(await expanded($, clock, 'terminal', 120))
+  expectStripCardsAt(strip, 120)
+  expect(hoverCardOf(strip, 'ws:changes')?.props?.right).toBeGreaterThan(Number(strip?.props?.paddingX))
+})
+
+test("on a narrow terminal a card on the state's side still ends within the strip", async ($, on) => {
+  const clock = setup(on, { env: HOME })
+  engine.root = WORKTREE
+  engine.git = { status: DIRTY, dirs: WORKTREE_DIRS }
+  await $.session.start(START)
+  const strip = stripOf(await expanded($, clock, 'terminal', 24))
+  const changes = hoverCardOf(strip, 'ws:changes')
+  expect(textOf(changes).length + 2).toBeGreaterThan(24 - ROW_SLACK - Number(changes?.props?.right))
+  expectStripCardsAt(strip, 24)
+})
+
+test('a footer strip with no room for its cards still draws, and shows no card too narrow to read', async ($, on) => {
+  const clock = setup(on, { env: HOME })
+  engine.root = WORKTREE
+  engine.git = { status: DIRTY, dirs: WORKTREE_DIRS }
+  await $.session.start(START)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const strip = stripOf(byKey(await expanded($, clock, surface, 24, 12), 'actions', 'Box'))
+    expect(strip).toBeDefined()
+    // Its padding and one character, or the hover shows a bare patch.
+    for (const [, card] of cards(strip)) expect(card.props?.width).toBeGreaterThanOrEqual(3)
+  }
 })
 
 test('one commit to push reads as one', async ($, on) => {

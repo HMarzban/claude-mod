@@ -7,6 +7,15 @@ version may change how the band reads.
 
 ## [Unreleased]
 
+### Fixed
+- A resumed session (`claude --resume`, `/resume`, or a past session opened
+  in the desktop app) no longer reads as a new one: the cache shows cold or
+  counting down, at the re-caching price Claude Code names and for as long
+  as its last cache write was made for, and the spend and token breakdown
+  start from what the transcript records, not $0.00.
+
+## [0.11.13] - 2026-10-10
+
 ### Changed
 - The plugin README links the website, where every state of the band plays
   live, and names Fable and Mythos 5.1's cache-read share beside the others.
@@ -16,11 +25,12 @@ version may change how the band reads.
   whole team, and keeps the two-step form for Claude Code before 2.1.292.
 
 ### Fixed
-- A resumed session (`claude --resume`, `/resume`, or a past session opened
-  in the desktop app) no longer reads as a new one: the cache shows cold or
-  counting down, at the re-caching price Claude Code names and for as long
-  as its last cache write was made for, and the spend and token breakdown
-  start from what the transcript records, not $0.00.
+- In the terminal, a chip's hover card drew under the chips after it, so it
+  read in fragments between them, and a card from a chip mid-row was cut at
+  the row's right edge. On both surfaces each card now draws after every
+  chip, at its own chip and slid left only as far as it must to end short
+  of ▿. The workspace strip's cards draw after the strip too, each at its
+  own piece.
 
 ## [0.11.12] - 2026-10-09
 

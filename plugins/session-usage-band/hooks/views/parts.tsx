@@ -15,22 +15,21 @@ export type PillSpec = Readonly<{
   key: string
   tone: Tone
   body: RenderChildren[]
-  /** The one-line explanation shown while the pill is hovered. */
+  /** The one-line explanation shown while the pill is hovered, on a card
+   *  its row draws after every pill. */
   hover?: string
   /** The terminal battery paints its own background in its Texts. */
   paintsOwnBg?: boolean
   bg?: string
 }>
 
-/** A pill carries its own foreground and background, never one of each. Its
- *  card is a child, so the engine counts the pointer on the card as on the
- *  pill and reading it keeps the pill hovered. The card has no key: a keyed
- *  Box is its own hover scope, and a hidden one could never be hovered. One
- *  line, since a collapsed band is one row. Plain has no background to cover
- *  the row with, so no cards; the expanded line says it all. A pill never
- *  shrinks: the squeeze drops pieces instead, so its text never wraps. */
-export const pill = (kit: Kit, { key, tone, body, hover, paintsOwnBg, bg }: PillSpec, anchor: 'left' | 'right'): RenderElement => {
-  const { Box, Text, palette, onTone, hoverCard } = kit
+/** A pill carries its own foreground and background, never one of each. It
+ *  reveals its card, drawn after every pill, through the hover scope they
+ *  share; one line, since a collapsed band is one row. Plain has no cards;
+ *  the expanded line says it all. A pill never shrinks: the squeeze drops
+ *  pieces instead, so its text never wraps. */
+export const pill = (kit: Kit, { key, tone, body, hover, paintsOwnBg, bg }: PillSpec): RenderElement => {
+  const { Box, Text, palette, onTone, hoverable } = kit
   if (!palette.filled) {
     const fg = onTone(tone, palette.value)
     return (
@@ -43,9 +42,8 @@ export const pill = (kit: Kit, { key, tone, body, hover, paintsOwnBg, bg }: Pill
   }
   const fill = paintsOwnBg ? {} : { backgroundColor: onTone(tone, bg ?? palette.surface, palette.amberBg), paddingX: 1 }
   return (
-    <Box key={key} flexShrink={0} {...fill}>
+    <Box key={key} flexShrink={0} {...fill} {...(hover === undefined ? {} : hoverable(key))}>
       {body}
-      {hover === undefined ? null : hoverCard(hover, anchor)}
     </Box>
   )
 }
@@ -101,7 +99,7 @@ export const layoutCachePill = (kit: Kit, read: Readings, short: boolean): Rende
     : palette.filled
       ? textBattery(kit, c.charge, c.tone, read.frame.glyphs === 'ascii' ? asciiText(text) : text)
       : [<Text key="c" color={fg}>{text}</Text>]
-  return pill(kit, { key: 'cache', tone: c.tone, body, paintsOwnBg: !Svg && palette.filled }, 'left')
+  return pill(kit, { key: 'cache', tone: c.tone, body, paintsOwnBg: !Svg && palette.filled })
 }
 
 // ---- what every new view draws its lines and sections with ------------------

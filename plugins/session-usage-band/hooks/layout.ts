@@ -78,9 +78,13 @@ export const isList = (n: RenderChildren): n is readonly RenderChildren[] => Arr
 /** Whether a child draws anything: null, undefined and false draw nothing. */
 export const isDrawn = (child: unknown): boolean => child !== null && child !== undefined && child !== false
 
+/** Whether `n` is a Box placed out of the flow: a hover card. */
+const isPlaced = (n: RenderChildren): boolean =>
+  typeof n === 'object' && n !== null && !isList(n) && n.type === 'Box' && n.props?.position === 'absolute'
+
 /** Columns a drawn tree takes: text, padding, gaps and Button labels. A
- *  column Box takes its widest row; hidden cards take none; an Svg takes its
- *  width in columns, rounded up. */
+ *  column Box takes its widest row; hidden cards take none, nor a gap; an
+ *  Svg takes its width in columns, rounded up. */
 export const cellsOf = (n: RenderChildren, m: Measure): number => {
   if (n === null || n === undefined || typeof n === 'boolean') return 0
   if (typeof n === 'string' || typeof n === 'number') return [...String(n)].length * m.text
@@ -93,9 +97,9 @@ export const cellsOf = (n: RenderChildren, m: Measure): number => {
       return Math.ceil((n.props.width ?? 64) / m.pxPerCell)
     case 'Box':
     case 'Text': {
-      if (n.props?.position === 'absolute') return 0
+      if (isPlaced(n)) return 0
       if (n.type === 'Box' && typeof n.props?.width === 'number') return n.props.width
-      const kids = (n.children ?? []).filter(isDrawn)
+      const kids = (n.children ?? []).filter(k => isDrawn(k) && !isPlaced(k))
       const pad = typeof n.props?.paddingX === 'number' ? 2 * n.props.paddingX : 0
       const widths = kids.map(k => cellsOf(k, m))
       const own =
@@ -109,6 +113,17 @@ export const cellsOf = (n: RenderChildren, m: Measure): number => {
     default:
       return 0
   }
+}
+
+/** The column each of a row's drawn pieces starts at, the pieces `gap`
+ *  columns apart. */
+export const startsOf = (pieces: readonly RenderChildren[], gap: number, m: Measure): number[] => {
+  let at = 0
+  return pieces.map(piece => {
+    const start = at
+    at += cellsOf(piece, m) + gap
+    return start
+  })
 }
 
 /** The first squeeze at which `build` fits `room` columns, or the last tried:

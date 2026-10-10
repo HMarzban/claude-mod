@@ -9,6 +9,24 @@ import { DESKTOP, TERMINAL } from './layout'
 import type { Tone } from './reading'
 import type { BandSnapshot } from './snapshot'
 
+/** Where a hover card sits in its row, which has `room` columns: from
+ *  `left`, its piece's first column, slid left only as far as it must to end
+ *  within the room; or ending where its piece ends, `right` columns short of
+ *  the row's right edge, as wide as the room left of that end allows. */
+export type CardPlace = Readonly<{ left: number; room: number }> | Readonly<{ right: number; room: number }>
+
+/** The columns a card `cells` wide takes at `place`: its own width or the
+ *  room it has, whichever is less, and none where a row has no room. */
+const cardSpan = (place: CardPlace, cells: number) => {
+  const room = Math.floor(place.room)
+  if ('right' in place) {
+    const right = Math.round(place.right)
+    return { right, width: Math.max(0, Math.min(cells, room - right)) }
+  }
+  const width = Math.max(0, Math.min(cells, room))
+  return { left: Math.max(0, Math.min(Math.round(place.left), room - width)), width }
+}
+
 export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
   const { Box, Button, Text } = el
   const palette = snap.palette
@@ -19,18 +37,33 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
   const Svg = snap.surface === 'desktop' && palette.filled && 'Svg' in el ? el.Svg : undefined
   const onTone = (tone: Tone, calm: string, amber: string = palette.amberFg) => (tone === 'amber' ? amber : calm)
 
-  /** A one-line explanation shown while its keyed parent is hovered. It has
-   *  no key: a keyed Box is its own hover scope, and a hidden one could never
-   *  be hovered. Plain has no background to cover the row with, so none. */
-  const hoverCard = (text: string, anchor: 'left' | 'right'): RenderChildren =>
-    palette.filled ? (
+  // A piece and its hover card share a hover scope, so the card can sit
+  // apart from the piece, after every piece in their row: a placed Box paints
+  // over those before it, so inside its own piece the pieces after would
+  // paint over it. The pointer on a showing card keeps it showing, so a card
+  // is as wide as its text and sits at its piece: moving onto a piece it does
+  // not cover switches cards. Plain has no background to cover the row with,
+  // so no cards and no scopes.
+  const scopeOf = (key: string) => `band-${key}`
+
+  /** The props that make a keyed Box reveal the hover card drawn for `key`. */
+  const hoverable = (key: string) => (palette.filled ? { hover: { scope: scopeOf(key) } } : {})
+
+  /** The one-line explanation `key`'s piece reveals, for after the pieces of
+   *  its row, placed as `place` says. It has no key: a keyed Box is its own
+   *  hover scope, and a hidden one could never be hovered. A card with no
+   *  room past its padding for one character isn't drawn. */
+  const hoverCard = (key: string, text: string, place: CardPlace): RenderChildren => {
+    if (!palette.filled) return null
+    const span = cardSpan(place, text.length + 2)
+    if (span.width < 3) return null
+    return (
       <Box
         position="absolute"
         top={0}
-        {...(anchor === 'left' ? { left: 0 } : { right: 0 })}
-        width={Math.min(text.length + 2, snap.columns)}
+        {...span}
         display="none"
-        hover={{ display: 'flex' }}
+        hover={{ display: 'flex', scope: scopeOf(key) }}
         backgroundColor={palette.tooltipBg}
         paddingX={1}
       >
@@ -38,8 +71,8 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
           {text}
         </Text>
       </Box>
-    ) : null
-
+    )
+  }
 
   /** A column of air. The desktop drops a string child that is only spaces,
    *  so there the gap is an empty Box; a text surface keeps its space. */
@@ -54,7 +87,7 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
     return GLYPH[name] ? [<Text key={`i-${name}`} color={color}>{`${GLYPH[name]} `}</Text>] : []
   }
 
-  return { Box, Button, Text, Svg, palette, measure, columns: snap.columns, onTone, hoverCard, gap, icon }
+  return { Box, Button, Text, Svg, palette, measure, columns: snap.columns, onTone, hoverable, hoverCard, gap, icon }
 }
 
 export type Kit = ReturnType<typeof makeKit>
