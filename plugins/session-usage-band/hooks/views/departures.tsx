@@ -112,8 +112,10 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
           group(kit, 'cache', [
             label,
             status,
-            // The minutes give way to the clock time alone; LAST CALL keeps its seconds.
-            c.amber !== undefined || c.coldAtClock === undefined || keeps.has('boardMinutes') ? left : null,
+            // The minutes give way to the clock time alone; with no clock they
+            // stay until the last calm step, so an amber reason still fits.
+            // LAST CALL keeps its seconds.
+            c.amber !== undefined || keeps.has(c.coldAtClock === undefined ? 'calmFive' : 'boardMinutes') ? left : null,
             c.amber === undefined || beforeLast(keeps) ? reWarm : null,
           ]),
           five === undefined
@@ -199,7 +201,7 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       [up(l.name), limitInk(l)],
       [l.boardAmber ?? l.boardShort ?? l.value, l.boardAmber !== undefined ? 'amber' : 'text'],
       reset === undefined ? undefined : up(reset),
-      l.passed ? [] : [`${l.value} used`, l.pace, l.resetWords],
+      l.passed ? [] : [`${l.value} used`],
     )
   }
   const rows: BoardRow[] = [
@@ -207,7 +209,6 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       c.known ? `re-warm ${c.estimate}` : undefined,
       c.savedText === undefined ? undefined : `saved ${c.savedText}`,
       c.hitText === undefined ? undefined : `${c.hitText} hit rate`,
-      `lasts ${c.lastsText}`,
     ]),
     x.known
       ? row('context', ['CONTEXT'], [x.boardAmber ?? x.valueText, x.boardAmber !== undefined ? 'amber' : 'text'], up(`${x.inContextText} of ${x.windowText}`), [

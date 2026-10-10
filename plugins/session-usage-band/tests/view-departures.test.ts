@@ -4,9 +4,10 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On, RenderChildren } from 'claude-code'
+import { drawBand } from '../hooks/band'
 import { ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
-import { LONG, byKey, shown, walk, widthOf, type Node } from './helpers'
-import { caseKey, drawCases, viewSuite, type Appearance, type Mount, type ScenarioName, type Ttl } from './matrix'
+import { HOUR, LONG, byKey, fakeEl, shown, walk, widthOf, type Node } from './helpers'
+import { NO_ACT, caseKey, drawCases, snapOf, viewSuite, type Appearance, type Mount, type ScenarioName, type Ttl } from './matrix'
 
 viewSuite('departures')
 
@@ -76,10 +77,16 @@ test('context near compaction gets a flap of its own', async ($, on) => {
   expect(shown((await at($, on, 'nearCompaction')).shut)).toMatch(/! COMPACTS IN ~10K/)
 })
 test('open, the board has its header and every row', async ($, on) => {
-  const t = shown((await at($, on, 'calm')).open)
+  const t = shown(byKey((await at($, on, 'calm')).open, 'body', 'Box'))
   expect(t).toMatch(/ITEM\s*STATUS\s*TIME\s*REMARKS/)
-  for (const item of ['CACHE', 'CONTEXT', '5H', '7D', 'SPEND']) expect(t).toContain(item)
+  for (const row of [/CACHE\s*DEPARTS/, /CONTEXT\s*\d+%/, /5H\s*~\d+% AT ↻/, /7D\s*~\d+% AT ↻/, /SPEND\s*\$/]) expect(t).toMatch(row)
 })
+/** A duration as the board may say it, `IN 52 MIN` or `IN 1H 00 MIN`: never `52M`, `3H 00M`, `2D 19H` or `~1H`. */
+const SHORT_DURATION = /\b\d+[MD]\b|\b\d+H\b(?! \d+ MIN)/
+for (const [scenario, ttl] of [['calm', '1h'], ['cold', '5m'], ['lastMinute', '5m']] as const)
+  test(`open, ${scenario} at ${ttl} says no duration in short form`, LONG, async ($, on) => {
+    expect(shown(byKey((await at($, on, scenario, T160, ttl)).open, 'body', 'Box'))).not.toMatch(SHORT_DURATION)
+  })
 test('open, the workspace heads the board on a flap', async ($, on) => {
   expect(shown((await at($, on, 'calm')).open)).toMatch(/claude-mod, branch main, clean/)
 })
@@ -133,3 +140,13 @@ for (const appearance of ['dark', 'plain'] as const)
       expect(shown(line)).toMatch(amber)
       expect(cellsOf(line as RenderChildren, TERMINAL)).toBeLessThanOrEqual(T40.cols - ROW_SLACK - 2)
     })
+/** With no UTC offset there is no clock time, so the minutes give way at the last calm step instead. */
+for (const [scenario, over, amber] of [
+  ['limit80', { fiveHour: { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }, /! 5h 82%$/],
+  ['nearCompaction', { context: { tokens: 150_000, window: 200_000, percent: 75, compactAt: 160_000 } }, /! ctx \d+%$/],
+] as const)
+  test(`at 40 columns with no UTC offset, ${scenario} keeps its amber whole within the line's room`, () => {
+    const line = byKey(drawBand(fakeEl, snapOf({ layout: 'departures', columns: 40, ...over }), NO_ACT), 'line', 'Box')
+    expect(shown(line)).toMatch(amber)
+    expect(cellsOf(line as RenderChildren, TERMINAL)).toBeLessThanOrEqual(T40.cols - ROW_SLACK - 2)
+  })
