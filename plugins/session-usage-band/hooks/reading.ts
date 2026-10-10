@@ -18,7 +18,8 @@ import {
 } from './format'
 import type { ResetIn } from './format'
 import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
-import { paceText } from './words'
+import { cacheWords, contextWords, limitWords, paceText, spendWords, workspaceWords } from './words'
+import type { CacheWords, ContextWords, LimitWords, SpendWords } from './words'
 
 export type Tone = 'calm' | 'amber'
 
@@ -151,7 +152,7 @@ export const limitTone = (reading: LimitReading, now: number, etaMs: number | nu
   !hasReset(reading, now) && (clamp01(reading.percentUsed / 100) >= WARN_AT || etaMs !== null) ? 'amber' : 'calm'
 
 // ---- the facts every layout draws from ------------------------------------
-// Moved from band.tsx; the card's pace already speaks through words.ts, and the rest will.
+// Moved from band.tsx; words.ts phrases them, and readingsOf puts the two together.
 
 export type { Glyphs } from './snapshot'
 
@@ -172,6 +173,10 @@ export type CacheFacts = Readonly<{
   estimate: string
   measured: boolean
   known: boolean
+  /** The hit ratio, once measured. */
+  hitFrac: number | undefined
+  /** Time to cold while it counts down: expiring, or warm while Claude isn't working. */
+  coldInMs: number | undefined
 }>
 
 export type ContextFacts = ReturnType<typeof contextReading> & Readonly<{ compactAt: number | undefined; window: number }>
@@ -201,6 +206,10 @@ export type LimitFacts = Readonly<{
   gone: number | undefined
   /** 100 when a 5h fill is measured; else the average's landing, once 5% of the window has gone. */
   projectedPct: number | undefined
+  /** `projectedPct` as a share, at most 1; undefined once passed. */
+  projectedFrac: number | undefined
+  /** Time to the reset; undefined once it has passed. */
+  resetInMs: number | undefined
 }>
 
 /** A window as chips' Limits card reads it: the facts, its raw reading and window length, and the card's pace tail. */
@@ -212,11 +221,11 @@ export type ChipsReadings = Readonly<{
   reading: Readonly<{ copy: CacheCopy; tokenBreakdown: string; windows: readonly ChipsWindow[]; worst: ChipsWindow | undefined }>
 }>
 
-// What the views read: the facts now, and the words beside them once words.ts phrases them.
-export type CacheReading = CacheFacts
-export type ContextReading = ContextFacts
-export type SpendReading = SpendFacts
-export type LimitView = LimitFacts
+// What the views read: each section's facts, and its words beside them.
+export type CacheReading = CacheFacts & CacheWords
+export type ContextReading = ContextFacts & ContextWords
+export type SpendReading = SpendFacts & SpendWords
+export type LimitView = LimitFacts & LimitWords
 
 export type Readings = Readonly<{
   frame: Frame
@@ -229,6 +238,8 @@ export type Readings = Readonly<{
   limits: readonly LimitView[]
   worstLimit: LimitView | undefined
   workspace: BandSnapshot['workspace']
+  /** The workspace as one line: `~/workspace/claude-mod, branch main, clean`. */
+  workspaceText: string | undefined
   chips: ChipsReadings
 }>
 
@@ -237,6 +248,8 @@ export const cacheFacts = (snap: BandSnapshot): CacheFacts => {
   const c = snap.cache
   const mood = cacheMood(c)
   const measured = c.requests > 0
+  // Mid-turn every step restarts the TTL, so a countdown would only bounce.
+  const counting = mood === 'expiring' || (mood === 'warm' && !snap.isWorking)
   return {
     mood,
     tone: mood === 'expiring' ? 'amber' : 'calm',
@@ -245,6 +258,8 @@ export const cacheFacts = (snap: BandSnapshot): CacheFacts => {
     measured,
     // Measured, or recalled from the session's last reply: time and price known.
     known: measured || c.recalled,
+    hitFrac: measured && c.hitRatio !== null ? c.hitRatio : undefined,
+    coldInMs: counting ? c.msLeft : undefined,
   }
 }
 
@@ -265,6 +280,7 @@ export const spendFacts = (snap: BandSnapshot): SpendFacts => {
 export const limitFacts = (snap: BandSnapshot): ChipsWindow[] => {
   const one = (name: string, key: LimitKey, reading: LimitReading, windowMs: number | undefined, etaMs: number | null): ChipsWindow => {
     const reset = resetIn(reading.resetsAt, snap.now)
+    const passed = reset?.kind === 'passed'
     const gone = windowGone(reading, windowMs, snap.now)
     // A measured fill lands it at 100, so the words and the amber agree; else
     // the average's landing, once 5% of the window has gone.
@@ -283,8 +299,10 @@ export const limitFacts = (snap: BandSnapshot): ChipsWindow[] => {
       frac: clamp01(reading.percentUsed / 100),
       tone: limitTone(reading, snap.now, etaMs),
       value: `${Math.round(reading.percentUsed)}%`,
-      passed: reset?.kind === 'passed',
+      passed,
       projectedPct,
+      projectedFrac: passed || projectedPct === undefined ? undefined : clamp01(projectedPct / 100),
+      resetInMs: reset?.kind === 'in' ? Date.parse(reading.resetsAt ?? '') - snap.now : undefined,
     }
   }
   return [
@@ -294,32 +312,38 @@ export const limitFacts = (snap: BandSnapshot): ChipsWindow[] => {
   ]
 }
 
-/** Everything a view reads, built once per draw: the frame, the facts, and chips' own inputs. */
+/** Everything a view reads, built once per draw: the frame, each section's
+ *  facts and words, and chips' own inputs. */
 export const readingsOf = (snap: BandSnapshot): Readings => {
   const c = snap.cache
+  const frame: Frame = {
+    expanded: snap.expanded,
+    maxRows: snap.maxRows,
+    now: snap.now,
+    isWorking: snap.isWorking,
+    glyphs: snap.glyphs,
+    utcOffsetMin: snap.utcOffsetMin,
+  }
   const cache = cacheFacts(snap)
+  const spend = spendFacts(snap)
+  const context = contextFacts(snap)
   const windows = limitFacts(snap)
+  const limits = windows.map((w): LimitView => ({ ...w, ...limitWords(w, frame) }))
   // The headline is the window closest to its limit.
   const worst = windows
     .filter(w => !w.passed)
     .reduce<ChipsWindow | undefined>((top, w) => (top === undefined || w.percentUsed > top.percentUsed ? w : top), undefined)
   return {
-    frame: {
-      expanded: snap.expanded,
-      maxRows: snap.maxRows,
-      now: snap.now,
-      isWorking: snap.isWorking,
-      glyphs: snap.glyphs ?? 'unicode',
-      utcOffsetMin: snap.utcOffsetMin,
-    },
-    cache,
-    spend: spendFacts(snap),
-    context: contextFacts(snap),
-    fiveHour: windows.find(w => w.key === '5h'),
-    sevenDay: windows.find(w => w.key === '7d'),
-    limits: windows,
-    worstLimit: worst,
+    frame,
+    cache: { ...cache, ...cacheWords(cache, c, frame) },
+    spend: { ...spend, ...spendWords(spend) },
+    context: { ...context, ...contextWords(context) },
+    fiveHour: limits.find(l => l.key === '5h'),
+    sevenDay: limits.find(l => l.key === '7d'),
+    limits,
+    worstLimit: worst === undefined ? undefined : limits[windows.indexOf(worst)],
     workspace: snap.workspace,
+    workspaceText: workspaceWords(snap.workspace),
     chips: {
       raw: snap,
       reading: {

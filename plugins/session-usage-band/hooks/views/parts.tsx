@@ -1,12 +1,14 @@
 // The pieces several views draw: the pill a chip sits in; the cache's
-// battery, an icon on the desktop and the pill itself in a terminal; and the
-// lines, sections and grid every new view is laid out with.
+// battery, an icon on the desktop and the pill itself in a terminal; the
+// cache pill the new views share; and the lines, sections and grid every new
+// view is laid out with.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { clamp01 } from '../format'
+import { asciiText } from '../glyphs'
 import type { Kit } from '../kit'
 import { ROW_SLACK, keepsIn, squeezeToFit } from '../layout'
-import type { LimitKey, Tone } from '../reading'
+import type { LimitKey, Readings, Tone } from '../reading'
 import type { Amber, Role, Say } from '../words'
 
 export type PillSpec = Readonly<{
@@ -84,6 +86,22 @@ export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string):
       </Text>
     ) : null,
   ]
+}
+
+/** The cache as a pill for a new view (pulse, week): chips' battery and
+ *  ground, the readings' words, and no hover card; amber, its reason. */
+export const layoutCachePill = (kit: Kit, read: Readings, short: boolean): RenderElement => {
+  const { Text, Svg, palette, onTone } = kit
+  const c = read.cache
+  const text = c.amber !== undefined ? (short ? c.amber.short : c.amber.long) : short ? c.textShort : c.text
+  const fg = onTone(c.tone, palette.value)
+  // The ascii text is mapped before the battery's cut, as chips maps its own on a terminal.
+  const body = Svg
+    ? [batteryIcon(kit, c.charge, c.tone, c.alt), <Text key="c" color={fg}>{` ${text}`}</Text>]
+    : palette.filled
+      ? textBattery(kit, c.charge, c.tone, read.frame.glyphs === 'ascii' ? asciiText(text) : text)
+      : [<Text key="c" color={fg}>{text}</Text>]
+  return pill(kit, { key: 'cache', tone: c.tone, body, paintsOwnBg: !Svg && palette.filled }, 'left')
 }
 
 // ---- what every new view draws its lines and sections with ------------------
