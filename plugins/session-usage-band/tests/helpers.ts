@@ -197,22 +197,21 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
       const stdout = count.startsWith('+') ? engine.transcript.slice(Number(count.slice(1)) - 1) : engine.transcript.slice(-Number(count))
       return { value: { ...quiet, exitCode: 0, stdout } }
     }
-    const hold = engine.hold
+    const { git, transcript, grepFails, hold } = engine
     if (hold !== undefined) await hold
     if (e.argv[0] === 'grep') {
       // `grep -b -F pattern path`: each line holding the pattern, after its byte offset.
-      if (engine.grepFails) throw new Error('grep: command not found')
-      if (engine.transcript === undefined) return { value: { ...quiet, exitCode: 2, stdout: '', stderr: 'grep: no such file' } }
+      if (grepFails) throw new Error('grep: command not found')
+      if (transcript === undefined) return { value: { ...quiet, exitCode: 2, stdout: '', stderr: 'grep: no such file' } }
       const pattern = String(e.argv.at(-2))
       let offset = 0
       const found: string[] = []
-      for (const line of engine.transcript.split('\n')) {
+      for (const line of transcript.split('\n')) {
         if (line.includes(pattern)) found.push(`${offset}:${line}\n`)
         offset += line.length + 1
       }
       return { value: { ...quiet, exitCode: found.length > 0 ? 0 : 1, stdout: found.join('') } }
     }
-    const git = engine.git
     if (git === 'fail') throw new Error('git: command not found')
     if (git === 'none') return { value: { ...quiet, exitCode: 128, stdout: '', stderr: 'fatal: not a git repository' } }
     return { value: { ...quiet, exitCode: 0, stdout: e.argv.includes('status') ? git.status : git.dirs } }

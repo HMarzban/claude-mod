@@ -3689,10 +3689,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Extend the fake engine**
 
-In `tests/helpers.ts`, `grep` answers as `grep -b -F` would, `tail` takes `-c +N`, `grepFails` joins `ENGINE_INITIAL`, and `base` gives `classic.SessionStart` its bottom handler (one handler per event, so tests never register it):
+In `tests/helpers.ts`, `grep` answers as `grep -b -F` would, `tail` takes `-c +N`, `grepFails` joins `ENGINE_INITIAL`, and `base` gives `classic.SessionStart` its bottom handler (one handler per event, so tests never register it). Every answer is the one at the call: `git`, `transcript` and `grepFails` are read before the hold, so a held read answers with what it was called with:
 
 ```diff
-@@ -79,7 +79,7 @@ type EngineFake = {
+@@ -80,7 +80,7 @@ type EngineFake = {
    root: string
    repoRoot: string | undefined
    git: GitAnswer
@@ -3701,7 +3701,7 @@ In `tests/helpers.ts`, `grep` answers as `grep -b -F` would, `tail` takes `-c +N
    hold: Promise<void> | undefined
    ran: string[][]
    /** The session's id and model, as the engine names them. */
-@@ -91,6 +91,8 @@ type EngineFake = {
+@@ -92,6 +92,8 @@ type EngineFake = {
    transcriptBytes: number | undefined
    /** When set, `tail` can't run, as where the host has none. */
    tailFails: boolean
@@ -3710,7 +3710,7 @@ In `tests/helpers.ts`, `grep` answers as `grep -b -F` would, `tail` takes `-c +N
    /** Every path the plugin asked the file system about. */
    statted: string[]
    /** The plugin's own store, JSON in and out as the engine keeps it. */
-@@ -119,6 +121,7 @@ const ENGINE_INITIAL: Readonly<EngineFake> = {
+@@ -120,6 +122,7 @@ const ENGINE_INITIAL: Readonly<EngineFake> = {
    transcript: undefined,
    transcriptBytes: undefined,
    tailFails: false,
@@ -3718,7 +3718,7 @@ In `tests/helpers.ts`, `grep` answers as `grep -b -F` would, `tail` takes `-c +N
    statted: [],
    root: PROJECT,
    repoRoot: PROJECT,
-@@ -185,18 +188,34 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
+@@ -186,18 +189,33 @@ export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Reco
      const quiet = { stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
      if (e.argv[0] === 'tail') {
        if (engine.tailFails || engine.transcript === undefined) return { value: { ...quiet, exitCode: 1, stdout: '', stderr: 'tail: no such file' } }
@@ -3730,22 +3730,22 @@ In `tests/helpers.ts`, `grep` answers as `grep -b -F` would, `tail` takes `-c +N
 +      return { value: { ...quiet, exitCode: 0, stdout } }
      }
 -    const git = engine.git
-     const hold = engine.hold
+-    const hold = engine.hold
++    const { git, transcript, grepFails, hold } = engine
      if (hold !== undefined) await hold
 +    if (e.argv[0] === 'grep') {
 +      // `grep -b -F pattern path`: each line holding the pattern, after its byte offset.
-+      if (engine.grepFails) throw new Error('grep: command not found')
-+      if (engine.transcript === undefined) return { value: { ...quiet, exitCode: 2, stdout: '', stderr: 'grep: no such file' } }
++      if (grepFails) throw new Error('grep: command not found')
++      if (transcript === undefined) return { value: { ...quiet, exitCode: 2, stdout: '', stderr: 'grep: no such file' } }
 +      const pattern = String(e.argv.at(-2))
 +      let offset = 0
 +      const found: string[] = []
-+      for (const line of engine.transcript.split('\n')) {
++      for (const line of transcript.split('\n')) {
 +        if (line.includes(pattern)) found.push(`${offset}:${line}\n`)
 +        offset += line.length + 1
 +      }
 +      return { value: { ...quiet, exitCode: found.length > 0 ? 0 : 1, stdout: found.join('') } }
 +    }
-+    const git = engine.git
      if (git === 'fail') throw new Error('git: command not found')
      if (git === 'none') return { value: { ...quiet, exitCode: 128, stdout: '', stderr: 'fatal: not a git repository' } }
      return { value: { ...quiet, exitCode: 0, stdout: e.argv.includes('status') ? git.status : git.dirs } }
