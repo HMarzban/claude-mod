@@ -403,11 +403,11 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, no
 export type WeekWords = Readonly<{
   /** 'weekly limit by day: Tuesday 6%, Wednesday 9%, Saturday about 7%' */
   daysAlt: string
-  /** '5-hour limit by hour: 08:00 10%, 09:00 15%' */
+  /** '5-hour limit by hour: 08:40 10%, 09:40 15%' */
   hoursAlt: string
-  /** '30% used · on pace for ~50% · busiest Thu' */
+  /** '30% used · on pace for ~50% by Mon 08:40 · busiest Thu', or once passed, 'reset' */
   summary7: string | undefined
-  /** '4% used · on pace for ~10%' */
+  /** '4% used · on pace for ~10% by 16:40' */
   summary5: string | undefined
 }>
 
@@ -421,13 +421,15 @@ const cellsSpoken = <C extends DayCell | HourCell>(title: string, cells: readonl
 /** A window's summary: its use and its pace, then the busiest day when given. */
 const summaryOf = (l: LimitView | undefined, busiest?: string): string | undefined => {
   if (l === undefined) return undefined
-  const standing = l.reset?.kind === 'passed' ? [resetPhrase(l.reset, 'words')] : [`${l.value} used`, paceText(l)]
+  // Only a landing reads by the reset: a fill has its own time, and full before reset says it.
+  const pace = l.projectedText !== undefined && l.resetClock !== undefined ? `${l.pace} by ${l.resetClock}` : l.pace
+  const standing = l.reset?.kind === 'passed' ? [resetPhrase(l.reset, 'words')] : [`${l.value} used`, pace]
   return [...standing, busiest === undefined ? '' : `busiest ${busiest}`].filter(Boolean).join(' · ')
 }
 
 export const weekWords = (w: Week, seven: LimitView | undefined, five: LimitView | undefined): WeekWords => ({
   daysAlt: cellsSpoken('weekly limit by day', w.days, d => d.name),
-  hoursAlt: cellsSpoken('5-hour limit by hour', w.hours, c => `${c.label}:00`),
+  hoursAlt: cellsSpoken('5-hour limit by hour', w.hours, c => c.startClock),
   summary7: summaryOf(seven, w.busiest),
   summary5: summaryOf(five),
 })

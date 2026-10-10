@@ -2,6 +2,7 @@
 // the 5-hour one, read off the limit samples, with a guess for the slices
 // ahead. Pure, so the cells can be checked without the store.
 
+import { fmtClock } from './format'
 import type { Sample } from './memory'
 
 export type DayCell = Readonly<{
@@ -23,8 +24,10 @@ export type DayCell = Readonly<{
 }>
 
 export type HourCell = Readonly<{
-  /** The local clock hour it starts at: '08' */
+  /** The local clock hour it starts in: '08' */
   label: string
+  /** The local time it starts at, as the 5h reset sets it: '08:40' */
+  startClock: string
   pct: number | undefined
   text: string
   guess: boolean
@@ -126,7 +129,12 @@ export const weekOf = (o: Readonly<{ samples: readonly Sample[]; seven: WindowNo
     return { ...slice, initial: name.slice(0, 1), name, date: String(at.getUTCDate()), today: current }
   })
   const hours = slicesOf(o.samples, o.five, BY_HOUR, o.now).map(
-    ({ start, current, ...slice }): HourCell => ({ ...slice, label: String(local(start).getUTCHours()).padStart(2, '0'), now: current }),
+    ({ start, current, ...slice }): HourCell => ({
+      ...slice,
+      label: String(local(start).getUTCHours()).padStart(2, '0'),
+      startClock: fmtClock(start, o.utcOffsetMin),
+      now: current,
+    }),
   )
   const busiest = days.filter(isKnown).reduce<Known<DayCell> | undefined>((top, d) => (top === undefined || d.pct > top.pct ? d : top), undefined)
   return { days, hours, busiest: busiest?.name.slice(0, 3) }

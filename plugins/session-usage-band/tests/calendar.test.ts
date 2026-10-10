@@ -1,6 +1,7 @@
 import { test, expect } from 'claude-code/testing'
 import { MAX_SAMPLES, addSample, asLimitSamples, mergeSamples, sampleOf } from '../hooks/memory'
 import { weekOf } from '../hooks/calendar'
+import { weekWords } from '../hooks/words'
 
 const H = 3600_000
 const T0 = Date.UTC(2026, 9, 6, 8, 40) // Tue 08:40 UTC, the 7d window's start
@@ -14,7 +15,9 @@ test('one sample per 15-minute bucket, the latest winning, appended in place, ca
   expect(held[0]?.sevenPct).toBe(2)
   let all = held
   for (let i = 1; i < 800; i++) all = addSample(all, s(i * 0.25, i % 100))
-  expect(all.length).toBeLessThanOrEqual(MAX_SAMPLES)
+  // 800 buckets, so the oldest 128 go.
+  expect(all).toHaveLength(MAX_SAMPLES)
+  expect([all[0]?.at, all.at(-1)?.at]).toEqual([T0 + 128 * 0.25 * H, T0 + 799 * 0.25 * H])
   expect(JSON.stringify(all).length).toBeLessThan(75_000)
 })
 test('merging keeps one sample per bucket, the later winning, sorted', () => {
@@ -55,6 +58,9 @@ test('the hour cells are the five hours before the 5h reset, with the fill marke
   const five = { percentUsed: 40, projectedPct: 100, resetsAt: T0 + 5 * H, fullAt: T0 + 4.2 * H }
   const wk = weekOf({ samples: [s(0, 0, 0), s(0.9, 1, 10), s(1.9, 2, 25), s(2.4, 3, 40)], seven: undefined, five, now: T0 + 2.5 * H, utcOffsetMin: 0 })
   expect(wk.hours.map(c => c.label)).toEqual(['08', '09', '10', '11', '12'])
+  expect(wk.hours.map(c => c.startClock)).toEqual(['08:40', '09:40', '10:40', '11:40', '12:40'])
+  // Each hour is said from where it starts, not from its clock hour.
+  expect(weekWords(wk, undefined, undefined).hoursAlt).toBe('5-hour limit by hour: 08:40 10%, 09:40 15%, 10:40 15%, 11:40 about 30%, 12:40 about 30%')
   expect(wk.hours.slice(0, 3).map(c => c.text)).toEqual(['10%', '15%', '15%'])
   expect(wk.hours[2]?.now).toBe(true)
   expect(wk.hours.findIndex(c => c.fullMark)).toBe(4)

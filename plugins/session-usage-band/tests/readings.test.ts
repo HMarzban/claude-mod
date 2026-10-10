@@ -1,5 +1,5 @@
 import { test, expect } from 'claude-code/testing'
-import { fmtClock } from '../hooks/format'
+import { fmtClock, fmtDayClock } from '../hooks/format'
 import { readingsOf } from '../hooks/reading'
 import { HOUR, MIN } from './helpers'
 import { snapOf } from './matrix'
@@ -192,5 +192,21 @@ test('the week names its cells in words, for a reader and a summary', () => {
   expect(wk.daysAlt).toMatch(/Monday about \d+%/)
   expect(wk.hoursAlt).toMatch(/^5-hour limit by hour: \d{2}:00 4%, \d{2}:00 8%, \d{2}:00 about \d+%/)
   expect(`${wk.daysAlt} ${wk.hoursAlt}`).not.toMatch(/[~↻]/)
-  expect(wk.summary7).toMatch(/^30% used · on pace for ~\d+%/)
+  // Days 6, 9, 11 and 4: the third, a Saturday from the epoch's Thursday, is the busiest.
+  expect(wk.summary7).toBe(`30% used · on pace for ~65% by ${fmtDayClock(168 * HOUR, 0, now)} · busiest Sat`)
+  expect(wk.summary5).toBe(`12% used · on pace for ~30% by ${fmtDayClock(80 * HOUR, 0, now)}`)
+})
+test('a measured fill keeps its own time, with no reset clock after it', () => {
+  const wk = readingsOf(snapOf({ utcOffsetMin: 0, fiveHour: { percentUsed: 84, resetsAt: new Date(70 * MIN).toISOString(), etaMs: 40 * MIN } })).week
+  expect(wk.summary5).toBe('84% used · full in ~40m')
+})
+test('a passed window says only that it reset', () => {
+  const wk = readingsOf(snapOf({ now: 170 * HOUR, utcOffsetMin: 0, sevenDay: { percentUsed: 30, resetsAt: new Date(168 * HOUR).toISOString() } })).week
+  expect([wk.summary7, wk.summary5]).toEqual(['reset', 'reset'])
+})
+test('with no samples and no pace yet, the week is not known yet', () => {
+  // An hour into the window: too early for a landing, so no day is guessed either.
+  const wk = readingsOf(snapOf({ now: HOUR, sevenDay: { percentUsed: 1, resetsAt: new Date(168 * HOUR).toISOString() } })).week
+  expect(wk.daysAlt).toBe('weekly limit by day: not known yet')
+  expect(wk.empty).toBe(true)
 })
