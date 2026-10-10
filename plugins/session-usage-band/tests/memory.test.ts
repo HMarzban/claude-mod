@@ -6,6 +6,7 @@
 import { test, expect } from 'claude-code/testing'
 import {
   MAX_SAMPLES,
+  MAX_SESSIONS,
   addSample,
   asLimitSamples,
   asRates,
@@ -88,6 +89,22 @@ test("a session's newer reply replaces its older one", () => {
   expect(rememberReply({ a: { lastAt: 1 }, b: { lastAt: 2 } }, 'a', 9)).toEqual({ a: { lastAt: 9 }, b: { lastAt: 2 } })
 })
 
+test('a stored record past the cap is written back as its newest sessions, malformed entries dropped', () => {
+  const stored = { ...Object.fromEntries(Array.from({ length: 500 }, (_, i) => [`s${i}`, { lastAt: i }])), infinite: { lastAt: Infinity }, text: { lastAt: '999' } }
+  const kept = rememberReply(asSessions(stored), 'new', 1_000)
+  expect(Object.keys(kept)).toHaveLength(MAX_SESSIONS)
+  expect([kept.new, kept.s451, kept.s450, kept.infinite, kept.text]).toEqual([{ lastAt: 1_000 }, { lastAt: 451 }, undefined, undefined, undefined])
+})
+
+test('the sessions kept stay under 4,000 bytes of JSON, at UUIDs and 13-digit times', () => {
+  const at = Date.UTC(2026, 9, 6)
+  const uuid = (i: number) => `${String(i).padStart(8, '0')}-0000-4000-8000-000000000000`
+  let kept = {}
+  for (let i = 0; i < 2 * MAX_SESSIONS; i++) kept = rememberReply(kept, uuid(i), at + i)
+  expect(Object.keys(kept)).toHaveLength(MAX_SESSIONS)
+  expect(JSON.stringify(kept).length).toBeLessThan(4_000)
+})
+
 // ── the limit samples kept ─────────────────────────────────────────────
 
 const H = 3600_000
@@ -100,7 +117,8 @@ test('one sample per 15-minute bucket, the latest winning, appended in place, ca
   expect(held).toHaveLength(1)
   expect(held[0]?.sevenPct).toBe(2)
   let all = held
-  for (let i = 1; i < 800; i++) all = addSample(all, s(i * 0.25, i % 100))
+  // At their widest: 99.9, as the engine gives a limit at most one decimal, at 13-digit times.
+  for (let i = 1; i < 800; i++) all = addSample(all, s(i * 0.25, 99.9, 99.9))
   // 800 buckets, so the oldest 128 go.
   expect(all).toHaveLength(MAX_SAMPLES)
   expect([all[0]?.at, all.at(-1)?.at]).toEqual([T0 + 128 * 0.25 * H, T0 + 799 * 0.25 * H])
@@ -112,8 +130,14 @@ test('merging keeps one sample per bucket, the later winning, sorted', () => {
 })
 
 test('the store is data, not trusted', () => {
-  expect(asLimitSamples([s(0, 1), { at: 'x' }, null, 42])).toHaveLength(1)
-  expect(asLimitSamples({})).toEqual([])
+  expect(asLimitSamples([s(0, 1), { at: 'x' }, { ...s(1, 1), fivePct: Infinity }, { ...s(2, 1), sevenPct: '5' }, null, 42])).toHaveLength(1)
+  for (const stored of [undefined, null, 'limitSamples', 3, {}]) expect(asLimitSamples(stored)).toEqual([])
+})
+
+test('a stored list past the cap is read as its newest week, malformed entries dropped', () => {
+  const read = asLimitSamples([...Array.from({ length: 800 }, (_, i) => s(i * 0.25, 1)), { ...s(300, 1), fiveResetAt: NaN }])
+  expect(read).toHaveLength(MAX_SAMPLES)
+  expect([read[0]?.at, read.at(-1)?.at]).toEqual([T0 + 128 * 0.25 * H, T0 + 799 * 0.25 * H])
 })
 
 test('a sample needs both windows and their resets', () => {
