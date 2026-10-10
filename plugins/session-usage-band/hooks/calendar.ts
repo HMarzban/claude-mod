@@ -45,7 +45,7 @@ export type Week = Readonly<{
   days: readonly DayCell[]
   /** The five hours before the 5h reset; empty without one. */
   hours: readonly HourCell[]
-  /** The short name of the largest known day: 'Thu'. */
+  /** The short name of the known day that rose most: 'Thu'; undefined when none drew above 0%. */
   busiest: string | undefined
 }>
 
@@ -136,6 +136,6 @@ export const weekOf = (o: Readonly<{ samples: readonly Sample[]; seven: WindowNo
       now: current,
     }),
   )
-  const busiest = days.filter(isKnown).reduce<Known<DayCell> | undefined>((top, d) => (top === undefined || d.pct > top.pct ? d : top), undefined)
+  const busiest = days.filter(isKnown).filter(d => Math.round(d.pct) > 0).reduce<Known<DayCell> | undefined>((top, d) => (top === undefined || d.pct > top.pct ? d : top), undefined)
   return { days, hours, busiest: busiest?.name.slice(0, 3) }
 }

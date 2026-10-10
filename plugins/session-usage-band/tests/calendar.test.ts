@@ -50,6 +50,9 @@ test('a sample from another window is ignored', () => {
   const wk = weekOf({ samples: [s(0, 0), s(10, 5), stale], seven: seven(5, 20), five: undefined, now: T0 + 20 * H, utcOffsetMin: 0 })
   expect(Math.max(...wk.days.map(d => (d.guess ? 0 : (d.pct ?? 0))))).toBeLessThan(50)
 })
+test('a flat week names no busiest day', () => {
+  expect(weekOf({ samples: [s(0, 5), s(15, 5.4), s(39, 5.4)], seven: seven(5.4, 5.4), five: undefined, now: T0 + 39 * H, utcOffsetMin: 0 }).busiest).toBeUndefined()
+})
 test('no samples: every past cell is unknown, never 0%', () => {
   const wk = weekOf({ samples: [], seven: seven(30, 50), five: undefined, now: T0 + 77 * H, utcOffsetMin: 0 })
   expect(wk.days.slice(1, 4).every(d => d.pct === undefined && d.text === '')).toBe(true)
