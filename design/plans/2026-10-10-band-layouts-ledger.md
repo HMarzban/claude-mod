@@ -111,6 +111,7 @@ What the plan's steps record, in the order they happen.
 | Task 28 review, the soak sees a trail past its cap | 1009 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 | Task 28 review, the perf yardstick warm | 1019 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 | Task 28 review, the soak's record | 1019 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
+| Tasks 27 and 28, perf and soak tests and the performance pass (merged) | 1019 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 | Task 31, docs, changelog and 0.12.0 (merged) | 988 pass, 0 fail, 46 files | `claude plugin test plugins/session-usage-band` |
 | Task 32, the layouts gallery (merged) | 988 pass, 0 fail, 46 files | `claude plugin test plugins/session-usage-band` |
 
