@@ -105,3 +105,11 @@ test('open with no context, its group says so', async ($, on) => {
 test('open with no limits, its group says so', async ($, on) => {
   expect(shown((await at($, on, 'noLimits')).open)).toMatch(/LIMITS\s*none reported/)
 })
+test('open, an amber limit keeps its reset, and a landing past the top says it fills first', LONG, async ($, on) => {
+  const limit80 = shown((await at($, on, 'limit80')).open)
+  expect(limit80).toMatch(/!\s*5h 82%\s*↻ in 3h/)
+  expect(limit80).toMatch(/full before reset/)
+})
+test('open, a weekly landing past the top says it fills before its reset', LONG, async ($, on) => {
+  expect(shown((await at($, on, 'sevenFullBeforeReset')).open)).toMatch(/full before reset/)
+})

@@ -153,10 +153,11 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
   const pairs = Math.floor(room / 2)
   const deepest = Math.min(pairs, Math.max(2, read.limits.length))
   const barred = deepest * (2 * ROW_PX + UNDER_HEIGHT) <= room * ROW_PX
-  /** A tile, or nothing while its value is unknown; amber, its label is the reason. */
-  const tile = (key: string, value: string | undefined, label: string | Say, bar: RenderChildren = null, amber?: Amber): RenderChildren => {
+  /** A tile, or nothing while its value is unknown; amber, its label is the
+   *  reason, then what it `keeps`. */
+  const tile = (key: string, value: string | undefined, label: string | Say, bar: RenderChildren = null, amber?: Amber, keeps: Say = []): RenderChildren => {
     if (value === undefined) return null
-    const said: Say = amber !== undefined ? [[amber.long, 'amber']] : typeof label === 'string' ? [[label, 'label']] : label
+    const said: Say = amber !== undefined ? [[amber.long, 'amber'], ...keeps] : typeof label === 'string' ? [[label, 'label']] : label
     return stack(kit, key, valueOf(kit, value, amber), words(kit, 'l', said), barred ? bar : null)
   }
   const group = (key: string, title: string, rows: readonly RenderChildren[], headline: Say): RenderElement =>
@@ -187,8 +188,13 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
     ], [headOf(x.text, x.amber)]),
     limits.length === 0 ? emptyGroup('limits', 'LIMITS', EMPTY.limits) : group('limits', 'LIMITS', limits.map(l =>
       pair(kit, l.name, [
-        tile('now', l.passed ? 'reset' : l.value, limitLabel(l), barOf(kit, l.alt, l.frac, accentOf(kit, l), l.amber), l.amber),
-        tile('then', l.projectedText, `${l.name} at its reset`, l.projectedFrac === undefined ? null : barOf(kit, `${l.name} at its reset`, l.projectedFrac, accentOf(kit, l), undefined, true)),
+        // Amber, a limit still says when it resets.
+        tile('now', l.passed ? 'reset' : l.value, limitLabel(l), barOf(kit, l.alt, l.frac, accentOf(kit, l), l.amber), l.amber, l.resetGlyph === undefined ? [] : [[` ${l.resetGlyph}`, 'label']]),
+        l.projectedText !== undefined
+          ? tile('then', l.projectedText, `${l.name} at its reset`, l.projectedFrac === undefined ? null : barOf(kit, `${l.name} at its reset`, l.projectedFrac, accentOf(kit, l), undefined, true))
+          : // A landing past the top has no figure: its pace says it fills first,
+            // unless the reason is a measured fill, which says it.
+            tile('then', l.fullIn === undefined && l.pace !== '' ? l.pace : undefined, `${l.name} at this pace`),
       ]),
     ), limits.flatMap((l, i): Say => (i === 0 ? [headOf(l.text, l.amber)] : [[' · ', 'label'], headOf(l.text, l.amber)]))),
   ], bodyRows)
