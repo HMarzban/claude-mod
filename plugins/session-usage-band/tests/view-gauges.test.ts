@@ -4,7 +4,7 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { LONG, shown, svgsOf } from './helpers'
+import { LONG, shown, svgAlts, svgsOf } from './helpers'
 import { caseKey, drawCases, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
 
 viewSuite('gauges')
@@ -26,10 +26,18 @@ test('5h and 7d bars carry a tick for the window gone; context has none', async 
   const ticked = svgsOf((await at($, on, 'calm', D160)).shut).filter(n => /class="tick"/.test(String(n.props?.source)))
   expect(ticked.map(n => String(n.props?.alt).split(' ')[0])).toEqual(['5h', '7d'])
 })
+test('unmeasured, the cache draws no bar', async ($, on) => {
+  const trees = await drawCases($, on, { layout: 'gauges', scenario: 'unmeasured', appearance: 'dark', ttl: '1h' }, [D160, T160])
+  expect(svgAlts(trees[caseKey(D160, 'shut')]).filter(alt => alt.startsWith('cache'))).toEqual([])
+  expect(shown(trees[caseKey(T160, 'shut')])).toMatch(/^cache\s*–/)
+})
+test('warming, the cache draws no bar', async ($, on) => {
+  expect(svgAlts((await at($, on, 'warming', D160)).shut).filter(alt => alt.startsWith('cache'))).toEqual([])
+})
 test('narrow, calm cells become text', async ($, on) => {
   expect(shown((await at($, on, 'calm', { surface: 'terminal', cols: 50 })).shut)).toMatch(/5h 4%/)
 })
-test('each row gives way in its own spec order: row one the tokens, the cost joins, the bar shrinks, the re-warm; row two the resets, the bars shrink, the cells turn text', async ($, on) => {
+test('each row gives way in its own spec order', async ($, on) => {
   // Each width sits inside its step's band, not at its edge. Each row squeezes
   // on its own, so row two's resets can go while row one keeps its tokens.
   const mounts = [160, 95, 80, 65, 50].map((cols): Mount => ({ surface: 'terminal', cols }))
@@ -83,7 +91,9 @@ test('open, the spend panel says the session\'s tokens', async ($, on) => {
   expect(shown((await at($, on, 'calm', { surface: 'terminal', cols: 80 })).open)).toMatch(/SPEND.*tokens 208k/)
 })
 test('open, a limit filling before its reset says so once', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'fiveHourAhead')).open)).toMatch(/LIMITS.*! 5h full in ~1h(?! · full)/)
+  const limits = shown((await at($, on, 'fiveHourAhead')).open).split('LIMITS')[1] ?? ''
+  expect(limits).toMatch(/! 5h full in ~1h · resets in/)
+  expect(limits.match(/full in/g)?.length).toBe(1)
 })
 test('open, the context says its share beside its bar', async ($, on) => {
   expect(shown((await at($, on, 'calm')).open)).toMatch(/CONTEXT.*38% of the window/)

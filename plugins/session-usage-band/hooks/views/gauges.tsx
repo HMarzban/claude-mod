@@ -36,8 +36,9 @@ const twoSizes = (full: BarSize, make: (size: BarSize) => RenderChildren): ((isF
 /** An amber reading's reason, long until every calm piece has gone. */
 const amberSay = (amber: Amber, keeps: Keeps<Piece>): Say => [[keeps.amber(amber), 'amber']]
 
-/** Row one: the cache's name, its time-left bar and its sentence, calm or
- *  amber, with the cost and the tokens on the right until the cost joins it. */
+/** Row one: the cache's name, its time-left bar once its timing is known, and
+ *  its sentence, calm or amber, with the cost and the tokens on the right
+ *  until the cost joins it. */
 const cacheRow = (kit: Kit, read: Readings): RenderElement => {
   const c = read.cache
   const s = read.spend
@@ -69,7 +70,7 @@ const cacheRow = (kit: Kit, read: Readings): RenderElement => {
     return line(
       kit,
       'cache',
-      [name, reason === undefined || beforeLast(keeps) ? bar(keeps.has('bars')) : null, said],
+      [name, c.known && (reason === undefined || beforeLast(keeps)) ? bar(keeps.has('bars')) : null, said],
       onRight ? (keeps.has('tokens') ? costTokens : cost) : null,
       1,
     )
@@ -101,8 +102,10 @@ const contextCell = (kit: Kit, x: ContextReading): Cell => {
 }
 
 const limitCell = (kit: Kit, l: LimitView): Cell => {
-  const value = words(kit, 'value', [[l.passed ? 'reset' : l.value, 'value']])
-  const withReset = l.resetGlyph === undefined ? value : words(kit, 'value', [[l.value, 'value'], [` ${l.resetGlyph}`, 'label']])
+  // Its words without its name: `4%`, or once passed, `reset`.
+  const valueSay = l.say.filter(([, role]) => role === 'value')
+  const value = words(kit, 'value', valueSay)
+  const withReset = l.resetGlyph === undefined ? value : words(kit, 'value', [...valueSay, [` ${l.resetGlyph}`, 'label']])
   return {
     key: l.name,
     amber: l.amber,
