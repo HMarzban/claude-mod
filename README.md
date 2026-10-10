@@ -110,6 +110,16 @@ claude plugin marketplace remove hossein-mods
 These and three more play live, with a guided tour, on the
 [website](https://hmarzban.github.io/claude-mod/#live).
 
+Prefer another shape? `/usage-band layout <name>` draws the same readings
+in one of nine [layouts](plugins/session-usage-band/README.md#layouts):
+chips, as above, or bars, words alone, rings, trends, tiles, day cells, a
+split-flap board or a forecast.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/band-layouts-dark.png">
+  <img alt="The nine layouts, one row each, every one drawn from the band's own output: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" src="docs/band-layouts-light.png">
+</picture>
+
 A chip turns amber when it needs you: the cache's last minute, context near
 auto-compaction, a limit at 80% or a 5-hour pace that would run out before
 the reset. Nothing is ever red. Hover any chip for a one-line explanation.
@@ -146,12 +156,14 @@ and no build step.
   ```
 
   A re-warm is then the whole context written to the cache again.
-- **It remembers across sessions.** Reopen an old session, and it recalls
-  when the last reply was and the rate it solved, or reads them once from
-  the end of the transcript.
+- **It remembers across sessions.** Resume an old session, and it takes
+  Claude Code's word on its cache and reads what it spent from its
+  transcript; reopen one otherwise, and it recalls when the last reply was
+  and the rate it solved, or reads them once from the end of the
+  transcript.
 - **It stays out of the way.** It never calls a model, never writes files
   and never sends anything anywhere. Besides two read-only git commands for
-  the workspace line, it runs only `tail`, to read the end of an old
+  the workspace line, it runs only `grep` and `tail`, to read an old
   session's transcript. [SECURITY.md](SECURITY.md) lists exactly what it
   reads.
 
@@ -223,8 +235,9 @@ type check, the module map and the rules the code follows.
 plugins/session-usage-band/
   hooks/register.tsx                the hooks: the only module that touches the engine
   hooks/band.tsx                    a pure function from a snapshot to the drawn band
+  hooks/views/                      the nine layouts, one file each, and the parts they share
   hooks/cache.ts                    the prompt-cache model and the re-warm price
-  hooks/*.ts(x)                     layout, readings, formatting, memory, git, palettes
+  hooks/*.ts(x)                     readings, words, charts, glyphs, formatting, memory, git, palettes
   tests/                            one file per area, helpers in helpers.ts
   CHANGELOG.md                      what changed in each version
 docs/                               the website (GitHub Pages) and the images in this README
