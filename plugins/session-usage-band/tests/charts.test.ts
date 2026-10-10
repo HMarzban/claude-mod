@@ -87,6 +87,12 @@ test('in text, a ring is a meter, a line or bar chart is braille, and an underli
   expect(textOf(barChart(term, { key: 'b', alt: 'cost', values: [1, 2], marked: [false, true], color: '#888888', markColor: '#eeeeee', px: 12, height: 36 }))).toBe(braille([1, 2], 2))
   expect(underline(term, { key: 'u', alt: 'context', frac: 0.38, color: '#b8b8c2', px: 64 })).toBe(null)
 })
+test("a sparkline's max sets the top of its scale, which its projection shares", () => {
+  const source = svg(sparkline(desk, { key: 's', alt: '5h', values: [20, 50], color: '#7fcf8a', px: 90, height: 36, max: 100, projectTo: 1 })).props.source
+  expect(Number(/<circle [^>]*cy="([^"]+)"/.exec(source)?.[1])).toBe(18)
+  expect(Number(/<line [^>]*y2="([^"]+)"/.exec(source)?.[1])).toBe(2)
+  expect(textOf(sparkline(term, { key: 's', alt: '5h', values: [20, 50], color: '#7fcf8a', px: 90, height: 36, max: 100 }))).toBe(braille([20, 50], 100))
+})
 test("in text, day cells are a braille height each, a guess is a dot, and today is in brackets", () => {
   const cells = dayCells(term, { key: 'd', alt: 'week', values: [4, 2, undefined, 4], guess: [false, false, false, true], today: 1, color: '#a99cf0', cellPx: 16, height: 16 })
   expect(textOf(cells)).toBe(` ${braille([4, 0], 4)}[${braille([2, 0], 4)}]· · `)

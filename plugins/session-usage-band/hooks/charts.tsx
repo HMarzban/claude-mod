@@ -46,12 +46,13 @@ export const braille = (values: readonly number[], max: number): string => {
   return out
 }
 
-/** A line or bar chart in text: braille against its largest value. */
-const brailleText = (kit: Kit, key: string, values: readonly number[], color: string): RenderChildren => {
+/** A line or bar chart in text: braille against the top of its scale, by
+ *  default its largest value. */
+const brailleText = (kit: Kit, key: string, values: readonly number[], color: string, top = topOf(values)): RenderChildren => {
   const { Text } = kit
   return (
     <Text key={key} color={color}>
-      {braille(values, topOf(values))}
+      {braille(values, top)}
     </Text>
   )
 }
@@ -206,7 +207,10 @@ export type SparklineOptions = Readonly<{
   color: string
   px: number
   height: number
-  /** Where the line is heading, as a fraction of the height, drawn dashed. */
+  /** The top of the scale, by default the largest value: a percentage
+   *  passes 100, so its line and its projection share one scale. */
+  max?: number
+  /** Where the line is heading, as a fraction of the scale's top, drawn dashed. */
   projectTo?: number
 }>
 
@@ -218,9 +222,9 @@ const SPARK_AHEAD = 20
 /** A line over time, its newest point a dot. Text draws it in braille. */
 export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   const { Svg } = kit
-  const { key, alt, values, color, px, height, projectTo } = o
-  if (!Svg) return brailleText(kit, key, values, color)
-  const top = topOf(values)
+  const { key, alt, values, color, px, height, max, projectTo } = o
+  const top = max ?? topOf(values)
+  if (!Svg) return brailleText(kit, key, values, color, top)
   const end = px - SPARK_DOT - (projectTo === undefined ? 0 : SPARK_AHEAD)
   const x = (i: number) => (values.length <= 1 ? end : tenth(SPARK_DOT + (i * (end - SPARK_DOT)) / (values.length - 1)))
   const y = (frac: number) => tenth(height - SPARK_DOT - clamp01(frac) * (height - 2 * SPARK_DOT))
