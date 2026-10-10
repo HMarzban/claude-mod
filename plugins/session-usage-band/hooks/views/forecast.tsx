@@ -150,6 +150,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const nowIcon = Svg && weather !== undefined ? icon(weather, onTone(c.tone, palette.warm), c.alt) : []
   const nowCalm = words(kit, 'head', [['now · ', 'label'], [c.condition, 'value']])
   const nowDetail = nowDetailOf(c)
+  const cooling = c.amber === undefined ? undefined : lastMinute(kit, c, c.amber)
   // No change ahead says these, so each says itself; a measured fill is a change.
   const triggers = [read.context.amber, read.fiveHour?.fullIn === undefined ? read.fiveHour?.amber : undefined, read.sevenDay?.amber].filter(
     (a): a is Amber => a !== undefined,
@@ -158,7 +159,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   return [
     fitLine(kit, ORDER, lineRoom(kit), keeps => {
       const detail = (d: Detail | undefined): string | undefined => (d === undefined ? undefined : keeps.has('detail') ? d.long : d.short)
-      const head = c.amber === undefined ? nowCalm : amberWords(kit, 'head', lastMinute(kit, c, c.amber), keeps)
+      const head = cooling === undefined ? nowCalm : amberWords(kit, 'head', cooling, keeps)
       // An amber change never gives way; the next one only once the rest have.
       const ahead = changes.filter((ch, i) => ch.amberShort !== undefined || keeps.has(i === 0 ? 'nextChange' : ch.seven ? 'farSeven' : 'farChanges'))
       const pieces = [
