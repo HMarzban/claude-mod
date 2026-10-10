@@ -5,7 +5,7 @@ import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import { DARK } from '../hooks/palette'
-import { CLEAR, HOUR, LONG, MIN, START, USAGE, mountBand, pacing, resp, respond, setup, shown, svgAlts, svgsOf, usage } from './helpers'
+import { CLEAR, HOUR, LONG, MIN, START, USAGE, breakdown, mountBand, pacing, resp, respond, setup, shown, svgAlts, svgsOf, usage } from './helpers'
 import { caseKey, drawCases, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
 
 viewSuite('pulse')
@@ -101,6 +101,24 @@ test('open: the cache first, then spend, context and limits', async ($, on) => {
   const at4 = ['CACHE', 'SPEND', 'CONTEXT', 'LIMITS'].map(title => t.indexOf(title))
   expect(at4.every((i, n) => i >= 0 && (n === 0 || i > (at4[n - 1] ?? 0)))).toBe(true)
   expect(t).toMatch(/last \$0\.20 · avg \$0\.20 · max \$0\.20/)
+})
+test('open, the 5h chart draws the window so far and says so', LONG, async ($, on) => {
+  const alts = svgAlts((await at($, on, 'fiveHourAhead', D160)).open)
+  expect(alts.some(a => /^5h usage this window, \w+, full in /.test(a))).toBe(true)
+})
+test('open, the context chart runs to the window, a rule where it compacts', LONG, async ($, on) => {
+  setup(on, { store: { layout: 'pulse' } })
+  await $.session.start(START)
+  const context = { ...USAGE.context, breakdown: breakdown({ autoCompactThreshold: 160_000, isAutoCompactEnabled: true }) }
+  usage.current = { ...USAGE, context }
+  await $.session.measure({ context, rateLimits: USAGE.rateLimits, cost: USAGE.cost, changed: [] })
+  for (const id of ['t1', 't2']) await message($, id, 2.41, 2.62)
+  const ui = await mountBand($, 'desktop', 160)
+  await ui.press({ key: 'more' })
+  const chart = svgsOf(await ui.drawn()).find(n => /^context over the conversation, \w+, compacts at 160k$/.test(String(n.props?.alt)))
+  await ui.unmount()
+  // 160k of a 200k window: 80% of the way up a 40 px chart, 2 px in from each edge.
+  expect(String(chart?.props?.source)).toMatch(/<line class="level" [^>]*y1="9\.2"/)
 })
 test('in ascii the charts give way to numbers', LONG, async ($, on) => {
   const trees = await drawCases($, on, { layout: 'pulse', scenario: 'fullHistory', appearance: 'dark', env: { CC_BAND_GLYPHS: 'ascii' } }, [T160])

@@ -178,14 +178,26 @@ const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] 
       sentence('tokens', `${s.tokensText} tokens`),
     ], chartRows), room),
     section(kit, 'context', 'CONTEXT', !x.known ? [sentence('none', EMPTY.context)] : chartsIfRoom(room, [
-      charts && hist.context.length > 1 ? sparkline(kit, { key: 'trail', alt: x.alt, values: hist.context, color: p.meterFill, px: OPEN_TRAIL_PX, height: OPEN_CHART_PX }) : null,
+      // Tokens on the window's scale, a rule where it compacts.
+      charts && hist.context.length > 1
+        ? sparkline(kit, {
+            key: 'trail',
+            alt: hist.contextTrailAlt,
+            values: hist.context,
+            color: p.meterFill,
+            px: OPEN_TRAIL_PX,
+            height: OPEN_CHART_PX,
+            max: x.window,
+            level: x.compactAt === undefined ? undefined : x.compactAt / x.window,
+          })
+        : null,
     ], [
       sentence('pct', `${x.valueText} ${x.towardText}`),
       sentence('in', x.compactsAtText === undefined ? `${x.inContextText} in context` : `${x.inContextText} in context, compacts at ${x.compactsAtText}`),
     ], chartRows), room),
     // What needs you leads, so a body short of rows keeps it.
     section(kit, 'limits', 'LIMITS', read.limits.length === 0 ? [sentence('none', EMPTY.limits)] : chartsIfRoom(room, [
-      charts && f !== undefined && hist.fiveHourValues.length > 1 ? fiveHourTrail(kit, f, hist.fiveHourValues, hist.trailAlt, OPEN_TRAIL_PX, OPEN_CHART_PX, true) : null,
+      charts && f !== undefined && hist.fiveHourWindow.length > 1 ? fiveHourTrail(kit, f, hist.fiveHourWindow, hist.fiveHourWindowAlt, OPEN_TRAIL_PX, OPEN_CHART_PX, true) : null,
     ], [
       ...read.limits.filter(l => l.amber !== undefined).map(l => limitSentence(kit, l)),
       ...read.limits.filter(l => l.amber === undefined).map(l => limitSentence(kit, l)),
