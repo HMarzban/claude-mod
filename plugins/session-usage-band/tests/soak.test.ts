@@ -9,6 +9,24 @@ const HOUR = 60 * MIN
 const run = ($: Engine, args: string) =>
   $.command.run({ command: 'usage-band', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 110 } })
 const nodes = (tree: unknown): number => { let n = 0; walk(tree, () => { n++ }); return n }
+/** What pulse draws on both surfaces: its shut trees' nodes and, open, its
+ *  text and its charts' sources, which a trail past its cap would grow, and
+ *  the charts' alts. */
+const pulseSize = async ($: Engine) => {
+  const size = { shutNodes: 0, text: 0, source: 0, alts: [] as string[] }
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await mountBand($, surface, 160)
+    size.shutNodes += nodes(await ui.drawn())
+    await ui.press({ key: 'more' })
+    const open = await ui.drawn()
+    size.text += shown(open).length
+    walk(open, n => { size.source += String(n.props?.source ?? '').length })
+    size.alts.push(...svgAlts(open))
+    await ui.press({ key: 'more' })
+    await ui.unmount()
+  }
+  return size
+}
 /** The soak's tick: 1,000 of them are six hours. */
 const TICK = 21_600
 /** The limits rising with every turn, the 5h window rolling over every five hours. */
@@ -35,27 +53,24 @@ test('six hours, a thousand turns, three clears: writes, size and trees stay bou
   let commands = 0
   for (let i = 0; i < 1000; i++) {
     await turnAt(i)
-    if (i % 333 === 332) await $.session.end(CLEAR)
+    // The clears fall early in each third, so every trail is at its cap well before the end.
+    if (i % 333 === 100) await $.session.end(CLEAR)
     if (i % 167 === 0) { await run($, `layout ${LAYOUT_NAMES[(i / 167) % LAYOUT_NAMES.length]}`); commands++ }
   }
   const sampleWrites = engine.storeSets.filter(k => k === 'limitSamples').length
   await run($, 'layout pulse'); commands++
-  const first = await mountBand($, 'desktop', 160)
-  const before = nodes(await first.drawn())
-  await first.unmount()
+  const before = await pulseSize($)
   for (let i = 1000; i < 1050; i++) await turnAt(i)
-  const second = await mountBand($, 'desktop', 160)
-  const after = nodes(await second.drawn())
-  await second.press({ key: 'more' })
-  const alts = svgAlts(await second.drawn())
-  await second.press({ key: 'more' })
-  await second.unmount()
+  const after = await pulseSize($)
   expect(sampleWrites).toBeLessThanOrEqual(25) // 24 buckets in 6 h, and the first
   expect(engine.storeSets.filter(k => k === 'layout').length).toBe(commands)
   expect(JSON.stringify(engine.store).length).toBeLessThan(100_000)
-  expect(after).toBe(before)
+  // Every trail at its cap: 50 more turns draw no more, give or take the figures' widths.
+  expect(after.shutNodes).toBe(before.shutNodes)
+  expect(after.text).toBeLessThanOrEqual(1.05 * before.text)
+  expect(after.source).toBeLessThanOrEqual(1.05 * before.source)
   // The measures fed the 5h trail the whole way.
-  expect(alts.some(alt => alt.startsWith('5h usage this window'))).toBe(true)
+  expect(after.alts.some(alt => alt.startsWith('5h usage this window'))).toBe(true)
 })
 
 test('a calm ten-minute walk repaints once a minute, not once a second', LONG, async ($, on) => {
