@@ -21,14 +21,14 @@ test('every width and every height is covered', () => {
   for (const maxRows of [4, 8, 13, 40]) expect(cases.some(c => c.mounts.some(m => m.maxRows === maxRows))).toBe(true)
   for (const s of ['fiveHourAhead', 'limit80', 'nearCompaction', 'coldLimit80']) expect(cases.some(c => c.options.scenario === s && c.mounts.some(m => m.cols === 40))).toBe(true)
   // The open-only amber short of rows, on both grids.
-  for (const cols of [80, 120]) for (const maxRows of [6, 7, 8, 10]) expect(cases.some(c => c.options.scenario === 'gatewaySpend' && c.mounts.some(m => m.cols === cols && m.maxRows === maxRows))).toBe(true)
+  for (const cols of [80, 120]) for (const maxRows of [5, 6, 7, 8, 10]) expect(cases.some(c => c.options.scenario === 'gatewaySpend' && c.mounts.some(m => m.cols === cols && m.maxRows === maxRows))).toBe(true)
 })
-test('the open-only amber starts at the fewest rows that keep a fact under each title', () => {
+test('the open-only amber starts at a body of one row', () => {
   const lowest = (layout: LayoutName, surface: Surface) =>
     Math.min(...suiteCases(layout).filter(c => c.options.scenario === 'gatewaySpend').flatMap(c => c.mounts).flatMap(m => (m.surface === surface && m.maxRows !== undefined ? [m.maxRows] : [])))
-  expect([lowest('ledger', 'terminal'), lowest('ledger', 'desktop')]).toEqual([6, 6])
-  expect([lowest('rings', 'terminal'), lowest('rings', 'desktop')]).toEqual([6, 7])
-  expect([lowest('tiles', 'terminal'), lowest('tiles', 'desktop')]).toEqual([7, 7])
+  expect([lowest('ledger', 'terminal'), lowest('ledger', 'desktop')]).toEqual([5, 5])
+  expect([lowest('rings', 'terminal'), lowest('rings', 'desktop')]).toEqual([5, 6])
+  expect([lowest('tiles', 'terminal'), lowest('tiles', 'desktop')]).toEqual([6, 6])
 })
 test('light, plain and the ascii tier are each drawn', () => {
   expect(cases.some(c => c.options.appearance === 'light')).toBe(true)

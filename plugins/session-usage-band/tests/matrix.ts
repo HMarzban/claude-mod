@@ -233,10 +233,10 @@ export type SuiteCase = Readonly<{ name: string; options: CaseOptions; mounts: r
 const SUITE_WIDTHS = [40, 41, 50, 60, 67, 68, 80, 95, 120, 160, 200] as const
 /** A mount on each surface, at the same width and height. */
 const bothSurfaces = (cols: number, maxRows?: number): Mount[] => [{ surface: 'terminal', cols, maxRows }, { surface: 'desktop', cols, maxRows }]
-/** The fewest rows that leave an open view a fact under each section title:
- *  its own rows, the air above the body and the buttons, the buttons, and a
- *  body of two rows, the strip in the footer. */
-const factRows = (layout: LayoutName, surface: Surface): number => VIEWS[layout].rows[surface] + 5
+/** The rows that leave an open view a body of `bodyRows`: its own rows, the
+ *  air above the body and the buttons, the buttons, and the body, the strip
+ *  in the footer. At two, each section title keeps a fact under it. */
+const rowsForBody = (layout: LayoutName, surface: Surface, bodyRows: number): number => VIEWS[layout].rows[surface] + 3 + bodyRows
 /** The long walks take the 5-minute cache, a twelfth of the hour's ticks. Golden keeps the hour. */
 const LONG_WALKS: ReadonlySet<ScenarioName> = new Set(['lastMinute', 'cold', 'coldLimit80'])
 const ttlOf = (scenario: ScenarioName): Ttl => (LONG_WALKS.has(scenario) ? '5m' : '1h')
@@ -266,13 +266,14 @@ export const suiteCases = (layout: LayoutName): SuiteCase[] => {
       mounts: [40, 50, 60].flatMap(cols => bothSurfaces(cols)),
     })),
     { name: `${layout}: calm, short of rows`, options: optionsOf('calm'), mounts: [4, 8, 13, 40].flatMap(maxRows => bothSurfaces(120, maxRows)) },
-    // The open-only amber short of rows, on both grids, from the fewest rows
-    // that keep a fact under each title.
+    // The open-only amber short of rows, on both grids, from a body of one
+    // row, which has no room under its titles, and of two, which keeps a fact
+    // under each.
     {
       name: `${layout}: gatewaySpend, short of rows`,
       options: optionsOf('gatewaySpend'),
       mounts: [80, 120].flatMap(cols => (['terminal', 'desktop'] as const).flatMap(surface =>
-        [...new Set([factRows(layout, surface), 7, 8, 10])].map((maxRows): Mount => ({ surface, cols, maxRows })))),
+        [...new Set([rowsForBody(layout, surface, 1), rowsForBody(layout, surface, 2), 7, 8, 10])].map((maxRows): Mount => ({ surface, cols, maxRows })))),
     },
   ]
 }
