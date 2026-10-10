@@ -9,11 +9,12 @@ import type { CacheReading, LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY } from '../words'
 import { toggleButton, type Strip } from './frame'
-import { beforeLast, fitLine, line, lineRoom, words, type Keeps } from './parts'
+import { beforeLast, fitLine, line, lineRoom, once, words, type Keeps } from './parts'
 import { defineView } from './view'
 
-/** What gives way as the line narrows, first to last. Amber never does. */
-const ORDER = ['fiveProjection', 'boardMinutes', 'calmSeven', 'calmFiveGroup', 'cost', 'calmFive'] as const
+/** What gives way as the line narrows, first to last. Amber never does.
+ *  Plain's brackets go first: they mark a flap's edges and say nothing. */
+const ORDER = ['brackets', 'fiveProjection', 'boardMinutes', 'calmSeven', 'calmFiveGroup', 'cost', 'calmFive'] as const
 type Piece = (typeof ORDER)[number]
 
 /** Each ink a flap is drawn in, made for the flap ground. */
@@ -25,23 +26,34 @@ const COLUMNS = [11, 18, 14] as const
 
 const up = (text: string): string => text.toUpperCase()
 
-/** How far a flap's text sits in from its edge: its padding, on the filled
- *  desktop alone. On the terminal the 1-column gap between flaps shows the
- *  ground; plain has none, and brackets would cost the line the room a
- *  single amber reason needs at 40 columns. */
-const inset = (kit: Kit): number => (kit.Svg === undefined ? 0 : 1)
+/** How far a flap's text sits in from its edge: its padding on the filled
+ *  desktop, its `[` on plain. On the filled terminal the 1-column gap
+ *  between flaps shows the ground. */
+const inset = (kit: Kit): number => (kit.Svg !== undefined || !kit.palette.filled ? 1 : 0)
 
-/** One flap: the flap ground and an ink made for it. */
-const flap = (kit: Kit, key: string, text: string, ink: Ink = 'text'): RenderElement => {
+/** One flap: the flap ground and an ink made for it. Plain has no ground,
+ *  so `[ ]` draws its edges, unless it is drawn bare. */
+const flap = (kit: Kit, key: string, text: string, ink: Ink = 'text', bracketed = true): RenderElement => {
   const { Box, Text, palette } = kit
+  const color = palette[INK[ink]]
+  const edge = (bracket: string) =>
+    bracketed && !palette.filled ? (
+      <Text color={color} bold>
+        {bracket}
+      </Text>
+    ) : null
   return (
     <Box key={key} flexShrink={0} {...(palette.filled ? { backgroundColor: palette.flap, paddingX: inset(kit) } : {})}>
-      <Text color={palette[INK[ink]]} bold wrap="truncate-end">
+      {edge('[')}
+      <Text color={color} bold wrap="truncate-end">
         {text}
       </Text>
+      {edge(']')}
     </Box>
   )
 }
+/** A flap of one look, bracketed or bare. */
+type FlapOf = (key: string, text: string, ink?: Ink) => RenderElement
 
 /** Flaps that read as one entry on the board. */
 const group = (kit: Kit, key: string, flaps: readonly RenderChildren[]): RenderElement => {
@@ -67,16 +79,16 @@ const limitInk = (l: LimitView): Ink => (l.key === '5h' ? 'five' : l.key === '7d
 
 /** A limit's flaps, built once: whole, without its calm projection, and as
  *  one flap; amber, its short reason for the amber step. */
-const limitEntries = (kit: Kit, l: LimitView) => {
+const limitEntries = (kit: Kit, flapOf: FlapOf, l: LimitView) => {
   const value = up(l.valueText)
-  const name = flap(kit, 'name', up(l.name), limitInk(l))
-  const valueFlap = flap(kit, 'value', value)
-  const status = l.boardAmber !== undefined ? flap(kit, 'status', l.boardAmber, 'amber') : l.passed || l.boardShort === undefined ? null : flap(kit, 'status', l.boardShort, 'dim')
+  const name = flapOf('name', up(l.name), limitInk(l))
+  const valueFlap = flapOf('value', value)
+  const status = l.boardAmber !== undefined ? flapOf('status', l.boardAmber, 'amber') : l.passed || l.boardShort === undefined ? null : flapOf('status', l.boardShort, 'dim')
   return {
     whole: group(kit, l.name, [name, valueFlap, status]),
     bare: group(kit, l.name, [name, valueFlap, l.boardAmber === undefined ? null : status]),
-    short: group(kit, l.name, [flap(kit, 'name', `${up(l.name)} ${value}`, limitInk(l))]),
-    amberShort: l.amber === undefined ? undefined : flap(kit, l.name, l.amber.short, 'amber'),
+    short: group(kit, l.name, [flapOf('name', `${up(l.name)} ${value}`, limitInk(l))]),
+    amberShort: l.amber === undefined ? undefined : flapOf(l.name, l.amber.short, 'amber'),
   }
 }
 type LimitEntries = ReturnType<typeof limitEntries>
@@ -90,22 +102,28 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const c = read.cache
   const x = read.context
   const toggle = toggleButton(kit, read, act)
-  // Built once: the squeeze only chooses among them.
-  const label = flap(kit, 'label', 'CACHE')
-  const status = flap(kit, 'status', cacheStatus(c), cacheInk(c))
-  const left = c.boardLeft === '' ? null : flap(kit, 'left', c.boardLeft, c.amber !== undefined ? 'amber' : 'text')
-  const reWarm = c.condition === 'cooling' || c.condition === 'cold' ? flap(kit, 'reWarm', `RE-WARM ${up(c.estimate)}`, c.amber !== undefined ? 'amber' : 'text') : null
-  const five = read.fiveHour === undefined ? undefined : limitEntries(kit, read.fiveHour)
-  const seven = read.sevenDay === undefined ? undefined : limitEntries(kit, read.sevenDay)
-  // The line shows no calm context, so its trigger gets a flap of its own.
-  const context =
-    x.boardAmber === undefined || x.amber === undefined
-      ? undefined
-      : { long: flap(kit, 'ctx', x.boardAmber, 'amber'), short: flap(kit, 'ctx', x.amber.short, 'amber') }
-  const cost = flap(kit, 'cost', read.spend.totalText, 'coin')
+  // Built once for each look: the squeeze only chooses among them.
+  const flapsOf = (bracketed: boolean) => {
+    const flapOf: FlapOf = (key, text, ink) => flap(kit, key, text, ink, bracketed)
+    return {
+      label: flapOf('label', 'CACHE'),
+      status: flapOf('status', cacheStatus(c), cacheInk(c)),
+      left: c.boardLeft === '' ? null : flapOf('left', c.boardLeft, c.amber !== undefined ? 'amber' : 'text'),
+      reWarm: c.condition === 'cooling' || c.condition === 'cold' ? flapOf('reWarm', `RE-WARM ${up(c.estimate)}`, c.amber !== undefined ? 'amber' : 'text') : null,
+      five: read.fiveHour === undefined ? undefined : limitEntries(kit, flapOf, read.fiveHour),
+      seven: read.sevenDay === undefined ? undefined : limitEntries(kit, flapOf, read.sevenDay),
+      // The line shows no calm context, so its trigger gets a flap of its own.
+      context: x.boardAmber === undefined || x.amber === undefined ? undefined : { long: flapOf('ctx', x.boardAmber, 'amber'), short: flapOf('ctx', x.amber.short, 'amber') },
+      cost: flapOf('cost', read.spend.totalText, 'coin'),
+    }
+  }
+  const bracketed = once(() => flapsOf(true))
+  const bare = once(() => flapsOf(false))
   return [
-    fitLine(kit, ORDER, lineRoom(kit), keeps =>
-      line(
+    fitLine(kit, ORDER, lineRoom(kit), keeps => {
+      // A filled flap has its ground for edges, so only plain draws a second look.
+      const { label, status, left, reWarm, five, seven, context, cost } = kit.palette.filled || keeps.has('brackets') ? bracketed() : bare()
+      return line(
         kit,
         'line',
         [
@@ -127,8 +145,8 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
         ],
         toggle,
         1,
-      ),
-    ),
+      )
+    }),
   ]
 }
 

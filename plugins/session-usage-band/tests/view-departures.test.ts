@@ -67,6 +67,14 @@ test('at 40 columns LAST CALL keeps its seconds and lets its price go', LONG, as
   const t = shown((await at($, on, 'lastMinute', { surface: 'terminal', cols: 40 }, '5m')).shut)
   expect(t).toMatch(/^CACHE\s*LAST CALL\s*30s$/)
 })
+test('on plain, each flap is drawn in [ ], until the line needs the room', async ($, on) => {
+  const mounts = [T160, { surface: 'terminal', cols: 40 } as const]
+  const trees = await drawCases($, on, { layout: 'departures', scenario: 'calm', appearance: 'plain', ttl: '1h' }, mounts)
+  const [wide, narrow] = mounts.map(m => trees[caseKey(m, 'shut')])
+  expect(shown(byKey(wide, 'line', 'Box'))).toMatch(/^\[CACHE\]\[DEPARTS \d{2}:\d{2}\]\[IN 1H 00 MIN\]\[5H\]\[4%\]\[~\d+% AT ↻\]\[7D\]\[30%\]\[\$2\.41\]/)
+  expect(shown(byKey(narrow, 'line', 'Box'))).not.toMatch(/[[\]]/)
+  expect(shown(byKey(trees[caseKey(T160, 'open')], 'body', 'Box'))).toMatch(/\[CACHE\]\[DEPARTS \d{2}:\d{2}\]\[IN 1H 00 MIN\]/)
+})
 test('a measured fill is ! FULL', LONG, async ($, on) => {
   expect(shown((await at($, on, 'fiveHourAhead')).shut)).toMatch(/! FULL/)
 })
@@ -119,8 +127,8 @@ const headInsets = (open: unknown): unknown[] =>
 test('open on the filled desktop, each header sits one cell in, over its padded flaps\' text', async ($, on) => {
   expect(headInsets((await at($, on, 'calm', D160)).open)).toEqual([1, 1, 1, 1])
 })
-test('open on plain, each header sits at its column\'s edge, as a bare flap does', async ($, on) => {
-  expect(headInsets((await at($, on, 'calm', D160, '1h', 'plain')).open)).toEqual([0, 0, 0, 0])
+test('open on plain, each header sits one cell in, over its bracketed flaps\' text', async ($, on) => {
+  expect(headInsets((await at($, on, 'calm', D160, '1h', 'plain')).open)).toEqual([1, 1, 1, 1])
 })
 test('open on the filled terminal, a header sits at its column\'s edge, as an unpadded flap does', async ($, on) => {
   expect(headInsets((await at($, on, 'calm')).open)).toEqual([0, 0, 0, 0])
