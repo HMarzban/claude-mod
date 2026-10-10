@@ -53,6 +53,14 @@ test('the strip heads the body while the body keeps a row, then moves to the foo
 test("a view's own strip stands in for the shared one", () => {
   expect(shown(opened({ maxRows: 13, workspace: WS }, () => text('MINE')))).toMatch(/MINE/)
 })
+test("the frame places a view's own strip as the shared one: under a row of air on top, beside the buttons below", () => {
+  const mine: Strip = () => text('MINE')
+  const top = byKey(opened({ maxRows: 13, workspace: WS }, mine), 'strip', 'Box')
+  expect([top?.props?.marginTop, top?.props?.paddingX, top?.props?.width]).toEqual([1, 1, undefined])
+  expect(shown(top)).toBe('MINE')
+  const footer = byKey(byKey(opened({ maxRows: 5, workspace: WS }, mine), 'actions', 'Box'), 'strip', 'Box')
+  expect([footer?.props?.flexGrow, footer?.props?.minWidth, footer?.props?.marginTop]).toEqual([1, 0, undefined])
+})
 test('with the strip on top and a full body, an open view never passes maxRows', () => {
   const snap = snapOf({ expanded: true, maxRows: 8, workspace: WS })
   const kit = makeKit(fakeEl, snap)

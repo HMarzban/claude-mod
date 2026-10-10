@@ -22,6 +22,12 @@ const tracking = (g: GitState): string => {
   const sides = [g.ahead ? `${commits(g.ahead)} to push` : '', g.behind ? `${g.behind} to pull` : ''].filter(Boolean)
   return sides.length === 0 ? 'up to date with its upstream' : sides.join(', ')
 }
+/** Where a strip sits: on top, under a row of air, its text lined up with
+ *  the cards' (`edge` is their border width); in the footer, in the room the
+ *  buttons leave. */
+export const stripPlacement = (place: 'top' | 'footer', edge: number) =>
+  place === 'top' ? { paddingX: 1 + edge / 2, marginTop: 1 } : { flexGrow: 1, flexShrink: 1, minWidth: 0 }
+
 const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'footer', edge: number): RenderElement => {
   const { Box, Text, Svg, hoverCard, icon } = kit
   const kept = (piece: (typeof STRIP_GIVES_WAY)[number]) => stripKeeps(squeeze, piece)
@@ -137,7 +143,7 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
       flexWrap="nowrap"
       overflow="hidden"
       height={1}
-      {...(place === 'top' ? { paddingX: 1 + edge / 2, marginTop: 1 } : { flexGrow: 1, flexShrink: 1, minWidth: 0 })}
+      {...stripPlacement(place, edge)}
     >
       <Box key="ws:where" flexDirection="row" columnGap={Svg ? 2 : 0} flexShrink={1} minWidth={0} overflow="hidden">
         {joined('where', where)}

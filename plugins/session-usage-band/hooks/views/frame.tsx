@@ -8,10 +8,21 @@ import { HOTKEY_MARK, ROW_SLACK, cellsOf } from '../layout'
 import { BARE } from '../palette'
 import type { Readings } from '../reading'
 import type { BandActions } from '../snapshot'
-import { drawStrip } from '../strip'
+import { drawStrip, stripPlacement } from '../strip'
 
-/** A view's own workspace strip, drawn in its style in place of the shared one. */
+/** A view's own workspace strip, drawn in its style in place of the shared
+ *  one. It draws only its line: the frame places it as the shared one. */
 export type Strip = (kit: Kit, read: Readings, place: 'top' | 'footer', room: number) => RenderChildren
+
+/** A view's own strip, in the shared one's place. */
+const placedStrip = (kit: Kit, line: RenderChildren, place: 'top' | 'footer'): RenderElement => {
+  const { Box } = kit
+  return (
+    <Box key="strip" flexDirection="row" flexWrap="nowrap" overflow="hidden" height={1} {...stripPlacement(place, 0)}>
+      {line}
+    </Box>
+  )
+}
 
 /** The rows a body gets: the band's, less the collapsed rows, a row of air
  *  above the body and above the buttons, the buttons, and the strip. */
@@ -72,14 +83,14 @@ export const frame = (
     place === undefined || ws === undefined
       ? null
       : o.strip !== undefined
-        ? o.strip(kit, read, place, room)
+        ? placedStrip(kit, o.strip(kit, read, place, room), place)
         : drawStrip(kit, ws, place, 0, room)
   return [
     place === 'top' ? strip : null,
     // The strip on top brings its own row of air (strip.tsx's stripAt draws
     // it with marginTop), so the body adds one only when the strip isn't
-    // there, as chips' cards do. A view's own strip must bring its
-    // marginTop={1} too.
+    // there, as chips' cards do. The frame places a view's own strip the
+    // same way.
     bodyRows > 0 ? (
       <Box key="body" flexDirection="column" marginTop={place === 'top' ? 0 : 1}>
         {panel(kit, 'body', o.body(bodyRows))}
