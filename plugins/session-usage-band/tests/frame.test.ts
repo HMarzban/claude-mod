@@ -61,6 +61,9 @@ test("a one-row view's strip takes the footer at 6 rows, so its body keeps a row
 test("a view's own strip stands in for the shared one", () => {
   expect(shown(opened({ maxRows: 13, workspace: WS }, () => text('MINE')))).toMatch(/MINE/)
 })
+test("a view's own strip with nothing to say draws no row", () => {
+  for (const maxRows of [13, 5]) expect(byKey(opened({ maxRows, workspace: WS }, () => null), 'strip', 'Box')).toBeUndefined()
+})
 test("the frame places a view's own strip as the shared one: under a row of air on top, beside the buttons below", () => {
   const mine: Strip = () => text('MINE')
   const top = byKey(opened({ maxRows: 13, workspace: WS }, mine), 'strip', 'Box')

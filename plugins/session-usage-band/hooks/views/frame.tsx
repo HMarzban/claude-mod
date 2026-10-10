@@ -4,7 +4,7 @@
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import type { Kit } from '../kit'
-import { HOTKEY_MARK, ROW_SLACK, cellsOf } from '../layout'
+import { HOTKEY_MARK, ROW_SLACK, cellsOf, isDrawn } from '../layout'
 import { BARE } from '../palette'
 import type { Readings } from '../reading'
 import type { BandActions } from '../snapshot'
@@ -14,10 +14,10 @@ import { drawStrip, stripPlacement } from '../strip'
  *  one. It draws only its line: the frame places it as the shared one. */
 export type Strip = (kit: Kit, read: Readings, place: 'top' | 'footer', room: number) => RenderChildren
 
-/** A view's own strip, in the shared one's place. */
-const placedStrip = (kit: Kit, line: RenderChildren, place: 'top' | 'footer'): RenderElement => {
+/** A view's own strip, in the shared one's place; none when it says nothing. */
+const placedStrip = (kit: Kit, line: RenderChildren, place: 'top' | 'footer'): RenderElement | null => {
   const { Box } = kit
-  return (
+  return !isDrawn(line) ? null : (
     <Box key="strip" flexDirection="row" flexWrap="nowrap" overflow="hidden" height={1} {...stripPlacement(place, 0)}>
       {line}
     </Box>
