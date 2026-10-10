@@ -3662,27 +3662,27 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - The transcript: `type: "assistant"` lines carry `message.id`, `message.model` and `message.usage`, repeated on every content block of one reply. `type: "cost-state"` lines carry `totalCostUSD` and `modelUsage[model]`. They are cumulative across reopens, include subagent spend, and usually close a run, but a run that didn't exit cleanly leaves replies after the last one. In a 67 MB transcript the last record sat about 1.4 MB from the end, past today's 1 MiB tail.
 
 **Decisions:**
-- **Order.** The types don't say which comes first. `session.start` fires as the module loads, and the startup resume's SessionStart hooks run at the tail of startup, so `session.start` is expected first. A resume noted while `session.start` is still running wins anyway: `noteLoad` leaves `knownFresh` alone once `noteResume` has run, and `session.start` skips its own recall. A SessionStart before `session.start` would be reset by it, and that case is not handled.
-- **The cache.** The engine's idle time becomes the recalled reply's time, and its re-caching price is the price shown. `prompt_cache_likely_expired: true` makes the cache cold. It never sets the TTL, because the engine also sets the flag for a compaction with no cached reply after it, however short the idle. So an unpinned hour still reads "1h idle · assumed". With no idle time from the engine, the band recalls as before: its store's `lastAt`, then the transcript's tail.
-- **The read.** `grep -b -F '"type":"cost-state"' <path>` finds every cost record at any size; the output is small, one line per reopen. The last well-formed line gives the record and its byte offset, and `tail -c +<offset + 1>` reads only what was logged after it. The fallbacks:
+- **Order.** Nothing guarantees one. In the 2.1.296 binary the launch-resume loader starts the SessionStart hooks at load time (`"tail"` says only where their rows land, not when they run), and both they and `session.start` wait on the same plugin-hook load, so the two dispatches race: SessionStart may come first, last, or while `session.start` runs. The band holds the resume either way. `band.resume` keeps what the engine said (the session id, its cache facts, the transcript path) and, once read, what the transcript showed. `session.start`'s reset doesn't touch it: after the reset, `session.start` applies it again when its session id is the one loading, and drops it otherwise. `session.end` drops it. A transcript read lands only while `band.resume` is still the resume that started it, so a `/clear` or another resume drops it, and `session.start` can never drop it. In the test kit, module state carries across the tests of one file, so `band.resume` can outlive a test. A later test on the same session id then has it applied again at its `session.start`. Every resume test raises its own SessionStart, which replaces it, and applying it again runs no process.
+- **The cache.** The engine's idle time becomes the recalled reply's time, and its re-caching price is the price shown. Both are kept as `resumedCache`, beside the band's own `recall`, and stand over it. `prompt_cache_likely_expired: true` makes the cache cold. It never sets the TTL, because the engine also sets the flag for a compaction with no cached reply after it, however short the idle. The TTL comes from where the engine takes it: the last main-loop reply's `usage.cache_creation` split, read from the transcript's tail. Any `ephemeral_1h_input_tokens` gives 1h; `ephemeral_5m_input_tokens` alone gives 5m. A reply that wrote nothing is passed over, and so is a subagent's (`isSidechain`). A TTL seen there is known, not assumed (`ttlSeen`, shown through the snapshot's `ttlPinned`), so inference leaves it alone. The environment's pin still wins. With no idle time from the engine, the band recalls as before: its store's `lastAt`, then the transcript's tail.
+- **The read.** `grep -b -F '"type":"cost-state"' <path>` finds every cost record at any size; the output is small, one line per reopen. The session's own last record (by `sessionId`) gives the record and its byte offset, else the last well-formed record of any session (a fork's file may hold only its parent's). `tail -c +<offset + 1>` reads only what was logged after it. The fallbacks:
   - grep exits 1: there is no record, so nothing is seeded.
   - grep can't run: the file is read whole if it is ≤ `READ_LIMIT`.
   - grep's output is truncated: the band gives up.
   - The tail fails or is truncated: the record alone is seeded.
 - **Pricing.** Each reply after the record is priced at its model's rate in that record, through `weightedTokens`. That keeps every cache write at 1.25×, as the record's own total does, so the `ephemeral_5m`/`ephemeral_1h` split is not used.
-- **Never double count.** The band shows `max(ledger, transcript total + (ledger − ledger when it was read))`: the larger of the two at the resume, with the ledger's growth on top. `ratePerToken`, `costBase` and `lastTurnUsd` stay on the raw ledger.
-- **Off the hook.** The transcript is read once per resume, with `void`, and redraws when it is done. `band.conversations`, counted at each load and each end, drops a read that ends after a `/clear`. Only the totals are kept.
+- **Never double count.** The host restores the ledger from the log's cost state (`Jhe`), and on both the in-process `/resume` and the SDK path it does so only after the SessionStart hooks have started (`H7`). So the read may land before the restore, and the ledger at the read is no baseline. Growth counts from the conversation's own baseline instead: `costBase`, which the first `turn.start` takes, after any restore. Before that turn the band shows `max(ledger, transcript total)`; after it, `max(ledger, transcript total + ledger − costBase)`. `ratePerToken`, `costBase` and `lastTurnUsd` stay on the raw ledger.
+- **Off the hook.** The transcript is read once per resume, with `void`, and redraws when it is done. Only the totals and the TTL are kept. The SessionStart hook waits only for the clock and the session id. The recall, when the engine gives no idle time, and the transcript read both run off it. The hook has a `.catch` that passes the event on, as `session.compact` has. `session.end` takes `resetForResume` for a resume and `resetConversation` for anything else.
 
 **Files:**
-- Modify: `hooks/cache.ts` (`TokenCounts`, `NO_TOKENS`, `addTokens`, `Spend`, `ResumedCache`; `resumed` and `prior` in the state; `noteResume`, `notePrior`, `spentUsd`; `resetConversation(costNow, isFresh = true)`; `noteLoad` respects a resume; `msLeft`, `hitRatio`, `savedUsd` and `cacheView` read the prior spend and the engine's verdict)
-- Modify: `hooks/memory.ts` (`COST_RECORD`, `lastCostRecord`, `transcriptSpend`; `rateFromTranscript` shares `recordRate`)
-- Modify: `hooks/register.tsx` (`classic.SessionStart`, `resumeConversation`, `recoverSpend`, `spendBefore`, `transcriptFile`, `readWhole`; `band.conversations`; `session.end` passes `e.reason !== 'resume'`; `costUsd: spentUsd(…)`)
-- Modify: `hooks/snapshot.ts` (`cache.recovered: boolean`), `hooks/reading.ts` (`measured` is `requests > 0 || recovered`)
+- Modify: `hooks/cache.ts` (`TokenCounts`, `NO_TOKENS`, `addTokens`, `Spend`, `ResumedCache`; `resumed`, `resumedCache`, `prior` and `ttlSeen` in the state; `noteResume`, `notePrior`, `noteTtlSeen`, `spentUsd`; `resetForResume` beside `resetConversation`; `noteLoad` respects a resume; `msLeft`, `hitRatio`, `savedUsd` and `cacheView` read the prior spend and the engine's verdict)
+- Modify: `hooks/memory.ts` (`COST_RECORD`, `sessionCostRecord`, `transcriptSpend`, `lastWriteTtl`; `rateFromTranscript` shares `recordRate`)
+- Modify: `hooks/register.tsx` (`classic.SessionStart` with its `.catch`, `resumeConversation`, `applyResume`, `readResumed`, `spendBefore`, `transcriptFile`, `readWhole`; `band.resume`; `session.start` applies a resume again; `session.end` takes `resetForResume` on a resume; `costUsd: spentUsd(…)`)
+- Modify: `hooks/snapshot.ts` (`cache.recovered: boolean`; `ttlPinned` documented as known, not assumed), `hooks/reading.ts` (`measured` is `requests > 0 || recovered`)
 - Modify: `tests/helpers.ts` (`grep`, `tail -c +N`, `grepFails`, the bottom `classic.SessionStart`), `tests/matrix.ts` (`snapOf` gains `recovered: false`)
 - Test: `tests/resume-backfill.test.ts` (new)
 
 **Interfaces:**
-- **Produces:** `noteResume(engine: ResumedCache | undefined)`, `notePrior(spend: Spend, ledgerNow: number | undefined)`, `spentUsd(ledgerNow: number | undefined): number`; `transcriptSpend(transcript: string): Spend | undefined`, `lastCostRecord(grepOutput: string): { offset; line } | undefined`; `BandSnapshot.cache.recovered`.
+- **Produces:** `noteResume(engine: ResumedCache | undefined)`, `notePrior(spend: Spend)`, `noteTtlSeen(ttl: Ttl)`, `resetForResume(costNow: number)`, `spentUsd(ledgerNow: number | undefined): number`; `transcriptSpend(transcript: string, sessionId: string): Spend | undefined`, `sessionCostRecord(grepOutput: string, sessionId: string): { offset; line } | undefined`, `lastWriteTtl(transcript: string): Ttl | undefined`; `BandSnapshot.cache.recovered`.
 - **Consumes:** `weightedTokens`, `modelName`, `READ_LIMIT`, `transcriptPath`, `recallLastReply`.
 
 - [ ] **Step 1: Extend the fake engine**
@@ -3770,7 +3770,7 @@ Add `recovered: false` to `snapOf`'s cache in `tests/matrix.ts`.
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { SessionUsage } from 'claude-code'
-import { CLEAR, HOUR, MIN, START, USAGE, cardOf, engine, fact, pillOf, setup, shown, startTurn, endTurn, mountBand } from './helpers'
+import { CLEAR, HOUR, MIN, START, USAGE, cardOf, engine, fact, pillOf, setup, shown, startTurn, endTurn, mountBand, usage } from './helpers'
 
 const ENV = { ENABLE_PROMPT_CACHING_1H: '1', HOME: '/Users/me' }
 const BUILT_PATH = '/Users/me/.claude/projects/-Users-me-workspace-claude-mod/s1.jsonl'
@@ -4010,12 +4010,90 @@ test('a new session and a /clear read nothing and stay warming', async ($, on) =
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache warming/)
   expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$0\.00/)
 })
+
+test('a SessionStart that comes before session.start still resumes the conversation', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = TRANSCRIPT
+  await resume($, 48 * HOUR)
+  await $.session.start(START)
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold/)
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
+})
+
+test('a SessionStart while session.start runs still resumes the conversation', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = TRANSCRIPT
+  await Promise.all([resume($, 48 * HOUR), $.session.start(START)])
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold/)
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
+})
+
+test('a ledger the host restores after the transcript is read is never added to it', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = TRANSCRIPT
+  await $.session.start(START)
+  await resume($, 10 * MIN)
+  await clock.settle()
+  // The host restores the record's total only once the band has read the transcript.
+  usage.current = { ...RESUMED, cost: { usd: 30 } }
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
+  await startTurn($, 't1', 30)
+  await endTurn($, 't1', 31)
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$31\.27/)
+})
+
+test('a fork counts its own cost record, not one its parent wrote', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
+  engine.transcript = jsonl(
+    { ...RECORD, sessionId: 's1' },
+    ...reply('msg_1', 3, REPLY_USAGE),
+    ...reply('msg_2', 1, REPLY_USAGE),
+    { ...RECORD, sessionId: 'parent', totalCostUSD: 50 },
+  )
+  await $.session.start(START)
+  await resume($, 10 * MIN, { source: 'fork' })
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cost'))).toMatch(/\$30\.27/)
+})
+
+/** No TTL pinned, so the band has only the transcript to go by. */
+const UNPINNED = { HOME: '/Users/me' }
+
+/** A reply that wrote its cache at `ttl`. */
+const wroteAt = (id: string, ttl: '5m' | '1h') =>
+  reply(id, 1, {
+    ...REPLY_USAGE,
+    cache_creation: { ephemeral_5m_input_tokens: ttl === '5m' ? 2_000 : 0, ephemeral_1h_input_tokens: ttl === '1h' ? 2_000 : 0 },
+  })
+
+test("a resumed session's cache lasts as long as its last main-loop cache write said", async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: UNPINNED, now: 3 * HOUR })
+  // A subagent's reply after it, written for an hour, says nothing of the main loop's cache.
+  engine.transcript = jsonl(RECORD, ...wroteAt('msg_1', '5m'), ...wroteAt('msg_2', '1h').map(line => ({ ...line, isSidechain: true })))
+  await $.session.start(START)
+  await resume($, 2 * MIN, { expired: false })
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 3:00/)
+  expect(fact(await mounted($, true), 'expires')).toBe('5m idle')
+})
+
+test('an hour seen on the last cache write is no longer assumed', async ($, on) => {
+  const clock = setup(on, { usage: RESUMED, env: UNPINNED, now: 3 * HOUR })
+  engine.transcript = jsonl(RECORD, ...wroteAt('msg_1', '1h'))
+  await $.session.start(START)
+  await resume($, 2 * MIN, { expired: false })
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 58m/)
+  expect(fact(await mounted($, true), 'expires')).toBe('1h idle')
+})
 ```
 
 - [ ] **Step 3: Run them and watch them fail**
 
 Run: `tools/test-only.sh resume-backfill`
-Expected: 12 of 16 FAIL, with "cache warming" and "$0.00" where a resumed session should be cold and priced. The four that cover the fallbacks and the new-session path already pass.
+Expected: of the first 16 tests, 12 FAIL, with "cache warming" and "$0.00" where a resumed session should be cold and priced. The four that cover the fallbacks and the new-session path already pass. The last six came from the review of the first fix. Against that fix they fail with " ◷ cache warming " (SessionStart first), "$0.00" (the two together), "$60.27" (the ledger restored late), "$50.00" (the fork), " ◷ cache 58m " and "1h idle · assumed" (the TTLs).
 
 - [ ] **Step 4: Implement**
 
@@ -4029,27 +4107,34 @@ export const noteLoad = (costNow: number | undefined): void => {
 export const noteResume = (engine: ResumedCache | undefined): void => {
   state.knownFresh = false
   state.resumed = true
-  if (engine !== undefined) {
-    state.recall = { lastAt: engine.lastAt, rate: null, expired: engine.expired, reWarmUsd: engine.reWarmUsd }
-  }
+  state.resumedCache = engine
+  state.prior = undefined
 }
 
-export const notePrior = (spend: Spend, ledgerNow: number | undefined): void => {
-  state.prior = { ...spend, ledgerAt: ledgerNow ?? 0 }
+export const notePrior = (spend: Spend): void => {
+  state.prior = spend
+}
+
+export const noteTtlSeen = (ttl: Ttl): void => {
+  if (state.ttlPinned) return
+  state.ttl = ttl
+  state.ttlSeen = true
 }
 
 export const spentUsd = (ledgerNow: number | undefined): number => {
   const ledger = ledgerNow ?? 0
   const prior = state.prior
-  return prior === undefined ? ledger : Math.max(ledger, prior.usd + ledger - prior.ledgerAt)
+  if (prior === undefined) return ledger
+  const growth = state.baselined ? ledger - state.costBase : 0
+  return Math.max(ledger, prior.usd + growth)
 }
 
 const allTokens = (): TokenCounts => (state.prior === undefined ? state : addTokens(state, state.prior.tokens))
 ```
 
-`msLeft` returns 0 for a recalled cache with `recall.expired === true`. `hitRatio`, `savedUsd` and `cacheView`'s `tokens` read `allTokens()`. A recalled `reWarmUsd` is `recall.reWarmUsd ?? (rate === null ? null : reWarmAt(rate, contextTokens))`. `cacheView` adds `recovered: state.prior !== undefined`.
+`recalledAt()` is `resumedCache?.lastAt ?? recall?.lastAt`, and `isRecalled`, `msLeft` and `cacheView`'s `idleMs` read it. `msLeft` returns 0 for a recalled cache with `resumedCache.expired === true`. `hitRatio`, `savedUsd` and `cacheView`'s `tokens` read `allTokens()`. A recalled `reWarmUsd` is `resumedCache?.reWarmUsd ?? (rate === null ? null : reWarmAt(rate, contextTokens))`. `cacheView` adds `recovered: state.prior !== undefined`, and its `ttlPinned` is `ttlPinned || ttlSeen`, which is also what keeps inference off the TTL. `resetConversation(costNow)` (a /clear, fresh) and `resetForResume(costNow)` (not fresh) share one private `switchConversation`, which carries `ttlSeen` with the TTL.
 
-In `memory.ts`, `transcriptSpend` takes the last well-formed cost record (`findLastIndex`), sums every model's tokens in it, then adds each `assistant` line after it once by `message.id`, priced at `recordRate(modelUsage[modelName(model)], model)`. `lastCostRecord` walks `grep -b` output from the end to the first line whose JSON is a cost record.
+In `memory.ts`, `transcriptSpend(transcript, sessionId)` takes the session's own last cost record, else the last well-formed one. It sums every model's tokens in it, then adds each `assistant` line after it once by `message.id`, priced at `recordRate(modelUsage[modelName(model)], model)`. `sessionCostRecord` picks the same record from `grep -b` output, with its offset. `lastWriteTtl` walks the transcript from its end to the last main-loop reply whose `usage.cache_creation` wrote anything.
 
 In `register.tsx`:
 
@@ -4057,10 +4142,10 @@ In `register.tsx`:
 on('classic.SessionStart', async ($, e, next) => {
   if (e.agent_id === undefined && (e.source === 'resume' || e.source === 'fork')) await resumeConversation($, e)
   return next(e)
-})
+}).catch(($, e, next) => next(e)) // a failure here must never stop a session starting
 ```
 
-`resumeConversation` treats `transcript_path: ''` as none. It calls `noteResume` with `lastAt: now − seconds_since_last_response × 1000` and the engine's verdict and price, or with `undefined` and `await recallLastReply($, path)` when there is no idle time. Then it calls `void recoverSpend($, path)` and invalidates. `recoverSpend` reads `spendBefore` (grep, then `tail -c +N`, else `readWhole`) and drops the result if `band.conversations` moved. It calls `notePrior(spend, await ledgerUsd($))` and invalidates. `session.start` and `session.end` both count `band.conversations++`, and `session.end` calls `resetConversation(ledger ?? 0, e.reason !== 'resume')`. The snapshot's `costUsd` is `spentUsd(usage.cost?.usd)`.
+`resumeConversation` builds a `Resume`: `$.session.id()`; the cache as `lastAt: now − seconds_since_last_response × 1000` with the engine's verdict and price, or `undefined` with no idle time; the transcript path (`''` is none); and no transcript facts yet. It keeps that in `band.resume` and applies it (`applyResume`: `noteResume`, then `notePrior` and `noteTtlSeen` from the facts once read). With no idle time it runs `void recallLastReply($, path)`. Then `void readResumed($, resume)`, and it invalidates. `readResumed` runs `spendBefore` (grep, then `tail -c +N`, else `readWhole`) and `transcriptEnd` together. It drops the result unless `band.resume` is still that resume. Otherwise it keeps the facts in `band.resume`, notes them, and invalidates. `session.start`, after its reset, applies `band.resume` again when its `sessionId` is `$.session.id()`, and drops it otherwise. It recalls the last reply only if the conversation isn't known fresh and the engine gave no `resumedCache`. `session.end` clears `band.resume`, then calls `resetForResume` for `reason: 'resume'` and `resetConversation` for anything else. The snapshot's `costUsd` is `spentUsd(usage.cost?.usd)`.
 
 - [ ] **Step 5: Run the tests**
 

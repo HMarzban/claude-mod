@@ -18,8 +18,9 @@ version may change how the band reads.
 ### Fixed
 - A resumed session (`claude --resume`, `/resume`, or a past session opened
   in the desktop app) no longer reads as a new one: the cache shows cold or
-  counting down, at the re-caching price Claude Code names, and the spend
-  and token breakdown start from what the transcript records, not $0.00.
+  counting down, at the re-caching price Claude Code names and for as long
+  as its last cache write was made for, and the spend and token breakdown
+  start from what the transcript records, not $0.00.
 
 ## [0.11.12] - 2026-10-09
 
