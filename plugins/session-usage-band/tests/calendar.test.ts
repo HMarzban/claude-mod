@@ -77,3 +77,31 @@ test('a measured fill marks its hour over the guess', () => {
   const wk = weekOf({ samples: [], seven: undefined, five, now: T0 + 2.5 * H, utcOffsetMin: 0 })
   expect(wk.hours.findIndex(c => c.fullMark)).toBe(3)
 })
+test('the days are cut at local midnight, so today is the day it is', () => {
+  // The reset at 20:00: before 20:00 a cut at the reset's clock time named
+  // yesterday as today. The 4-hour start of the window folds into Wednesday.
+  const R = Date.UTC(2026, 9, 13, 20)
+  const at = (day: number, hour: number) => Date.UTC(2026, 9, day, hour)
+  const sample = (ms: number, sevenPct: number) => ({ at: ms, fivePct: 0, sevenPct, fiveResetAt: ms + H, sevenResetAt: R })
+  const samples = [sample(at(6, 23), 2), sample(at(7, 22), 5), sample(at(8, 1), 7), sample(at(8, 14), 12)]
+  const weekAt = (now: number, utcOffsetMin = 0) => weekOf({ samples: samples.filter(x => x.at <= now), seven: { percentUsed: 12, projectedPct: 30, resetsAt: R }, five: undefined, now, utcOffsetMin })
+  const today = (now: number, utcOffsetMin = 0) => weekAt(now, utcOffsetMin).days.filter(d => d.today).map(d => `${d.initial}${d.date}`)
+  const wk = weekAt(at(8, 15))
+  expect(wk.days.map(d => `${d.initial}${d.date}`)).toEqual(['W7', 'T8', 'F9', 'S10', 'S11', 'M12', 'T13'])
+  expect(today(at(8, 15))).toEqual(['T8'])
+  // Each day's own rise: Wednesday's 22:00 sample counts on Wednesday.
+  expect(wk.days.slice(0, 2).map(d => d.text)).toEqual(['5%', '7%'])
+  expect(wk.busiest).toBe('Thu')
+  expect(today(at(7, 21))).toEqual(['W7'])
+  expect(today(at(13, 10))).toEqual(['T13'])
+  // Today in the window's first hours: the other partial day folds instead.
+  expect(today(at(6, 21))).toEqual(['T6'])
+  // The same instants an hour and a half east, at 03:30 local.
+  expect(today(at(8, 2), 90)).toEqual(['T8'])
+})
+test("on the reset's own day, before it resets, today is that day", () => {
+  const R = T0 + 168 * H // Tue 08:40
+  const wk = weekOf({ samples: [], seven: seven(80, 90), five: undefined, now: R - 6 * H, utcOffsetMin: 0 })
+  expect(wk.days.filter(d => d.today).map(d => `${d.initial}${d.date}`)).toEqual(['T13'])
+  expect(wk.days).toHaveLength(7)
+})

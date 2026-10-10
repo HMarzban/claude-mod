@@ -33,6 +33,7 @@ What the plan's steps record, in the order they happen.
 - An option for later, not this release (Task 28's note), measured: the timer ticks each second in the cache's last ten minutes for every layout, 600 repaints there (60 in the last minute; 650 in the hour from a reply). A non-chips layout says minutes until the last minute, so ticking each second only there would make its last ten minutes 69 repaints (9 + 60), and its hour about 119.
 - Memory, by inspection beside the caps' unit tests (`history.test.ts`, `calendar.test.ts`): the trails are capped on insert (`costTrail` 24, `contextTrail` 40, `fiveHourTrail` 300 and five hours), `limitSamples` 672, `sessions` 50; the pace samples keep 30 minutes; `turnStartCost` holds open turns only (`turn.complete` fires for an aborted or failed turn too) and clears at a clear; `warned` has two keys; the rates are keyed by model. One timer, `band.tick`, cancelled before each new one. No view keeps module state, a timer or a listener.
 - Store writes outside the spec's two keys: `rememberTurn` writes `sessions` and `rates` once each per main-loop turn (as in 0.11); bounded by the turns and by their caps, never while drawing.
+- Final: fixed week's day cells named after the reset's clock time, so before that time of day today, its date and the busiest day were a day behind — `calendar.test`'s `the days are cut at local midnight, so today is the day it is` and `on the reset's own day, before it resets, today is that day` RED→GREEN (`T6 W7 … M12` for `W7 … T13`; `M12` for `T13`), suite 1021/1021
 
 ## Test counts at each gate
 | Gate | Count | Command |
@@ -114,6 +115,7 @@ What the plan's steps record, in the order they happen.
 | Tasks 27 and 28, perf and soak tests and the performance pass (merged) | 1019 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 | Task 31, docs, changelog and 0.12.0 (merged) | 988 pass, 0 fail, 46 files | `claude plugin test plugins/session-usage-band` |
 | Task 32, the layouts gallery (merged) | 988 pass, 0 fail, 46 files | `claude plugin test plugins/session-usage-band` |
+| Task 29, week's days cut at local midnight | 1021 pass, 0 fail, 48 files | `claude plugin test plugins/session-usage-band` |
 
 ## Rulings
 <!-- One line each: `Ruling: <what> — <why> — <fallback taken or not>`. -->
@@ -255,6 +257,7 @@ Ruling: Task 27's soak raises a `session.measure` after every turn, beyond the p
 Ruling: the 5h trail's bound is held by `history.test.ts`, not the soak — spec §9 asks the soak to show every history within its cap, read through the snapshot, but the kit loads the band's hooks apart from the test's own modules (the soak importing `trails` read an empty copy, 0 where the band's cost trail held 24), so the snapshot reaches the soak only as the drawn tree, and every reader windows the 5h trail when drawn, so no tree shows its cap or its prune; the unit test feeds 400 minutes and asserts at most `FIVE_HOUR_TRAIL` readings, none older than five hours — no fallback; the soak holds the cost and context caps.
 Ruling: no paint key (Task 28, Step 3) — steps that change nothing do repaint: the turn's end repaints an unchanged workspace for its git read, and a `session.measure` repaints when a unit moves but what is drawn does not (5h 4.1% to 4.2%, both drawn `4%`), about 0.5 ms a turn; spec §9's "adopted only if the profile shows it matters" outranks the plan's conditional — no fallback.
 Pending maintainer: week's `amberWords` and `limitSentence` copy ledger's file-local helpers word for word; a follow-up moves both into `parts.tsx`, with a `parts.test` case, and has ledger and week import them — Task 26's files are `week.tsx` and its test, so the move was not taken there.
+Ruling: Task 29's day cells are cut at local midnight, and a reset off midnight leaves a part day at each end of the 7d window, of which the one today isn't in, else the shorter, folds into its neighbour — spec §6 draws seven day cells, and the review's other two forms either drew eight or named a folded part day wrong while today was in it (folding the oldest always: right after a reset, today read as tomorrow; the midpoint name: wrong up to 12 hours a day); a folded day is named by its whole day, and the guesses ahead still split evenly per day, so every earlier calendar assertion holds (an 08:40 reset folds its reset morning into Monday: `TWTFSSM`) — no fallback; the hour cells keep their cut from the 5h reset (the `startClock` ruling).
 
 ## Freezes
 - P1 freeze (Task 14), at dc28d40: these interfaces are frozen for P2. Gates green: `claude plugin validate .` and `claude plugin validate plugins/session-usage-band` pass, the suite passes in both zones (456 pass, 0 fail, 35 files), and `tsc` reports no errors.
