@@ -270,6 +270,9 @@ const BAR_GAP = 2
 const CAP_PX = 2
 const CAP_ROOM = CAP_PX + 1
 
+/** The px `count` bars take, each with the air after it: a bar chart's `px`. */
+export const barsWidth = (count: number): number => count * (BAR_PX + BAR_GAP)
+
 /** A bar per value, oldest first. Text draws them in braille. */
 export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
   const { Svg } = kit
@@ -279,7 +282,7 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
   const room = height - CAP_ROOM
   const marks = values.map((v, i) => {
     const tall = top > 0 ? Math.max(1, Math.round((v / top) * room)) : 1
-    const x = i * (BAR_PX + BAR_GAP)
+    const x = barsWidth(i)
     const y = height - tall
     const isMarked = marked[i] === true
     const ink = isMarked ? markColor : i === values.length - 1 && newestColor !== undefined ? newestColor : color

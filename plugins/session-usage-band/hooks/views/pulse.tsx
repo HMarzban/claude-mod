@@ -3,7 +3,7 @@
 // numbers.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
-import { barChart, sparkline } from '../charts'
+import { barChart, barsWidth, sparkline } from '../charts'
 import type { Kit } from '../kit'
 import { SHORT_BELOW } from '../layout'
 import type { HistoryReading, LimitView, Readings } from '../reading'
@@ -21,8 +21,6 @@ type Piece = (typeof ORDER)[number]
 /** The bars drawn collapsed, before and after they give way. */
 const BARS_MANY = 14
 const BARS_FEW = 8
-/** A bar and the air after it, as `barChart` draws them. */
-const BAR_STEP_PX = 6
 /** Tall enough that the desktop line is two rows (24 px each, rounded). */
 const CHART_PX = 36
 /** An open chart: two desktop rows. */
@@ -60,7 +58,7 @@ const costBars = (kit: Kit, hist: HistoryReading, count: number, height: number)
     color: p.meterFill,
     markColor: p.value,
     newestColor: p.value,
-    px: values.length * BAR_STEP_PX,
+    px: barsWidth(values.length),
     height,
   })
 }
