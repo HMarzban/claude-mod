@@ -1,3 +1,5 @@
+// The shared view helpers: lines and their squeeze, words, facts, sections and the grid.
+
 import { test, expect } from 'claude-code/testing'
 import { makeKit } from '../hooks/kit'
 import { DARK } from '../hooks/palette'

@@ -1,6 +1,6 @@
-// The pieces several views draw: the pill a chip sits in, the cache's
-// battery, as an icon on the desktop and as the pill itself in a terminal,
-// and the lines, sections and grid every new view is laid out with.
+// The pieces several views draw: the pill a chip sits in; the cache's
+// battery, an icon on the desktop and the pill itself in a terminal; and the
+// lines, sections and grid every new view is laid out with.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { clamp01 } from '../format'
