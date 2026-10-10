@@ -21,6 +21,9 @@ export type Icon =
   | 'changes'
   | 'ahead'
   | 'behind'
+  | 'sun'
+  | 'cloud'
+  | 'snow'
 
 /** The 5-hour gauge, which also heads the Limits card. */
 const GAUGE = (color: string): string =>
@@ -67,6 +70,14 @@ export const ICON_PATHS: Readonly<Record<Icon, (color: string) => string>> = {
     `<path d="M8 13V3.5M4.5 7 8 3.5 11.5 7" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`,
   behind: color =>
     `<path d="M8 3v9.5M4.5 9 8 12.5 11.5 9" fill="none" stroke="${color}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`,
+  // The cache as weather: warm, cooling as it nears its end, then cold.
+  sun: color =>
+    `<circle cx="8" cy="8" r="3" fill="none" stroke="${color}" stroke-width="1.4"/>` +
+    `<path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>`,
+  cloud: color =>
+    `<path d="M4.5 12.5h7a3 3 0 0 0 .3-6 4 4 0 0 0-7.6 1A2.5 2.5 0 0 0 4.5 12.5z" fill="none" stroke="${color}" stroke-width="1.4" stroke-linejoin="round"/>`,
+  snow: color =>
+    `<path d="M8 1.8v12.4M2.6 4.9l10.8 6.2M2.6 11.1l10.8-6.2M6.4 2.6 8 4.2l1.6-1.6M6.4 13.4 8 11.8l1.6 1.6" fill="none" stroke="${color}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>`,
   week: color =>
     `<rect x="2.5" y="3.5" width="11" height="10" rx="2" fill="none" stroke="${color}" stroke-width="1.4"/>` +
     `<path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" stroke="${color}" stroke-width="1.4" stroke-linecap="round"/>`,
@@ -94,6 +105,10 @@ export const GLYPH: Readonly<Record<Icon, string>> = {
   changes: '',
   ahead: '',
   behind: '',
+  // Weather symbols are wide in some fonts: the forecast says the word.
+  sun: '',
+  cloud: '',
+  snow: '',
 }
 
 /** An icon's name for a reader that cannot see it. */
@@ -115,4 +130,7 @@ export const ALT: Readonly<Record<Icon, string>> = {
   changes: 'uncommitted',
   ahead: 'ahead',
   behind: 'behind',
+  sun: 'warm',
+  cloud: 'cooling',
+  snow: 'cold',
 }

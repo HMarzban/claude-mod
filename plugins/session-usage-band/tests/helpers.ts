@@ -2,6 +2,7 @@
 // plugin, canned usage, and readers for the drawn tree.
 
 import type {
+  ElementTable,
   HookStream,
   ModelUsage,
   On,
@@ -259,6 +260,14 @@ export type Node = {
   hover?: Record<string, unknown>
   children?: unknown[]
 }
+
+/** Element constructors for drawing outside a mount: each returns the plain
+ *  node a surface would, its children flattened. */
+const plainNode = (type: string) => (p: Readonly<Record<string, unknown>> | null): Node => {
+  const { children, ...props } = p ?? {}
+  return { type, props, children: children === undefined ? [] : [children].flat(Infinity) }
+}
+export const fakeEl = { Box: plainNode('Box'), Text: plainNode('Text'), Button: plainNode('Button'), Svg: plainNode('Svg') } as unknown as ElementTable
 
 /** All text beneath a node, hidden cards included. */
 export const textOf = (n: unknown): string =>
