@@ -8,6 +8,7 @@ import { clamp01 } from '../format'
 import { asciiText } from '../glyphs'
 import type { Kit } from '../kit'
 import { ROW_SLACK, isDrawn, keepsIn, squeezeToFit } from '../layout'
+import type { Palette } from '../palette'
 import type { LimitKey, Readings, Tone } from '../reading'
 import type { Amber, Role, Say } from '../words'
 
@@ -161,20 +162,22 @@ export const fitLine = <P extends string>(kit: Kit, order: readonly P[], room: n
 /** True until the amber step: an amber reading's chart stays while this holds. */
 export const beforeLast = <P extends string>(keeps: Keeps<P>): boolean => keeps.amber(AMBER_PROBE) === AMBER_PROBE.long
 
+/** Each role's ink: text on the card ground. */
+export const ROLE_INK: Readonly<Record<Role, Exclude<keyof Palette, 'filled'>>> = {
+  label: 'label',
+  value: 'value',
+  amber: 'amberFg',
+  accent5: 'fiveText',
+  accent7: 'weekAccent',
+}
+
 /** A phrase in its roles' colours, one Text, truncated rather than wrapped. */
 export const words = (kit: Kit, key: string, say: Say, bold = false): RenderElement => {
   const { Text, palette } = kit
-  const color: Readonly<Record<Role, string>> = {
-    label: palette.label,
-    value: palette.value,
-    amber: palette.amberFg,
-    accent5: palette.fiveAccent,
-    accent7: palette.weekAccent,
-  }
   return (
     <Text key={key} bold={bold} wrap="truncate-end">
       {say.map(([text, role], i) => (
-        <Text key={String(i)} color={color[role]}>
+        <Text key={String(i)} color={palette[ROLE_INK[role]]}>
           {text}
         </Text>
       ))}

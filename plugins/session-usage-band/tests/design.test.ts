@@ -4,6 +4,7 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import { DARK, LIGHT } from '../hooks/palette'
+import { ROLE_INK } from '../hooks/views/parts'
 import {
   CLEAR,
   DARK_HOSTS,
@@ -61,6 +62,11 @@ for (const [name, p, hosts] of [
     for (const mark of [p.meterFill, p.warm, p.fiveAccent, p.weekAccent]) expect(contrast(mark, p.cardBg)).toBeGreaterThanOrEqual(3)
     expect(contrast(p.value, p.surface)).toBeGreaterThanOrEqual(4.5)
     for (const ink of [p.flapText, p.flapDim, p.flapWarm, p.flapAmber, p.flapFive, p.flapWeek, p.flapCoin]) expect(contrast(ink, p.flap)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  test(`${name}: every role a layout's words take is text that holds on the card ground`, () => {
+    const low = Object.entries(ROLE_INK).filter(([, ink]) => contrast(p[ink], p.cardBg) < 4.5)
+    expect(low.map(([role, ink]) => `${role} ${ink} ${contrast(p[ink], p.cardBg).toFixed(2)}`)).toEqual([])
   })
 }
 

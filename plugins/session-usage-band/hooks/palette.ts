@@ -33,6 +33,9 @@ export type Palette = {
   fiveBg: string
   fiveFg: string
   fiveAccent: string
+  /** The 5-hour accent as words on the card: in light, fiveAccent holds
+   *  there only as a mark. */
+  fiveText: string
   weekBg: string
   weekFg: string
   weekAccent: string
@@ -76,6 +79,7 @@ export const DARK: Readonly<Palette> = {
   fiveBg: '#1e3324',
   fiveFg: '#cfe8d3',
   fiveAccent: '#7fcf8a',
+  fiveText: '#7fcf8a',
   weekBg: '#2a2540',
   weekFg: '#d9d3f5',
   weekAccent: '#a99cf0',
@@ -111,6 +115,7 @@ export const LIGHT: Readonly<Palette> = {
   fiveBg: '#dff0e0',
   fiveFg: '#1f5c2e',
   fiveAccent: '#2f8a45',
+  fiveText: '#287a3d',
   weekBg: '#e8e4fa',
   weekFg: '#3c3489',
   weekAccent: '#6b5fd3',
@@ -148,6 +153,7 @@ export const PLAIN: Readonly<Palette> = {
   fiveBg: '',
   fiveFg: 'text',
   fiveAccent: 'success',
+  fiveText: 'success',
   weekBg: '',
   weekFg: 'text',
   weekAccent: 'text',
