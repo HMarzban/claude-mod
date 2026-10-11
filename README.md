@@ -150,7 +150,7 @@ were ([how it reads them](plugins/session-usage-band/README.md#reopening-an-old-
 
 Press `▵` to open every fact, under a line that says where you are: the
 project, its git branch or worktree, uncommitted changes and ahead/behind.
-Every layout opens the same four labelled cards, each headed its own way.
+Every layout opens the same four labelled cards.
 
 ![The band expanded on the desktop: chips for the cache, cost, context and the 5h and 7d limits, then the Cache, Spend, Context and Limits cards, the project path and branch, and the Collapse and Hide band buttons](docs/band-expanded.png)
 

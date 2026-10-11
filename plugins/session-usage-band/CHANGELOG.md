@@ -33,9 +33,9 @@ version may change how the band reads.
     figure, soonest first.
 - One shared inspector: `▵` opens every layout into the same four cards,
   Cache, Spend, Context and Limits, under the workspace line and the
-  `Collapse` and `Hide band` buttons. A layout heads each card its own way,
-  its bar, ring or countdown, and no card repeats what the row above it
-  says; as the row narrows and drops a fact, its card says it again.
+  `Collapse` and `Hide band` buttons. Most layouts mark each card's head
+  their own way, with its bar, ring or countdown, and no card repeats what
+  the row above it says; as the row narrows and drops a fact, its card says it again.
 - Formatting: dollars are grouped, `$1,027`, and tokens reach billions,
   `2.1B`. A card's head is bold on its figure alone, its words lowercase in
   label ink. Limits opens with what the row never says, the closest

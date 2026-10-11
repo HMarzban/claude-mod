@@ -150,8 +150,8 @@ the same readings and draw its answer in chips' language: its pills, tints
 and icons, one bold figure to a reading, its words in label ink. Every
 layout opens with `▵` into the same four cards, Cache, Spend, Context and
 Limits, under the workspace line and the same `Collapse` and `Hide band`
-buttons; a layout heads each card its own way, and no card repeats what
-the row above it already says. Every layout turns amber at the same
+buttons; most layouts mark each card's head their own way, and no card
+repeats what the row above it already says. Every layout turns amber at the same
 moments, by the same rules, but for departures' last call, ten minutes
 before an hour's cache goes cold or a limit fills. Chips, rings, pulse,
 week and forecast explain each pill on hover with chips' own cards; the
@@ -214,12 +214,13 @@ chips included, and only in the terminal.
 
 ### Clock times
 
-Week and forecast name clock times in your local zone; departures counts
-down instead. The band reads the zone's offset from UTC off the clock when
-the session starts and after each reply, so a change of zone shows by the
-next reply. Where it can't be read, week names its days and hours in UTC,
-and its reset, like every time on forecast, says how long until it comes
-rather than when (`in 52m`, not `14:32`).
+Week, forecast and the Limits card every layout opens name clock times in
+your local zone; departures counts down instead. The band reads the zone's
+offset from UTC off the clock when the session starts and after each
+reply, so a change of zone shows by the next reply. Where it can't be read,
+week names its days and hours in UTC, and its reset, like every time on
+forecast and the Limits card, says how long until it comes rather than
+when (`in 52m`, not `14:32`).
 
 ## The cache countdown
 
