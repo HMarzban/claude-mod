@@ -127,12 +127,23 @@ test('it gives way by width: the limits\' resets, the "in", the price, compactio
 test('amber leads the row, in its own words, and holds out narrowest', () => {
   const five = { fiveHour: { percentUsed: 82, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: null } }
   const first = (over: Partial<BandSnapshot>) => pillsOf(rowOf(board(over)))[0]
-  expect(first(five)).toEqual(['5h', '! 5h 82%'])
+  expect(first(five)).toEqual(['5h', '! 5h 82% · ↻ 20:09'])
   expect(byKey(rowOf(board(five)), '5h', 'Box')?.props?.backgroundColor).toBe(DARK.amberBg)
   expect(first({ cache: { ...board().cache, msLeft: 30_000 } })).toEqual(['cache', '! 30s left · re-warm ~$0.80'])
   expect(first({ context: { tokens: 900_000, window: 1_000_000, percent: 90, compactAt: 967_000, autoCompactOff: false } })).toEqual(['ctx', '! context 93% · compacts in ~67k'])
-  expect(first({ fiveHour: { percentUsed: 40, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: 40 * MIN } })).toEqual(['5h', '! 5h full in ~40m'])
+  expect(first({ fiveHour: { percentUsed: 40, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: 40 * MIN } })).toEqual(['5h', '! 5h full in ~40m · ↻ 20:09'])
   expect(shown(rowOf(board({ ...five, columns: 40 })))).toBe('! 5h 82%◷ cold at 16:13')
+})
+test('an amber 5h keeps its pace and reset while the row has room: width alone decides, its reset last of all', () => {
+  const five = { fiveHour: { percentUsed: 82, resetsAt: later(3 * HOUR), etaMs: null } }
+  const amberAt = (columns: number) => pillsOf(rowOf(board({ ...five, columns })))[0]?.[1]
+  expect(amberAt(160)).toBe('! 5h 82% · full before reset · ↻ 18:14')
+  // The calm pills give way first, the 7d last of them; then the amber reset.
+  expect(pillsOf(rowOf(board({ ...five, columns: 70 }))).map(([key]) => key)).toEqual(['5h', 'cache'])
+  expect(amberAt(70)).toBe('! 5h 82% · full before reset · ↻ 18:14')
+  expect(amberAt(40)).toBe('! 5h 82%')
+  // In amber ink, as rings says an amber window's reset.
+  expect(byKey(byKey(rowOf(board(five)), '5h', 'Box'), 'tail', 'Text')?.props?.color).toBe(DARK.amberFg)
 })
 test('open, the four cards with the lens in each head, and no first row the row said', () => {
   // At 120 columns, two lines of cards, three rows of body each.
@@ -213,7 +224,10 @@ test('a window not the worst says its reset and pace once: its pill says them, s
   expect(times(amber, 'Sat 13:30')).toBe(1)
   // A measured fill: the 5h's amber says it fills, so its line says only when it resets.
   const fill = drawn(board({ ...open, fiveHour: { percentUsed: 40, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: 40 * MIN } }))
-  expect([times(shown(fill), 'full in ~40m'), shown(byKey(fill, 'fact:5h pace'))]).toEqual([1, 'resets 20:09'])
+  expect([times(shown(fill), 'full in ~40m'), times(shown(fill), '20:09')]).toEqual([1, 1])
+  // Out of room for its reset, the 5h's line says it.
+  const narrow = drawn(board({ ...open, columns: 40, fiveHour: { percentUsed: 40, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: 40 * MIN } }))
+  expect(shown(byKey(narrow, 'fact:5h pace'))).toBe('resets 20:09')
 })
 /** What the hover card a row's piece reveals says: the placed Box in its hover scope. */
 const hoverOf = (row: unknown, key: string): string => {

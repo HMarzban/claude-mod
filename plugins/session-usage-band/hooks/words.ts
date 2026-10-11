@@ -276,6 +276,8 @@ export type LimitWords = Readonly<{
   /** The limit as a sentence says it, bold on its figure, with its pace and
    *  its reset where asked and known: `7d 30% · on pace for ~50% · ↻ Sat 19:00`. */
   sentence: (withPace: boolean, withReset: boolean) => Say
+  /** That sentence's pace and reset alone, ` · on pace for ~50% · ↻ Sat 19:00`. */
+  tail: (withPace: boolean, withReset: boolean) => Say
   /** When it fills before its reset, measured or at the average's pace:
    *  `~Mon` past today, `~14:20` today, or with the offset unknown `in ~13h`. */
   fillAt: string | undefined
@@ -508,6 +510,8 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     const parts = [said.reset ? '' : `resets ${form === 'clock' ? resetWhen : f.reset.text}`, said.pace ? '' : pace].filter(t => t !== '')
     return parts.length === 0 ? undefined : parts.join(' · ')
   }
+  const tail = (withPace: boolean, withReset: boolean): Say =>
+    [withPace ? pace : '', withReset ? (resetAtGlyph ?? '') : ''].filter(t => t !== '').map((t): Say[number] => [` · ${t}`, 'label'])
   const standing: Say = [[`${f.value} · `, 'label']]
   // Its next change says its reset after the mark, as chips' pill does:
   // `↻ Sat 13:30`, or with the offset unknown, `↻ 5d 22h`.
@@ -537,12 +541,8 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     resetShort: f.reset?.kind === 'in' ? `↻ ${f.reset.text}` : undefined,
     resetClock,
     resetAtGlyph,
-    sentence: (withPace, withReset) => [
-      ...say,
-      ...[withPace ? pace : '', withReset ? (resetAtGlyph ?? '') : '']
-        .filter(t => t !== '')
-        .map((t): Say[number] => [` · ${t}`, 'label']),
-    ],
+    sentence: (withPace, withReset) => [...say, ...tail(withPace, withReset)],
+    tail,
     fillAt,
     fillText: fillAt === undefined ? undefined : `full ${fillAt}`,
     fillNamed: fillAt === undefined ? undefined : `${f.name} full ${fillAt}`,

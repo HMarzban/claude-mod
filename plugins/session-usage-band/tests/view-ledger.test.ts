@@ -94,15 +94,31 @@ test('narrowing, the ↻ clock gives way first, then the pace, the calm 7d, the 
   expect(at(48)).toBe('cache 52m left │ spent $3.19 │ 5h 4%')
   expect(at(40)).toBe('cache 52m left │ 5h 4%')
 })
-test('amber leads, whole and on its own ground', () => {
-  expect(rowText({ fiveHour: FIVE_82 })).toBe('! 5h 82% │ cache 52m left │ spent $3.19 │ context 40% full │ 7d 30%')
-  expect(rowText({ fiveHour: FIVE_FILLING })).toMatch(/^! 5h full in ~40m │ cache 52m left │/)
+test('amber leads, whole and on its own ground, its reset and pace with it while the row has room', () => {
+  expect(rowText({ fiveHour: FIVE_82 })).toBe('! 5h 82% · full before reset · ↻ 03:00 │ cache 52m left │ spent $3.19 │ context 40% full │ 7d 30% · on pace for ~50% · ↻ Sat 19:00')
+  // A filling limit's warning says its pace, so its reset alone follows.
+  expect(rowText({ fiveHour: FIVE_FILLING })).toMatch(/^! 5h full in ~40m · ↻ 03:00 │ cache 52m left │/)
   expect(rowText({ context: NEAR_COMPACTION })).toMatch(/^! context 94% · compacts in ~10k │ cache 52m left │ spent \$3\.19 │ 5h 4%/)
   const amber: Node[] = []
   walk(firstRow(drawn({ fiveHour: FIVE_82 })), n => {
     if (n.type === 'Text' && n.props?.color === DARK.amberFg) amber.push(n)
   })
-  expect(amber.map(n => [shown(n), n.props?.backgroundColor])).toEqual([['! 5h 82%', DARK.amberBg]])
+  expect(amber.map(n => [shown(n), n.props?.backgroundColor])).toEqual([
+    ['! 5h 82%', DARK.amberBg],
+    [' · full before reset', DARK.amberBg],
+    [' · ↻ 03:00', DARK.amberBg],
+  ])
+})
+test("narrowing an amber row, width alone decides: the 7d's tail goes first, the amber window's reset and pace last of all", () => {
+  const at = (columns: number) => rowText({ columns, fiveHour: FIVE_82 })
+  expect(at(120)).toBe('! 5h 82% · full before reset · ↻ 03:00 │ cache 52m left │ spent $3.19 │ context 40% full │ 7d 30%')
+  expect(at(63)).toBe('! 5h 82% · full before reset · ↻ 03:00 │ cache 52m left')
+  expect(at(40)).toBe('! 5h 82% │ cache 52m left')
+})
+test("open with the 5h amber, the cards say no reset or pace the sentence says, the 7d's either", () => {
+  const tree = opened({ fiveHour: FIVE_82, columns: 160, maxRows: 40 })
+  const limits = shown(cardOf(tree, 'limits'))
+  for (const said of ['03:00', 'Sat 19:00', 'full before reset', 'on pace for ~50%']) expect(limits).not.toContain(said)
 })
 test('at 40 columns a cold cache says its short words, so an amber limit fits beside it', () => {
   expect(rowText({ columns: 40, cache: COLD, fiveHour: FIVE_82 })).toBe('! 5h 82% │ cache cold ~$1.66')
@@ -134,8 +150,10 @@ test("open, LIMITS skips the closest limit's pace and reset the sentence says", 
   expect(firstRowOf(opened(), 'limits')).toMatch(/^5h/)
   // At 80 columns the sentence gives both up, so the card says them.
   expect(firstRowOf(opened({ columns: 80 }), 'limits')).toBe('resetsSat 19:00 · on pace for ~50%')
-  // A filling limit's warning says its pace; its reset is still the card's.
-  expect(firstRowOf(opened({ fiveHour: FIVE_FILLING }), 'limits')).toBe('resets03:00')
+  // A filling limit's warning says its pace, and its reset while the row
+  // has room; out of room, its reset is the card's.
+  expect(firstRowOf(opened({ fiveHour: FIVE_FILLING }), 'limits')).toMatch(/^5h/)
+  expect(shown(cardOf(opened({ fiveHour: FIVE_FILLING, columns: 50, maxRows: 40 }), 'limits'))).toContain('resets03:00')
 })
 test('open, the other cards each lead with what the sentence left out', () => {
   const calm = opened()

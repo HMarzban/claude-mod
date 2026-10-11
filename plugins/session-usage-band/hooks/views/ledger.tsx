@@ -6,7 +6,7 @@
 import type { RenderElement } from 'claude-code'
 import type { Kit } from '../kit'
 import { ROW_SLACK } from '../layout'
-import type { LimitView, Readings } from '../reading'
+import type { LimitKey, LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { BETWEEN_READINGS, type Amber, type Say } from '../words'
 import { cardsView, type Fact } from './cards'
@@ -14,15 +14,17 @@ import { toggleButton } from './frame'
 import { ROLE_INK, amberFirst, amberSay, beforeLast, fitLine, type Keeps } from './parts'
 import { rowsOf, type View } from './view'
 
-/** What gives way as the row narrows, first to last: the closest limit's ↻
- *  clock and pace words, the calm readings, then the cold cache's long
- *  words. Amber never does. */
-const ORDER = ['reset', 'pace', 'calmSeven', 'calmContext', 'cost', 'calmFive', 'cacheWords'] as const
+/** What gives way as the row narrows, first to last: the closest calm
+ *  limit's ↻ clock and pace words, the calm readings, the cold cache's long
+ *  words, then an amber window's reset and pace, as rings gives its own.
+ *  Amber's words never do. */
+const ORDER = ['reset', 'pace', 'calmSeven', 'calmContext', 'cost', 'calmFive', 'cacheWords', 'amberWeekReset', 'amberFiveReset'] as const
 type Piece = (typeof ORDER)[number]
 
-/** A reading in the sentence: its words, its warning if it has one, and the
- *  card facts its words say, which the cards then skip. */
-type Part = Readonly<{ say: Say; amber: Amber | undefined; says: readonly Fact[] }>
+/** A reading in the sentence: its words, its warning if it has one, the
+ *  card facts its words say, which the cards then skip, and what they say of
+ *  its own window. */
+type Part = Readonly<{ say: Say; amber: Amber | undefined; says: readonly Fact[]; window?: readonly [LimitKey, readonly Fact[]] }>
 
 /** A warning's words, long until every calm piece has gone. */
 const warning = (amber: Amber, keeps: Keeps<Piece>, says: readonly Fact[] = []): Part => ({ say: amberSay(amber, keeps), amber, says })
@@ -43,34 +45,57 @@ const contextPart = (read: Readings, keeps: Keeps<Piece>): Part | null => {
   return keeps.has('calmContext') ? { say: x.sentence, amber: undefined, says: [] } : null
 }
 
-/** A limit: its warning, or its value; the closest, LIMITS' headline, adds
- *  the pace and the reset LIMITS' lead row would say. */
-const limitPart = (read: Readings, l: LimitView | undefined, step: Piece, keeps: Keeps<Piece>): Part | null => {
+/** The card facts a limit's words say, and what they say of its window:
+ *  the worst's are LIMITS' lead row's too. */
+const factsOf = (read: Readings, l: LimitView, said: readonly Fact[]): Pick<Part, 'says' | 'window'> => ({
+  says: l === read.worstLimit ? said : [],
+  window: [l.key, said],
+})
+
+/** A limit: its warning, with its reset and its pace while the row has room;
+ *  or its value, the closest calm one with the pace and the reset LIMITS'
+ *  lead row would say. */
+const limitPart = (read: Readings, l: LimitView | undefined, step: Piece, keeps: Keeps<Piece>, closestCalm: LimitView | undefined): Part | null => {
   if (l === undefined) return null
-  const closest = l === read.worstLimit
-  if (l.amber !== undefined) return warning(l.amber, keeps, closest && l.fullIn !== undefined ? ['pace'] : [])
+  if (l.amber !== undefined) {
+    // A measured fill's warning says its pace already.
+    const told = keeps.has(l.key === '5h' ? 'amberFiveReset' : 'amberWeekReset')
+    const pace = told && l.fullIn === undefined && l.pace !== ''
+    const reset = told && l.resetAtGlyph !== undefined
+    const tail = l.tail(pace, reset).map(([text]): Say[number] => [text, 'amber'])
+    const said: Fact[] = [...(pace || l.fullIn !== undefined ? (['pace'] as const) : []), ...(reset ? (['reset'] as const) : [])]
+    return { ...warning(l.amber, keeps), say: [...amberSay(l.amber, keeps), ...tail], ...factsOf(read, l, said) }
+  }
   if (!keeps.has(step)) return null
-  if (!closest) return { say: l.say, amber: undefined, says: [] }
+  if (l !== closestCalm) return { say: l.say, amber: undefined, says: [] }
   const pace = keeps.has('pace') && l.pace !== ''
   const reset = keeps.has('reset') && l.resetAtGlyph !== undefined
   return {
     say: l.sentence(pace, reset),
     amber: undefined,
-    says: [...(pace ? (['pace'] as const) : []), ...(reset ? (['reset'] as const) : [])],
+    ...factsOf(read, l, [...(pace ? (['pace'] as const) : []), ...(reset ? (['reset'] as const) : [])]),
   }
 }
 
+/** The calm window closest to its limit, which says its pace and reset. */
+const closestCalmOf = (read: Readings): LimitView | undefined =>
+  [read.fiveHour, read.sevenDay]
+    .filter((l): l is LimitView => l !== undefined && !l.passed && l.amber === undefined)
+    .reduce<LimitView | undefined>((top, l) => (top === undefined || l.percentUsed > top.percentUsed ? l : top), undefined)
+
 /** The readings in order, what needs you first. */
-const partsOf = (read: Readings, keeps: Keeps<Piece>): Part[] =>
-  amberFirst(
+const partsOf = (read: Readings, keeps: Keeps<Piece>): Part[] => {
+  const closestCalm = closestCalmOf(read)
+  return amberFirst(
     [
       cachePart(read, keeps),
       keeps.has('cost') ? { say: read.spend.sentence, amber: undefined, says: [] } : null,
       contextPart(read, keeps),
-      limitPart(read, read.fiveHour, 'calmFive', keeps),
-      limitPart(read, read.sevenDay, 'calmSeven', keeps),
+      limitPart(read, read.fiveHour, 'calmFive', keeps, closestCalm),
+      limitPart(read, read.sevenDay, 'calmSeven', keeps, closestCalm),
     ].filter((p): p is Part => p !== null),
   )
+}
 
 /** The sentence as one line of text, so it reads aloud and copies whole: a
  *  figure bold in value ink, every other word in label ink, a warning on its
@@ -102,14 +127,20 @@ const sentence = (kit: Kit, parts: readonly Part[]): RenderElement => {
 /** The row fitted to its width, and the facts its sentence says. On the
  *  desktop the sentence sits on one pill's ground; a terminal grounds the
  *  whole row, toggle and all; plain draws it bare. */
-const fitted = (kit: Kit, read: Readings, act: BandActions): Readonly<{ row: RenderElement; shown: readonly Fact[] }> => {
+const fitted = (
+  kit: Kit,
+  read: Readings,
+  act: BandActions,
+): Readonly<{ row: RenderElement; shown: readonly Fact[]; shownByWindow: Partial<Record<LimitKey, readonly Fact[]>> }> => {
   const { Box, Svg, palette } = kit
   const toggle = toggleButton(kit, read, act)
   let shown: readonly Fact[] = []
+  let shownByWindow: Partial<Record<LimitKey, readonly Fact[]>> = {}
   const row = fitLine(kit, ORDER, kit.columns - ROW_SLACK, keeps => {
     const parts = partsOf(read, keeps)
     // The line drawn is the last one built.
     shown = parts.flatMap(part => part.says)
+    shownByWindow = Object.fromEntries(parts.flatMap(part => (part.window === undefined ? [] : [part.window])))
     return (
       <Box
         key="row"
@@ -127,7 +158,7 @@ const fitted = (kit: Kit, read: Readings, act: BandActions): Readonly<{ row: Ren
       </Box>
     )
   })
-  return { row, shown }
+  return { row, shown, shownByWindow }
 }
 
 /** Fitted once, so the cards skip what that very row says. */
@@ -135,8 +166,8 @@ export const ledgerView: View = {
   name: 'ledger',
   rows: { desktop: 1, terminal: 1 },
   draw: (kit, read, act) => {
-    const { row, shown } = fitted(kit, read, act)
+    const { row, shown, shownByWindow } = fitted(kit, read, act)
     // Each window says its reset at its clock time, as the sentence does.
-    return cardsView(kit, read, act, [row], { shown, windowResets: 'clock', compactSplit: true, collapsedRows: rowsOf(ledgerView, kit) })
+    return cardsView(kit, read, act, [row], { shown, shownByWindow, windowResets: 'clock', compactSplit: true, collapsedRows: rowsOf(ledgerView, kit) })
   },
 }

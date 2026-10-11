@@ -15,9 +15,10 @@ import { ROLE_INK, batteryIcon, beforeLast, fitLine, type Keeps, type PillSpec }
 import { rowsOf, type Rows, type View } from './view'
 
 /** What gives way as the row narrows, first to last: the limits' tails, how
- *  far off the soonest change is, the cache's price, then the calm pills.
- *  Amber never does. */
-const ORDER = ['limitTails', 'soon', 'price', 'compaction', 'calmSeven', 'calmFive'] as const
+ *  far off the soonest change is, the cache's price, the calm pills, then an
+ *  amber window's pace and reset, as rings gives its own. Amber's words
+ *  never do. */
+const ORDER = ['limitTails', 'soon', 'price', 'compaction', 'calmSeven', 'calmFive', 'amberWeekReset', 'amberFiveReset'] as const
 type Piece = (typeof ORDER)[number]
 
 /** What of the cards a pill says: in its figure and its tail while calm,
@@ -42,6 +43,9 @@ type Change = Readonly<{
   tail: Piece
   /** The step the whole calm pill gives way at; none for the cache, which stays. */
   calm?: Piece
+  /** An amber window's pace and reset after its words, the step they give
+   *  way at, and the card facts they say. */
+  amberTail?: Readonly<{ text: string; step: Piece; says: readonly Fact[] }>
   says: Says
   /** Chips' hover card for the same reading. */
   hover: string | undefined
@@ -58,6 +62,8 @@ const limitChange = (kit: Kit, read: Readings, key: ChipKey): Change[] => {
   const [figure, tail] = l.fillAt === undefined ? (['reset', 'pace'] as const) : (['pace', 'reset'] as const)
   // A measured fill's amber says the pace, long and short.
   const amberSays = l.fullIn === undefined ? undefined : 'pace'
+  const pace = l.fullIn === undefined && l.pace !== ''
+  const reset = l.resetAtGlyph !== undefined
   return [
     {
       key,
@@ -70,6 +76,11 @@ const limitChange = (kit: Kit, read: Readings, key: ChipKey): Change[] => {
       bg,
       tail: 'limitTails',
       calm: key === '5h' ? 'calmFive' : 'calmSeven',
+      amberTail: {
+        text: l.tail(pace, reset).map(([text]) => text).join(''),
+        step: key === '5h' ? 'amberFiveReset' : 'amberWeekReset',
+        says: [...(pace ? (['pace'] as const) : []), ...(reset ? (['reset'] as const) : [])],
+      },
       says: { figure, tail, amberLong: amberSays, amberShort: amberSays },
       hover: limitPill(kit, read, key, 0, false)?.hover,
     },
@@ -126,14 +137,28 @@ type Drawn = Readonly<{ change: Change; spec: PillSpec; says: readonly Fact[] }>
 
 const factsOf = (facts: ReadonlyArray<Fact | undefined>): Fact[] => facts.filter(fact => fact !== undefined)
 
-/** An amber change in its reading's words; a text surface's glyph would
- *  come before the `! ` that leads them. */
+/** An amber change in its reading's words, then a window's pace and reset
+ *  while kept, in its ink; a text surface's glyph would come before the `! `
+ *  that leads them. */
 const amberPill = (kit: Kit, ch: Change, amber: Amber, keeps: Keeps<Piece>): Drawn => {
   const { Svg, Text, palette } = kit
+  const tail = ch.amberTail !== undefined && ch.amberTail.text !== '' && keeps.has(ch.amberTail.step) ? ch.amberTail : undefined
   return {
     change: ch,
-    spec: { key: ch.key, tone: 'amber', bg: ch.bg, hover: ch.hover, body: [...(Svg ? ch.mark : []), <Text key="amber" color={palette.amberFg}>{keeps.amber(amber)}</Text>] },
-    says: factsOf([beforeLast(keeps) ? ch.says.amberLong : ch.says.amberShort]),
+    spec: {
+      key: ch.key,
+      tone: 'amber',
+      bg: ch.bg,
+      hover: ch.hover,
+      body: [
+        ...(Svg ? ch.mark : []),
+        <Text key="amber" color={palette.amberFg}>
+          {keeps.amber(amber)}
+        </Text>,
+        tail === undefined ? null : <Text key="tail" color={palette.amberFg}>{tail.text}</Text>,
+      ],
+    },
+    says: [...factsOf([beforeLast(keeps) ? ch.says.amberLong : ch.says.amberShort]), ...(tail?.says ?? [])],
   }
 }
 
