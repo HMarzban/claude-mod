@@ -22,12 +22,13 @@ test('the body gets what is left of the rows, never less than none', () => {
   expect(bodyRowsFor(4, 2, 1)).toBe(0)
   expect(bodyRowsFor(4, 2, 0)).toBe(0)
 })
-test("the toggle is golden's Button: bare on the terminal, framed on the desktop", () => {
+test("the toggle is golden's Button: bare on the terminal at full ink, framed on the desktop", () => {
   const toggleOf = (over: Partial<BandSnapshot>) => {
     const snap = snapOf(over)
     return byKey(toggleButton(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT), 'more', 'Button')?.props
   }
-  expect(toggleOf({})).toEqual({ key: 'more', label: '▵', plain: true, dimColor: true, onPress: NO_ACT.toggleExpanded })
+  // The band's only open and close control, a thin glyph: never dimmed.
+  expect(toggleOf({})).toEqual({ key: 'more', label: '▵', plain: true, onPress: NO_ACT.toggleExpanded })
   expect(toggleOf({ surface: 'desktop', expanded: true })).toEqual({ key: 'more', label: '▿', variant: 'secondary', onPress: NO_ACT.toggleExpanded })
 })
 test('shut, a view draws its collapsed part alone', () => {

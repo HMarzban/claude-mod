@@ -46,7 +46,7 @@ export const toggleButton = (kit: Kit, read: Readings, act: BandActions): Render
       <Button
         key="more"
         label={read.frame.expanded ? '▿' : '▵'}
-        {...(Svg ? { variant: 'secondary' as const } : { plain: true as const, dimColor: true })}
+        {...(Svg ? { variant: 'secondary' as const } : { plain: true as const })}
         onPress={act.toggleExpanded}
       />
     </Box>

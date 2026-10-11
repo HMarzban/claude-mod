@@ -33,6 +33,10 @@ version may change how the band reads.
   to close. It now points the way the band will move, `▵` to open and `▿`
   to close (`^` and `v` in ASCII), in every layout, on the desktop and in
   the terminal.
+- In the terminal the toggle was drawn dim, the faintest thing in the row
+  (about 3.8:1 on a light terminal, and some terminals draw faint text
+  unpredictably) though it is the band's only open and close control. It
+  now draws at full ink, about 12:1.
 
 ## [0.12.0] - 2026-10-10
 
