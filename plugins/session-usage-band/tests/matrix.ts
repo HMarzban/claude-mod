@@ -39,14 +39,15 @@ export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({
 /** Actions for a draw outside a mount: one function each, so props compare equal. */
 export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide: async () => undefined }
 
-/** Every layout's words for each amber trigger. ` · ` reads `, ` in the ascii tier. */
+/** Every layout's words for each amber trigger. ` · ` reads `, ` in the
+ *  ascii tier, and ` - ` in departures'. */
 export const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
   cacheLastMinute: /! \d+s( left)?|! last call|! cooling( ·|,) \d+s left/,
-  nearCompaction: /! context \d+%|! ctx \d+%|! COMPACTS IN ~/,
-  contextNoCompaction: /! context \d+%|! ctx \d+%|! CONTEXT \d+%/,
-  limit80: /! 5h|! NEAR LIMIT/,
-  fiveHourAhead: /! 5h|! FULL/,
-  otherLimit80: /! spend \d+%|! NEAR LIMIT|spend \d+%!/,
+  nearCompaction: /! context \d+%|! ctx \d+%/,
+  contextNoCompaction: /! context \d+%|! ctx \d+%/,
+  limit80: /! (last call [·-] )?5h/,
+  fiveHourAhead: /! (last call [·-] )?5h/,
+  otherLimit80: /! spend \d+%|spend \d+%!/,
 }
 /** Amber the collapsed part never shows: other limits are drawn only open (spec §2.7). */
 const OPEN_ONLY: ReadonlySet<AmberReason> = new Set(['otherLimit80'])

@@ -12,6 +12,7 @@ import {
   fmtDayClock,
   fmtEstimate,
   fmtEta,
+  fmtEtaDays,
   fmtEtaSpoken,
   fmtLeft,
   fmtLeftShort,
@@ -46,6 +47,9 @@ export type Countdown = Readonly<{ words: string; figure: string; after: string 
 export type Departure = Readonly<{ long: Countdown; short: Countdown }>
 const departs = (words: string, figure: string, after = ''): Countdown => ({ words, figure, after })
 const alike = (said: Countdown): Departure => ({ long: said, short: said })
+/** What parts a countdown's words: ` · `, and in the ascii tier ` - `, as
+ *  departures' board draws it, not the comma `asciiText` makes. */
+const departsDot = (frame: Frame): string => (frame.glyphs === 'ascii' ? ' - ' : ' · ')
 
 /** What an amber reading says, long and short, always led by one `! `. */
 export const AMBER = {
@@ -128,9 +132,9 @@ export type CacheWords = Readonly<{
   cardHead: Say
   /** The cache card's line while there is nothing to count. */
   cardNote: string | undefined
-  /** Departures' countdown: `cache 52m`, `cache warm`; cold, `cache cold ·
-   *  re-warm ~$1.66`, then `cold ~$1.66`; its last call, `! last call · cache
-   *  6m · re-warm ~$1.66`, then without the price. */
+  /** Departures' countdown: `cache 52m`, `cache warm`, its mood no figure;
+   *  cold, `cache cold · re-warm ~$1.66`, then `cold ~$1.66`; its last call,
+   *  `! last call · cache 6m · re-warm ~$1.66`, then without the price. */
   departure: Departure
   /** What the cache's place in departures' queue is for: `goes cold`, once cold `went cold`. */
   departureLens: string
@@ -224,6 +228,7 @@ export type LimitWords = Readonly<{
   amber: Amber | undefined
   /** Departures' countdown: `5h resets 3h 00m`, or filling before then,
    *  `7d full ~1d`; amber, `! 5h 82%` or `! 5h full ~40m`, then `! 5h ~40m`;
+   *  its last call, `! last call · 5h full ~5m`, then `! last call · 5h ~5m`;
    *  once passed, `5h reset`. */
   departure: Departure
   /** The reset after a countdown that isn't it, `2d 2h`, said after `↻`. */
@@ -254,6 +259,7 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
   const left = counting ? fmtLeft(f.coldInMs) : ''
   const leftShort = counting ? fmtLeftShort(f.coldInMs) : ''
   const off = frame.utcOffsetMin
+  const dot = departsDot(frame)
   // Spoken, a price is never marked ~: the alt says "about".
   const price = c.reWarmUsd !== null ? fmtSmallCost(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`
   // The card counts down as chips' row always has: `1h 05m`, `0:47`.
@@ -300,10 +306,10 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
       f.mood === 'unmeasured' ? "Countdown starts with Claude's next reply." : f.mood === 'warming' ? 'First message builds the cache.' : undefined,
     departure:
       f.mood === 'cold'
-        ? { long: departs('cache cold · re-warm ', f.estimate), short: departs('cold ', f.estimate) }
+        ? { long: departs(`cache cold${dot}re-warm `, f.estimate), short: departs('cold ', f.estimate) }
         : f.lastCall
-          ? { long: departs('! last call · cache ', leftShort, ` · re-warm ${f.estimate}`), short: departs('! last call · cache ', leftShort) }
-          : alike(departs('cache ', counting ? leftShort : value)),
+          ? { long: departs(`! last call${dot}cache `, leftShort, `${dot}re-warm ${f.estimate}`), short: departs(`! last call${dot}cache `, leftShort) }
+          : alike(counting ? departs('cache ', leftShort) : departs(`cache ${value}`, '')),
     departureLens: f.mood === 'cold' ? 'went cold' : 'goes cold',
     alt:
       f.mood === 'unmeasured'
@@ -320,7 +326,7 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
 
 /** The context in words, measured toward compaction when it is on; unknown
  *  while the engine reports none, never 0%. */
-export const contextWords = (f: ContextFacts): ContextWords => {
+export const contextWords = (f: ContextFacts, frame: Frame): ContextWords => {
   const value = f.known ? f.pct : UNKNOWN
   const towardText = f.compactAt !== undefined ? 'toward compaction' : 'of the window'
   const roomText = !f.known || f.toCompact === undefined ? undefined : `~${fmtTokens(f.toCompact)}`
@@ -346,7 +352,7 @@ export const contextWords = (f: ContextFacts): ContextWords => {
     cardHead: [[`${f.pct}${f.compactAt === undefined ? severityMark(f.frac) : ''}`, 'value'], [' full', 'label']],
     departure:
       amber !== undefined
-        ? { long: departs('! context ', f.pct, roomText === undefined ? '' : ` · compacts in ${roomText}`), short: departs('! ctx ', f.pct) }
+        ? { long: departs('! context ', f.pct, roomText === undefined ? '' : `${departsDot(frame)}compacts in ${roomText}`), short: departs('! ctx ', f.pct) }
         : roomText === undefined
           ? undefined
           : alike(msgs === undefined ? departs('compacts in ', roomText) : departs('compacts ', msgs, msgsUnit)),
@@ -395,8 +401,8 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const withPace = pace === '' ? '' : ` · ${pace}`
   const resetWhen = f.reset?.kind !== 'in' ? undefined : (resetClock ?? `in ${f.reset.text}`)
   const resetSpan = f.reset?.kind === 'in' ? f.reset.text : undefined
-  const fillsIn = f.fullInMs === undefined ? undefined : fmtEta(f.fullInMs)
-  const mark = f.tone === 'amber' ? '! ' : ''
+  const fillsIn = f.fullInMs === undefined ? undefined : fmtEtaDays(f.fullInMs)
+  const mark = f.lastCall ? `! last call${departsDot(frame)}` : f.tone === 'amber' ? '! ' : ''
   return {
     valueText,
     valueMarked: `${f.value}${severityMark(f.frac)}`,

@@ -2,7 +2,7 @@
 
 /** The cache's last minute: the one span where acting changes the bill. */
 export const SOON_MS = 60_000
-/** Departures' last call: an hour's cache this near cold leads its row in amber. */
+/** Departures' last call: an hour's cache this near cold, or a limit this near full, leads its row in amber. */
 export const LAST_CALL_MS = 10 * 60_000
 
 /** At this share a pill turns amber and gains `!`, and a toast speaks. */
@@ -94,13 +94,19 @@ const etaMinutes = (ms: number): number => {
   return mins < 57.5 ? Math.max(5, Math.round(mins / 5) * 5) : Math.round(mins / 15) * 15
 }
 
-/** A projection, never a countdown: `~40m`, `~1h`, `~1h 15m`; from a day, whole days, `~1d`. */
+/** A projection, never a countdown: `~40m`, `~1h`, `~1h 15m`. */
 export const fmtEta = (ms: number): string => {
   const mins = etaMinutes(ms)
-  if (mins >= DAY_MINUTES) return `~${Math.round(mins / DAY_MINUTES)}d`
   const hours = Math.floor(mins / 60)
   const rest = mins % 60
   return hours === 0 ? `~${mins}m` : rest ? `~${hours}h ${rest}m` : `~${hours}h`
+}
+
+/** Departures' projection: from a day, whole days rounded down, so it never
+ *  reads later than it is, `~1d`; under a day, as `fmtEta`. */
+export const fmtEtaDays = (ms: number): string => {
+  const days = Math.floor(etaMinutes(ms) / DAY_MINUTES)
+  return days >= 1 ? `~${days}d` : fmtEta(ms)
 }
 
 /** `text` at most `max` characters, cut in the middle: a branch keeps both
@@ -145,7 +151,7 @@ const hhmm = (wall: number): string => {
 export const fmtClock = (ms: number, utcOffsetMin: number): string => hhmm(wallTime(ms, utcOffsetMin))
 
 /** Whether `ms` falls on the same local day as `now`. */
-export const isToday = (ms: number, utcOffsetMin: number, now: number): boolean =>
+const isToday = (ms: number, utcOffsetMin: number, now: number): boolean =>
   Math.floor(wallTime(ms, utcOffsetMin) / DAY_MS) === Math.floor(wallTime(now, utcOffsetMin) / DAY_MS)
 
 /** A clock time, with its weekday when it isn't today: `16:40`, `Mon 08:40`. */

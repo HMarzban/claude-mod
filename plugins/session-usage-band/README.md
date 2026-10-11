@@ -151,7 +151,7 @@ to its own view of every fact, under the workspace line and the same
 `Collapse` and `Hide band` buttons. Ledger writes the workspace line in
 plain words; the others draw it as chips does. Every layout turns amber at
 the same moments, by the same rules, but for departures' last call, ten
-minutes before an hour's cache goes cold. Only chips has hover cards on
+minutes before an hour's cache goes cold or a limit fills. Only chips has hover cards on
 its readings; the workspace line has them wherever it is drawn as chips
 draws it.
 
@@ -169,7 +169,7 @@ draws it.
 | `pulse` | Trends rather than totals: each message's cost as bars, and which way the 5-hour limit is heading | 2 / 1 |
 | `tiles` | Each reading as a bold value over a small label, with a thin underline on the desktop | 2 / 2 |
 | `week` | Where your limits went: the weekly limit as day cells and the 5-hour limit as hour cells, each filled to its rise | 2 / 2 |
-| `departures` | Every reading as a countdown in chips' pills, soonest first: the cache, the 5h and 7d resets or when they fill, the messages to compaction, then the spend. Under 10 minutes the cache's is its `! last call` | 1 / 1 |
+| `departures` | Every reading as a countdown in chips' pills, soonest first: the cache, the 5h and 7d resets or when they fill, the messages to compaction, then the spend. Under 10 minutes from cold or full, the cache's or a limit's is its `! last call` | 1 / 1 |
 | `forecast` | The band read like the weather: now, then up to three changes ahead at their clock times, soonest first | 2 / 1 |
 
 ```

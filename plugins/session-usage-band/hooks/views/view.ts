@@ -18,8 +18,8 @@ export type Lines = (kit: Kit, read: Readings, act: BandActions) => RenderElemen
 export type Body = (kit: Kit, read: Readings) => (bodyRows: number) => RenderChildren[]
 /** What a view brings to the shared cards: its mark in each card's head, a
  *  card's headline and first row in its own words, and the facts its
- *  collapsed lines already show. */
-export type Lens = (kit: Kit, read: Readings) => Omit<OpenOptions, 'collapsedRows'>
+ *  collapsed lines already show, which it may fit again to know. */
+export type Lens = (kit: Kit, read: Readings, act: BandActions) => Omit<OpenOptions, 'collapsedRows'>
 
 /** The rows a view declares where it is drawn: the desktop's only where Svg
  *  draws; desktop plain draws text, as the terminal does. */
@@ -44,7 +44,7 @@ export const defineCardsView = (name: LayoutName, rows: Rows, lines: Lines, lens
   const view: View = {
     name,
     rows,
-    draw: (kit, read, act) => cardsView(kit, read, act, lines(kit, read, act), { ...lens(kit, read), collapsedRows: rowsOf(view, kit) }),
+    draw: (kit, read, act) => cardsView(kit, read, act, lines(kit, read, act), { ...lens(kit, read, act), collapsedRows: rowsOf(view, kit) }),
   }
   return view
 }

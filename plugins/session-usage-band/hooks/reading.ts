@@ -228,8 +228,10 @@ export type LimitFacts = Readonly<{
   /** Time to the reset; undefined once it has passed. */
   resetInMs: number | undefined
   /** Time to full before the reset: a measured fill, else the average's once
-   *  it lands at 100% or more; undefined once passed. */
+   *  it lands at 100% or more; undefined once passed, or full. */
   fullInMs: number | undefined
+  /** Departures' last call: under LAST_CALL_MS to full. */
+  lastCall: boolean
 }>
 
 // What the views read: each section's facts, and its words beside them.
@@ -350,7 +352,9 @@ export const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
     const averageFill =
       projectedPct === undefined || projectedPct < 100 || gone === undefined || windowMs === undefined
         ? undefined
-        : Math.max(0, (gone * windowMs * (100 - reading.percentUsed)) / reading.percentUsed)
+        : (gone * windowMs * (100 - reading.percentUsed)) / reading.percentUsed
+    // A full window has nothing left to fill: it says its percent, and its reset.
+    const fullInMs = passed || reading.percentUsed >= 100 ? undefined : (etaMs ?? averageFill)
     return {
       name,
       key,
@@ -365,7 +369,8 @@ export const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
       projectedPct,
       projectedFrac: passed || projectedPct === undefined ? undefined : clamp01(projectedPct / 100),
       resetInMs: reset?.kind === 'in' ? Date.parse(reading.resetsAt ?? '') - snap.now : undefined,
-      fullInMs: passed ? undefined : (etaMs ?? averageFill),
+      fullInMs,
+      lastCall: fullInMs !== undefined && fullInMs < LAST_CALL_MS,
     }
   }
   return [
@@ -443,7 +448,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     frame,
     cache: { ...cache, ...cacheWords(cache, c, frame) },
     spend: { ...spend, ...spendWords(spend) },
-    context: { ...context, ...contextWords(context) },
+    context: { ...context, ...contextWords(context, frame) },
     fiveHour,
     sevenDay,
     limits,

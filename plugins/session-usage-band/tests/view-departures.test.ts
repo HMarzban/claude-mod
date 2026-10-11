@@ -98,6 +98,26 @@ test('a limit at 82% that fills before its reset on its average says when', () =
 test('a measured fill is amber, says when it fills, then its reset', () => {
   expect(piecesOf(rowOf({ fiveHour: { percentUsed: 40, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 40 * MIN } }))[0]).toBe('5h ! 5h full ~40m │ ↻ 3h 00m')
 })
+test('a full window says its percent and its reset, never a fill to come', () => {
+  for (const etaMs of [null, 5 * MIN]) {
+    const over: Over = { fiveHour: { percentUsed: 100, resetsAt: new Date(2 * HOUR).toISOString(), etaMs } }
+    expect(piecesOf(rowOf(over))[0]).toBe('5h ! 5h 100% │ ↻ 2h 00m')
+    const tree = draw({ expanded: true, maxRows: 40, ...over })
+    expect(headOf(tree, 'limits')).toBe('LIMITS15h resets37d resets5h in 2h 00m')
+    expect(shown(cardOf(tree, 'limits'))).not.toMatch(/full (in|before)/)
+  }
+})
+test('a limit under 10 minutes from full is its last call: amber, first, then its reset', () => {
+  const measured: Over = { fiveHour: { percentUsed: 40, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 6 * MIN } }
+  const row = rowOf(measured)
+  expect(piecesOf(row)[0]).toBe('5h ! last call · 5h full ~5m │ ↻ 3h 00m')
+  expect(byKey(row, '5h', 'Box')?.props?.backgroundColor).toBe(DARK.amberBg)
+  expect(piecesOf(rowOf({ columns: 40, ...measured }))[0]).toBe('5h ! last call · 5h ~5m')
+  // 70% twenty minutes in fills on its average in under 10: calm under 80%, yet its last call.
+  const average = rowOf({ fiveHour: { percentUsed: 70, resetsAt: new Date(280 * MIN).toISOString(), etaMs: null } })
+  expect(piecesOf(average)[0]).toBe('5h ! last call · 5h full ~10m │ ↻ 4h 40m')
+  expect(byKey(average, '5h', 'Box')?.props?.backgroundColor).toBe(DARK.amberBg)
+})
 test('context near compaction is amber and leads with its reason', () => {
   const row = rowOf({ context: { tokens: 150_000, window: 200_000, percent: 75, compactAt: 160_000, autoCompactOff: false } })
   expect(piecesOf(row)[0]).toBe('ctx ◔ ! context 94% · compacts in ~10k')
@@ -121,9 +141,9 @@ for (const surface of ['terminal', 'desktop'] as const)
     }
   })
 test('as the row narrows it gives way in order, and always fits', () => {
-  // What each width keeps: the tokens go first, then the 7d's reset, the
-  // context's icon, the context, the 7d, the spend and last the 5h.
-  const ladder = ['tokens', 'reset', 'icon', 'ctx', '7d', 'cost', '5h'] as const
+  // What each width keeps: the tokens go first, then the context's icon,
+  // the 7d's reset, the context, the 7d, the spend and last the 5h.
+  const ladder = ['tokens', 'icon', 'reset', 'ctx', '7d', 'cost', '5h'] as const
   const has = (row: Node): Record<(typeof ladder)[number], boolean> => {
     const keys = keysOf(row)
     const text = shown(row)
@@ -141,6 +161,19 @@ test('as the row narrows it gives way in order, and always fits', () => {
   expect(dropped[0]).toEqual([])
   expect(dropped.at(-1)).toEqual([...ladder])
 })
+test("on the desktop the spend's coin goes with the other icons", () => {
+  for (let columns = 160; columns >= 40; columns -= 5) {
+    const row = rowOf({ surface: 'desktop', columns, ...TRAIL, ...SEVEN_FILLS })
+    const iconed = (key: string) => {
+      let svg = false
+      walk(byKey(row, key, 'Box'), n => {
+        if (n.type === 'Svg') svg = true
+      })
+      return svg
+    }
+    if (keysOf(row).includes('ctx')) expect(`${columns}: ${iconed('cost')}`).toBe(`${columns}: ${iconed('ctx')}`)
+  }
+})
 test('on the desktop the row gives way by its own measure, in the same order', () => {
   const ladder = ['tokens', 'ctx', '7d', 'cost', '5h'] as const
   for (let columns = 160; columns >= 40; columns -= 5) {
@@ -150,6 +183,35 @@ test('on the desktop the row gives way by its own measure, in the same order', (
     const gone = ladder.filter(p => !keys.includes(p))
     expect(gone).toEqual(ladder.slice(0, gone.length))
   }
+})
+/** The board's numbers: the cache at 59m, the 5h's reset 4h 55m off, a 7d
+ *  at 52% that fills in ~1d before its reset 5d 22h off, 12 messages to
+ *  compaction, $1,027 spent. */
+const BOARD: Over = {
+  surface: 'desktop',
+  costUsd: 1027,
+  cache: { ...snapOf().cache, msLeft: 59 * MIN, reWarmUsd: 0.8, tokens: { sent: 100_000_000, back: 0, cached: 2_000_000_000 } },
+  context: { tokens: 839_000, window: 1_000_000, percent: 84, compactAt: 967_000, autoCompactOff: false },
+  history: { costs: [], context: Array.from({ length: 12 }, (_, i) => 721_300 + i * 10_700), fiveHour: [] },
+  fiveHour: { percentUsed: 0, resetsAt: new Date(295 * MIN).toISOString(), etaMs: null },
+  sevenDay: { percentUsed: 52, resetsAt: new Date((5 * 24 + 22) * HOUR).toISOString() },
+}
+test("at 95 desktop columns the calm row keeps every fact of the board's, its icons gone", () => {
+  const row = rowOf({ ...BOARD, columns: 95 })
+  expect(piecesOf(row)).toEqual(['cache cache 59m', '›', '5h 5h resets 4h 55m', '›', '7d 7d full ~1d │ 5d 22h', '›', 'ctx compacts ~12 msgs', 'air', 'cost $1,027'])
+  // The battery is the cache itself, and ↻ says what the aside is: neither is an icon.
+  const svgs: string[] = []
+  walk(row, n => {
+    if (n.type === 'Svg') svgs.push(String(n.props?.key))
+  })
+  expect(svgs).toEqual(['battery', 'i-reset'])
+})
+test("the last call's row is the board's, its reset aside and icons gone: from 101 desktop columns with the context", () => {
+  const lastCall = (columns: number) => piecesOf(rowOf({ ...BOARD, columns, cache: { ...snapOf().cache, ...BOARD.cache, msLeft: 6 * MIN } }))
+  const board = ['cache ! last call · cache 6m · re-warm ~$0.80', '›', '5h 5h resets 4h 55m', '›', '7d 7d full ~1d', '›', 'ctx compacts ~12 msgs', 'air', 'cost $1,027']
+  expect(lastCall(101)).toEqual(board)
+  // The desktop measure makes that row 97 columns, past the 91 a 95-column row has room for.
+  expect(lastCall(95)).toEqual([...board.slice(0, 5), ...board.slice(7)])
 })
 test('at 40 columns an amber reading holds out, in its short words', () => {
   const at40 = (over: Over) => piecesOf(rowOf({ columns: 40, ...over }))
@@ -194,6 +256,24 @@ test('open, LIMITS heads with the soonest window, a fill by when it fills', () =
   expect(headOf(draw({ expanded: true, fiveHour: undefined, ...SEVEN_FILLS }), 'limits')).toBe('LIMITS27d fills7d full ~1d')
 })
 for (const surface of ['terminal', 'desktop'] as const)
+  test(`open on the ${surface}, each fact the squeezed row leaves out is on its card, and only then`, () => {
+    // The re-warm in the last call, the room before compaction, calm and
+    // amber, and the 7d's reset after its fill.
+    const facts = [
+      { name: 'cache', value: '~$1.66', over: { cache: { ...snapOf().cache, msLeft: 6 * MIN } } },
+      { name: 'context', value: '~114k', over: {} },
+      { name: 'context', value: '~10k', over: { context: { tokens: 150_000, window: 200_000, percent: 75, compactAt: 160_000, autoCompactOff: false } } },
+      { name: 'limits', value: '2d 2h', over: SEVEN_FILLS },
+    ] as const
+    for (const { name, value, over } of facts)
+      for (let columns = 160; columns >= 40; columns -= 5) {
+        const tree = draw({ surface, columns, expanded: true, maxRows: 40, ...over })
+        const inRow = shown(firstRow(tree)).includes(value)
+        const onCard = shown(cardOf(tree, name)).includes(value)
+        expect(`${name} ${columns}: ${inRow ? 'row' : ''}${onCard ? 'card' : ''}`).toBe(`${name} ${columns}: ${inRow ? 'row' : 'card'}`)
+      }
+  })
+for (const surface of ['terminal', 'desktop'] as const)
   test(`open on the ${surface}, the cards keep within the band's rows`, () => {
     for (const maxRows of [10, 13, 20, 40]) {
       const tree = draw({ surface, expanded: true, maxRows, ...TRAIL })
@@ -213,8 +293,8 @@ test('in ascii, › reads >, ◷ and ↻ go, the tokens say their unit, and the 
   expect(text).toMatch(/>/)
   expect(byKey(row, 'more', 'Button')?.props?.label).toBe('^')
 })
-test('in ascii, the last call reads with commas', () => {
-  expect(piecesOf(rowOf({ glyphs: 'ascii', cache: { ...snapOf().cache, msLeft: 6 * MIN } }))[0]).toBe('cache ! last call, cache 6m, re-warm ~$1.66')
+test('in ascii, the last call reads with dashes, as its board draws it', () => {
+  expect(piecesOf(rowOf({ glyphs: 'ascii', cache: { ...snapOf().cache, msLeft: 6 * MIN } }))[0]).toBe('cache ! last call - cache 6m - re-warm ~$1.66')
 })
 
 // ---- a session, end to end ---------------------------------------------------

@@ -43,7 +43,7 @@ test('ascii text is pure ASCII, a dropped glyph takes its space, and padding sta
   expect(asciiText('↻ in 3h 00m')).toBe('in 3h 00m')
   expect(asciiText('cache 52m › 5h resets 3h 00m')).toBe('cache 52m > 5h resets 3h 00m')
   expect(asciiText('café latte')).toBe('caf latte') // an unmapped character goes alone
-  expect(asciiText('ITEM      STATUS')).toBe('ITEM      STATUS')
+  expect(asciiText('cache      52m')).toBe('cache      52m')
 })
 test("a spaced separator reads as a comma, never as a minus between numbers", () => {
   expect(asciiText('input 196k · output 12k · cache reads 0')).toBe('input 196k, output 12k, cache reads 0')

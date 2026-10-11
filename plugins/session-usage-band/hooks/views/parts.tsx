@@ -156,20 +156,27 @@ export const line = (kit: Kit, key: string, pieces: readonly RenderChildren[], e
 /** A line squeezed by its give-way order: the smallest squeeze at which it
  *  fits. The amber step is always last, so amber shortens only once every
  *  calm piece has gone. */
-export const fitLine = <P extends string>(kit: Kit, order: readonly P[], room: number, build: (keeps: Keeps<P>) => RenderElement): RenderElement => {
+export const fitLine = <P extends string>(kit: Kit, order: readonly P[], room: number, build: (keeps: Keeps<P>) => RenderElement): RenderElement =>
+  settleLine(kit, order, room, build).line
+
+/** `fitLine`'s line, and what it keeps at the squeeze it settled on. */
+export const settleLine = <P extends string>(
+  kit: Kit,
+  order: readonly P[],
+  room: number,
+  build: (keeps: Keeps<P>) => RenderElement,
+): Readonly<{ line: RenderElement; keeps: Keeps<P> }> => {
   const steps: ReadonlyArray<P | typeof AMBER_STEP> = [...order, AMBER_STEP]
   const at = keepsIn(steps)
-  return squeezeToFit(
-    squeeze =>
-      build({
-        has: p => at(squeeze, p),
-        calm: (p, tone) => tone === 'amber' || at(squeeze, p),
-        amber: a => (at(squeeze, AMBER_STEP) ? a.long : a.short),
-      }),
-    steps.length,
-    room,
-    kit.measure,
-  )
+  const keepsAt = (squeeze: number): Keeps<P> => ({
+    has: p => at(squeeze, p),
+    calm: (p, tone) => tone === 'amber' || at(squeeze, p),
+    amber: a => (at(squeeze, AMBER_STEP) ? a.long : a.short),
+  })
+  // The line squeezeToFit returns is the last it built.
+  let keeps = keepsAt(0)
+  const line = squeezeToFit(squeeze => build((keeps = keepsAt(squeeze))), steps.length, room, kit.measure)
+  return { line, keeps }
 }
 
 /** True until the amber step: an amber reading's chart stays while this holds. */
