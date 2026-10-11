@@ -17,7 +17,7 @@ import type { BandActions } from '../snapshot'
 import { drawStrip } from '../strip'
 import { SPLIT_LABELS, type Say } from '../words'
 import { bodyRowsFor } from './frame'
-import { accentOf } from './parts'
+import { ROLE_INK, accentOf } from './parts'
 
 /** The cards, in the order they are drawn. */
 export type CardName = 'cache' | 'spend' | 'context' | 'limits'
@@ -50,8 +50,9 @@ type WindowFact = `${'window' | 'pace' | 'reset'}:${Exclude<LimitKey, 'other'>}`
 export type Slots = Readonly<Partial<Record<CardName, RenderChildren>>>
 
 /** A card's first row, as its facts are drawn: a label and its value,
- *  `used so far` and `5h 0% · 7d 66%`. */
-export type Lead = readonly [label: string, value: string]
+ *  `used so far` and `5h 0% · 7d 66%`, the value in its roles' inks where
+ *  it is a phrase. */
+export type Lead = readonly [label: string, value: string | Say]
 /** One lead, or its forms longest first: the card draws the first its line holds. */
 export type Leads = Lead | readonly Lead[]
 
@@ -85,6 +86,9 @@ export type OpenOptions = Readonly<{
   /** Short of rows for SPEND's three legend rows, one in their place: the
    *  split bar and `input · output · cache reads`, as ledger's board draws it. */
   compactSplit?: boolean
+  /** CACHE's re-warm row's label while the cache is warm, in place of
+   *  `re-warm if cold`: departures' `re-warm when cold`. */
+  reWarmLabel?: string
 }>
 
 /** The session's tokens split by kind, each part in its colour. Cache reads
@@ -112,15 +116,25 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
   const shown = new Set(o.shown)
 
   /** A label and its value at either end of a line, unless the collapsed
-   *  lines show it; `swatch` keys a legend in its part's colour and fill. */
-  const factRow = (fact: Fact | undefined, label: string, value: string, swatch?: SplitPart) =>
+   *  lines show it; `swatch` keys a legend in its part's colour and fill. A
+   *  phrase's figures are in the card's value ink, its other words in their
+   *  roles'. */
+  const factRow = (fact: Fact | undefined, label: string, value: string | Say, swatch?: SplitPart) =>
     fact !== undefined && shown.has(fact) ? null : (
       <Box key={`fact:${label}`} flexDirection="row" justifyContent="space-between" columnGap={2}>
         <Text color={palette.label}>
           {swatch === undefined ? null : <Text key="sw" color={swatch.color}>{`${swatch.mark} `}</Text>}
           {label}
         </Text>
-        <Text color={palette.cardValue}>{value}</Text>
+        <Text color={palette.cardValue}>
+          {typeof value === 'string'
+            ? value
+            : value.map(([text, role], i) => (
+                <Text key={String(i)} color={role === 'value' ? palette.cardValue : palette[ROLE_INK[role]]}>
+                  {text}
+                </Text>
+              ))}
+        </Text>
       </Box>
     )
   /** A fact the readings may not know yet: nothing until they do. */
@@ -263,7 +277,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     cache.known ? meter(kit, { label: 'cache', frac: cache.charge, tone: cache.tone, accent: palette.warm, size: cardBar, stretch: true, reads: 'left' }) : null,
     [
       cache.cardNote === undefined ? null : note(cache.cardNote),
-      cache.known ? factRow('reWarm', cache.mood === 'cold' ? 'next message' : 're-warm if cold', cache.estimate) : null,
+      cache.known ? factRow('reWarm', cache.mood === 'cold' ? 'next message' : (o.reWarmLabel ?? 're-warm if cold'), cache.estimate) : null,
       knownRow('idle', 'idle for', cache.idleText),
       knownRow('rebuilds', 'unexpected rebuilds', cache.rebuildsText),
       knownRow('saved', 'saved by cache', cache.savedText),

@@ -569,15 +569,25 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
 }
 
 /** Departures' words beside each reading's own: SPEND's lens, the one card
- *  with no countdown, CONTEXT's, and the tokens' unit in the ascii tier,
- *  which drops `Σ`. */
-export const DEPARTURES = { noClock: 'no clock', compacts: 'compacts', tokensUnit: ' tok' } as const
+ *  with no countdown, CONTEXT's, the tokens' unit in the ascii tier, which
+ *  drops `Σ`, and CACHE's re-warm row while warm. */
+export const DEPARTURES = { noClock: 'no clock', compacts: 'compacts', tokensUnit: ' tok', reWarm: 're-warm when cold' } as const
 
 /** Departures' LIMITS first row, what the row's windows have used: `used so
- *  far`, `5h 4% · 7d 30%`; none without a window. */
-export const usedSoFar = (limits: readonly LimitView[]): readonly [string, string] | undefined => {
+ *  far`, `5h 4% · 7d 30%`, each window named in its accent; none without a
+ *  window. */
+export const usedSoFar = (limits: readonly LimitView[]): readonly [string, Say] | undefined => {
   const windows = limits.filter(l => l.key !== 'other')
-  return windows.length === 0 ? undefined : ['used so far', windows.map(l => l.text).join(' · ')]
+  return windows.length === 0
+    ? undefined
+    : [
+        'used so far',
+        windows.flatMap((l, i): Say => [
+          ...(i === 0 ? [] : [[' · ', 'label'] as const]),
+          [`${l.name} `, l.key === '5h' ? 'accent5' : 'accent7'],
+          [l.valueText, 'value'],
+        ]),
+      ]
 }
 
 /** What the history says: the costs' numbers, and each trail's trend for a reader. */

@@ -41,7 +41,8 @@ type Stop = Readonly<{
   inMs: number | undefined
   lens: string
   limit?: LimitView
-  draw: (keeps: Keeps<Piece>) => Drawn | null
+  /** Its pill at a squeeze, its icon only where `icons` says. */
+  draw: (keeps: Keeps<Piece>, icons: boolean) => Drawn | null
 }>
 
 /** Long words until the row is out of room: an amber reading's at the amber
@@ -96,7 +97,7 @@ const limitStop = (kit: Kit, key: ChipKey, l: LimitView, worst: boolean): Stop =
   const spec = LIMITS[key]
   const tint = spec.tint(palette)
   const tone: Tone = l.lastCall ? 'amber' : l.tone
-  const draw = (keeps: Keeps<Piece>): Drawn | null => {
+  const draw = (keeps: Keeps<Piece>, icons: boolean): Drawn | null => {
     if (!keeps.calm(key === '5h' ? 'calmFive' : 'calmSeven', tone)) return null
     const resetInk = onTone(tone, palette.label)
     const aside = l.departureReset !== undefined && (tone === 'amber' ? beforeLast(keeps) : keeps.has('reset'))
@@ -110,7 +111,7 @@ const limitStop = (kit: Kit, key: ChipKey, l: LimitView, worst: boolean): Stop =
         key,
         tone,
         bg: tint.bg,
-        body: [...(keeps.has('icons') ? icon(spec.icon, onTone(tone, tint.accent)) : []), ...said(kit, formOf(l.departure, tone, keeps), onTone(tone, tint.fg)), ...reset],
+        body: [...(icons ? icon(spec.icon, onTone(tone, tint.accent)) : []), ...said(kit, formOf(l.departure, tone, keeps), onTone(tone, tint.fg)), ...reset],
       }),
       says,
     }
@@ -123,7 +124,7 @@ const contextStop = (kit: Kit, read: Readings, d: Departure): Stop => {
   const { palette, onTone, icon } = kit
   const x = read.context
   const { tone } = x
-  const draw = (keeps: Keeps<Piece>): Drawn | null => {
+  const draw = (keeps: Keeps<Piece>, icons: boolean): Drawn | null => {
     if (!keeps.calm('calmContext', tone)) return null
     const cd = formOf(d, tone, keeps)
     // Calm, it says the room until it counts messages; amber, in its long form.
@@ -132,7 +133,7 @@ const contextStop = (kit: Kit, read: Readings, d: Departure): Stop => {
       pill: pill(kit, {
         key: 'ctx',
         tone,
-        body: [...(keeps.has('icons') ? icon('context', onTone(tone, palette.label)) : []), ...said(kit, cd, onTone(tone, palette.value))],
+        body: [...(icons ? icon('context', onTone(tone, palette.label)) : []), ...said(kit, cd, onTone(tone, palette.value))],
       }),
       says: saysRoom ? ['room'] : [],
     }
@@ -155,10 +156,11 @@ const queueOf = (kit: Kit, read: Readings): Stop[] => {
 }
 
 /** The one row: the queue, `›` between its stops; air, the spend and the
- *  tokens; then the toggle. With it, the card facts the row says at the
- *  squeeze it settled on. */
+ *  tokens; then the toggle. A calm row carries every pill's icon while it
+ *  has room; on the desktop an amber one none. With it,
+ *  the card facts the row says at the squeeze it settled on. */
 const settle = (kit: Kit, read: Readings, act: BandActions, queue: readonly Stop[]): Readonly<{ row: RenderElement; says: readonly Fact[] }> => {
-  const { Box, Text, palette } = kit
+  const { Box, Text, Svg, palette } = kit
   // Built once: the squeeze only chooses among them.
   const seps = queue.slice(1).map((_, i) => <Text key={`sep${i}`} color={palette.label}>›</Text>)
   const cost = costPill(kit, read)
@@ -170,8 +172,13 @@ const settle = (kit: Kit, read: Readings, act: BandActions, queue: readonly Stop
   // The ascii tier drops `Σ`, so the tokens say their unit.
   const unit = read.frame.glyphs === 'ascii' ? <Text key="unit" color={palette.value}>{DEPARTURES.tokensUnit}</Text> : null
   const tokensPiece = pill(kit, { key: tokens.key, tone: tokens.tone, body: [...tokens.body, unit] })
+  const tokensBare = pill(kit, { key: tokens.key, tone: tokens.tone, body: [...tokens.body.slice(-1), unit] })
   const toggle = toggleButton(kit, read, act)
-  const drawnAt = (keeps: Keeps<Piece>) => queue.map(s => s.draw(keeps)).filter(s => s !== null)
+  // The desktop's amber row is the board's last call, which draws no icon;
+  // a terminal's glyphs stay as chips draws them.
+  const iconed = Svg === undefined || queue.every(s => s.tone === 'calm')
+  const iconsAt = (keeps: Keeps<Piece>) => iconed && keeps.has('icons')
+  const drawnAt = (keeps: Keeps<Piece>) => queue.map(s => s.draw(keeps, iconsAt(keeps))).filter(s => s !== null)
   const { line: row, keeps } = fitLineKeeps(kit, ORDER, kit.columns - ROW_SLACK, keeps => {
     const pills = drawnAt(keeps).map(s => s.pill)
     return line(
@@ -179,8 +186,8 @@ const settle = (kit: Kit, read: Readings, act: BandActions, queue: readonly Stop
       'row',
       [
         ...pills.flatMap((s, i) => (i === 0 ? [s] : [seps[i - 1] ?? null, s])),
-        ...(keeps.has('cost') ? (keeps.has('icons') ? spend : spendBare) : []),
-        read.cache.measured && keeps.has('tokens') ? tokensPiece : null,
+        ...(keeps.has('cost') ? (iconsAt(keeps) ? spend : spendBare) : []),
+        read.cache.measured && keeps.has('tokens') ? (iconed ? tokensPiece : tokensBare) : null,
       ],
       toggle,
       1,
@@ -243,6 +250,7 @@ const lens: Lens = (kit, read, act) => {
     shown,
     // The row says each reset as a countdown, so a window's own line says its clock.
     windowResets: 'clock',
+    reWarmLabel: DEPARTURES.reWarm,
   }
 }
 

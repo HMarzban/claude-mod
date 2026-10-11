@@ -460,8 +460,11 @@ test('compaction is messages away at the trail\'s pace since its last drop, else
   const near = readingsOf(snapOf({ context: { tokens: 176_000, window: 200_000, percent: 88, compactAt: 190_000, autoCompactOff: false } })).context
   expect(near.departure).toEqual({ long: { words: '! context ', figure: '93%', after: ' · compacts in ~14k' }, short: { words: '! ctx ', figure: '93%', after: '' } })
 })
-test("LIMITS' first row in departures says what each window has used", () => {
-  expect(usedSoFar(readingsOf(snapOf()).limits)).toEqual(['used so far', '5h 4% · 7d 30%'])
-  expect(usedSoFar(readingsOf(snapOf({ now: 4 * HOUR })).limits)).toEqual(['used so far', '5h reset · 7d 30%'])
+test("LIMITS' first row in departures says what each window has used, each named in its accent", () => {
+  expect(usedSoFar(readingsOf(snapOf()).limits)).toEqual([
+    'used so far',
+    [['5h ', 'accent5'], ['4%', 'value'], [' · ', 'label'], ['7d ', 'accent7'], ['30%', 'value']],
+  ])
+  expect(usedSoFar(readingsOf(snapOf({ now: 4 * HOUR })).limits)?.[1].map(([text]) => text).join('')).toBe('5h reset · 7d 30%')
   expect(usedSoFar([])).toBeUndefined()
 })

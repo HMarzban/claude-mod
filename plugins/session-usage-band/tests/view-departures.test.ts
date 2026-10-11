@@ -226,6 +226,18 @@ test('a fill at least 12 hours off says its day, ~1d, never a falsely precise ~1
   const row = rowOf({ now: 25.2 * HOUR, sevenDay: { ...sevenDay, resetsAt: new Date(25.2 * HOUR + 142.8 * HOUR).toISOString() } })
   expect(shown(byKey(row, '7d', 'Box'))).toBe('7d full ~1d │ ↻ 5d 22h')
 })
+test('the calm desktop row carries every icon in its ink, the coin too; the last call\'s row carries none', () => {
+  /** Each icon the row draws, by its key, and the ink its markup paints. */
+  const iconsOf = (row: Node): string[] => {
+    const out: string[] = []
+    walk(row, n => {
+      if (n.type === 'Svg' && String(n.props?.key).startsWith('i-')) out.push(`${String(n.props?.key)} ${/(?:stroke|fill)="(#[^"]+)"/.exec(String(n.props?.source))?.[1] ?? ''}`)
+    })
+    return out
+  }
+  expect(iconsOf(rowOf({ ...BOARD, columns: 160 }))).toEqual([`i-five ${DARK.fiveAccent}`, `i-week ${DARK.weekAccent}`, `i-context ${DARK.label}`, `i-cost ${DARK.coin}`, `i-tokens ${DARK.label}`])
+  expect(iconsOf(rowOf({ ...BOARD, columns: 160, cache: { ...snapOf().cache, ...BOARD.cache, msLeft: 6 * MIN } }))).toEqual([])
+})
 test("the last call's row is the board's, its reset aside and icons gone: from 101 desktop columns with the context", () => {
   const lastCall = (columns: number) => piecesOf(rowOf({ ...BOARD, columns, cache: { ...snapOf().cache, ...BOARD.cache, msLeft: 6 * MIN } }))
   const board = ['cache ! last call · cache 6m · re-warm ~$0.80', '›', '5h 5h resets 4h 55m', '›', '7d 7d full ~1d', '›', 'ctx compacts ~12 msgs', 'air', 'cost $1,027']
@@ -261,12 +273,20 @@ test("open, each card's first row is one the row left out", () => {
   const tree = draw({ expanded: true, maxRows: 6, ...TRAIL })
   const row = shown(firstRow(tree))
   const firsts = ['cache', 'spend', 'context', 'limits'].map(name => firstRowOf(tree, name))
-  expect(firsts).toEqual(['re-warm if cold~$1.66', 'last message$0.21', 'room left · auto-compacts at 190k~114k', 'used so far5h 4% · 7d 30%'])
+  expect(firsts).toEqual(['re-warm when cold~$1.66', 'last message$0.21', 'room left · auto-compacts at 190k~114k', 'used so far5h 4% · 7d 30%'])
   for (const value of ['~$1.66', '$0.21', '~114k', '4% · 7d 30%']) expect(row).not.toContain(value)
   // Without a trail the row says the room, so the card leads with where it compacts.
   expect(firstRowOf(draw({ expanded: true, maxRows: 6 }), 'context')).toBe('auto-compacts at190k')
   // Cold, the row says the re-warm, so the card says what it saved.
   expect(firstRowOf(draw({ expanded: true, maxRows: 6, cache: { ...snapOf().cache, msLeft: 0 } }), 'cache')).toBe('saved by cache~$11.40')
+})
+test("LIMITS' used-so-far row names each window in its accent, its figures in value ink", () => {
+  const lead = ((cardOf(draw({ expanded: true, maxRows: 6 }), 'limits')?.children ?? []) as Node[]).filter(Boolean)[1]
+  const inks: Array<[string, unknown]> = []
+  walk((lead?.children ?? []).at(-1), n => {
+    if (n.type === 'Text' && typeof n.children?.[0] === 'string') inks.push([shown(n), n.props?.color])
+  })
+  expect(inks).toEqual([['5h ', DARK.fiveText], ['4%', DARK.cardValue], [' · ', DARK.label], ['7d ', DARK.weekAccent], ['30%', DARK.cardValue]])
 })
 test('open, an amber limit the row never shows keeps the LIMITS headline', () => {
   const tree = draw({ expanded: true, otherLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }] })
