@@ -46,7 +46,7 @@ def node(n, parent_row=False):
         return f"<span class=btn>{label}{badge}</span>"
     st = ['display:flex', f"flex-direction:{p.get('flexDirection', 'row')}"]
     row = p.get('flexDirection', 'row') == 'row'
-    if row: st.append('align-items:center')
+    if row: st.append(f"align-items:{p.get('alignItems', 'center')}")
     if p.get('flexWrap'): st.append(f"flex-wrap:{p['flexWrap']}")
     if 'columnGap' in p: st.append(f"column-gap:{p['columnGap'] * COL}px")
     if 'rowGap' in p: st.append(f"row-gap:{p['rowGap'] * GAP}px")
