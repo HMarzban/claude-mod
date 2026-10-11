@@ -500,10 +500,17 @@ export type DayCellsOptions = Readonly<{
   guess?: readonly boolean[]
   /** The cell outlined as now; none when absent. */
   today?: number
+  /** A measured cell's fill and edge. */
   color: string
   cellPx: number
   height: number
   labels?: readonly string[]
+  /** The top of the scale, by default the largest value: a limit's percent passes 100. */
+  max?: number
+  /** Spanning its slot, as a card head's lens does, rather than its cells' width. */
+  stretch?: boolean
+  /** The air between cells, 3px unless said. */
+  gapPx?: number
 }>
 
 const DAY_GAP = 3
@@ -512,13 +519,18 @@ const DAY_EDGE = 1
 /** What labels add beneath the cells, and their size. */
 const LABEL_ROOM = 11
 const LABEL_PX = 9
+/** Today's dash, finer than a guess's. */
+const TODAY_DASH = 'stroke-dasharray="2 1.6"'
 
-/** A cell per day or hour, filled from the bottom; a guess dashed, today
- *  outlined. Text draws a braille height per cell. */
+/** A cell per day or hour, filled from the bottom by its share of the
+ *  scale, as the week boards draw it: a measured day solid in `color`;
+ *  today dashed in value ink on a lighter ground; a day to come dashed and
+ *  dim on the track; one with nothing yet a plain edge in the track's grey.
+ *  Text draws a braille height per cell. */
 export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
   const { Svg, Text, palette } = kit
-  const { key, alt, values, guess = [], today, color, cellPx, height, labels } = o
-  const top = topOf(values)
+  const { key, alt, values, guess = [], today, color, cellPx, height, labels, max, stretch = false, gapPx = DAY_GAP } = o
+  const top = max ?? topOf(values)
   const isGuess = (i: number) => guess[i] === true
   const isToday = (i: number) => today !== undefined && i === today
   if (!Svg) {
@@ -532,25 +544,38 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
       </Text>
     )
   }
-  const step = cellPx + DAY_GAP
-  const width = values.length * step - DAY_GAP + 2 * DAY_EDGE
+  const step = cellPx + gapPx
+  const width = values.length * step - gapPx + 2 * DAY_EDGE
   const tall = height + 2 * DAY_EDGE + (labels === undefined ? 0 : LABEL_ROOM)
+  const keep = stretch ? KEEP_STROKE : ''
   const marks = values.map((v, i) => {
     const x = DAY_EDGE + i * step
-    const fillPx = v === undefined || top <= 0 ? 0 : Math.round((v / top) * (height - 2))
-    const filled = fillPx > 0 ? `<rect x="${x + 1}" y="${DAY_EDGE + height - 1 - fillPx}" width="${cellPx - 2}" height="${fillPx}" rx="2" fill="${color}"/>` : ''
-    const outline =
-      isToday(i)
-        ? `<rect x="${x}" y="${DAY_EDGE}" width="${cellPx}" height="${height}" rx="3" fill="none" stroke="${palette.value}" stroke-width="2"/>`
-        : `<rect x="${x + 0.5}" y="${DAY_EDGE + 0.5}" width="${cellPx - 1}" height="${height - 1}" rx="3" fill="none" stroke="${palette.trackStroke}"${v === undefined || isGuess(i) ? ` ${GUESS_DASH}` : ''}/>`
+    const measured = v !== undefined && !isGuess(i)
+    const fillPx = !measured || top <= 0 ? 0 : tenth(clamp01(v / top) * (height - 2))
+    const ground = isToday(i)
+      ? `<rect class="ground" x="${x}" y="${DAY_EDGE}" width="${cellPx}" height="${height}" rx="3" fill="${palette.trackStroke}" opacity="0.45"/>`
+      : isGuess(i)
+        ? `<rect class="ground" x="${x}" y="${DAY_EDGE}" width="${cellPx}" height="${height}" rx="3" fill="${palette.meterTrack}"/>`
+        : ''
+    const filled = fillPx > 0 ? `<rect class="fill" x="${x + 1}" y="${tenth(DAY_EDGE + height - 1 - fillPx)}" width="${cellPx - 2}" height="${fillPx}" rx="2" fill="${color}"/>` : ''
+    const [stroke, dash] = isToday(i)
+      ? [palette.value, ` ${TODAY_DASH}`]
+      : isGuess(i)
+        ? [palette.trackStroke, ` ${GUESS_DASH} opacity="0.75"`]
+        : [v === undefined ? palette.meterTrack : color, '']
+    const edge = `<rect class="edge" x="${x + 0.5}" y="${DAY_EDGE + 0.5}" width="${cellPx - 1}" height="${height - 1}" rx="3" fill="none" stroke="${stroke}"${dash}${keep}/>`
     const label = labels?.[i]
     const caption =
       label === undefined
         ? ''
         : `<text x="${x + cellPx / 2}" y="${tall - 1}" text-anchor="middle" font-family="system-ui, sans-serif" font-size="${LABEL_PX}" fill="${isToday(i) ? palette.value : palette.label}">${svgText(label)}</text>`
-    return filled + outline + caption
+    return ground + filled + edge + caption
   })
-  return <Svg key={key} source={svgOf(width, tall, marks.join(''))} alt={alt} width={width} height={tall} />
+  return stretch ? (
+    <Svg key={key} source={svgOf(width, tall, marks.join(''), ' preserveAspectRatio="none"')} alt={alt} height={tall} />
+  ) : (
+    <Svg key={key} source={svgOf(width, tall, marks.join(''))} alt={alt} width={width} height={tall} />
+  )
 }
 
 // ---- slice cells ----------------------------------------------------------

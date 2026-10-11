@@ -193,6 +193,9 @@ const fit = (kit: Kit, read: Readings, act: BandActions) => {
   return { row, drawn }
 }
 
+/** The top of a limit's scale: its percentages run to 100. */
+const PERCENT = 100
+
 /** The week's day cells, 16px tall; in ascii, which has no braille, none. */
 const weekCells = (kit: Kit, read: Readings): RenderChildren => {
   const { days, daysAlt } = read.week
@@ -203,7 +206,9 @@ const weekCells = (kit: Kit, read: Readings): RenderChildren => {
     values: days.map(d => d.pct),
     guess: days.map(d => d.guess),
     today: days.findIndex(d => d.today),
-    color: kit.palette.label,
+    // A measured day in the track's edge grey, its share of the limit filled.
+    color: kit.palette.trackStroke,
+    max: PERCENT,
     cellPx: 13,
     height: 14,
   })

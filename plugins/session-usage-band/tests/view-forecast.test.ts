@@ -159,6 +159,15 @@ for (const surface of ['terminal', 'desktop'] as const)
     expect(headOf(tree, 'limits')).toMatch(surface === 'terminal' ? /^LIMITS.+ ~Mon7d 66%$/ : /^LIMITSfull ~Mon7d 66%$/)
     expect(headOf(tree, 'limits')).not.toMatch(/…|full ~…/)
   })
+test("open on the desktop, LIMITS' day cells are its board's: today alone outlined bright, the days to come dim, none drawn full", () => {
+  const source = String(svgsOf(byKey(cardOf(drawn(board({ surface: 'desktop', expanded: true })), 'limits'), 'head')).find(s => /weekly limit by day/.test(String(s.props?.alt)))?.props?.source)
+  const p = DARK
+  expect(source.match(new RegExp(`stroke="${p.value}"`, 'g'))).toHaveLength(1)
+  expect(source).toMatch(new RegExp(`class="edge"[^>]*stroke="${p.value}" stroke-dasharray="2 1.6"`))
+  // Today's rise is 60% of the cap; the six guessed days fill nothing, dashed and dim.
+  expect([...source.matchAll(/class="fill"[^>]*height="([\d.]+)"/g)].map(([, h]) => h)).toEqual(['7.2'])
+  expect(source.match(new RegExp(`stroke="${p.trackStroke}" stroke-dasharray="2 2" opacity="0.75"`, 'g'))).toHaveLength(6)
+})
 test("open on the desktop, LIMITS' lens is the week's day cells, 16px tall", () => {
   const tree = drawn(board({ surface: 'desktop', expanded: true }))
   const cells = svgsOf(byKey(cardOf(tree, 'limits'), 'head')).find(s => /weekly limit by day/.test(String(s.props?.alt)))

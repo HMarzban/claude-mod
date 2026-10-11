@@ -77,6 +77,38 @@ test('a meter of a share says its percent alone, neither used nor left', () => {
 test('a guessed day cell is dashed', () => {
   expect(svg(dayCells(desk, { key: 'd', alt: 'week', values: [6, 7], guess: [false, true], today: 0, color: '#a99cf0', cellPx: 16, height: 16 })).props.source).toMatch(/stroke-dasharray/)
 })
+/** Each day cell's marks, by class, as `<class> <attrs that draw it>`. */
+const dayMarks = (source: string): string[] =>
+  [...source.matchAll(/<rect class="(\w+)"([^>]*)\/>/g)].map(([, cls, attrs]) => `${cls}${[...(attrs ?? '').matchAll(/ (height|fill|stroke|stroke-dasharray|opacity)="([^"]+)"/g)].map(([, k, v]) => ` ${k}=${v}`).join('')}`)
+test("day cells as forecast's board draws them: a measured day solid, its share filled against the cap; today dashed in value ink on a lighter ground; days to come dashed and dim on the track", () => {
+  const { palette: p } = desk
+  const source = svg(dayCells(desk, { key: 'd', alt: 'week', values: [60, 6, 50], guess: [false, false, true], today: 1, max: 100, color: p.trackStroke, cellPx: 13, height: 14 })).props.source
+  expect(dayMarks(source)).toEqual([
+    // 60 of 100 fills 60% of the 12px inside its edge.
+    `fill height=7.2 fill=${p.trackStroke}`,
+    `edge height=13 fill=none stroke=${p.trackStroke}`,
+    `ground height=14 fill=${p.trackStroke} opacity=0.45`,
+    `fill height=0.7 fill=${p.trackStroke}`,
+    `edge height=13 fill=none stroke=${p.value} stroke-dasharray=2 1.6`,
+    `ground height=14 fill=${p.meterTrack}`,
+    `edge height=13 fill=none stroke=${p.trackStroke} stroke-dasharray=2 2 opacity=0.75`,
+  ])
+})
+test("day cells as pulse's board draws them: spanning their slot 4px apart, a measured day filled, an empty one a solid edge on the track", () => {
+  const { palette: p } = desk
+  const cells = svg(dayCells(desk, { key: 'd', alt: 'week', values: [undefined, 10, undefined], color: p.trackStroke, cellPx: 20, height: 14, stretch: true, gapPx: 4 }))
+  expect(cells.props.width).toBeUndefined()
+  expect(cells.props.source).toMatch(/preserveAspectRatio="none"/)
+  expect(dayMarks(cells.props.source)).toEqual([
+    `edge height=13 fill=none stroke=${p.meterTrack}`,
+    `fill height=12 fill=${p.trackStroke}`,
+    `edge height=13 fill=none stroke=${p.trackStroke}`,
+    `edge height=13 fill=none stroke=${p.meterTrack}`,
+  ])
+  // 4px apart, each 3px round.
+  const xs = [...cells.props.source.matchAll(/class="edge" x="([\d.]+)"/g)].map(([, x]) => Number(x))
+  expect([xs[1]! - xs[0]!, /class="edge"[^>]* rx="3"/.test(cells.props.source)]).toEqual([24, true])
+})
 /** The board's week: today measured, tomorrow fills the limit, none left after; now 0.6 into today. */
 const WEEK_ROW = { marks: [{ kind: 'measured', pct: 66 }, { kind: 'fills', pct: 34 }, { kind: 'spent', pct: 0 }, { kind: 'guess', pct: 10 }], notch: 0.6 } as const
 /** A week with nothing measured yet but a day at 0%, and two days not known. */
