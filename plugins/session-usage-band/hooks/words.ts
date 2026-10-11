@@ -6,8 +6,6 @@ import type { DayCell, HourCell, Week } from './calendar'
 import {
   FIVE_HOUR_MS,
   fmtAgo,
-  fmtBoardEta,
-  fmtBoardLeft,
   fmtClock,
   fmtCost,
   fmtCountdown,
@@ -21,7 +19,6 @@ import {
   fmtPct,
   fmtSmallCost,
   fmtTokens,
-  isToday,
   severityMark,
 } from './format'
 import type { ResetIn } from './format'
@@ -118,8 +115,6 @@ export type CacheWords = Readonly<{
   reWarmText: string | undefined
   /** When it goes cold, `14:32`, while counting and the offset is known. */
   coldAtClock: string | undefined
-  /** When it went cold, `13:28`, once measured and the offset is known. */
-  coldSinceClock: string | undefined
   /** What the cache saved, `~$11.40`, and its hit rate, `96%`, once measured. */
   savedText: string | undefined
   hitText: string | undefined
@@ -139,10 +134,6 @@ export type CacheWords = Readonly<{
   departure: Departure
   /** What the cache's place in departures' queue is for: `goes cold`, once cold `went cold`. */
   departureLens: string
-  /** The board's status: `DEPARTS`, `LAST CALL`, `DEPARTED`, `BOARDING`, `WARMING` or `NOT MEASURED`. */
-  board: string
-  /** The board's countdown: `IN 52 MIN`, `47s` in the last minute; empty while not counting. */
-  boardLeft: string
   alt: string
 }>
 
@@ -164,8 +155,6 @@ export type ContextWords = Readonly<{
   /** Room and compaction as one row, `room left · auto-compacts at 190k`,
    *  `~114k`, while the row counts messages. */
   roomLead: readonly [string, string] | undefined
-  /** `! COMPACTS IN ~14K`, or compaction off, `! CONTEXT 85%`. */
-  boardAmber: string | undefined
   /** What the share is of: `toward compaction`, or `of the window` when compaction is off. */
   towardText: string
   /** Tokens in context, where it compacts, the room before then, and the window:
@@ -243,13 +232,6 @@ export type LimitWords = Readonly<{
   departureLens: string
   /** Departures' LIMITS headline: `5h in 3h 00m`, `7d full ~1d`; none once passed. */
   departureHead: Say | undefined
-  /** `! NEAR LIMIT`, `! FULL ~14:20`, or without the offset, `! FULL IN ~40 MIN`. */
-  boardAmber: string | undefined
-  /** `~10% AT ↻`, `FULL BEFORE ↻`, or `RESET`; in the ascii tier, `~10% AT RESET`. */
-  boardShort: string | undefined
-  /** The board's time of the reset: `↻ 16:40`, or without the offset `IN 3H 00 MIN`;
-   *  in the ascii tier `RESET 16:40`, past today `SAT 22:30`. Undefined once passed. */
-  boardTime: string | undefined
   alt: string
 }>
 
@@ -263,15 +245,6 @@ const CONDITION: Readonly<Record<CacheMood, CacheCondition>> = {
   warm: 'warm',
   expiring: 'cooling',
   cold: 'cold',
-}
-
-/** The board's status for each mood; working, a warm cache is `BOARDING`. */
-const BOARD: Readonly<Record<CacheMood, string>> = {
-  unmeasured: 'NOT MEASURED',
-  warming: 'WARMING',
-  warm: 'DEPARTS',
-  expiring: 'LAST CALL',
-  cold: 'DEPARTED',
 }
 
 /** The cache in words, from its facts: it counts down only while `coldInMs` is set. */
@@ -316,7 +289,6 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     amber: f.mood === 'expiring' ? AMBER.cache(left, leftShort, f.estimate) : undefined,
     reWarmText: !f.known ? undefined : f.mood === 'cold' ? `next message ${f.estimate}` : `re-warm ${f.estimate} if it goes cold`,
     coldAtClock: counting && off !== undefined ? fmtClock(frame.now + f.coldInMs, off) : undefined,
-    coldSinceClock: f.mood === 'cold' && c.coldAt !== null && off !== undefined ? fmtClock(c.coldAt, off) : undefined,
     savedText: f.measured && c.savedUsd !== null ? fmtEstimate(c.savedUsd) : undefined,
     hitText: f.hitFrac === undefined ? undefined : fmtPct(f.hitFrac),
     // Inference only ever moves an assumed hour to 5m, so an unpinned hour is the guess.
@@ -333,8 +305,6 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
           ? { long: departs('! last call · cache ', leftShort, ` · re-warm ${f.estimate}`), short: departs('! last call · cache ', leftShort) }
           : alike(departs('cache ', counting ? leftShort : value)),
     departureLens: f.mood === 'cold' ? 'went cold' : 'goes cold',
-    board: working ? 'BOARDING' : BOARD[f.mood],
-    boardLeft: !counting ? '' : f.mood === 'expiring' ? leftShort : fmtBoardLeft(f.coldInMs),
     alt:
       f.mood === 'unmeasured'
         ? 'cache not measured yet'
@@ -367,7 +337,6 @@ export const contextWords = (f: ContextFacts): ContextWords => {
     say,
     sayShort,
     amber,
-    boardAmber: f.tone !== 'amber' ? undefined : roomText !== undefined ? `! COMPACTS IN ${roomText.toUpperCase()}` : `! CONTEXT ${f.pct}`,
     towardText,
     inContextText: f.known ? fmtTokens(f.used) : UNKNOWN,
     compactsAtText,
@@ -420,10 +389,8 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const resetGlyph = f.reset?.kind === 'in' ? resetPhrase(f.reset, 'glyph') : undefined
   const resetAt = f.resetInMs === undefined ? undefined : frame.now + f.resetInMs
   const resetClock = resetAt !== undefined && off !== undefined ? fmtDayClock(resetAt, off, frame.now) : undefined
-  const resetToday = resetAt !== undefined && off !== undefined && isToday(resetAt, off, frame.now)
   // The ascii tier drops `↻`, so a phrase whose object is the glyph says its word.
   const ascii = frame.glyphs === 'ascii'
-  const boardReset = ascii ? 'RESET' : '↻'
   const pace = live ? paceText(f) : ''
   const withPace = pace === '' ? '' : ` · ${pace}`
   const resetWhen = f.reset?.kind !== 'in' ? undefined : (resetClock ?? `in ${f.reset.text}`)
@@ -464,22 +431,6 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
         : resetSpan === undefined
           ? undefined
           : [[`${f.name} in `, 'label'], [resetSpan, 'value']],
-    boardAmber:
-      f.tone !== 'amber'
-        ? undefined
-        : etaMs === null
-          ? '! NEAR LIMIT'
-          : fullAtClock !== undefined
-            ? `! FULL ${fullAtClock}`
-            : `! FULL ${fmtBoardEta(etaMs)}`,
-    boardShort: f.passed ? 'RESET' : fills ? `FULL BEFORE ${boardReset}` : projectedText !== undefined ? `${projectedText} AT ${boardReset}` : undefined,
-    // In ascii, TIME's 14 cells can't hold `RESET SAT 22:30`, so past today the weekday says it alone.
-    boardTime:
-      resetClock !== undefined
-        ? (ascii && !resetToday ? resetClock : `${boardReset} ${resetClock}`).toUpperCase()
-        : f.resetInMs !== undefined
-          ? fmtBoardLeft(f.resetInMs)
-          : undefined,
     alt: altOf(
       `${f.name} limit`,
       live ? `${Math.round(f.percentUsed)} percent used` : 'reset',
