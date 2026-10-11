@@ -1,7 +1,8 @@
 // Hover cards: one per pill, drawn over the row at the pill it explains.
 
-import type { RenderChildren } from 'claude-code'
+import type { ElementTable, RenderChildren } from 'claude-code'
 import { test, expect } from 'claude-code/testing'
+import { makeKit } from '../hooks/kit'
 import { DESKTOP, ROW_SLACK, cellsOf } from '../hooks/layout'
 import { DARK, LIGHT, type Palette } from '../hooks/palette'
 import {
@@ -12,6 +13,7 @@ import {
   textOf,
   cards,
   cardText,
+  fakeEl,
   firstRow,
   isCard,
   byKey,
@@ -23,6 +25,7 @@ import {
   setup,
   mountBand,
 } from './helpers'
+import { snapOf } from './matrix'
 
 /** A card drawn inverted against `palette`, so it can't pass for a chip:
  *  its tooltip ground and ink. On a text surface its two ends are half blocks in the ground's
@@ -255,4 +258,11 @@ test('in the light palette a card is inverted too: a dark ground under light ink
     for (const [, card] of found) expectInvertedCard(card, surface, LIGHT)
     await ui.unmount()
   }
+})
+
+test('a desktop whose element table holds no Svg still draws its cards without caps', () => {
+  const { Box, Text, Button } = fakeEl
+  const card = makeKit({ Box, Text, Button } as unknown as ElementTable, snapOf({ surface: 'desktop' })).hoverCard('cost', 'what it cost', { left: 0, room: 40 }) as Node
+  expectInvertedCard(card, 'desktop', DARK)
+  expect(card.props?.width).toBe('what it cost'.length + 2)
 })

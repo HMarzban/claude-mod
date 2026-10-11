@@ -54,12 +54,12 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
    *  hover scope, and a hidden one could never be hovered. It is inverted
    *  against the chips, and on a text surface its ends are half blocks in its
    *  ground's colour on the band's own background, so they read as rounded
-   *  edges where a one-row band has no room for a border; the desktop draws
-   *  the ground alone, whose own edge is sharp. A card with no room past its
-   *  padding and caps for one character isn't drawn. */
+   *  edges where a one-row band has no room for a border; the desktop, with
+   *  or without Svg, draws the ground alone, whose own edge is sharp. A card
+   *  with no room past its padding and caps for one character isn't drawn. */
   const hoverCard = (key: string, text: string, place: CardPlace): RenderChildren => {
     if (!palette.filled) return null
-    const capped = Svg === undefined
+    const capped = snap.surface !== 'desktop'
     const span = cardSpan(place, text.length + (capped ? 4 : 2))
     if (span.width < (capped ? 5 : 3)) return null
     const shell = { position: 'absolute', top: 0, ...span, display: 'none', hover: { display: 'flex', scope: scopeOf(key) } } as const
