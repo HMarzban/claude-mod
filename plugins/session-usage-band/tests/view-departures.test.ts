@@ -288,6 +288,27 @@ test("LIMITS' used-so-far row names each window in its accent, its figures in va
   })
   expect(inks).toEqual([['5h ', DARK.fiveText], ['4%', DARK.cardValue], [' · ', DARK.label], ['7d ', DARK.weekAccent], ['30%', DARK.cardValue]])
 })
+test("open, CACHE counts down as its pill does: '6m left' on its last call, m:ss only in its last minute", () => {
+  const head = (msLeft: number) => headOf(draw({ expanded: true, cache: { ...snapOf().cache, msLeft } }), 'cache')
+  expect(head(6 * MIN)).toBe('CACHE1goes cold6m left')
+  expect(head(30_000)).toBe('CACHE1goes cold0:30 left')
+  expect(head(52 * MIN)).toBe('CACHE1goes cold52m left')
+})
+for (const surface of ['terminal', 'desktop'] as const)
+  test(`open on the ${surface}, LIMITS says no clock time, and no window's reset its pill already says`, () => {
+    for (let columns = 160; columns >= 40; columns -= 5) {
+      const tree = draw({ surface, columns, expanded: true, maxRows: 40, utcOffsetMin: 0 })
+      const row = shown(firstRow(tree))
+      const body = ((cardOf(tree, 'limits')?.children ?? []) as Node[]).filter(Boolean).slice(1).map(shown).join(' | ')
+      expect(`${columns}: ${body}`).not.toMatch(/\d\d:\d\d/)
+      for (const reset of ['3h 00m', '2d 19h']) if (row.includes(reset)) expect(`${columns}: ${body}`).not.toContain(reset)
+    }
+  })
+test('open, LIMITS heads with the 5h counting down, as its pill does, never its clock', () => {
+  const tree = draw({ expanded: true, maxRows: 40, utcOffsetMin: 0 })
+  expect(headOf(tree, 'limits')).toBe('LIMITS25h resets37d resets5h in 3h 00m')
+  expect(shown(cardOf(tree, 'limits'))).not.toMatch(/resets 03:00/)
+})
 test('open, an amber limit the row never shows keeps the LIMITS headline', () => {
   const tree = draw({ expanded: true, otherLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }] })
   expect(headOf(tree, 'limits')).toBe('LIMITS25h resets37d resetsspend 92%!')

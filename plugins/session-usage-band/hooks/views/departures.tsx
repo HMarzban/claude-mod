@@ -29,8 +29,9 @@ import type { Lens, Lines } from './view'
 const ORDER = ['tokens', 'icons', 'reset', 'calmContext', 'calmSeven', 'cost', 'calmFive', 'shortWording'] as const
 type Piece = (typeof ORDER)[number]
 
-/** A stop's pill as a squeeze keeps it, and the card facts its words say there. */
-type Drawn = Readonly<{ pill: RenderElement; says: readonly Fact[] }>
+/** A stop's pill as a squeeze keeps it, the card facts its words say there,
+ *  and what they say of its own window. */
+type Drawn = Readonly<{ pill: RenderElement; says: readonly Fact[]; window?: readonly [ChipKey, readonly Fact[]] }>
 
 /** A reading in the queue: the card it opens into, its tone, how long until
  *  it goes (none for what has no clock), what its place is for, and its pill
@@ -105,15 +106,16 @@ const limitStop = (kit: Kit, key: ChipKey, l: LimitView, worst: boolean): Stop =
     // With no reset aside, the countdown is the reset itself; a fill, or a
     // full window's 100%, says its pace.
     const saysPace = l.fullInMs !== undefined || l.frac === 1
-    const says: Fact[] = !worst ? [] : [...(aside || l.departureReset === undefined ? (['reset'] as const) : []), ...(saysPace ? (['pace'] as const) : [])]
+    const told: Fact[] = [...(aside || l.departureReset === undefined ? (['reset'] as const) : []), ...(saysPace ? (['pace'] as const) : [])]
     return {
+      says: worst ? told : [],
+      window: [key, told],
       pill: pill(kit, {
         key,
         tone,
         bg: tint.bg,
         body: [...(icons ? icon(spec.icon, onTone(tone, tint.accent)) : []), ...said(kit, formOf(l.departure, tone, keeps), onTone(tone, tint.fg)), ...reset],
       }),
-      says,
     }
   }
   return { card: 'limits', tone, inMs: l.passed ? undefined : (l.fullInMs ?? l.resetInMs), lens: l.departureLens, limit: l, draw }
@@ -159,7 +161,12 @@ const queueOf = (kit: Kit, read: Readings): Stop[] => {
  *  tokens; then the toggle. A calm row carries every pill's icon while it
  *  has room; on the desktop an amber one none. With it,
  *  the card facts the row says at the squeeze it settled on. */
-const settle = (kit: Kit, read: Readings, act: BandActions, queue: readonly Stop[]): Readonly<{ row: RenderElement; says: readonly Fact[] }> => {
+const settle = (
+  kit: Kit,
+  read: Readings,
+  act: BandActions,
+  queue: readonly Stop[],
+): Readonly<{ row: RenderElement; says: readonly Fact[]; byWindow: Partial<Record<ChipKey, readonly Fact[]>> }> => {
   const { Box, Text, Svg, palette } = kit
   // Built once: the squeeze only chooses among them.
   const seps = queue.slice(1).map((_, i) => <Text key={`sep${i}`} color={palette.label}>›</Text>)
@@ -193,7 +200,8 @@ const settle = (kit: Kit, read: Readings, act: BandActions, queue: readonly Stop
       1,
     )
   })
-  return { row, says: drawnAt(keeps).flatMap(s => s.says) }
+  const drawn = drawnAt(keeps)
+  return { row, says: drawn.flatMap(s => s.says), byWindow: Object.fromEntries(drawn.flatMap(s => (s.window === undefined ? [] : [s.window]))) }
 }
 
 const lines: Lines = (kit, read, act) => [settle(kit, read, act, queueOf(kit, read)).row]
@@ -231,7 +239,8 @@ const lens: Lens = (kit, read, act) => {
   // headline, where the cards say it.
   const otherAmber = worst?.key === 'other' && worst.tone === 'amber'
   // CONTEXT's first row, while the row counts messages, says the room and where it compacts.
-  const shown: Fact[] = [...settle(kit, read, act, queue).says, ...(x.roomLead === undefined ? [] : (['room', 'compactsAt'] as const))]
+  const settled = settle(kit, read, act, queue)
+  const shown: Fact[] = [...settled.says, ...(x.roomLead === undefined ? [] : (['room', 'compactsAt'] as const))]
   return {
     slots: {
       cache: places('cache'),
@@ -240,6 +249,7 @@ const lens: Lens = (kit, read, act) => {
       limits: places('limits'),
     },
     heads: {
+      cache: read.cache.departureHead,
       ...(x.msgsHead === undefined ? {} : { context: x.msgsHead }),
       ...(soonest?.departureHead === undefined || otherAmber ? {} : { limits: soonest.departureHead }),
     },
@@ -248,8 +258,9 @@ const lens: Lens = (kit, read, act) => {
       ...(lead === undefined ? {} : { limits: lead }),
     },
     shown,
-    // The row says each reset as a countdown, so a window's own line says its clock.
-    windowResets: 'clock',
+    shownByWindow: settled.byWindow,
+    // The board shows no clock times, which are forecast's: every reset counts down, as the row's do.
+    clockless: true,
     reWarmLabel: DEPARTURES.reWarm,
   }
 }

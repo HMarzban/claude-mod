@@ -83,6 +83,9 @@ export type OpenOptions = Readonly<{
    *  `resets 3h 00m · …`, or at its clock time as the lead row does,
    *  `resets 16:40 · …`. */
   windowResets?: 'countdown' | 'clock'
+  /** No clock time at all, as departures says none: the lead row counts its
+   *  reset down too, `resets in 2d 19h`. */
+  clockless?: boolean
   /** Short of rows for SPEND's three legend rows, one in their place: the
    *  split bar and `input · output · cache reads`, as ledger's board draws it. */
   compactSplit?: boolean
@@ -336,12 +339,13 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     return { reset: said('reset'), pace: said('pace') }
   }
   /** The card's first row: the worst window's reset, at its clock time once
-   *  the offset is known, and its pace, where a collapsed row has its value. */
+   *  the offset is known unless the view is clockless, and its pace, where a
+   *  collapsed row has its value. */
   const leadRow = (): RenderChildren => {
     if (worst === undefined) return null
     const said = saidOf(worst)
     const pace = said.pace ? '' : worst.pace
-    const when = said.reset ? undefined : worst.resetWhen
+    const when = said.reset ? undefined : o.clockless === true ? worst.resetIn : worst.resetWhen
     // Its pace alone needs no label: the phrase says it is one.
     if (when === undefined) return pace === '' ? null : <Box key="fact:pace">{oneLine({ color: palette.label }, pace)}</Box>
     return (

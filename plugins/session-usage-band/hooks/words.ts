@@ -21,6 +21,7 @@ import {
   fmtSmallCost,
   fmtTokens,
   severityMark,
+  SOON_MS,
 } from './format'
 import type { ResetIn } from './format'
 import { warmAverageOf } from './insights'
@@ -166,6 +167,9 @@ export type CacheWords = Readonly<{
   idleText: string | undefined
   /** The cache card's headline: its countdown, `59m left`, else its mood. */
   cardHead: Say
+  /** Departures' CACHE headline: its countdown as its pill says it, `6m
+   *  left`, `M:SS` only in its last minute; else as `cardHead`. */
+  departureHead: Say
   /** A gauge's reading beside its bar: `52m left`, bold on its figure, else
    *  its mood; short, its figure alone, `52m`. */
   gaugeSay: Say
@@ -253,8 +257,10 @@ export type LimitWords = Readonly<{
    *  without a reset to come, or once nothing is left. */
   cardResetLess: (form: 'countdown' | 'clock', said: Readonly<{ reset: boolean; pace: boolean }>) => string | undefined
   /** When it resets, after `resets`: `16:40` or `Sat 13:30` once the offset
-   *  is known, else `in 3h 00m`; undefined without a reset to come. */
+   *  is known, else `resetIn`; undefined without a reset to come. */
   resetWhen: string | undefined
+  /** When it resets as a countdown, `in 3h 00m`; undefined without a reset to come. */
+  resetIn: string | undefined
   /** `5h 4%`, or once its window has passed, `5h reset`. */
   text: string
   say: Say
@@ -381,6 +387,7 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     rebuildsText: c.misses > 0 ? String(c.misses) : undefined,
     idleText: c.recalled && c.idleMs !== null ? fmtAgo(c.idleMs) : undefined,
     cardHead,
+    departureHead: counting ? [[f.coldInMs < SOON_MS ? fmtCountdown(f.coldInMs) : leftShort, 'value'], [' left', 'label']] : cardHead,
     gaugeSay: counting ? [[leftShort, 'value'], [' left', 'label']] : [[value, 'value']],
     gaugeShort: [[counting ? leftShort : value, 'value']],
     gaugeMore: counting || f.mood === 'cold' ? `re-warm ${f.estimate}` : undefined,
@@ -489,7 +496,8 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const ascii = frame.glyphs === 'ascii'
   const resetMark = ascii ? 'resets' : '↻'
   const pace = live ? paceText(f) : ''
-  const resetWhen = f.reset?.kind !== 'in' ? undefined : (resetClock ?? `in ${f.reset.text}`)
+  const resetIn = f.reset?.kind !== 'in' ? undefined : `in ${f.reset.text}`
+  const resetWhen = resetClock ?? resetIn
   const fillInMs = live ? f.fillInMs : undefined
   const fillAt = fillInMs === undefined ? undefined : off !== undefined ? `~${fmtDay(frame.now + fillInMs, off, frame.now)}` : `in ${fmtEta(fillInMs)}`
   const resetAtGlyph = resetClock === undefined ? resetGlyph : `${resetMark} ${resetClock}`
@@ -520,6 +528,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     valueMarked: `${f.value}${severityMark(f.frac)}`,
     cardResetLess,
     resetWhen,
+    resetIn,
     text: joined(say),
     say,
     pace,
