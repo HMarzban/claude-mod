@@ -102,6 +102,16 @@ export const clipMiddle = (text: string, max: number): string => {
   return `${chars.slice(0, head).join('')}…${chars.slice(chars.length - (max - 1 - head)).join('')}`
 }
 
+/** `text` at most `room` characters, cut at its last whole word with a `.`
+ *  in place of the punctuation it ended on; a first word longer than the
+ *  room is cut where the room ends. */
+export const clipWords = (text: string, room: number): string => {
+  if (text.length <= room) return text
+  const space = text.lastIndexOf(' ', room - 1)
+  const kept = space > 0 ? text.slice(0, space).replace(/[\s,;:]+$/, '') : text.slice(0, room - 1)
+  return `${kept}.`
+}
+
 /** How long ago, coarsely: `2d 4h`, `3h 05m`, `12m`; under a minute is `now`. */
 export const fmtAgo = (ms: number): string => (ms < 60_000 ? 'now' : fmtSpan(ms))
 

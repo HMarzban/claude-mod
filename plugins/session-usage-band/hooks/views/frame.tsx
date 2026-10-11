@@ -101,8 +101,9 @@ export const frame = (
         {panel(kit, 'body', o.body(bodyRows))}
       </Box>
     ) : null,
-    // Chips' actions row: the strip when it takes the footer, else the hint,
-    // then Collapse and Hide band.
+    // Chips' actions row: the strip when it takes the footer, grown into all
+    // the room the buttons leave, else the hint and air; then Collapse and
+    // Hide band.
     <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>
       {place === 'footer' ? (
         strip
@@ -112,7 +113,7 @@ export const frame = (
           <Text color={BARE.label}>Bring it back with /usage-band</Text>
         </Box>
       )}
-      <Box flexGrow={1} />
+      {place === 'footer' && strip !== null ? null : <Box flexGrow={1} />}
       {buttons}
     </Box>,
   ]

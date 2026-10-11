@@ -3,9 +3,12 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
+import { drawBand } from '../hooks/band'
 import { ROW_SLACK } from '../hooks/layout'
+import { LAYOUT_NAMES } from '../hooks/snapshot'
 import { BARE, LIGHT } from '../hooks/palette'
 import { partCovered } from './golden/cover'
+import { NO_ACT, snapOf } from './matrix'
 import {
   GIT_CLEAN,
   GIT_MAIN_TREE,
@@ -18,6 +21,7 @@ import {
   contrast,
   engine,
   cardText,
+  fakeEl,
   hoverCardOf,
   isCard,
   props,
@@ -27,6 +31,7 @@ import {
   widthOf,
   type Node,
   HOUR_1,
+  LONG,
   setup,
   mountBand,
 } from './helpers'
@@ -269,24 +274,29 @@ test("the strip's hover cards are drawn after all of it, each sharing its own pi
 
 /** Where the terminal's top strip, `cols` wide, puts its cards: on the
  *  path's side from a column before its piece, slid left only as far as it
- *  must to end within the strip's room; on the state's side ending a column
- *  after its piece. Each covers its own piece and any it enters whole, and
- *  is as wide as its text and caps where the room allows. */
+ *  must to end within its side's room; on the state's side ending a column
+ *  after its piece. A side's room runs up to a column short of the other
+ *  side, the path's side shrunk to leave the fill its two columns. Each card
+ *  covers its own piece and any it enters whole, and is as wide as its text
+ *  and caps where its room allows. */
 const expectStripCardsAt = (strip: Node | undefined, cols: number) => {
   const pad = Number(strip?.props?.paddingX)
   const room = cols - ROW_SLACK
   const side = (key: string) => ((byKey(strip, key, 'Box')?.children ?? []) as Node[]).filter(Boolean)
-  /** That `card`, from `from`, covers its piece's [start, end) within the room, and fits its text where the room allows. */
-  const expectAt = (card: Node, from: number, start: number, end: number) => {
+  const endOf = (key: string) => side(key).reduce((at, piece) => at + widthOf(piece), pad)
+  const stateEnd = endOf('ws:state')
+  const whereEnd = Math.min(endOf('ws:where'), room - stateEnd - 2)
+  /** That `card`, from `from`, covers its piece's [start, end) within its side's `sideRoom`, and fits its text where that allows. */
+  const expectAt = (card: Node, from: number, start: number, end: number, sideRoom: number) => {
     const to = from + Number(card.props?.width)
-    const at = `${String(card.hover?.scope)} ${from}+${String(card.props?.width)} over [${start}, ${end}) in ${room}`
-    expect(`${at} ${from <= Math.max(0, start - 1) && to >= Math.min(end, room) && to <= room}`).toBe(`${at} true`)
-    expect(Number(card.props?.width)).toBeGreaterThanOrEqual(Math.min(cardText(card).length + 4, room))
+    const at = `${String(card.hover?.scope)} ${from}+${String(card.props?.width)} over [${start}, ${end}) in ${sideRoom}`
+    expect(`${at} ${from <= Math.max(0, start - 1) && to >= Math.min(end, sideRoom) && to <= sideRoom}`).toBe(`${at} true`)
+    expect(Number(card.props?.width)).toBeGreaterThanOrEqual(Math.min(cardText(card).length + 4, sideRoom))
   }
   let at = pad
   for (const piece of side('ws:where')) {
     const card = hoverCardOf(strip, String(piece.props?.key))
-    if (card !== undefined) expectAt(card, Number(card.props?.left), at, at + widthOf(piece))
+    if (card !== undefined) expectAt(card, Number(card.props?.left), at, at + widthOf(piece), room - stateEnd - 1)
     at += widthOf(piece)
   }
   let end = pad
@@ -294,7 +304,7 @@ const expectStripCardsAt = (strip: Node | undefined, cols: number) => {
     const card = hoverCardOf(strip, String(piece.props?.key))
     if (card !== undefined) {
       expect(card.props?.left).toBeUndefined()
-      expectAt(card, Number(card.props?.right), end, end + widthOf(piece))
+      expectAt(card, Number(card.props?.right), end, end + widthOf(piece), room - whereEnd - 1)
     }
     end += widthOf(piece)
   }
@@ -306,20 +316,52 @@ test("on the terminal a card on the path's side starts at its piece, and one on 
   engine.root = WORKTREE
   engine.git = { status: DIRTY, dirs: WORKTREE_DIRS }
   await $.session.start(START)
-  const strip = stripOf(await expanded($, clock, 'terminal', 120))
-  expectStripCardsAt(strip, 120)
+  const strip = stripOf(await expanded($, clock, 'terminal', 160))
+  expectStripCardsAt(strip, 160)
   expect(hoverCardOf(strip, 'ws:changes')?.props?.right).toBeGreaterThan(Number(strip?.props?.paddingX))
 })
 
-test("on a narrow terminal a card on the state's side still ends within the strip", async ($, on) => {
+test("on a narrow terminal a card on the state's side stops short of the path, whose own card still counts the changes", async ($, on) => {
   const clock = setup(on, { env: HOME })
   engine.root = WORKTREE
   engine.git = { status: DIRTY, dirs: WORKTREE_DIRS }
   await $.session.start(START)
-  const strip = stripOf(await expanded($, clock, 'terminal', 24))
-  const changes = hoverCardOf(strip, 'ws:changes')
-  expect(cardText(changes).length + 4).toBeGreaterThan(24 - ROW_SLACK - Number(strip?.props?.paddingX))
-  expectStripCardsAt(strip, 24)
+  for (const cols of [24, 40]) {
+    const strip = stripOf(await expanded($, clock, 'terminal', cols))
+    expectStripCardsAt(strip, cols)
+    expect(cardText(hoverCardOf(strip, 'ws:path'))).toMatch(/3 changed/)
+  }
+})
+
+// A long branch and changes on the other side, so a wide card on either side
+// would reach across the fill: at 60 columns the changes card cut the branch.
+const LONG_BRANCH = DIRTY.replace('branch.head main', 'branch.head fix/hover-contrast')
+for (const [surface, glyphs] of [['terminal', 'unicode'], ['terminal', 'ascii'], ['desktop', 'unicode']] as const) {
+  test(`on the ${surface} in ${glyphs}, at every width from 20 to 160, a strip card never reaches the other side's pieces`, LONG, async ($, on) => {
+    const clock = setup(on, { env: { ...HOME, CC_BAND_GLYPHS: glyphs } })
+    engine.root = WORKTREE
+    engine.git = { status: LONG_BRANCH, dirs: WORKTREE_DIRS }
+    await $.session.start(START)
+    for (let cols = 20; cols <= 160; cols++) {
+      const tree = await expanded($, clock, surface, cols)
+      expect(`${cols} ${partCovered(tree, surface, cols).join('; ')}`).toBe(`${cols} `)
+    }
+  })
+}
+
+test('in the footer, in every layout, the strip takes all the room the buttons leave, so its cards have the room they are given', () => {
+  const workspace = { path: '~/workspace/claude-mod', repoName: 'claude-mod', git: { branch: 'main', commit: '1a2b3c4', worktree: undefined, changed: 3, ahead: 2, behind: 1 } }
+  for (const layout of LAYOUT_NAMES) {
+    let footers = 0
+    for (let maxRows = 4; maxRows <= 16; maxRows++) {
+      const actions = byKey(drawBand(fakeEl, snapOf({ layout, expanded: true, maxRows, workspace }), NO_ACT), 'actions', 'Box')
+      const kids = ((actions?.children ?? []) as Node[]).flat().filter(Boolean)
+      if (!kids.some(k => k.props?.key === 'strip')) continue
+      footers++
+      expect(`${layout} ${maxRows} ${kids.filter(k => Number(k.props?.flexGrow) > 0).map(k => k.props?.key)}`).toBe(`${layout} ${maxRows} strip`)
+    }
+    expect(`${layout} ${footers > 0}`).toBe(`${layout} true`)
+  }
 })
 
 test('a footer strip with no room for its cards still draws, and shows no card too narrow to read', async ($, on) => {

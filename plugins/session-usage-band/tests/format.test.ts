@@ -2,7 +2,7 @@
 // resets, projections, ages, clipped names and the context in use.
 
 import { test, expect } from 'claude-code/testing'
-import { clipMiddle, contextUsed, fmtAgo, fmtCost, fmtCountdown, fmtEstimate, fmtEta, fmtPct, fmtSmallCost, fmtTokens, resetIn } from '../hooks/format'
+import { clipMiddle, clipWords, contextUsed, fmtAgo, fmtCost, fmtCountdown, fmtEstimate, fmtEta, fmtPct, fmtSmallCost, fmtTokens, resetIn } from '../hooks/format'
 
 const SEC = 1000
 const MIN = 60 * SEC
@@ -131,6 +131,15 @@ test('an age under a minute is now, then minutes, hours and minutes, days and ho
   expect(fmtAgo(24 * HOUR - 1)).toBe('23h 59m')
   expect(fmtAgo(24 * HOUR)).toBe('1d 0h')
   expect(fmtAgo(52 * HOUR)).toBe('2d 4h')
+})
+
+test('a line too long is cut at its last whole word, with a `.`, within the room', () => {
+  expect(clipWords('$0.41 spent during your last message, subagents included', 50)).toBe('$0.41 spent during your last message, subagents.')
+  expect(clipWords('76k of 200k (38%); older turns get summarized near full', 20)).toBe('76k of 200k (38%).')
+  expect(clipWords('Resets in 3h 00m', 16)).toBe('Resets in 3h 00m')
+  expect(clipWords('Resets in 3h 00m', 13)).toBe('Resets in 3h.')
+  // A first word longer than the room is cut where the room ends.
+  expect(clipWords('uncommitted', 6)).toBe('uncom.')
 })
 
 test('a name that fits is kept whole', () => {

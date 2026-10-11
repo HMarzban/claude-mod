@@ -44,6 +44,8 @@ test('near auto-compaction the context chip turns amber and counts down', async 
   const ctx = await ui.find({ type: 'Text', text: /compacts in ~8\.0k/ })
   expect(ctx).toBeDefined()
   expect(ctx?.props?.color).toBe(DARK.amberFg)
+  // Its card leads with the figure, as every card does.
+  expect(cardText(hoverCardOf(await ui.drawn(), 'ctx'))).toBe('152k of 160k (95%); auto-compacts in ~8.0k')
   await ui.unmount()
 })
 

@@ -73,8 +73,9 @@ export type Measure = Readonly<{ text: number; pxPerCell: number }>
 export const TERMINAL: Measure = { text: 1, pxPerCell: 8 }
 export const DESKTOP: Measure = { text: 0.75, pxPerCell: 10 }
 /** Columns a desktop hover card's text takes a character: about 0.8, as
- *  measured on the desktop (the 57-character 7d card runs about 453px), a
- *  little over the measure's 0.75 so a card never cuts its own words. */
+ *  measured on the desktop on 0.12.0's wording (its 57-character 7d card ran
+ *  about 453px), a little over the measure's 0.75 so a card never cuts its
+ *  own words. */
 export const DESKTOP_CARD_TEXT = 0.8
 
 export const isList = (n: RenderChildren): n is readonly RenderChildren[] => Array.isArray(n)

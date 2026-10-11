@@ -142,17 +142,32 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
   // Each card at its piece: on the path's side from where the piece starts,
   // on the state's ending where it ends. A separator is a Text, not a Box, so
   // no card, and air a card may cover in part. A card covers whole pieces of
-  // its own side: the fill between the sides has no width the band knows.
+  // its own side and stops a column short of the other's: the fill between
+  // the sides has no width the band knows, only that the strip is at least
+  // its room wide.
   const placement = stripPlacement(place, edge)
   const pad = placement.paddingX ?? 0
   const spacing = Svg ? 2 : 0
   const whereLine = joined('where', where)
   const stateLine = joined('state', state)
+  const stateFromRight = [...stateLine].reverse()
+  /** The spans of `line`'s pieces, from its own end of the strip. */
+  const spansFrom = (line: readonly RenderChildren[]): Span[] =>
+    spansOf(line.map(asDrawn), spacing, measure).map(([start, end]): Span => [pad + start, pad + end])
+  const whereSpans = spansFrom(whereLine)
+  const stateSpans = spansFrom(stateFromRight)
+  // Where each side ends, from its own end: the state's side, if it has
+  // anything; the path's side, which shrinks to leave the fill its two
+  // columns before the state's.
+  const stateEnd = stateSpans.at(-1)?.[1]
+  const whereEnd = Math.min(whereSpans.at(-1)?.[1] ?? pad, room - (stateEnd ?? 0) - 2)
+  /** A card's room from its side: up to a column short of where the other
+   *  side ends, if it draws anything. */
+  const shortOf = (otherEnd: number | undefined) => (otherEnd === undefined ? room : room - otherEnd - 1)
   /** The cards of `line`'s pieces, in its order, each placed by `at` from
    *  how far into the strip its piece's first column sits, among the spans
    *  of `pieces`, the line's own less its separators. */
-  const cardsOf = (pieces: readonly RenderChildren[], line: readonly RenderChildren[], at: (from: number, spans: readonly Span[]) => CardPlace) => {
-    const spans = spansOf(line.map(asDrawn), spacing, measure).map(([start, end]): Span => [pad + start, pad + end])
+  const cardsOf = (pieces: readonly RenderChildren[], line: readonly RenderChildren[], spans: readonly Span[], at: (from: number, spans: readonly Span[]) => CardPlace) => {
     const own = new Set(pieces)
     const pieceSpans = spans.filter((_, i) => own.has(line[i]))
     return line.flatMap((piece, i) => {
@@ -162,8 +177,8 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
     })
   }
   const cards = [
-    ...cardsOf(where, whereLine, (left, pieces) => ({ left, room, pieces })),
-    ...cardsOf(state, [...stateLine].reverse(), (right, pieces) => ({ right, room, pieces })).reverse(),
+    ...cardsOf(where, whereLine, whereSpans, (left, pieces) => ({ left, room: shortOf(stateEnd), pieces })),
+    ...cardsOf(state, stateFromRight, stateSpans, (right, pieces) => ({ right, room: shortOf(whereEnd), pieces })).reverse(),
   ]
 
   return (

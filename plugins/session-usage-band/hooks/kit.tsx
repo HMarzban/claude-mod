@@ -3,6 +3,7 @@
 // global h(), so nothing here, or anywhere, is named h.
 
 import type { ElementTable, RenderChildren, RenderElement, TextProps } from 'claude-code'
+import { clipWords } from './format'
 import { asciiText, asciiTree, drawnTier } from './glyphs'
 import { ALT, GLYPH, ICON_PATHS, ICON_PX } from './icons'
 import type { Icon } from './icons'
@@ -109,12 +110,13 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
     if (span.width < (capped ? 5 : 3)) return null
     const shell = { position: 'absolute', top: 0, ...span, display: 'none', hover: { display: 'flex', scope: scopeOf(key) } } as const
     const ground = { backgroundColor: palette.tooltipBg, paddingX: 1 }
-    // The ascii tier knows its room to the cell, so it makes its own cut,
-    // with a `.`: the surface's would end in a two-column `…` (see oneLine).
+    // The ascii tier knows its room to the cell, so it makes its own cut, at
+    // its last whole word with a `.`, as oneLine clips: the surface's would
+    // end in a two-column `…`.
     const room = span.width - (capped ? 4 : 2)
     const words =
       glyphs === 'ascii' ? (
-        <Text color={palette.tooltipFg}>{shown.length > room ? `${shown.slice(0, room - 1)}.` : shown}</Text>
+        <Text color={palette.tooltipFg}>{clipWords(shown, room)}</Text>
       ) : (
         <Text color={palette.tooltipFg} wrap="truncate-end">
           {text}

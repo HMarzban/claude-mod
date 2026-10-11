@@ -145,7 +145,7 @@ test('every pill explains itself on hover, on a card drawn over the row at its p
     expect(cardText(found[0]?.[1])).toBe('1h 00m left; warm cache bills input at 5%, expires 1h after a reply')
     expect(cardText(found[1]?.[1])).toBe('$0.41 spent during your last message, subagents included')
     expect(cardText(found[2]?.[1])).toBe('input 196k · output 12k · cache reads 0')
-    expect(cardText(found[3]?.[1])).toBe('76k of 200k (38%); near full, older turns get summarized')
+    expect(cardText(found[3]?.[1])).toBe('76k of 200k (38%); older turns get summarized near full')
     expect(cardText(found[4]?.[1])).toBe('Resets in 3h 00m; 5-hour limit, all your Claude use')
     expect(cardText(found[5]?.[1])).toBe('Resets in 2d 19h; weekly limit, all your Claude use')
     await ui.unmount()
@@ -267,22 +267,29 @@ test('in the ascii tier a card keeps its width, with a space for each cap, and c
   await ui.unmount()
 })
 
-test('in the ascii tier a card too long for its row is cut by the band, with a `.`, never by the surface', async ($, on) => {
+test('in the ascii tier a card too long for its row is cut by the band at its last whole word, with a `.`, never by the surface', async ($, on) => {
   setup(on, { env: { CC_BAND_GLYPHS: 'ascii', ...HOUR_1 } })
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  const wide = await mountBand($, 'terminal', 200)
+  const whole = new Map(cards(await wide.drawn()).map(([key, card]) => [key, cardText(card)]))
+  await wide.unmount()
   const ui = await mountBand($, 'terminal', 50)
   const found = cards(await ui.drawn())
   expect(found.length).toBeGreaterThan(0)
   let cut = 0
-  for (const [, card] of found) {
+  for (const [key, card] of found) {
     const ground = ((card.children ?? []) as Node[])[1]
     const words = ((ground?.children ?? []) as Node[])[0]
     expect(words?.props?.wrap).toBeUndefined()
     const text = textOf(words)
-    const avail = Number(ground?.props?.width) - 2
-    expect(text.length).toBeLessThanOrEqual(avail)
-    if (text.endsWith('.') && text.length === avail) cut++
+    expect(text.length).toBeLessThanOrEqual(Number(ground?.props?.width) - 2)
+    const full = whole.get(key) ?? ''
+    if (text === full) continue
+    cut++
+    // What it keeps is the card's own words up to a word's end, then `.`.
+    const kept = text.slice(0, -1)
+    expect(`${key} ${text.endsWith('.') && full.startsWith(kept) && /^[\s,;:]/.test(full.slice(kept.length))}`).toBe(`${key} true`)
   }
   expect(cut).toBeGreaterThan(0) // 50 columns cut at least the longest
   await ui.unmount()

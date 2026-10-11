@@ -229,8 +229,8 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
         ],
         hover:
           ctx.compactAt === undefined || toCompact === undefined
-            ? `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.window)} (${ctxPct}); near full, older turns get summarized`
-            : `Full toward auto-compaction at ${fmtTokens(ctx.compactAt)}; ${fmtTokens(toCompact)} to go`,
+            ? `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.window)} (${ctxPct}); older turns get summarized near full`
+            : `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.compactAt)} (${ctxPct}); auto-compacts in ~${fmtTokens(toCompact)}`,
       })
     }
 
@@ -543,6 +543,8 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
           </Box>
         ))}
       </Box>,
+      // A strip in the footer grows into all the room the buttons leave, at
+      // least the room its cards are given; the hint leaves it to air.
       <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>
         {stripPlace === 'footer' ? (
           strip
@@ -552,7 +554,7 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
             <Text color={BARE.label}>Bring it back with /usage-band</Text>
           </Box>
         )}
-        <Box flexGrow={1} />
+        {stripPlace === 'footer' && strip !== null ? null : <Box flexGrow={1} />}
         {buttons}
       </Box>,
     ]
