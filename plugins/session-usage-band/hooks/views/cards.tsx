@@ -182,7 +182,8 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     context: ['context', palette.label],
     limits: ['limits', palette.fiveAccent],
   }
-  /** A headline: bold on its figure alone, its words in label ink. */
+  /** A headline: bold on its figure alone, its words in label ink, an
+   *  amber reading's lead in amber. */
   const headline = (say: Say, tone: Tone) =>
     oneLine(
       {},

@@ -93,7 +93,6 @@ test('every amber phrase says its words in segments too, its figure the one valu
 test('empty states read like the band', () => {
   expect(EMPTY).toEqual({
     costs: "Costs show after Claude's next reply.",
-    costsShort: 'No costs.',
     history: 'History fills in as you use Claude.',
     context: 'not reported',
     limits: 'none reported',

@@ -137,7 +137,7 @@ export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string |
 
 /** The cache as a pill for a new view (pulse, week): chips' battery and
  *  ground, the readings' words, and no hover card; amber, its reason. */
-export const layoutCachePill = (kit: Kit, read: Readings, short: boolean): RenderElement => {
+export const layoutCacheSpec = (kit: Kit, read: Readings, short: boolean): PillSpec => {
   const { Text, Svg, palette, onTone } = kit
   const c = read.cache
   const text = c.amber !== undefined ? (short ? c.amber.short : c.amber.long) : short ? c.textShort : c.text
@@ -148,8 +148,11 @@ export const layoutCachePill = (kit: Kit, read: Readings, short: boolean): Rende
     : palette.filled
       ? textBattery(kit, c.charge, c.tone, read.frame.glyphs === 'ascii' ? asciiText(text) : text)
       : [<Text key="c" color={fg}>{text}</Text>]
-  return pill(kit, { key: 'cache', tone: c.tone, body, paintsOwnBg: !Svg && palette.filled })
+  return { key: 'cache', tone: c.tone, body, paintsOwnBg: !Svg && palette.filled }
 }
+
+/** The same, drawn. */
+export const layoutCachePill = (kit: Kit, read: Readings, short: boolean): RenderElement => pill(kit, layoutCacheSpec(kit, read, short))
 
 // ---- what every new view draws its lines and sections with ------------------
 

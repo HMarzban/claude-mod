@@ -220,25 +220,22 @@ test('the workspace is a sentence', () => {
 test('the history speaks its numbers and its trend', () => {
   const history = { costs: [{ usd: 0.2, reWarm: false }, { usd: 0.2, reWarm: false }, { usd: 0.84, reWarm: true }], context: [], fiveHour: [] }
   const hist = readingsOf(snapOf({ history })).history
-  expect(hist.numbersText).toBe('last $0.84 · avg $0.20 · max $0.84 re-warm')
   expect(hist.numbersShort).toBe('last $0.84')
-  expect(hist.costsAlt).toBe('cost of the last 3 messages, rising, the newest a re-warm')
-  expect(hist.costsAltOf(2)).toBe('cost of the last 2 messages, rising, the newest a re-warm')
-  expect(hist.costsAltOf(1)).toBe('cost of the last message, rising, the newest a re-warm')
+  expect(hist.warmAvgUsd).toBe(0.2)
+  expect(hist.costsAlt).toBe('cost of the last 3 messages, rising, average $0.20, max $0.84 re-warm, the newest a re-warm')
+  expect(hist.costsAltOf(2)).toBe('cost of the last 2 messages, rising, average $0.20, max $0.84 re-warm, the newest a re-warm')
+  // A re-warm alone has no warm average.
+  expect(hist.costsAltOf(1)).toBe('cost of the last message, rising, max $0.84 re-warm, the newest a re-warm')
   expect(hist.costsAltOf(14)).toBe(hist.costsAlt)
   expect([hist.empty, readingsOf(snapOf()).history.empty]).toEqual([false, true])
 })
-test('the 5h trail is drawn and spoken over the last hour, and since the window started', () => {
-  // The window resets at 3h, so it started 2h before now; the first point is the window before.
+test('the 5h trail is drawn and spoken over the last hour', () => {
   const fiveHour = [{ at: -3 * HOUR, pct: 80 }, { at: -90 * MIN, pct: 1 }, { at: -30 * MIN, pct: 3 }, { at: 0, pct: 4 }]
   const hist = readingsOf(snapOf({ history: { costs: [], context: [], fiveHour } })).history
-  expect([hist.fiveHourValues, hist.fiveHourHour, hist.fiveHourWindow]).toEqual([[80, 1, 3, 4], [3, 4], [1, 3, 4]])
-  expect([hist.trailAlt, hist.fiveHourWindowAlt]).toEqual(['5h usage over the last hour, steady', '5h usage this window, rising'])
-  const filling = readingsOf(snapOf({ history: { costs: [], context: [], fiveHour }, fiveHour: { percentUsed: 84, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 40 * MIN } })).history
-  expect(filling.fiveHourWindowAlt).toBe('5h usage this window, rising, full in about 40 minutes')
-  // With no window known, there is nothing since its start to draw.
-  const unknown = readingsOf(snapOf({ history: { costs: [], context: [], fiveHour }, fiveHour: undefined })).history
-  expect(unknown.fiveHourWindow).toEqual([])
+  expect([hist.fiveHourValues, hist.fiveHourHour]).toEqual([[80, 1, 3, 4], [3, 4]])
+  expect(hist.trailAlt).toBe('5h usage over the last hour, steady')
+  const filling = readingsOf(snapOf({ history: { costs: [], context: [], fiveHour: fiveHour.map(p => ({ ...p, pct: p.pct * 10 })) }, fiveHour: { percentUsed: 84, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 40 * MIN } })).history
+  expect(filling.trailAlt).toBe('5h usage over the last hour, rising, full in about 40 minutes')
 })
 test('the context trail is spoken with where it compacts, when compaction is on', () => {
   const history = { costs: [], context: [60_000, 50_000, 76_000], fiveHour: [] }
@@ -265,6 +262,8 @@ test('the week names its cells in words, for a reader and a summary', () => {
   expect(wk.empty).toBe(false)
   expect(wk.daysAlt).toMatch(/^weekly limit by day: \w+day 6%, \w+day 9%/)
   expect(wk.daysAlt).toMatch(/Monday about \d+%/)
+  // The measured days alone, with no guess among them.
+  expect(wk.measuredAlt).toMatch(/^weekly limit by day, measured: \w+day 6%, \w+day 9%, \w+day 11%, \w+day 4%$/)
   expect(wk.hoursAlt).toMatch(/^5-hour limit by hour: \d{2}:00 4%, \d{2}:00 8%, \d{2}:00 about \d+%/)
   expect(`${wk.daysAlt} ${wk.hoursAlt}`).not.toMatch(/[~↻]/)
   // Days 6, 9, 11 and 4: the third, a Saturday from the epoch's Thursday, is the busiest.

@@ -22,9 +22,10 @@ import {
 } from './format'
 import type { ResetIn } from './format'
 import { drawnTier } from './glyphs'
+import { warmAverageOf } from './insights'
 import type { Trails } from './insights'
 import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
-import { cacheWords, contextWords, historyWords, lastHourOf, limitWords, spendWords, thisWindowOf, weekWords, workspaceWords } from './words'
+import { cacheWords, contextWords, historyWords, lastHourOf, limitWords, spendWords, weekWords, workspaceWords } from './words'
 import type { CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
 
 export type Tone = 'calm' | 'amber'
@@ -265,12 +266,12 @@ export type HistoryReading = Trails &
     costValues: readonly number[]
     /** Which of them were re-warms. */
     reWarms: readonly boolean[]
+    /** Their mean, re-warms left out: what a chart scales and rules its bars by. */
+    warmAvgUsd: number | undefined
     /** The 5h trail's percentages. */
     fiveHourValues: readonly number[]
     /** The same over the last hour. */
     fiveHourHour: readonly number[]
-    /** The same since the 5h window started; none while no window is known. */
-    fiveHourWindow: readonly number[]
   }>
 
 export type { DayCell, HourCell } from './calendar'
@@ -398,9 +399,9 @@ export const historyFacts = (trails: Trails, fiveHour: LimitView | undefined, co
   empty: trails.costs.length === 0,
   costValues: trails.costs.map(e => e.usd),
   reWarms: trails.costs.map(e => e.reWarm),
+  warmAvgUsd: warmAverageOf(trails.costs),
   fiveHourValues: trails.fiveHour.map(p => p.pct),
   fiveHourHour: lastHourOf(trails.fiveHour, now).map(p => p.pct),
-  fiveHourWindow: thisWindowOf(trails.fiveHour, fiveHour, now).map(p => p.pct),
 })
 
 /** A window as the calendar reads it: its reset and a measured fill as times. */

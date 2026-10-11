@@ -4,7 +4,7 @@
 // own; they draw from the snapshot itself (`read.chips.raw`), as they did in
 // band.tsx.
 
-import type { RenderElement } from 'claude-code'
+import type { RenderChildren, RenderElement } from 'claude-code'
 import { meter } from '../charts'
 import { fmtCost, fmtEta, fmtSmallCost, fmtTokens, severityMark } from '../format'
 import { asciiText } from '../glyphs'
@@ -161,8 +161,8 @@ export const contextPill = (kit: Kit, read: Readings, squeeze: number): PillSpec
 /** A limit chip: its usage on a bar and the reset; a pace that fills it
  *  early speaks in words. A window whose reset has passed shows as reset:
  *  its last reading is from before it. Undefined while the engine reports
- *  no such window. */
-export const limitPill = (kit: Kit, read: Readings, key: ChipKey, squeeze: number, short: boolean): PillSpec | undefined => {
+ *  no such window. A layout's `mark`, such as a trail, takes the bar's place. */
+export const limitPill = (kit: Kit, read: Readings, key: ChipKey, squeeze: number, short: boolean, mark?: RenderChildren): PillSpec | undefined => {
   const { Text, palette, onTone, gap, icon } = kit
   const w = key === '5h' ? read.fiveHour : read.sevenDay
   if (w === undefined) return undefined
@@ -181,7 +181,7 @@ export const limitPill = (kit: Kit, read: Readings, key: ChipKey, squeeze: numbe
   const pace = w.etaMs === null ? '' : short ? ` ${fmtEta(w.etaMs)}` : ` ${paceText(w)}`
   const fg = onTone(tone, tint.fg)
   const accent = onTone(tone, tint.accent)
-  const bar = keeps(squeeze, 'limitBars') ? [gap('g-bar'), meter(kit, { label: key, frac, tone, accent: tint.accent })] : []
+  const bar = keeps(squeeze, 'limitBars') ? [gap('g-bar'), mark ?? meter(kit, { label: key, frac, tone, accent: tint.accent })] : []
   // The reset is a qualifier: in label ink, its figure the usage before it.
   const resetInk = onTone(tone, palette.label)
   const reset =

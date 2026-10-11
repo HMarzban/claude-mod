@@ -23,7 +23,7 @@ for (const [name, el] of [
   ['ring', ring(desk, { key: 'r', alt: '7d limit 66 percent used', frac: 0.66, color: '#a99cf0', px: 16, notch: 0.4, projectTo: 1 })],
   ['sparkline', sparkline(desk, { key: 's', alt: '5h usage over the last hour', values: [1, 2, 3], color: '#7fcf8a', px: 90, height: 36, projectTo: 1 })],
   ['sparkline with a level', sparkline(desk, { key: 's', alt: 'context over the conversation', values: [50, 120], color: '#b8b8c2', px: 90, height: 36, max: 200, level: 0.95 })],
-  ['barChart', barChart(desk, { key: 'b', alt: 'cost of the last 3 messages', values: [1, 2, 9], marked: [false, false, true], color: '#888888', markColor: '#eeeeee', newestColor: '#ececf2', px: 18, height: 36 })],
+  ['barChart', barChart(desk, { key: 'b', alt: 'cost of the last 3 messages', values: [1, 2, 9], marked: [false, false, true], color: '#888888', markColor: '#eeeeee', px: 18, height: 36 })],
   ['dayCells', dayCells(desk, { key: 'd', alt: 'weekly limit by day', values: [6, 9, 11, 4, 7, 7, 7], guess: [false, false, false, false, true, true, true], today: 3, color: '#a99cf0', cellPx: 16, height: 16, labels: ['T', 'W', 'T', 'F', 'S', 'S', 'M'] })],
   ['meter with a tick and a projection', meter(desk, { key: 'm', label: '5h', frac: 0.04, tone: 'calm', accent: '#7fcf8a', tick: 0.4, projectTo: 0.1 })],
 ] as const) {
@@ -96,21 +96,40 @@ test("the text meter's tick and projection take a cell each, never widening it",
 test('each bar starts where the bars before it end, so barsWidth holds them all', () => {
   const values = [1, 2, 9]
   const source = svg(barChart(desk, { key: 'b', alt: 'cost', values, marked: [false, false, false], color: '#888888', markColor: '#eeeeee', px: barsWidth(values.length), height: 36 })).props.source
-  const bars = [...source.matchAll(/<rect x="(\d+)" [^>]*width="(\d+)"/g)].map(m => ({ x: Number(m[1]), width: Number(m[2]) }))
+  const bars = [...source.matchAll(/<rect class="bar" x="(\d+)" [^>]*width="(\d+)"/g)].map(m => ({ x: Number(m[1]), width: Number(m[2]) }))
   expect(bars.map(b => b.x)).toEqual(values.map((_, i) => barsWidth(i)))
   const last = bars.at(-1)
   expect((last?.x ?? 0) + (last?.width ?? 0)).toBeLessThan(barsWidth(values.length))
 })
-test('in text, a ring is its glyph to the nearest quarter, a line or bar chart is braille, and an underline is nothing', () => {
+test('in text, a ring is its glyph to the nearest quarter, a line or bar chart is braille on its floor', () => {
   expect([0, 0.1, 0.3, 0.5, 0.66, 0.9, 1].map(frac => textOf(ring(term, { key: 'r', alt: 'cache', frac, color: '#7fcf8a', px: 16 })))).toEqual(['○', '○', '◔', '◑', '◕', '●', '●'])
-  expect(textOf(sparkline(term, { key: 's', alt: '5h', values: [0, 4, 2, 4], color: '#7fcf8a', px: 90, height: 36 }))).toBe(braille([0, 4, 2, 4], 4))
+  expect(textOf(sparkline(term, { key: 's', alt: '5h', values: [0, 4, 2, 4], color: '#7fcf8a', px: 90, height: 36 }))).toBe(braille([1, 4, 2, 4], 4))
   expect(textOf(barChart(term, { key: 'b', alt: 'cost', values: [1, 2], marked: [false, true], color: '#888888', markColor: '#eeeeee', px: 12, height: 36 }))).toBe(braille([1, 2], 2))
 })
-test("a sparkline's max sets the top of its scale, which its projection shares", () => {
+test("a sparkline's max sets the top of its scale, which its projection shares, and it ends bare", () => {
   const source = svg(sparkline(desk, { key: 's', alt: '5h', values: [20, 50], color: '#7fcf8a', px: 90, height: 36, max: 100, projectTo: 1 })).props.source
-  expect(Number(/<circle [^>]*cy="([^"]+)"/.exec(source)?.[1])).toBe(18)
+  expect(/<polyline points="[^"]*,([\d.]+)"/.exec(source)?.[1]).toBe('18')
   expect(Number(/<line [^>]*y2="([^"]+)"/.exec(source)?.[1])).toBe(2)
-  expect(textOf(sparkline(term, { key: 's', alt: '5h', values: [20, 50], color: '#7fcf8a', px: 90, height: 36, max: 100 }))).toBe(braille([20, 50], 100))
+  expect(source).not.toMatch(/<circle/)
+  expect(textOf(sparkline(term, { key: 's', alt: '5h', values: [20, 50], color: '#7fcf8a', px: 90, height: 36, max: 100 }))).toBe(braille([20, 50], 100, 1))
+})
+test('a stretched chart spans its slot: no width of its own, its marks scaled to the slot', () => {
+  for (const el of [
+    sparkline(desk, { key: 's', alt: 'context', values: [50, 120], color: '#b8b8c2', px: 90, height: 16, stretch: true }),
+    barChart(desk, { key: 'b', alt: 'cost', values: [1, 2], marked: [false, false], color: '#888888', markColor: '#eeeeee', px: 12, height: 16, stretch: true }),
+  ]) {
+    const n = svg(el)
+    expect(n.props.width).toBeUndefined()
+    expect(n.props.source).toMatch(/preserveAspectRatio="none"/)
+    expect(n.props.source).toMatch(/vector-effect="non-scaling-stroke"|<rect class="bar"/)
+  }
+})
+test("a bar chart's max clips a taller bar to the top, a marked one capped; its level is a rule", () => {
+  const source = svg(barChart(desk, { key: 'b', alt: 'cost', values: [1, 9], marked: [false, true], color: '#888888', markColor: '#eeeeee', px: 12, height: 16, max: 3, level: 1 })).props.source
+  // 13 px of room under the cap's: a third of it, then all of it.
+  expect([...source.matchAll(/<rect class="bar" [^>]*height="(\d+)"/g)].map(m => Number(m[1]))).toEqual([4, 13])
+  expect(source).toMatch(/<rect class="cap" [^>]*y="0"/)
+  expect(source).toMatch(/<line class="level" [^>]*y1="12"/)
 })
 test("a sparkline's level is a solid rule across it, beneath the line, on its scale", () => {
   const source = svg(sparkline(desk, { key: 's', alt: 'context', values: [50, 120], color: '#b8b8c2', px: 90, height: 36, max: 200, level: 0.95 })).props.source
