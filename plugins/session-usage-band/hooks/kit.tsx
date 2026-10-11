@@ -135,8 +135,9 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
   }
 
   /** A column of air. The desktop drops a string child that is only spaces,
-   *  so there the gap is an empty Box; a text surface keeps its space. */
-  const gap = (key: string): RenderChildren => (Svg ? <Box key={key} width={1} flexShrink={0} /> : ' ')
+   *  plain or not, so there the gap is an empty Box; a text surface keeps
+   *  its space. */
+  const gap = (key: string): RenderChildren => (snap.surface === 'desktop' ? <Box key={key} width={1} flexShrink={0} /> : ' ')
 
   /** An icon and the gap after it: an Svg on desktop, a glyph elsewhere. */
   const icon = (name: Icon, color: string, alt: string = ALT[name]): RenderChildren[] => {

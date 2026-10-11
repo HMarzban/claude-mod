@@ -137,9 +137,6 @@ export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string |
 
 /** The cache as a pill for a new view (pulse, week): chips' battery and
  *  ground, the readings' words, and no hover card; amber, its reason. */
-export const layoutCachePill = (kit: Kit, read: Readings, short: boolean): RenderElement => pill(kit, layoutCacheSpec(kit, read, short))
-
-/** The same pill's spec, for a view that lays chips' pills in a row. */
 export const layoutCacheSpec = (kit: Kit, read: Readings, short: boolean): PillSpec => {
   const { Text, Svg, palette, onTone } = kit
   const c = read.cache
@@ -154,6 +151,9 @@ export const layoutCacheSpec = (kit: Kit, read: Readings, short: boolean): PillS
   return { key: 'cache', tone: c.tone, body, paintsOwnBg: !Svg && palette.filled }
 }
 
+/** The same, drawn. */
+export const layoutCachePill = (kit: Kit, read: Readings, short: boolean): RenderElement => pill(kit, layoutCacheSpec(kit, read, short))
+
 // ---- what every new view draws its lines and sections with ------------------
 
 /** What a line's build may ask at its squeeze. */
@@ -162,12 +162,12 @@ export type Keeps<P extends string> = Readonly<{
   has: (p: P) => boolean
   /** Whether a piece of this tone is kept: an amber one always is. */
   calm: (p: P, tone: Tone) => boolean
-  /** An amber reading's words: long until the last step, then short. */
+  /** An amber reading's words: long until the amber step, then short. */
   amber: (a: Amber) => string
 }>
 
-/** The step `fitLine` appends to every order: amber turns short. */
-const AMBER_STEP = 'amberShort'
+/** The step `fitLine` appends to every order that doesn't name it: amber turns short. */
+export const AMBER_STEP = 'amberShort'
 /** Asks a `Keeps` which of an amber reading's forms it would pick. */
 const AMBER_PROBE: Amber = { long: 'long', short: 'short' }
 
@@ -192,15 +192,16 @@ export const line = (kit: Kit, key: string, pieces: readonly RenderChildren[], e
 }
 
 /** A line squeezed by its give-way order: the smallest squeeze at which it
- *  fits, and what that squeeze keeps. The amber step is always last, so
- *  amber shortens only once every calm piece has gone. */
+ *  fits, and what that squeeze keeps. The amber step is last unless the
+ *  order names it, so amber shortens only once every calm piece before it
+ *  has gone. */
 export const fitLineKeeps = <P extends string>(
   kit: Kit,
   order: readonly P[],
   room: number,
   build: (keeps: Keeps<P>) => RenderElement,
 ): Readonly<{ line: RenderElement; keeps: Keeps<P> }> => {
-  const steps: ReadonlyArray<P | typeof AMBER_STEP> = [...order, AMBER_STEP]
+  const steps: ReadonlyArray<P | typeof AMBER_STEP> = order.includes(AMBER_STEP as P) ? order : [...order, AMBER_STEP]
   const at = keepsIn(steps)
   const keepsAt = (squeeze: number): Keeps<P> => ({
     has: p => at(squeeze, p),
@@ -315,12 +316,6 @@ const GRID_GAP = 2
  *  keep a row under their titles (5 rows, with the row of air); else two. */
 const perLineOf = (kit: Kit, bodyRows: number, count: number): number =>
   kit.columns >= 100 || bodyRows < 5 ? count : Math.min(2, count)
-
-/** Cells each section has across its line, `GRID_GAP` apart. */
-export const sectionCells = (kit: Kit, bodyRows: number, count = 4): number => {
-  const perLine = perLineOf(kit, bodyRows, count)
-  return Math.floor((lineRoom(kit) - GRID_GAP * (perLine - 1)) / perLine)
-}
 
 /** Rows each section holds under its title, with a row of air between lines. */
 export const gridRoom = (kit: Kit, bodyRows: number, count = 4): number => {

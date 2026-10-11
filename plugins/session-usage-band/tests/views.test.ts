@@ -59,9 +59,8 @@ test('every layout\'s toggle points the way the band will move: up while shut, d
       }
 })
 test('every new view draws its empty states in a label\'s ink', () => {
-  // At 40 columns pulse's desktop says its short costs. Chips, departures
-  // and the layouts on its cards (week, rings, ledger, tiles, forecast) say none:
-  // a card with nothing known is left out.
+  // Chips, departures and the layouts on its cards (week, rings, ledger,
+  // tiles, forecast) say none: a card with nothing known is left out.
   const onCards: ReadonlySet<string> = new Set(['chips', 'departures', 'week', 'rings', 'ledger', 'tiles', 'forecast'])
   const layouts = LAYOUT_NAMES.filter(name => !onCards.has(name))
   const phrases = Object.values(EMPTY)

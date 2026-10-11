@@ -87,7 +87,7 @@ test('six hours, a thousand turns, three clears: writes, size and trees stay bou
   expect(after.text).toBeLessThanOrEqual(1.05 * before.text)
   expect(after.source).toBeLessThanOrEqual(1.05 * before.source)
   // The measures fed the 5h trail the whole way.
-  expect(after.alts.some(alt => alt.startsWith('5h usage this window'))).toBe(true)
+  expect(after.alts.some(alt => alt.startsWith('5h usage over the last hour'))).toBe(true)
 })
 
 test('a calm ten-minute walk repaints once a minute, not once a second', LONG, async ($, on) => {

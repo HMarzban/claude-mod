@@ -147,10 +147,10 @@ amber at once, the end of the row is clipped rather than wrapped.
 
 Chips is one of nine layouts. The other eight show the same readings in
 another shape, on a filled panel (bare in `plain`), and each opens with `▵`
-to its own view of every fact, or as ledger does, to chips' cards, under
-the workspace line and the same `Collapse` and `Hide band` buttons. Every
-layout draws the workspace line as chips does, and turns amber at the same
-moments, by the same rules, but for departures' last call, ten minutes
+to its own view of every fact, or as ledger and pulse do, to chips' cards,
+under the workspace line and the same `Collapse` and `Hide band` buttons.
+Every layout draws the workspace line as chips does, and turns amber at the
+same moments, by the same rules, but for departures' last call, ten minutes
 before an hour's cache goes cold or a limit fills. Only chips has hover
 cards on its readings; the workspace line has them wherever it is drawn as
 chips draws it.
@@ -166,7 +166,7 @@ chips draws it.
 | `gauges` | Four bars on one scale in a 2×2 grid: the cache's time left as a battery, context up to compaction, and the 5h and 7d limits notched where each window's time has gone | 2 / 2 |
 | `ledger` | The band in plain words: one sentence, each reading named and `│`-separated, with `! ` leading what needs you; it opens into chips' cards | 1 / 1 |
 | `rings` | A ring per reading, its value over its label, with a dot on each limit for how much of the window has gone; the terminal draws a bar | 2 / 1 |
-| `pulse` | Trends rather than totals: each message's cost as bars, and which way the 5-hour limit is heading | 2 / 1 |
+| `pulse` | Is my spending speeding up? Chips' pills with each message's cost and the last hour of the 5h limit drawn inside them; it opens into chips' cards, their heads carrying the history | 1 / 1 |
 | `tiles` | Every reading side by side in equal tiles, figure first, with a bar or the cache's battery where there's a cap | 1 / 1 |
 | `week` | How your week looks: the weekly limit as seven day cells in its pill, solid where measured and dashed where guessed, a notch in today and the day the guess fills it; open, the 5-hour limit by the hour | 1 / 1 |
 | `departures` | Every reading as a countdown in chips' pills, soonest first: the cache, the 5h and 7d resets or when they fill, the messages to compaction, then the spend. Under 10 minutes from cold or full, the cache's or a limit's is its `! last call` | 1 / 1 |

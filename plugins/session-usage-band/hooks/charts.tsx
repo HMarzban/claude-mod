@@ -31,11 +31,12 @@ const svgOf = (width: number, height: number, marks: string, attrs = ''): string
 
 /** Values as braille, two to a cell: the left column takes dots 7,3,2,1 from
  *  the bottom, the right 8,6,5,4. East-Asian-Neutral, so one column wide
- *  everywhere, as btop and termui draw their graphs. */
+ *  everywhere, as btop and termui draw their graphs. A value draws at least
+ *  `floor` dots, so a chart's line or bars never vanish at the bottom. */
 const LEFT = [0x40, 0x04, 0x02, 0x01] as const
 const RIGHT = [0x80, 0x20, 0x10, 0x08] as const
-export const braille = (values: readonly number[], max: number): string => {
-  const level = (v: number | undefined) => (v === undefined || max <= 0 ? 0 : Math.max(0, Math.min(4, Math.round((v / max) * 4))))
+export const braille = (values: readonly number[], max: number, floor = 0): string => {
+  const level = (v: number | undefined) => (v === undefined || max <= 0 ? 0 : Math.max(floor, Math.min(4, Math.round((v / max) * 4))))
   let out = ''
   for (let i = 0; i < values.length; i += 2) {
     let bits = 0
@@ -46,10 +47,19 @@ export const braille = (values: readonly number[], max: number): string => {
   return out
 }
 
-/** A line or bar chart in text: braille against the top of its scale, by
- *  default its largest value. It never wraps: a row too narrow cuts it. */
+/** A line chart in text: braille against the top of its scale, by default
+ *  its largest value, on its floor. It never wraps: a row too narrow cuts it. */
 const brailleText = (kit: Kit, key: string, values: readonly number[], color: string, top = topOf(values)): RenderChildren =>
-  kit.oneLine({ key, color }, braille(values, top))
+  kit.oneLine({ key, color }, braille(values, top, 1))
+
+/** The root of a chart that spans its slot: as wide as the band, so the slot
+ *  caps it, its marks drawn to `width` and stretched to the slot. */
+const stretchedOf = (kit: Kit, width: number, height: number, marks: string): string =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${kit.columns * kit.measure.pxPerCell}" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">${marks}</svg>`
+
+/** A chart's ground: the track a meter runs on, behind the marks. */
+const trackOf = (kit: Kit, width: number, height: number): string =>
+  `<rect class="track" width="${width}" height="${height}" rx="3" fill="${kit.palette.meterTrack}" opacity="0.5"/>`
 
 // ---- meter ----------------------------------------------------------------
 
@@ -295,12 +305,19 @@ export type SparklineOptions = Readonly<{
   /** The most cells the text form takes: a longer trail is drawn at the
    *  highest of each run of points, so the whole of it shows in the room. */
   cells?: number
+  /** On a track, as a pill's chart is; `area` shades beneath the line too. */
+  track?: boolean
+  area?: boolean
+  /** Spanning its slot, as a card head's lens does, rather than `px` wide. */
+  stretch?: boolean
 }>
 
-/** The newest point's dot radius, and the air it keeps from the edges. */
-const SPARK_DOT = 2
+/** The air a line keeps from the chart's edges. */
+const SPARK_AIR = 2
 /** The width a projection takes beyond the newest point. */
 const SPARK_AHEAD = 20
+/** A stretched chart's lines keep their stroke at any scale. */
+const KEEP_STROKE = ' vector-effect="non-scaling-stroke"'
 
 /** `values` cut into at most `count` runs, each drawn at its highest. */
 const peaksOf = (values: readonly number[], count: number): number[] =>
@@ -308,30 +325,33 @@ const peaksOf = (values: readonly number[], count: number): number[] =>
     ? [...values]
     : Array.from({ length: count }, (_, i) => Math.max(...values.slice(Math.floor((i * values.length) / count), Math.floor(((i + 1) * values.length) / count))))
 
-/** A line over time, its newest point a dot. Text draws it in braille. */
+/** A line over time, ending bare at its newest point. Text draws it in braille. */
 export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   const { Svg, palette } = kit
-  const { key, alt, values, color, px, height, max, projectTo, level, cells } = o
+  const { key, alt, values, color, px, height, max, projectTo, level, cells, track = false, area = false, stretch = false } = o
   const top = max ?? topOf(values)
   if (!Svg) return brailleText(kit, key, cells === undefined ? values : peaksOf(values, 2 * cells), color, top)
-  const end = px - SPARK_DOT - (projectTo === undefined ? 0 : SPARK_AHEAD)
-  const x = (i: number) => (values.length <= 1 ? end : tenth(SPARK_DOT + (i * (end - SPARK_DOT)) / (values.length - 1)))
-  const y = (frac: number) => tenth(height - SPARK_DOT - clamp01(frac) * (height - 2 * SPARK_DOT))
+  const end = px - SPARK_AIR - (projectTo === undefined ? 0 : SPARK_AHEAD)
+  const x = (i: number) => (values.length <= 1 ? end : tenth(SPARK_AIR + (i * (end - SPARK_AIR)) / (values.length - 1)))
+  const y = (frac: number) => tenth(height - SPARK_AIR - clamp01(frac) * (height - 2 * SPARK_AIR))
   const points = values.map((v, i) => [x(i), y(top > 0 ? v / top : 0)] as const)
-  const newest = points.at(-1)
+  const line = points.map(p => p.join(',')).join(' ')
+  const keep = stretch ? KEEP_STROKE : ''
   // Beneath the line, so the line reads over it.
-  let marks = level === undefined ? '' : `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.trackStroke}" stroke-width="1"/>`
-  if (points.length > 1) {
-    marks += `<polyline points="${points.map(p => p.join(',')).join(' ')}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`
-  }
-  if (newest !== undefined) {
+  let marks = track ? trackOf(kit, px, height) : ''
+  if (area && points.length > 1) marks += `<polygon class="area" points="${points[0]?.[0]},${height} ${line} ${points.at(-1)?.[0]},${height}" fill="${color}" opacity="0.16"/>`
+  if (level !== undefined) marks += `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.trackStroke}" stroke-width="1"${keep}/>`
+  if (points.length > 1) marks += `<polyline points="${line}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"${keep}/>`
+  const newest = points.at(-1)
+  if (newest !== undefined && projectTo !== undefined) {
     const [nx, ny] = newest
-    if (projectTo !== undefined) {
-      marks += `<line x1="${nx}" y1="${ny}" x2="${px - SPARK_DOT}" y2="${y(projectTo)}" stroke="${color}" stroke-width="1.6" stroke-linecap="round" ${PROJECTION_DASH}/>`
-    }
-    marks += `<circle cx="${nx}" cy="${ny}" r="${SPARK_DOT}" fill="${color}"/>`
+    marks += `<line x1="${nx}" y1="${ny}" x2="${px - SPARK_AIR}" y2="${y(projectTo)}" stroke="${color}" stroke-width="1.6" stroke-linecap="round" ${PROJECTION_DASH}${keep}/>`
   }
-  return <Svg key={key} source={svgOf(px, height, marks)} alt={alt} width={px} height={height} />
+  return stretch ? (
+    <Svg key={key} source={stretchedOf(kit, px, height, marks)} alt={alt} height={height} />
+  ) : (
+    <Svg key={key} source={svgOf(px, height, marks)} alt={alt} width={px} height={height} />
+  )
 }
 
 // ---- bar chart ------------------------------------------------------------
@@ -344,9 +364,17 @@ export type BarChartOptions = Readonly<{
   marked: readonly boolean[]
   color: string
   markColor: string
-  newestColor?: string
   px: number
   height: number
+  /** The top of the scale, by default the largest value: a bar past it
+   *  stands full, so one tall bar can't flatten the rest. */
+  max?: number
+  /** A value the bars are read against, such as their average: a rule across. */
+  level?: number
+  /** On a track, as a pill's chart is. */
+  track?: boolean
+  /** Spanning its slot, as a card head's lens does, rather than `px` wide. */
+  stretch?: boolean
 }>
 
 const BAR_PX = 4
@@ -358,23 +386,49 @@ const CAP_ROOM = CAP_PX + 1
 /** The px `count` bars take, each with the air after it: a bar chart's `px`. */
 export const barsWidth = (count: number): number => count * (BAR_PX + BAR_GAP)
 
-/** A bar per value, oldest first. Text draws them in braille. */
+/** A bar per value, oldest first. Text draws them in braille, two to a cell,
+ *  a cell holding a marked bar in the mark's colour. */
 export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
-  const { Svg } = kit
-  const { key, alt, values, marked, color, markColor, newestColor, px, height } = o
-  if (!Svg) return brailleText(kit, key, values, color)
-  const top = topOf(values)
+  const { Svg, Text, palette } = kit
+  const { key, alt, values, marked, color, markColor, px, height, max, level, track = false, stretch = false } = o
+  const top = max ?? topOf(values)
+  if (!Svg) {
+    // Neighbouring cells in one colour share a Text.
+    const runs: Array<{ text: string; color: string }> = []
+    for (let i = 0; i < values.length; i += 2) {
+      const ink = marked[i] === true || marked[i + 1] === true ? markColor : color
+      const cell = braille(values.slice(i, i + 2), top, 1)
+      const last = runs.at(-1)
+      if (last?.color === ink) last.text += cell
+      else runs.push({ text: cell, color: ink })
+    }
+    return (
+      <Text key={key} color={color}>
+        {runs.map((run, i) => (
+          <Text key={`run-${i}`} color={run.color}>
+            {run.text}
+          </Text>
+        ))}
+      </Text>
+    )
+  }
   const room = height - CAP_ROOM
+  const y = (v: number) => height - (top > 0 ? Math.max(1, Math.round(Math.min(1, v / top) * room)) : 1)
   const marks = values.map((v, i) => {
-    const tall = top > 0 ? Math.max(1, Math.round((v / top) * room)) : 1
     const x = barsWidth(i)
-    const y = height - tall
+    const barTop = y(v)
     const isMarked = marked[i] === true
-    const ink = isMarked ? markColor : i === values.length - 1 && newestColor !== undefined ? newestColor : color
-    const bar = `<rect x="${x}" y="${y}" width="${BAR_PX}" height="${tall}" rx="1" fill="${ink}"/>`
-    return isMarked ? `${bar}<rect class="cap" x="${x}" y="${y - CAP_ROOM}" width="${BAR_PX}" height="${CAP_PX}" rx="1" fill="${markColor}"/>` : bar
+    const bar = `<rect class="bar" x="${x}" y="${barTop}" width="${BAR_PX}" height="${height - barTop}" rx="1" fill="${isMarked ? markColor : color}"/>`
+    return isMarked ? `${bar}<rect class="cap" x="${x}" y="${barTop - CAP_ROOM}" width="${BAR_PX}" height="${CAP_PX}" rx="1" fill="${markColor}"/>` : bar
   })
-  return <Svg key={key} source={svgOf(px, height, marks.join(''))} alt={alt} width={px} height={height} />
+  const rule =
+    level === undefined ? '' : `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1"${stretch ? KEEP_STROKE : ''}/>`
+  const drawn = (track ? trackOf(kit, px, height) : '') + marks.join('') + rule
+  return stretch ? (
+    <Svg key={key} source={stretchedOf(kit, px, height, drawn)} alt={alt} height={height} />
+  ) : (
+    <Svg key={key} source={svgOf(px, height, drawn)} alt={alt} width={px} height={height} />
+  )
 }
 
 // ---- day cells ------------------------------------------------------------
@@ -386,7 +440,8 @@ export type DayCellsOptions = Readonly<{
   values: ReadonlyArray<number | undefined>
   /** Cells whose value is a guess, as a day to come is. */
   guess?: readonly boolean[]
-  today: number
+  /** The cell outlined as now; none when absent. */
+  today?: number
   color: string
   cellPx: number
   height: number
@@ -407,14 +462,15 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
   const { key, alt, values, guess = [], today, color, cellPx, height, labels } = o
   const top = topOf(values)
   const isGuess = (i: number) => guess[i] === true
+  const isToday = (i: number) => today !== undefined && i === today
   if (!Svg) {
     // Cell i sits at column 2i + 1, so a line of labels spaced alike sits
     // under it; today's brackets take the spaces either side, and a closing
     // space keeps the line 2n + 1 wide wherever today falls.
-    const cells = values.map((v, i) => (i === today ? '[' : i - 1 === today ? ']' : ' ') + (v === undefined || isGuess(i) ? '·' : braille([v, 0], top)))
+    const cells = values.map((v, i) => (isToday(i) ? '[' : isToday(i - 1) ? ']' : ' ') + (v === undefined || isGuess(i) ? '·' : braille([v, 0], top)))
     return (
       <Text key={key} color={color}>
-        {cells.join('') + (today === values.length - 1 ? ']' : ' ')}
+        {cells.join('') + (isToday(values.length - 1) ? ']' : ' ')}
       </Text>
     )
   }
@@ -426,14 +482,14 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
     const fillPx = v === undefined || top <= 0 ? 0 : Math.round((v / top) * (height - 2))
     const filled = fillPx > 0 ? `<rect x="${x + 1}" y="${DAY_EDGE + height - 1 - fillPx}" width="${cellPx - 2}" height="${fillPx}" rx="2" fill="${color}"/>` : ''
     const outline =
-      i === today
+      isToday(i)
         ? `<rect x="${x}" y="${DAY_EDGE}" width="${cellPx}" height="${height}" rx="3" fill="none" stroke="${palette.value}" stroke-width="2"/>`
         : `<rect x="${x + 0.5}" y="${DAY_EDGE + 0.5}" width="${cellPx - 1}" height="${height - 1}" rx="3" fill="none" stroke="${palette.trackStroke}"${v === undefined || isGuess(i) ? ` ${GUESS_DASH}` : ''}/>`
     const label = labels?.[i]
     const caption =
       label === undefined
         ? ''
-        : `<text x="${x + cellPx / 2}" y="${tall - 1}" text-anchor="middle" font-family="system-ui, sans-serif" font-size="${LABEL_PX}" fill="${i === today ? palette.value : palette.label}">${svgText(label)}</text>`
+        : `<text x="${x + cellPx / 2}" y="${tall - 1}" text-anchor="middle" font-family="system-ui, sans-serif" font-size="${LABEL_PX}" fill="${isToday(i) ? palette.value : palette.label}">${svgText(label)}</text>`
     return filled + outline + caption
   })
   return <Svg key={key} source={svgOf(width, tall, marks.join(''))} alt={alt} width={width} height={tall} />

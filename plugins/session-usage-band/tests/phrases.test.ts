@@ -93,9 +93,7 @@ test('every amber phrase says its words in segments too, its figure the one valu
 test('empty states read like the band', () => {
   expect(EMPTY).toEqual({
     costs: "Costs show after Claude's next reply.",
-    costsShort: 'No costs.',
     context: 'not reported',
-    limits: 'none reported',
   })
 })
 test('alt text is words: no ~ and no ↻', () => {

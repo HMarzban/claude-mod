@@ -4,7 +4,6 @@
 
 import type { DayCell, Week } from './calendar'
 import {
-  FIVE_HOUR_MS,
   fmtAgo,
   fmtClock,
   fmtCost,
@@ -24,6 +23,7 @@ import {
   severityMark,
 } from './format'
 import type { ResetIn } from './format'
+import { warmAverageOf } from './insights'
 import type { CostEntry, TrailPoint, Trails } from './insights'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
 import type { CacheFacts, CacheMood, ContextFacts, Frame, LimitFacts, LimitView, SliceMark, SliceRow, SpendFacts } from './reading'
@@ -103,11 +103,7 @@ export const PILL_LABELS = {
 
 export const EMPTY = {
   costs: "Costs show after Claude's next reply.",
-  /** Pulse's, where the full sentence won't fit: at most 10 characters, the
-   *  room a 40-column desktop line leaves it. */
-  costsShort: 'No costs.',
   context: 'not reported',
-  limits: 'none reported',
 } as const
 
 /** A reset as a duration: words in sentences, the glyph on tight rows. */
@@ -633,22 +629,15 @@ export const workspaceWords = (ws: Workspace | undefined): string | undefined =>
 export type HistoryWords = Readonly<{
   /** '$0.21' */
   lastText: string | undefined
-  /** '$0.18': the average with re-warms left out. */
-  avgText: string | undefined
-  /** '$0.84 re-warm' */
-  maxText: string | undefined
-  /** 'last $0.21 · avg $0.18 · max $0.84 re-warm' */
-  numbersText: string
   /** 'last $0.21' */
   numbersShort: string
-  /** 'cost of the last 14 messages, steady' | '…, rising, the newest a re-warm' */
+  /** 'cost of the last 14 messages, steady, average $0.18, max $0.84 re-warm',
+   *  then ', the newest a re-warm' when it was: the average leaves re-warms out. */
   costsAlt: string
   /** The same for the newest `count` alone, as a chart that draws fewer says them. */
   costsAltOf: (count: number) => string
   /** '5h usage over the last hour, steady' | '…, rising, full in about 40 minutes' */
   trailAlt: string
-  /** '5h usage this window, rising, full in about 40 minutes': the same since the window started. */
-  fiveHourWindowAlt: string
   /** 'context over the conversation, rising, compacts at 190k'; with compaction off, no compaction point. */
   contextTrailAlt: string
   /** '~12 messages to compaction', at the context's average rise a message
@@ -665,13 +654,6 @@ const TRAIL_RISE = 2
 /** The points of a trail from the last hour before `now`. */
 export const lastHourOf = (trail: readonly TrailPoint[], now: number): TrailPoint[] => trail.filter(p => p.at >= now - 3600_000)
 
-/** The points of a trail since the 5h window started; none while no window is known. */
-export const thisWindowOf = (trail: readonly TrailPoint[], fiveHour: LimitView | undefined, now: number): TrailPoint[] => {
-  if (fiveHour?.resetInMs === undefined) return []
-  const start = now + fiveHour.resetInMs - FIVE_HOUR_MS
-  return trail.filter(p => p.at >= start)
-}
-
 /** A 5h trail's trend: rising once it has climbed `TRAIL_RISE` points. */
 const riseOf = (points: readonly TrailPoint[]): 'rising' | 'steady' =>
   points.length >= 2 && (points[points.length - 1]?.pct ?? 0) - (points[0]?.pct ?? 0) >= TRAIL_RISE ? 'rising' : 'steady'
@@ -685,12 +667,8 @@ const contextTrendOf = (tokens: readonly number[]): 'rising' | 'falling' | 'stea
 
 export const historyWords = (record: Trails, fiveHour: LimitView | undefined, context: ContextFacts, now: number): HistoryWords => {
   const last = record.costs[record.costs.length - 1]
-  const warm = record.costs.filter(e => !e.reWarm)
-  const avg = warm.length === 0 ? undefined : warm.reduce((sum, e) => sum + e.usd, 0) / warm.length
-  const max = record.costs.reduce<CostEntry | undefined>((top, e) => (top === undefined || e.usd > top.usd ? e : top), undefined)
+  const avg = warmAverageOf(record.costs)
   const lastText = last === undefined ? undefined : fmtSmallCost(last.usd)
-  const avgText = avg === undefined ? undefined : fmtSmallCost(avg)
-  const maxText = max === undefined ? undefined : `${fmtSmallCost(max.usd)}${max.reWarm ? ' re-warm' : ''}`
   const trend =
     last === undefined || avg === undefined
       ? 'steady'
@@ -700,11 +678,20 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, co
           ? 'falling'
           : 'steady'
   const costsAltOf = (count: number): string => {
-    const drawn = Math.min(count, record.costs.length)
-    return `cost of ${drawn === 1 ? 'the last message' : `the last ${drawn} messages`}, ${trend}${last?.reWarm ? ', the newest a re-warm' : ''}`
+    const drawn = record.costs.slice(-count)
+    const drawnAvg = warmAverageOf(drawn)
+    const max = drawn.reduce<CostEntry | undefined>((top, e) => (top === undefined || e.usd > top.usd ? e : top), undefined)
+    return [
+      `cost of ${drawn.length === 1 ? 'the last message' : `the last ${drawn.length} messages`}`,
+      trend,
+      drawnAvg === undefined ? '' : `average ${fmtSmallCost(drawnAvg)}`,
+      max === undefined ? '' : `max ${fmtSmallCost(max.usd)}${max.reWarm ? ' re-warm' : ''}`,
+      last?.reWarm ? 'the newest a re-warm' : '',
+    ]
+      .filter(s => s !== '')
+      .join(', ')
   }
   const fullIn = fiveHour === undefined || fiveHour.etaMs === null ? '' : `, full in ${fmtEtaSpoken(fiveHour.etaMs)}`
-  const fiveHourAlt = (span: string, points: readonly TrailPoint[]): string => `5h usage ${span}, ${riseOf(points)}${fullIn}`
   const compactsAt = context.compactAt === undefined ? '' : `, compacts at ${fmtTokens(context.compactAt)}`
   // A compaction drops the context, so its rise is measured since the newest drop.
   const trail = record.context
@@ -713,14 +700,10 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, co
   const messages = context.toCompact === undefined || risePerMessage <= 0 ? undefined : Math.max(1, Math.round(context.toCompact / risePerMessage))
   return {
     lastText,
-    avgText,
-    maxText,
-    numbersText: [lastText && `last ${lastText}`, avgText && `avg ${avgText}`, maxText && `max ${maxText}`].filter(Boolean).join(' · '),
     numbersShort: lastText === undefined ? '' : `last ${lastText}`,
     costsAlt: costsAltOf(record.costs.length),
     costsAltOf,
-    trailAlt: fiveHourAlt('over the last hour', lastHourOf(record.fiveHour, now)),
-    fiveHourWindowAlt: fiveHourAlt('this window', thisWindowOf(record.fiveHour, fiveHour, now)),
+    trailAlt: `5h usage over the last hour, ${riseOf(lastHourOf(record.fiveHour, now))}${fullIn}`,
     contextTrailAlt: `context over the conversation, ${contextTrendOf(record.context)}${compactsAt}`,
     toCompactionText: messages === undefined ? undefined : `~${messages} message${messages === 1 ? '' : 's'} to compaction`,
   }
@@ -734,6 +717,8 @@ export const WEEK = { byDay: 'by day', byHour: '5h by the hour' } as const
 export type WeekWords = Readonly<{
   /** 'weekly limit by day: Sunday 66%, Monday about 34% and fills it, Tuesday to Saturday none left' */
   daysAlt: string
+  /** The measured days alone: 'weekly limit by day, measured: Tuesday 6%, Wednesday 9%' */
+  measuredAlt: string
   /** '5-hour limit by hour: 08:40 10%, 09:40 15%' */
   hoursAlt: string
   /** 'full ~Mon': the day the guess fills the 7d; undefined unless it does. */
@@ -784,6 +769,11 @@ export const weekWords = (w: Week, rows: Readonly<{ days: SliceRow; hours: Slice
   const fills = rows.days.marks.findIndex(m => m.kind === 'fills')
   return {
     daysAlt: slicesSpoken('weekly limit by day', w.days.map(d => d.name), rows.days.marks),
+    measuredAlt: slicesSpoken(
+      'weekly limit by day, measured',
+      w.days.flatMap((d, i) => (rows.days.marks[i]?.kind === 'measured' ? [d.name] : [])),
+      rows.days.marks.filter(m => m.kind === 'measured'),
+    ),
     hoursAlt: slicesSpoken('5-hour limit by hour', w.hours.map(c => c.startClock), rows.hours.marks),
     fullDay: fills < 0 ? undefined : `full ~${w.days[fills]?.name.slice(0, 3) ?? ''}`,
     byDay: byDayOf(w.days, rows.days.marks),

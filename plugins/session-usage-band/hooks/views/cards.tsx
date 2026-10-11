@@ -69,6 +69,9 @@ export type OpenOptions = Readonly<{
   heads?: Readonly<Partial<Record<CardName, Say>>>
   /** A card's first row, before its own facts and counted with them. */
   lead?: Readonly<Partial<Record<CardName, Leads>>>
+  /** A window's mark in its bar's place on LIMITS, such as a trail, at the
+   *  row's size; its bar while there is none. */
+  limitMarks?: Readonly<Partial<Record<LimitKey, (size: BarSize) => RenderChildren>>>
   /** What the collapsed lines already show: no card repeats it. Its reset
    *  and pace are the worst window's. */
   shown?: readonly Fact[]
@@ -240,7 +243,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
           {slot === undefined
             ? say
             : [
-                <Box key="slot" flexDirection="row" flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
+                <Box key="slot" flexDirection="row" flexGrow={1} flexShrink={1} width={0} minWidth={0} overflow="hidden">
                   {slot}
                 </Box>,
                 <Box key="headline" flexShrink={0}>
@@ -350,12 +353,13 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     const reset = w.cardResetLess(o.windowResets ?? 'countdown', saidOf(w))
     const room = Math.max(4, inner - [...name].length - [...value].length - 2)
     const wordsDrawn = drew('reset') && (w.pace === '' || drew('pace'))
+    const size: BarSize = { px: room * measure.pxPerCell, cells: room }
     return [
       drew('window') ? null : (
         <Box key={`fact:${name}`} flexDirection="row" columnGap={1}>
           <Text color={palette.label}>{name}</Text>
           <Box key="bar" flexGrow={1} width={0} minWidth={0}>
-            {meter(kit, { label: name, frac, tone, accent: accentOf(kit, w), size: { px: room * measure.pxPerCell, cells: room }, stretch: true })}
+            {o.limitMarks?.[w.key]?.(size) ?? meter(kit, { label: name, frac, tone, accent: accentOf(kit, w), size, stretch: true })}
           </Box>
           <Text color={onTone(tone, palette.cardValue)}>{value}</Text>
         </Box>
