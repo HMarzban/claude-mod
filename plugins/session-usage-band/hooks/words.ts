@@ -180,6 +180,9 @@ export type LimitWords = Readonly<{
   /** A card's reset and pace: `resets 3h 00m · on pace for ~10%`; undefined
    *  without a reset to come. */
   cardReset: string | undefined
+  /** When it resets, after `resets`: `16:40` or `Sat 13:30` once the offset
+   *  is known, else `in 3h 00m`; undefined without a reset to come. */
+  resetWhen: string | undefined
   /** `5h 4%`, or once its window has passed, `5h reset`. */
   text: string
   say: Say
@@ -248,13 +251,13 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
   const countdown: Say = [[fmtCountdown(c.msLeft), 'value'], [' left', 'label']]
   const cardHead: Say =
     f.mood === 'unmeasured'
-      ? [['Not measured yet', 'value']]
+      ? [['not measured yet', 'value']]
       : f.mood === 'warming'
-        ? [['Warming', 'value']]
+        ? [['warming', 'value']]
         : f.mood === 'cold'
-          ? [['Cold', 'value']]
+          ? [['cold', 'value']]
           : working
-            ? [['Warm', 'value']]
+            ? [['warm', 'value']]
             : countdown
   const value = f.mood === 'unmeasured' ? UNKNOWN : f.mood === 'warming' ? 'warming' : f.mood === 'cold' ? 'cold' : working ? 'warm' : left
   const say: Say =
@@ -325,7 +328,7 @@ export const contextWords = (f: ContextFacts): ContextWords => {
     roomText,
     compactionOffText: f.autoCompactOff ? 'auto-compaction off' : undefined,
     windowText: fmtTokens(f.window),
-    cardHead: [[f.pct, 'value'], [` full${f.compactAt === undefined ? severityMark(f.frac) : ''}`, 'label']],
+    cardHead: [[`${f.pct}${f.compactAt === undefined ? severityMark(f.frac) : ''}`, 'value'], [' full', 'label']],
     alt: f.known
       ? altOf('context', `${Math.round(f.frac * 100)} percent ${towardText}`, f.tone === 'amber' ? 'near the limit' : 'fine')
       : altOf('context', EMPTY.context),
@@ -372,6 +375,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     valueText,
     valueMarked: `${f.value}${severityMark(f.frac)}`,
     cardReset: f.reset?.kind === 'in' ? `resets ${f.reset.text}${pace === '' ? '' : ` · ${pace}`}` : undefined,
+    resetWhen: f.reset?.kind !== 'in' ? undefined : (resetClock ?? `in ${f.reset.text}`),
     text: joined(say),
     say,
     pace,

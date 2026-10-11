@@ -71,11 +71,11 @@ export type MeterOptions = Readonly<{
   projectTo?: number
 }>
 
-/** A bar: `frac` filled, with a thumb where the fill ends, so the eye finds
- *  the number's place on it at once. `label` names it for a reader, and
- *  `reads` says what the fill is: a share's alt says its percent alone. A
- *  stretched bar has no width of its own: drawn wider than any slot, the slot
- *  caps it, so it spans its card. */
+/** A bar: `frac` filled toward its cap, the fill ending bare, since the
+ *  number beside it says where. `label` names it for a reader, and `reads`
+ *  says what the fill is: a share's alt says its percent alone. A stretched
+ *  bar has no width of its own: drawn wider than any slot, the slot caps it,
+ *  so it spans its card. */
 export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
   const { Svg, Text, palette, onTone } = kit
   const { key = 'meter', label, frac, tone, accent, size = CHIP_BAR, stretch = false, reads = 'used', tick, projectTo } = o
@@ -98,10 +98,7 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
       (projectTo === undefined
         ? ''
         : `<line class="projection" x1="${fillWidth}" y1="4" x2="${Math.round(clamp01(projectTo) * width)}" y2="4" stroke="${fill}" stroke-width="2" ${PROJECTION_DASH}${scaling}/>`) +
-      (fillWidth > 0
-        ? `<rect class="fill" y="1" width="${fillWidth}" height="6" rx="${3 * k}" ry="3" fill="${fill}"/>` +
-          `<rect class="thumb" x="${Math.min(width - 2 * k, fillWidth - k)}" y="0" width="${2 * k}" height="${tall}" rx="${k}" ry="1" fill="${palette.value}"/>`
-        : '') +
+      (fillWidth > 0 ? `<rect class="fill" y="1" width="${fillWidth}" height="6" rx="${3 * k}" ry="3" fill="${fill}"/>` : '') +
       // Knocked out of the ground a pixel either side, so it reads over the
       // fill and the track alike.
       (tickX === undefined

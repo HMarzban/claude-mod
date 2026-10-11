@@ -35,6 +35,8 @@ export type Fact =
   | 'compactsAt'
   | 'inContext'
   | 'window'
+  | 'reset'
+  | 'pace'
 
 /** A layout's mark for a card's head row: at most 16px on the desktop, a few
  *  cells in a terminal. */
@@ -123,6 +125,22 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     context: ['context', palette.label],
     limits: ['limits', palette.fiveAccent],
   }
+  /** A headline: bold on its figure alone, its words in label ink. */
+  const headline = (say: Say, tone: Tone) =>
+    oneLine(
+      {},
+      say.map(([text, role], i) =>
+        role === 'value' ? (
+          <Text key={`say${i}`} color={onTone(tone, palette.value)} bold>
+            {text}
+          </Text>
+        ) : (
+          <Text key={`say${i}`} color={palette.label}>
+            {text}
+          </Text>
+        ),
+      ),
+    )
   /** A card: its title, the layout's lens and its headline on one line, then
    *  its bar and body. */
   const card = (name: CardName, title: string, head: Readonly<{ say: Say; tone?: Tone }>, bar: RenderChildren, body: RenderChildren[]) => {
@@ -145,7 +163,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
             <Text color={palette.label}>{title.toUpperCase()}</Text>
             {slot === undefined ? null : [kit.gap('g-slot'), <Box key="slot" flexShrink={0}>{slot}</Box>]}
           </Box>
-          {oneLine({ color: onTone(head.tone ?? 'calm', palette.value), bold: true }, head.say.map(([text]) => text).join(''))}
+          {headline(head.say, head.tone ?? 'calm')}
         </Box>
         {fitBody(bar, body)}
       </Box>
@@ -207,7 +225,27 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     : null
 
   const worst = read.worstLimit
-  /** One window: its name, bar and value on a line, then its reset and pace in words. */
+  /** The card's first row: the worst window's reset, at its clock time once
+   *  the offset is known, and its pace, where a collapsed row has its value. */
+  const leadRow = (): RenderChildren => {
+    if (worst === undefined) return null
+    const pace = shown.has('pace') ? '' : worst.pace
+    const when = shown.has('reset') ? undefined : worst.resetWhen
+    if (when === undefined) return pace === '' ? null : factRow(undefined, 'pace', pace)
+    return (
+      <Box key="fact:resets" flexDirection="row" justifyContent="space-between" columnGap={2}>
+        <Text color={palette.label}>resets</Text>
+        {oneLine({}, [
+          <Text key="when" color={palette.cardValue}>
+            {when}
+          </Text>,
+          pace === '' ? null : <Text key="pace" color={palette.label}>{` · ${pace}`}</Text>,
+        ])}
+      </Box>
+    )
+  }
+  /** One window: its name, bar and value on a line, then its reset and pace
+   *  in words, which the lead row says for the worst. */
   const limitRows = (w: LimitView): readonly [RenderChildren, RenderChildren] => {
     const { name, frac, tone } = w
     if (w.passed) return [factRow(undefined, name, 'reset'), null]
@@ -221,15 +259,17 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
         </Box>
         <Text color={onTone(tone, palette.cardValue)}>{value}</Text>
       </Box>,
-      w.cardReset === undefined ? null : <Box key={`fact:${name} pace`}>{oneLine({ color: palette.label }, w.cardReset)}</Box>,
+      w === worst || w.cardReset === undefined ? null : <Box key={`fact:${name} pace`}>{oneLine({ color: palette.label }, w.cardReset)}</Box>,
     ]
   }
-  /** Every window's rows; short of rows, each window's bar row before any
-   *  pace line. */
+  /** The lead row, then every window's rows; short of rows, each window's
+   *  bar row before any pace line. */
   const limitLines = (): RenderChildren[] => {
+    const lead = leadRow()
     const rows = read.limits.map(limitRows)
     const lines = rows.flat().filter(part => part !== null)
-    return lines.length <= bodyRows ? lines : [...rows.map(([bar]) => bar), ...rows.map(([, pace]) => pace)]
+    const room = bodyRows - (lead === null ? 0 : 1)
+    return [lead, ...(lines.length <= room ? lines : [...rows.map(([bar]) => bar), ...rows.map(([, pace]) => pace)])]
   }
   const limitsView =
     read.limits.length > 0

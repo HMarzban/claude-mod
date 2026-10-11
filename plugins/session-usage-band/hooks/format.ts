@@ -18,24 +18,29 @@ export const fmtPct = (frac: number): string => `${Math.round(frac * 100)}%`
 export const fmtTokens = (n: number): string => {
   const v = Math.max(0, Math.round(n))
   // Each unit from where the one below would round up to it: 9,999 is 10k,
-  // not 10.0k; 999,999 is 1.0M, not 1000k.
+  // not 10.0k; 999,999 is 1.0M, not 1000k; 999.95M is 1.0B, not 1000.0M.
+  if (v >= 999_950_000) return `${(v / 1_000_000_000).toFixed(1)}B`
   if (v >= 999_500) return `${(v / 1_000_000).toFixed(1)}M`
   if (v >= 9_950) return `${Math.round(v / 1000)}k`
   if (v >= 1_000) return `${(v / 1000).toFixed(1)}k`
   return String(v)
 }
 
-/** Whole dollars from $1000, and from what would round to it. */
+/** Whole dollars from $1,000, and from what would round to it. */
 const WHOLE_FROM = 999.995
 
-export const fmtCost = (usd: number): string => (usd >= WHOLE_FROM ? `$${Math.round(usd)}` : `$${usd.toFixed(2)}`)
+/** Whole dollars grouped by thousands, `1,027`: by hand, since the sandbox's
+ *  locale formatting can't be relied on. */
+const wholeDollars = (usd: number): string => String(Math.round(usd)).replace(/\B(?=(\d{3})+$)/g, ',')
+
+export const fmtCost = (usd: number): string => (usd >= WHOLE_FROM ? `$${wholeDollars(usd)}` : `$${usd.toFixed(2)}`)
 
 /** A small figure honestly: under a cent is not $0.00. */
 export const fmtSmallCost = (usd: number): string => (usd < 0.01 ? '<$0.01' : fmtCost(usd))
 
 /** An estimate is always marked as one. */
 export const fmtEstimate = (usd: number): string =>
-  usd < 0.01 ? '~<$0.01' : usd >= WHOLE_FROM ? `~$${Math.round(usd)}` : `~$${usd.toFixed(2)}`
+  usd < 0.01 ? '~<$0.01' : usd >= WHOLE_FROM ? `~$${wholeDollars(usd)}` : `~$${usd.toFixed(2)}`
 
 /** The countdowns' seconds, drawn and spoken alike. */
 const wholeSeconds = (ms: number): number => Math.max(0, Math.round(ms / 1000))
