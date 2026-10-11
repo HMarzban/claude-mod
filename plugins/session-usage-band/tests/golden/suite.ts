@@ -1,10 +1,12 @@
 // tests/golden/suite.ts — chips draws exactly what it drew before the
 // layouts work: one test per scenario and appearance, each one setup with
-// six mounts drawn shut and open, every case by hash and ten by whole tree.
+// six mounts drawn shut and open, every case by hash and ten by whole tree;
+// and in every frame a hover card shows in, each piece covered whole or not at all.
 import { test, expect } from 'claude-code/testing'
 import { GOLDEN, GOLDEN_TREES } from './chips'
+import { partCovered } from './cover'
 import { canon, treeHash } from './hash'
-import { GOLDEN_APPEARANCES, GOLDEN_MOUNTS, drawCases, goldenKey, type Appearance, type ScenarioName } from '../matrix'
+import { GOLDEN_APPEARANCES, GOLDEN_MOUNTS, caseKey, drawCases, goldenKey, type Appearance, type ScenarioName } from '../matrix'
 import { LONG } from '../helpers'
 
 /** Every case the capture froze for one setup, read from the frozen hashes, so
@@ -25,6 +27,16 @@ export const goldenSuite = (scenarios: readonly ScenarioName[]): void => {
         const whole = GOLDEN_TREES[key]
         if (whole !== undefined) expect(canon(tree)).toEqual(canon(whole))
       }
+    })
+    // Plain draws no cards.
+    if (appearance === 'plain') continue
+    test(`every hover card covers whole pieces: ${scenario}, ${appearance}`, LONG, async ($, on) => {
+      const trees = await drawCases($, on, { scenario, appearance }, GOLDEN_MOUNTS)
+      for (const m of GOLDEN_MOUNTS)
+        for (const state of ['shut', 'open'] as const) {
+          const drawn = caseKey(m, state)
+          expect(`${drawn} ${partCovered(trees[drawn], m.surface, m.cols).join('; ')}`).toBe(`${drawn} `)
+        }
     })
   }
 }

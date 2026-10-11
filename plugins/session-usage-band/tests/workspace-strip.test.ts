@@ -5,6 +5,7 @@ import { test, expect } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
 import { ROW_SLACK } from '../hooks/layout'
 import { BARE, LIGHT } from '../hooks/palette'
+import { partCovered } from './golden/cover'
 import {
   GIT_CLEAN,
   GIT_MAIN_TREE,
@@ -267,33 +268,37 @@ test("the strip's hover cards are drawn after all of it, each sharing its own pi
 })
 
 /** Where the terminal's top strip, `cols` wide, puts its cards: on the
- *  path's side from where the piece starts, slid left only as far as it must
- *  to end within the strip's room; on the state's side ending where the piece
- *  ends, as wide as its text and caps or the room left of that end. */
+ *  path's side from a column before its piece, slid left only as far as it
+ *  must to end within the strip's room; on the state's side ending a column
+ *  after its piece. Each covers its own piece and any it enters whole, and
+ *  is as wide as its text and caps where the room allows. */
 const expectStripCardsAt = (strip: Node | undefined, cols: number) => {
   const pad = Number(strip?.props?.paddingX)
   const room = cols - ROW_SLACK
   const side = (key: string) => ((byKey(strip, key, 'Box')?.children ?? []) as Node[]).filter(Boolean)
+  /** That `card`, from `from`, covers its piece's [start, end) within the room, and fits its text where the room allows. */
+  const expectAt = (card: Node, from: number, start: number, end: number) => {
+    const to = from + Number(card.props?.width)
+    const at = `${String(card.hover?.scope)} ${from}+${String(card.props?.width)} over [${start}, ${end}) in ${room}`
+    expect(`${at} ${from <= Math.max(0, start - 1) && to >= Math.min(end, room) && to <= room}`).toBe(`${at} true`)
+    expect(Number(card.props?.width)).toBeGreaterThanOrEqual(Math.min(cardText(card).length + 4, room))
+  }
   let at = pad
   for (const piece of side('ws:where')) {
     const card = hoverCardOf(strip, String(piece.props?.key))
-    if (card !== undefined) {
-      const width = Math.min(cardText(card).length + 4, room)
-      expect(card.props?.width).toBe(width)
-      expect(card.props?.left).toBe(Math.max(0, Math.min(at, room - width)))
-    }
+    if (card !== undefined) expectAt(card, Number(card.props?.left), at, at + widthOf(piece))
     at += widthOf(piece)
   }
   let end = pad
   for (const piece of side('ws:state').reverse()) {
     const card = hoverCardOf(strip, String(piece.props?.key))
     if (card !== undefined) {
-      expect(card.props?.right).toBe(end)
       expect(card.props?.left).toBeUndefined()
-      expect(card.props?.width).toBe(Math.min(cardText(card).length + 4, room - end))
+      expectAt(card, Number(card.props?.right), end, end + widthOf(piece))
     }
     end += widthOf(piece)
   }
+  expect(partCovered(strip, 'terminal', cols)).toEqual([])
 }
 
 test("on the terminal a card on the path's side starts at its piece, and one on the state's side ends at its own", async ($, on) => {
@@ -313,7 +318,7 @@ test("on a narrow terminal a card on the state's side still ends within the stri
   await $.session.start(START)
   const strip = stripOf(await expanded($, clock, 'terminal', 24))
   const changes = hoverCardOf(strip, 'ws:changes')
-  expect(cardText(changes).length + 4).toBeGreaterThan(24 - ROW_SLACK - Number(changes?.props?.right))
+  expect(cardText(changes).length + 4).toBeGreaterThan(24 - ROW_SLACK - Number(strip?.props?.paddingX))
   expectStripCardsAt(strip, 24)
 })
 

@@ -5,7 +5,8 @@ import type { RenderChildren, RenderElement } from 'claude-code'
 import { clipMiddle } from './format'
 import { ALT } from './icons'
 import type { CardPlace, Kit } from './kit'
-import { STRIP_GIVES_WAY, isList, squeezeToFit, startsOf, stripKeeps } from './layout'
+import { STRIP_GIVES_WAY, isList, spansOf, squeezeToFit, stripKeeps } from './layout'
+import type { Span } from './layout'
 import { BARE } from './palette'
 import { gitSummary, splitPath } from './workspace'
 import type { GitState, Workspace } from './workspace'
@@ -35,7 +36,7 @@ const keyOf = (n: RenderChildren): string | undefined => {
 }
 
 const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'footer', edge: number, room: number): RenderElement => {
-  const { Box, Text, Svg, measure, hoverable, hoverCard, icon } = kit
+  const { Box, Text, Svg, measure, asDrawn, hoverable, hoverCard, icon } = kit
   const kept = (piece: (typeof STRIP_GIVES_WAY)[number]) => stripKeeps(squeeze, piece)
   const git = ws.git
   const { parent, name: fullName } = splitPath(ws.path)
@@ -143,23 +144,30 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
   }
 
   // Each card at its piece: on the path's side from where the piece starts,
-  // on the state's ending where it ends. A separator is a Text, not a Box, so no card.
+  // on the state's ending where it ends. A separator is a Text, not a Box, so
+  // no card, and air a card may cover in part. A card covers whole pieces of
+  // its own side: the fill between the sides has no width the band knows.
   const placement = stripPlacement(place, edge)
   const pad = placement.paddingX ?? 0
   const spacing = Svg ? 2 : 0
   const whereLine = joined('where', where)
   const stateLine = joined('state', state)
   /** The cards of `line`'s pieces, in its order, each placed by `at` from
-   *  how far into the strip its piece's first column sits. */
-  const cardsOf = (line: readonly RenderChildren[], at: (offset: number) => CardPlace) =>
-    startsOf(line, spacing, measure).flatMap((offset, i) => {
-      const key = keyOf(line[i])
+   *  how far into the strip its piece's first column sits, among the spans
+   *  of `pieces`, the line's own less its separators. */
+  const cardsOf = (pieces: readonly RenderChildren[], line: readonly RenderChildren[], at: (from: number, spans: readonly Span[]) => CardPlace) => {
+    const spans = spansOf(line.map(asDrawn), spacing, measure).map(([start, end]): Span => [pad + start, pad + end])
+    const own = new Set(pieces)
+    const pieceSpans = spans.filter((_, i) => own.has(line[i]))
+    return line.flatMap((piece, i) => {
+      const key = keyOf(piece)
       const text = key === undefined ? undefined : explained.get(key)
-      return key === undefined || text === undefined ? [] : [hoverCard(key, text, at(pad + offset))]
+      return key === undefined || text === undefined ? [] : [hoverCard(key, text, at(spans[i]?.[0] ?? pad, pieceSpans))]
     })
+  }
   const cards = [
-    ...cardsOf(whereLine, left => ({ left, room })),
-    ...cardsOf([...stateLine].reverse(), right => ({ right, room })).reverse(),
+    ...cardsOf(where, whereLine, (left, pieces) => ({ left, room, pieces })),
+    ...cardsOf(state, [...stateLine].reverse(), (right, pieces) => ({ right, room, pieces })).reverse(),
   ]
 
   return (

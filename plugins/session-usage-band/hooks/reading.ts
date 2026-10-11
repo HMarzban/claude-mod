@@ -20,6 +20,7 @@ import {
   resetIn,
 } from './format'
 import type { ResetIn } from './format'
+import { drawnTier } from './glyphs'
 import type { Trails } from './insights'
 import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
 import { cacheWords, contextWords, historyWords, lastHourOf, limitWords, spendWords, thisWindowOf, weekWords, workspaceWords } from './words'
@@ -397,7 +398,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     maxRows: snap.maxRows,
     now: snap.now,
     isWorking: snap.isWorking,
-    glyphs: snap.surface === 'terminal' ? snap.glyphs : 'unicode',
+    glyphs: drawnTier(snap),
     utcOffsetMin: snap.utcOffsetMin,
   }
   const cache = cacheFacts(snap)

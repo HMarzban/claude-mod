@@ -5,8 +5,7 @@
 // squeeze, measured before it, never undercounts. Braille is Neutral width and
 // stays in the unicode tier. Unicode EastAsianWidth-18.0.0, checked 2026-10-09.
 
-import type { RenderElement } from 'claude-code'
-import type { Glyphs } from './snapshot'
+import type { BandSnapshot, Glyphs } from './snapshot'
 
 const CJK = /^(ja|zh|ko)([_.-]|$)/i
 
@@ -18,6 +17,10 @@ export const resolveGlyphs = (env: Readonly<{ CC_BAND_GLYPHS?: string; LC_ALL?: 
   const locale = env.LC_ALL || env.LC_CTYPE || env.LANG || ''
   return CJK.test(locale) ? 'ascii' : 'unicode'
 }
+
+/** The tier the band draws in: the session's on a terminal, where
+ *  ambiguous-width glyphs can draw wide; its own glyphs on every other surface. */
+export const drawnTier = (snap: Pick<BandSnapshot, 'surface' | 'glyphs'>): Glyphs => (snap.surface === 'terminal' ? snap.glyphs : 'unicode')
 
 /** Each glyph the band draws, in ASCII; an empty mapping drops the glyph. */
 export const ASCII_MAP: Readonly<Record<string, string>> = {
@@ -48,7 +51,7 @@ type Node = { props?: Record<string, unknown>; children?: unknown[] }
 
 /** The tree with every string, and every Button label, in ASCII. A node
  *  gains no field it didn't have. */
-export const asciiTree = (tree: RenderElement): RenderElement => {
+export const asciiTree = <T>(tree: T): T => {
   const walk = (k: unknown): unknown => {
     if (typeof k === 'string') return asciiText(k)
     if (Array.isArray(k)) return k.map(walk)
@@ -61,5 +64,5 @@ export const asciiTree = (tree: RenderElement): RenderElement => {
       ...(node.children === undefined ? {} : { children: node.children.map(walk) }),
     }
   }
-  return walk(tree) as RenderElement
+  return walk(tree) as T
 }

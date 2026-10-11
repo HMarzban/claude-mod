@@ -12,6 +12,11 @@ version may change how the band reads.
   edge, so it read as one more chip. Cards are now inverted, light on a
   dark band and dark on a light one, a ground no chip uses; in the
   terminal each card ends in half blocks that round its edges.
+- A hover card could stop partway through a chip, leaving a bare `76` or
+  `0%` beside it that read as a value of its own. A card now covers whole
+  chips: it runs on to the end of any chip it enters, as one solid slab,
+  and starts a column before its own, so in the terminal its rounded ends
+  sit in the gaps and on the desktop no sliver of the chip shows.
 - The expand toggle pointed the wrong way: the band is anchored to the
   prompt and grows upward when it opens, yet it showed `▿` to open and `▵`
   to close. It now points the way the band will move, `▵` to open and `▿`

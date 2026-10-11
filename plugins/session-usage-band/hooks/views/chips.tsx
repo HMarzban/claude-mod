@@ -23,8 +23,8 @@ import {
   SHORT_BELOW,
   cellsOf,
   keeps,
+  spansOf,
   squeezeToFit,
-  startsOf,
 } from '../layout'
 import type { BarSize, Piece } from '../layout'
 import { BARE } from '../palette'
@@ -77,7 +77,7 @@ const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
 type CardName = 'cache' | 'spend' | 'context' | 'limits'
 
 const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement => {
-  const { Box, Button, Text, Svg, palette, measure, onTone, hoverCard, gap, icon } = kit
+  const { Box, Button, Text, Svg, palette, measure, asDrawn, onTone, hoverCard, gap, icon } = kit
   const snap = read.chips.raw
   const c = snap.cache
   const ascii = read.frame.glyphs === 'ascii'
@@ -246,14 +246,14 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
   const rowOf = (specs: PillSpec[]): RenderElement => {
     const pills = specs.map(spec => pill(kit, spec))
     const toggle = toggleButton(kit, read, act)
-    // A card ends short of ▵ and the gap before it.
+    // A card ends short of ▵ and the gap before it, and covers whole pills.
     const room = snap.columns - cellsOf(toggle, measure) - 1
-    const starts = startsOf(pills, 1, measure)
+    const pieces = spansOf(pills.map(asDrawn), 1, measure)
     return (
       <Box key="row" flexDirection="row" flexWrap="nowrap" overflow="hidden" columnGap={1}>
         {pills}
         <Box flexGrow={1} />
-        {specs.map(({ key, hover }, i) => (hover === undefined ? null : hoverCard(key, hover, { left: starts[i] ?? 0, room })))}
+        {specs.map(({ key, hover }, i) => (hover === undefined ? null : hoverCard(key, hover, { left: pieces[i]?.[0] ?? 0, room, pieces })))}
         {toggle}
       </Box>
     )

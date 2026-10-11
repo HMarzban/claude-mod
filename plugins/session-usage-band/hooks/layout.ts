@@ -115,14 +115,19 @@ export const cellsOf = (n: RenderChildren, m: Measure): number => {
   }
 }
 
-/** The column each of a row's drawn pieces starts at, the pieces `gap`
+/** The columns a piece takes in its row: from its first, up to its end. */
+export type Span = readonly [start: number, end: number]
+
+/** The columns each of a row's drawn pieces takes, the pieces `gap`
  *  columns apart. */
-export const startsOf = (pieces: readonly RenderChildren[], gap: number, m: Measure): number[] => {
+export const spansOf = (pieces: readonly RenderChildren[], gap: number, m: Measure): Span[] => {
   let at = 0
   return pieces.map(piece => {
     const start = at
-    at += cellsOf(piece, m) + gap
-    return start
+    at += cellsOf(piece, m)
+    const span: Span = [start, at]
+    at += gap
+    return span
   })
 }
 
