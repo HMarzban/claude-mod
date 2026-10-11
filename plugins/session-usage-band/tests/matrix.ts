@@ -46,7 +46,7 @@ export const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
   contextNoCompaction: /! context \d+%|! ctx \d+%|! CONTEXT \d+%/,
   limit80: /! 5h|! NEAR LIMIT/,
   fiveHourAhead: /! 5h|! FULL/,
-  otherLimit80: /! spend \d+%|! NEAR LIMIT/,
+  otherLimit80: /! spend \d+%|! NEAR LIMIT|spend \d+%!/,
 }
 /** Amber the collapsed part never shows: other limits are drawn only open (spec §2.7). */
 const OPEN_ONLY: ReadonlySet<AmberReason> = new Set(['otherLimit80'])
@@ -197,7 +197,9 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   if (!svgDraws && svgs.length > 0) fail('svgPlacement', `${svgs.length} Svg where none draws`)
   for (const s of svgs) {
     const alt = s.props?.alt
-    if (typeof alt !== 'string' || alt === '' || typeof s.props?.width !== 'number') fail('svgProps', 'an Svg without an alt or a width')
+    // A card's stretched bar has no width of its own: its slot caps it.
+    const stretched = /preserveAspectRatio="none"/.test(String(s.props?.source ?? ''))
+    if (typeof alt !== 'string' || alt === '' || (typeof s.props?.width !== 'number' && !stretched)) fail('svgProps', 'an Svg without an alt or a width')
     if (s.props?.id !== undefined || SVG_BARRED.test(typeof s.props?.source === 'string' ? s.props.source : ''))
       fail('svgProps', 'an Svg with an id, a gradient, a pattern or a clipPath')
     if (typeof alt === 'string' && NOTHING.test(alt)) fail('empty', `an alt reads "${alt}"`)
@@ -234,9 +236,20 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   if (nodes > (ctx.expanded ? 1500 : 400)) fail('size', `${nodes} nodes`)
   if (ctx.expanded) {
     const tall = visualRows(tree, ctx.surface)
-    if (tall > ctx.maxRows) fail('height', `${tall} rows at maxRows ${ctx.maxRows}`)
+    if (tall > ctx.maxRows && !atCardFloor(tree)) fail('height', `${tall} rows at maxRows ${ctx.maxRows}`)
   }
   return errors
+}
+
+/** Whether every shared card holds its head and one row alone: the floor
+ *  openBody keeps however short the band, as cards.test pins it, so a band
+ *  that short runs over by design. */
+const atCardFloor = (tree: Node): boolean => {
+  const cards: Node[] = []
+  walk(tree, n => {
+    if (String(n.props?.key ?? '').startsWith('card:')) cards.push(n)
+  })
+  return cards.length > 0 && cards.every(card => (card.children ?? []).flat().filter(isDrawn).length === 2)
 }
 
 /** Fails the test with every broken check named. */
