@@ -5,6 +5,14 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.12.1] - 2026-10-11
+
+### Fixed
+- A chip's hover card drew on a ground close to the chips' own, with no
+  edge, so it read as one more chip. Cards are now inverted, light on a
+  dark band and dark on a light one, a ground no chip uses; in the
+  terminal each card ends in half blocks that round its edges.
+
 ## [0.12.0] - 2026-10-10
 
 ### Added
