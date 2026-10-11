@@ -557,13 +557,14 @@ export const sliceCells = (kit: Kit, o: SliceCellsOptions): RenderChildren => {
   }
   const ascii = glyphs === 'ascii'
   /** A cell's glyph and ink: a height measured or guessed, an empty track
-   *  at 0%, a dash where none is left, a dot where not known. */
+   *  at 0%, a dash where none is left, a dot where not known; in ascii, a
+   *  dash in the dot's ink, as the week board's map draws it. */
   const glyphOf = ({ kind, pct }: SliceMark): readonly [string, string] => {
     const height = HEIGHTS[Math.max(0, Math.round(clamp01(pct / 100) * 8) - 1)] ?? '▁'
     if (kind === 'measured') return pct <= 0 ? [ascii ? '-' : '░', palette.meterTrack] : [ascii ? '#' : height, color]
     if (kind === 'guess' || kind === 'fills') return [ascii ? '+' : height, guess]
     if (kind === 'spent') return [ascii ? '.' : '╌', spent]
-    return [ascii ? '?' : '·', palette.trackStroke]
+    return [ascii ? '-' : '·', palette.trackStroke]
   }
   const edge = notch === undefined ? undefined : Math.round(notch)
   const notchMark: readonly [string, string] = [ascii ? '|' : '▏', palette.label]

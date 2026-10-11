@@ -203,7 +203,10 @@ test('a slice not known yet is never drawn as none left, and a measured 0% rises
   expect(textOf(slices(term, true, UNKNOWN_ROW))).toBe('░░ ·· ··')
   // An idle day between two measured ones keeps its place.
   expect(textOf(slices(term, true, { marks: [{ kind: 'measured', pct: 10 }, { kind: 'measured', pct: 0 }, { kind: 'measured', pct: 5 }], notch: undefined }))).toBe('▁▁ ░░ ▁▁')
-  expect(textOf(slices(makeKit(fakeEl, snapOf({ glyphs: 'ascii' })), false, UNKNOWN_ROW))).toBe('-??')
+  // In ascii a day not known is a dash, as the week board's map draws its dot, never a `?` that reads as a missing glyph.
+  const ascii = slices(makeKit(fakeEl, snapOf({ glyphs: 'ascii' })), false, UNKNOWN_ROW) as Node
+  expect(textOf(ascii)).toBe('---')
+  expect(((ascii.children ?? []) as Node[]).map(r => r.props?.color)).toEqual([term.palette.meterTrack, term.palette.trackStroke])
   // The desktop: the 0% its track alone; a day not known a solid outline, never dashed.
   const source = svg(slices(desk, true, UNKNOWN_ROW)).props.source
   expect(source).not.toContain('stroke-dasharray')
