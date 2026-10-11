@@ -31,6 +31,12 @@ test("the toggle is golden's Button: bare on the terminal at full ink, framed on
   expect(toggleOf({})).toEqual({ key: 'more', label: '▵', plain: true, onPress: NO_ACT.toggleExpanded })
   expect(toggleOf({ surface: 'desktop', expanded: true })).toEqual({ key: 'more', label: '▿', variant: 'secondary', onPress: NO_ACT.toggleExpanded })
 })
+test('the toggle sits on the row nearest the prompt, the way its arrow points, in every layout', () => {
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const snap = snapOf({ surface })
+    expect((toggleButton(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT) as unknown as Node).props).toMatchObject({ flexShrink: 0, position: 'relative', alignSelf: 'flex-end' })
+  }
+})
 test('shut, a view draws its collapsed part alone', () => {
   expect(shown(opened({ expanded: false }))).toBe('LINE')
 })

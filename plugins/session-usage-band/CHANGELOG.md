@@ -37,6 +37,9 @@ version may change how the band reads.
   (about 3.8:1 on a light terminal, and some terminals draw faint text
   unpredictably) though it is the band's only open and close control. It
   now draws at full ink, about 12:1.
+- The toggle sat on the top row in tiles, the bottom in gauges and the
+  middle in forecast and rings. Since its arrow points toward or away from
+  the prompt, it now sits on the row nearest the prompt in every layout.
 
 ## [0.12.0] - 2026-10-10
 

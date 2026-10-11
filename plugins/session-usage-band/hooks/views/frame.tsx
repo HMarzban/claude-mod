@@ -31,13 +31,14 @@ export const bodyRowsFor = (maxRows: number, collapsedRows: number, stripRows: n
 
 /** ▵ while shut, ▿ while open: chips' own toggle, at the end of its row.
  *  It points the way the band will move, since the band is anchored to the
- *  prompt and grows upward when it opens. It comes after the row's hover
- *  cards and, placed relative, stacks over them on the desktop too, so it
- *  stays pressable where the measure sets a card long. */
+ *  prompt and grows upward when it opens, so in every layout it sits on the
+ *  row nearest the prompt, the bottom of its line. It comes after the row's
+ *  hover cards and, placed relative, stacks over them on the desktop too, so
+ *  it stays pressable where the measure sets a card long. */
 export const toggleButton = (kit: Kit, read: Readings, act: BandActions): RenderElement => {
   const { Box, Button, Svg } = kit
   return (
-    <Box flexShrink={0} position="relative">
+    <Box flexShrink={0} position="relative" alignSelf="flex-end">
       {/* A Button holds text alone, so its icon is a glyph. The outlined
           triangles are measured centred in the line, within half a pixel,
           and wider than tall like a disclosure icon; arrowhead chevrons sit
