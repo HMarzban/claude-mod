@@ -142,6 +142,9 @@ test('an amber 5h keeps its pace and reset while the row has room: width alone d
   expect(pillsOf(rowOf(board({ ...five, columns: 70 }))).map(([key]) => key)).toEqual(['5h', 'cache'])
   expect(amberAt(70)).toBe('! 5h 82% · full before reset · ↻ 18:14')
   expect(amberAt(40)).toBe('! 5h 82%')
+  // A measured fill's words shorten before its reset gives way, as rings' do.
+  const filling = { fiveHour: { percentUsed: 40, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: 40 * MIN } }
+  for (let columns = 160; columns >= 40; columns--) expect(`${columns} ${pillsOf(rowOf(board({ ...filling, columns })))[0]?.[1]}`).not.toMatch(/full in ~40m$/)
   // In amber ink, as rings says an amber window's reset.
   expect(byKey(byKey(rowOf(board(five)), '5h', 'Box'), 'tail', 'Text')?.props?.color).toBe(DARK.amberFg)
 })

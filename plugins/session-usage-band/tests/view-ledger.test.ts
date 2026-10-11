@@ -114,6 +114,9 @@ test("narrowing an amber row, width alone decides: the 7d's tail goes first, the
   expect(at(120)).toBe('! 5h 82% · full before reset · ↻ 03:00 │ cache 52m left │ spent $3.19 │ context 40% full │ 7d 30%')
   expect(at(63)).toBe('! 5h 82% · full before reset · ↻ 03:00 │ cache 52m left')
   expect(at(40)).toBe('! 5h 82% │ cache 52m left')
+  // A measured fill's words shorten before its reset gives way, as rings' do.
+  expect(rowText({ columns: 44, fiveHour: FIVE_FILLING })).toBe('! 5h ~40m · ↻ 03:00 │ cache 52m left')
+  for (let columns = 160; columns >= 40; columns--) expect(`${columns} ${rowText({ columns, fiveHour: FIVE_FILLING })}`).not.toMatch(/full in ~40m │/)
 })
 test("open with the 5h amber, the cards say no reset or pace the sentence says, the 7d's either", () => {
   const tree = opened({ fiveHour: FIVE_82, columns: 160, maxRows: 40 })
@@ -153,7 +156,7 @@ test("open, LIMITS skips the closest limit's pace and reset the sentence says", 
   // A filling limit's warning says its pace, and its reset while the row
   // has room; out of room, its reset is the card's.
   expect(firstRowOf(opened({ fiveHour: FIVE_FILLING }), 'limits')).toMatch(/^5h/)
-  expect(shown(cardOf(opened({ fiveHour: FIVE_FILLING, columns: 50, maxRows: 40 }), 'limits'))).toContain('resets03:00')
+  expect(shown(cardOf(opened({ fiveHour: FIVE_FILLING, columns: 40, maxRows: 40 }), 'limits'))).toContain('resets03:00')
 })
 test('open, the other cards each lead with what the sentence left out', () => {
   const calm = opened()

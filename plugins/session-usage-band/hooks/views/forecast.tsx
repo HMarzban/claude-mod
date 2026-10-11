@@ -11,14 +11,14 @@ import type { BandActions } from '../snapshot'
 import type { Ahead, Amber } from '../words'
 import { cardsView, type Fact, type OpenOptions, type Slots } from './cards'
 import { cachePill, contextPill, limitPill, pillRow, type ChipKey } from './chips'
-import { ROLE_INK, batteryIcon, beforeLast, fitLine, type Keeps, type PillSpec } from './parts'
+import { AMBER_STEP, ROLE_INK, batteryIcon, beforeLast, fitLine, type Keeps, type PillSpec } from './parts'
 import { rowsOf, type Rows, type View } from './view'
 
 /** What gives way as the row narrows, first to last: the limits' tails, how
- *  far off the soonest change is, the cache's price, the calm pills, then an
- *  amber window's pace and reset, as rings gives its own. Amber's words
- *  never do. */
-const ORDER = ['limitTails', 'soon', 'price', 'compaction', 'calmSeven', 'calmFive', 'amberWeekReset', 'amberFiveReset'] as const
+ *  far off the soonest change is, the cache's price, the calm pills, amber's
+ *  long words, then an amber window's pace and reset, last of all as rings
+ *  gives its own. Amber's words never go. */
+const ORDER = ['limitTails', 'soon', 'price', 'compaction', 'calmSeven', 'calmFive', AMBER_STEP, 'amberWeekReset', 'amberFiveReset'] as const
 type Piece = (typeof ORDER)[number]
 
 /** What of the cards a pill says: in its figure and its tail while calm,

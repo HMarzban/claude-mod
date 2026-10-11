@@ -11,14 +11,14 @@ import type { BandActions } from '../snapshot'
 import { BETWEEN_READINGS, type Amber, type Say } from '../words'
 import { cardsView, type Fact } from './cards'
 import { toggleButton } from './frame'
-import { ROLE_INK, amberFirst, amberSay, beforeLast, fitLine, type Keeps } from './parts'
+import { AMBER_STEP, ROLE_INK, amberFirst, amberSay, beforeLast, fitLine, type Keeps } from './parts'
 import { rowsOf, type View } from './view'
 
 /** What gives way as the row narrows, first to last: the closest calm
  *  limit's ↻ clock and pace words, the calm readings, the cold cache's long
- *  words, then an amber window's reset and pace, as rings gives its own.
- *  Amber's words never do. */
-const ORDER = ['reset', 'pace', 'calmSeven', 'calmContext', 'cost', 'calmFive', 'cacheWords', 'amberWeekReset', 'amberFiveReset'] as const
+ *  words, amber's long words, then an amber window's reset and pace, last
+ *  of all as rings gives its own. Amber's words never go. */
+const ORDER = ['reset', 'pace', 'calmSeven', 'calmContext', 'cost', 'calmFive', 'cacheWords', AMBER_STEP, 'amberWeekReset', 'amberFiveReset'] as const
 type Piece = (typeof ORDER)[number]
 
 /** A reading in the sentence: its words, its warning if it has one, the
