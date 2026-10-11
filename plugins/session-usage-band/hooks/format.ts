@@ -138,9 +138,11 @@ const hhmm = (wall: number): string => {
 /** A local 24-hour clock time: `14:32`. The offset is east-positive minutes. */
 export const fmtClock = (ms: number, utcOffsetMin: number): string => hhmm(wallTime(ms, utcOffsetMin))
 
+/** The local day `ms` falls on, counted from the epoch. */
+const dayOf = (ms: number, utcOffsetMin: number): number => Math.floor(wallTime(ms, utcOffsetMin) / DAY_MS)
+
 /** Whether `ms` falls on the same local day as `now`. */
-export const isToday = (ms: number, utcOffsetMin: number, now: number): boolean =>
-  Math.floor(wallTime(ms, utcOffsetMin) / DAY_MS) === Math.floor(wallTime(now, utcOffsetMin) / DAY_MS)
+export const isToday = (ms: number, utcOffsetMin: number, now: number): boolean => dayOf(ms, utcOffsetMin) === dayOf(now, utcOffsetMin)
 
 /** A clock time, with its weekday when it isn't today: `16:40`, `Mon 08:40`. */
 export const fmtDayClock = (ms: number, utcOffsetMin: number, now: number): string => {
@@ -149,10 +151,13 @@ export const fmtDayClock = (ms: number, utcOffsetMin: number, now: number): stri
 }
 
 /** A projection's day, which its minute would claim too much for: its
- *  weekday, `Mon`, or today its clock time, `16:40`. */
+ *  weekday, `Mon`, a week on `next Sun`, so it never reads as today, or
+ *  today its clock time, `16:40`. */
 export const fmtDay = (ms: number, utcOffsetMin: number, now: number): string => {
   const wall = wallTime(ms, utcOffsetMin)
-  return isToday(ms, utcOffsetMin, now) ? hhmm(wall) : `${DAYS[new Date(wall).getUTCDay()]}`
+  if (isToday(ms, utcOffsetMin, now)) return hhmm(wall)
+  const day = `${DAYS[new Date(wall).getUTCDay()]}`
+  return dayOf(ms, utcOffsetMin) - dayOf(now, utcOffsetMin) >= 7 ? `next ${day}` : day
 }
 
 /** This machine's offset from UTC at `now`, east-positive minutes; undefined

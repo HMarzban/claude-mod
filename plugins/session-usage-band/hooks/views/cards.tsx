@@ -12,7 +12,7 @@ import type { Kit } from '../kit'
 import { CARD_TEXT, HOTKEY_MARK, ROW_SLACK, cellsOf } from '../layout'
 import type { BarSize } from '../layout'
 import { BARE } from '../palette'
-import type { LimitView, Readings, Tone } from '../reading'
+import type { LimitKey, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { drawStrip } from '../strip'
 import type { Say } from '../words'
@@ -56,8 +56,12 @@ export type OpenOptions = Readonly<{
   heads?: Readonly<Partial<Record<CardName, Say>>>
   /** A card's first row, before its own facts and counted with them. */
   lead?: Readonly<Partial<Record<CardName, Lead>>>
-  /** What the collapsed lines already show: no card repeats it. */
+  /** What the collapsed lines already show: no card repeats it. Its reset
+   *  and pace are the worst window's. */
   shown?: readonly Fact[]
+  /** What the collapsed lines already say of each window, by its key: its
+   *  own line and, for the worst, the lead row leave it out. */
+  shownByWindow?: Readonly<Partial<Record<LimitKey, readonly Fact[]>>>
   /** How each window's own line says its reset: as a countdown, chips'
    *  `resets 3h 00m · …`, or at its clock time as the lead row does,
    *  `resets 16:40 · …`. */
@@ -253,12 +257,20 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     : null
 
   const worst = read.worstLimit
+  /** What the collapsed lines say of a window: its own facts, and the
+   *  worst's in `shown` too. */
+  const saidOf = (w: LimitView) => {
+    const own = new Set(o.shownByWindow?.[w.key])
+    const said = (fact: Fact) => own.has(fact) || (w === worst && shown.has(fact))
+    return { reset: said('reset'), pace: said('pace') }
+  }
   /** The card's first row: the worst window's reset, at its clock time once
    *  the offset is known, and its pace, where a collapsed row has its value. */
   const leadRow = (): RenderChildren => {
     if (worst === undefined) return null
-    const pace = shown.has('pace') ? '' : worst.pace
-    const when = shown.has('reset') ? undefined : worst.resetWhen
+    const said = saidOf(worst)
+    const pace = said.pace ? '' : worst.pace
+    const when = said.reset ? undefined : worst.resetWhen
     // Its pace alone needs no label: the phrase says it is one.
     if (when === undefined) return pace === '' ? null : <Box key="fact:pace">{oneLine({ color: palette.label }, pace)}</Box>
     return (
@@ -274,12 +286,13 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     )
   }
   /** One window: its name, bar and value on a line, then its reset and pace
-   *  in words, which the lead row says for the worst. */
+   *  in words, less what the collapsed lines say of it, which the lead row
+   *  says for the worst. */
   const limitRows = (w: LimitView): readonly [RenderChildren, RenderChildren] => {
     const { name, frac, tone } = w
     if (w.passed) return [factRow(undefined, name, 'reset'), null]
     const value = w.valueMarked
-    const reset = o.windowResets === 'clock' ? w.cardResetAt : w.cardReset
+    const reset = w.cardResetLess(o.windowResets ?? 'countdown', saidOf(w))
     const room = Math.max(4, inner - [...name].length - [...value].length - 2)
     return [
       <Box key={`fact:${name}`} flexDirection="row" columnGap={1}>

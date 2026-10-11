@@ -2,7 +2,7 @@
 // spoken durations, amber, pace, resets, empty states and alt text.
 
 import { test, expect } from 'claude-code/testing'
-import { fmtClock, fmtDayClock, fmtEtaSpoken, fmtLeft, fmtLeftSpoken, fmtSecondsLeft } from '../hooks/format'
+import { fmtClock, fmtDay, fmtDayClock, fmtEtaSpoken, fmtLeft, fmtLeftSpoken, fmtSecondsLeft } from '../hooks/format'
 import { AMBER, EMPTY, altOf, paceText, resetPhrase } from '../hooks/words'
 
 const T = Date.UTC(2026, 9, 9, 13, 40) // a Friday, 13:40 UTC
@@ -16,6 +16,11 @@ test('clock times are local and 24-hour', () => {
 test('a clock time on another day names the day', () => {
   expect(fmtDayClock(T + 3 * 60 * MIN, 0, T)).toBe('16:40')
   expect(fmtDayClock(T + 67 * 60 * MIN, 0, T)).toBe('Mon 08:40')
+})
+test("a projection's day is today's clock, else its weekday, a week on the next one", () => {
+  expect([fmtDay(T + 3 * 60 * MIN, 0, T), fmtDay(T + 67 * 60 * MIN, 0, T), fmtDay(T + 6 * 24 * 60 * MIN, 0, T)]).toEqual(['16:40', 'Mon', 'Thu'])
+  // Friday a week on is not today.
+  expect(fmtDay(T + (7 * 24 - 1) * 60 * MIN, 0, T)).toBe('next Fri')
 })
 test('a countdown is words, never a clock', () => {
   expect(fmtSecondsLeft(47_000)).toBe('47s left')

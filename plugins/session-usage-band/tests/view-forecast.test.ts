@@ -9,7 +9,7 @@ import { DARK } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { forecastView } from '../hooks/views/forecast'
-import { HOUR, MIN, byKey, cardOf, fakeEl, firstRow, shown, svgsOf, walk, type Node } from './helpers'
+import { HOUR, MIN, byKey, cardOf, cardText, fakeEl, firstRow, isCard, shown, svgsOf, walk, type Node } from './helpers'
 import { NO_ACT, snapOf, viewSuite, visualRows } from './matrix'
 
 viewSuite('forecast')
@@ -103,9 +103,11 @@ test("'in' is said once, on the soonest change", () => {
 test('with the offset unknown, each time reads as a duration', () => {
   expect(pillsOf(rowOf(board({ utcOffsetMin: undefined })))).toEqual([
     ['cache', '◷ cold in 59m · re-warm ~$0.80'],
-    ['7d', '7d 66% · full in ~13h 15m · ↻ in 5d 22h'],
+    ['7d', '7d 66% · full in ~13h 15m · ↻ 5d 22h'],
     ['ctx', '◔ compacts in ~128k'],
   ])
+  const moved = { utcOffsetMin: undefined, fiveHour: { percentUsed: 4, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: null } }
+  expect(pillsOf(rowOf(board(moved))).find(([key]) => key === '5h')?.[1]).toBe('5h 4% · ↻ 4h 55m')
 })
 test('a cold cache leads with its price, short once the row is tight', () => {
   const cold = { cache: { ...board().cache, msLeft: 0 } }
@@ -141,6 +143,9 @@ test('open, the four cards with the lens in each head, and no first row the row 
     'CONTEXT~12 messages to compaction87% full',
   ])
   expect(headOf(tree, 'limits')).toMatch(/^LIMITS.+ full ~Mon7d 66%$/)
+  // Headed by another window, the fill day names the 7d's.
+  const five = drawn(board({ expanded: true, fiveHour: { percentUsed: 82, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: null } }))
+  expect(headOf(five, 'limits')).toMatch(/^LIMITS.+ 7d full ~Mon5h 82%!$/)
   expect(byKey(cardOf(tree, 'limits'), 'cells')).toBeDefined()
   expect(['cache', 'spend', 'context'].map(name => firstRowOf(tree, name))).toEqual(['saved by cache~$1,350', 'last message$0.10', 'auto-compacts at967k'])
   expect(firstRowOf(tree, 'limits')).toMatch(/^5h░+0%$/)
@@ -168,4 +173,60 @@ test('in ascii, the row says its resets in words, and the whole band is ASCII', 
     expect(byKey(firstRow(band), 'more', 'Button')?.props?.label).toBe(expanded ? 'v' : '^')
     if (!expanded) expect(shown(firstRow(band))).toBe('cold at 16:13, in 59m, re-warm ~$0.807d 66%, full ~Mon, resets Sat 13:30compacts in ~128k')
   }
+})
+
+/** How many times `part` is said in `text`. */
+const times = (text: string, part: string): number => text.split(part).length - 1
+test("open, the row and the cards together say the 7d's reset, the re-warm price and the room left once, at any width", () => {
+  for (const surface of ['terminal', 'desktop'] as const) {
+    for (const columns of [160, 95, 80, 60]) {
+      const said = shown(drawn(board({ surface, columns, expanded: true, maxRows: 40 })))
+      expect(`${surface} ${columns}: ${['Sat 13:30', '~$0.80', '~128k'].map(part => times(said, part))}`).toBe(`${surface} ${columns}: 1,1,1`)
+    }
+  }
+  // Amber, the short words drop the price and the room, and the cards say them.
+  const amber = { columns: 40, cache: { ...board().cache, msLeft: 30_000 }, context: { tokens: 900_000, window: 1_000_000, percent: 90, compactAt: 967_000, autoCompactOff: false } }
+  const said = shown(drawn(board({ ...amber, expanded: true, maxRows: 40 })))
+  expect([times(said, '~$0.80'), times(said, '~67k')]).toEqual([1, 1])
+})
+test('a window not the worst says its reset and pace once: its pill says them, so its line in LIMITS does not', () => {
+  const open = { expanded: true, maxRows: 40 }
+  const amber = shown(drawn(board({ ...open, fiveHour: { percentUsed: 82, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: null } })))
+  expect(times(amber, 'Sat 13:30')).toBe(1)
+  // A measured fill: the 5h's amber says it fills, so its line says only when it resets.
+  const fill = drawn(board({ ...open, fiveHour: { percentUsed: 40, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: 40 * MIN } }))
+  expect([times(shown(fill), 'full in ~40m'), shown(byKey(fill, 'fact:5h pace'))]).toEqual([1, 'resets 20:09'])
+})
+/** What the hover card a row's piece reveals says: the placed Box in its hover scope. */
+const hoverOf = (row: unknown, key: string): string => {
+  const scopeOf = (n: Node | undefined) => (n?.props?.hover as { scope?: unknown } | undefined)?.scope
+  const scope = scopeOf(byKey(row, key, 'Box'))
+  return scope === undefined ? '' : cardText(((row as Node).children ?? []).find(k => isCard(k) && scopeOf(k) === scope))
+}
+test("each pill reveals chips' card for its reading", () => {
+  const moved = { fiveHour: { percentUsed: 4, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: null } }
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const row = rowOf(board({ ...moved, surface }))
+    const chips = firstRow(drawBand(fakeEl, board({ ...moved, surface, layout: 'chips' }), NO_ACT))
+    for (const key of ['cache', '5h', '7d', 'ctx']) {
+      const said = hoverOf(row, key)
+      expect(`${surface} ${key} ${said}`).toBe(`${surface} ${key} ${hoverOf(chips, key)}`)
+      expect(said).not.toBe('')
+    }
+  }
+})
+test('shut, the band reads neither the week nor the history', () => {
+  const read = (snap: BandSnapshot): string[] => {
+    const touched: string[] = []
+    const watched = new Proxy(readingsOf(snap), {
+      get: (target, name, receiver) => {
+        if (name === 'week' || name === 'history') touched.push(name)
+        return Reflect.get(target, name, receiver)
+      },
+    })
+    forecastView.draw(makeKit(fakeEl, snap), watched, NO_ACT)
+    return [...new Set(touched)].sort()
+  }
+  expect(read(board())).toEqual([])
+  expect(read(board({ expanded: true }))).toEqual(['history', 'week'])
 })

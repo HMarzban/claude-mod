@@ -29,7 +29,7 @@ test('a window that fills before its reset says when: a measured fill, else the 
   const sevenFrom = (now: number) => readingsOf(snapOf({ utcOffsetMin: 0, now, sevenDay: { percentUsed: 66, resetsAt: new Date(now + 138 * HOUR).toISOString() } })).sevenDay
   const seven = sevenFrom(3 * 24 * HOUR + 20 * HOUR)
   expect(Math.abs((seven?.fillInMs ?? 0) - (30 * HOUR * 34) / 66)).toBeLessThan(1e-3)
-  expect([seven?.fillAt, seven?.fillText, seven?.ahead?.figure]).toEqual(['~Mon', 'full ~Mon', '~Mon'])
+  expect([seven?.fillAt, seven?.fillText, seven?.fillNamed, seven?.ahead?.figure]).toEqual(['~Mon', 'full ~Mon', '7d full ~Mon', '~Mon'])
   expect(sevenFrom(3 * 24 * HOUR)?.fillAt).toBe('~15:27')
   expect(readingsOf(snapOf({ sevenDay: { percentUsed: 66, resetsAt: new Date(138 * HOUR).toISOString() } })).sevenDay?.fillAt).toBe('in ~15h 30m')
   // Measured, the 5h's own fill; landing short, none, and its next change is its reset.
@@ -43,6 +43,13 @@ test('the context says how many messages to compaction at its average rise a mes
   // 114k of room at 10k a message.
   expect(at([56_000, 66_000, 76_000])).toBe('~11 messages to compaction')
   expect([at([76_000]), at([80_000, 76_000])]).toEqual([undefined, undefined])
+  // Since the newest compaction: 940k of rise before it would say ~240 messages.
+  const compacted = [...Array.from({ length: 95 }, (_, i) => 20_000 + i * 10_000), ...Array.from({ length: 16 }, (_, i) => 150_000 + i * 10_000)]
+  const after = (context: readonly number[]) =>
+    readingsOf(snapOf({ context: { tokens: 300_000, window: 1_000_000, percent: 30, compactAt: 967_000, autoCompactOff: false }, history: { costs: [], fiveHour: [], context } })).history.toCompactionText
+  expect(after(compacted)).toBe('~67 messages to compaction')
+  // Just compacted, nothing has risen yet.
+  expect(after([...compacted.slice(0, 95), 150_000])).toBeUndefined()
 })
 test("a card can say each limit's reset at its clock time, with its pace, as LIMITS' lead row does", () => {
   expect(readingsOf(snapOf({ utcOffsetMin: 0 })).limits.map(l => l.cardResetAt)).toEqual(['resets 03:00 · on pace for ~10%', 'resets Sat 19:00 · on pace for ~50%'])
@@ -178,7 +185,7 @@ test('a measured fill is an estimate, with ~, in words and on the board', () => 
   const now = Date.UTC(2026, 9, 9, 13, 40)
   const r = readingsOf(snapOf({ now, utcOffsetMin: 0, fiveHour: { percentUsed: 84, resetsAt: new Date(now + 70 * MIN).toISOString(), etaMs: 40 * MIN } }))
   const at = fmtClock(now + 40 * MIN, 0)
-  expect([r.fiveHour?.fullIn, r.fiveHour?.fullAtClock, r.fiveHour?.boardAmber]).toEqual(['~40m', `~${at}`, `! FULL ~${at}`])
+  expect([r.fiveHour?.fullIn, r.fiveHour?.boardAmber]).toEqual(['~40m', `! FULL ~${at}`])
   expect(r.fiveHour?.amber).toEqual({ long: '! 5h full in ~40m', short: '! 5h ~40m' })
   expect(r.fiveHour?.alt).toBe('5h limit 84 percent used, needs attention, full in about 40 minutes')
 })
@@ -207,7 +214,7 @@ test('a limit reads its value, or once its window has passed, reset', () => {
 })
 test('a passed window has no fill time', () => {
   const r = readingsOf(snapOf({ now: 4 * HOUR, fiveHour: { percentUsed: 84, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 0 } }))
-  expect([r.fiveHour?.fullIn, r.fiveHour?.fullAtClock, r.fiveHour?.projectedFrac]).toEqual([undefined, undefined, undefined])
+  expect([r.fiveHour?.fullIn, r.fiveHour?.projectedFrac]).toEqual([undefined, undefined])
   expect(r.fiveHour?.alt).not.toMatch(/full in/)
 })
 test('context speaks toward compaction, or of the window when it is off', () => {
