@@ -282,5 +282,14 @@ test('a desktop whose element table holds no Svg still draws its cards without c
   const { Box, Text, Button } = fakeEl
   const card = makeKit({ Box, Text, Button } as unknown as ElementTable, snapOf({ surface: 'desktop' })).hoverCard('cost', 'what it cost', { left: 0, room: 40, pieces: [] }) as Node
   expectInvertedCard(card, 'desktop', DARK)
-  expect(card.props?.width).toBe('what it cost'.length + 2)
+  expect(card.props?.width).toBe(Math.ceil('what it cost'.length * 0.8) + 2)
+})
+
+test("a desktop card is sized by the surface's measure, about 0.8 columns a character, not one", () => {
+  const kit = makeKit(fakeEl, snapOf({ surface: 'desktop' }))
+  // The 7d text, 57 characters, measures about 453px in the desktop's font.
+  const text = 'Resets in 2d 19h; weekly limit, all your Claude use today'
+  const card = kit.hoverCard('7d', text, { left: 10, room: 200, pieces: [] }) as Node
+  expect(card.props).toMatchObject({ left: 9, width: Math.ceil(text.length * 0.8) + 2 })
+  expect(Number(card.props?.width) * DESKTOP.pxPerCell).toBeGreaterThanOrEqual(453)
 })

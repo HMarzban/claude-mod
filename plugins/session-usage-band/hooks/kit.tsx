@@ -6,7 +6,7 @@ import type { ElementTable, RenderChildren } from 'claude-code'
 import { asciiTree, drawnTier } from './glyphs'
 import { ALT, GLYPH, ICON_PATHS, ICON_PX } from './icons'
 import type { Icon } from './icons'
-import { DESKTOP, TERMINAL } from './layout'
+import { DESKTOP, DESKTOP_CARD_TEXT, TERMINAL } from './layout'
 import type { Span } from './layout'
 import type { Tone } from './reading'
 import type { BandSnapshot } from './snapshot'
@@ -81,7 +81,9 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
   const hoverCard = (key: string, text: string, place: CardPlace): RenderChildren => {
     if (!palette.filled) return null
     const capped = snap.surface !== 'desktop'
-    const span = cardSpan(place, text.length + (capped ? 4 : 2))
+    // A text surface counts a cell a character; the desktop sizes by its font.
+    const cells = capped ? text.length + 4 : Math.ceil(text.length * DESKTOP_CARD_TEXT) + 2
+    const span = cardSpan(place, cells)
     if (span.width < (capped ? 5 : 3)) return null
     const shell = { position: 'absolute', top: 0, ...span, display: 'none', hover: { display: 'flex', scope: scopeOf(key) } } as const
     const ground = { backgroundColor: palette.tooltipBg, paddingX: 1 }

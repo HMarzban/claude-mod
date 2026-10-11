@@ -17,6 +17,10 @@ version may change how the band reads.
   chips: it runs on to the end of any chip it enters, as one solid slab,
   and starts a column before its own, so in the terminal its rounded ends
   sit in the gaps and on the desktop no sliver of the chip shows.
+- On the desktop a hover card ran 150 to 255px of empty ground past its
+  words, over chips the pointer couldn't reach while it showed. It is now
+  sized from the desktop's font, about 0.8 columns a character, then
+  rounded out to the end of a chip.
 - The expand toggle pointed the wrong way: the band is anchored to the
   prompt and grows upward when it opens, yet it showed `▿` to open and `▵`
   to close. It now points the way the band will move, `▵` to open and `▿`
