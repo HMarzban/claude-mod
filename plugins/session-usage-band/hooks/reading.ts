@@ -141,7 +141,7 @@ export const contextReading = (ctx: BandSnapshot['context']) => {
 /** Messages until `room` more tokens are in context, at the pace the trail
  *  has grown since its last drop, a compaction or a clear; undefined until
  *  two points show it growing. */
-export const messagesTo = (trail: readonly number[], room: number | undefined): number | undefined => {
+const messagesTo = (trail: readonly number[], room: number | undefined): number | undefined => {
   let start = 0
   for (let i = 1; i < trail.length; i++) if ((trail[i] ?? 0) < (trail[i - 1] ?? 0)) start = i
   const first = trail[start]
@@ -284,7 +284,7 @@ export type { DayCell, HourCell } from './calendar'
 
 /** How week draws a slice: measured, a guess, the guess that fills the
  *  limit, none left after it, or not known. */
-export type SliceKind = 'measured' | 'guess' | 'fills' | 'spent' | 'unknown'
+type SliceKind = 'measured' | 'guess' | 'fills' | 'spent' | 'unknown'
 /** A slice as drawn: its kind and its rise in points toward the cap. */
 export type SliceMark = Readonly<{ kind: SliceKind; pct: number }>
 /** A window's slices as drawn, and where now falls among them, counted in
@@ -343,7 +343,7 @@ export const cacheFacts = (snap: BandSnapshot): CacheFacts => {
 }
 
 /** The context's fill, with the compaction point and the model window it is read against. */
-export const contextFacts = (snap: BandSnapshot): ContextFacts => {
+const contextFacts = (snap: BandSnapshot): ContextFacts => {
   const reading = contextReading(snap.context)
   return {
     ...reading,

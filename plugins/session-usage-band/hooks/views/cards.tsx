@@ -57,14 +57,14 @@ const isForms = (slot: RenderChildren | SlotForms): slot is SlotForms => typeof 
 /** A card's first row, as its facts are drawn: a label and its value,
  *  `used so far` and `5h 0% · 7d 66%`, the value in its roles' inks where
  *  it is a phrase. */
-export type Lead = readonly [label: string, value: string | Say]
+type Lead = readonly [label: string, value: string | Say]
 /** One lead, or its forms longest first: the card draws the first its line holds. */
-export type Leads = Lead | readonly Lead[]
+type Leads = Lead | readonly Lead[]
 
 /** A lead that says facts the card would: in the first form its line holds,
  *  the card skipping `says`; held by none, it gives way whole and the card
  *  says them in its own rows, never one cut. */
-export type FactLead = Readonly<{ forms: readonly Lead[]; says: readonly Fact[] }>
+type FactLead = Readonly<{ forms: readonly Lead[]; says: readonly Fact[] }>
 
 const isLead = (l: Leads): l is Lead => typeof l[0] === 'string'
 
