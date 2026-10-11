@@ -166,3 +166,17 @@ test("LIMITS leads with the worst window's reset and pace, never the collapsed r
   // A layout may have each window say its reset at the clock, as the lead row does.
   expect(fact(opened({ windowResets: 'clock' }, { utcOffsetMin: 0 }), '5h pace')).toBe('resets 03:00 · on pace for ~10%')
 })
+test("a window's own line leaves out what the collapsed lines say of it, the worst's lead row too", () => {
+  const said = (shownByWindow: OpenOptions['shownByWindow']) => {
+    const tree = opened({ shownByWindow, windowResets: 'clock' }, { utcOffsetMin: 0 })
+    return [fact(tree, '5h pace'), firstRowOf(tree, 'limits')]
+  }
+  expect(said({})).toEqual(['resets 03:00 · on pace for ~10%', 'resetsSat 19:00 · on pace for ~50%'])
+  expect(said({ '5h': ['reset'] })[0]).toBe('on pace for ~10%')
+  expect(said({ '5h': ['pace'] })[0]).toBe('resets 03:00')
+  expect(said({ '5h': ['reset', 'pace'] })[0]).toBeUndefined()
+  expect(said({ '7d': ['reset'] })[1]).toBe('on pace for ~50%')
+  expect(said({ '7d': ['reset', 'pace'] })[1]).toMatch(/^5h/)
+  // In the countdown form, the same.
+  expect(fact(opened({ shownByWindow: { '5h': ['pace'] } }), '5h pace')).toBe('resets 3h 00m')
+})

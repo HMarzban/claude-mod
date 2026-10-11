@@ -11,6 +11,7 @@ import {
   fmtClock,
   fmtCost,
   fmtCountdown,
+  fmtDay,
   fmtDayClock,
   fmtEstimate,
   fmtEta,
@@ -41,6 +42,11 @@ export type Amber = Readonly<{ long: string; short: string }>
 /** A reading's amber words, and `beside`: its reason after its figure, drawn
  *  apart, naming the reading in place of its label: `! 5h ~1h`, `! cache`. */
 export type ReadingAmber = Amber & Readonly<{ beside: string }>
+/** A reading's next change, as forecast's row says it: its words up to the
+ *  figure, the figure, how far off it is, and what follows, `cold at `
+ *  `16:13` `in 59m` `re-warm ~$0.80`; `brief`, where set, the words a tight
+ *  row keeps in place of the lead and the rest. */
+export type Ahead = Readonly<{ lead: Say; figure: string; soon?: string; tail?: string; brief?: Say }>
 
 /** A value not known yet: unknown, never 0. */
 const UNKNOWN = '–'
@@ -121,6 +127,11 @@ export type CacheWords = Readonly<{
   reWarmText: string | undefined
   /** When it goes cold, `14:32`, while counting and the offset is known. */
   coldAtClock: string | undefined
+  /** `cold at 14:32`, as a lens says it; set where `coldAtClock` is. */
+  coldAtText: string | undefined
+  /** Its next change: going cold, at its clock time or in its countdown;
+   *  cold, what re-warming costs; else its state, `cache warm`. */
+  ahead: Ahead
   /** When it went cold, `13:28`, once measured and the offset is known. */
   coldSinceClock: string | undefined
   /** What the cache saved, `~$11.40`, and its hit rate, `96%`, once measured. */
@@ -164,6 +175,8 @@ export type ContextWords = Readonly<{
   /** `auto-compaction off`, only when the engine says so; unknown says nothing. */
   compactionOffText: string | undefined
   windowText: string
+  /** Its next change, `compacts in ~114k`; none until compaction's room is known. */
+  ahead: Ahead | undefined
   /** The context card's headline: `87% full`, marked past 80% when compaction is off. */
   cardHead: Say
   /** `context 87% full`, bold on its figure alone. */
@@ -195,6 +208,10 @@ export type LimitWords = Readonly<{
   /** A card's reset and pace: `resets 3h 00m · on pace for ~10%`; undefined
    *  without a reset to come. */
   cardReset: string | undefined
+  /** `cardReset`, or in the clock's form `cardResetAt`, less what a layout's
+   *  collapsed lines already say of the window: `resets 16:40`, or its pace
+   *  alone; undefined once nothing is left. */
+  cardResetLess: (form: 'countdown' | 'clock', said: Readonly<{ reset: boolean; pace: boolean }>) => string | undefined
   /** When it resets, after `resets`: `16:40` or `Sat 13:30` once the offset
    *  is known, else `in 3h 00m`; undefined without a reset to come. */
   resetWhen: string | undefined
@@ -225,9 +242,19 @@ export type LimitWords = Readonly<{
   /** The landing for a reader, `5h limit about 10 percent at its reset`,
    *  set where `projectedText` is. */
   projectedAlt: string | undefined
-  /** A measured fill, `~40m`, and when, `~14:20` (the offset known). */
+  /** When it fills before its reset, measured or at the average's pace:
+   *  `~Mon` past today, `~14:20` today, or with the offset unknown `in ~13h`. */
+  fillAt: string | undefined
+  /** `full ~Mon`, as a lens says it; set where `fillAt` is. */
+  fillText: string | undefined
+  /** `7d full ~Mon`: the same, named, beside another window's figure. */
+  fillNamed: string | undefined
+  /** Its next change after its name: its fill, `66% · full ~Mon · ↻ Sat
+   *  13:30`, else its reset and pace, `4% · ↻ 16:40 · on pace for ~10%`;
+   *  none at 0%, where nothing is moving, or once passed. */
+  ahead: Ahead | undefined
+  /** A measured fill, `~40m`. */
   fullIn: string | undefined
-  fullAtClock: string | undefined
   /** `! 5h 82%`, or with a measured fill, `! 5h full in ~40m` / `! 5h ~40m`. */
   amber: ReadingAmber | undefined
   /** `! NEAR LIMIT`, `! FULL ~14:20`, or without the offset, `! FULL IN ~40 MIN`. */
@@ -302,6 +329,15 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
         : f.mood === 'warming' || working
           ? [[joined(say), 'label']]
           : say
+  const coldAtClock = counting && off !== undefined ? fmtClock(frame.now + f.coldInMs, off) : undefined
+  const reWarm = `re-warm ${f.estimate}`
+  const ahead: Ahead = counting
+    ? coldAtClock !== undefined
+      ? { lead: [['cold at ', 'value']], figure: coldAtClock, soon: `in ${leftShort}`, tail: reWarm }
+      : { lead: [['cold in ', 'value']], figure: leftShort, tail: reWarm }
+    : f.mood === 'cold'
+      ? { lead: [['cold · re-warm ', 'value']], figure: f.estimate, brief: [['cold ', 'value']] }
+      : { lead: [['cache ', 'label']], figure: value }
   return {
     condition: CONDITION[f.mood],
     value,
@@ -314,7 +350,9 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     textShort: joined(sayShort),
     amber: f.mood === 'expiring' ? AMBER.cache(left, leftShort, f.estimate) : undefined,
     reWarmText: !f.known ? undefined : f.mood === 'cold' ? `next message ${f.estimate}` : `re-warm ${f.estimate} if it goes cold`,
-    coldAtClock: counting && off !== undefined ? fmtClock(frame.now + f.coldInMs, off) : undefined,
+    coldAtClock,
+    coldAtText: coldAtClock === undefined ? undefined : `cold at ${coldAtClock}`,
+    ahead,
     coldSinceClock: f.mood === 'cold' && c.coldAt !== null && off !== undefined ? fmtClock(c.coldAt, off) : undefined,
     savedText: f.measured && c.savedUsd !== null ? fmtEstimate(c.savedUsd) : undefined,
     hitText: f.hitFrac === undefined ? undefined : fmtPct(f.hitFrac),
@@ -364,6 +402,7 @@ export const contextWords = (f: ContextFacts): ContextWords => {
     roomText,
     compactionOffText: f.autoCompactOff ? 'auto-compaction off' : undefined,
     windowText: fmtTokens(f.window),
+    ahead: roomText === undefined ? undefined : { lead: [['compacts in ', 'value']], figure: roomText },
     cardHead,
     sentence: [['context ', 'label'], ...cardHead],
     alt: f.known
@@ -409,16 +448,39 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   // The ascii tier drops `↻`, so a phrase whose object is the glyph says its word.
   const ascii = frame.glyphs === 'ascii'
   const boardReset = ascii ? 'RESET' : '↻'
+  const resetMark = ascii ? 'resets' : '↻'
   const pace = live ? paceText(f) : ''
-  const withPace = pace === '' ? '' : ` · ${pace}`
   const resetWhen = f.reset?.kind !== 'in' ? undefined : (resetClock ?? `in ${f.reset.text}`)
-  const resetAtGlyph = resetClock === undefined ? resetGlyph : `${ascii ? 'resets' : '↻'} ${resetClock}`
+  const fillInMs = live ? f.fillInMs : undefined
+  const fillAt = fillInMs === undefined ? undefined : off !== undefined ? `~${fmtDay(frame.now + fillInMs, off, frame.now)}` : `in ${fmtEta(fillInMs)}`
+  const resetAtGlyph = resetClock === undefined ? resetGlyph : `${resetMark} ${resetClock}`
+  const cardResetLess = (form: 'countdown' | 'clock', said: Readonly<{ reset: boolean; pace: boolean }>): string | undefined => {
+    if (f.reset?.kind !== 'in') return undefined
+    const parts = [said.reset ? '' : `resets ${form === 'clock' ? resetWhen : f.reset.text}`, said.pace ? '' : pace].filter(t => t !== '')
+    return parts.length === 0 ? undefined : parts.join(' · ')
+  }
+  const nothingSaid = { reset: false, pace: false }
+  const standing: Say = [[`${f.value} · `, 'label']]
+  // Its next change says its reset after the mark, as chips' pill does:
+  // `↻ Sat 13:30`, or with the offset unknown, `↻ 5d 22h`.
+  const ahead: Ahead | undefined =
+    f.reset?.kind !== 'in' || Math.round(f.percentUsed) === 0
+      ? undefined
+      : fillAt !== undefined && fillInMs !== undefined
+        ? { lead: [...standing, ['full ', 'value']], figure: fillAt, soon: off === undefined ? undefined : `in ${fmtEta(fillInMs)}`, tail: `${resetMark} ${resetClock ?? f.reset.text}` }
+        : {
+            lead: [...standing, [`${resetMark} `, 'value']],
+            figure: resetClock ?? f.reset.text,
+            soon: resetClock === undefined ? undefined : `in ${f.reset.text}`,
+            tail: pace === '' ? undefined : pace,
+          }
   return {
     valueText,
     valueMarked: `${f.value}${severityMark(f.frac)}`,
-    cardReset: f.reset?.kind === 'in' ? `resets ${f.reset.text}${withPace}` : undefined,
+    cardReset: cardResetLess('countdown', nothingSaid),
+    cardResetLess,
     resetWhen,
-    cardResetAt: resetWhen === undefined ? undefined : `resets ${resetWhen}${withPace}`,
+    cardResetAt: cardResetLess('clock', nothingSaid),
     text: joined(say),
     say,
     pace,
@@ -435,8 +497,11 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     ],
     projectedText,
     projectedAlt: landing === undefined ? undefined : altOf(`${f.name} limit`, landing),
+    fillAt,
+    fillText: fillAt === undefined ? undefined : `full ${fillAt}`,
+    fillNamed: fillAt === undefined ? undefined : `${f.name} full ${fillAt}`,
+    ahead,
     fullIn,
-    fullAtClock,
     amber: f.tone !== 'amber' ? undefined : fullIn !== undefined ? AMBER.limitPace(f.name, fullIn) : AMBER.limit(f.name, f.percentUsed),
     boardAmber:
       f.tone !== 'amber'
@@ -493,6 +558,10 @@ export type HistoryWords = Readonly<{
   fiveHourWindowAlt: string
   /** 'context over the conversation, rising, compacts at 190k'; with compaction off, no compaction point. */
   contextTrailAlt: string
+  /** '~12 messages to compaction', at the context's average rise a message
+   *  since its last compaction; undefined until it has risen, or with
+   *  compaction off. */
+  toCompactionText: string | undefined
 }>
 
 /** A message above this many times the warm average is rising; below the average divided by it, falling. */
@@ -544,6 +613,11 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, co
   const fullIn = fiveHour === undefined || fiveHour.etaMs === null ? '' : `, full in ${fmtEtaSpoken(fiveHour.etaMs)}`
   const fiveHourAlt = (span: string, points: readonly TrailPoint[]): string => `5h usage ${span}, ${riseOf(points)}${fullIn}`
   const compactsAt = context.compactAt === undefined ? '' : `, compacts at ${fmtTokens(context.compactAt)}`
+  // A compaction drops the context, so its rise is measured since the newest drop.
+  const trail = record.context
+  const tokens = trail.slice(Math.max(0, trail.findLastIndex((t, i) => i > 0 && t < (trail[i - 1] ?? 0))))
+  const risePerMessage = tokens.length < 2 ? 0 : ((tokens[tokens.length - 1] ?? 0) - (tokens[0] ?? 0)) / (tokens.length - 1)
+  const messages = context.toCompact === undefined || risePerMessage <= 0 ? undefined : Math.max(1, Math.round(context.toCompact / risePerMessage))
   return {
     lastText,
     avgText,
@@ -555,6 +629,7 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, co
     trailAlt: fiveHourAlt('over the last hour', lastHourOf(record.fiveHour, now)),
     fiveHourWindowAlt: fiveHourAlt('this window', thisWindowOf(record.fiveHour, fiveHour, now)),
     contextTrailAlt: `context over the conversation, ${contextTrendOf(record.context)}${compactsAt}`,
+    toCompactionText: messages === undefined ? undefined : `~${messages} message${messages === 1 ? '' : 's'} to compaction`,
   }
 }
 

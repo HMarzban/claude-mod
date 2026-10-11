@@ -169,7 +169,7 @@ line has them wherever it is drawn as chips draws it.
 | `tiles` | Every reading side by side in equal tiles, figure first, with a bar or the cache's battery where there's a cap | 1 / 1 |
 | `week` | Where your limits went: the weekly limit as day cells and the 5-hour limit as hour cells, each filled to its rise | 2 / 2 |
 | `departures` | A split-flap board: the cache `DEPARTS` at its clock time, and its last minute is `LAST CALL` | 1 / 1 |
-| `forecast` | The band read like the weather: now, then up to three changes ahead at their clock times, soonest first | 2 / 1 |
+| `forecast` | What changes next, and when: each reading's next change as a chip, its clock time in bold, soonest first, so the cache goes cold at 16:13 and the 7d fills ~Mon | 1 / 1 |
 
 ```
 /usage-band layout pulse    # draw pulse; /usage-band layout chips goes back

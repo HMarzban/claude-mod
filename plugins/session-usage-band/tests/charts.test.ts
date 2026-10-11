@@ -128,9 +128,3 @@ test('in text, day cells keep one width wherever today falls', () => {
   const widths = values.map((_, today) => textOf(dayCells(term, { key: 'd', alt: 'week', values, today, color: '#a99cf0', cellPx: 16, height: 16 })).length)
   expect(widths).toEqual(values.map(() => 2 * values.length + 1))
 })
-test('the weather icons draw on the desktop and leave the word to the text', () => {
-  for (const [name, alt] of [['sun', 'warm'], ['cloud', 'cooling'], ['snow', 'cold']] as const) {
-    expect(svg(desk.icon(name, '#7fcf8a')[0]).props.alt).toBe(alt)
-    expect(term.icon(name, '#7fcf8a')).toEqual([])
-  }
-})
