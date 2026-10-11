@@ -44,6 +44,10 @@ test('ascii text is pure ASCII, a dropped glyph takes its space, and padding sta
   expect(asciiText('café latte')).toBe('caf latte') // an unmapped character goes alone
   expect(asciiText('ITEM      STATUS')).toBe('ITEM      STATUS')
 })
+test("a spaced separator reads as a comma, never as a minus between numbers", () => {
+  expect(asciiText('input 196k · output 12k · cache reads 0')).toBe('input 196k, output 12k, cache reads 0')
+  expect(asciiText('5h 4%·7d')).toBe('5h 4%-7d') // a bare one keeps its dash
+})
 test('chips in the ascii tier draws only ASCII, within the row, shut and open', LONG, async ($, on) => {
   const m: Mount = { surface: 'terminal', cols: 120 }
   const desktop: Mount = { surface: 'desktop', cols: 120 }

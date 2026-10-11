@@ -39,9 +39,9 @@ export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({
 /** Actions for a draw outside a mount: one function each, so props compare equal. */
 export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide: async () => undefined }
 
-/** Every layout's words for each amber trigger. `·` reads `-` in the ascii tier. */
+/** Every layout's words for each amber trigger. ` · ` reads `, ` in the ascii tier. */
 export const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
-  cacheLastMinute: /! \d+s( left)?|LAST CALL|! cooling [·-] \d+s left/,
+  cacheLastMinute: /! \d+s( left)?|LAST CALL|! cooling( ·|,) \d+s left/,
   nearCompaction: /! context \d+%|! ctx \d+%|! COMPACTS IN ~/,
   contextNoCompaction: /! context \d+%|! ctx \d+%|! CONTEXT \d+%/,
   limit80: /! 5h|! NEAR LIMIT/,

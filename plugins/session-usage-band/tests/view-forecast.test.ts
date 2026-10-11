@@ -169,7 +169,7 @@ test('with the offset unknown, each change reads as a duration, and a 7d reset w
 test('in ascii, an outlook says when a limit resets in words', LONG, async ($, on) => {
   const trees = await drawCases($, on, { layout: 'forecast', scenario: 'calm', appearance: 'dark', ttl: '1h', env: { CC_BAND_GLYPHS: 'ascii' } }, [T160])
   const open = shown(trees[caseKey(T160, 'open')])
-  expect(open).toMatch(new RegExp(String.raw`on pace for ~\d+%\s*-\s*resets ${CALM_RESET_DAY}\d{2}:\d{2}`))
+  expect(open).toMatch(new RegExp(String.raw`on pace for ~\d+%,\s*resets ${CALM_RESET_DAY}\d{2}:\d{2}`))
 })
 test('open, an unmeasured cache draws no bar, so no alt says 0% left', LONG, async ($, on) => {
   const trees = await drawCases($, on, { layout: 'forecast', scenario: 'unmeasured', appearance: 'dark', ttl: '1h' }, [D160])

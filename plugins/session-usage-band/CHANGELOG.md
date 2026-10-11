@@ -44,6 +44,9 @@ version may change how the band reads.
   CJK terminal, the tier's own, draws two columns wide, so every narrow
   hover card and cut line overflowed its row. A hover card now cuts its
   own words with a `.`, and any other line clips at its row's edge.
+- In the ascii tier `input 196k · output 12k` read `input 196k - output
+  12k`, a subtraction, and a screen reader said "minus". A spaced ` · `
+  now reads `, `; a bare `·` still becomes `-`.
 
 ## [0.12.0] - 2026-10-10
 

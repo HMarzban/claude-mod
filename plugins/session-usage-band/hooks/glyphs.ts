@@ -32,11 +32,12 @@ export const ASCII_MAP: Readonly<Record<string, string>> = {
   '▐': ' ', '▌': ' ',
 }
 
-/** `s` in ASCII: each glyph mapped, and any other non-ASCII character
- *  dropped alone. A glyph mapped to nothing takes the one space after it, so
- *  no gap is left where it was. */
+/** `s` in ASCII: a spaced separator a comma, since ` - ` between numbers
+ *  reads as a minus, and a screen reader says so; then each glyph mapped,
+ *  and any other non-ASCII character dropped alone. A glyph mapped to
+ *  nothing takes the one space after it, so no gap is left where it was. */
 export const asciiText = (s: string): string => {
-  const chars = [...s]
+  const chars = [...s.replace(/ · /g, ', ')]
   let out = ''
   for (let i = 0; i < chars.length; i++) {
     const ch = chars[i] ?? ''

@@ -204,9 +204,10 @@ characters wide. In a CJK locale (the first of `LC_ALL`, `LC_CTYPE` and
 itself. The terminal setting can't be detected, so set
 `CC_BAND_GLYPHS=ascii` if you use it, and with a screen reader, which reads
 braille as dots. In ASCII each glyph becomes one character or is dropped
-(`█` is `#`, `▵` is `^`, `◷` goes), and braille charts give way to their
-numbers. It applies to every layout, chips included, and only in the
-terminal.
+(`█` is `#`, `▵` is `^`, `◷` goes), a ` · ` between two facts reads `, `,
+text too long for its room is clipped rather than ended with `…`, and
+braille charts give way to their numbers. It applies to every layout,
+chips included, and only in the terminal.
 
 ### Clock times
 
