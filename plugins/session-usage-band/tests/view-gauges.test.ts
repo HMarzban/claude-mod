@@ -32,8 +32,12 @@ const boldOf = (n: unknown): string[] => {
   })
   return out
 }
+/** A card's body rows, past its head. */
+const bodyOf = (tree: Node, name: string): Node[] => ((cardOf(tree, name)?.children ?? []) as Node[]).filter(Boolean).slice(1)
 /** A card's first body row, past its head, as it reads. */
-const firstRowOf = (tree: Node, name: string): string => shown(((cardOf(tree, name)?.children ?? []) as Node[]).filter(Boolean)[1])
+const firstRowOf = (tree: Node, name: string): string => shown(bodyOf(tree, name)[0])
+/** Whether a row draws a bar: an Svg, or a run of a bar's glyphs. */
+const isBar = (row: Node | undefined): boolean => svgsOf(row).length > 0 || /[█▓▒░│]{4}/.test(shown(row))
 const desktop = (over: Partial<BandSnapshot> = {}): Partial<BandSnapshot> => ({ surface: 'desktop', columns: 95, ...over })
 const LAST_MINUTE = { cache: { ...snapOf().cache, msLeft: 30_000 } }
 const NEAR_COMPACTION = { context: { tokens: 176_000, window: 200_000, percent: 88, compactAt: 190_000, autoCompactOff: false } }
@@ -88,12 +92,14 @@ test("on the desktop the cache's bar is a battery the bars' length, and each lim
 test('no bar ends in a thumb, and a 5h at 0% has no notch', () => {
   const bars = svgsOf(rowOf(desktop())).filter(n => /^(cache|context|5h|7d) /.test(String(n.props?.alt)))
   expect(bars.length).toBe(4)
+  // A regression guard: the meter has never drawn a thumb.
   for (const bar of bars) expect(String(bar.props?.source)).not.toMatch(/thumb|<circle/)
   const unused = { fiveHour: { percentUsed: 0, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }
   const five = svgsOf(rowOf(desktop(unused))).find(n => String(n.props?.alt).startsWith('5h '))
   expect(String(five?.props?.source)).not.toMatch(/class="tick"/)
-  // As the board draws it: nothing used, no pace either, only its reset.
-  expect(pillText(unused, '5h')).toBe('5h░░░░░░░░░░░░0% · ↻ 03:00')
+  // As the board draws it: nothing used, the window may not have begun, so
+  // it says neither a pace nor a reset, its figure alone.
+  expect(pillText(unused, '5h')).toBe('5h░░░░░░░░░░░░0%')
 })
 test('the toggle is last, on the bottom row: ▵ shut, ▿ open', () => {
   const end = (tree: Node) => ((firstRow(tree) as Node).children ?? []).at(-1) as Node
@@ -178,13 +184,38 @@ test('open on the desktop at 95 columns and 13 rows, each card says one new thin
   ])
   expect([byKey(open, 'collapse', 'Button')?.props?.label, byKey(open, 'hide', 'Button')?.props?.label]).toEqual(['Collapse', 'Hide band'])
 })
-test('open, no card repeats what the row kept: at 160 terminal columns the row has the 7d reset, so LIMITS leads with a window', () => {
-  const open = draw({ expanded: true, maxRows: 13 })
-  expect(firstRowOf(open, 'limits')).toMatch(/^5h/)
+test('open, no card repeats what the row kept: at 160 terminal columns the row draws both windows whole, so LIMITS holds its head alone', () => {
+  for (const over of [{}, { maxRows: 20 }, desktop({ columns: 120, maxRows: 16 })]) expect(bodyOf(draw({ expanded: true, maxRows: 13, ...over }), 'limits').map(shown)).toEqual([])
+  // On the desktop at 95 the row lost its resets: LIMITS says each, the 7d's
+  // at its clock and the 5h's as a countdown, and draws neither bar again.
+  expect(bodyOf(draw(desktop({ expanded: true, maxRows: 20 })), 'limits').map(shown)).toEqual(['resetsSat 19:00', 'resets 3h 00m · on pace for ~10%'])
+  // A passed window the row says too: `7d reset` is not said again.
+  const passed = { sevenDay: { percentUsed: 40, resetsAt: new Date(-HOUR).toISOString() } }
+  expect(bodyOf(draw({ ...passed, expanded: true, maxRows: 20 }), 'limits').map(shown)).toEqual([])
   // Narrow, the row lost the re-warm price, so the cache card leads with it.
   expect(firstRowOf(draw({ expanded: true, maxRows: 16, columns: 60 }), 'cache')).toMatch(/^re-warm if cold/)
 })
-test('open with an amber spend limit, LIMITS still says its reset: the row never draws it', () => {
+test("open, a card's lens is its bar: its body leads with a fact, never the bar again", () => {
+  for (const over of [{ maxRows: 13 }, desktop({ maxRows: 20 })]) {
+    const open = draw({ expanded: true, ...over })
+    for (const name of ['cache', 'spend', 'context', 'limits']) {
+      const first = bodyOf(open, name)[0]
+      // LIMITS may hold its head alone, the row having drawn every window.
+      if (first !== undefined || name !== 'limits') expect(`${name} ${String(first?.props?.key).startsWith('fact:') && !isBar(first)}`).toBe(`${name} true`)
+    }
+  }
+})
+test('open with an amber spend limit, LIMITS leads its headline with "! " in amber, and still says its reset: the row never draws it', () => {
   const spend = { otherLimits: [{ kind: 'spend_limit' as const, percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }] }
-  expect(firstRowOf(draw({ ...spend, expanded: true, maxRows: 13 }), 'limits')).toBe('resets05:00')
+  const open = draw(desktop({ ...spend, expanded: true, maxRows: 13 }))
+  const head = byKey(byKey(cardOf(open, 'limits'), 'head', 'Box'), 'headline', 'Box')
+  expect(shown(head)).toBe('! spend 92%')
+  expect(byKey(head, 'say0', 'Text')?.props?.color).toBe(DARK.amberFg)
+  expect(firstRowOf(open, 'limits')).toBe('resets05:00')
+})
+test('a passed window says `reset` in label ink, not bold: it is no figure', () => {
+  const passed = rowOf({ sevenDay: { percentUsed: 40, resetsAt: new Date(-HOUR).toISOString() } })
+  expect(shown(byKey(passed, '7d', 'Box'))).toBe('7dreset')
+  expect(boldOf(passed)).toEqual(['52m', '4%', '40%', '$3.19'])
+  expect(byKey(byKey(passed, '7d', 'Box'), 's0', 'Text')?.props?.color).toBe(DARK.label)
 })

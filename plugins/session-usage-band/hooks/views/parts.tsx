@@ -8,7 +8,7 @@ import { meter } from '../charts'
 import { clamp01 } from '../format'
 import { asciiText } from '../glyphs'
 import type { Kit } from '../kit'
-import { ROW_SLACK, isDrawn, keepsIn, squeezeToFit } from '../layout'
+import { ROW_SLACK, fitSqueeze, isDrawn, keepsIn } from '../layout'
 import type { BarSize } from '../layout'
 import type { Palette } from '../palette'
 import type { LimitKey, LimitView, Readings, Tone } from '../reading'
@@ -160,23 +160,28 @@ export const line = (kit: Kit, key: string, pieces: readonly RenderChildren[], e
 }
 
 /** A line squeezed by its give-way order: the smallest squeeze at which it
- *  fits. The amber step is always last, so amber shortens only once every
- *  calm piece has gone. */
-export const fitLine = <P extends string>(kit: Kit, order: readonly P[], room: number, build: (keeps: Keeps<P>) => RenderElement): RenderElement => {
+ *  fits, and what that squeeze keeps. The amber step is always last, so
+ *  amber shortens only once every calm piece has gone. */
+export const fitLineKeeps = <P extends string>(
+  kit: Kit,
+  order: readonly P[],
+  room: number,
+  build: (keeps: Keeps<P>) => RenderElement,
+): Readonly<{ line: RenderElement; keeps: Keeps<P> }> => {
   const steps: ReadonlyArray<P | typeof AMBER_STEP> = [...order, AMBER_STEP]
   const at = keepsIn(steps)
-  return squeezeToFit(
-    squeeze =>
-      build({
-        has: p => at(squeeze, p),
-        calm: (p, tone) => tone === 'amber' || at(squeeze, p),
-        amber: a => (at(squeeze, AMBER_STEP) ? a.long : a.short),
-      }),
-    steps.length,
-    room,
-    kit.measure,
-  )
+  const keepsAt = (squeeze: number): Keeps<P> => ({
+    has: p => at(squeeze, p),
+    calm: (p, tone) => tone === 'amber' || at(squeeze, p),
+    amber: a => (at(squeeze, AMBER_STEP) ? a.long : a.short),
+  })
+  const { line, squeeze } = fitSqueeze(squeeze => build(keepsAt(squeeze)), steps.length, room, kit.measure)
+  return { line, keeps: keepsAt(squeeze) }
 }
+
+/** `fitLineKeeps`' line alone. */
+export const fitLine = <P extends string>(kit: Kit, order: readonly P[], room: number, build: (keeps: Keeps<P>) => RenderElement): RenderElement =>
+  fitLineKeeps(kit, order, room, build).line
 
 /** True until the amber step: an amber reading's chart stays while this holds. */
 export const beforeLast = <P extends string>(keeps: Keeps<P>): boolean => keeps.amber(AMBER_PROBE) === AMBER_PROBE.long

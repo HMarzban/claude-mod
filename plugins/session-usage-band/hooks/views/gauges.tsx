@@ -16,7 +16,7 @@ import { AMBER_LEAD, type Say } from '../words'
 import { cardsView, tokenPartsOf, type Fact, type Slots } from './cards'
 import { LIMITS, costPill, type ChipKey } from './chips'
 import { toggleButton } from './frame'
-import { accentOf, batteryBar, beforeLast, fitLine, pill, type Keeps } from './parts'
+import { accentOf, batteryBar, beforeLast, fitLineKeeps, pill, type Keeps } from './parts'
 import { rowsOf, type Rows, type View } from './view'
 
 /** What the grid gives up as it narrows, first to last: the paces, gauges'
@@ -32,8 +32,8 @@ const SMALL_BAR: BarSize = { px: 45, cells: 6 }
 const SLOT_BAR: BarSize = { px: 60, cells: 6 }
 
 /** Words after a gauge's reading: the piece they give way as, and the card
- *  fact they say, so the cards skip it while the row keeps it. */
-type Qualifier = Readonly<{ text: string; piece: Piece; fact?: Fact }>
+ *  facts they say, so the cards skip them while the row keeps it. */
+type Qualifier = Readonly<{ text: string; piece: Piece; facts: readonly Fact[] }>
 
 /** A gauge's pieces, built once for the squeeze to pick from. */
 type Gauge = Readonly<{
@@ -52,6 +52,8 @@ type Gauge = Readonly<{
   /** Its figure alone, once the grid drops the words beside it. */
   sayShort: Say
   more: readonly Qualifier[]
+  /** The card fact its name, bar and figure say: a limit's `window:5h`. */
+  window?: Fact
 }>
 
 const cacheGauge = (kit: Kit, read: Readings): Gauge => {
@@ -68,7 +70,7 @@ const cacheGauge = (kit: Kit, read: Readings): Gauge => {
     bar: c.known ? size => batteryBar(kit, c.charge, c.tone, c.alt, size) : undefined,
     say: c.gaugeSay,
     sayShort: c.gaugeShort,
-    more: c.gaugeMore === undefined ? [] : [{ text: c.gaugeMore, piece: 'reWarm', fact: 'reWarm' }],
+    more: c.gaugeMore === undefined ? [] : [{ text: c.gaugeMore, piece: 'reWarm', facts: ['reWarm'] }],
   }
 }
 
@@ -87,20 +89,22 @@ const contextGauge = (kit: Kit, read: Readings): Gauge => {
     bar: x.known ? size => meter(kit, { key: 'bar', label: 'context', frac: x.frac, tone: x.tone, accent: palette.meterFill, size }) : undefined,
     say: x.gaugeSay,
     sayShort: x.gaugeShort,
-    more: x.gaugeMore === undefined ? [] : [{ text: x.gaugeMore, piece: 'room', fact: 'room' }],
+    more: x.gaugeMore === undefined ? [] : [{ text: x.gaugeMore, piece: 'room', facts: ['room'] }],
   }
 }
 
 /** A limit in chips' tint, notched where its window's time has gone and
  *  dashed where its pace lands. Passed, its last reading is from before the
- *  reset, so it has no bar, as chips draws it. */
+ *  reset, so it has no bar, as chips draws it. With none used, the window
+ *  may not have begun, so it says no reset either: its figure alone. */
 const limitGauge = (kit: Kit, read: Readings, l: LimitView, key: ChipKey): Gauge => {
   const { palette, onTone } = kit
   const spec = LIMITS[key]
   const tint = spec.tint(palette)
-  // Only the worst window's are the LIMITS card's lead row.
+  // Only the worst window's also say the LIMITS card's lead row.
   const worst = l === read.worstLimit
-  const value: Say = [[l.valueText, 'value']]
+  // Passed, `reset` is a word, not a figure, so it is not bold.
+  const value: Say = [[l.valueText, l.passed ? 'label' : 'value']]
   return {
     key,
     tone: l.tone,
@@ -126,9 +130,12 @@ const limitGauge = (kit: Kit, read: Readings, l: LimitView, key: ChipKey): Gauge
     say: value,
     sayShort: value,
     more: [
-      ...(l.pace === '' ? [] : [{ text: l.pace, piece: 'paces', fact: worst ? 'pace' : undefined } as const]),
-      ...(l.resetAtGlyph === undefined ? [] : [{ text: l.resetAtGlyph, piece: 'resets', fact: worst ? 'reset' : undefined } as const]),
+      ...(l.pace === '' ? [] : [{ text: l.pace, piece: 'paces', facts: [`pace:${key}` as const, ...(worst ? (['pace'] as const) : [])] } as const]),
+      ...(l.resetAtGlyph === undefined || l.percentUsed === 0
+        ? []
+        : [{ text: l.resetAtGlyph, piece: 'resets', facts: [`reset:${key}` as const, ...(worst ? (['reset'] as const) : [])] } as const]),
     ],
+    window: `window:${key}`,
   }
 }
 
@@ -136,6 +143,13 @@ const limitGauge = (kit: Kit, read: Readings, l: LimitView, key: ChipKey): Gauge
  *  amber, its whole reason until the last step. */
 const keptMore = (g: Gauge, keeps: Keeps<Piece>): readonly Qualifier[] =>
   g.tone === 'amber' ? (beforeLast(keeps) ? g.more : []) : g.more.filter(q => keeps.has(q.piece))
+
+/** The card facts a gauge says at a squeeze: its window while its bar is
+ *  kept (a passed one has none), and its kept qualifiers'. */
+const factsOf = (g: Gauge, keeps: Keeps<Piece>): Fact[] => [
+  ...(g.window !== undefined && (g.bar === undefined || keeps.has('smallBars')) ? [g.window] : []),
+  ...keptMore(g, keeps).flatMap(q => q.facts),
+]
 
 /** A gauge's name as drawn, led by amber's mark. */
 const nameOf = (g: Gauge, keeps: Keeps<Piece>): string => `${g.tone === 'amber' ? AMBER_LEAD : ''}${keeps.has('names') ? g.name : (g.short ?? g.name)}`
@@ -188,33 +202,26 @@ const collapsed = (kit: Kit, read: Readings, act: BandActions): Readonly<{ grid:
   // The cost's hover card is chips' row's; gauges draws none.
   const cost = pill(kit, { ...costPill(kit, read), hover: undefined })
   const toggle = toggleButton(kit, read, act)
-  // fitLine's last build is the grid it returns, so its squeeze says what the row kept.
-  let kept = undefined as Keeps<Piece> | undefined
-  const grid = fitLine(kit, ORDER, kit.columns - ROW_SLACK, keeps => {
-    kept = keeps
-    return (
-      <Box key="gauges" flexDirection="row" flexWrap="nowrap" overflow="hidden" columnGap={1}>
-        {columns.map(([key, gauges]) => {
-          // A column's names share their widest's width, so its bars line up;
-          // its pills stretch to its widest, so their grounds end together.
-          const nameCells = Math.ceil(Math.max(...gauges.map(g => [...nameOf(g, keeps)].length)) * measure.text)
-          return (
-            <Box key={key} flexDirection="column" alignItems="stretch" flexShrink={0}>
-              {gauges.map(g => gaugePill(kit, g, nameCells, keeps))}
-            </Box>
-          )
-        })}
-        <Box key="air" flexGrow={1} />
-        <Box key="end" flexDirection="column" alignItems="flex-end" flexShrink={0}>
-          {cost}
-          {toggle}
-        </Box>
+  const { line: grid, keeps: kept } = fitLineKeeps(kit, ORDER, kit.columns - ROW_SLACK, keeps => (
+    <Box key="gauges" flexDirection="row" flexWrap="nowrap" overflow="hidden" columnGap={1}>
+      {columns.map(([key, gauges]) => {
+        // A column's names share their widest's width, so its bars line up;
+        // its pills stretch to its widest, so their grounds end together.
+        const nameCells = Math.ceil(Math.max(...gauges.map(g => [...nameOf(g, keeps)].length)) * measure.text)
+        return (
+          <Box key={key} flexDirection="column" alignItems="stretch" flexShrink={0}>
+            {gauges.map(g => gaugePill(kit, g, nameCells, keeps))}
+          </Box>
+        )
+      })}
+      <Box key="air" flexGrow={1} />
+      <Box key="end" flexDirection="column" alignItems="flex-end" flexShrink={0}>
+        {cost}
+        {toggle}
       </Box>
-    )
-  })
-  const last = kept
-  const shown = last === undefined ? [] : columns.flatMap(([, gauges]) => gauges.flatMap(g => keptMore(g, last).flatMap(q => q.fact ?? [])))
-  return { grid, shown }
+    </Box>
+  ))
+  return { grid, shown: columns.flatMap(([, gauges]) => gauges.flatMap(g => factsOf(g, kept))) }
 }
 
 /** Each card's head carries its gauge's bar: the battery, the token split,
@@ -254,6 +261,13 @@ export const gaugesView: View = {
   rows: ROWS,
   draw: (kit, read, act) => {
     const { grid, shown } = collapsed(kit, read, act)
-    return cardsView(kit, read, act, [grid], { collapsedRows: rowsOf({ rows: ROWS }, kit), slots: slots(kit, read), shown })
+    // An amber window's headline is led by its mark, as its gauge is.
+    const amberHead = read.worstLimit?.amberHead
+    return cardsView(kit, read, act, [grid], {
+      collapsedRows: rowsOf({ rows: ROWS }, kit),
+      slots: slots(kit, read),
+      heads: amberHead === undefined ? {} : { limits: amberHead },
+      shown,
+    })
   },
 }

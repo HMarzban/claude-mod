@@ -47,8 +47,7 @@ export const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
   contextNoCompaction: /! context\W*\d+%|! ctx\W*\d+%|! CONTEXT \d+%/,
   limit80: /! 5h|! NEAR LIMIT/,
   fiveHourAhead: /! 5h|! FULL/,
-  // The cards mark it as chips does: its value with the severity mark, `spend ██ 92%!`.
-  otherLimit80: /! spend \d+%|! NEAR LIMIT|spend\W*\d+%!/,
+  otherLimit80: /! spend \d+%|! NEAR LIMIT/,
 }
 /** Amber the collapsed part never shows: other limits are drawn only open (spec §2.7). */
 const OPEN_ONLY: ReadonlySet<AmberReason> = new Set(['otherLimit80'])

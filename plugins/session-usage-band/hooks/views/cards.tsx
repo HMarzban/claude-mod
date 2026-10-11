@@ -12,7 +12,7 @@ import type { Kit } from '../kit'
 import { CARD_TEXT, DESKTOP, HOTKEY_MARK, ROW_SLACK, cellsOf } from '../layout'
 import type { BarSize } from '../layout'
 import { BARE } from '../palette'
-import type { LimitView, Readings, Tone } from '../reading'
+import type { LimitKey, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { drawStrip } from '../strip'
 import type { Say } from '../words'
@@ -38,6 +38,12 @@ export type Fact =
   | 'modelWindow'
   | 'reset'
   | 'pace'
+  | WindowFact
+
+/** What the collapsed lines draw of the 5h or 7d window, the only windows
+ *  they draw: `window:5h` its name, bar and figure; `pace:5h` and
+ *  `reset:5h` its words. */
+type WindowFact = `${'window' | 'pace' | 'reset'}:${Exclude<LimitKey, 'other'>}`
 
 /** A layout's mark for a card's head row: at most 16px on the desktop, a few
  *  cells in a terminal. */
@@ -153,7 +159,8 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
   const cardBar: BarSize = { px: inner * measure.pxPerCell, cells: inner }
   /** As much of a card's body as the band has rows for, its facts listed
    *  most important first. Its bar repeats a chip's, so it shows only when
-   *  every fact fits beside it; short of rows, a fact wins. */
+   *  every fact fits beside it and no lens in its head draws it already;
+   *  short of rows, a fact wins. */
   const fitBody = (bar: RenderChildren, body: RenderChildren[]): RenderChildren[] => {
     const facts = body.filter(part => part !== null && part !== undefined)
     return bar !== null && facts.length < bodyRows ? [bar, ...facts] : facts.slice(0, bodyRows)
@@ -175,7 +182,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
             {text}
           </Text>
         ) : (
-          <Text key={`say${i}`} color={palette.label}>
+          <Text key={`say${i}`} color={role === 'amber' ? palette.amberFg : palette.label}>
             {text}
           </Text>
         ),
@@ -217,7 +224,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
                 </Box>,
               ]}
         </Box>
-        {fitBody(bar, lead === undefined ? body : [factRow(undefined, ...lead), ...body])}
+        {fitBody(slot === undefined ? bar : null, lead === undefined ? body : [factRow(undefined, ...lead), ...body])}
       </Box>
     )
   }
@@ -291,22 +298,28 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     )
   }
   /** One window: its name, bar and value on a line, then its reset and pace
-   *  in words, which the lead row says for the worst. */
+   *  in words, which the lead row says for the worst. Each is left out once
+   *  the collapsed lines draw it: the words only with both their reset and
+   *  pace, since the line says its reset first. */
   const limitRows = (w: LimitView): readonly [RenderChildren, RenderChildren] => {
     const { name, frac, tone } = w
-    if (w.passed) return [factRow(undefined, name, 'reset'), null]
+    const drew = (what: 'window' | 'pace' | 'reset') => w.key !== 'other' && shown.has(`${what}:${w.key}` as const)
+    if (w.passed) return [drew('window') ? null : factRow(undefined, name, 'reset'), null]
     const value = w.valueMarked
     const reset = o.windowResets === 'clock' ? w.cardResetAt : w.cardReset
     const room = Math.max(4, inner - [...name].length - [...value].length - 2)
+    const wordsDrawn = drew('reset') && (w.pace === '' || drew('pace'))
     return [
-      <Box key={`fact:${name}`} flexDirection="row" columnGap={1}>
-        <Text color={palette.label}>{name}</Text>
-        <Box key="bar" flexGrow={1} width={0} minWidth={0}>
-          {meter(kit, { label: name, frac, tone, accent: accentOf(kit, w), size: { px: room * measure.pxPerCell, cells: room }, stretch: true })}
+      drew('window') ? null : (
+        <Box key={`fact:${name}`} flexDirection="row" columnGap={1}>
+          <Text color={palette.label}>{name}</Text>
+          <Box key="bar" flexGrow={1} width={0} minWidth={0}>
+            {meter(kit, { label: name, frac, tone, accent: accentOf(kit, w), size: { px: room * measure.pxPerCell, cells: room }, stretch: true })}
+          </Box>
+          <Text color={onTone(tone, palette.cardValue)}>{value}</Text>
         </Box>
-        <Text color={onTone(tone, palette.cardValue)}>{value}</Text>
-      </Box>,
-      w === worst || reset === undefined ? null : <Box key={`fact:${name} pace`}>{oneLine({ color: palette.label }, reset)}</Box>,
+      ),
+      w === worst || reset === undefined || wordsDrawn ? null : <Box key={`fact:${name} pace`}>{oneLine({ color: palette.label }, reset)}</Box>,
     ]
   }
   /** The lead row, then every window's rows; short of rows, each window's

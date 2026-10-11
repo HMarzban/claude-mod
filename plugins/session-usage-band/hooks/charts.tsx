@@ -60,8 +60,8 @@ export type MeterOptions = Readonly<{
   tone: Tone
   accent: string
   size?: BarSize
-  /** Chips' cards alone: an Svg with no width, capped by its slot, which
-   *  spec §2.9 bars from every other view. */
+  /** An Svg with no width, capped by its slot: the shared cards' heads and
+   *  bodies alone, since spec §2.9 bars it from every collapsed line. */
   stretch?: boolean
   /** What the fill is: what's used, what's left, or a share its label names. */
   reads?: 'used' | 'left' | 'share'

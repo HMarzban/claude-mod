@@ -45,16 +45,19 @@ const UNKNOWN = '–'
 /** What leads an amber reading: its mark, then its words. */
 export const AMBER_LEAD = '! '
 
-/** What an amber reading says, long and short, always led by one `! `. */
+/** What an amber reading says, long and short, always led by one `AMBER_LEAD`. */
 export const AMBER = {
-  cache: (left: string, leftShort: string, estimate: string): Amber => ({ long: `! ${left} · re-warm ${estimate}`, short: `! ${leftShort}` }),
-  context: (frac: number, toCompact: number): Amber => ({ long: `! context ${fmtPct(frac)} · compacts in ~${fmtTokens(toCompact)}`, short: `! ctx ${fmtPct(frac)}` }),
-  contextNoCompaction: (frac: number): Amber => ({ long: `! context ${fmtPct(frac)}`, short: `! ctx ${fmtPct(frac)}` }),
+  cache: (left: string, leftShort: string, estimate: string): Amber => ({ long: `${AMBER_LEAD}${left} · re-warm ${estimate}`, short: `${AMBER_LEAD}${leftShort}` }),
+  context: (frac: number, toCompact: number): Amber => ({
+    long: `${AMBER_LEAD}context ${fmtPct(frac)} · compacts in ~${fmtTokens(toCompact)}`,
+    short: `${AMBER_LEAD}ctx ${fmtPct(frac)}`,
+  }),
+  contextNoCompaction: (frac: number): Amber => ({ long: `${AMBER_LEAD}context ${fmtPct(frac)}`, short: `${AMBER_LEAD}ctx ${fmtPct(frac)}` }),
   limit: (name: string, percentUsed: number): Amber => {
-    const said = `! ${name} ${Math.round(percentUsed)}%`
+    const said = `${AMBER_LEAD}${name} ${Math.round(percentUsed)}%`
     return { long: said, short: said }
   },
-  limitPace: (name: string, eta: string): Amber => ({ long: `! ${name} full in ${eta}`, short: `! ${name} ${eta}` }),
+  limitPace: (name: string, eta: string): Amber => ({ long: `${AMBER_LEAD}${name} full in ${eta}`, short: `${AMBER_LEAD}${name} ${eta}` }),
 } as const
 
 export const EMPTY = {
@@ -226,6 +229,8 @@ export type LimitWords = Readonly<{
   fullAtClock: string | undefined
   /** `! 5h 82%`, or with a measured fill, `! 5h full in ~40m` / `! 5h ~40m`. */
   amber: Amber | undefined
+  /** An amber window as a card's headline, led by its mark, `! spend 92%`. */
+  amberHead: Say | undefined
   /** `! NEAR LIMIT`, `! FULL ~14:20`, or without the offset, `! FULL IN ~40 MIN`. */
   boardAmber: string | undefined
   /** `~10% AT ↻`, `FULL BEFORE ↻`, or `RESET`; in the ascii tier, `~10% AT RESET`. */
@@ -416,6 +421,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     fullIn,
     fullAtClock,
     amber: f.tone !== 'amber' ? undefined : fullIn !== undefined ? AMBER.limitPace(f.name, fullIn) : AMBER.limit(f.name, f.percentUsed),
+    amberHead: f.tone !== 'amber' ? undefined : [[AMBER_LEAD, 'amber'], [`${f.name} `, 'label'], [valueText, 'value']],
     boardAmber:
       f.tone !== 'amber'
         ? undefined
