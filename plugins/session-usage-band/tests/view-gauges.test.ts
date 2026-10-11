@@ -10,7 +10,7 @@ import { DARK } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { gaugesView } from '../hooks/views/gauges'
-import { HOUR, MIN, byKey, cardOf, fakeEl, firstRow, shown, svgsOf, walk, type Node } from './helpers'
+import { HOUR, MIN, byKey, cardOf, fakeEl, firstRow, shown, svgRect, svgsOf, walk, type Node } from './helpers'
 import { NO_ACT, snapOf, viewSuite } from './matrix'
 
 viewSuite('gauges')
@@ -173,6 +173,50 @@ test("open, the four cards each carry gauges' bar in their head", () => {
   const limits = String(svgsOf(byKey(cardOf(open, 'limits'), 'slot', 'Box'))[0]?.props?.source)
   expect(limits).toMatch(/class="tick"/)
   expect(limits).toMatch(/class="projection"/)
+})
+/** The gauges board's readings: 59m of cache, the 7d at 66% with 15% of its week gone, the 5h at 0%. */
+const BOARD: Partial<BandSnapshot> = {
+  now: 25.2 * HOUR,
+  cache: { ...snapOf().cache, msLeft: 59 * MIN },
+  fiveHour: { percentUsed: 0, resetsAt: new Date(25.2 * HOUR + 295 * MIN).toISOString(), etaMs: null },
+  sevenDay: { percentUsed: 66, resetsAt: new Date(25.2 * HOUR + 142.8 * HOUR).toISOString() },
+}
+/** A card head's lens on the desktop, as its markup. */
+const slotSource = (name: string): string => String(svgsOf(byKey(cardOf(draw(desktop({ ...BOARD, expanded: true })), name), 'slot', 'Box'))[0]?.props?.source)
+test("open on the desktop, CACHE's lens is the battery across its slot: 8px tall, a 1px edge, its charge, its 2×4 nub", () => {
+  const slot = svgsOf(byKey(cardOf(draw(desktop({ ...BOARD, expanded: true })), 'cache'), 'slot', 'Box'))[0]
+  expect([slot?.props?.width, slot?.props?.height]).toEqual([undefined, 8])
+  const source = slotSource('cache')
+  expect(source).toMatch(/preserveAspectRatio="none"/)
+  const edge = svgRect(source, 'edge')
+  const charge = svgRect(source, 'charge')
+  expect([edge?.height, edge?.['stroke-width']]).toEqual([7, 1])
+  expect(source).toMatch(new RegExp(`class="edge"[^>]*stroke="${DARK.trackStroke}"`))
+  expect([svgRect(source, 'nub')?.width, svgRect(source, 'nub')?.height]).toEqual([2, 4])
+  expect(source).toMatch(new RegExp(`class="charge"[^>]*fill="${DARK.warm}"`))
+  // 59 of 60 minutes: 98% of the room inside the edge.
+  expect(Math.round(((charge?.width ?? 0) / ((edge?.width ?? 1) - 2)) * 100)).toBe(98)
+})
+test("open on the desktop, SPEND's lens is a 4px bar on the track: input, a sliver of output, cache reads in value ink, and no green", () => {
+  const source = slotSource('spend')
+  expect(svgRect(source, 'track')?.height).toBe(4)
+  expect(source).toMatch(new RegExp(`class="track"[^>]*fill="${DARK.meterTrack}"`))
+  expect([...source.matchAll(/class="part"[^>]*fill="([^"]+)"/g)].map(([, fill]) => fill)).toEqual([DARK.meterFill, DARK.label, DARK.value])
+  // Output is 4% of the tokens, a sliver of at least 2px between the rounded ends.
+  expect(svgRect(source, 'part')?.width).toBeGreaterThanOrEqual(2)
+  expect(source).not.toContain(DARK.warm)
+})
+test("open on the desktop, LIMITS' lens is a 4px bar: the fill in its accent, its projection dashed 2px at 0.75, a 2×8 tick ringed in the card's ground", () => {
+  const source = slotSource('limits')
+  expect(svgRect(source, 'track')?.height).toBe(4)
+  expect(source).toMatch(new RegExp(`class="fill"[^>]*fill="${DARK.weekAccent}"`))
+  expect(source).toMatch(/class="projection"[^>]*stroke-width="2"[^>]*stroke-dasharray="3 2"[^>]*opacity="0.75"/)
+  const tick = svgRect(source, 'tick')
+  const ring = svgRect(source, 'knockout')
+  expect([tick?.width, tick?.height]).toEqual([2, 8])
+  expect([ring?.width, (tick?.x ?? 0) - (ring?.x ?? 0)]).toEqual([5, 1.5])
+  expect(source).toMatch(new RegExp(`class="knockout"[^>]*fill="${DARK.cardBg}"`))
+  expect(source).toMatch(new RegExp(`class="tick"[^>]*fill="${DARK.label}"`))
 })
 test('open on the desktop at 95 columns and 13 rows, each card says one new thing, and the buttons stay', () => {
   const open = draw(desktop({ expanded: true, maxRows: 13 }))

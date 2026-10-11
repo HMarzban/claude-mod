@@ -16,7 +16,7 @@ import { AMBER_LEAD, type Say } from '../words'
 import { cardsView, tokenPartsOf, type Fact, type Slots } from './cards'
 import { LIMITS, costPill, type ChipKey } from './chips'
 import { toggleButton } from './frame'
-import { accentOf, batteryBar, beforeLast, fitLineKeeps, pill, type Keeps } from './parts'
+import { accentOf, batteryBar, batterySlot, beforeLast, fitLineKeeps, pill, type Keeps } from './parts'
 import { rowsOf, type Rows, type View } from './view'
 
 /** What the grid gives up as it narrows, first to last: the paces, gauges'
@@ -225,15 +225,24 @@ const collapsed = (kit: Kit, read: Readings, act: BandActions): Readonly<{ grid:
 }
 
 /** Each card's head carries its gauge's bar: the battery, the token split,
- *  the context's fill, and the worst window notched and dashed. */
+ *  the context's fill, and the worst window notched and dashed. On the
+ *  desktop the battery spans its slot, and the split and the window are its
+ *  board's slim bars, the split in greys, cache reads in value ink. */
 const slots = (kit: Kit, read: Readings): Slots => {
-  const { palette } = kit
+  const { Svg, palette } = kit
   const { cache, context } = read
   const worst = read.worstLimit
+  const split = tokenPartsOf(kit, read).map(([, part]) => part)
+  const greys = [palette.meterFill, palette.label, palette.value]
   return {
-    cache: cache.known ? batteryBar(kit, cache.charge, cache.tone, cache.alt, SLOT_BAR) : undefined,
+    cache: cache.known ? (Svg ? batterySlot : batteryBar)(kit, cache.charge, cache.tone, cache.alt, SLOT_BAR) : undefined,
     spend: cache.measured
-      ? splitBar(kit, { alt: 'token split: input, output, cache reads', parts: tokenPartsOf(kit, read).map(([, part]) => part), size: SLOT_BAR })
+      ? splitBar(kit, {
+          alt: 'token split: input, output, cache reads',
+          parts: Svg ? split.map((part, i) => ({ ...part, color: greys[i] ?? part.color })) : split,
+          size: SLOT_BAR,
+          slim: true,
+        })
       : undefined,
     context: context.known ? meter(kit, { label: 'context', frac: context.frac, tone: context.tone, accent: palette.meterFill, size: SLOT_BAR, stretch: true }) : undefined,
     limits:
@@ -248,6 +257,7 @@ const slots = (kit: Kit, read: Readings): Slots => {
             stretch: true,
             tick: worst.notch,
             projectTo: worst.projectedFrac,
+            slim: true,
           }),
   }
 }

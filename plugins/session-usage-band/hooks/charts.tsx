@@ -15,6 +15,8 @@ const tenth = (n: number): number => Math.round(n * 10) / 10
 const PROJECTION_DASH = 'stroke-dasharray="3 2"'
 /** A guess's dash: a day cell or a slice whose value is yet to come. */
 const GUESS_DASH = 'stroke-dasharray="2 2"'
+/** A stretched chart's lines keep their stroke at any scale. */
+const KEEP_STROKE = ' vector-effect="non-scaling-stroke"'
 
 /** The largest value, 0 for none: the top of a chart's scale. */
 const topOf = (values: ReadonlyArray<number | undefined>): number => Math.max(0, ...values.filter(v => v !== undefined))
@@ -63,6 +65,9 @@ const trackOf = (kit: Kit, width: number, height: number): string =>
 
 // ---- meter ----------------------------------------------------------------
 
+/** The ground a slim bar's notch is knocked out of, either side of it. */
+const SLIM_RING = 1.5
+
 export type MeterOptions = Readonly<{
   key?: string
   label: string
@@ -84,6 +89,10 @@ export type MeterOptions = Readonly<{
   projectTo?: number
   /** A projection's cell in text, `▒` unless said; dashed, `╌`. */
   dash?: string
+  /** On the desktop, a card head's 4px bar, as gauges' board draws it: its
+   *  track and fill 4px, its projection fainter, its notch 2×8 ringed in the
+   *  ground. A stretched bar alone. */
+  slim?: boolean
 }>
 
 /** A bar: `frac` filled toward its cap, the fill ending bare, since the
@@ -93,8 +102,27 @@ export type MeterOptions = Readonly<{
  *  so it spans its card. */
 export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
   const { Svg, Text, palette, onTone } = kit
-  const { key = 'meter', label, frac, tone, accent, size = CHIP_BAR, stretch = false, reads = 'used', tick, projectTo, ground = palette.cardBg, dash = '▒' } = o
+  const { key = 'meter', label, frac, tone, accent, size = CHIP_BAR, stretch = false, reads = 'used', tick, projectTo, ground = palette.cardBg, dash = '▒', slim = false } = o
   const fill = onTone(tone, accent)
+  const pct = `${label} ${Math.round(clamp01(frac) * 100)}%`
+  const alt = reads === 'share' ? pct : `${pct} ${reads}`
+  if (Svg && slim) {
+    // Drawn at the slot's estimate, one unit to a pixel there, and stretched to it.
+    const width = size.px
+    const fillWidth = frac > 0 ? Math.max(4, Math.round(clamp01(frac) * width)) : 0
+    const tickX = tick === undefined ? undefined : Math.max(SLIM_RING, Math.min(width - 2 - SLIM_RING, tenth(clamp01(tick) * width - 1)))
+    const marks =
+      `<rect class="track" y="2" width="${width}" height="4" rx="2" fill="${palette.meterTrack}"/>` +
+      (projectTo === undefined
+        ? ''
+        : `<line class="projection" x1="${fillWidth}" y1="4" x2="${Math.round(clamp01(projectTo) * width)}" y2="4" stroke="${fill}" stroke-width="2" ${PROJECTION_DASH} opacity="0.75"${KEEP_STROKE}/>`) +
+      (fillWidth > 0 ? `<rect class="fill" y="2" width="${fillWidth}" height="4" rx="2" fill="${fill}"/>` : '') +
+      (tickX === undefined
+        ? ''
+        : `<rect class="knockout" x="${tenth(tickX - SLIM_RING)}" y="0" width="${2 + 2 * SLIM_RING}" height="8" fill="${ground}"/>` +
+          `<rect class="tick" x="${tickX}" y="0" width="2" height="8" rx="1" fill="${palette.label}"/>`)
+    return <Svg key={key} source={svgOf(width, 8, marks, ' preserveAspectRatio="none"')} alt={alt} height={8} />
+  }
   if (Svg) {
     // Never name a local `h`: JSX compiles to the global h().
     const tall = 8
@@ -121,8 +149,6 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
         : `<rect class="knockout" x="${tenth(tickX - k)}" y="-1" width="${4 * k}" height="${tall + 2}" fill="${ground}"/>` +
           `<rect class="tick" x="${tickX}" y="-1" width="${2 * k}" height="${tall + 2}" fill="${palette.label}"/>`)
     const source = svgOf(width, tall, marks, stretch ? ' preserveAspectRatio="none"' : '')
-    const pct = `${label} ${Math.round(clamp01(frac) * 100)}%`
-    const alt = reads === 'share' ? pct : `${pct} ${reads}`
     return stretch ? (
       <Svg key={key} source={source} alt={alt} height={tall} />
     ) : (
@@ -171,15 +197,49 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
 /** A part of a split bar: its amount, its colour and, in text, its fill. */
 export type SplitPart = Readonly<{ n: number; color: string; mark: string }>
 
-export type SplitBarOptions = Readonly<{ key?: string; alt: string; parts: readonly SplitPart[]; size: BarSize }>
+export type SplitBarOptions = Readonly<{
+  key?: string
+  alt: string
+  parts: readonly SplitPart[]
+  size: BarSize
+  /** On the desktop, a card head's 4px bar on the track, as gauges' board
+   *  draws it, each part at least a 2px sliver. */
+  slim?: boolean
+}>
+
+/** A slim split's least part, so a small share still shows. */
+const SLIVER_PX = 2
 
 /** A bar split into parts, each its share of the whole, in its own colour
  *  and, in text, its own fill; nothing while the whole is none. */
 export const splitBar = (kit: Kit, o: SplitBarOptions): RenderChildren => {
-  const { Svg, Text } = kit
-  const { key = 'split', alt, parts, size } = o
+  const { Svg, Text, palette } = kit
+  const { key = 'split', alt, parts, size, slim = false } = o
   const total = parts.reduce((sum, { n }) => sum + n, 0)
   if (total <= 0) return null
+  if (Svg && slim) {
+    // Drawn at the slot's estimate and stretched to it; the slivers take
+    // their 2px from the largest part.
+    const width = size.px
+    const shown = parts.filter(({ n }) => n > 0)
+    const widths = shown.map(({ n }) => Math.max(SLIVER_PX, (n / total) * width))
+    const over = widths.reduce((sum, w) => sum + w, 0) - width
+    const largest = widths.indexOf(Math.max(...widths))
+    let x = 0
+    // The ends round off, half the bar's height, as its track's do.
+    const r = 2
+    const segments = shown.map(({ color }, i) => {
+      const x0 = tenth(x)
+      x += i === largest ? (widths[i] ?? 0) - over : (widths[i] ?? 0)
+      const x1 = tenth(x)
+      const rounds = x1 - x0 >= r
+      if (i === 0 && i < shown.length - 1 && rounds) return `<path class="part" d="M${x0 + r} 2H${x1}V6H${x0 + r}A${r} ${r} 0 0 1 ${x0 + r} 2Z" fill="${color}"/>`
+      if (i === shown.length - 1 && i > 0 && rounds) return `<path class="part" d="M${x0} 2H${tenth(x1 - r)}A${r} ${r} 0 0 1 ${tenth(x1 - r)} 6H${x0}Z" fill="${color}"/>`
+      return `<rect class="part" x="${x0}" y="2" width="${tenth(x1 - x0)}" height="4"${shown.length === 1 ? ` rx="${r}"` : ''} fill="${color}"/>`
+    })
+    const track = `<rect class="track" y="2" width="${width}" height="4" rx="${r}" fill="${palette.meterTrack}"/>`
+    return <Svg key={key} source={svgOf(width, 8, track + segments.join(''), ' preserveAspectRatio="none"')} alt={alt} height={8} />
+  }
   if (Svg) {
     // Drawn wider than any card and capped by it, like a stretched meter.
     // No clipPath, whose id would be page-wide: the end segments draw their
@@ -316,8 +376,6 @@ export type SparklineOptions = Readonly<{
 const SPARK_AIR = 2
 /** The width a projection takes beyond the newest point. */
 const SPARK_AHEAD = 20
-/** A stretched chart's lines keep their stroke at any scale. */
-const KEEP_STROKE = ' vector-effect="non-scaling-stroke"'
 
 /** `values` cut into at most `count` runs, each drawn at its highest. */
 const peaksOf = (values: readonly number[], count: number): number[] =>

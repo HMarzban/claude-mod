@@ -69,6 +69,24 @@ export const batteryIcon = (kit: Kit, charge: number, tone: Tone, alt: string, p
   return <Svg key="battery" source={source} alt={alt} width={px} height={12} />
 }
 
+/** The battery across a card head's slot, as gauges' board draws it: 8px
+ *  tall, a 1px edge, the charge inside it and the 2×4 nub, drawn at the
+ *  slot's estimate and stretched to it. The desktop's alone. */
+export const batterySlot = (kit: Kit, charge: number, tone: Tone, alt: string, size: BarSize): RenderChildren => {
+  const { Svg, palette, onTone } = kit
+  if (!Svg) return null
+  const edge = onTone(tone, palette.trackStroke)
+  const body = size.px - 3
+  const width = Math.round(clamp01(charge) * (body - 2) * 10) / 10
+  const source =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size.px}" height="8" viewBox="0 0 ${size.px} 8" preserveAspectRatio="none">` +
+    `<rect class="edge" x="0.5" y="0.5" width="${body}" height="7" rx="2" fill="none" stroke="${edge}" stroke-width="1" vector-effect="non-scaling-stroke"/>` +
+    `<rect class="nub" x="${body + 1}" y="2" width="2" height="4" rx="0.5" fill="${edge}"/>` +
+    `<rect class="charge" x="1.5" y="1.5" width="${width}" height="5" rx="1" fill="${onTone(tone, palette.warm)}"/>` +
+    '</svg>'
+  return <Svg key="battery" source={source} alt={alt} height={8} />
+}
+
 /** The battery as a mark of `size`: the desktop's icon, or in text its
  *  charge in cells, draining right to left, and its cap `╸`. */
 export const batteryMark = (kit: Kit, charge: number, tone: Tone, alt: string, size: BarSize): RenderChildren => {
