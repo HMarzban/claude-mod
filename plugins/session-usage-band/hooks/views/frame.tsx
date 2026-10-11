@@ -1,6 +1,7 @@
-// The expanded scaffold every new view shares: the workspace strip, the
-// view's own body on the card ground, and chips' buttons row. Chips keeps its
-// own expanded layout, and draws its toggle from here.
+// The toggle every layout draws, and the expanded scaffold of the layouts
+// still on `defineView`: the workspace strip, the view's own body on the card
+// ground, and chips' buttons row. Chips and each layout that has moved open
+// into the shared cards instead (cards.tsx).
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import type { Kit } from '../kit'

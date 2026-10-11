@@ -1,5 +1,6 @@
 // What a layout is, and how a new one is made: its name, the rows it
-// declares, its collapsed lines and its body, drawn in the shared frame.
+// declares, its collapsed lines, and its lens on the shared cards, or until
+// it moves to them, its own body, drawn in the frame.
 // Views import View from here, never from ./index, so no cycle forms.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
