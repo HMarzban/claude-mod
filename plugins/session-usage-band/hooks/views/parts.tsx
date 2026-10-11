@@ -316,12 +316,6 @@ const GRID_GAP = 2
 const perLineOf = (kit: Kit, bodyRows: number, count: number): number =>
   kit.columns >= 100 || bodyRows < 5 ? count : Math.min(2, count)
 
-/** Cells each section has across its line, `GRID_GAP` apart. */
-export const sectionCells = (kit: Kit, bodyRows: number, count = 4): number => {
-  const perLine = perLineOf(kit, bodyRows, count)
-  return Math.floor((lineRoom(kit) - GRID_GAP * (perLine - 1)) / perLine)
-}
-
 /** Rows each section holds under its title, with a row of air between lines. */
 export const gridRoom = (kit: Kit, bodyRows: number, count = 4): number => {
   const lines = Math.ceil(count / perLineOf(kit, bodyRows, count))
