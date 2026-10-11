@@ -221,37 +221,57 @@ export type RingOptions = Readonly<{
   frac: number
   color: string
   px: number
-  /** How much of a window has gone, as a dot on the ring. */
-  dot?: number
-  /** A short value drawn in the ring's middle. */
-  centre?: string
+  /** How much of its window has gone, as a notch across the ring; none on an empty ring. */
+  notch?: number
+  /** Where the fill is heading, its arc drawn dashed from the fill's end. */
+  projectTo?: number
+  /** The ground the ring sits on, which the notch is knocked out of: the card's unless said. */
+  ground?: string
+  /** A column of air after it, as an icon has: a spacer on the desktop, the
+   *  glyph's own space elsewhere, since the desktop drops a bare one. */
+  air?: boolean
 }>
 
-/** A ring filled clockwise from the top. Text has no rings: there it is a meter. */
+/** A text ring's glyphs, empty to full by quarters; the ascii tier's are
+ *  wider than one cell, so a ring draws them itself, measured as drawn. */
+const RING_GLYPHS = {
+  unicode: ['○', '◔', '◑', '◕', '●'],
+  ascii: ['( )', '(.)', '(o)', '(O)', '(@)'],
+} as const
+
+/** A ring filled clockwise from the top, its fill ending bare, since the
+ *  figure beside it says where. Text has no rings: there it is a glyph to the
+ *  nearest quarter, too small to carry a notch. */
 export const ring = (kit: Kit, o: RingOptions): RenderChildren => {
-  const { Svg, palette } = kit
-  const { key, alt, frac, color, px, dot, centre } = o
-  if (!Svg) return meter(kit, { key, label: alt, frac, tone: 'calm', accent: color })
-  // 4 px of stroke on the collapsed 30 px ring, in proportion elsewhere.
-  const stroke = Math.round(px / 7.5)
+  const { Svg, Text, palette, glyphs, gap } = kit
+  const { key, alt, frac, color, px, notch, projectTo, ground = palette.cardBg, air = false } = o
+  if (!Svg) return <Text key={key} color={color}>{`${RING_GLYPHS[glyphs][Math.round(clamp01(frac) * 4)]}${air ? ' ' : ''}`}</Text>
+  // 2.5 px of stroke on a 6 px radius at 16 px, in proportion elsewhere.
+  const stroke = tenth((px * 5) / 32)
   const mid = px / 2
-  const r = (px - stroke) / 2 - 1
+  const r = (px * 3) / 8
   const circumference = 2 * Math.PI * r
   const arc = clamp01(frac) * circumference
-  const circle = (extra: string) => `<circle cx="${mid}" cy="${mid}" r="${tenth(r)}" fill="none" stroke-width="${stroke}"${extra}/>`
+  /** The point `f` of the way round, clockwise from the top, `out` past the radius. */
+  const at = (f: number, out = 0) => `${tenth(mid + (r + out) * Math.sin(2 * Math.PI * f))} ${tenth(mid - (r + out) * Math.cos(2 * Math.PI * f))}`
+  const circle = (extra: string) => `<circle cx="${mid}" cy="${mid}" r="${r}" fill="none" stroke-width="${stroke}"${extra}/>`
   let marks = circle(` stroke="${palette.meterTrack}"`)
-  if (arc > 0) marks += circle(` stroke="${color}" stroke-linecap="round" stroke-dasharray="${tenth(arc)} ${tenth(circumference)}" transform="rotate(-90 ${mid} ${mid})"`)
-  if (dot !== undefined) {
-    const turn = 2 * Math.PI * clamp01(dot)
-    const [cx, cy] = [tenth(mid + r * Math.sin(turn)), tenth(mid - r * Math.cos(turn))]
-    const dotR = tenth(stroke * 0.55)
-    // A ring of the ground around the dot, so it reads apart from the arc.
-    marks += `<circle cx="${cx}" cy="${cy}" r="${tenth(dotR + 1)}" fill="${palette.cardBg}"/><circle cx="${cx}" cy="${cy}" r="${dotR}" fill="${palette.value}"/>`
+  // A thin dashed arc on the track, a little faint, ending just short of a
+  // whole turn, where an arc's ends would meet: 1.2 px wide at 16 px.
+  const to = projectTo === undefined ? undefined : Math.min(clamp01(projectTo), 0.999)
+  if (to !== undefined && to > frac) {
+    marks += `<path class="projection" d="M${at(frac)}A${r} ${r} 0 ${to - frac > 0.5 ? 1 : 0} 1 ${at(to)}" fill="none" stroke="${color}" stroke-width="${tenth((px * 3) / 40)}" stroke-dasharray="1.3 1.3" opacity="0.85"/>`
   }
-  if (centre !== undefined) {
-    marks += `<text x="${mid}" y="${mid}" text-anchor="middle" dominant-baseline="central" font-family="system-ui, sans-serif" font-size="${Math.round(px * 0.28)}" fill="${palette.value}">${svgText(centre)}</text>`
+  if (arc > 0) marks += circle(` stroke="${color}" stroke-dasharray="${tenth(arc)} ${tenth(circumference)}" transform="rotate(-90 ${mid} ${mid})"`)
+  if (notch !== undefined && frac > 0) {
+    // In label ink across the ring and a pixel past it, knocked out of the
+    // ground either side, so it reads over the fill and the track alike.
+    const across = (width: number, ink: string, cls: string) =>
+      `<path class="${cls}" d="M${at(notch, -stroke / 2 - 1)}L${at(notch, stroke / 2 + 0.4)}" stroke="${ink}" stroke-width="${width}"/>`
+    marks += across(3.5, ground, 'knockout') + across(1.5, palette.label, 'notch')
   }
-  return <Svg key={key} source={svgOf(px, px, marks)} alt={alt} width={px} height={px} />
+  const drawn = <Svg key={key} source={svgOf(px, px, marks)} alt={alt} width={px} height={px} />
+  return air ? [drawn, gap(`${key} air`)] : drawn
 }
 
 // ---- sparkline ------------------------------------------------------------

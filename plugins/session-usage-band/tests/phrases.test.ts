@@ -60,13 +60,13 @@ test('pace speaks a measured rate first, then the average', () => {
 })
 test('every amber phrase, long, short and beside its figure, starts with "! " once', () => {
   const all = [
-    AMBER.cache('47s left', '47s', '~$1.66'),
+    AMBER.cache('47s', '~$1.66'),
     AMBER.context(0.93, 12_000),
     AMBER.contextNoCompaction(0.85),
     AMBER.limit('5h', 82),
     AMBER.limitPace('5h', '~40m'),
   ]
-  expect(all).toEqual([
+  expect(all.map(({ long, short, beside }) => ({ long, short, beside }))).toEqual([
     { long: '! 47s left · re-warm ~$1.66', short: '! 47s', beside: '! cache' },
     { long: '! context 93% · compacts in ~12k', short: '! ctx 93%', beside: '! context' },
     { long: '! context 85%', short: '! ctx 85%', beside: '! context' },
@@ -77,6 +77,18 @@ test('every amber phrase, long, short and beside its figure, starts with "! " on
     expect(s.startsWith('! ')).toBe(true)
     expect(s.match(/!/g)?.length).toBe(1)
   }
+})
+test('every amber phrase says its words in segments too, its figure the one value', () => {
+  const all = [AMBER.cache('47s', '~$1.66'), AMBER.context(0.93, 12_000), AMBER.contextNoCompaction(0.85), AMBER.limit('5h', 82), AMBER.limitPace('5h', '~40m')]
+  const figures = (say: readonly (readonly [string, string])[]) => say.filter(([, role]) => role === 'value').map(([text]) => text)
+  expect(all.map(a => [figures(a.say), figures(a.sayShort)])).toEqual([
+    [['47s'], ['47s']],
+    [['93%'], ['93%']],
+    [['85%'], ['85%']],
+    [['82%'], ['82%']],
+    [['~40m'], ['~40m']],
+  ])
+  for (const a of all) expect([a.say, a.sayShort].map(say => say.map(([text]) => text).join(''))).toEqual([a.long, a.short])
 })
 test('empty states read like the band', () => {
   expect(EMPTY).toEqual({

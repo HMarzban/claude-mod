@@ -138,8 +138,8 @@ const coloursOf = (n: Node): string[] => {
   return [...colourProps(n.props ?? {}), ...[...source.matchAll(SVG_PAINT)].map(m => m[1] ?? '')]
 }
 
-/** What each glyph tier may draw (spec §3.2): the unicode tier's glyphs and braille, or ASCII alone. */
-const UNICODE_TIER = /^[\x20-\x7e█▓░▒│╌╸·↻Σ◷◔▿▵…±●■–↑↓\u2800-\u28ff]*$/
+/** What each glyph tier may draw (spec §3.2): the unicode tier's glyphs, rings' quarters and braille, or ASCII alone. */
+const UNICODE_TIER = /^[\x20-\x7e█▓░▒│╌╸·↻Σ◷○◔◑◕▿▵…±●■–↑↓\u2800-\u28ff]*$/
 const ASCII_TIER = /^[\x20-\x7e]*$/
 /** What a value missing from a phrase leaves drawn (spec §2.8), in any case: departures upper-cases its own. */
 const NOTHING = /\b(NaN|undefined|null)\b/i

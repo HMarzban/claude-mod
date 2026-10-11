@@ -20,7 +20,7 @@ test('braille is one column everywhere: every glyph is in U+2800–28FF', () => 
 const desk = makeKit(fakeEl, snapOf({ surface: 'desktop' }))
 const svg = (el: unknown) => el as Node & { props: { alt: string; width: number; source: string } }
 for (const [name, el] of [
-  ['ring', ring(desk, { key: 'r', alt: 'cache 87 percent left', frac: 0.87, color: '#7fcf8a', px: 30, dot: 0.4 })],
+  ['ring', ring(desk, { key: 'r', alt: '7d limit 66 percent used', frac: 0.66, color: '#a99cf0', px: 16, notch: 0.4, projectTo: 1 })],
   ['sparkline', sparkline(desk, { key: 's', alt: '5h usage over the last hour', values: [1, 2, 3], color: '#7fcf8a', px: 90, height: 36, projectTo: 1 })],
   ['sparkline with a level', sparkline(desk, { key: 's', alt: 'context over the conversation', values: [50, 120], color: '#b8b8c2', px: 90, height: 36, max: 200, level: 0.95 })],
   ['barChart', barChart(desk, { key: 'b', alt: 'cost of the last 3 messages', values: [1, 2, 9], marked: [false, false, true], color: '#888888', markColor: '#eeeeee', newestColor: '#ececf2', px: 18, height: 36 })],
@@ -101,8 +101,8 @@ test('each bar starts where the bars before it end, so barsWidth holds them all'
   const last = bars.at(-1)
   expect((last?.x ?? 0) + (last?.width ?? 0)).toBeLessThan(barsWidth(values.length))
 })
-test('in text, a ring is a meter, and a line or bar chart is braille', () => {
-  expect(textOf(ring(term, { key: 'r', alt: 'cache', frac: 1, color: '#7fcf8a', px: 30 }))).toBe('█'.repeat(METER_CELLS))
+test('in text, a ring is its glyph to the nearest quarter, a line or bar chart is braille, and an underline is nothing', () => {
+  expect([0, 0.1, 0.3, 0.5, 0.66, 0.9, 1].map(frac => textOf(ring(term, { key: 'r', alt: 'cache', frac, color: '#7fcf8a', px: 16 })))).toEqual(['○', '○', '◔', '◑', '◕', '●', '●'])
   expect(textOf(sparkline(term, { key: 's', alt: '5h', values: [0, 4, 2, 4], color: '#7fcf8a', px: 90, height: 36 }))).toBe(braille([0, 4, 2, 4], 4))
   expect(textOf(barChart(term, { key: 'b', alt: 'cost', values: [1, 2], marked: [false, true], color: '#888888', markColor: '#eeeeee', px: 12, height: 36 }))).toBe(braille([1, 2], 2))
 })

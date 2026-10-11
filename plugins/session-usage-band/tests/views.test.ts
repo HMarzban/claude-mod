@@ -61,8 +61,8 @@ test('every layout\'s toggle points the way the band will move: up while shut, d
 test('every new view draws its empty states in a label\'s ink', () => {
   // Departures writes them on its board, upper case, in the board's ink.
   // At 40 columns pulse's desktop says its short costs. Chips and the
-  // layouts on its cards (ledger, tiles, forecast) say none: a card with nothing known is left out.
-  const onCards: ReadonlySet<string> = new Set(['chips', 'ledger', 'tiles', 'forecast'])
+  // layouts on its cards (rings, ledger, tiles, forecast) say none: a card with nothing known is left out.
+  const onCards: ReadonlySet<string> = new Set(['chips', 'rings', 'ledger', 'tiles', 'forecast'])
   const layouts = LAYOUT_NAMES.filter(name => !onCards.has(name) && name !== 'departures')
   const phrases = Object.values(EMPTY)
   const inks: string[] = []

@@ -8,6 +8,8 @@ import type { RenderChildren, RenderElement } from 'claude-code'
 export const GIVES_WAY = [
   'tokens',
   'weekReset',
+  // Rings' pill labels, long to short: never past a piece a short row keeps.
+  'longLabels',
   'fiveReset',
   'contextMeter',
   'calmWeek',
@@ -15,6 +17,8 @@ export const GIVES_WAY = [
   'shortWording',
   'calmContext',
   'calmFive',
+  // Rings' cache ring: its words say what it draws.
+  'cacheRing',
   'amberWeekReset',
   'amberFiveReset',
 ] as const

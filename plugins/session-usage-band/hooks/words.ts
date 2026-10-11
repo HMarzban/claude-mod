@@ -39,9 +39,10 @@ export type Role = 'label' | 'value' | 'amber' | 'accent5' | 'accent7'
 export type Say = ReadonlyArray<readonly [string, Role]>
 /** An amber reading's words: long while a calm piece remains to give way, then short. */
 export type Amber = Readonly<{ long: string; short: string }>
-/** A reading's amber words, and `beside`: its reason after its figure, drawn
- *  apart, naming the reading in place of its label: `! 5h ~1h`, `! cache`. */
-export type ReadingAmber = Amber & Readonly<{ beside: string }>
+/** A reading's amber words, as plain text and as segments, the figure their
+ *  one `value`; and `beside`: its reason after its figure, drawn apart,
+ *  naming the reading in place of its label: `! 5h ~1h`, `! cache`. */
+export type ReadingAmber = Amber & Readonly<{ say: Say; sayShort: Say; beside: string }>
 /** A reading's next change, as forecast's row says it: its words up to the
  *  figure, the figure, how far off it is, and what follows, `cold at `
  *  `16:13` `in 59m` `re-warm ~$0.80`; `brief`, where set, the words a tight
@@ -54,21 +55,41 @@ const UNKNOWN = '–'
 /** What leads an amber reading: its mark, then its words. */
 export const AMBER_LEAD = '! '
 
+/** A phrase's segments as one plain string. */
+const joined = (say: Say): string => say.map(([text]) => text).join('')
+
+const amberOf = (say: Say, sayShort: Say, beside: string): ReadingAmber => ({ long: joined(say), short: joined(sayShort), say, sayShort, beside: `${AMBER_LEAD}${beside}` })
+
 /** What an amber reading says, long and short, always led by one `AMBER_LEAD`. */
 export const AMBER = {
-  cache: (left: string, leftShort: string, estimate: string): ReadingAmber => ({ long: `${AMBER_LEAD}${left} · re-warm ${estimate}`, short: `${AMBER_LEAD}${leftShort}`, beside: `${AMBER_LEAD}cache` }),
-  context: (frac: number, toCompact: number): ReadingAmber => ({
-    long: `${AMBER_LEAD}context ${fmtPct(frac)} · compacts in ~${fmtTokens(toCompact)}`,
-    short: `${AMBER_LEAD}ctx ${fmtPct(frac)}`,
-    beside: `${AMBER_LEAD}context`,
-  }),
-  contextNoCompaction: (frac: number): ReadingAmber => ({ long: `${AMBER_LEAD}context ${fmtPct(frac)}`, short: `${AMBER_LEAD}ctx ${fmtPct(frac)}`, beside: `${AMBER_LEAD}context` }),
+  cache: (leftShort: string, estimate: string): ReadingAmber =>
+    amberOf([[AMBER_LEAD, 'amber'], [leftShort, 'value'], [` left · re-warm ${estimate}`, 'amber']], [[AMBER_LEAD, 'amber'], [leftShort, 'value']], 'cache'),
+  context: (frac: number, toCompact: number): ReadingAmber =>
+    amberOf(
+      [[`${AMBER_LEAD}context `, 'amber'], [fmtPct(frac), 'value'], [` · compacts in ~${fmtTokens(toCompact)}`, 'amber']],
+      [[`${AMBER_LEAD}ctx `, 'amber'], [fmtPct(frac), 'value']],
+      'context',
+    ),
+  contextNoCompaction: (frac: number): ReadingAmber =>
+    amberOf([[`${AMBER_LEAD}context `, 'amber'], [fmtPct(frac), 'value']], [[`${AMBER_LEAD}ctx `, 'amber'], [fmtPct(frac), 'value']], 'context'),
   limit: (name: string, percentUsed: number): ReadingAmber => {
-    const said = `${AMBER_LEAD}${name} ${Math.round(percentUsed)}%`
-    return { long: said, short: said, beside: `${AMBER_LEAD}${name}` }
+    const said: Say = [[`${AMBER_LEAD}${name} `, 'amber'], [`${Math.round(percentUsed)}%`, 'value']]
+    return amberOf(said, said, name)
   },
-  limitPace: (name: string, eta: string): ReadingAmber => ({ long: `${AMBER_LEAD}${name} full in ${eta}`, short: `${AMBER_LEAD}${name} ${eta}`, beside: `${AMBER_LEAD}${name} ${eta}` }),
+  limitPace: (name: string, eta: string): ReadingAmber =>
+    amberOf([[`${AMBER_LEAD}${name} full in `, 'amber'], [eta, 'value']], [[`${AMBER_LEAD}${name} `, 'amber'], [eta, 'value']], `${name} ${eta}`),
 } as const
+
+/** A pill's label after its figure, long and short: rings' `59m cache`,
+ *  then `59m`; an empty short leaves the figure alone. */
+export type PillLabel = Readonly<{ long: string; short: string }>
+
+export const PILL_LABELS = {
+  cache: { long: 'cache', short: '' },
+  spend: { long: 'spent', short: '' },
+  context: { long: 'context', short: 'ctx' },
+  tokens: { long: 'tokens', short: 'tokens' },
+} as const satisfies Readonly<Record<string, PillLabel>>
 
 export const EMPTY = {
   costs: "Costs show after Claude's next reply.",
@@ -116,12 +137,13 @@ export type CacheWords = Readonly<{
   /** The countdown alone, `52m` or `47s`; empty while not counting. */
   leftShort: string
   say: Say
+  sayShort: Say
   /** The cache as a sentence names it, bold on its figure alone: `cache
    *  52m left`, `cache cold · re-warm ~$1.66`; cold and short of room,
    *  `cache cold ~$1.66`. Warming or working, it has no figure to bold. */
   sentence: Say
   sentenceShort: Say
-  /** `say` and its short form as plain text: `cache 52m left`, `cache 52m`. */
+  /** `say` and `sayShort` as plain text: `cache 52m left`, `cache 52m`. */
   text: string
   textShort: string
   /** The last minute: `! 47s left · re-warm ~$1.66`, then `! 47s`. */
@@ -288,9 +310,6 @@ export type LimitWords = Readonly<{
 /** Between the readings of a sentence: `cache 52m left │ spent $3.19`. */
 export const BETWEEN_READINGS = ' │ '
 
-/** A phrase's segments as one plain string. */
-const joined = (say: Say): string => say.map(([text]) => text).join('')
-
 /** The cache's condition for each mood, as a view names it. */
 const CONDITION: Readonly<Record<CacheMood, CacheCondition>> = {
   unmeasured: 'not measured',
@@ -362,11 +381,12 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     left,
     leftShort,
     say,
+    sayShort,
     sentence,
     sentenceShort: f.mood === 'cold' ? [['cache cold ', 'label'], [f.estimate, 'value']] : sentence,
     text: joined(say),
     textShort: joined(sayShort),
-    amber: f.mood === 'expiring' ? AMBER.cache(left, leftShort, f.estimate) : undefined,
+    amber: f.mood === 'expiring' ? AMBER.cache(leftShort, f.estimate) : undefined,
     reWarmText: !f.known ? undefined : f.mood === 'cold' ? `next message ${f.estimate}` : `re-warm ${f.estimate} if it goes cold`,
     coldAtClock,
     coldAtText: coldAtClock === undefined ? undefined : `cold at ${coldAtClock}`,
