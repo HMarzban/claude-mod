@@ -89,9 +89,12 @@ test('no bright thumb on any fill, and no outline on today', () => {
     }
   }
 })
-test('one bold per reading, on its figure', () => {
-  expect(boldOf(firstRow(board()))).toEqual([' 66%', ' 0%', '$3.19', '40%'])
-  expect(boldOf(firstRow(board(desk)))).toEqual([' 66%', ' 0%', '$3.19', '40%'])
+test('one bold per reading, on its figure, the cache countdown too', () => {
+  // A text battery's cut may fall inside the figure, so each pill's bold is read whole.
+  const bold = (tree: Node) => pillKeys(tree).map(key => boldOf(pillOf(tree, String(key))).join(''))
+  expect(bold(board())).toEqual([' 66%', ' 0%', '52m', '$3.19', '40%', ''])
+  expect(bold(board(desk))).toEqual([' 66%', ' 0%', '52m', '$3.19', '40%', ''])
+  expect(bold(board(ascii))).toEqual([' 66%', ' 0%', '52m', '$3.19', '40%', ''])
 })
 test('open, ▿ is still last on the row nearest the prompt', () => {
   expect(lastButton(board(open))).toBe('▿')
@@ -136,6 +139,32 @@ test('it gives way by its ladder as it narrows, each piece before the ones it ne
   }
 })
 
+// The board draws this at 95 columns; the desktop's measure, about 0.75 of a
+// column a character and an Svg's px over ten, puts the row there at 104 of
+// its 91, so both resets hold from 108.
+test('the desktop row gives the tokens way first and keeps both resets while it can, as its board draws it', () => {
+  const tree = board({ ...desk, columns: 108 })
+  expect(pillKeys(tree)).toEqual(['7d', '5h', 'cache', 'cost', 'ctx'])
+  expect(shown(pillOf(tree, '7d'))).toBe('7d 66% · full ~Mon · Sat 13:30')
+  expect(shown(pillOf(tree, '5h'))).toBe('5h 0% · 4h 55m')
+})
+test('a week not measured yet draws no day as none left, and says it is not known', () => {
+  // No samples, an hour into the window: nothing measured, too early to guess.
+  const now = SAT_RESET - 167 * HOUR
+  const fresh = {
+    samples: [], now,
+    sevenDay: { percentUsed: 1, resetsAt: new Date(SAT_RESET).toISOString() },
+    fiveHour: { percentUsed: 0, resetsAt: new Date(now + 4 * HOUR).toISOString(), etaMs: null },
+  }
+  const text = shown(pillOf(board(fresh), '7d'))
+  expect(text).not.toContain('╌')
+  expect(text).toMatch(/^7d [·▏ ]+ 1%/)
+  expect(shown(pillOf(board({ ...fresh, ...ascii }), '7d'))).not.toContain('.')
+  const days = daysSvg(board({ ...fresh, ...desk }))
+  expect(days?.props?.alt).toBe('weekly limit by day: not known yet')
+  expect(String(days?.props?.source)).not.toContain('stroke-dasharray')
+})
+
 test('amber leads the row, said with its own `! `', () => {
   const five = board({ fiveHour: { percentUsed: 82, resetsAt: new Date(FIVE_RESET).toISOString(), etaMs: null } })
   expect(pillKeys(five).slice(0, 2)).toEqual(['5h', '7d'])
@@ -162,7 +191,9 @@ test('no limits reported: no limit pills, and no LIMITS card open', () => {
 
 test("open is chips' four cards: LIMITS' head draws the 5h by the hour, and the other heads keep no lens", () => {
   const tree = board(open)
-  expect(shown(headOf(tree, 'limits'))).toBe('LIMITS▁╌╌╌╌ 5h by the hour7d 66%')
+  // A terminal's lens is the five hours alone: this one measured at 0%, the four after not known yet.
+  expect(shown(headOf(tree, 'limits'))).toBe('LIMITS ····7d 66%')
+  expect([...shown(byKey(headOf(tree, 'limits'), 'slot'))].length).toBeLessThanOrEqual(6)
   for (const name of ['cache', 'spend', 'context']) expect(byKey(headOf(tree, name), 'slot')).toBeUndefined()
   const lens = svgsOf(headOf(board({ ...desk, ...open }), 'limits')).find(s => /^5-hour limit by hour/.test(String(s.props?.alt)))
   expect([lens?.props?.alt, lens?.props?.height]).toEqual(['5-hour limit by hour: 15:09 0%', 16])
@@ -177,7 +208,31 @@ test('open adds, never repeats: each card leads with what the row left out', () 
   expect(firstRowOf(tree, 'spend')).toBe('last message$0.21')
   // The row shows the resets; the context's two facts are said once, in its lead.
   expect([fact(tree, 'resets'), fact(tree, 'room left'), fact(tree, 'auto-compacts at')]).toEqual([undefined, undefined, undefined])
+  // Nor the 5h's reset, which its pill counts down.
+  expect(byKey(cardOf(tree, 'limits'), 'fact:5h pace')).toBeUndefined()
   expect(boldOf(headOf(tree, 'limits'))).toEqual(['66%'])
+})
+test("on the desktop a card's first row says the board's whole words where its line holds them", () => {
+  // Two cards to a line, as the board draws them at 95 columns; by the
+  // desktop's measure the week's whole row holds in a card from 97.
+  const two = board({ ...desk, ...open, columns: 100 })
+  expect(firstRowOf(two, 'limits')).toBe('by daySun +66% · Mon ~+34% fills it · Tue–Sat none left')
+  expect(firstRowOf(two, 'context')).toBe('room left · auto-compacts at 190k~114k')
+  // Four to a line at 160, the week keeps the runs its line holds.
+  const four = board({ ...desk, ...open })
+  expect(firstRowOf(four, 'limits')).toBe('by daySun +66% · Mon ~+34% fills it')
+  expect(firstRowOf(four, 'context')).toBe('room left · auto-compacts at 190k~114k')
+})
+test('a limit the row never draws heads LIMITS in amber while it needs you', () => {
+  const tree = board({ ...open, otherLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: undefined }] })
+  const head = byKey(headOf(tree, 'limits'), 'headline')
+  expect(shown(head)).toBe('! spend 92%')
+  const inks: unknown[] = []
+  walk(head, k => {
+    if (k.type === 'Text' && typeof k.children?.[0] === 'string') inks.push(k.props?.color)
+  })
+  expect([...new Set(inks)]).toEqual([DARK.amberFg])
+  expect(boldOf(head)).toEqual(['92%'])
 })
 test("each card's first row holds within a card's line, where four cards share 160 columns", () => {
   const tree = board(open)

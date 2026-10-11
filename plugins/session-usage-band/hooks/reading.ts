@@ -61,6 +61,8 @@ export const reWarmEstimate = (c: Cache): string => (c.reWarmUsd !== null ? fmtE
  *  one place; the cards read theirs from `cacheWords`. */
 export type CacheCopy = Readonly<{
   pill: (short: boolean) => string
+  /** The countdown a calm pill ends on, `52m`: its figure, for a layout that bolds it. */
+  figure: string | undefined
   hover: string
   alt: string
 }>
@@ -77,18 +79,21 @@ export const cacheCopy = (c: Cache, mood: CacheMood, isWorking: boolean): CacheC
     case 'unmeasured':
       return {
         pill: () => 'cache –',
+        figure: undefined,
         hover: "Not measured since the band loaded; the countdown starts with Claude's next reply",
         alt: 'cache not measured yet',
       }
     case 'warming':
       return {
         pill: () => 'cache warming',
+        figure: undefined,
         hover: `Your first message builds the cache; after that it bills input at ${readPct}`,
         alt: 'cache warming',
       }
     case 'expiring':
       return {
         pill: short => (short ? `${left} ${estimate}` : `${left} left · re-warm ${estimate}`),
+        figure: undefined,
         hover: warmHover,
         alt: battery,
       }
@@ -96,6 +101,7 @@ export const cacheCopy = (c: Cache, mood: CacheMood, isWorking: boolean): CacheC
       return {
         // Cold is a price, not an error: neutral, no hue, no alarm.
         pill: short => (short ? `cold ${estimate}` : `cache cold · next message ${estimate}`),
+        figure: undefined,
         hover: `Cold: next message rebuilds ${fmtTokens(c.window)} tokens${c.reWarmUsd === null ? '' : ` (${fmtEstimate(c.reWarmUsd)})`}`,
         alt: battery,
       }
@@ -103,6 +109,7 @@ export const cacheCopy = (c: Cache, mood: CacheMood, isWorking: boolean): CacheC
       return {
         // Mid-turn every step restarts the TTL, so a countdown would only bounce.
         pill: () => (isWorking ? 'cache warm' : `cache ${left}`),
+        figure: isWorking ? undefined : left,
         hover: warmHover,
         alt: battery,
       }
@@ -375,12 +382,15 @@ export const cappedMarks = (cells: ReadonlyArray<DayCell | HourCell>, percentUse
   const full = cells.findIndex(c => c.fullMark)
   let left = Math.max(0, 100 - percentUsed)
   return cells.map((c, i): SliceMark => {
-    if ((full >= 0 && i > full) || (c.guess && left <= 0)) return { kind: 'spent', pct: 0 }
+    if (full >= 0 && i > full) return { kind: 'spent', pct: 0 }
     if (c.pct === undefined) return { kind: 'unknown', pct: 0 }
     if (!c.guess) return { kind: 'measured', pct: c.pct }
+    // The fill takes what is left, though the step's guess may say less or more.
+    if (i === full) return { kind: 'fills', pct: left }
+    if (left <= 0) return { kind: 'spent', pct: 0 }
     const pct = Math.min(c.pct, left)
     left -= pct
-    return { kind: i === full ? 'fills' : 'guess', pct }
+    return { kind: 'guess', pct }
   })
 }
 

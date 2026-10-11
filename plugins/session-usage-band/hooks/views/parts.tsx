@@ -67,23 +67,32 @@ export const batteryIcon = (kit: Kit, charge: number, tone: Tone, alt: string): 
 
 /** On a text surface the battery is the pill itself: its charge painted as
  *  the background of the leading characters, draining right to left. `text`
- *  arrives in the glyphs it is drawn in, so the cut falls where it shows. */
-export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string): RenderChildren[] => {
+ *  arrives in the glyphs it is drawn in, so the cut falls where it shows; its
+ *  last `bold` characters, a figure, are bold either side of the cut. */
+export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string, bold = 0): RenderChildren[] => {
   const { Text, palette, onTone } = kit
   const chars = [...` ${text} `]
   const cut = Math.round(clamp01(charge) * chars.length)
   const fg = onTone(tone, palette.value)
+  // The figure's columns, short of the closing space.
+  const figure = bold > 0 ? [chars.length - 1 - bold, chars.length - 1] : []
+  /** Columns `start` to `end` on one ground, split where the figure starts and ends. */
+  const run = (key: string, start: number, end: number, bg: string): RenderChildren => {
+    const edges = [start, ...figure.filter(at => at > start && at < end), end]
+    const texts = edges.slice(1).map((stop, i) => {
+      const at = edges[i] ?? start
+      const strong = bold > 0 && at >= (figure[0] ?? 0) && stop <= (figure[1] ?? 0)
+      return (
+        <Text key={i === 0 ? key : `${key}${i}`} color={fg} backgroundColor={bg} {...(strong ? { bold: true } : {})}>
+          {chars.slice(at, stop).join('')}
+        </Text>
+      )
+    })
+    return texts.length === 1 ? (texts[0] ?? null) : texts
+  }
   return [
-    cut > 0 ? (
-      <Text key="bf" color={fg} backgroundColor={onTone(tone, palette.batteryFill, palette.batteryAmber)}>
-        {chars.slice(0, cut).join('')}
-      </Text>
-    ) : null,
-    cut < chars.length ? (
-      <Text key="be" color={fg} backgroundColor={onTone(tone, palette.surface, palette.amberBg)}>
-        {chars.slice(cut).join('')}
-      </Text>
-    ) : null,
+    cut > 0 ? run('bf', 0, cut, onTone(tone, palette.batteryFill, palette.batteryAmber)) : null,
+    cut < chars.length ? run('be', cut, chars.length, onTone(tone, palette.surface, palette.amberBg)) : null,
   ]
 }
 

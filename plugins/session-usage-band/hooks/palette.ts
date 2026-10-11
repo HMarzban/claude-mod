@@ -42,6 +42,12 @@ export type Palette = {
   weekBg: string
   weekFg: string
   weekAccent: string
+  /** Week's text cells in each window's tint: a guess dim, none left
+   *  dimmer, both apart from label grey, which is the notch's. */
+  weekGuess: string
+  weekSpent: string
+  fiveGuess: string
+  fiveSpent: string
   /** Departures' split-flap cell, near-black in every filled palette. */
   flap: string
   /** A flap's text. */
@@ -87,6 +93,10 @@ export const DARK: Readonly<Palette> = {
   weekBg: '#2a2540',
   weekFg: '#d9d3f5',
   weekAccent: '#a99cf0',
+  weekGuess: '#8a80d0',
+  weekSpent: '#7a70c0',
+  fiveGuess: '#62a86f',
+  fiveSpent: '#4f8a5b',
   flap: '#111113',
   flapText: '#f2f2f5',
   flapDim: '#a2a2ac',
@@ -124,6 +134,10 @@ export const LIGHT: Readonly<Palette> = {
   weekBg: '#e8e4fa',
   weekFg: '#3c3489',
   weekAccent: '#6b5fd3',
+  weekGuess: '#7a70d8',
+  weekSpent: '#8077dc',
+  fiveGuess: '#3a9450',
+  fiveSpent: '#3f9a55',
   flap: '#1d1d22',
   flapText: '#f2f2f5',
   flapDim: '#a8a8b2',
@@ -163,6 +177,10 @@ export const PLAIN: Readonly<Palette> = {
   weekBg: '',
   weekFg: 'text',
   weekAccent: 'text',
+  weekGuess: 'inactive',
+  weekSpent: 'inactive',
+  fiveGuess: 'inactive',
+  fiveSpent: 'inactive',
   flap: '',
   flapText: 'text',
   flapDim: 'subtle',

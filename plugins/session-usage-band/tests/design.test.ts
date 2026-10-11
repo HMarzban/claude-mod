@@ -74,6 +74,19 @@ for (const [name, p, hosts] of [
     for (const ink of [p.flapText, p.flapDim, p.flapWarm, p.flapAmber, p.flapFive, p.flapWeek, p.flapCoin]) expect(contrast(ink, p.flap)).toBeGreaterThanOrEqual(4.5)
   })
 
+  test(`${name}: week's text cells, guessed and none left, are marks in their window's tint on every ground they sit on`, () => {
+    // The days sit in the 7d pill, amber or calm, and the hours in a card's head.
+    for (const [guess, spent, grounds] of [
+      [p.weekGuess, p.weekSpent, [p.weekBg, p.amberBg, p.cardBg]],
+      [p.fiveGuess, p.fiveSpent, [p.cardBg]],
+    ] as const) {
+      for (const bg of grounds) for (const mark of [guess, spent]) expect(contrast(mark, bg)).toBeGreaterThanOrEqual(3)
+      // Label grey means the notch alone.
+      expect([guess, spent]).not.toContain(p.label)
+      expect(guess).not.toBe(spent)
+    }
+  })
+
   test(`${name}: every role a layout's words take is text that holds on the card ground`, () => {
     const low = Object.entries(ROLE_INK).filter(([, ink]) => contrast(p[ink], p.cardBg) < 4.5)
     expect(low.map(([role, ink]) => `${role} ${ink} ${contrast(p[ink], p.cardBg).toFixed(2)}`)).toEqual([])

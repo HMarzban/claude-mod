@@ -1,6 +1,6 @@
 import { test, expect } from 'claude-code/testing'
 import { fmtClock, fmtDayClock } from '../hooks/format'
-import { readingsOf } from '../hooks/reading'
+import { cappedMarks, readingsOf, type HourCell } from '../hooks/reading'
 import { HOUR, MIN } from './helpers'
 import { snapOf } from './matrix'
 
@@ -293,6 +293,15 @@ test('week stops its guess at the cap: the fill day takes what is left, and none
   expect(wk.days.slice(2).every(d => d.guess && (d.pct ?? 0) > 34)).toBe(true)
   expect(boardWeek(100).dayRow.marks.slice(1).every(m => m.kind === 'spent')).toBe(true)
 })
+test("the slice calendar marks full takes what is left, even where the step's guess says otherwise", () => {
+  const cell = (pct: number, guess: boolean, fullMark = false): HourCell =>
+    ({ label: '', startClock: '', text: '', now: false, future: guess, pct, guess, fullMark })
+  const marks = (cells: HourCell[], used: number) => cappedMarks(cells, used).map(m => `${m.kind} ${m.pct}`)
+  // A measured fill lands sooner than the step: its slice still fills the cap.
+  expect(marks([cell(50, false), cell(10, true, true), cell(10, true)], 50)).toEqual(['measured 50', 'fills 50', 'spent 0'])
+  // Or later: the guesses before it spend what is left, and it is still the fill.
+  expect(marks([cell(70, false), cell(40, true), cell(40, true, true), cell(40, true)], 70)).toEqual(['measured 70', 'guess 30', 'fills 0', 'spent 0'])
+})
 test("week's notch sits in today's cell, as far in as today has gone; the 5h at 0% has none", () => {
   const wk = boardWeek()
   expect(Math.abs((wk.dayRow.notch ?? 0) - (15 * 60 + 14) / (24 * 60))).toBeLessThan(1e-9)
@@ -305,9 +314,9 @@ test("week's notch sits in today's cell, as far in as today has gone; the 5h at 
 test("week says the fill day, and LIMITS' first row says the week from today within a card's line", () => {
   const wk = boardWeek()
   expect(wk.fullDay).toBe('full ~Mon')
-  // `· Tue–Sat none left` would run past the 29 columns a card's line leaves it.
-  expect(wk.byDay).toBe('Sun +66% · Mon ~+34% fills it')
-  expect(boardWeek(100).byDay).toBe('Sun +100% · Mon–Sat none left')
+  // Each form a run shorter, longest first, so a card draws the longest its line holds.
+  expect(wk.byDay).toEqual(['Sun +66% · Mon ~+34% fills it · Tue–Sat none left', 'Sun +66% · Mon ~+34% fills it', 'Sun +66%'])
+  expect(boardWeek(100).byDay).toEqual(['Sun +100% · Mon–Sat none left', 'Sun +100%'])
   expect(boardWeek(100).fullDay).toBeUndefined()
   expect(wk.daysAlt).toBe('weekly limit by day: Sunday 66%, Monday about 34% and fills it, Tuesday to Saturday none left')
   expect(wk.hoursAlt).toBe('5-hour limit by hour: 15:09 0%')
@@ -320,11 +329,15 @@ test("a week that won't fill says today's rise and the guess for the days ahead"
     sevenDay: { percentUsed: 30, resetsAt: new Date(168 * HOUR).toISOString() },
   })).week
   expect(wk.fullDay).toBeUndefined()
-  expect(wk.byDay).toMatch(/^Sun \+4% · Mon–Wed ~\+\d+%$/)
+  expect(wk.byDay[0]).toMatch(/^Sun \+4% · Mon–Wed ~\+\d+%$/)
 })
 // Short of `auto-`, so with its value it holds in a card's line on a terminal.
-test('the context names its room and where it compacts in one row', () => {
-  expect(readingsOf(snapOf()).context.roomCompactsText).toBe('room left · compacts at 190k')
+test('the context names its room and where it compacts in one row, long and short', () => {
+  expect(readingsOf(snapOf()).context.roomCompacts).toEqual(['room left · auto-compacts at 190k', 'room left · compacts at 190k'])
   const off = readingsOf(snapOf({ context: { tokens: 76_000, window: 200_000, percent: 38, compactAt: undefined, autoCompactOff: true } })).context
-  expect(off.roomCompactsText).toBeUndefined()
+  expect(off.roomCompacts).toBeUndefined()
+})
+test("a limit's amber words say themselves in amber, its figure apart", () => {
+  const r = readingsOf(snapOf({ otherLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: undefined }] }))
+  expect(r.limits.at(-1)?.amberSay).toEqual([['! spend ', 'amber'], ['92%', 'value']])
 })

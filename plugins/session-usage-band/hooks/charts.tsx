@@ -359,6 +359,9 @@ export type SliceCellsOptions = Readonly<{
   alt: string
   row: SliceRow
   color: string
+  /** Text's inks for a guess and for none left: the window's tint, dim and dimmer. */
+  guess: string
+  spent: string
   /** The ground the notch is knocked out of: its pill's or its card's. */
   ground: string
   cellPx: number
@@ -373,11 +376,13 @@ const HEIGHTS = '▁▂▃▄▅▆▇█'
 
 /** A cell per slice of a window, filled toward its cap: solid while
  *  measured, dashed while guessed, the guess that fills it outlined in full
- *  and those after it empty; a label-grey notch where now falls. Text draws
- *  a height per cell, the notch at the edge of the slice nearest now. */
+ *  and those after it empty; a slice not known yet a plain grey outline; a
+ *  label-grey notch where now falls. Text draws a height per cell, a blank
+ *  for a measured 0%, a dot where not known, the notch at the edge of the
+ *  slice nearest now. */
 export const sliceCells = (kit: Kit, o: SliceCellsOptions): RenderChildren => {
   const { Svg, Text, palette, glyphs } = kit
-  const { key, alt, row, color, ground, cellPx, wide } = o
+  const { key, alt, row, color, guess, spent, ground, cellPx, wide } = o
   const { marks, notch } = row
   if (Svg) {
     const step = cellPx + SLICE_GAP
@@ -385,6 +390,7 @@ export const sliceCells = (kit: Kit, o: SliceCellsOptions): RenderChildren => {
     const cells = marks.map(({ kind, pct }, i) => {
       const x = i * step
       const share = clamp01(pct / 100)
+      if (kind === 'unknown') return `<rect x="${x + 0.5}" y="2.5" width="${cellPx - 1}" height="11" rx="2.5" fill="none" stroke="${palette.trackStroke}"/>`
       if (kind === 'measured') {
         const tall = tenth(share * 12)
         return (
@@ -407,12 +413,13 @@ export const sliceCells = (kit: Kit, o: SliceCellsOptions): RenderChildren => {
     return <Svg key={key} source={svgOf(width, SLICE_PX, cells.join('') + mark)} alt={alt} width={width} height={SLICE_PX} />
   }
   const ascii = glyphs === 'ascii'
-  /** A cell's glyph and ink: a height measured or guessed, a dash where there is none. */
+  /** A cell's glyph and ink: a height measured or guessed, a dash where none is left, a dot where not known. */
   const glyphOf = ({ kind, pct }: SliceMark): readonly [string, string] => {
     const height = HEIGHTS[Math.max(0, Math.round(clamp01(pct / 100) * 8) - 1)] ?? '▁'
-    if (kind === 'measured') return [ascii ? '#' : height, color]
-    if (kind === 'guess' || kind === 'fills') return [ascii ? '+' : height, palette.label]
-    return [ascii ? '.' : '╌', palette.trackStroke]
+    if (kind === 'measured') return [pct <= 0 ? ' ' : ascii ? '#' : height, color]
+    if (kind === 'guess' || kind === 'fills') return [ascii ? '+' : height, guess]
+    if (kind === 'spent') return [ascii ? '.' : '╌', spent]
+    return [ascii ? '-' : '·', palette.trackStroke]
   }
   const edge = notch === undefined ? undefined : Math.round(notch)
   const notchMark: readonly [string, string] = [ascii ? '|' : '▏', palette.label]

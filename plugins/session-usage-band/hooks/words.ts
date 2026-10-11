@@ -26,7 +26,6 @@ import {
 } from './format'
 import type { ResetIn } from './format'
 import type { CostEntry, TrailPoint, Trails } from './insights'
-import { CARD_TEXT } from './layout'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
 import type { CacheFacts, CacheMood, ContextFacts, Frame, LimitFacts, LimitView, SliceMark, SliceRow, SpendFacts } from './reading'
 import type { BandSnapshot } from './snapshot'
@@ -150,8 +149,9 @@ export type ContextWords = Readonly<{
   inContextText: string
   compactsAtText: string | undefined
   roomText: string | undefined
-  /** Its room and where it compacts as one row's label: `room left · compacts at 190k`. */
-  roomCompactsText: string | undefined
+  /** Its room and where it compacts as one row's label, long then short:
+   *  `room left · auto-compacts at 190k`, `room left · compacts at 190k`. */
+  roomCompacts: readonly [long: string, short: string] | undefined
   /** `auto-compaction off`, only when the engine says so; unknown says nothing. */
   compactionOffText: string | undefined
   windowText: string
@@ -333,7 +333,10 @@ export const contextWords = (f: ContextFacts): ContextWords => {
     inContextText: f.known ? fmtTokens(f.used) : UNKNOWN,
     compactsAtText: f.compactAt === undefined ? undefined : fmtTokens(f.compactAt),
     roomText,
-    roomCompactsText: roomText === undefined || f.compactAt === undefined ? undefined : `room left · compacts at ${fmtTokens(f.compactAt)}`,
+    roomCompacts:
+      roomText === undefined || f.compactAt === undefined
+        ? undefined
+        : [`room left · auto-compacts at ${fmtTokens(f.compactAt)}`, `room left · compacts at ${fmtTokens(f.compactAt)}`],
     compactionOffText: f.autoCompactOff ? 'auto-compaction off' : undefined,
     windowText: fmtTokens(f.window),
     cardHead: [[`${f.pct}${f.compactAt === undefined ? severityMark(f.frac) : ''}`, 'value'], [' full', 'label']],
@@ -399,7 +402,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     fullIn,
     fullAtClock,
     amber: f.tone !== 'amber' ? undefined : fullIn !== undefined ? AMBER.limitPace(f.name, fullIn) : AMBER.limit(f.name, f.percentUsed),
-    amberSay: f.tone !== 'amber' ? undefined : fullIn !== undefined ? [[`! ${f.name} full in `, 'label'], [fullIn, 'value']] : [[`! ${f.name} `, 'label'], [f.value, 'value']],
+    amberSay: f.tone !== 'amber' ? undefined : fullIn !== undefined ? [[`! ${f.name} full in `, 'amber'], [fullIn, 'value']] : [[`! ${f.name} `, 'amber'], [f.value, 'value']],
     boardAmber:
       f.tone !== 'amber'
         ? undefined
@@ -523,10 +526,6 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, co
 /** What week's open view names: LIMITS' first row, and the lens in its head. */
 export const WEEK = { byDay: 'by day', byHour: '5h by the hour' } as const
 
-/** Characters LIMITS' first row may take after its label: a card's line
- *  less the label and the two columns between them. */
-const BY_DAY_ROOM = CARD_TEXT - WEEK.byDay.length - 2
-
 /** What the week says of its slices as drawn: for a reader, the day the
  *  guess fills the 7d, and the week from today in words. */
 export type WeekWords = Readonly<{
@@ -536,9 +535,10 @@ export type WeekWords = Readonly<{
   hoursAlt: string
   /** 'full ~Mon': the day the guess fills the 7d; undefined unless it does. */
   fullDay: string | undefined
-  /** 'Sun +66% · Mon ~+34% fills it': today's rise, then each run of days
-   *  ahead alike, as many as hold in a card's line; undefined when none is known. */
-  byDay: string | undefined
+  /** The week from today, each form a run of days shorter, longest first:
+   *  'Sun +66% · Mon ~+34% fills it · Tue–Sat none left', then without its
+   *  last run, down to today's rise alone; none when nothing is known. */
+  byDay: readonly string[]
 }>
 
 /** A slice's rise: `+66%` measured, `~+34%` a guess. */
@@ -559,10 +559,10 @@ const slicesSpoken = (title: string, names: readonly string[], marks: readonly S
 }
 
 /** The week from today: today's rise, then each run of days alike; a day not
- *  known is left out. Runs follow while the line holds them. */
-const byDayOf = (days: readonly DayCell[], marks: readonly SliceMark[]): string | undefined => {
+ *  known is left out. Each form drops the last run of the one before. */
+const byDayOf = (days: readonly DayCell[], marks: readonly SliceMark[]): string[] => {
   const today = days.findIndex(d => d.today)
-  if (today < 0) return undefined
+  if (today < 0) return []
   const said = (m: SliceMark | undefined): string =>
     m === undefined || m.kind === 'unknown' ? '' : m.kind === 'spent' ? 'none left' : m.kind === 'fills' ? `${riseText(m)} fills it` : riseText(m)
   const runs: Array<{ from: string; to: string; text: string }> = []
@@ -573,13 +573,8 @@ const byDayOf = (days: readonly DayCell[], marks: readonly SliceMark[]): string 
     if (i > 0 && last?.text === text) last.to = day
     else runs.push({ from: day, to: day, text })
   })
-  let line = ''
-  for (const run of runs.filter(r => r.text !== '')) {
-    const next = `${line === '' ? '' : `${line} · `}${run.from === run.to ? run.from : `${run.from}–${run.to}`} ${run.text}`
-    if ([...next].length > BY_DAY_ROOM) break
-    line = next
-  }
-  return line === '' ? undefined : line
+  const spoken = runs.filter(r => r.text !== '').map(run => `${run.from === run.to ? run.from : `${run.from}–${run.to}`} ${run.text}`)
+  return spoken.map((_, i) => spoken.slice(0, spoken.length - i).join(' · '))
 }
 
 export const weekWords = (w: Week, rows: Readonly<{ days: SliceRow; hours: SliceRow }>): WeekWords => {
