@@ -295,7 +295,7 @@ test('the limits card puts each value beside its bar and says the pace in words'
   const tree = await ui.drawn()
   expect(shown(cardOf(tree, 'limits'))).toMatch(/^LIMITS7d 30%/) // the window closest to trouble
   expect(fact(tree, '5h')).toBe('4%')
-  expect(fact(tree, '5h pace')).toBe('resets 3h 00m · on pace for ~10%')
+  expect(fact(tree, '5h pace')).toBe('5h resets 3h 00m · on pace for ~10%')
   // The worst window, 7d, leads the card with its reset at its clock time and its pace.
   expect(fact(tree, 'resets')).toBe(`${hostClock(67 * HOUR, 0)} · on pace for ~50%`)
   expect(fact(tree, '7d pace')).toBeUndefined()

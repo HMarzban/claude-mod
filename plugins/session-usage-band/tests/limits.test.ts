@@ -51,7 +51,9 @@ test('the 5h and 7d chips show usage on a fill with no thumb, and the reset coun
   const alts = svgsOf(firstRow(tree)).map(s => String(s.props?.alt))
   expect(alts).toContain('five-hour')
   expect(alts).toContain('week')
-  expect(alts).toContain('resets')
+  // The reset is ↻, a glyph as the board draws it, never the clock icon.
+  expect(alts).not.toContain('resets')
+  expect(shown(five)).toMatch(/│ ↻ 3h 00m/)
   await ui.unmount()
 })
 

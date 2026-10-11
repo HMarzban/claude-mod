@@ -163,12 +163,13 @@ export const resolvePalette = (appearance: string | undefined, noColor: string |
 
 /** Colours for what sits on the band's bare ground, which is the host's and
  *  may be dark or light whatever the palette says. Text there takes theme
- *  keys; an icon needs hex, so these hold 3:1 on dark and light grounds
- *  alike. The branch icon is the band's one blue: it means git, never a
- *  status. */
+ *  keys, its label `inactive`, about 5.8:1 on Claude Code's grounds, where
+ *  `subtle` is 2.07:1 in terminal dark; an icon needs hex, so these hold
+ *  3:1 on dark and light grounds alike. The branch icon is the band's one
+ *  blue: it means git, never a status. */
 export const BARE = {
   value: 'text',
-  label: 'subtle',
+  label: 'inactive',
   icon: '#80808a',
   branch: '#5c85d6',
 } as const

@@ -17,7 +17,7 @@ import type { LimitKey, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { paceText } from '../words'
 import { toggleButton } from './frame'
-import { batteryIcon, pill, textBattery } from './parts'
+import { batteryIcon, pill, resetClause, textBattery } from './parts'
 import type { BoldRuns, PillSpec } from './parts'
 import { defineCardsView } from './view'
 
@@ -196,10 +196,7 @@ export const limitPill = (kit: Kit, read: Readings, key: ChipKey, squeeze: numbe
   const bar = keeps(squeeze, 'limitBars') ? [gap('g-bar'), mark ?? meter(kit, { label: key, frac, tone, accent: tint.accent })] : []
   // The reset is a qualifier: in label ink, its figure the usage before it.
   const resetInk = onTone(tone, palette.label)
-  const reset =
-    r !== undefined && keeps(squeeze, tone === 'amber' ? spec.amberReset : spec.reset)
-      ? [<Text key="d" color={palette.label}>{' │ '}</Text>, ...icon('reset', resetInk), <Text key="r" color={resetInk}>{r.text}</Text>]
-      : []
+  const reset = r !== undefined && keeps(squeeze, tone === 'amber' ? spec.amberReset : spec.reset) ? resetClause(kit, resetInk, r.text) : []
   return {
     key,
     tone,

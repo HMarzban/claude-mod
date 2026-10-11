@@ -239,7 +239,7 @@ test('open, no card repeats what the row kept: at 160 terminal columns the row d
   for (const over of [{}, { maxRows: 20 }, desktop({ columns: 120, maxRows: 16 })]) expect(bodyOf(draw({ expanded: true, maxRows: 13, ...over }), 'limits').map(shown)).toEqual(['resetsSat 19:00'])
   // On the desktop at 95 the row lost its resets: LIMITS says each, the 7d's
   // at its clock and the 5h's as a countdown, and draws neither bar again.
-  expect(bodyOf(draw(desktop({ expanded: true, maxRows: 20 })), 'limits').map(shown)).toEqual(['resetsSat 19:00', 'resets 3h 00m · on pace for ~10%'])
+  expect(bodyOf(draw(desktop({ expanded: true, maxRows: 20 })), 'limits').map(shown)).toEqual(['resetsSat 19:00', '5h resets 3h 00m · on pace for ~10%'])
   // A passed window the row says too: `7d reset` is not said again, and
   // the 5h, the headline now, leads with its own reset.
   const passed = { sevenDay: { percentUsed: 40, resetsAt: new Date(-HOUR).toISOString() } }

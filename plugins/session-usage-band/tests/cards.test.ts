@@ -2,15 +2,16 @@
 // card's head, and no card repeating what the collapsed lines show.
 
 import { test, expect } from 'claude-code/testing'
-import type { RenderElement } from 'claude-code'
+import type { RenderChildren, RenderElement } from 'claude-code'
 import { makeKit } from '../hooks/kit'
+import { DESKTOP, HOTKEY_MARK, TERMINAL, cellsOf } from '../hooks/layout'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { openBody, type OpenOptions } from '../hooks/views/cards'
 import { cachePill, chipsPills, chipsView, limitPill, pillRow } from '../hooks/views/chips'
 import { defineCardsView } from '../hooks/views/view'
 import { canon } from './golden/hash'
-import { DARK } from '../hooks/palette'
+import { BARE, DARK, PLAIN } from '../hooks/palette'
 import { byKey, cardOf, fact, fakeEl, shown, walk, type Node } from './helpers'
 import { NO_ACT, snapOf, visualRows } from './matrix'
 
@@ -199,21 +200,52 @@ test("LIMITS leads with the worst window's reset and pace, never the collapsed r
   expect(firstRowOf(opened({ shown: ['reset', 'pace'] }, zoned), 'limits')).toMatch(/^5h/)
   // Taller, every window follows; the worst's own reset line isn't said twice.
   const tall = opened({}, { utcOffsetMin: 0 })
-  expect([fact(tall, '5h'), fact(tall, '7d'), fact(tall, '5h pace'), fact(tall, '7d pace')]).toEqual(['4%', '30%', 'resets 3h 00m · on pace for ~10%', undefined])
+  expect([fact(tall, '5h'), fact(tall, '7d'), fact(tall, '5h pace'), fact(tall, '7d pace')]).toEqual(['4%', '30%', '5h resets 3h 00m · on pace for ~10%', undefined])
   // A layout may have each window say its reset at the clock, as the lead row does.
-  expect(fact(opened({ windowResets: 'clock' }, { utcOffsetMin: 0 }), '5h pace')).toBe('resets 03:00 · on pace for ~10%')
+  expect(fact(opened({ windowResets: 'clock' }, { utcOffsetMin: 0 }), '5h pace')).toBe('5h resets 03:00 · on pace for ~10%')
 })
 test("a window's own line leaves out what the collapsed lines say of it, the worst's lead row too", () => {
   const said = (shownByWindow: OpenOptions['shownByWindow']) => {
     const tree = opened({ shownByWindow, windowResets: 'clock' }, { utcOffsetMin: 0 })
     return [fact(tree, '5h pace'), firstRowOf(tree, 'limits')]
   }
-  expect(said({})).toEqual(['resets 03:00 · on pace for ~10%', 'resetsSat 19:00 · on pace for ~50%'])
-  expect(said({ '5h': ['reset'] })[0]).toBe('on pace for ~10%')
-  expect(said({ '5h': ['pace'] })[0]).toBe('resets 03:00')
+  expect(said({})).toEqual(['5h resets 03:00 · on pace for ~10%', 'resetsSat 19:00 · on pace for ~50%'])
+  expect(said({ '5h': ['reset'] })[0]).toBe('5h on pace for ~10%')
+  expect(said({ '5h': ['pace'] })[0]).toBe('5h resets 03:00')
   expect(said({ '5h': ['reset', 'pace'] })[0]).toBeUndefined()
   expect(said({ '7d': ['reset'] })[1]).toBe('on pace for ~50%')
   expect(said({ '7d': ['reset', 'pace'] })[1]).toMatch(/^5h/)
   // In the countdown form, the same.
-  expect(fact(opened({ shownByWindow: { '5h': ['pace'] } }), '5h pace')).toBe('resets 3h 00m')
+  expect(fact(opened({ shownByWindow: { '5h': ['pace'] } }), '5h pace')).toBe('5h resets 3h 00m')
+  // Named even with its bar row gone, so under `7d 30%` it can't read as the week's.
+  expect(fact(opened({ shown: ['window:5h'] }), '5h pace')).toBe('5h resets 3h 00m · on pace for ~10%')
+})
+test('every line of cards shares one top edge: each card top-aligned, its head row level with its neighbours\'', () => {
+  for (const columns of [120, 160]) {
+    const lines = (byKey(opened({}, { columns }), 'cards', 'Box')?.children ?? []) as Node[]
+    expect(lines.length).toBeGreaterThan(0)
+    for (const line of lines) expect(line.props?.alignItems).toBe('flex-start')
+  }
+})
+test("the footer's hint gives way where it and both buttons run past the band; the buttons always stay", () => {
+  // A terminal's footer at 60 columns would be 62 cells; the desktop's measure holds it to 55.
+  for (const [surface, columns] of [['terminal', 60], ['desktop', 50]] as const) {
+    const footer = (at: number) => byKey(opened({}, { surface, columns: at }), 'actions', 'Box')
+    expect(shown(footer(95))).toMatch(/Bring it back with \/usage-band/)
+    const narrow = footer(columns)
+    expect(shown(narrow)).not.toMatch(/Bring it back/)
+    expect([byKey(narrow, 'collapse', 'Button'), byKey(narrow, 'hide', 'Button')].map(b => b?.props?.label)).toEqual(['Collapse', 'Hide band'])
+    expect(cellsOf(narrow as unknown as RenderChildren, surface === 'desktop' ? DESKTOP : TERMINAL) + 2 * HOTKEY_MARK).toBeLessThanOrEqual(columns)
+  }
+})
+test("the footer's hint and the strip's words are inked in the theme's legible grey, on any host's ground", () => {
+  const hint = byKey(byKey(opened(), 'actions', 'Box'), 'hint', 'Box')
+  const inks: unknown[] = []
+  walk(hint, n => {
+    if (n.type === 'Text') inks.push(n.props?.color)
+  })
+  expect([...new Set(inks)]).toEqual([BARE.label])
+  // `subtle` is 2.07:1 on Claude Code's dark terminal ground; `inactive` about 5.8:1.
+  expect(BARE.label).toBe('inactive')
+  expect(PLAIN.label).toBe('subtle')
 })

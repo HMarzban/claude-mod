@@ -32,3 +32,12 @@ test("a limit's reset reads in label ink, its pace in its tint, and only its fig
   expect([shown(byKey(seven, 'r', 'Text')), byKey(seven, 'r', 'Text')?.props?.color]).toEqual(['2d 19h', DARK.label])
   expect(byKey(seven, 'i-reset', 'Text')?.props?.color).toBe(DARK.label)
 })
+test("on the desktop a limit's reset is ↻ and its time, the glyph in label grey, as the board draws it, never the clock icon", () => {
+  const row = rowOf({ surface: 'desktop' })
+  for (const key of ['5h', '7d']) {
+    const pill = byKey(row, key, 'Box')
+    expect(shown(pill)).toMatch(/│ ↻ \d/)
+    expect(byKey(pill, 'i-reset', 'Text')?.props?.color).toBe(DARK.label)
+    expect(byKey(pill, 'i-reset', 'Svg')).toBeUndefined()
+  }
+})

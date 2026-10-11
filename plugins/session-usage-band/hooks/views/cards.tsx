@@ -389,9 +389,9 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
       </Box>
     )
   }
-  /** One window: its name, bar and value on a line, then its reset and pace
-   *  in words, less what the collapsed lines say of it, which the lead row
-   *  says for the worst. */
+  /** One window: its name, bar and value on a line, then its name again with
+   *  its reset and pace in words, `5h resets 4h 55m`, less what the collapsed
+   *  lines say of it, which the lead row says for the worst. */
   const limitRows = (w: LimitView): readonly [RenderChildren, RenderChildren] => {
     const { name, frac, tone } = w
     const drew = (what: 'window' | 'pace' | 'reset') => w.key !== 'other' && shown.has(`${what}:${w.key}` as const)
@@ -411,7 +411,8 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
           <Text color={onTone(tone, palette.cardValue)}>{value}</Text>
         </Box>
       ),
-      w === worst || reset === undefined || wordsDrawn ? null : <Box key={`fact:${name} pace`}>{oneLine({ color: palette.label }, reset)}</Box>,
+      // Named, so beneath another window's headline it reads as its own.
+      w === worst || reset === undefined || wordsDrawn ? null : <Box key={`fact:${name} pace`}>{oneLine({ color: palette.label }, `${name} ${reset}`)}</Box>,
     ]
   }
   /** The lead row, then every window's rows; short of rows, each window's
@@ -455,13 +456,23 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     const room = columns - ROW_SLACK - (stripPlace === 'footer' ? cellsOf(buttons, measure) + 2 * HOTKEY_MARK + 2 : 0)
     strip = drawStrip(kit, ws, stripPlace, edge, room)
   }
+  const hint = (
+    <Box key="hint" flexDirection="row">
+      {Svg ? icon('info', BARE.icon) : null}
+      <Text color={BARE.label}>Bring it back with /usage-band</Text>
+    </Box>
+  )
+  // The hint is optional words and the buttons the controls: past the band
+  // less its slack, as the strip beside them is measured, the hint gives way.
+  const hinted = cellsOf(hint, measure) + cellsOf(buttons, measure) + 2 * HOTKEY_MARK + buttons.length + 1 <= columns - ROW_SLACK
 
   return [
     stripPlace === 'top' ? strip : null,
     cardsFit ? (
       <Box key="cards" flexDirection="column" rowGap={lineGap} marginTop={stripPlace === 'top' ? 0 : 1}>
         {Array.from({ length: lineCount }, (_, i) => (
-          <Box key={`cards:${i}`} flexDirection="row" columnGap={1}>
+          // One top edge for every card of a line, as a grid's, so their heads line up.
+          <Box key={`cards:${i}`} flexDirection="row" alignItems="flex-start" columnGap={1}>
             {cardViews.slice(i * perLine, (i + 1) * perLine)}
           </Box>
         ))}
@@ -474,14 +485,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     // A strip in the footer grows into all the room the buttons leave, at
     // least the room its cards are given; the hint leaves it to air.
     <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>
-      {stripPlace === 'footer' ? (
-        strip
-      ) : (
-        <Box key="hint" flexDirection="row">
-          {Svg ? icon('info', BARE.icon) : null}
-          <Text color={BARE.label}>Bring it back with /usage-band</Text>
-        </Box>
-      )}
+      {stripPlace === 'footer' ? strip : hinted ? hint : null}
       {stripPlace === 'footer' && strip !== null ? null : <Box flexGrow={1} />}
       {buttons}
     </Box>,

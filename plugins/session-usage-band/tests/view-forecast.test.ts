@@ -227,7 +227,7 @@ test('a window not the worst says its reset and pace once: its pill says them, s
   expect([times(shown(fill), 'full in ~40m'), times(shown(fill), '20:09')]).toEqual([1, 1])
   // Out of room for its reset, the 5h's line says it.
   const narrow = drawn(board({ ...open, columns: 40, fiveHour: { percentUsed: 40, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: 40 * MIN } }))
-  expect(shown(byKey(narrow, 'fact:5h pace'))).toBe('resets 20:09')
+  expect(shown(byKey(narrow, 'fact:5h pace'))).toBe('5h resets 20:09')
 })
 /** What the hover card a row's piece reveals says: the placed Box in its hover scope. */
 const hoverOf = (row: unknown, key: string): string => {

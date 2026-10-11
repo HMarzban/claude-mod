@@ -184,7 +184,7 @@ test("open at the board's own height, each card's two rows are the board's, none
   const [bar, reset] = body('limits')
   expect(body('limits').length).toBe(2)
   expect(svgsOf(bar).map(n => [n.props?.alt, /class="tick"/.test(String(n.props?.source))])).toEqual([['5h 0% used', false]])
-  expect(shown(reset)).toMatch(/^resets \d{2}:\d{2}/)
+  expect(shown(reset)).toMatch(/^5h resets \d{2}:\d{2}/)
   expect(svgAlts(cardOf(tree, 'limits'))).not.toContain('7d 66% used')
 })
 test('open, the row stays the sentence and the band fits its rows', async ($, on) => {
