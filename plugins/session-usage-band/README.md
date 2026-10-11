@@ -166,7 +166,7 @@ them wherever it is drawn as chips draws it.
 | `ledger` | The band in words alone, `·`-separated, with `! ` leading what needs you | 1 / 1 |
 | `rings` | A ring per reading, its value over its label, with a dot on each limit for how much of the window has gone; the terminal draws a bar | 2 / 1 |
 | `pulse` | Trends rather than totals: each message's cost as bars, and which way the 5-hour limit is heading | 2 / 1 |
-| `tiles` | Each reading as a bold value over a small label, with a thin underline on the desktop | 2 / 2 |
+| `tiles` | Every reading side by side in equal tiles, figure first, with a bar or the cache's battery where there's a cap | 1 / 1 |
 | `week` | Where your limits went: the weekly limit as day cells and the 5-hour limit as hour cells, each filled to its rise | 2 / 2 |
 | `departures` | A split-flap board: the cache `DEPARTS` at its clock time, and its last minute is `LAST CALL` | 1 / 1 |
 | `forecast` | The band read like the weather: now, then up to three changes ahead at their clock times, soonest first | 2 / 1 |

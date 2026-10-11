@@ -1,5 +1,5 @@
 import { test, expect } from 'claude-code/testing'
-import { barChart, barsWidth, braille, dayCells, meter, ring, sparkline, underline } from '../hooks/charts'
+import { barChart, barsWidth, braille, dayCells, meter, ring, sparkline } from '../hooks/charts'
 import { makeKit } from '../hooks/kit'
 import { METER_CELLS } from '../hooks/layout'
 import { byKey, fakeEl, textOf, type Node } from './helpers'
@@ -25,7 +25,6 @@ for (const [name, el] of [
   ['sparkline with a level', sparkline(desk, { key: 's', alt: 'context over the conversation', values: [50, 120], color: '#b8b8c2', px: 90, height: 36, max: 200, level: 0.95 })],
   ['barChart', barChart(desk, { key: 'b', alt: 'cost of the last 3 messages', values: [1, 2, 9], marked: [false, false, true], color: '#888888', markColor: '#eeeeee', newestColor: '#ececf2', px: 18, height: 36 })],
   ['dayCells', dayCells(desk, { key: 'd', alt: 'weekly limit by day', values: [6, 9, 11, 4, 7, 7, 7], guess: [false, false, false, false, true, true, true], today: 3, color: '#a99cf0', cellPx: 16, height: 16, labels: ['T', 'W', 'T', 'F', 'S', 'S', 'M'] })],
-  ['underline', underline(desk, { key: 'u', alt: 'context 38 percent', frac: 0.38, color: '#b8b8c2', px: 64, dashed: true })],
   ['meter with a tick and a projection', meter(desk, { key: 'm', label: '5h', frac: 0.04, tone: 'calm', accent: '#7fcf8a', tick: 0.4, projectTo: 0.1 })],
 ] as const) {
   test(`${name} draws one Svg with alt, width and no ids`, () => {
@@ -63,6 +62,11 @@ test("the meter's tick has a 1 px knockout of the card's ground either side", ()
   expect(tick.tag).not.toMatch(/stroke=/)
   expect(source.indexOf('class="knockout"')).toBeLessThan(source.indexOf('class="tick"'))
 })
+test("a meter drawn as a notch takes the tick's ink and its knockout's ground from its caller", () => {
+  const source = svg(meter(desk, { label: '7d', frac: 0.66, tone: 'calm', accent: '#a99cf0', tick: 0.15, tickInk: '#a3a198', ground: '#2a2742' })).props.source
+  expect(source).toMatch(/<rect class="knockout"[^>]*fill="#2a2742"/)
+  expect(source).toMatch(/<rect class="tick"[^>]*fill="#a3a198"/)
+})
 test('a meter of a share says its percent alone, neither used nor left', () => {
   expect(svg(meter(desk, { label: 'hit rate', frac: 0.96, tone: 'calm', accent: '#7fcf8a', reads: 'share' })).props.alt).toBe('hit rate 96%')
 })
@@ -84,6 +88,7 @@ test("the text meter's tick and projection take a cell each, never widening it",
   expect(textOf(meter(term, { label: '5h', frac: 0.2, tone: 'calm', accent: '#7fcf8a', size, tick: 0.5 }))).toBe('██░░░│░░░░')
   expect(textOf(meter(term, { label: '5h', frac: 0.2, tone: 'calm', accent: '#7fcf8a', size, projectTo: 0.5 }))).toBe('██▒▒▒░░░░░')
   expect(textOf(meter(term, { label: '5h', frac: 0.2, tone: 'calm', accent: '#7fcf8a', size, tick: 1, projectTo: 1 }))).toBe('██▒▒▒▒▒▒▒│')
+  expect(textOf(meter(term, { label: '5h', frac: 0.2, tone: 'calm', accent: '#7fcf8a', size, projectTo: 0.5, dash: '╌' }))).toBe('██╌╌╌░░░░░')
 })
 test('each bar starts where the bars before it end, so barsWidth holds them all', () => {
   const values = [1, 2, 9]
@@ -93,11 +98,10 @@ test('each bar starts where the bars before it end, so barsWidth holds them all'
   const last = bars.at(-1)
   expect((last?.x ?? 0) + (last?.width ?? 0)).toBeLessThan(barsWidth(values.length))
 })
-test('in text, a ring is a meter, a line or bar chart is braille, and an underline is nothing', () => {
+test('in text, a ring is a meter, and a line or bar chart is braille', () => {
   expect(textOf(ring(term, { key: 'r', alt: 'cache', frac: 1, color: '#7fcf8a', px: 30 }))).toBe('█'.repeat(METER_CELLS))
   expect(textOf(sparkline(term, { key: 's', alt: '5h', values: [0, 4, 2, 4], color: '#7fcf8a', px: 90, height: 36 }))).toBe(braille([0, 4, 2, 4], 4))
   expect(textOf(barChart(term, { key: 'b', alt: 'cost', values: [1, 2], marked: [false, true], color: '#888888', markColor: '#eeeeee', px: 12, height: 36 }))).toBe(braille([1, 2], 2))
-  expect(underline(term, { key: 'u', alt: 'context', frac: 0.38, color: '#b8b8c2', px: 64 })).toBe(null)
 })
 test("a sparkline's max sets the top of its scale, which its projection shares", () => {
   const source = svg(sparkline(desk, { key: 's', alt: '5h', values: [20, 50], color: '#7fcf8a', px: 90, height: 36, max: 100, projectTo: 1 })).props.source

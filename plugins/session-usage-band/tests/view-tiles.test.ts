@@ -1,130 +1,170 @@
-// Tiles, a bold value over its label: the tiles calm and amber, the
-// desktop's underlines, how they give way as the line narrows, and the four
-// groups behind ▵.
+// Tiles as its board draws it: one row of equal tiles, figure first, a mark
+// only where there's a cap, giving way from the right; open, the shared
+// cards with a mark in each head but the spend's.
 
 import { test, expect } from 'claude-code/testing'
-import type { Engine } from 'claude-code/testing'
-import type { On, RenderChildren } from 'claude-code'
-import { ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
-import { byKey, LONG, shown, svgsOf, textOf, walk } from './helpers'
-import { caseKey, drawCases, viewSuite, visualRows, type Mount, type ScenarioName, type Ttl } from './matrix'
+import type { RenderChildren } from 'claude-code'
+import { asciiTree } from '../hooks/glyphs'
+import { makeKit } from '../hooks/kit'
+import { DESKTOP, TERMINAL, cellsOf } from '../hooks/layout'
+import { readingsOf } from '../hooks/reading'
+import type { BandSnapshot } from '../hooks/snapshot'
+import { tilesView } from '../hooks/views/tiles'
+import { DAY_MS } from '../hooks/format'
+import { HOUR, MIN, byKey, cardOf, fakeEl, firstRow, shown, svgsOf, walk, type Node } from './helpers'
+import { NO_ACT, snapOf, viewSuite, visualRows } from './matrix'
 
 viewSuite('tiles')
 
-const T160: Mount = { surface: 'terminal', cols: 160 }
-const D160: Mount = { surface: 'desktop', cols: 160 }
-/** One scenario on one mount: its trees, shut and open. */
-const at = async ($: Engine, on: On, scenario: ScenarioName, m: Mount = T160, ttl: Ttl = '1h') => {
-  const trees = await drawCases($, on, { layout: 'tiles', scenario, appearance: 'dark', ttl }, [m])
-  return { shut: trees[caseKey(m, 'shut')], open: trees[caseKey(m, 'open')] }
+/** The board's readings: 59m of cache, $1,027 spent, 87% context, 5h at 0%
+ *  and 7d at 66% with 15% of its week gone, 2.1B tokens. */
+const BOARD: Partial<BandSnapshot> = {
+  columns: 200,
+  utcOffsetMin: 0,
+  costUsd: 1027,
+  lastTurnUsd: 0.1,
+  context: { tokens: 165_300, window: 200_000, percent: 83, compactAt: 190_000, autoCompactOff: false },
+  fiveHour: { percentUsed: 0, resetsAt: new Date(4 * HOUR + 55 * MIN).toISOString(), etaMs: null },
+  sevenDay: { percentUsed: 66, resetsAt: new Date(5 * DAY_MS + 22 * HOUR).toISOString() },
 }
-/** A tree's underlines: its 4 px Svgs. */
-const underlines = (tree: unknown) => svgsOf(tree).filter(n => Number(n.props?.height) === 4)
-/** The colour of the first Text that says exactly `text`. */
-const colorOf = (tree: unknown, text: string): unknown => {
-  let color: unknown
-  walk(tree, n => {
-    if (color === undefined && n.type === 'Text' && textOf(n) === text && n.props?.color !== undefined) color = n.props.color
+const snapAt = (over: Partial<BandSnapshot> = {}): BandSnapshot => {
+  const base = snapOf(BOARD)
+  return snapOf({ ...BOARD, cache: { ...base.cache, msLeft: 59 * MIN, tokens: { sent: 100_000_000, back: 50_000_000, cached: 1_950_000_000 } }, ...over })
+}
+const drawn = (over: Partial<BandSnapshot> = {}): Node => {
+  const snap = snapAt(over)
+  return tilesView.draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT) as unknown as Node
+}
+const rowOf = (over: Partial<BandSnapshot> = {}): Node => firstRow(drawn(over)) as Node
+const desk = (over: Partial<BandSnapshot> = {}): Partial<BandSnapshot> => ({ surface: 'desktop', ...over })
+/** The row's tiles, each a pill that never shrinks. */
+const tilesOf = (row: Node): Node[] => (row.children ?? []).filter((k): k is Node => (k as Node | null)?.props?.flexShrink === 0 && (k as Node).props?.key !== undefined)
+const keysOf = (row: Node): unknown[] => tilesOf(row).map(t => t.props?.key)
+const tile = (row: Node, key: string): Node | undefined => tilesOf(row).find(t => t.props?.key === key)
+const boldOf = (n: unknown): string[] => {
+  const out: string[] = []
+  walk(n, k => {
+    if (k.type === 'Text' && k.props?.bold === true) out.push(shown(k))
   })
-  return color
+  return out
 }
 
-test('each tile is a value over its label', async ($, on) => {
-  const t = shown((await at($, on, 'calm')).shut)
-  expect(t).toMatch(/1h 00m\s*cache/)
-  expect(t).toMatch(/\$2\.41\s*this session/)
-  expect(t).toMatch(/38%\s*context/)
-  expect(t).toMatch(/4%\s*5h ↻ in 3h 00m/)
-  expect(t).toMatch(/30%\s*7d ↻ in 2d 19h/)
+test('the row runs cache, spend, context, 5h and 7d, then the tokens', () => {
+  expect(keysOf(rowOf())).toEqual(['cache', 'cost', 'ctx', '5h', '7d', 'tokens'])
 })
-test('the desktop draws an underline under each tile but the cost', async ($, on) => {
-  expect(underlines((await at($, on, 'calm', D160)).shut)).toHaveLength(4)
+test("each tile leads with its figure, then its label: a limit's reset in chips' short form", () => {
+  const said = tilesOf(rowOf()).map(shown)
+  const leads = [/^59m\s*cache/, /^\$1,027\s*spent$/, /^87%\s*context/, /^0%\s*5h ↻ 4h 55m/, /^66%\s*7d ↻ 5d 22h/, /^2\.1B\s*tokens$/]
+  expect(said.map((s, i) => leads[i]?.test(s))).toEqual(leads.map(() => true))
 })
-test('an amber tile turns its label into the reason', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'lastMinute', T160, '5m')).shut)).toMatch(/30s\s*! 30s left · re-warm ~\$/)
+test('one bold per tile, on its figure', () => {
+  for (const surface of ['terminal', 'desktop'] as const) expect(boldOf(rowOf({ surface }))).toEqual(['59m', '$1,027', '87%', '0%', '66%', '2.1B'])
 })
-test('an amber tile keeps its underline after the calm ones have gone', LONG, async ($, on) => {
-  const { shut } = await at($, on, 'lastMinute', { surface: 'desktop', cols: 80 }, '5m')
-  expect(shown(shut)).toMatch(/! 30s left · re-warm ~\$/)
-  expect(underlines(shut)).toHaveLength(1)
+test('every tile is the same width, its figures right-aligned in one column', () => {
+  for (const [surface, measure] of [['terminal', TERMINAL], ['desktop', DESKTOP]] as const) {
+    const tiles = tilesOf(rowOf({ surface }))
+    expect(new Set(tiles.map(t => cellsOf(t as unknown as RenderChildren, measure))).size).toBe(1)
+    const figures = tiles.map(t => byKey(t, 'fig', 'Box')?.props)
+    expect(new Set(figures.map(p => p?.width)).size).toBe(1)
+    expect(figures.every(p => p?.justifyContent === 'flex-end')).toBe(true)
+  }
 })
-test('a cold cache names its price', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'cold', T160, '5m')).shut)).toMatch(/cold\s*next message ~\$\d/)
+test('a terminal tile marks a cap with cells: the battery, a bar, a notch and a dashed projection', () => {
+  const row = rowOf()
+  const mark = (key: string) => shown(byKey(tile(row, key), 'mark', 'Box'))
+  expect(mark('cache')).toMatch(/^█+╸$/)
+  expect(mark('ctx')).toMatch(/^█+░+$/)
+  // 5h at 0% has no time gone to mark; 7d's notch, then its fill, dashed to the top.
+  expect(mark('5h')).toMatch(/^░+$/)
+  expect(mark('7d')).toMatch(/^█*│█*╌+$/)
+  expect([mark('cost'), mark('tokens')]).toEqual(['', ''])
 })
-test('calm gives way in spec order: the underline, the reset text, 7d, then the context', async ($, on) => {
-  // Each width sits inside its step's band, not at its edge.
-  const terminals = [120, 65, 52, 44].map((cols): Mount => ({ surface: 'terminal', cols }))
-  const desktops = [120, 68].map((cols): Mount => ({ surface: 'desktop', cols }))
-  const trees = await drawCases($, on, { layout: 'tiles', scenario: 'calm', appearance: 'dark', ttl: '1h' }, [...terminals, ...desktops])
-  const [barred, bare] = desktops.map(m => trees[caseKey(m, 'shut')])
-  expect(underlines(barred)).toHaveLength(4)
-  expect(underlines(bare)).toHaveLength(0)
-  expect(shown(bare)).toMatch(/5h ↻ in 3h 00m/)
-  const [whole, noResets, noSeven, noContext] = terminals.map(m => shown(trees[caseKey(m, 'shut')]))
-  expect(whole).toMatch(/5h ↻ in 3h 00m\s*30%\s*7d ↻ in 2d 19h/)
-  expect(noResets).toMatch(/4%\s*5h\s*30%\s*7d$/)
-  expect(noSeven).toMatch(/38%\s*context\s*4%\s*5h$/)
-  expect(noContext).toMatch(/^1h 00m\s*cache\s*\$2\.41\s*this session\s*4%\s*5h$/)
+test('a desktop tile marks a cap with an Svg: the battery, a bar, 7d its notch in label ink, and no thumb anywhere', () => {
+  const row = rowOf({ surface: 'desktop' })
+  const svgs = (key: string) => svgsOf(tile(row, key))
+  expect(svgs('cache').map(n => n.props?.width)).toEqual([40])
+  expect(svgs('cost')).toEqual([])
+  const notch = /<rect class="tick"[^>]*fill="([^"]+)"/
+  expect(svgs('5h').map(n => notch.test(String(n.props?.source)))).toEqual([false])
+  const seven = String(svgs('7d')[0]?.props?.source)
+  expect(notch.exec(seven)?.[1]).toBe(snapOf().palette.label)
+  // Knocked out of the tile's own ground, not the card's.
+  expect(seven).toMatch(new RegExp(`class="knockout"[^>]*fill="${snapOf().palette.weekBg}"`))
+  expect(seven).toMatch(/class="projection"/)
+  for (const n of svgsOf(row)) expect(String(n.props?.source)).not.toMatch(/class="thumb"/)
 })
-test('at 40 columns an amber tile still says why, once the cost has gone', async ($, on) => {
-  const t = shown((await at($, on, 'limit80', { surface: 'terminal', cols: 40 })).shut)
-  expect(t).toMatch(/82%\s*! 5h 82%/)
-  expect(t).not.toMatch(/\$2\.41/)
+test('the toggle ends the row: ▵ shut, ▿ open', () => {
+  const last = (row: Node) => {
+    let label: unknown
+    walk((row.children ?? []).at(-1), n => {
+      if (n.type === 'Button') label = n.props?.label
+    })
+    return label
+  }
+  expect([last(rowOf()), last(rowOf({ expanded: true }))]).toEqual(['▵', '▿'])
 })
-test('at 40 columns the last minute keeps its reason whole once the calm 5h tile has gone', LONG, async ($, on) => {
-  const mounts = (['terminal', 'desktop'] as const).map((surface): Mount => ({ surface, cols: 40 }))
-  const trees = await drawCases($, on, { layout: 'tiles', scenario: 'lastMinute', appearance: 'dark', ttl: '5m' }, mounts)
-  for (const m of mounts) expect(`${m.surface}: ${shown(trees[caseKey(m, 'shut')])}`).toMatch(/^\w+: 30s! 30s left · re-warm ~\$[\d.]+$/)
+test('the row gives way from the right: tokens, resets, bar length, then the calm 7d', () => {
+  const at = (columns: number) => rowOf({ columns })
+  expect(keysOf(at(160))).toEqual(['cache', 'cost', 'ctx', '5h', '7d'])
+  expect(shown(at(160))).toMatch(/↻ 4h 55m.*↻ 5d 22h/)
+  expect(shown(at(120))).not.toMatch(/↻/)
+  const barCells = (row: Node) => shown(byKey(tile(row, 'ctx'), 'mark', 'Box')).length
+  expect(barCells(at(120))).toBeLessThan(barCells(at(160)))
+  expect(keysOf(at(95))).toEqual(['cache', 'cost', 'ctx', '5h'])
+  // Every tile shrinks together, never just one.
+  for (const cols of [160, 120, 95]) expect(new Set(tilesOf(at(cols)).map(t => cellsOf(t as unknown as RenderChildren, TERMINAL))).size).toBe(1)
+  expect(keysOf(at(40))).toEqual(['cache', 'cost'])
 })
-test('at 40 columns a cold cache is labelled by its price alone, so an amber limit fits beside it', LONG, async ($, on) => {
-  const line = byKey((await at($, on, 'coldLimit80', { surface: 'terminal', cols: 40 }, '5m')).shut, 'line', 'Box')
-  expect(shown(line)).toMatch(/^cold~\$[\d.]+82%! 5h 82%$/)
-  expect(cellsOf(line as RenderChildren, TERMINAL)).toBeLessThanOrEqual(40 - ROW_SLACK - 2)
+test('an amber tile leads the row on the amber ground, its reason led by !', () => {
+  const row = rowOf({ fiveHour: { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } })
+  expect(keysOf(row)[0]).toBe('5h')
+  expect(shown(tile(row, '5h'))).toMatch(/^ *! 5h 82%/)
+  expect(tile(row, '5h')?.props?.backgroundColor).toBe(snapOf().palette.amberBg)
+  // The calm tiles stay off amber.
+  expect(boldOf(tile(row, 'cache'))).toEqual(['59m'])
 })
-test('the cache not measured yet has no re-warm price open', async ($, on) => {
-  const t = shown((await at($, on, 'unmeasured')).open)
-  expect(t).toMatch(/CACHE\s*–\s*cache/)
-  expect(t).not.toMatch(/re-warm if cold/)
+test('a cold cache says so collapsed, and its price opens', () => {
+  const cold = { cache: { ...snapAt().cache, msLeft: 0 } }
+  expect(shown(tile(rowOf(cold), 'cache'))).toMatch(/^cold\s*cache░+╸$/)
+  expect(shown(cardOf(drawn({ ...cold, expanded: true }), 'cache'))).toMatch(/next message\s*~\$1\.66/)
 })
-test('open, every limit has its tiles, an amber gateway spend limit first, with its reason', async ($, on) => {
-  expect(shown((await at($, on, 'gatewaySpend')).open)).toMatch(/LIMITS\s*92%\s*! spend 92%.*4%\s*5h.*30%\s*7d/)
+test('in ascii the marks are # - ~ | >, and the reset glyph drops', () => {
+  const t = shown(asciiTree(rowOf({ glyphs: 'ascii' })))
+  expect(t).toMatch(/^[\x20-\x7e]*$/)
+  expect(t).toMatch(/#+>/)
+  expect(t).toMatch(/#*\|#*~+/)
+  expect(t).toMatch(/5h 4h 55m/)
 })
-test('open, a limit keeps the colours its tile has shut', async ($, on) => {
-  const { shut, open } = await at($, on, 'calm')
-  for (const name of ['5h', '7d']) expect(colorOf(byKey(byKey(open, 'limits', 'Box'), name, 'Box'), name)).toBe(colorOf(shut, name))
+test('open is the four cards, a mark in every head but the spend’s', () => {
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const open = drawn({ surface, expanded: true })
+    expect(['cache', 'spend', 'context', 'limits'].map(name => cardOf(open, name) !== undefined)).toEqual([true, true, true, true])
+    const slots = ['cache', 'spend', 'context', 'limits'].map(name => byKey(cardOf(open, name), 'slot', 'Box') !== undefined)
+    expect(slots).toEqual([true, false, true, true])
+  }
+  // The limits' mark is the worst window's, notched where its week has gone.
+  const slot = byKey(cardOf(drawn(desk({ expanded: true })), 'limits'), 'slot', 'Box')
+  expect(svgsOf(slot).map(n => /class="tick"/.test(String(n.props?.source)))).toEqual([true])
 })
-test('open, a projection is a dashed underline', async ($, on) => {
-  expect(svgsOf((await at($, on, 'calm', D160)).open).some(n => /stroke-dasharray/.test(String(n.props?.source)))).toBe(true)
+test("open adds, never repeats: each card's first row is one the row left out", () => {
+  for (const surface of ['terminal', 'desktop'] as const) {
+    // The board's open view: 95 columns, a body short enough that each card leads with a fact.
+    const open = drawn({ surface, columns: 95, expanded: true, maxRows: 13 })
+    const row = shown(firstRow(open))
+    const first = (name: string) => shown(((cardOf(open, name)?.children ?? []) as Node[]).filter(Boolean)[1])
+    const [cache, spend, context, limits] = ['cache', 'spend', 'context', 'limits'].map(first)
+    expect([cache, spend, context, limits]).toEqual([
+      're-warm if cold~$1.66',
+      'last message$0.10',
+      'room left~25k',
+      expect.stringMatching(/^resets\w{3} \d\d:\d\d · full before reset$/),
+    ])
+    for (const value of ['~$1.66', '$0.10', '~25k', 'full before reset', 'resets']) expect(row).not.toContain(value)
+  }
 })
-test("open, a projection's underline says where the limit lands", async ($, on) => {
-  const dashed = svgsOf((await at($, on, 'calm', D160)).open).filter(n => /stroke-dasharray/.test(String(n.props?.source)))
-  expect(dashed.map(n => n.props?.alt)).toEqual(['5h limit about 10 percent at its reset', '7d limit about 50 percent at its reset'])
-})
-const desktop = (cols: number, maxRows: number): Mount => ({ surface: 'desktop', cols, maxRows })
-/** Four rows under each title, at 160 columns. */
-const FOUR_ROWS = desktop(160, 11)
-const SHORT_DESKTOPS = [FOUR_ROWS, desktop(160, 13), desktop(80, 13)]
-for (const scenario of ['calm', 'gatewaySpend'] as const) {
-  test(`open on the desktop, ${scenario} keeps to its rows, its underlines going before its facts`, LONG, async ($, on) => {
-    const trees = await drawCases($, on, { layout: 'tiles', scenario, appearance: 'dark', ttl: '1h' }, SHORT_DESKTOPS)
-    const opens = SHORT_DESKTOPS.map(m => ({ key: caseKey(m, 'open'), tree: trees[caseKey(m, 'open')], maxRows: m.maxRows ?? 0 }))
-    expect(opens.filter(o => visualRows(o.tree, 'desktop') > o.maxRows).map(o => o.key)).toEqual([])
-    // A pair stays under each title, and with four rows, a second.
-    expect(opens.filter(o => !/in context/.test(shown(o.tree))).map(o => o.key)).toEqual([])
-    expect(shown(trees[caseKey(FOUR_ROWS, 'open')])).toMatch(/200k\s*window/)
-  })
-}
-test('open with no context, its group says so', async ($, on) => {
-  expect(shown((await at($, on, 'warming')).open)).toMatch(/CONTEXT\s*not reported/)
-})
-test('open with no limits, its group says so', async ($, on) => {
-  expect(shown((await at($, on, 'noLimits')).open)).toMatch(/LIMITS\s*none reported/)
-})
-test('open, an amber limit keeps its reset, and a landing past the top says it fills first', LONG, async ($, on) => {
-  const limit80 = shown((await at($, on, 'limit80')).open)
-  expect(limit80).toMatch(/!\s*5h 82%\s*↻ in 3h/)
-  expect(limit80).toMatch(/full before reset/)
-})
-test('open, a weekly landing past the top says it fills before its reset', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'sevenFullBeforeReset')).open)).toMatch(/full before reset/)
+test('collapsed is one row, and open keeps to the band', () => {
+  for (const surface of ['terminal', 'desktop'] as const) {
+    expect(visualRows(rowOf({ surface }), surface)).toBe(1)
+    expect(visualRows(drawn({ surface, columns: 95, expanded: true, maxRows: 13 }), surface)).toBeLessThanOrEqual(13)
+  }
 })

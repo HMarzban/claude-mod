@@ -194,6 +194,8 @@ export type LimitWords = Readonly<{
   /** `resets in 3h 00m` and `↻ in 3h 00m`; undefined once passed. */
   resetWords: string | undefined
   resetGlyph: string | undefined
+  /** Chips' short form, `↻ 3h 00m`; undefined once passed. */
+  resetShort: string | undefined
   /** `16:40`, or `Mon 08:40` past today, when the offset is known. */
   resetClock: string | undefined
   /** After `↻`, a clock time: `↻ 16:40`, else `↻ in 3h 00m`; in the ascii
@@ -387,6 +389,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     pace,
     resetWords: f.reset?.kind === 'in' ? resetPhrase(f.reset, 'words') : undefined,
     resetGlyph,
+    resetShort: f.reset?.kind === 'in' ? `↻ ${f.reset.text}` : undefined,
     resetClock,
     resetAtGlyph: resetClock === undefined ? resetGlyph : `${ascii ? 'resets' : '↻'} ${resetClock}`,
     projectedText,

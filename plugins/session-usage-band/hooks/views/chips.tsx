@@ -24,7 +24,7 @@ import { defineCardsView } from './view'
 // ---- limits ---------------------------------------------------------------
 
 export type ChipKey = Exclude<LimitKey, 'other'>
-type Tint = Readonly<{ bg: string; fg: string; accent: string }>
+export type Tint = Readonly<{ bg: string; fg: string; accent: string }>
 type LimitSpec = Readonly<{
   icon: Icon
   title: string
@@ -53,6 +53,9 @@ const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
     tint: p => ({ bg: p.weekBg, fg: p.weekFg, accent: p.weekAccent }),
   },
 }
+
+/** A limit chip's tint: its ground, its ink and its accent. */
+export const limitTint = (p: Readonly<Palette>, key: ChipKey): Tint => LIMITS[key].tint(p)
 
 // ---- the pills --------------------------------------------------------------
 

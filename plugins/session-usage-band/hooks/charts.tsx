@@ -69,6 +69,12 @@ export type MeterOptions = Readonly<{
   tick?: number
   /** Where the fill is heading, drawn dashed from its end. */
   projectTo?: number
+  /** The tick's ink, the value's unless said; a notch is the label's. */
+  tickInk?: string
+  /** The ground the tick is knocked out of, the card's unless said. */
+  ground?: string
+  /** A projection's cell in text, `▒` unless said; dashed, `╌`. */
+  dash?: string
 }>
 
 /** A bar: `frac` filled toward its cap, the fill ending bare, since the
@@ -78,7 +84,7 @@ export type MeterOptions = Readonly<{
  *  so it spans its card. */
 export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
   const { Svg, Text, palette, onTone } = kit
-  const { key = 'meter', label, frac, tone, accent, size = CHIP_BAR, stretch = false, reads = 'used', tick, projectTo } = o
+  const { key = 'meter', label, frac, tone, accent, size = CHIP_BAR, stretch = false, reads = 'used', tick, projectTo, tickInk = palette.value, ground = palette.cardBg, dash = '▒' } = o
   const fill = onTone(tone, accent)
   if (Svg) {
     // Never name a local `h`: JSX compiles to the global h().
@@ -103,8 +109,8 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
       // fill and the track alike.
       (tickX === undefined
         ? ''
-        : `<rect class="knockout" x="${tenth(tickX - k)}" y="-1" width="${4 * k}" height="${tall + 2}" fill="${palette.cardBg}"/>` +
-          `<rect class="tick" x="${tickX}" y="-1" width="${2 * k}" height="${tall + 2}" fill="${palette.value}"/>`)
+        : `<rect class="knockout" x="${tenth(tickX - k)}" y="-1" width="${4 * k}" height="${tall + 2}" fill="${ground}"/>` +
+          `<rect class="tick" x="${tickX}" y="-1" width="${2 * k}" height="${tall + 2}" fill="${tickInk}"/>`)
     const source = svgOf(width, tall, marks, stretch ? ' preserveAspectRatio="none"' : '')
     const pct = `${label} ${Math.round(clamp01(frac) * 100)}%`
     const alt = reads === 'share' ? pct : `${pct} ${reads}`
@@ -131,7 +137,7 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
   const ahead = projectTo === undefined ? filled : Math.max(filled, Math.round(clamp01(projectTo) * size.cells))
   const tickAt = tick === undefined ? -1 : Math.min(size.cells - 1, Math.floor(clamp01(tick) * size.cells))
   const cells = Array.from({ length: size.cells }, (_, i): readonly [string, string] =>
-    i === tickAt ? ['│', palette.value] : i < filled ? ['█', fill] : i < ahead ? ['▒', fill] : ['░', palette.meterTrack],
+    i === tickAt ? ['│', tickInk] : i < filled ? ['█', fill] : i < ahead ? [dash, fill] : ['░', palette.meterTrack],
   )
   // Neighbouring cells in one colour share a Text.
   const runs: Array<{ text: string; color: string }> = []
@@ -412,36 +418,4 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
     return filled + outline + caption
   })
   return <Svg key={key} source={svgOf(width, tall, marks.join(''))} alt={alt} width={width} height={tall} />
-}
-
-// ---- underline ------------------------------------------------------------
-
-export type UnderlineOptions = Readonly<{
-  key: string
-  alt: string
-  frac: number
-  color: string
-  px: number
-  /** A projection rather than a reading. */
-  dashed?: boolean
-}>
-
-/** An underline's height. */
-export const UNDERLINE_PX = 4
-
-/** A thin bar under a tile's label. Terminal tiles have none. */
-export const underline = (kit: Kit, o: UnderlineOptions): RenderChildren => {
-  const { Svg, palette } = kit
-  const { key, alt, frac, color, px, dashed = false } = o
-  if (!Svg) return null
-  const reach = Math.round(clamp01(frac) * px)
-  const mid = UNDERLINE_PX / 2
-  const filled =
-    reach === 0
-      ? ''
-      : dashed
-        ? `<line x1="0" y1="${mid}" x2="${reach}" y2="${mid}" stroke="${color}" stroke-width="2" ${PROJECTION_DASH}/>`
-        : `<rect class="fill" width="${reach}" height="${UNDERLINE_PX}" rx="${mid}" fill="${color}"/>`
-  const source = svgOf(px, UNDERLINE_PX, `<rect width="${px}" height="${UNDERLINE_PX}" rx="${mid}" fill="${palette.meterTrack}"/>${filled}`)
-  return <Svg key={key} source={source} alt={alt} width={px} height={UNDERLINE_PX} />
 }
