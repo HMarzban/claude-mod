@@ -9,6 +9,7 @@ import {
   CLEAR,
   DARK_HOSTS,
   FRESH,
+  HOUR,
   LIGHT_HOSTS,
   contrast,
   START,
@@ -18,6 +19,7 @@ import {
   cardOf,
   fact,
   firstRow,
+  hostClock,
   pillOf,
   resp,
   respond,
@@ -154,7 +156,7 @@ test('after a reload with spend on the ledger, the cache is not measured yet, no
   expect(shown(pillOf(await ui.drawn(), 'cache'))).toMatch(/cache –/)
   await ui.press({ key: 'more' })
   const card = shown(cardOf(await ui.drawn(), 'cache'))
-  expect(card).toMatch(/Not measured yet/)
+  expect(card).toMatch(/not measured yet/)
   expect(card).toMatch(/Countdown starts with Claude's next reply/)
   expect(shown(cardOf(await ui.drawn(), 'spend'))).toMatch(/Breakdown counts from your next message/)
   await ui.unmount()
@@ -275,7 +277,9 @@ test('the limits card puts each value beside its bar and says the pace in words'
   expect(shown(cardOf(tree, 'limits'))).toMatch(/^LIMITS7d 30%/) // the window closest to trouble
   expect(fact(tree, '5h')).toBe('4%')
   expect(fact(tree, '5h pace')).toBe('resets 3h 00m · on pace for ~10%')
-  expect(fact(tree, '7d pace')).toBe('resets 2d 19h · on pace for ~50%')
+  // The worst window, 7d, leads the card with its reset at its clock time and its pace.
+  expect(fact(tree, 'resets')).toBe(`${hostClock(67 * HOUR, 0)} · on pace for ~50%`)
+  expect(fact(tree, '7d pace')).toBeUndefined()
   await ui.unmount()
 })
 

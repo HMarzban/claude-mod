@@ -143,11 +143,13 @@ Run `/reload-plugins` in your session afterwards.
   `LONG` budget from `helpers.ts`: the band ticks every second, and CI
   runners are several times slower than a laptop.
 - **Chips' trees are frozen.** `golden-a` and `golden-b` hold chips to the
-  trees it drew before the layouts work, with the 0.11.13 hover fix and the
-  0.12.1 fixes: dark and plain, desktop and terminal, at 40, 95 and 200
+  trees it draws as its 0.13 board does, its open view the cards every
+  layout shares: dark and plain, desktop and terminal, at 40, 95 and 200
   columns, shut and open; and every frame's hover cards to whole pieces.
-  `tools/golden/capture.sh` runs only on the hooks at `09a9e6c`, so it can't
-  recapture a fix. If your change is meant to alter what chips draws, update
+  A clock time is the host's zone's, which the kit can't pin, so the hash
+  reads every clock time alike (`tests/golden/hash.ts`); the readings' tests
+  hold each to its zone. `tools/golden/capture.sh` runs only on the hooks at
+  `846e17d`, so it can't recapture a fix. If your change is meant to alter what chips draws, update
   the failing keys in `tests/golden/chips.ts` to the hashes the failures
   print. For a key also held in `GOLDEN_TREES`, replace its whole tree too:
   log `JSON.stringify(canon(tree))` for that key in `tests/golden/suite.ts`,

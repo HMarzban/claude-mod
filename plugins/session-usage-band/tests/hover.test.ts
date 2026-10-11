@@ -125,7 +125,7 @@ const expectCardsAt = (row: unknown, found: Array<[string, Node]>, cols: number,
 }
 
 /** The pills a wide row draws once a reply has landed, in order. */
-const PILLS = ['cache', 'cost', 'tokens', 'ctx', '5h', '7d']
+const PILLS = ['cache', 'cost', 'ctx', '5h', '7d', 'tokens']
 
 test('every pill explains itself on hover, on a card drawn over the row at its pill', async ($, on) => {
   setup(on)
@@ -144,10 +144,10 @@ test('every pill explains itself on hover, on a card drawn over the row at its p
     // short row's cut only ever takes the description.
     expect(cardText(found[0]?.[1])).toBe('1h 00m left; warm cache bills input at 5%, expires 1h after a reply')
     expect(cardText(found[1]?.[1])).toBe('$0.41 spent during your last message, subagents included')
-    expect(cardText(found[2]?.[1])).toBe('input 196k · output 12k · cache reads 0')
-    expect(cardText(found[3]?.[1])).toBe('76k of 200k (38%); older turns get summarized near full')
-    expect(cardText(found[4]?.[1])).toBe('Resets in 3h 00m; 5-hour limit, all your Claude use')
-    expect(cardText(found[5]?.[1])).toBe('Resets in 2d 19h; weekly limit, all your Claude use')
+    expect(cardText(found[2]?.[1])).toBe('76k of 200k (38%); older turns get summarized near full')
+    expect(cardText(found[3]?.[1])).toBe('Resets in 3h 00m; 5-hour limit, all your Claude use')
+    expect(cardText(found[4]?.[1])).toBe('Resets in 2d 19h; weekly limit, all your Claude use')
+    expect(cardText(found[5]?.[1])).toBe('input 196k · output 12k · cache reads 0')
     await ui.unmount()
   }
 })

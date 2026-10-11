@@ -178,9 +178,11 @@ export const limitPill = (kit: Kit, read: Readings, key: ChipKey, squeeze: numbe
   const fg = onTone(tone, tint.fg)
   const accent = onTone(tone, tint.accent)
   const bar = keeps(squeeze, 'limitBars') ? [gap('g-bar'), meter(kit, { label: key, frac, tone, accent: tint.accent })] : []
+  // The reset is a qualifier: in label ink, its figure the usage before it.
+  const resetInk = onTone(tone, palette.label)
   const reset =
     r !== undefined && keeps(squeeze, tone === 'amber' ? spec.amberReset : spec.reset)
-      ? [<Text key="d" color={palette.label}>{' │ '}</Text>, ...icon('reset', accent), <Text key="r" color={fg}>{r.text}</Text>]
+      ? [<Text key="d" color={palette.label}>{' │ '}</Text>, ...icon('reset', resetInk), <Text key="r" color={resetInk}>{r.text}</Text>]
       : []
   return {
     key,
@@ -193,8 +195,9 @@ export const limitPill = (kit: Kit, read: Readings, key: ChipKey, squeeze: numbe
       </Text>,
       ...bar,
       <Text key="v" color={fg} bold>
-        {` ${w.value}${severityMark(frac)}${pace}`}
+        {` ${w.value}${severityMark(frac)}`}
       </Text>,
+      pace === '' ? null : <Text key="p" color={fg}>{pace}</Text>,
       ...reset,
     ],
     // The card covers its chip, so it leads with the fact the chip had,
@@ -206,8 +209,8 @@ export const limitPill = (kit: Kit, read: Readings, key: ChipKey, squeeze: numbe
   }
 }
 
-/** Chips' pills at a squeeze, in its order: the calm ones give way by
- *  `GIVES_WAY`, an amber one holds out. */
+/** Chips' pills at a squeeze, in its order, the tokens last: the calm ones
+ *  give way by `GIVES_WAY`, the tokens first, and an amber one holds out. */
 export const chipsPills = (kit: Kit, read: Readings, squeeze: number): PillSpec[] => {
   const short = shortAt(kit, squeeze)
   const calm = (tone: 'calm' | 'amber', piece: Piece) => tone === 'amber' || keeps(squeeze, piece)
@@ -216,10 +219,10 @@ export const chipsPills = (kit: Kit, read: Readings, squeeze: number): PillSpec[
   return [
     cachePill(kit, read, short),
     costPill(kit, read),
-    ...(read.cache.measured && keeps(squeeze, 'tokens') ? [tokensPill(kit, read)] : []),
     ...(read.context.known && calm(read.context.tone, 'calmContext') ? [contextPill(kit, read, squeeze)] : []),
     ...(five === undefined ? [] : [five]),
     ...(seven === undefined ? [] : [seven]),
+    ...(read.cache.measured && keeps(squeeze, 'tokens') ? [tokensPill(kit, read)] : []),
   ]
 }
 

@@ -18,6 +18,25 @@ test('readings name every limit with its tone, value, reset and projection', () 
 test("a card says each limit's reset with its pace", () => {
   expect(readingsOf(snapOf()).limits.map(l => l.cardReset)).toEqual(['resets 3h 00m · on pace for ~10%', 'resets 2d 19h · on pace for ~50%'])
 })
+test('a card says when a limit resets: its clock once the offset is known, else how long until; nothing once passed', () => {
+  expect(readingsOf(snapOf({ utcOffsetMin: 0 })).limits.map(l => l.resetWhen)).toEqual(['03:00', 'Sat 19:00'])
+  expect(readingsOf(snapOf()).limits.map(l => l.resetWhen)).toEqual(['in 3h 00m', 'in 2d 19h'])
+  expect(readingsOf(snapOf({ now: 4 * HOUR })).fiveHour?.resetWhen).toBeUndefined()
+})
+test('a card heads its section with one figure, the rest in words, in lowercase', () => {
+  const r = readingsOf(snapOf())
+  expect(r.cache.cardHead).toEqual([['52m', 'value'], [' left', 'label']])
+  expect(r.context.cardHead).toEqual([['40%', 'value'], [' full', 'label']])
+  const off = readingsOf(snapOf({ context: { tokens: 170_000, window: 200_000, percent: 85, compactAt: undefined, autoCompactOff: true } }))
+  expect(off.context.cardHead).toEqual([['85%!', 'value'], [' full', 'label']]) // the mark rides on the figure
+  const moods = [
+    snapOf({ cache: { ...snapOf().cache, requests: 0, fresh: false } }),
+    snapOf({ cache: { ...snapOf().cache, requests: 0, fresh: true } }),
+    snapOf({ cache: cacheAt(0) }),
+    snapOf({ isWorking: true }),
+  ]
+  expect(moods.map(m => readingsOf(m).cache.cardHead)).toEqual([[['not measured yet', 'value']], [['warming', 'value']], [['cold', 'value']], [['warm', 'value']]])
+})
 test('a limit at 82% reads 5h 82%, with no mark, and is amber', () => {
   const r = readingsOf(snapOf({ fiveHour: { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }))
   expect(`${r.fiveHour?.name} ${r.fiveHour?.value}`).toBe('5h 82%')

@@ -33,7 +33,8 @@ test("the Limits card says the 5h chip's pace in the chip's own words, and in it
   expect(eta).toBeDefined()
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
-  expect(fact(tree, '5h pace')).toMatch(new RegExp(`full in ${eta}`))
+  // The 5h is the worst window, so its pace leads the card, beside its reset.
+  expect(fact(tree, 'resets')).toMatch(new RegExp(` · full in ${eta}$`))
   const row = byKey(cardOf(tree, 'limits'), 'fact:5h')
   const value = (row?.children ?? []).filter(Boolean).at(-1) as Node | undefined
   expect(value?.props?.color).toBe(DARK.amberFg) // amber on the card, as on the chip

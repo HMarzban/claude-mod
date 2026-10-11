@@ -10,7 +10,8 @@ import { openBody, type OpenOptions } from '../hooks/views/cards'
 import { cachePill, chipsPills, chipsView, limitPill, pillRow } from '../hooks/views/chips'
 import { defineCardsView } from '../hooks/views/view'
 import { canon } from './golden/hash'
-import { byKey, cardOf, fact, fakeEl, shown, type Node } from './helpers'
+import { DARK } from '../hooks/palette'
+import { byKey, cardOf, fact, fakeEl, shown, walk, type Node } from './helpers'
 import { NO_ACT, snapOf, visualRows } from './matrix'
 
 const text = (s: string) => ({ type: 'Text', props: {}, children: [s] }) as unknown as RenderElement
@@ -76,4 +77,30 @@ test("a layout composes chips' pills: chips' row is its pills in a pill row", ()
   expect(shown(mine)).toBe('7d ██░░░░ 30% │ ↻ 2d 19h ◷ cache 52m ')
   expect(byKey(mine, 'more', 'Button')?.props?.label).toBe('▵')
   expect(limitPill(kit, readingsOf(snapOf({ sevenDay: undefined })), '7d', 0, false)).toBeUndefined()
+})
+test('a card head is bold on its figure alone, its words in label ink', () => {
+  const tree = opened()
+  const headOf = (name: string) => byKey(cardOf(tree, name), 'head')
+  const bold = (name: string) => {
+    const out: string[] = []
+    walk(headOf(name), n => {
+      if (n.type === 'Text' && n.props?.bold === true) out.push(shown(n))
+    })
+    return out
+  }
+  expect(['cache', 'spend', 'context', 'limits'].map(bold)).toEqual([['52m'], ['$3.19'], ['40%'], ['30%']])
+  expect(shown(headOf('limits'))).toBe('LIMITS7d 30%')
+  const label = byKey(headOf('cache'), 'say1', 'Text')
+  expect([shown(label), label?.props?.color]).toEqual([' left', DARK.label])
+})
+test("LIMITS leads with the worst window's reset and pace, never the collapsed row's value", () => {
+  const zoned = { utcOffsetMin: 0, maxRows: 13 }
+  expect(firstRowOf(opened({}, zoned), 'limits')).toBe('resetsSat 19:00 · on pace for ~50%')
+  expect(firstRowOf(opened({}, { maxRows: 13 }), 'limits')).toBe('resetsin 2d 19h · on pace for ~50%')
+  expect(firstRowOf(opened({ shown: ['pace'] }, zoned), 'limits')).toBe('resetsSat 19:00')
+  expect(firstRowOf(opened({ shown: ['reset'] }, zoned), 'limits')).toBe('paceon pace for ~50%')
+  expect(firstRowOf(opened({ shown: ['reset', 'pace'] }, zoned), 'limits')).toMatch(/^5h/)
+  // Taller, every window follows; the worst's own reset line isn't said twice.
+  const tall = opened({}, { utcOffsetMin: 0 })
+  expect([fact(tall, '5h'), fact(tall, '7d'), fact(tall, '5h pace'), fact(tall, '7d pace')]).toEqual(['4%', '30%', 'resets 3h 00m · on pace for ~10%', undefined])
 })

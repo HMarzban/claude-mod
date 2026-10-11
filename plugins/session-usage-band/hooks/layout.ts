@@ -52,9 +52,9 @@ export const METER_CELLS = 6
 export const METER_PX = 44
 /** A row's height on the desktop, for counting how many rows a layout takes. */
 export const ROW_PX = 24
-/** The longest line a card holds unwrapped, in characters:
- *  `resets 2d 19h · full before reset`. */
-export const CARD_TEXT = 33
+/** The longest line a card holds unwrapped, in characters: LIMITS' lead
+ *  row, `resets  Mon 08:40 · full before reset`, its label two columns apart. */
+export const CARD_TEXT = 37
 /** Columns a framed Button's padding and edges take beyond its label. */
 export const BUTTON_CHROME = 3
 /** Columns a Button's hotkey mark takes beside its label. */

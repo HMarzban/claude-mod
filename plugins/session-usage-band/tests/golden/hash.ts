@@ -1,12 +1,19 @@
 // A drawn tree as a short, stable fingerprint: the golden capture keeps
 // hashes, not trees, so it stays small enough to commit.
 
-/** `v` with object keys sorted, and functions and the engine's `press`
- *  handles dropped: handlers differ by identity between draws, the engine
- *  numbers each Button's press handle as a file's tests run, and key order is
- *  not part of what is drawn. */
+/** A local clock time, `13:30` or `Sat 13:30`: never a countdown, which
+ *  reads `1h 05m`, or under ten minutes `M:SS` with a one-digit minute. */
+const CLOCK = /\b(?:(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat) )?\d\d:\d\d\b/g
+
+/** `v` with object keys sorted, functions and the engine's `press` handles
+ *  dropped, and every clock time read alike: handlers differ by identity
+ *  between draws, the engine numbers each Button's press handle as a file's
+ *  tests run, key order is not part of what is drawn, and a clock time is the
+ *  host's zone's, which the kit can't pin, so a capture holds in every zone.
+ *  The readings' tests hold each clock time to its zone. */
 export const canon = (v: unknown): unknown => {
   if (Array.isArray(v)) return v.map(canon)
+  if (typeof v === 'string') return v.replace(CLOCK, '⟨clock⟩')
   if (v === null || typeof v !== 'object') return v
   const o = v as Record<string, unknown>
   return Object.fromEntries(
