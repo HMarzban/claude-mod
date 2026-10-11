@@ -19,9 +19,10 @@ import { toggleButton } from './frame'
 import { accentOf, batteryBar, beforeLast, fitLine, pill, type Keeps } from './parts'
 import { rowsOf, type Rows, type View } from './view'
 
-/** What the grid gives up as it narrows, first to last. An amber gauge holds
- *  its reason until the last step, when it says its figure alone. */
-const ORDER = ['resets', 'room', 'reWarm', 'paces', 'bars', 'units', 'smallBars', 'names'] as const
+/** What the grid gives up as it narrows, first to last: the paces, gauges'
+ *  question, outlast the bars' full length. An amber gauge holds its reason
+ *  until the last step, when it says its figure alone. */
+const ORDER = ['resets', 'room', 'reWarm', 'bars', 'paces', 'units', 'smallBars', 'names'] as const
 type Piece = (typeof ORDER)[number]
 
 /** One length for every bar, so the four line up; narrow, half of it. */
@@ -188,7 +189,7 @@ const collapsed = (kit: Kit, read: Readings, act: BandActions): Readonly<{ grid:
   const cost = pill(kit, { ...costPill(kit, read), hover: undefined })
   const toggle = toggleButton(kit, read, act)
   // fitLine's last build is the grid it returns, so its squeeze says what the row kept.
-  let kept: Keeps<Piece> | undefined
+  let kept = undefined as Keeps<Piece> | undefined
   const grid = fitLine(kit, ORDER, kit.columns - ROW_SLACK, keeps => {
     kept = keeps
     return (

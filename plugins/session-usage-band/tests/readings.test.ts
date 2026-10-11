@@ -300,10 +300,12 @@ test("a gauge says its figure bold, then what qualifies it, and short its figure
   const none = readingsOf(snapOf({ context: { tokens: undefined, window: 200_000, percent: undefined, compactAt: 190_000, autoCompactOff: false } })).context
   expect([none.gaugeSay, none.gaugeShort, none.gaugeMore]).toEqual([[['not reported', 'label']], [['–', 'label']], undefined])
 })
-test("a limit's notch is the share of its window gone, and a window with nothing used has none", () => {
+test("a limit's notch is the share of its window gone, and a window with nothing used has none, nor a pace", () => {
   const r = readingsOf(snapOf())
   expect(r.fiveHour?.notch).toBe(r.fiveHour?.gone)
   expect(r.fiveHour?.notch).toBeGreaterThan(0)
   const unused = readingsOf(snapOf({ fiveHour: { percentUsed: 0, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }))
   expect([unused.fiveHour?.gone === undefined, unused.fiveHour?.notch]).toEqual([false, undefined])
+  // Nor a pace: a landing of ~0% says nothing the 0% doesn't.
+  expect([unused.fiveHour?.projectedPct, unused.fiveHour?.pace]).toEqual([undefined, ''])
 })

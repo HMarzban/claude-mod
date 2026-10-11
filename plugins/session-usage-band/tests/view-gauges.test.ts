@@ -92,7 +92,8 @@ test('no bar ends in a thumb, and a 5h at 0% has no notch', () => {
   const unused = { fiveHour: { percentUsed: 0, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }
   const five = svgsOf(rowOf(desktop(unused))).find(n => String(n.props?.alt).startsWith('5h '))
   expect(String(five?.props?.source)).not.toMatch(/class="tick"/)
-  expect(pillText(unused, '5h')).not.toMatch(/│/)
+  // As the board draws it: nothing used, no pace either, only its reset.
+  expect(pillText(unused, '5h')).toBe('5h░░░░░░░░░░░░0% · ↻ 03:00')
 })
 test('the toggle is last, on the bottom row: ▵ shut, ▿ open', () => {
   const end = (tree: Node) => ((firstRow(tree) as Node).children ?? []).at(-1) as Node
@@ -110,8 +111,8 @@ test('the grid gives way in its order as it narrows', () => {
     ['resets', /↻/],
     ['room', /~114k left/],
     ['reWarm', /re-warm/],
-    ['paces', /on pace/],
     ['bars', /[█░▒│]{12}/],
+    ['paces', /on pace/],
     ['units', / full/],
     ['smallBars', /[█░▒│]{6}/],
     ['names', /context/],
