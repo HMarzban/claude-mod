@@ -582,7 +582,7 @@
         </div>
         <div class="layctl">
           <div class="seg" role="group" aria-label="Moment"><button type="button" data-amber="false" aria-pressed="true">Calm</button><button type="button" data-amber="true" aria-pressed="false">Last minute</button></div>
-          <div class="seg"><button type="button" id="layopen" aria-pressed="false">Open ▵</button></div>
+          <div class="seg"><button type="button" id="layopen">Open ▵</button></div>
         </div>
       </div>
       <p class="livebar">The band's own drawings on the desktop, from one session sixteen replies in. Below 40 columns every layout draws chips.</p>
@@ -894,7 +894,7 @@
     }
     for (const b of pick) b.setAttribute('aria-pressed', b.dataset.layout === L.name)
     for (const b of moment) b.setAttribute('aria-pressed', b.dataset.amber === String(L.amber))
-    lopen.setAttribute('aria-pressed', L.open)
+    lopen.textContent = L.open ? 'Close ▿' : 'Open ▵'
     // the line is a live region: rewrite it only when the layout changes
     const whatEl = $('#laywhat')
     if (whatEl.dataset.name !== L.name) {
