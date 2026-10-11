@@ -52,6 +52,10 @@ export type Slots = Readonly<Partial<Record<CardName, RenderChildren>>>
 /** A card's first row, as its facts are drawn: a label and its value,
  *  `used so far` and `5h 0% · 7d 66%`. */
 export type Lead = readonly [label: string, value: string]
+/** One lead, or its forms longest first: the card draws the first its line holds. */
+export type Leads = Lead | readonly Lead[]
+
+const isLead = (l: Leads): l is Lead => typeof l[0] === 'string'
 
 export type OpenOptions = Readonly<{
   /** The rows the collapsed lines take, so the cards take only what is left. */
@@ -61,10 +65,10 @@ export type OpenOptions = Readonly<{
    *  of: tiles' marks read as the bar does. */
   slotsReplaceBars?: boolean
   /** A card's headline in the layout's words, in place of its own: bold on
-   *  its figure, `~12 msgs`. */
+   *  its figure, `~12 msgs`; one with amber words draws its figure amber. */
   heads?: Readonly<Partial<Record<CardName, Say>>>
   /** A card's first row, before its own facts and counted with them. */
-  lead?: Readonly<Partial<Record<CardName, Lead>>>
+  lead?: Readonly<Partial<Record<CardName, Leads>>>
   /** What the collapsed lines already show: no card repeats it. Its reset
    *  and pace are the worst window's. */
   shown?: readonly Fact[]
@@ -182,13 +186,15 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     context: ['context', palette.label],
     limits: ['limits', palette.fiveAccent],
   }
-  /** A headline: bold on its figure alone, its words in label ink. */
-  const headline = (say: Say, tone: Tone) =>
-    oneLine(
+  /** A headline: bold on its figure alone, its words in label ink, or
+   *  amber's; amber words make the figure amber too. */
+  const headline = (say: Say, tone: Tone) => {
+    const figure = onTone(say.some(([, role]) => role === 'amber') ? 'amber' : tone, palette.value)
+    return oneLine(
       {},
       say.map(([text, role], i) =>
         role === 'value' ? (
-          <Text key={`say${i}`} color={onTone(tone, palette.value)} bold>
+          <Text key={`say${i}`} color={figure} bold>
             {text}
           </Text>
         ) : (
@@ -198,11 +204,18 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
         ),
       ),
     )
+  }
+  /** A lead's row: the first form whose label and value fit the card's line, else its shortest. */
+  const leadOf = (lead: Leads | undefined): RenderChildren => {
+    if (lead === undefined) return null
+    const rows = (isLead(lead) ? [lead] : lead).map(form => factRow(undefined, ...form))
+    return rows.find(row => cellsOf(row, measure) <= inner) ?? rows.at(-1) ?? null
+  }
   /** A card: its title, the layout's lens and its headline on one line, then
    *  its bar, the layout's lead and its body. */
   const card = (name: CardName, title: string, head: Readonly<{ say: Say; tone?: Tone }>, bar: RenderChildren, body: RenderChildren[]) => {
     const slot = o.slots?.[name]
-    const lead = o.lead?.[name]
+    const lead = leadOf(o.lead?.[name])
     const say = headline(o.heads?.[name] ?? head.say, head.tone ?? 'calm')
     const ownBar = slot !== undefined && o.slotsReplaceBars === true ? null : bar
     return (
@@ -235,7 +248,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
                 </Box>,
               ]}
         </Box>
-        {fitBody(ownBar, lead === undefined ? body : [factRow(undefined, ...lead), ...body])}
+        {fitBody(ownBar, lead === null ? body : [lead, ...body])}
       </Box>
     )
   }

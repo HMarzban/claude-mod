@@ -6,14 +6,14 @@ import { clamp01 } from './format'
 import type { Kit } from './kit'
 import { CHIP_BAR } from './layout'
 import type { BarSize } from './layout'
-import type { Tone } from './reading'
+import type { SliceMark, SliceRow, Tone } from './reading'
 
 /** One decimal: enough for an Svg coordinate, short enough to read. */
 const tenth = (n: number): number => Math.round(n * 10) / 10
 
 /** A projection's dash, in every chart: where a mark is heading. */
 const PROJECTION_DASH = 'stroke-dasharray="3 2"'
-/** A guess's dash: a day cell whose value is yet to come. */
+/** A guess's dash: a day cell or a slice whose value is yet to come. */
 const GUESS_DASH = 'stroke-dasharray="2 2"'
 
 /** The largest value, 0 for none: the top of a chart's scale. */
@@ -437,4 +437,103 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
     return filled + outline + caption
   })
   return <Svg key={key} source={svgOf(width, tall, marks.join(''))} alt={alt} width={width} height={tall} />
+}
+
+// ---- slice cells ----------------------------------------------------------
+
+export type SliceCellsOptions = Readonly<{
+  key: string
+  alt: string
+  row: SliceRow
+  color: string
+  /** Text's inks for a guess and for none left: the window's tint, dim and dimmer. */
+  guess: string
+  spent: string
+  /** The ground the notch is knocked out of: its pill's or its card's. */
+  ground: string
+  cellPx: number
+  /** A day: two text cells, a space apart. An hour: one, none between. */
+  wide: boolean
+}>
+
+const SLICE_GAP = 3
+const SLICE_PX = 16
+/** A text cell's height in eighths, from ▁ to █. */
+const HEIGHTS = '▁▂▃▄▅▆▇█'
+
+/** A cell per slice of a window, filled toward its cap: solid while
+ *  measured, dashed while guessed, the guess that fills it outlined in full
+ *  and those after it empty; a slice not known yet a plain grey outline; a
+ *  label-grey notch where now falls. Text draws a height per cell, a
+ *  measured 0% its empty track as a meter's, a dot where not known, the
+ *  notch at the edge of the slice nearest now. */
+export const sliceCells = (kit: Kit, o: SliceCellsOptions): RenderChildren => {
+  const { Svg, Text, palette, glyphs } = kit
+  const { key, alt, row, color, guess, spent, ground, cellPx, wide } = o
+  const { marks, notch } = row
+  if (Svg) {
+    const step = cellPx + SLICE_GAP
+    const width = marks.length * step - SLICE_GAP
+    const cells = marks.map(({ kind, pct }, i) => {
+      const x = i * step
+      const share = clamp01(pct / 100)
+      if (kind === 'unknown') return `<rect x="${x + 0.5}" y="2.5" width="${cellPx - 1}" height="11" rx="2.5" fill="none" stroke="${palette.trackStroke}"/>`
+      if (kind === 'measured') {
+        const tall = tenth(share * 12)
+        return (
+          `<rect x="${x}" y="2" width="${cellPx}" height="12" rx="2.5" fill="${color}" fill-opacity="0.35"/>` +
+          (tall > 0 ? `<rect x="${x}" y="${tenth(14 - tall)}" width="${cellPx}" height="${tall}" rx="2" fill="${color}"/>` : '')
+        )
+      }
+      // A guess or what is left is dashed; only the fill day's edge is full.
+      const edge = `<rect x="${x + 0.5}" y="2.5" width="${cellPx - 1}" height="11" rx="2.5" fill="none" stroke="${color}"${kind === 'fills' ? '' : ' stroke-opacity="0.55"'} ${GUESS_DASH}/>`
+      const tall = tenth(share * 9)
+      const guess = (kind === 'guess' || kind === 'fills') && tall > 0 ? `<rect x="${x + 2}" y="${tenth(12.5 - tall)}" width="${cellPx - 4}" height="${tall}" rx="1" fill="${color}" fill-opacity="0.45"/>` : ''
+      return edge + guess
+    })
+    const at = notch === undefined ? undefined : Math.max(1, Math.min(width - 1, tenth(Math.floor(notch) * step + (notch - Math.floor(notch)) * cellPx)))
+    // Knocked out of the ground a pixel either side, so it reads over a fill.
+    const mark =
+      at === undefined
+        ? ''
+        : `<rect x="${tenth(at - 2)}" y="0" width="4" height="${SLICE_PX}" rx="1.5" fill="${ground}"/><rect x="${tenth(at - 1)}" y="0" width="2" height="${SLICE_PX}" rx="1" fill="${palette.label}"/>`
+    return <Svg key={key} source={svgOf(width, SLICE_PX, cells.join('') + mark)} alt={alt} width={width} height={SLICE_PX} />
+  }
+  const ascii = glyphs === 'ascii'
+  /** A cell's glyph and ink: a height measured or guessed, an empty track
+   *  at 0%, a dash where none is left, a dot where not known. */
+  const glyphOf = ({ kind, pct }: SliceMark): readonly [string, string] => {
+    const height = HEIGHTS[Math.max(0, Math.round(clamp01(pct / 100) * 8) - 1)] ?? '▁'
+    if (kind === 'measured') return pct <= 0 ? [ascii ? '-' : '░', palette.meterTrack] : [ascii ? '#' : height, color]
+    if (kind === 'guess' || kind === 'fills') return [ascii ? '+' : height, guess]
+    if (kind === 'spent') return [ascii ? '.' : '╌', spent]
+    return [ascii ? '?' : '·', palette.trackStroke]
+  }
+  const edge = notch === undefined ? undefined : Math.round(notch)
+  const notchMark: readonly [string, string] = [ascii ? '|' : '▏', palette.label]
+  // The notch takes the space at its edge, or adds a cell where there is none.
+  const parts: Array<readonly [string, string]> = []
+  marks.forEach((m, i) => {
+    const [glyph, ink] = glyphOf(m)
+    if (i === edge) parts.push(notchMark)
+    else if (wide && i > 0) parts.push([' ', parts.at(-1)?.[1] ?? ink])
+    parts.push([wide ? glyph + glyph : glyph, ink])
+  })
+  if (edge === marks.length) parts.push(notchMark)
+  // Neighbouring cells in one ink share a Text.
+  const runs: Array<{ text: string; ink: string }> = []
+  for (const [text, ink] of parts) {
+    const last = runs.at(-1)
+    if (last?.ink === ink) last.text += text
+    else runs.push({ text, ink })
+  }
+  return (
+    <Text key={key}>
+      {runs.map((run, i) => (
+        <Text key={`run-${i}`} color={run.ink}>
+          {run.text}
+        </Text>
+      ))}
+    </Text>
+  )
 }

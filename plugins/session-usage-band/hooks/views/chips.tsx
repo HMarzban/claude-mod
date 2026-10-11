@@ -18,7 +18,7 @@ import type { BandActions } from '../snapshot'
 import { paceText } from '../words'
 import { toggleButton } from './frame'
 import { batteryIcon, pill, textBattery } from './parts'
-import type { PillSpec } from './parts'
+import type { BoldRuns, PillSpec } from './parts'
 import { defineCardsView } from './view'
 
 // ---- limits ---------------------------------------------------------------
@@ -64,38 +64,50 @@ export const limitTint = (p: Readonly<Palette>, key: ChipKey): Tint => LIMITS[ke
  *  below `SHORT_BELOW` columns. */
 export const shortAt = (kit: Kit, squeeze: number): boolean => kit.columns < SHORT_BELOW || !keeps(squeeze, 'shortWording')
 
-/** The cache pill: a draining battery and its countdown, or its mood. */
-export const cachePill = (kit: Kit, read: Readings, short: boolean): PillSpec => {
+/** The cache pill: a draining battery and its countdown, or its mood. A
+ *  layout that bolds each reading's figure asks for the countdown `bold`;
+ *  chips' own draws it plain. */
+export const cachePill = (kit: Kit, read: Readings, short: boolean, bold = false): PillSpec => {
   const { Text, Svg, palette, onTone } = kit
   const { mood, tone, charge } = read.cache
   const { copy } = read.chips.reading
   const text = copy.pill(short)
+  const figure = bold && copy.figure !== undefined && text.endsWith(copy.figure) ? copy.figure : ''
+  const fg = onTone(tone, palette.value)
+  /** The text, its figure bold when asked: `cache ` then `52m`. */
+  const words = (key: string, said: string): RenderElement[] =>
+    figure === ''
+      ? [<Text key={key} color={fg}>{said}</Text>]
+      : [
+          <Text key={key} color={fg}>
+            {said.slice(0, said.length - figure.length)}
+          </Text>,
+          <Text key={`${key}-fig`} color={fg} bold>
+            {figure}
+          </Text>,
+        ]
   if (Svg) {
     // A normal rounded pill led by a draining battery icon; the text-surface
     // battery would paint a square-cornered block here.
-    return {
-      key: 'cache',
-      tone,
-      body: [batteryIcon(kit, charge, tone, copy.alt), <Text key="c" color={onTone(tone, palette.value)}>{` ${text}`}</Text>],
-      hover: copy.hover,
-    }
+    return { key: 'cache', tone, body: [batteryIcon(kit, charge, tone, copy.alt), ...words('c', ` ${text}`)], hover: copy.hover }
   }
   // The ascii label is mapped before the battery's cut, so a dropped glyph
   // neither leaves a gap at the cut nor takes its cells from the charge.
   if (palette.filled) {
-    const label = `◷ ${text}`
-    return { key: 'cache', tone, body: textBattery(kit, charge, tone, read.frame.glyphs === 'ascii' ? asciiText(label) : label), hover: copy.hover, paintsOwnBg: true }
+    const runs: BoldRuns = [[`◷ ${text.slice(0, text.length - figure.length)}`, false], [figure, true]]
+    return {
+      key: 'cache',
+      tone,
+      body: textBattery(kit, charge, tone, read.frame.glyphs === 'ascii' ? runs.map(([run, bold]) => [asciiText(run), bold]) : runs),
+      hover: copy.hover,
+      paintsOwnBg: true,
+    }
   }
   const dot = mood === 'warm' || mood === 'expiring' ? palette.warm : palette.cold
   return {
     key: 'cache',
     tone,
-    body: [
-      tone === 'amber' ? null : <Text key="dot" color={dot}>{'● '}</Text>,
-      <Text key="c" color={onTone(tone, palette.value)}>
-        {tone === 'amber' ? `◷ ${text}` : text}
-      </Text>,
-    ],
+    body: [tone === 'amber' ? null : <Text key="dot" color={dot}>{'● '}</Text>, ...words('c', tone === 'amber' ? `◷ ${text}` : text)],
     hover: copy.hover,
   }
 }

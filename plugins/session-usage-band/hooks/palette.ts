@@ -42,6 +42,12 @@ export type Palette = {
   weekBg: string
   weekFg: string
   weekAccent: string
+  /** Week's text cells in each window's tint: a guess dim, none left
+   *  dimmer, both apart from label grey, which is the notch's. */
+  weekGuess: string
+  weekSpent: string
+  fiveGuess: string
+  fiveSpent: string
 }
 
 export const DARK: Readonly<Palette> = {
@@ -71,6 +77,10 @@ export const DARK: Readonly<Palette> = {
   weekBg: '#2a2540',
   weekFg: '#d9d3f5',
   weekAccent: '#a99cf0',
+  weekGuess: '#8a80d0',
+  weekSpent: '#7a70c0',
+  fiveGuess: '#62a86f',
+  fiveSpent: '#4f8a5b',
 }
 
 export const LIGHT: Readonly<Palette> = {
@@ -100,6 +110,10 @@ export const LIGHT: Readonly<Palette> = {
   weekBg: '#e8e4fa',
   weekFg: '#3c3489',
   weekAccent: '#6b5fd3',
+  weekGuess: '#7a70d8',
+  weekSpent: '#8077dc',
+  fiveGuess: '#3a9450',
+  fiveSpent: '#3f9a55',
 }
 
 // No backgrounds at all: every colour is a theme key, so it follows whatever
@@ -131,6 +145,10 @@ export const PLAIN: Readonly<Palette> = {
   weekBg: '',
   weekFg: 'text',
   weekAccent: 'text',
+  weekGuess: 'inactive',
+  weekSpent: 'inactive',
+  fiveGuess: 'inactive',
+  fiveSpent: 'inactive',
 }
 
 /** The palette CC_BAND_APPEARANCE names; NO_COLOR forces plain. */

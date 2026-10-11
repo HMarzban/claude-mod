@@ -3,10 +3,11 @@
 // Pure, so each can be checked without mounting the band.
 
 import { TTL_MS } from './cache'
-import { isKnown, weekOf } from './calendar'
-import type { Week, WindowNow } from './calendar'
+import { weekOf } from './calendar'
+import type { DayCell, HourCell, Week, WindowNow } from './calendar'
 import {
   COMPACT_NEAR,
+  DAY_MS,
   FIVE_HOUR_MS,
   LAST_CALL_MS,
   SEVEN_DAY_MS,
@@ -61,6 +62,8 @@ export const reWarmEstimate = (c: Cache): string => (c.reWarmUsd !== null ? fmtE
  *  one place; the cards read theirs from `cacheWords`. */
 export type CacheCopy = Readonly<{
   pill: (short: boolean) => string
+  /** The countdown a calm pill ends on, `52m`: its figure, for a layout that bolds it. */
+  figure: string | undefined
   hover: string
   alt: string
 }>
@@ -77,18 +80,21 @@ export const cacheCopy = (c: Cache, mood: CacheMood, isWorking: boolean): CacheC
     case 'unmeasured':
       return {
         pill: () => 'cache –',
+        figure: undefined,
         hover: "Not measured since the band loaded; the countdown starts with Claude's next reply",
         alt: 'cache not measured yet',
       }
     case 'warming':
       return {
         pill: () => 'cache warming',
+        figure: undefined,
         hover: `Your first message builds the cache; after that it bills input at ${readPct}`,
         alt: 'cache warming',
       }
     case 'expiring':
       return {
         pill: short => (short ? `${left} ${estimate}` : `${left} left · re-warm ${estimate}`),
+        figure: undefined,
         hover: warmHover,
         alt: battery,
       }
@@ -96,6 +102,7 @@ export const cacheCopy = (c: Cache, mood: CacheMood, isWorking: boolean): CacheC
       return {
         // Cold is a price, not an error: neutral, no hue, no alarm.
         pill: short => (short ? `cold ${estimate}` : `cache cold · next message ${estimate}`),
+        figure: undefined,
         hover: `Cold: next message rebuilds ${fmtTokens(c.window)} tokens${c.reWarmUsd === null ? '' : ` (${fmtEstimate(c.reWarmUsd)})`}`,
         alt: battery,
       }
@@ -103,6 +110,7 @@ export const cacheCopy = (c: Cache, mood: CacheMood, isWorking: boolean): CacheC
       return {
         // Mid-turn every step restarts the TTL, so a countdown would only bounce.
         pill: () => (isWorking ? 'cache warm' : `cache ${left}`),
+        figure: isWorking ? undefined : left,
         hover: warmHover,
         alt: battery,
       }
@@ -275,12 +283,22 @@ export type HistoryReading = Trails &
 
 export type { DayCell, HourCell } from './calendar'
 
-/** The week's day and hour cells, their words, and whether any is known. */
+/** How week draws a slice: measured, a guess, the guess that fills the
+ *  limit, none left after it, or not known. */
+export type SliceKind = 'measured' | 'guess' | 'fills' | 'spent' | 'unknown'
+/** A slice as drawn: its kind and its rise in points toward the cap. */
+export type SliceMark = Readonly<{ kind: SliceKind; pct: number }>
+/** A window's slices as drawn, and where now falls among them, counted in
+ *  slices: 0.5 is halfway through the first. Undefined where not known. */
+export type SliceRow = Readonly<{ marks: readonly SliceMark[]; notch: number | undefined }>
+
+/** The week's day and hour cells, as calendar.ts reads them and as drawn, with their words. */
 type WeekReading = Week &
   WeekWords &
   Readonly<{
-    /** No cell measured yet: history fills in as you use Claude. */
-    empty: boolean
+    /** The days and the hours as drawn, each guess stopped at the cap. */
+    dayRow: SliceRow
+    hourRow: SliceRow
   }>
 
 export type Readings = Readonly<{
@@ -414,20 +432,43 @@ const windowOf = (l: LimitView | undefined, now: number): WindowNow | undefined 
         fullAt: l.etaMs === null ? undefined : now + l.etaMs,
       }
 
+/** A window's slices with each guess stopped at the cap: the slice calendar
+ *  marks full takes what is left, and none is left after it, so the cells
+ *  and their words agree. calendar.ts keeps every slice's guess. */
+export const cappedMarks = (cells: ReadonlyArray<DayCell | HourCell>, percentUsed: number): SliceMark[] => {
+  const full = cells.findIndex(c => c.fullMark)
+  let left = Math.max(0, 100 - percentUsed)
+  return cells.map((c, i): SliceMark => {
+    if (full >= 0 && i > full) return { kind: 'spent', pct: 0 }
+    if (c.pct === undefined) return { kind: 'unknown', pct: 0 }
+    if (!c.guess) return { kind: 'measured', pct: c.pct }
+    // The fill takes what is left, though the step's guess may say less or more.
+    if (i === full) return { kind: 'fills', pct: left }
+    if (left <= 0) return { kind: 'spent', pct: 0 }
+    const pct = Math.min(c.pct, left)
+    left -= pct
+    return { kind: 'guess', pct }
+  })
+}
+
 /** The week's cells from the limit samples, with their words. With the zone
  *  unknown, the cells are named in UTC. */
 export const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour: LimitView | undefined): WeekReading => {
-  const week = weekOf({
-    samples: snap.samples,
-    seven: windowOf(sevenDay, snap.now),
-    five: windowOf(fiveHour, snap.now),
-    now: snap.now,
-    utcOffsetMin: snap.utcOffsetMin ?? 0,
-  })
+  const utcOffsetMin = snap.utcOffsetMin ?? 0
+  const week = weekOf({ samples: snap.samples, seven: windowOf(sevenDay, snap.now), five: windowOf(fiveHour, snap.now), now: snap.now, utcOffsetMin })
+  // Now sits in today's cell as far in as today has gone by the local clock.
+  const today = week.days.findIndex(d => d.today)
+  const todayGone = ((((snap.now + utcOffsetMin * 60_000) % DAY_MS) + DAY_MS) % DAY_MS) / DAY_MS
+  // The hours are an hour each up to the reset, so the share of the window
+  // gone places now among them; at 0% the 5h has no notch.
+  const hourNotch = fiveHour?.gone === undefined || fiveHour.percentUsed === 0 || week.hours.length === 0 ? undefined : fiveHour.gone * week.hours.length
+  const dayRow: SliceRow = { marks: cappedMarks(week.days, sevenDay?.percentUsed ?? 0), notch: today < 0 ? undefined : today + todayGone }
+  const hourRow: SliceRow = { marks: cappedMarks(week.hours, fiveHour?.percentUsed ?? 0), notch: hourNotch }
   return {
     ...week,
-    ...weekWords(week, sevenDay, fiveHour),
-    empty: ![...week.days, ...week.hours].some(isKnown),
+    ...weekWords(week, { days: dayRow, hours: hourRow }),
+    dayRow,
+    hourRow,
   }
 }
 

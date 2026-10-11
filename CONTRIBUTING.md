@@ -72,7 +72,7 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/views/parts.tsx` | The pieces several layouts draw: pills, the shared cache pill, and the lines, sections and grid they're laid out with. |
 | `hooks/views/<name>.tsx` | One file per layout: `chips`, `gauges`, `ledger`, `rings`, `pulse`, `tiles`, `week`, `departures`, `forecast`. Chips exports its pill builders and its pill row, for a layout to compose. |
 | `hooks/strip.tsx` | The workspace strip: project, branch or worktree, changes, ahead/behind. |
-| `hooks/charts.tsx` | The charts: `meter`, `splitBar`, `ring`, `sparkline`, `barChart`, `dayCells`, `braille`. Each is an Svg on the desktop and text elsewhere. |
+| `hooks/charts.tsx` | The charts: `meter`, `splitBar`, `ring`, `sparkline`, `barChart`, `dayCells`, `sliceCells`, `braille`. Each is an Svg on the desktop and text elsewhere. |
 | `hooks/glyphs.ts` | The terminal's glyph tier (`CC_BAND_GLYPHS`, a CJK locale) and the ASCII mapping. |
 | `hooks/calendar.ts` | Week's day and hour cells, read off the limit samples. |
 | `hooks/layout.ts` | Give-way orders, sizes, and how many columns a drawn tree takes. |

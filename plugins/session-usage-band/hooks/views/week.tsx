@@ -1,231 +1,181 @@
-// Week, where your limits went: the weekly limit as day cells and the 5-hour
-// limit as hour cells, each filled to its rise. A terminal draws braille
-// heights, and the ascii tier numbers.
+// Week, how the week looks: one row led by the 7d pill and its seven day
+// cells, solid measured, dashed guessed, the notch in today and the day the
+// guess fills it named; chips' pills after it. Open, chips' cards, LIMITS'
+// head drawing the 5h by the hour and its first row the week in words.
 
-import type { RenderChildren, RenderElement } from 'claude-code'
-import { dayCells } from '../charts'
+import type { RenderChildren } from 'claude-code'
+import { sliceCells } from '../charts'
 import type { Kit } from '../kit'
-import type { DayCell, HourCell, LimitView, Readings } from '../reading'
-import type { BandActions } from '../snapshot'
-import { EMPTY, type Role, type Say } from '../words'
-import { toggleButton } from './frame'
-import { accentOf, amberWords, beforeLast, chartsIfRoom, emptySay, emptyWords, fitLine, grid, layoutCachePill, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
-import { defineView } from './view'
+import { GIVES_WAY, ROW_SLACK, SHORT_BELOW } from '../layout'
+import type { LimitView, Readings, SliceRow } from '../reading'
+import { WEEK, type Say } from '../words'
+import { cachePill, contextPill, costPill, limitPill, pillRow, tokensPill, type ChipKey } from './chips'
+import { accentOf, beforeLast, fitLine, layoutCacheSpec, once, type Keeps, type PillSpec } from './parts'
+import { defineCardsView, type Lens } from './view'
 
-/** What gives way as the rows narrow, first to last. Amber never does. The
- *  two rows give way as one, since the 7d cells' initials sit on row 2. */
-const ORDER = ['emptyText', 'resetText', 'calmFiveCells', 'calmSevenCells', 'cost'] as const
+/** What gives way as the row narrows, first to last: chips' pieces in
+ *  week's order, and week's own; the 7d, then the cost, go last of the calm
+ *  ones, so a narrow amber row still fits. Week draws no bars, so they
+ *  aren't in it. An amber piece holds out, and shortens last. */
+const ORDER = ['tokens', 'weekReset', 'fiveReset', 'weekPace', 'shortWording', 'calmContext', 'calmFive', 'weekCells', 'calmWeek', 'cost', 'amberWeekReset', 'amberFiveReset'] as const
 type Piece = (typeof ORDER)[number]
 
-type Cell = DayCell | HourCell
-/** A day's initial, an hour's clock hour. */
-const cellName = (c: Cell): string => ('initial' in c ? c.initial : c.label)
-const isNow = (c: Cell): boolean => ('today' in c ? c.today : c.now)
+/** Chips' last squeeze: its pills read there for their tint and card build no meter. */
+const NO_BARS = GIVES_WAY.length
 
-/** A window as week draws it: its limit, its cells and their words, its
- *  accent, and the collapsed cells' width and give-way step. */
-type WeekWindow = Readonly<{ limit: LimitView; cells: readonly Cell[]; alt: string; summary: string; accent: Role; cellPx: number; step: Piece }>
-
-/** The weekly window, then the 5-hour one, each as the engine reports it.
- *  A reported limit always has its summary. */
-const windowsOf = (read: Readings): WeekWindow[] => {
-  const wk = read.week
-  const seven = read.sevenDay
-  const five = read.fiveHour
-  const windows: Array<WeekWindow | undefined> = [
-    seven && { limit: seven, cells: wk.days, alt: wk.daysAlt, summary: wk.summary7 ?? '', accent: 'accent7', cellPx: 16, step: 'calmSevenCells' },
-    five && { limit: five, cells: wk.hours, alt: wk.hoursAlt, summary: wk.summary5 ?? '', accent: 'accent5', cellPx: 11, step: 'calmFiveCells' },
-  ]
-  return windows.filter((w): w is WeekWindow => w !== undefined)
-}
-
-/** Whether a window has cells to draw: none without history, nor once it has passed. */
-const hasCells = (read: Readings, w: WeekWindow): boolean => !read.week.empty && w.cells.length > 0
-
-/** A window's name, in its accent, or amber while it needs you. */
-const nameOf = (kit: Kit, w: WeekWindow): RenderElement =>
-  words(kit, 'name', [[w.limit.name, w.limit.amber === undefined ? w.accent : 'amber']])
-
-/** A cell's words, the empty ones left out. */
-const spoken = (parts: readonly string[]): string => parts.filter(t => t !== '').join(' ')
-
-/** How a window's cells are drawn: their size, each cell's Svg label, and
- *  its words, which a surface without Svgs says open (`inWords`). */
-type CellsForm = Readonly<{ cellPx: number; height: number; label: (c: Cell) => string; said: (c: Cell) => string; gap: string; inWords: boolean }>
-
-/** Cells in words: each said, the current one in brackets. */
-const cellsText = (cells: readonly Cell[], form: CellsForm): string =>
-  cells.map(c => (isNow(c) ? `[${form.said(c)}]` : form.said(c))).join(form.gap)
-
-/** A window's cells: day cells on the desktop, braille heights on a
- *  terminal; words in the ascii tier, and open wherever Svgs don't draw. */
-const cellsChart = (kit: Kit, read: Readings, w: WeekWindow, form: CellsForm): RenderChildren => {
-  const l = w.limit
-  if (read.frame.glyphs === 'ascii' || (kit.Svg === undefined && form.inWords)) return words(kit, 'cells', [[cellsText(w.cells, form), l.amber === undefined ? 'value' : 'amber']])
-  return dayCells(kit, {
+/** A window's slices in its colour and its tints: the days in a pill, the hours in a card's head. */
+const cellsOf = (kit: Kit, l: LimitView, row: SliceRow, alt: string, ground: string, wide: boolean): RenderChildren => {
+  const { palette, onTone } = kit
+  const seven = l.key === '7d'
+  return sliceCells(kit, {
     key: 'cells',
-    alt: w.alt,
-    values: w.cells.map(c => c.pct),
-    guess: w.cells.map(c => c.guess),
-    today: w.cells.findIndex(isNow),
-    color: kit.onTone(l.tone, accentOf(kit, l)),
-    cellPx: form.cellPx,
-    height: form.height,
-    labels: w.cells.map(form.label),
+    alt,
+    row,
+    color: onTone(l.tone, accentOf(kit, l)),
+    guess: seven ? palette.weekGuess : palette.fiveGuess,
+    spent: seven ? palette.weekSpent : palette.fiveSpent,
+    ground,
+    cellPx: wide ? 14 : 9,
+    wide,
   })
 }
 
-/** Collapsed, a cell's label: its name, or `!` where the window fills. */
-const markOf = (c: Cell): string => (c.fullMark ? '!' : cellName(c))
-/** Collapsed cells, as tall as a row; in words, each its name and rise. */
-const SMALL: Omit<CellsForm, 'cellPx'> = { height: 16, label: markOf, said: c => spoken([cellName(c), c.text]), gap: ' ', inWords: false }
+/** What the row draws whatever its squeeze, each built the first time a step asks. */
+type Built = Readonly<{
+  /** Chips' pill for a window: its tint, its card, and itself once reset. */
+  chip: Readonly<Record<ChipKey, () => PillSpec | undefined>>
+  /** The 7d's day cells on its pill's ground. */
+  days: () => RenderChildren
+  contextHover: () => string | undefined
+  /** The cache's pill, long and short. */
+  cache: Readonly<Record<'long' | 'short', () => PillSpec>>
+}>
 
-/** The column of the first 7d cell on a terminal: `7d`, its gap, and the
- *  space `dayCells` leads with. It draws cell i two columns further on. */
-const FIRST_CELL = 4
-
-/** The days' initials, each beneath its cell, in fixed-width Boxes. */
-const initialsOf = (kit: Kit, days: readonly DayCell[]): RenderElement => {
-  const { Box } = kit
-  return (
-    <Box key="initials" flexDirection="row">
-      <Box key="pad" width={FIRST_CELL} flexShrink={0} />
-      {days.map((d, i) => (
-        <Box key={`d${i}`} width={2} flexShrink={0}>
-          {words(kit, 'i', [[markOf(d), d.today ? 'value' : 'label']])}
-        </Box>
-      ))}
-    </Box>
-  )
+const builtOf = (kit: Kit, read: Readings): Built => {
+  const { palette, onTone } = kit
+  const chip = { '7d': once(() => limitPill(kit, read, '7d', NO_BARS, false)), '5h': once(() => limitPill(kit, read, '5h', NO_BARS, false)) }
+  /** The cache: chips' pill, its countdown bold, while calm; amber, its reason, with chips' card. */
+  const cache = (short: boolean) => (): PillSpec =>
+    read.cache.amber === undefined ? cachePill(kit, read, short, true) : { ...layoutCacheSpec(kit, read, short), hover: cachePill(kit, read, short).hover }
+  return {
+    chip,
+    days: once(() => {
+      const seven = read.sevenDay
+      if (seven === undefined) return null
+      const ground = onTone(seven.tone, chip['7d']()?.bg ?? palette.surface, palette.amberBg)
+      return cellsOf(kit, seven, read.week.dayRow, read.week.daysAlt, ground, true)
+    }),
+    contextHover: once(() => contextPill(kit, read, NO_BARS).hover),
+    cache: { long: once(cache(false)), short: once(cache(true)) },
+  }
 }
 
-/** A window on row 1: its cells while they're kept, its value and its reset
- *  as the squeeze allows; amber, its reason in place of the value. */
-const windowPiece = (kit: Kit, read: Readings, w: WeekWindow) => {
-  const { Box } = kit
-  const l = w.limit
-  const chart = hasCells(read, w) ? cellsChart(kit, read, w, { ...SMALL, cellPx: w.cellPx }) : null
-  // Built once: the squeeze only picks among them. Beside its cells a window
-  // says its value; without them, its name and value, as `say` has them.
-  const name = nameOf(kit, w)
-  const reset = l.resetAtGlyph
-  const phrase = (say: Say, withReset: boolean): RenderElement =>
-    words(kit, 'v', withReset && reset !== undefined ? [...say, [` ${reset}`, 'label']] : say)
-  const value: Say = [[l.value, 'value']]
-  const calm = {
-    cells: { reset: phrase(value, true), bare: phrase(value, false) },
-    text: { reset: phrase(l.say, true), bare: phrase(l.say, false) },
-  }
-  const showsCells = (keeps: Keeps<Piece>): boolean => chart !== null && (l.amber === undefined ? keeps.has(w.step) : beforeLast(keeps))
-  const draw = (keeps: Keeps<Piece>): RenderElement => {
-    const cells = showsCells(keeps)
-    const said = l.amber !== undefined ? amberWords(kit, 'v', l.amber, keeps) : calm[cells ? 'cells' : 'text'][keeps.has('resetText') ? 'reset' : 'bare']
-    return cells ? (
-      <Box key={l.key} flexDirection="row" columnGap={1}>
-        {name}
-        {chart}
-        {said}
-      </Box>
-    ) : (
-      said
-    )
-  }
-  return { key: l.key, showsCells, draw }
-}
-
-const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
-  const { Box, Svg } = kit
+/** A limit's pill, week's way, on chips' tint and hover: its name, the
+ *  days' cells for the 7d, its figure bold, the fill day, then its reset in
+ *  label ink; amber, its reason in place of name and value. Chips' own
+ *  always carries a bar and counts its reset down, so week draws its body. */
+const limitSpec = (kit: Kit, read: Readings, built: Built, l: LimitView, keeps: Keeps<Piece>): PillSpec | undefined => {
+  const { Text, Svg, palette, onTone, gap, icon } = kit
+  const seven = l.key === '7d'
+  const chip = built.chip[seven ? '7d' : '5h']()
+  if (chip === undefined || l.passed) return chip
+  const amber = l.amber
+  const fg = onTone(l.tone, seven ? palette.weekFg : palette.fiveFg)
   const wk = read.week
-  const x = read.context
-  const windows = windowsOf(read)
-  // Built once: none of these changes with the squeeze.
-  const toggle = toggleButton(kit, read, act)
-  const cost = words(kit, 'cost', [[read.spend.totalText, 'value']])
-  const noHistory = emptyWords(kit, 'empty', EMPTY.history)
-  // With no 5h or 7d, row 1 says so; other limits are drawn only open (spec §2.7).
-  const noWindows = words(kit, 'none', [[read.limits.length === 0 ? 'limits ' : '5h · 7d ', 'label'], ...emptySay(EMPTY.limits)])
-  const pieces = windows.map(w => windowPiece(kit, read, w))
-  const seven = pieces.find(p => p.key === '7d')
-  // On the desktop the cells carry their initials, and the ascii tier names each cell.
-  const initials = Svg !== undefined || read.frame.glyphs === 'ascii' ? null : initialsOf(kit, wk.days)
-  const pillLong = once(() => layoutCachePill(kit, read, false))
-  const pillShort = once(() => layoutCachePill(kit, read, true))
-  const pill = (short: boolean): RenderElement => (short ? pillShort() : pillLong())
-  return [
-    fitLine(kit, ORDER, lineRoom(kit), keeps => (
-      <Box key="rows" flexDirection="column">
-        {line(kit, 'r1', windows.length === 0 ? [noWindows] : pieces.map(p => p.draw(keeps)))}
-        {line(
-          kit,
-          'r2',
-          [
-            seven?.showsCells(keeps) ? initials : wk.empty && keeps.has('emptyText') ? noHistory : null,
-            pill(!beforeLast(keeps)),
-            keeps.has('cost') ? cost : null,
-            // Week shows no context, so its trigger gets an amber piece of its own.
-            x.amber === undefined ? null : amberWords(kit, 'ctx', x.amber, keeps),
-          ],
-          toggle,
-        )}
-      </Box>
-    )),
-  ]
+  const cells = seven && wk.days.length > 0 && (amber === undefined ? keeps.has('weekCells') : beforeLast(keeps))
+  const pace = seven && keeps.has('weekPace') ? wk.fullDay : undefined
+  // The 7d's reset at its clock time, as its cells read the week; the 5h's a countdown.
+  const when = (seven ? l.resetClock : undefined) ?? (l.reset?.kind === 'in' ? l.reset.text : undefined)
+  const resetInk = onTone(l.tone, palette.label)
+  const reset = when !== undefined && keeps.has(seven ? (amber === undefined ? 'weekReset' : 'amberWeekReset') : amber === undefined ? 'fiveReset' : 'amberFiveReset')
+  // A text surface's space before the cells rides on the words: alone, the desktop would drop it.
+  const before = cells && !Svg ? ' ' : ''
+  const named =
+    amber === undefined
+      ? [...icon(seven ? 'week' : 'five', onTone(l.tone, accentOf(kit, l))), <Text key="l" color={fg}>{`${l.name}${before}`}</Text>]
+      : [<Text key="a" color={palette.amberFg}>{`${keeps.amber(amber)}${before}`}</Text>]
+  return {
+    ...chip,
+    tone: l.tone,
+    body: [
+      ...named,
+      ...(cells ? [Svg ? gap('g-cells') : null, built.days()] : []),
+      amber === undefined ? <Text key="v" color={fg} bold>{` ${l.valueMarked}`}</Text> : null,
+      ...(pace === undefined ? [] : [<Text key="ps" color={resetInk}>{' · '}</Text>, <Text key="p" color={fg}>{pace}</Text>]),
+      ...(reset ? [<Text key="d" color={palette.label}>{Svg ? ' · ' : ' │ '}</Text>, ...icon('reset', resetInk), <Text key="r" color={resetInk}>{when}</Text>] : []),
+    ],
+  }
 }
 
-/** Week's limit sentences, as ledger writes them: `5h 4%, resets in 3h 00m`. */
-const SENTENCE: SentenceStyle = { lead: 'text', reset: 'resetWords', sep: ', ' }
-
-/** Open, a day cell's label is its initial, date and rise; an hour's, its clock hour and rise. */
-const bigLabel = (c: Cell): string => spoken('date' in c ? [c.initial, c.date, c.text] : [c.label, c.text])
-/** Open cells: two desktop rows tall, their labels included; without Svgs, a row of words. */
-const BIG: CellsForm = { cellPx: 44, height: 35, label: bigLabel, said: bigLabel, gap: '  ', inWords: true }
-
-/** LIMITS, its cells over a summary per window, then the facts line. */
-const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
-  const { Box, Svg } = kit
-  const c = read.cache
-  const x = read.context
-  const windows = windowsOf(read)
-  // The other three sections, a phrase each.
-  const context: Say = x.known ? [[`${x.valueText} ${x.towardText}`, 'value']] : emptySay(EMPTY.context)
-  const facts = words(kit, 'facts', [
-    ['CACHE ', 'label'],
-    [c.value, 'value'],
-    ['  SPEND ', 'label'],
-    [`${read.spend.totalText} this session`, 'value'],
-    ['  CONTEXT ', 'label'],
-    ...context,
-  ])
-  // What needs you leads, so a body short of rows keeps it.
-  const sentences = [
-    ...windows.map(w => ({
-      limit: w.limit,
-      row: w.limit.amber !== undefined ? limitSentence(kit, w.limit, SENTENCE) : words(kit, w.limit.key, [[`${w.limit.name} `, 'label'], [w.summary, 'value']]),
-    })),
-    ...read.limits.filter(l => l.key === 'other').map(l => ({ limit: l, row: limitSentence(kit, l, SENTENCE) })),
-  ]
-  const amberRows = sentences.filter(s => s.limit.amber !== undefined).map(s => s.row)
-  // A body of one row is the facts line, unless a limit needs you.
-  if (bodyRows < 2) return [amberRows[0] ?? facts]
-  const rows = [
-    ...amberRows,
-    ...sentences.filter(s => s.limit.amber === undefined).map(s => s.row),
-    read.limits.length === 0 ? emptyWords(kit, 'none', EMPTY.limits) : null,
-    read.week.empty ? emptyWords(kit, 'empty', EMPTY.history) : null,
-  ]
-  const charts = windows
-    .filter(w => hasCells(read, w))
-    .map(w => (
-      <Box key={`${w.limit.key}:cells`} flexDirection="row" columnGap={1}>
-        {nameOf(kit, w)}
-        {cellsChart(kit, read, w, BIG)}
-      </Box>
-    ))
-  // LIMITS takes the rows its title and the facts line leave; at two rows it
-  // keeps one under its title, and the facts line goes.
-  const room = Math.max(1, bodyRows - 2)
-  const limits = grid(kit, [section(kit, 'limits', 'LIMITS', chartsIfRoom(room, charts, rows, Svg ? 2 : 1), room)], bodyRows)
-  return bodyRows < 3 ? limits : [...limits, facts]
+/** A phrase in value ink, bold on its figure alone: `87% full`. */
+const figure = (kit: Kit, say: Say, ink: string): RenderChildren[] => {
+  const { Text } = kit
+  return say.map(([text, role], i) => (
+    <Text key={`v${i}`} color={ink} {...(role === 'value' ? { bold: true } : {})}>
+      {text}
+    </Text>
+  ))
 }
 
-export const weekView = defineView('week', { desktop: 2, terminal: 2 }, lines, body)
+/** The context's pill: its fill as the card heads it, `87% full`, short its
+ *  figure alone; amber, its reason. Chips' own carries a meter. */
+const contextSpec = (kit: Kit, read: Readings, built: Built, short: boolean, keeps: Keeps<Piece>): PillSpec => {
+  const { Text, palette, icon } = kit
+  const x = read.context
+  const hover = built.contextHover()
+  if (x.amber !== undefined) return { key: 'ctx', tone: 'amber', body: [<Text key="a" color={palette.amberFg}>{keeps.amber(x.amber)}</Text>], hover }
+  return { key: 'ctx', tone: 'calm', body: [...icon('context', palette.label), ...figure(kit, short ? x.cardHead.slice(0, 1) : x.cardHead, palette.value)], hover }
+}
+
+/** The row's pills at a squeeze: 7d, 5h, cache, cost, context, then the
+ *  tokens, first to give way; whatever is amber moves to the front. An amber
+ *  cache stays long until the last step. */
+const weekPills = (kit: Kit, read: Readings, built: Built, keeps: Keeps<Piece>): PillSpec[] => {
+  const { fiveHour, sevenDay, context } = read
+  const short = kit.columns < SHORT_BELOW || !keeps.has('shortWording')
+  const cacheShort = read.cache.amber === undefined ? short : !beforeLast(keeps)
+  const pills = [
+    sevenDay === undefined || !keeps.calm('calmWeek', sevenDay.tone) ? undefined : limitSpec(kit, read, built, sevenDay, keeps),
+    fiveHour === undefined || !keeps.calm('calmFive', fiveHour.tone) ? undefined : limitSpec(kit, read, built, fiveHour, keeps),
+    built.cache[cacheShort ? 'short' : 'long'](),
+    keeps.has('cost') ? costPill(kit, read) : undefined,
+    context.known && keeps.calm('calmContext', context.tone) ? contextSpec(kit, read, built, short, keeps) : undefined,
+    read.cache.measured && keeps.has('tokens') ? tokensPill(kit, read) : undefined,
+  ].filter((p): p is PillSpec => p !== undefined)
+  return [...pills.filter(p => p.tone === 'amber'), ...pills.filter(p => p.tone !== 'amber')]
+}
+
+/** LIMITS' lens: the 5h by the hour, and on the desktop their name; a
+ *  terminal's slot holds the five cells alone. */
+const hoursLens = (kit: Kit, read: Readings, five: LimitView): RenderChildren => {
+  const { Svg, palette, gap, oneLine } = kit
+  const cells = cellsOf(kit, five, read.week.hourRow, read.week.hoursAlt, palette.cardBg, false)
+  return Svg ? [cells, gap('g-lens'), oneLine({ key: 'by', color: palette.label }, WEEK.byHour)] : oneLine({ key: 'lens' }, cells)
+}
+
+/** Open: the hours in LIMITS' head, the week in words as its first row, the
+ *  context's room and compaction in one, each in the longest form its card
+ *  holds; the resets and paces the row shows go. A limit the row never
+ *  draws heads LIMITS while it needs you. */
+const lens: Lens = (kit, read) => {
+  const { fiveHour, week } = read
+  const { roomCompacts, roomText } = read.context
+  const room = roomCompacts === undefined || roomText === undefined ? undefined : roomCompacts.map(label => [label, roomText] as const)
+  const unseen = read.limits.find(l => l.key === 'other' && l.amberHead !== undefined)?.amberHead
+  return {
+    slots: fiveHour === undefined || week.hours.length === 0 ? {} : { limits: hoursLens(kit, read, fiveHour) },
+    heads: unseen === undefined ? {} : { limits: unseen },
+    lead: { ...(week.byDay.length === 0 ? {} : { limits: week.byDay.map(days => [WEEK.byDay, days] as const) }), ...(room === undefined ? {} : { context: room }) },
+    shown: ['reset', 'pace', 'reset:5h', 'reset:7d', ...(room === undefined ? [] : (['room', 'compactsAt'] as const))],
+  }
+}
+
+export const weekView = defineCardsView(
+  'week',
+  { desktop: 1, terminal: 1 },
+  (kit, read, act) => {
+    const built = builtOf(kit, read)
+    return [fitLine(kit, ORDER, kit.columns - ROW_SLACK, keeps => pillRow(kit, read, act, weekPills(kit, read, built, keeps)))]
+  },
+  lens,
+)

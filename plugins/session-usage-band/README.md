@@ -168,7 +168,7 @@ chips draws it.
 | `rings` | A ring per reading, its value over its label, with a dot on each limit for how much of the window has gone; the terminal draws a bar | 2 / 1 |
 | `pulse` | Trends rather than totals: each message's cost as bars, and which way the 5-hour limit is heading | 2 / 1 |
 | `tiles` | Every reading side by side in equal tiles, figure first, with a bar or the cache's battery where there's a cap | 1 / 1 |
-| `week` | Where your limits went: the weekly limit as day cells and the 5-hour limit as hour cells, each filled to its rise | 2 / 2 |
+| `week` | How your week looks: the weekly limit as seven day cells in its pill, solid where measured and dashed where guessed, a notch in today and the day the guess fills it; open, the 5-hour limit by the hour | 1 / 1 |
 | `departures` | Every reading as a countdown in chips' pills, soonest first: the cache, the 5h and 7d resets or when they fill, the messages to compaction, then the spend. Under 10 minutes from cold or full, the cache's or a limit's is its `! last call` | 1 / 1 |
 | `forecast` | What changes next, and when: each reading's next change as a chip, its clock time in bold, soonest first, so the cache goes cold at 16:13 and the 7d fills ~Mon | 1 / 1 |
 
@@ -185,8 +185,8 @@ layout lasts until Claude's next reply. Below 40 columns every layout
 draws chips. On the desktop with `CC_BAND_APPEARANCE=plain` there are no
 SVG charts, so a layout draws as text and takes its terminal rows.
 
-Pulse and week draw their charts in braille in the terminal, always beside
-their numbers. Week's cells come from the 5h and 7d readings the band keeps
+Pulse draws its charts in braille in the terminal, and week its cells as
+block heights, always beside their numbers. Week's cells come from the 5h and 7d readings the band keeps
 in its store from every session, at most one per 15 minutes and no more
 than 672, a week's worth, so they cover the days before this session.
 

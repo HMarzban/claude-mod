@@ -1,5 +1,6 @@
 import { test, expect } from 'claude-code/testing'
 import { weekOf } from '../hooks/calendar'
+import { cappedMarks } from '../hooks/reading'
 import { weekWords } from '../hooks/words'
 
 const H = 3600_000
@@ -35,7 +36,8 @@ test('the hour cells are the five hours before the 5h reset, with the fill marke
   expect(wk.hours.map(c => c.label)).toEqual(['08', '09', '10', '11', '12'])
   expect(wk.hours.map(c => c.startClock)).toEqual(['08:40', '09:40', '10:40', '11:40', '12:40'])
   // Each hour is said from where it starts, not from its clock hour.
-  expect(weekWords(wk, undefined, undefined).hoursAlt).toBe('5-hour limit by hour: 08:40 10%, 09:40 15%, 10:40 15%, 11:40 about 30%, 12:40 about 30%')
+  const hours = { marks: cappedMarks(wk.hours, five.percentUsed), notch: undefined }
+  expect(weekWords(wk, { days: { marks: [], notch: undefined }, hours }).hoursAlt).toBe('5-hour limit by hour: 08:40 10%, 09:40 15%, 10:40 15%, 11:40 about 30%, 12:40 about 30% and fills it')
   expect(wk.hours.slice(0, 3).map(c => c.text)).toEqual(['10%', '15%', '15%'])
   expect(wk.hours[2]?.now).toBe(true)
   expect(wk.hours.findIndex(c => c.fullMark)).toBe(4)

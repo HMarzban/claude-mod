@@ -1,6 +1,6 @@
 import { test, expect } from 'claude-code/testing'
 import { fmtClock, fmtDayClock } from '../hooks/format'
-import { readingsOf } from '../hooks/reading'
+import { cappedMarks, readingsOf, type HourCell } from '../hooks/reading'
 import { usedSoFar } from '../hooks/words'
 import { HOUR, MIN } from './helpers'
 import { snapOf } from './matrix'
@@ -253,7 +253,7 @@ test('the history is read only when a view asks for it', () => {
 test('the week is read only when a view asks for it', () => {
   expect(typeof Object.getOwnPropertyDescriptor(readingsOf(snapOf()), 'week')?.get).toBe('function')
 })
-test('the week names its cells in words, for a reader and a summary', () => {
+test('the week names its cells in words, for a reader', () => {
   const now = 77 * HOUR
   const T = (hours: number, seven: number, five = 0) => ({ at: hours * HOUR, fivePct: five, sevenPct: seven, fiveResetAt: 80 * HOUR, sevenResetAt: 168 * HOUR })
   const wk = readingsOf(snapOf({
@@ -262,28 +262,83 @@ test('the week names its cells in words, for a reader and a summary', () => {
     sevenDay: { percentUsed: 30, resetsAt: new Date(168 * HOUR).toISOString() },
     fiveHour: { percentUsed: 12, resetsAt: new Date(80 * HOUR).toISOString(), etaMs: null },
   })).week
-  expect(wk.empty).toBe(false)
   expect(wk.daysAlt).toMatch(/^weekly limit by day: \w+day 6%, \w+day 9%/)
   expect(wk.daysAlt).toMatch(/Monday about \d+%/)
   expect(wk.hoursAlt).toMatch(/^5-hour limit by hour: \d{2}:00 4%, \d{2}:00 8%, \d{2}:00 about \d+%/)
   expect(`${wk.daysAlt} ${wk.hoursAlt}`).not.toMatch(/[~↻]/)
-  // Days 6, 9, 11 and 4: the third, a Saturday from the epoch's Thursday, is the busiest.
-  expect(wk.summary7).toBe(`30% used · on pace for ~65% by ${fmtDayClock(168 * HOUR, 0, now)} · busiest Sat`)
-  expect(wk.summary5).toBe(`12% used · on pace for ~30% by ${fmtDayClock(80 * HOUR, 0, now)}`)
-})
-test('a measured fill keeps its own time, with no reset clock after it', () => {
-  const wk = readingsOf(snapOf({ utcOffsetMin: 0, fiveHour: { percentUsed: 84, resetsAt: new Date(70 * MIN).toISOString(), etaMs: 40 * MIN } })).week
-  expect(wk.summary5).toBe('84% used · full in ~40m')
-})
-test('a passed window says only that it reset', () => {
-  const wk = readingsOf(snapOf({ now: 170 * HOUR, utcOffsetMin: 0, sevenDay: { percentUsed: 30, resetsAt: new Date(168 * HOUR).toISOString() } })).week
-  expect([wk.summary7, wk.summary5]).toEqual(['reset', 'reset'])
 })
 test('with no samples and no pace yet, the week is not known yet', () => {
   // An hour into the window: too early for a landing, so no day is guessed either.
   const wk = readingsOf(snapOf({ now: HOUR, sevenDay: { percentUsed: 1, resetsAt: new Date(168 * HOUR).toISOString() } })).week
   expect(wk.daysAlt).toBe('weekly limit by day: not known yet')
-  expect(wk.empty).toBe(true)
+})
+
+// The week as its board draws it: Sun 15:14, the 7d at 66%, all of it risen
+// today, resetting Sat 13:30; the 5h at 0%, resetting in 4h 55m.
+const SUN = Date.UTC(2026, 9, 11, 15, 14)
+const SAT_RESET = Date.UTC(2026, 9, 17, 13, 30)
+const FIVE_RESET = SUN + (4 * 60 + 55) * MIN
+const boardSample = (at: number, sevenPct: number) => ({ at, fivePct: 0, sevenPct, fiveResetAt: FIVE_RESET, sevenResetAt: SAT_RESET })
+const boardWeek = (percentUsed = 66) => readingsOf(snapOf({
+  now: SUN, utcOffsetMin: 0,
+  samples: [boardSample(SAT_RESET - 168 * HOUR, 0), boardSample(SUN - MIN, percentUsed)],
+  sevenDay: { percentUsed, resetsAt: new Date(SAT_RESET).toISOString() },
+  fiveHour: { percentUsed: 0, resetsAt: new Date(FIVE_RESET).toISOString(), etaMs: null },
+})).week
+test('week stops its guess at the cap: the fill day takes what is left, and none is left after it', () => {
+  const wk = boardWeek()
+  expect(wk.dayRow.marks.map(m => `${m.kind} ${Math.round(m.pct)}`)).toEqual(['measured 66', 'fills 34', 'spent 0', 'spent 0', 'spent 0', 'spent 0', 'spent 0'])
+  // calendar.ts still guesses every day ahead alike.
+  expect(wk.days.slice(2).every(d => d.guess && (d.pct ?? 0) > 34)).toBe(true)
+  expect(boardWeek(100).dayRow.marks.slice(1).every(m => m.kind === 'spent')).toBe(true)
+})
+test("the slice calendar marks full takes what is left, even where the step's guess says otherwise", () => {
+  const cell = (pct: number, guess: boolean, fullMark = false): HourCell =>
+    ({ label: '', startClock: '', text: '', now: false, future: guess, pct, guess, fullMark })
+  const marks = (cells: HourCell[], used: number) => cappedMarks(cells, used).map(m => `${m.kind} ${m.pct}`)
+  // A measured fill lands sooner than the step: its slice still fills the cap.
+  expect(marks([cell(50, false), cell(10, true, true), cell(10, true)], 50)).toEqual(['measured 50', 'fills 50', 'spent 0'])
+  // Or later: the guesses before it spend what is left, and it is still the fill.
+  expect(marks([cell(70, false), cell(40, true), cell(40, true, true), cell(40, true)], 70)).toEqual(['measured 70', 'guess 30', 'fills 0', 'spent 0'])
+})
+test("week's notch sits in today's cell, as far in as today has gone; the 5h at 0% has none", () => {
+  const wk = boardWeek()
+  expect(Math.abs((wk.dayRow.notch ?? 0) - (15 * 60 + 14) / (24 * 60))).toBeLessThan(1e-9)
+  // The 5h's first hour measured at 0%, the rest not yet.
+  expect(wk.hourRow.marks.map(m => m.kind)).toEqual(['measured', 'unknown', 'unknown', 'unknown', 'unknown'])
+  expect(wk.hourRow.notch).toBeUndefined()
+  const five = readingsOf(snapOf({ now: 0, fiveHour: { percentUsed: 4, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } })).week
+  expect(Math.abs((five.hourRow.notch ?? 0) - 2)).toBeLessThan(1e-9)
+})
+test("week says the fill day, and LIMITS' first row says the week from today within a card's line", () => {
+  const wk = boardWeek()
+  expect(wk.fullDay).toBe('full ~Mon')
+  // Each form a run shorter, longest first, so a card draws the longest its line holds.
+  expect(wk.byDay).toEqual(['Sun +66% · Mon ~+34% fills it · Tue–Sat none left', 'Sun +66% · Mon ~+34% fills it', 'Sun +66%'])
+  expect(boardWeek(100).byDay).toEqual(['Sun +100% · Mon–Sat none left', 'Sun +100%'])
+  expect(boardWeek(100).fullDay).toBeUndefined()
+  expect(wk.daysAlt).toBe('weekly limit by day: Sunday 66%, Monday about 34% and fills it, Tuesday to Saturday none left')
+  expect(wk.hoursAlt).toBe('5-hour limit by hour: 15:09 0%')
+})
+test("a week that won't fill says today's rise and the guess for the days ahead", () => {
+  const now = 77 * HOUR
+  const T = (hours: number, seven: number) => ({ at: hours * HOUR, fivePct: 0, sevenPct: seven, fiveResetAt: 80 * HOUR, sevenResetAt: 168 * HOUR })
+  const wk = readingsOf(snapOf({
+    now, utcOffsetMin: 0, samples: [T(0, 0), T(15, 6), T(39, 15), T(63, 26), T(75.5, 28), T(77, 30)],
+    sevenDay: { percentUsed: 30, resetsAt: new Date(168 * HOUR).toISOString() },
+  })).week
+  expect(wk.fullDay).toBeUndefined()
+  expect(wk.byDay[0]).toMatch(/^Sun \+4% · Mon–Wed ~\+\d+%$/)
+})
+// Short of `auto-`, so with its value it holds in a card's line on a terminal.
+test('the context names its room and where it compacts in one row, long and short', () => {
+  expect(readingsOf(snapOf()).context.roomCompacts).toEqual(['room left · auto-compacts at 190k', 'room left · compacts at 190k'])
+  const off = readingsOf(snapOf({ context: { tokens: 76_000, window: 200_000, percent: 38, compactAt: undefined, autoCompactOff: true } })).context
+  expect(off.roomCompacts).toBeUndefined()
+})
+test("a limit's amber headline leads with its mark in amber, its figure apart", () => {
+  const r = readingsOf(snapOf({ otherLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: undefined }] }))
+  expect(r.limits.at(-1)?.amberHead).toEqual([['! ', 'amber'], ['spend ', 'label'], ['92%', 'value']])
 })
 test("a gauge says its figure bold, then what qualifies it, and short its figure alone", () => {
   const r = readingsOf(snapOf())
