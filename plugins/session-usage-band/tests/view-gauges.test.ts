@@ -228,14 +228,22 @@ test('open on the desktop at 95 columns and 13 rows, each card says one new thin
   ])
   expect([byKey(open, 'collapse', 'Button')?.props?.label, byKey(open, 'hide', 'Button')?.props?.label]).toEqual(['Collapse', 'Hide band'])
 })
-test('open, no card repeats what the row kept: at 160 terminal columns the row draws both windows whole, so LIMITS holds its head alone', () => {
-  for (const over of [{}, { maxRows: 20 }, desktop({ columns: 120, maxRows: 16 })]) expect(bodyOf(draw({ expanded: true, maxRows: 13, ...over }), 'limits').map(shown)).toEqual([])
+test("open, LIMITS leads with the headline window's reset, as its board does, under `7d 66%`", () => {
+  for (const over of [{}, desktop()]) {
+    const open = draw({ ...BOARD, ...over, expanded: true, maxRows: 13 })
+    expect(shown(byKey(byKey(cardOf(open, 'limits'), 'head', 'Box'), 'headline', 'Box'))).toBe('7d 66%')
+    expect(firstRowOf(open, 'limits')).toMatch(/^resets\w{3} \d\d:\d\d$/)
+  }
+})
+test('open, no card repeats what the row kept: at 160 terminal columns the row draws both windows whole, so LIMITS says only the lead row', () => {
+  for (const over of [{}, { maxRows: 20 }, desktop({ columns: 120, maxRows: 16 })]) expect(bodyOf(draw({ expanded: true, maxRows: 13, ...over }), 'limits').map(shown)).toEqual(['resetsSat 19:00'])
   // On the desktop at 95 the row lost its resets: LIMITS says each, the 7d's
   // at its clock and the 5h's as a countdown, and draws neither bar again.
   expect(bodyOf(draw(desktop({ expanded: true, maxRows: 20 })), 'limits').map(shown)).toEqual(['resetsSat 19:00', 'resets 3h 00m · on pace for ~10%'])
-  // A passed window the row says too: `7d reset` is not said again.
+  // A passed window the row says too: `7d reset` is not said again, and
+  // the 5h, the headline now, leads with its own reset.
   const passed = { sevenDay: { percentUsed: 40, resetsAt: new Date(-HOUR).toISOString() } }
-  expect(bodyOf(draw({ ...passed, expanded: true, maxRows: 20 }), 'limits').map(shown)).toEqual([])
+  expect(bodyOf(draw({ ...passed, expanded: true, maxRows: 20 }), 'limits').map(shown)).toEqual(['resets03:00'])
   // Narrow, the row lost the re-warm price, so the cache card leads with it.
   expect(firstRowOf(draw({ expanded: true, maxRows: 16, columns: 60 }), 'cache')).toMatch(/^re-warm if cold/)
 })

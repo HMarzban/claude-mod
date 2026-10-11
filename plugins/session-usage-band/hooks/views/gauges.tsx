@@ -131,9 +131,9 @@ const limitGauge = (kit: Kit, read: Readings, l: LimitView, key: ChipKey): Gauge
     sayShort: value,
     more: [
       ...(l.pace === '' ? [] : [{ text: l.pace, piece: 'paces', facts: [`pace:${key}` as const, ...(worst ? (['pace'] as const) : [])] } as const]),
-      ...(l.resetAtGlyph === undefined || l.percentUsed === 0
-        ? []
-        : [{ text: l.resetAtGlyph, piece: 'resets', facts: [`reset:${key}` as const, ...(worst ? (['reset'] as const) : [])] } as const]),
+      // LIMITS leads with the worst window's reset whatever the row says, as
+      // the board does: under `7d 66%`, its own reset first.
+      ...(l.resetAtGlyph === undefined || l.percentUsed === 0 ? [] : [{ text: l.resetAtGlyph, piece: 'resets', facts: [`reset:${key}` as const] } as const]),
     ],
     window: `window:${key}`,
   }
