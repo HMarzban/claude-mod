@@ -384,8 +384,10 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
 
   const rowOf = (specs: PillSpec[]): RenderElement => {
     const pills = specs.map(pill)
-    // ▿ comes after the cards and, placed relative, stacks over them on the
-    // desktop too, so it stays pressable where the measure sets a card long.
+    // The toggle points the way the band will move: it is anchored to the
+    // prompt and grows upward, so ▵ while shut and ▿ while open. It comes after
+    // the cards and, placed relative, stacks over them on the desktop too, so
+    // it stays pressable where the measure sets a card long.
     const toggle = (
       <Box flexShrink={0} position="relative">
         {/* A Button holds text alone, so its icon is a glyph. The outlined
@@ -395,13 +397,13 @@ export const drawBand = (el: ElementTable, snap: BandSnapshot, act: BandActions)
             terminal bare. */}
         <Button
           key="more"
-          label={snap.expanded ? '▵' : '▿'}
+          label={snap.expanded ? '▿' : '▵'}
           {...(Svg ? { variant: 'secondary' as const } : { plain: true as const, dimColor: true })}
           onPress={act.toggleExpanded}
         />
       </Box>
     )
-    // A card ends short of ▿ and the gap before it.
+    // A card ends short of ▵ and the gap before it.
     const room = snap.columns - cellsOf(toggle, measure) - 1
     const starts = startsOf(pills, 1, measure)
     return (
