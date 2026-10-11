@@ -158,7 +158,7 @@ test('a week not measured yet draws no day as none left, and says it is not know
   }
   const text = shown(pillOf(board(fresh), '7d'))
   expect(text).not.toContain('╌')
-  expect(text).toMatch(/^7d [·▏ ]+ 1%/)
+  expect(text).toMatch(/^7d [·░▏ ]+ 1%/)
   expect(shown(pillOf(board({ ...fresh, ...ascii }), '7d'))).not.toContain('.')
   const days = daysSvg(board({ ...fresh, ...desk }))
   expect(days?.props?.alt).toBe('weekly limit by day: not known yet')
@@ -192,7 +192,7 @@ test('no limits reported: no limit pills, and no LIMITS card open', () => {
 test("open is chips' four cards: LIMITS' head draws the 5h by the hour, and the other heads keep no lens", () => {
   const tree = board(open)
   // A terminal's lens is the five hours alone: this one measured at 0%, the four after not known yet.
-  expect(shown(headOf(tree, 'limits'))).toBe('LIMITS ····7d 66%')
+  expect(shown(headOf(tree, 'limits'))).toBe('LIMITS░····7d 66%')
   expect([...shown(byKey(headOf(tree, 'limits'), 'slot'))].length).toBeLessThanOrEqual(6)
   for (const name of ['cache', 'spend', 'context']) expect(byKey(headOf(tree, name), 'slot')).toBeUndefined()
   const lens = svgsOf(headOf(board({ ...desk, ...open }), 'limits')).find(s => /^5-hour limit by hour/.test(String(s.props?.alt)))

@@ -157,12 +157,14 @@ test("in text, each kind of slice has its own ink: measured the window's, a gues
   expect(palette.weekSpent).not.toBe(palette.weekGuess)
 })
 test('a slice not known yet is never drawn as none left, and a measured 0% rises nowhere', () => {
-  // Text: a blank for the 0%, a dim dot per cell not known, in the track's grey.
+  // Text: the 0% an empty track, as a text meter draws one; a dim dot per cell not known, in the track's grey.
   const runs = ((slices(term, false, UNKNOWN_ROW) as Node).children ?? []) as Node[]
-  expect(textOf(slices(term, false, UNKNOWN_ROW))).toBe(' ··')
-  expect(runs.at(-1)?.props?.color).toBe(term.palette.trackStroke)
-  expect(textOf(slices(term, true, UNKNOWN_ROW))).toBe('   ·· ··')
-  expect(textOf(slices(makeKit(fakeEl, snapOf({ glyphs: 'ascii' })), false, UNKNOWN_ROW))).toBe(' --')
+  expect(textOf(slices(term, false, UNKNOWN_ROW))).toBe('░··')
+  expect(runs.map(r => r.props?.color)).toEqual([term.palette.meterTrack, term.palette.trackStroke])
+  expect(textOf(slices(term, true, UNKNOWN_ROW))).toBe('░░ ·· ··')
+  // An idle day between two measured ones keeps its place.
+  expect(textOf(slices(term, true, { marks: [{ kind: 'measured', pct: 10 }, { kind: 'measured', pct: 0 }, { kind: 'measured', pct: 5 }], notch: undefined }))).toBe('▁▁ ░░ ▁▁')
+  expect(textOf(slices(makeKit(fakeEl, snapOf({ glyphs: 'ascii' })), false, UNKNOWN_ROW))).toBe('-??')
   // The desktop: the 0% its track alone; a day not known a solid outline, never dashed.
   const source = svg(slices(desk, true, UNKNOWN_ROW)).props.source
   expect(source).not.toContain('stroke-dasharray')

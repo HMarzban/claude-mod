@@ -377,9 +377,9 @@ const HEIGHTS = '▁▂▃▄▅▆▇█'
 /** A cell per slice of a window, filled toward its cap: solid while
  *  measured, dashed while guessed, the guess that fills it outlined in full
  *  and those after it empty; a slice not known yet a plain grey outline; a
- *  label-grey notch where now falls. Text draws a height per cell, a blank
- *  for a measured 0%, a dot where not known, the notch at the edge of the
- *  slice nearest now. */
+ *  label-grey notch where now falls. Text draws a height per cell, a
+ *  measured 0% its empty track as a meter's, a dot where not known, the
+ *  notch at the edge of the slice nearest now. */
 export const sliceCells = (kit: Kit, o: SliceCellsOptions): RenderChildren => {
   const { Svg, Text, palette, glyphs } = kit
   const { key, alt, row, color, guess, spent, ground, cellPx, wide } = o
@@ -413,13 +413,14 @@ export const sliceCells = (kit: Kit, o: SliceCellsOptions): RenderChildren => {
     return <Svg key={key} source={svgOf(width, SLICE_PX, cells.join('') + mark)} alt={alt} width={width} height={SLICE_PX} />
   }
   const ascii = glyphs === 'ascii'
-  /** A cell's glyph and ink: a height measured or guessed, a dash where none is left, a dot where not known. */
+  /** A cell's glyph and ink: a height measured or guessed, an empty track
+   *  at 0%, a dash where none is left, a dot where not known. */
   const glyphOf = ({ kind, pct }: SliceMark): readonly [string, string] => {
     const height = HEIGHTS[Math.max(0, Math.round(clamp01(pct / 100) * 8) - 1)] ?? '▁'
-    if (kind === 'measured') return [pct <= 0 ? ' ' : ascii ? '#' : height, color]
+    if (kind === 'measured') return pct <= 0 ? [ascii ? '-' : '░', palette.meterTrack] : [ascii ? '#' : height, color]
     if (kind === 'guess' || kind === 'fills') return [ascii ? '+' : height, guess]
     if (kind === 'spent') return [ascii ? '.' : '╌', spent]
-    return [ascii ? '-' : '·', palette.trackStroke]
+    return [ascii ? '?' : '·', palette.trackStroke]
   }
   const edge = notch === undefined ? undefined : Math.round(notch)
   const notchMark: readonly [string, string] = [ascii ? '|' : '▏', palette.label]
