@@ -51,20 +51,23 @@ export type Ahead = Readonly<{ lead: Say; figure: string; soon?: string; tail?: 
 /** A value not known yet: unknown, never 0. */
 const UNKNOWN = '–'
 
-/** What an amber reading says, long and short, always led by one `! `. */
+/** What leads an amber reading: its mark, then its words. */
+export const AMBER_LEAD = '! '
+
+/** What an amber reading says, long and short, always led by one `AMBER_LEAD`. */
 export const AMBER = {
-  cache: (left: string, leftShort: string, estimate: string): ReadingAmber => ({ long: `! ${left} · re-warm ${estimate}`, short: `! ${leftShort}`, beside: '! cache' }),
+  cache: (left: string, leftShort: string, estimate: string): ReadingAmber => ({ long: `${AMBER_LEAD}${left} · re-warm ${estimate}`, short: `${AMBER_LEAD}${leftShort}`, beside: `${AMBER_LEAD}cache` }),
   context: (frac: number, toCompact: number): ReadingAmber => ({
-    long: `! context ${fmtPct(frac)} · compacts in ~${fmtTokens(toCompact)}`,
-    short: `! ctx ${fmtPct(frac)}`,
-    beside: '! context',
+    long: `${AMBER_LEAD}context ${fmtPct(frac)} · compacts in ~${fmtTokens(toCompact)}`,
+    short: `${AMBER_LEAD}ctx ${fmtPct(frac)}`,
+    beside: `${AMBER_LEAD}context`,
   }),
-  contextNoCompaction: (frac: number): ReadingAmber => ({ long: `! context ${fmtPct(frac)}`, short: `! ctx ${fmtPct(frac)}`, beside: '! context' }),
+  contextNoCompaction: (frac: number): ReadingAmber => ({ long: `${AMBER_LEAD}context ${fmtPct(frac)}`, short: `${AMBER_LEAD}ctx ${fmtPct(frac)}`, beside: `${AMBER_LEAD}context` }),
   limit: (name: string, percentUsed: number): ReadingAmber => {
-    const said = `! ${name} ${Math.round(percentUsed)}%`
-    return { long: said, short: said, beside: `! ${name}` }
+    const said = `${AMBER_LEAD}${name} ${Math.round(percentUsed)}%`
+    return { long: said, short: said, beside: `${AMBER_LEAD}${name}` }
   },
-  limitPace: (name: string, eta: string): ReadingAmber => ({ long: `! ${name} full in ${eta}`, short: `! ${name} ${eta}`, beside: `! ${name} ${eta}` }),
+  limitPace: (name: string, eta: string): ReadingAmber => ({ long: `${AMBER_LEAD}${name} full in ${eta}`, short: `${AMBER_LEAD}${name} ${eta}`, beside: `${AMBER_LEAD}${name} ${eta}` }),
 } as const
 
 export const EMPTY = {
@@ -145,6 +148,12 @@ export type CacheWords = Readonly<{
   idleText: string | undefined
   /** The cache card's headline: its countdown, `59m left`, else its mood. */
   cardHead: Say
+  /** A gauge's reading beside its bar: `52m left`, bold on its figure, else
+   *  its mood; short, its figure alone, `52m`. */
+  gaugeSay: Say
+  gaugeShort: Say
+  /** What qualifies it: `re-warm ~$1.66`, while counting down or cold. */
+  gaugeMore: string | undefined
   /** The cache card's line while there is nothing to count. */
   cardNote: string | undefined
   /** The board's status: `DEPARTS`, `LAST CALL`, `DEPARTED`, `BOARDING`, `WARMING` or `NOT MEASURED`. */
@@ -181,6 +190,13 @@ export type ContextWords = Readonly<{
   cardHead: Say
   /** `context 87% full`, bold on its figure alone. */
   sentence: Say
+  /** A gauge's reading beside its bar: `87% full`, short `87%`; while not
+   *  reported, `not reported`, short `–`. An amber gauge's mark leads it. */
+  gaugeSay: Say
+  gaugeShort: Say
+  /** What qualifies it: its room, `~114k left`, or near compaction the
+   *  reason, `compacts in ~14k`. */
+  gaugeMore: string | undefined
   alt: string
 }>
 
@@ -257,6 +273,8 @@ export type LimitWords = Readonly<{
   fullIn: string | undefined
   /** `! 5h 82%`, or with a measured fill, `! 5h full in ~40m` / `! 5h ~40m`. */
   amber: ReadingAmber | undefined
+  /** An amber window as a card's headline, led by its mark, `! spend 92%`. */
+  amberHead: Say | undefined
   /** `! NEAR LIMIT`, `! FULL ~14:20`, or without the offset, `! FULL IN ~40 MIN`. */
   boardAmber: string | undefined
   /** `~10% AT ↻`, `FULL BEFORE ↻`, or `RESET`; in the ascii tier, `~10% AT RESET`. */
@@ -361,6 +379,9 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     rebuildsText: c.misses > 0 ? String(c.misses) : undefined,
     idleText: c.recalled && c.idleMs !== null ? fmtAgo(c.idleMs) : undefined,
     cardHead,
+    gaugeSay: counting ? [[leftShort, 'value'], [' left', 'label']] : [[value, 'value']],
+    gaugeShort: [[counting ? leftShort : value, 'value']],
+    gaugeMore: counting || f.mood === 'cold' ? `re-warm ${f.estimate}` : undefined,
     cardNote:
       f.mood === 'unmeasured' ? "Countdown starts with Claude's next reply." : f.mood === 'warming' ? 'First message builds the cache.' : undefined,
     board: working ? 'BOARDING' : BOARD[f.mood],
@@ -405,6 +426,9 @@ export const contextWords = (f: ContextFacts): ContextWords => {
     ahead: roomText === undefined ? undefined : { lead: [['compacts in ', 'value']], figure: roomText },
     cardHead,
     sentence: [['context ', 'label'], ...cardHead],
+    gaugeSay: f.known ? [[f.pct, 'value'], [' full', 'label']] : [[EMPTY.context, 'label']],
+    gaugeShort: f.known ? [[f.pct, 'value']] : [[UNKNOWN, 'label']],
+    gaugeMore: roomText === undefined ? undefined : f.nearCompact ? `compacts in ${roomText}` : `${roomText} left`,
     alt: f.known
       ? altOf('context', `${Math.round(f.frac * 100)} percent ${towardText}`, f.tone === 'amber' ? 'near the limit' : 'fine')
       : altOf('context', EMPTY.context),
@@ -503,6 +527,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     ahead,
     fullIn,
     amber: f.tone !== 'amber' ? undefined : fullIn !== undefined ? AMBER.limitPace(f.name, fullIn) : AMBER.limit(f.name, f.percentUsed),
+    amberHead: f.tone !== 'amber' ? undefined : [[AMBER_LEAD, 'amber'], [`${f.name} `, 'label'], [valueText, 'value']],
     boardAmber:
       f.tone !== 'amber'
         ? undefined

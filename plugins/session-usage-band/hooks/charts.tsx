@@ -60,19 +60,18 @@ export type MeterOptions = Readonly<{
   tone: Tone
   accent: string
   size?: BarSize
-  /** Chips' cards alone: an Svg with no width, capped by its slot, which
-   *  spec §2.9 bars from every other view. */
+  /** An Svg with no width, capped by its slot: the shared cards' heads and
+   *  bodies alone, since spec §2.9 bars it from every collapsed line. */
   stretch?: boolean
   /** What the fill is: what's used, what's left, or a share its label names. */
   reads?: 'used' | 'left' | 'share'
-  /** A mark across the bar at this fraction: a line the fill is measured against. */
+  /** A notch across the bar at this fraction, in label ink: a line the fill
+   *  is measured against, such as how much of its window has gone. */
   tick?: number
+  /** The ground the bar sits on, which knocks its notch out: the card's by default. */
+  ground?: string
   /** Where the fill is heading, drawn dashed from its end. */
   projectTo?: number
-  /** The tick's ink, the value's unless said; a notch is the label's. */
-  tickInk?: string
-  /** The ground the tick is knocked out of, the card's unless said. */
-  ground?: string
   /** A projection's cell in text, `▒` unless said; dashed, `╌`. */
   dash?: string
 }>
@@ -84,7 +83,7 @@ export type MeterOptions = Readonly<{
  *  so it spans its card. */
 export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
   const { Svg, Text, palette, onTone } = kit
-  const { key = 'meter', label, frac, tone, accent, size = CHIP_BAR, stretch = false, reads = 'used', tick, projectTo, tickInk = palette.value, ground = palette.cardBg, dash = '▒' } = o
+  const { key = 'meter', label, frac, tone, accent, size = CHIP_BAR, stretch = false, reads = 'used', tick, projectTo, ground = palette.cardBg, dash = '▒' } = o
   const fill = onTone(tone, accent)
   if (Svg) {
     // Never name a local `h`: JSX compiles to the global h().
@@ -110,7 +109,7 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
       (tickX === undefined
         ? ''
         : `<rect class="knockout" x="${tenth(tickX - k)}" y="-1" width="${4 * k}" height="${tall + 2}" fill="${ground}"/>` +
-          `<rect class="tick" x="${tickX}" y="-1" width="${2 * k}" height="${tall + 2}" fill="${tickInk}"/>`)
+          `<rect class="tick" x="${tickX}" y="-1" width="${2 * k}" height="${tall + 2}" fill="${palette.label}"/>`)
     const source = svgOf(width, tall, marks, stretch ? ' preserveAspectRatio="none"' : '')
     const pct = `${label} ${Math.round(clamp01(frac) * 100)}%`
     const alt = reads === 'share' ? pct : `${pct} ${reads}`
@@ -137,7 +136,7 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
   const ahead = projectTo === undefined ? filled : Math.max(filled, Math.round(clamp01(projectTo) * size.cells))
   const tickAt = tick === undefined ? -1 : Math.min(size.cells - 1, Math.floor(clamp01(tick) * size.cells))
   const cells = Array.from({ length: size.cells }, (_, i): readonly [string, string] =>
-    i === tickAt ? ['│', tickInk] : i < filled ? ['█', fill] : i < ahead ? [dash, fill] : ['░', palette.meterTrack],
+    i === tickAt ? ['│', palette.label] : i < filled ? ['█', fill] : i < ahead ? [dash, fill] : ['░', palette.meterTrack],
   )
   // Neighbouring cells in one colour share a Text.
   const runs: Array<{ text: string; color: string }> = []

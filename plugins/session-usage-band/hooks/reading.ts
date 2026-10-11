@@ -197,7 +197,11 @@ export type LimitFacts = Readonly<{
   reset: ResetIn | undefined
   passed: boolean
   gone: number | undefined
-  /** 100 when a 5h fill is measured; else the average's landing, once 5% of the window has gone. */
+  /** Where a bar's notch sits: the share of the window gone, while any of
+   *  it is used; with none used, the window may not have begun. */
+  notch: number | undefined
+  /** 100 when a 5h fill is measured; else the average's landing, once 5% of
+   *  the window has gone and any of it is used. */
   projectedPct: number | undefined
   /** `projectedPct` as a share, at most 1; undefined once passed. */
   projectedFrac: number | undefined
@@ -312,8 +316,10 @@ export const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
     const passed = reset?.kind === 'passed'
     const gone = windowGone(reading, windowMs, snap.now)
     // A measured fill lands it at 100, so the words and the amber agree; else
-    // the average's landing, once 5% of the window has gone.
-    const projectedPct = etaMs !== null ? 100 : gone === undefined || gone < 0.05 ? undefined : reading.percentUsed / gone
+    // the average's landing, once 5% of the window has gone and any of it is
+    // used: with none, the window may not have begun.
+    const projectedPct =
+      etaMs !== null ? 100 : gone === undefined || gone < 0.05 || reading.percentUsed <= 0 ? undefined : reading.percentUsed / gone
     // At the average's pace, what is left takes the time gone so far, scaled by what is left over what is used.
     const averageFill =
       projectedPct === undefined || projectedPct < 100 || gone === undefined || windowMs === undefined
@@ -325,6 +331,7 @@ export const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
       etaMs,
       reset,
       gone,
+      notch: reading.percentUsed > 0 ? gone : undefined,
       percentUsed: reading.percentUsed,
       frac: clamp01(reading.percentUsed / 100),
       tone: limitTone(reading, snap.now, etaMs),

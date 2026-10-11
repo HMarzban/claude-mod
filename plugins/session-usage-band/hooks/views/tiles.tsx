@@ -80,7 +80,6 @@ const limitMark = (kit: Kit, l: LimitView, size: BarSize, ground: string): Rende
     size,
     tick: l.frac > 0 ? l.gone : undefined,
     projectTo: l.projectedFrac,
-    tickInk: kit.palette.label,
     ground,
     dash: '╌',
   })

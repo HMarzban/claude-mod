@@ -43,10 +43,11 @@ export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide
  *  tier. An other limit, open only, is the shared cards' LIMITS headline,
  *  marked as chips marks it: `spend 92%!`. */
 export const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
-  // Tiles' figure first, its reason beside it: `30s! cache`, `98%! context`.
-  cacheLastMinute: /! \d+s( left)?|LAST CALL|! cooling( ·|,) \d+s left|\d+s ?! cache/,
-  nearCompaction: /! context \d+%|! ctx \d+%|! COMPACTS IN ~|\d+% ?! context/,
-  contextNoCompaction: /! context \d+%|! ctx \d+%|! CONTEXT \d+%|\d+% ?! context/,
+  // Gauges' mark leads its gauge, its bar between the name and the figure;
+  // tiles' figure comes first, its reason beside it: `30s! cache`, `98%! context`.
+  cacheLastMinute: /! \d+s( left)?|LAST CALL|! cooling( ·|,) \d+s left|! cache\W*\d+s|\d+s ?! cache/,
+  nearCompaction: /! context\W*\d+%|! ctx\W*\d+%|! COMPACTS IN ~|\d+% ?! context/,
+  contextNoCompaction: /! context\W*\d+%|! ctx\W*\d+%|! CONTEXT \d+%|\d+% ?! context/,
   limit80: /! 5h|! NEAR LIMIT/,
   fiveHourAhead: /! 5h|! FULL/,
   otherLimit80: /! spend \d+%|! NEAR LIMIT|spend \d+%!/,

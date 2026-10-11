@@ -1,198 +1,274 @@
-// Gauges, two rows of labelled bars: the cache's bar is its time left, the
-// context's ends at compaction, and the 5h and 7d bars carry a tick for how
-// much of the window has gone.
+// Gauges: how much room is left on each meter, and is it filling faster than
+// the clock? Four bars on one scale in a 2×2 grid, this conversation's cache
+// and context above the account's 5h and 7d limits, each limit notched where
+// its window's time has gone; then the cost, and the toggle beneath it. Open,
+// the shared cards, each with its bar in its head.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
-import { meter, type MeterOptions } from '../charts'
+import { meter, splitBar } from '../charts'
+import type { Icon } from '../icons'
 import type { Kit } from '../kit'
+import { ROW_SLACK } from '../layout'
 import type { BarSize } from '../layout'
-import type { ContextReading, LimitView, Readings } from '../reading'
+import type { LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
-import { EMPTY, type Amber, type Say, type SpendSplit } from '../words'
+import { AMBER_LEAD, type Say } from '../words'
+import { cardsView, tokenPartsOf, type Fact, type Slots } from './cards'
+import { LIMITS, costPill, type ChipKey } from './chips'
 import { toggleButton } from './frame'
-import { accentOf, amberFirst, amberSay, anyAmber, chartsIfRoom, emptyWords, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, once, section, words, type Keeps, type SentenceStyle } from './parts'
-import { defineView } from './view'
+import { accentOf, batteryBar, beforeLast, fitLineKeeps, pill, type Keeps } from './parts'
+import { rowsOf, type Rows, type View } from './view'
 
-/** What gives way as each row narrows, first to last; `reWarm`, `cost` and
- *  `smallBars` are the narrow-width ruling's. Amber's words never do. */
-const ORDER = ['tokens', 'resetTexts', 'costRight', 'bars', 'calmCells', 'reWarm', 'cost', 'smallBars'] as const
+/** What the grid gives up as it narrows, first to last: the paces, gauges'
+ *  question, outlast the bars' full length. An amber gauge holds its reason
+ *  until the last step, when it says its figure alone. */
+const ORDER = ['resets', 'room', 'reWarm', 'bars', 'paces', 'units', 'smallBars', 'names'] as const
 type Piece = (typeof ORDER)[number]
 
-const CACHE_BAR: BarSize = { px: 240, cells: 24 }
-const CELL_BAR: BarSize = { px: 120, cells: 12 }
-/** What every bar shrinks to as the rows narrow. */
-const SMALL_BAR: BarSize = { px: 60, cells: 6 }
+/** One length for every bar, so the four line up; narrow, half of it. */
+const BAR: BarSize = { px: 90, cells: 12 }
+const SMALL_BAR: BarSize = { px: 45, cells: 6 }
+/** A card head's bar: a few cells, and on the desktop 16px tall at most. */
+const SLOT_BAR: BarSize = { px: 60, cells: 6 }
 
-/** The split's parts in spec §2.10's colours. */
-const SPLIT_INK: Readonly<Record<SpendSplit['label'], 'meterFill' | 'label' | 'value'>> = { input: 'meterFill', output: 'label', 'cache reads': 'value' }
+/** Words after a gauge's reading: the piece they give way as, and the card
+ *  facts they say, so the cards skip them while the row keeps it. */
+type Qualifier = Readonly<{ text: string; piece: Piece; facts: readonly Fact[] }>
 
-/** A bar in its full size and the small one, each built at most once, when first asked for. */
-const twoSizes = (full: BarSize, make: (size: BarSize) => RenderChildren): ((isFull: boolean) => RenderChildren) => {
-  const wide = once(() => make(full))
-  const small = once(() => make(SMALL_BAR))
-  return isFull => (isFull ? wide() : small())
+/** A gauge's pieces, built once for the squeeze to pick from. */
+type Gauge = Readonly<{
+  key: string
+  tone: Tone
+  /** The pill's ground: a limit's tint, else the band's surface. */
+  bg?: string
+  icon: readonly [Icon, string]
+  name: string
+  /** The name on the narrowest grid. */
+  short?: string
+  nameInk: string
+  valueInk: string
+  bar: ((size: BarSize) => RenderChildren) | undefined
+  say: Say
+  /** Its figure alone, once the grid drops the words beside it. */
+  sayShort: Say
+  more: readonly Qualifier[]
+  /** The card fact its name, bar and figure say: a limit's `window:5h`. */
+  window?: Fact
+}>
+
+const cacheGauge = (kit: Kit, read: Readings): Gauge => {
+  const { palette } = kit
+  const c = read.cache
+  return {
+    key: 'cache',
+    tone: c.tone,
+    icon: ['cache', palette.warm],
+    name: 'cache',
+    nameInk: palette.label,
+    valueInk: palette.value,
+    // Its time left drains: unmeasured or warming, there is none to show.
+    bar: c.known ? size => batteryBar(kit, c.charge, c.tone, c.alt, size) : undefined,
+    say: c.gaugeSay,
+    sayShort: c.gaugeShort,
+    more: c.gaugeMore === undefined ? [] : [{ text: c.gaugeMore, piece: 'reWarm', facts: ['reWarm'] }],
+  }
 }
 
-/** Row one: the cache's name, its time-left bar once its timing is known, and
- *  its sentence, calm or amber, with the cost and the tokens on the right
- *  until the cost joins it. The cost is the last of its words to give way,
- *  then the bar, so an amber reason shortens only once both have gone. */
-const cacheRow = (kit: Kit, read: Readings): RenderElement => {
-  const c = read.cache
-  const s = read.spend
-  // Built once: the squeeze only picks among them.
-  const name = words(kit, 'name', [['cache', c.amber === undefined ? 'label' : 'amber']])
-  const bar = twoSizes(CACHE_BAR, size => meter(kit, { key: 'bar', label: 'cache', frac: c.charge, tone: c.tone, accent: kit.palette.warm, size, reads: 'left' }))
-  const value: Say = [[c.value, 'value']]
-  // Counting down or cold, the re-warm price follows the value.
-  const priced: Say = c.left !== '' || c.condition === 'cold' ? [...value, [' · re-warm ', 'label'], [c.estimate, 'value']] : value
-  const withCost = (say: Say): Say => [...say, [' · ', 'label'], [s.totalText, 'value']]
-  const sentence = {
-    priced: words(kit, 'say', priced),
-    pricedCost: words(kit, 'say', withCost(priced)),
-    valueCost: words(kit, 'say', withCost(value)),
-    value: words(kit, 'say', value),
+const contextGauge = (kit: Kit, read: Readings): Gauge => {
+  const { palette } = kit
+  const x = read.context
+  return {
+    key: 'ctx',
+    tone: x.tone,
+    icon: ['context', palette.label],
+    name: 'context',
+    short: 'ctx',
+    nameInk: palette.label,
+    valueInk: palette.value,
+    // Measured toward compaction when it is on, so its end is that point.
+    bar: x.known ? size => meter(kit, { key: 'bar', label: 'context', frac: x.frac, tone: x.tone, accent: palette.meterFill, size }) : undefined,
+    say: x.gaugeSay,
+    sayShort: x.gaugeShort,
+    more: x.gaugeMore === undefined ? [] : [{ text: x.gaugeMore, piece: 'room', facts: ['room'] }],
   }
-  const cost = words(kit, 'cost', [[s.totalText, 'value']])
-  const costTokens = words(kit, 'cost', [[s.totalText, 'value'], [' · ', 'label'], [s.tokensText, 'value'], [' tokens', 'label']])
-  /** The calm sentence once the cost has joined it: the re-warm words go,
-   *  then the cost; cold, the cost goes first, since a cold cache is a price. */
-  const calmJoined = (keeps: Keeps<Piece>): RenderElement =>
-    keeps.has('reWarm')
-      ? sentence.pricedCost
-      : c.condition === 'cold'
-        ? sentence.priced
-        : keeps.has('cost')
-          ? sentence.valueCost
-          : sentence.value
-  return fitLine(kit, ORDER, lineRoom(kit), keeps => {
-    const onRight = keeps.has('costRight')
-    const reason = c.amber === undefined ? undefined : amberSay(c.amber, keeps)
-    const said =
-      reason !== undefined
-        ? words(kit, 'say', onRight || !keeps.has('cost') ? reason : withCost(reason))
-        : onRight
-          ? sentence.priced
-          : calmJoined(keeps)
-    return line(
-      kit,
-      'cache',
-      [name, c.known && keeps.has('smallBars') ? bar(keeps.has('bars')) : null, said],
-      onRight ? (keeps.has('tokens') ? costTokens : cost) : null,
-      1,
-    )
+}
+
+/** A limit in chips' tint, notched where its window's time has gone and
+ *  dashed where its pace lands. Passed, its last reading is from before the
+ *  reset, so it has no bar, as chips draws it. With none used, the window
+ *  may not have begun, so it says no reset either: its figure alone. */
+const limitGauge = (kit: Kit, read: Readings, l: LimitView, key: ChipKey): Gauge => {
+  const { palette, onTone } = kit
+  const spec = LIMITS[key]
+  const tint = spec.tint(palette)
+  // Only the worst window's also say the LIMITS card's lead row.
+  const worst = l === read.worstLimit
+  // Passed, `reset` is a word, not a figure, so it is not bold.
+  const value: Say = [[l.valueText, l.passed ? 'label' : 'value']]
+  return {
+    key,
+    tone: l.tone,
+    bg: tint.bg,
+    icon: [spec.icon, tint.accent],
+    name: l.name,
+    nameInk: tint.fg,
+    valueInk: tint.fg,
+    bar: l.passed
+      ? undefined
+      : size =>
+          meter(kit, {
+            key: 'bar',
+            label: l.name,
+            frac: l.frac,
+            tone: l.tone,
+            accent: tint.accent,
+            size,
+            tick: l.notch,
+            projectTo: l.projectedFrac,
+            ground: onTone(l.tone, tint.bg, palette.amberBg),
+          }),
+    say: value,
+    sayShort: value,
+    more: [
+      ...(l.pace === '' ? [] : [{ text: l.pace, piece: 'paces', facts: [`pace:${key}` as const, ...(worst ? (['pace'] as const) : [])] } as const]),
+      ...(l.resetAtGlyph === undefined || l.percentUsed === 0
+        ? []
+        : [{ text: l.resetAtGlyph, piece: 'resets', facts: [`reset:${key}` as const, ...(worst ? (['reset'] as const) : [])] } as const]),
+    ],
+    window: `window:${key}`,
+  }
+}
+
+/** The qualifiers a gauge keeps at a squeeze: calm, those not yet given way;
+ *  amber, its whole reason until the last step. */
+const keptMore = (g: Gauge, keeps: Keeps<Piece>): readonly Qualifier[] =>
+  g.tone === 'amber' ? (beforeLast(keeps) ? g.more : []) : g.more.filter(q => keeps.has(q.piece))
+
+/** The card facts a gauge says at a squeeze: its window while its bar is
+ *  kept (a passed one has none), and its kept qualifiers'. */
+const factsOf = (g: Gauge, keeps: Keeps<Piece>): Fact[] => [
+  ...(g.window !== undefined && (g.bar === undefined || keeps.has('smallBars')) ? [g.window] : []),
+  ...keptMore(g, keeps).flatMap(q => q.facts),
+]
+
+/** A gauge's name as drawn, led by amber's mark. */
+const nameOf = (g: Gauge, keeps: Keeps<Piece>): string => `${g.tone === 'amber' ? AMBER_LEAD : ''}${keeps.has('names') ? g.name : (g.short ?? g.name)}`
+
+/** A gauge in its pill: icon, name in its column's width, bar, then its
+ *  reading, bold on its figure alone. */
+const gaugePill = (kit: Kit, g: Gauge, nameCells: number, keeps: Keeps<Piece>): RenderElement => {
+  const { Box, Text, Svg, palette, onTone, icon } = kit
+  const ink = (calm: string) => onTone(g.tone, calm)
+  const bar = g.bar !== undefined && keeps.has('smallBars') ? g.bar(keeps.has('bars') ? BAR : SMALL_BAR) : null
+  const said: Say = [...(keeps.has('units') ? g.say : g.sayShort), ...keptMore(g, keeps).flatMap((q): Say => [[' · ', 'label'], [q.text, 'label']])]
+  return pill(kit, {
+    key: g.key,
+    tone: g.tone,
+    bg: g.bg,
+    body: [
+      // Desktop alone: a terminal gauge leads with its name.
+      ...(Svg ? icon(g.icon[0], ink(g.icon[1])) : []),
+      // Spaced by the row's gap: the desktop drops a string of spaces.
+      <Box key="gauge" flexDirection="row" columnGap={1}>
+        <Box key="name" minWidth={nameCells} flexShrink={0}>
+          <Text color={ink(g.nameInk)}>{nameOf(g, keeps)}</Text>
+        </Box>
+        {bar}
+        <Text key="say">
+          {said.map(([text, role], i) => (
+            <Text key={`s${i}`} color={ink(role === 'value' ? g.valueInk : palette.label)} {...(role === 'value' ? { bold: true } : {})}>
+              {text}
+            </Text>
+          ))}
+        </Text>
+      </Box>,
+    ],
   })
 }
 
-/** A cell of row two, its pieces built once for the squeeze to pick from. */
-type Cell = Readonly<{
-  key: string
-  amber: Amber | undefined
-  name: RenderElement
-  bar: (isFull: boolean) => RenderChildren
-  value: (keeps: Keeps<Piece>) => RenderElement
-  /** The cell in words alone, `5h 4%`, once calm cells become text. */
-  text: RenderElement
-}>
-
-const contextCell = (kit: Kit, x: ContextReading): Cell => {
-  const value = words(kit, 'value', [[x.valueText, 'value']])
-  return {
-    key: 'ctx',
-    amber: x.amber,
-    name: words(kit, 'name', [['context', 'label']]),
-    // Measured toward compaction when it is on, so its end is that point: no
-    // tick. Unreported, it has no bar, as the unmeasured cache has none.
-    bar: !x.known ? () => null : twoSizes(CELL_BAR, size => meter(kit, { key: 'bar', label: 'context', frac: x.frac, tone: x.tone, accent: kit.palette.meterFill, size })),
-    value: () => value,
-    text: words(kit, 'text', x.say),
-  }
+/** The gauges in their columns: the cache over the 5h, the context over the 7d. */
+const columnsOf = (kit: Kit, read: Readings): ReadonlyArray<readonly [string, readonly Gauge[]]> => {
+  const limit = (l: LimitView | undefined, key: ChipKey) => (l === undefined ? [] : [limitGauge(kit, read, l, key)])
+  return [
+    ['first', [cacheGauge(kit, read), ...limit(read.fiveHour, '5h')]],
+    ['second', [contextGauge(kit, read), ...limit(read.sevenDay, '7d')]],
+  ]
 }
 
-const limitCell = (kit: Kit, l: LimitView): Cell => {
-  // Its words without its name: `4%`, or once passed, `reset`.
-  const valueSay = l.say.filter(([, role]) => role === 'value')
-  const value = words(kit, 'value', valueSay)
-  const withReset = l.resetGlyph === undefined ? value : words(kit, 'value', [...valueSay, [` ${l.resetGlyph}`, 'label']])
-  return {
-    key: l.name,
-    amber: l.amber,
-    name: words(kit, 'name', [[l.name, 'label']]),
-    bar: twoSizes(CELL_BAR, size => meter(kit, { key: 'bar', label: l.name, frac: l.frac, tone: l.tone, accent: accentOf(kit, l), size, tick: l.gone })),
-    value: keeps => (keeps.has('resetTexts') ? withReset : value),
-    text: words(kit, 'text', l.say),
-  }
-}
-
-/** A cell at a squeeze: amber, its bar until `smallBars` and its reason;
- *  calm, its name, bar and value, or its words alone. */
-const drawCell = (kit: Kit, cell: Cell, keeps: Keeps<Piece>): RenderElement => {
-  const { Box } = kit
-  const pieces =
-    cell.amber !== undefined
-      ? [keeps.has('smallBars') ? cell.bar(keeps.has('bars')) : null, words(kit, 'amber', amberSay(cell.amber, keeps))]
-      : keeps.has('calmCells')
-        ? [cell.name, cell.bar(keeps.has('bars')), cell.value(keeps)]
-        : [cell.text]
-  return (
-    <Box key={cell.key} flexDirection="row" columnGap={1}>
-      {pieces}
-    </Box>
-  )
-}
-
-/** Row two: the context, 5h and 7d cells, then the toggle. */
-const cellsRow = (kit: Kit, read: Readings, act: BandActions): RenderElement => {
+/** The collapsed grid, squeezed until it fits, and the card facts it kept. */
+const collapsed = (kit: Kit, read: Readings, act: BandActions): Readonly<{ grid: RenderElement; shown: Fact[] }> => {
+  const { Box, measure } = kit
+  const columns = columnsOf(kit, read)
+  // The cost's hover card is chips' row's; gauges draws none.
+  const cost = pill(kit, { ...costPill(kit, read), hover: undefined })
   const toggle = toggleButton(kit, read, act)
-  const limits = [read.fiveHour, read.sevenDay].filter((l): l is LimitView => l !== undefined).map(l => limitCell(kit, l))
-  // Unreported, the context says nothing collapsed, and open its panel says
-  // so; with no limit beside it, it says `context –`, so the row isn't empty.
-  const cells = read.context.known || limits.length === 0 ? [contextCell(kit, read.context), ...limits] : limits
-  return fitLine(kit, ORDER, lineRoom(kit), keeps => line(kit, 'cells', cells.map(cell => drawCell(kit, cell, keeps)), toggle))
+  const { line: grid, keeps: kept } = fitLineKeeps(kit, ORDER, kit.columns - ROW_SLACK, keeps => (
+    <Box key="gauges" flexDirection="row" flexWrap="nowrap" overflow="hidden" columnGap={1}>
+      {columns.map(([key, gauges]) => {
+        // A column's names share their widest's width, so its bars line up;
+        // its pills stretch to its widest, so their grounds end together.
+        const nameCells = Math.ceil(Math.max(...gauges.map(g => [...nameOf(g, keeps)].length)) * measure.text)
+        return (
+          <Box key={key} flexDirection="column" alignItems="stretch" flexShrink={0}>
+            {gauges.map(g => gaugePill(kit, g, nameCells, keeps))}
+          </Box>
+        )
+      })}
+      <Box key="air" flexGrow={1} />
+      <Box key="end" flexDirection="column" alignItems="flex-end" flexShrink={0}>
+        {cost}
+        {toggle}
+      </Box>
+    </Box>
+  ))
+  return { grid, shown: columns.flatMap(([, gauges]) => gauges.flatMap(g => factsOf(g, kept))) }
 }
 
-const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => [cacheRow(kit, read), cellsRow(kit, read, act)]
-
-/** A limit in its panel: `5h 4% · resets in 3h 00m · on pace for ~10%`. */
-const SENTENCE: SentenceStyle = { lead: 'say', reset: 'resetWords', sep: ' · ' }
-
-/** The facts behind ▵: four panels, each its bars over its facts while they fit. */
-const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
-  const p = kit.palette
-  const c = read.cache
-  const x = read.context
-  const s = read.spend
-  const room = gridRoom(kit, bodyRows)
-  const bar = (key: string, label: string, frac: number, accent: string, more: Partial<Pick<MeterOptions, 'tone' | 'reads' | 'tick' | 'projectTo'>> = {}) =>
-    meter(kit, { key, label, frac, tone: 'calm', accent, size: CELL_BAR, ...more })
-  // What needs you leads, so a panel short of rows keeps it.
-  const limits = amberFirst(read.limits)
-  return grid(kit, [
-    section(kit, 'cache', 'CACHE', chartsIfRoom(room, [c.hitFrac === undefined ? null : bar('hit:bar', 'hit rate', c.hitFrac, p.warm, { reads: 'share' })], [
-      fact(kit, 'hit', 'hit rate', c.hitText),
-      fact(kit, 'saved', 'saved', c.savedText),
-      fact(kit, 'lasts', 'lasts', c.lastsText),
-      c.reWarmText === undefined ? null : words(kit, 'reWarm', [[c.reWarmText, 'value']]),
-    ]), room),
-    section(kit, 'spend', 'SPEND', chartsIfRoom(room, s.split.map(part => bar(`${part.label}:bar`, part.label, part.frac, p[SPLIT_INK[part.label]], { reads: 'share' })), [
-      fact(kit, 'total', 'session', s.totalText),
-      fact(kit, 'tokens', 'tokens', s.tokensText),
-      fact(kit, 'last', 'last message', s.lastText),
-      ...s.split.map(part => fact(kit, part.label, part.label, part.text)),
-    ]), room),
-    section(kit, 'context', 'CONTEXT', !x.known ? [emptyWords(kit, 'none', EMPTY.context)] : chartsIfRoom(room, [bar('ctx:bar', 'context', x.frac, p.meterFill, { tone: x.tone })], [
-      words(kit, 'pct', [[x.valueText, 'value'], [` ${x.towardText}`, 'label']]),
-      fact(kit, 'room', 'room', x.roomText),
-      fact(kit, 'at', 'compacts at', x.compactsAtText),
-      fact(kit, 'window', 'window', x.windowText),
-      fact(kit, 'in', 'in context', x.inContextText),
-    ]), room),
-    section(kit, 'limits', 'LIMITS', limits.length === 0 ? [emptyWords(kit, 'none', EMPTY.limits)] : chartsIfRoom(
-      room,
-      limits.map(l => bar(`${l.name}:bar`, l.name, l.frac, accentOf(kit, l), { tone: l.tone, tick: l.gone, projectTo: l.projectedFrac })),
-      limits.map(l => limitSentence(kit, l, SENTENCE)),
-    ), room, anyAmber(limits)),
-  ], bodyRows)
+/** Each card's head carries its gauge's bar: the battery, the token split,
+ *  the context's fill, and the worst window notched and dashed. */
+const slots = (kit: Kit, read: Readings): Slots => {
+  const { palette } = kit
+  const { cache, context } = read
+  const worst = read.worstLimit
+  return {
+    cache: cache.known ? batteryBar(kit, cache.charge, cache.tone, cache.alt, SLOT_BAR) : undefined,
+    spend: cache.measured
+      ? splitBar(kit, { alt: 'token split: input, output, cache reads', parts: tokenPartsOf(kit, read).map(([, part]) => part), size: SLOT_BAR })
+      : undefined,
+    context: context.known ? meter(kit, { label: 'context', frac: context.frac, tone: context.tone, accent: palette.meterFill, size: SLOT_BAR, stretch: true }) : undefined,
+    limits:
+      worst === undefined
+        ? undefined
+        : meter(kit, {
+            label: worst.name,
+            frac: worst.frac,
+            tone: worst.tone,
+            accent: accentOf(kit, worst),
+            size: SLOT_BAR,
+            stretch: true,
+            tick: worst.notch,
+            projectTo: worst.projectedFrac,
+          }),
+  }
 }
 
-export const gaugesView = defineView('gauges', { desktop: 2, terminal: 2 }, lines, body)
+const ROWS: Rows = { desktop: 2, terminal: 2 }
+
+/** Drawn as `defineCardsView` draws a layout, but its lens reads the squeezed
+ *  grid: the cards skip only what the row kept. */
+export const gaugesView: View = {
+  name: 'gauges',
+  rows: ROWS,
+  draw: (kit, read, act) => {
+    const { grid, shown } = collapsed(kit, read, act)
+    // An amber window's headline is led by its mark, as its gauge is.
+    const amberHead = read.worstLimit?.amberHead
+    return cardsView(kit, read, act, [grid], {
+      collapsedRows: rowsOf({ rows: ROWS }, kit),
+      slots: slots(kit, read),
+      slotsReplaceBars: true,
+      heads: amberHead === undefined ? {} : { limits: amberHead },
+      shown,
+    })
+  },
+}

@@ -130,6 +130,27 @@ test('the cards take only the rows the collapsed lines leave', () => {
     }
   }
 })
+test('short of a row for a fact under each head, the cards give way whole, so the buttons stay in view', () => {
+  const view = defineCardsView('gauges', { desktop: 2, terminal: 2 }, () => [text('LINE 0'), text('LINE 1')])
+  for (const maxRows of [4, 6, 7]) {
+    const snap = snapOf({ expanded: true, maxRows })
+    const tree = view.draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT)
+    expect([maxRows, byKey(tree, 'cards'), visualRows(tree, 'terminal') <= maxRows, byKey(tree, 'hide', 'Button') !== undefined]).toEqual([maxRows, undefined, true, true])
+  }
+})
+test('with the cards given way, a window only they draw still says it needs you, on the row they would start on', () => {
+  const view = defineCardsView('gauges', { desktop: 2, terminal: 2 }, () => [text('LINE 0'), text('LINE 1')])
+  const spend = { otherLimits: [{ kind: 'spend_limit' as const, percentUsed: 92, resetsAt: undefined }] }
+  const draw = (maxRows: number, over = {}) => {
+    const snap = snapOf({ expanded: true, maxRows, ...over })
+    return view.draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT)
+  }
+  const tree = draw(6, spend)
+  expect([shown(byKey(tree, 'alert', 'Box')), visualRows(tree, 'terminal')]).toEqual(['! spend 92%', 6])
+  expect(byKey(byKey(tree, 'alert', 'Box'), 'alert', 'Text')?.props?.color).toBe(DARK.amberFg)
+  // Calm, or with no row for it, there is none.
+  expect([byKey(draw(6), 'alert'), byKey(draw(4, spend), 'alert')]).toEqual([undefined, undefined])
+})
 test('shut, a cards view draws its collapsed lines alone', () => {
   const snap = snapOf()
   const tree = defineCardsView('gauges', { desktop: 1, terminal: 1 }, () => [text('LINE')]).draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT)

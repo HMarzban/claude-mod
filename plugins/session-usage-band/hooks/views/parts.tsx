@@ -4,10 +4,11 @@
 // view is laid out with.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
+import { meter } from '../charts'
 import { clamp01 } from '../format'
 import { asciiText } from '../glyphs'
 import type { Kit } from '../kit'
-import { ROW_SLACK, isDrawn, keepsIn, squeezeToFit } from '../layout'
+import { ROW_SLACK, fitSqueeze, isDrawn, keepsIn } from '../layout'
 import type { BarSize } from '../layout'
 import type { Palette } from '../palette'
 import type { LimitKey, LimitView, Readings, Tone } from '../reading'
@@ -50,8 +51,8 @@ export const pill = (kit: Kit, { key, tone, body, hover, paintsOwnBg, bg }: Pill
   )
 }
 
-/** The desktop's battery, `px` wide: an outline, its cap, and the charge
- *  filling it. */
+/** The desktop's battery: an outline, its cap, and the charge filling it,
+ *  `px` wide: an icon's 22, or a bar's length. */
 export const batteryIcon = (kit: Kit, charge: number, tone: Tone, alt: string, px = 22): RenderChildren => {
   const { Svg, palette, onTone } = kit
   if (!Svg) return null
@@ -79,6 +80,22 @@ export const batteryMark = (kit: Kit, charge: number, tone: Tone, alt: string, s
       {filled > 0 ? <Text key="charge" color={onTone(tone, palette.warm)}>{'█'.repeat(filled)}</Text> : null}
       {filled < cells ? <Text key="track" color={palette.meterTrack}>{'░'.repeat(cells - filled)}</Text> : null}
       {'╸'}
+    </Text>
+  )
+}
+
+/** The battery as long as a bar: time left, draining. On the desktop its
+ *  outline; in a terminal its cells, the charge painted in the warm colour
+ *  and the drained in the track's; with no ground to paint, a bar's glyphs. */
+export const batteryBar = (kit: Kit, charge: number, tone: Tone, alt: string, size: BarSize): RenderChildren => {
+  const { Svg, Text, palette, onTone } = kit
+  if (Svg) return batteryIcon(kit, charge, tone, alt, size.px)
+  if (!palette.filled) return meter(kit, { key: 'battery', label: 'cache', frac: charge, tone, accent: palette.warm, size, reads: 'left' })
+  const cut = Math.round(clamp01(charge) * size.cells)
+  return (
+    <Text key="battery">
+      {cut > 0 ? <Text key="charge" backgroundColor={onTone(tone, palette.warm)}>{' '.repeat(cut)}</Text> : null}
+      {cut < size.cells ? <Text key="drained" backgroundColor={palette.meterTrack}>{' '.repeat(size.cells - cut)}</Text> : null}
     </Text>
   )
 }
@@ -159,23 +176,28 @@ export const line = (kit: Kit, key: string, pieces: readonly RenderChildren[], e
 }
 
 /** A line squeezed by its give-way order: the smallest squeeze at which it
- *  fits. The amber step is always last, so amber shortens only once every
- *  calm piece has gone. */
-export const fitLine = <P extends string>(kit: Kit, order: readonly P[], room: number, build: (keeps: Keeps<P>) => RenderElement): RenderElement => {
+ *  fits, and what that squeeze keeps. The amber step is always last, so
+ *  amber shortens only once every calm piece has gone. */
+export const fitLineKeeps = <P extends string>(
+  kit: Kit,
+  order: readonly P[],
+  room: number,
+  build: (keeps: Keeps<P>) => RenderElement,
+): Readonly<{ line: RenderElement; keeps: Keeps<P> }> => {
   const steps: ReadonlyArray<P | typeof AMBER_STEP> = [...order, AMBER_STEP]
   const at = keepsIn(steps)
-  return squeezeToFit(
-    squeeze =>
-      build({
-        has: p => at(squeeze, p),
-        calm: (p, tone) => tone === 'amber' || at(squeeze, p),
-        amber: a => (at(squeeze, AMBER_STEP) ? a.long : a.short),
-      }),
-    steps.length,
-    room,
-    kit.measure,
-  )
+  const keepsAt = (squeeze: number): Keeps<P> => ({
+    has: p => at(squeeze, p),
+    calm: (p, tone) => tone === 'amber' || at(squeeze, p),
+    amber: a => (at(squeeze, AMBER_STEP) ? a.long : a.short),
+  })
+  const { line, squeeze } = fitSqueeze(squeeze => build(keepsAt(squeeze)), steps.length, room, kit.measure)
+  return { line, keeps: keepsAt(squeeze) }
 }
+
+/** `fitLineKeeps`' line alone. */
+export const fitLine = <P extends string>(kit: Kit, order: readonly P[], room: number, build: (keeps: Keeps<P>) => RenderElement): RenderElement =>
+  fitLineKeeps(kit, order, room, build).line
 
 /** True until the amber step: an amber reading's chart stays while this holds. */
 export const beforeLast = <P extends string>(keeps: Keeps<P>): boolean => keeps.amber(AMBER_PROBE) === AMBER_PROBE.long

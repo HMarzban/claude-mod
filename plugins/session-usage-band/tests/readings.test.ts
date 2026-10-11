@@ -314,3 +314,26 @@ test('with no samples and no pace yet, the week is not known yet', () => {
   expect(wk.daysAlt).toBe('weekly limit by day: not known yet')
   expect(wk.empty).toBe(true)
 })
+test("a gauge says its figure bold, then what qualifies it, and short its figure alone", () => {
+  const r = readingsOf(snapOf())
+  expect([r.cache.gaugeSay, r.cache.gaugeShort, r.cache.gaugeMore]).toEqual([[['52m', 'value'], [' left', 'label']], [['52m', 'value']], 're-warm ~$1.66'])
+  expect([r.context.gaugeSay, r.context.gaugeShort, r.context.gaugeMore]).toEqual([[['40%', 'value'], [' full', 'label']], [['40%', 'value']], '~114k left'])
+  const cold = readingsOf(snapOf({ cache: cacheAt(0) })).cache
+  expect([cold.gaugeSay, cold.gaugeMore]).toEqual([[['cold', 'value']], 're-warm ~$1.66'])
+  const working = readingsOf(snapOf({ isWorking: true })).cache
+  expect([working.gaugeSay, working.gaugeMore]).toEqual([[['warm', 'value']], undefined])
+  // Near compaction its room is the reason; unreported, it says so, short a dash.
+  const near = readingsOf(snapOf({ context: { tokens: 176_000, window: 200_000, percent: 88, compactAt: 190_000, autoCompactOff: false } })).context
+  expect(near.gaugeMore).toBe('compacts in ~14k')
+  const none = readingsOf(snapOf({ context: { tokens: undefined, window: 200_000, percent: undefined, compactAt: 190_000, autoCompactOff: false } })).context
+  expect([none.gaugeSay, none.gaugeShort, none.gaugeMore]).toEqual([[['not reported', 'label']], [['–', 'label']], undefined])
+})
+test("a limit's notch is the share of its window gone, and a window with nothing used has none, nor a pace", () => {
+  const r = readingsOf(snapOf())
+  expect(r.fiveHour?.notch).toBe(r.fiveHour?.gone)
+  expect(r.fiveHour?.notch).toBeGreaterThan(0)
+  const unused = readingsOf(snapOf({ fiveHour: { percentUsed: 0, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }))
+  expect([unused.fiveHour?.gone === undefined, unused.fiveHour?.notch]).toEqual([false, undefined])
+  // Nor a pace: a landing of ~0% says nothing the 0% doesn't.
+  expect([unused.fiveHour?.projectedPct, unused.fiveHour?.pace]).toEqual([undefined, ''])
+})

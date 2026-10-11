@@ -2,9 +2,9 @@
 
 import { test, expect } from 'claude-code/testing'
 import { makeKit } from '../hooks/kit'
-import { DARK } from '../hooks/palette'
+import { DARK, PLAIN } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
-import { accentOf, amberFirst, beforeLast, chartsIfRoom, fact, fitLine, grid, gridRoom, layoutCachePill, limitSentence, line, lineRoom, once, section, words, type Keeps } from '../hooks/views/parts'
+import { accentOf, amberFirst, batteryBar, beforeLast, chartsIfRoom, fact, fitLine, grid, gridRoom, layoutCachePill, limitSentence, line, lineRoom, once, section, words, type Keeps } from '../hooks/views/parts'
 import type { Amber } from '../hooks/words'
 import { byKey, cards, fakeEl, shown, walk, type Node } from './helpers'
 import { snapOf } from './matrix'
@@ -127,4 +127,14 @@ test('what needs you comes first, each part in its order; a piece is built once'
   let builds = 0
   const piece = once(() => ++builds)
   expect([piece(), piece(), builds]).toEqual([1, 1, 1])
+})
+test("a battery the length of a bar: its outline on the desktop, painted cells in a terminal, glyphs where there is no ground", () => {
+  const size = { px: 90, cells: 12 }
+  const desk = batteryBar(makeKit(fakeEl, snapOf({ surface: 'desktop' })), 0.5, 'calm', 'cache battery 50% left', size) as Node
+  expect([desk.type, desk.props?.width, desk.props?.alt]).toEqual(['Svg', 90, 'cache battery 50% left'])
+  expect(String(desk.props?.source)).toMatch(/<rect class="charge" x="2.5" y="2.5" width="41.5"/)
+  const cells = batteryBar(kit(), 0.5, 'calm', 'cache', size) as Node
+  expect([shown(cells), byKey(cells, 'charge', 'Text')?.props?.backgroundColor, byKey(cells, 'drained', 'Text')?.props?.backgroundColor]).toEqual([' '.repeat(12), DARK.warm, DARK.meterTrack])
+  expect(shown(byKey(cells, 'charge', 'Text'))).toBe(' '.repeat(6))
+  expect(shown(batteryBar(makeKit(fakeEl, snapOf({ palette: PLAIN })), 0.5, 'calm', 'cache', size))).toBe('██████░░░░░░')
 })

@@ -9,7 +9,7 @@ import { meter, splitBar } from '../charts'
 import type { SplitPart } from '../charts'
 import type { Icon } from '../icons'
 import type { Kit } from '../kit'
-import { CARD_TEXT, HOTKEY_MARK, ROW_SLACK, cellsOf } from '../layout'
+import { CARD_TEXT, DESKTOP, HOTKEY_MARK, ROW_SLACK, cellsOf } from '../layout'
 import type { BarSize } from '../layout'
 import { BARE } from '../palette'
 import type { LimitKey, LimitView, Readings, Tone } from '../reading'
@@ -38,6 +38,12 @@ export type Fact =
   | 'modelWindow'
   | 'reset'
   | 'pace'
+  | WindowFact
+
+/** What the collapsed lines draw of the 5h or 7d window, the only windows
+ *  they draw: `window:5h` its name, bar and figure; `pace:5h` and
+ *  `reset:5h` its words. */
+type WindowFact = `${'window' | 'pace' | 'reset'}:${Exclude<LimitKey, 'other'>}`
 
 /** A layout's mark for a card's head row: at most 16px on the desktop, a few
  *  cells in a terminal. */
@@ -74,6 +80,22 @@ export type OpenOptions = Readonly<{
   compactSplit?: boolean
 }>
 
+/** The session's tokens split by kind, each part in its colour. Cache reads
+ *  are in the warm colour: cheap, and often most of the bar. In text each
+ *  part has its own fill too, since the inks sit close in lightness: colour
+ *  is never the only signal. The desktop's parts are solid, divided by the
+ *  ground, so its legend marks them solid. */
+export const tokenPartsOf = (kit: Kit, read: Readings): ReadonlyArray<readonly [string, SplitPart]> => {
+  const { Svg, palette } = kit
+  const { spend } = read
+  const [inputFill, outputFill, readsFill] = Svg ? ['■', '■', '■'] : read.frame.glyphs === 'ascii' ? ['#', '=', '+'] : ['█', '▓', '▒']
+  return [
+    ['input', { n: spend.sent, color: palette.meterFill, mark: inputFill }],
+    ['output', { n: spend.back, color: palette.coin, mark: outputFill }],
+    ['cache reads', { n: spend.cached, color: palette.warm, mark: readsFill }],
+  ]
+}
+
 /** What opens beneath a layout's collapsed lines: as many cards to a line as
  *  hold their text, each as much of its body as the band has rows for; the
  *  workspace strip on top or in the footer; then Collapse and Hide band. */
@@ -81,7 +103,6 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
   const { Box, Button, Text, Svg, palette, measure, columns, onTone, oneLine, icon } = kit
   const { cache, spend, context } = read
   const shown = new Set(o.shown)
-  const ascii = read.frame.glyphs === 'ascii'
 
   /** A label and its value at either end of a line, unless the collapsed
    *  lines show it; `swatch` keys a legend in its part's colour and fill. */
@@ -133,11 +154,23 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
   const ws = read.workspace
   const stripPlace: 'top' | 'footer' | undefined = ws === undefined ? undefined : bodyFor(1) >= 1 ? 'top' : 'footer'
   const bodyRows = Math.max(1, bodyFor(stripPlace === 'top' ? 1 : 0))
+  // Short of a row under each head for a fact, the cards give way whole. The
+  // desktop draws a card's edge as a line of pixels, so there it never
+  // counts as the row a fact needs.
+  const cardsFit = bodyFor(0) + (measure === DESKTOP ? edge : 0) >= 1
+  // Without them, a window only the cards draw (the collapsed lines never
+  // draw the engine's other windows) still says it needs you, on the row
+  // they would have started on, where the band has one.
+  const alerts =
+    cardsFit || bodyRowsFor(read.frame.maxRows, o.collapsedRows, 0) < 1
+      ? []
+      : read.limits.flatMap(l => (l.key === 'other' && l.amber !== undefined ? [l.amber.long] : []))
   const inner = Math.max(4, Math.floor((columns - (perLine - 1)) / perLine) - 2 - edge)
   const cardBar: BarSize = { px: inner * measure.pxPerCell, cells: inner }
   /** As much of a card's body as the band has rows for, its facts listed
    *  most important first. Its bar repeats a chip's, so it shows only when
-   *  every fact fits beside it; short of rows, a fact wins. */
+   *  every fact fits beside it and no lens in its head draws it already;
+   *  short of rows, a fact wins. */
   const fitBody = (bar: RenderChildren, body: RenderChildren[]): RenderChildren[] => {
     const facts = body.filter(part => part !== null && part !== undefined)
     return bar !== null && facts.length < bodyRows ? [bar, ...facts] : facts.slice(0, bodyRows)
@@ -159,7 +192,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
             {text}
           </Text>
         ) : (
-          <Text key={`say${i}`} color={palette.label}>
+          <Text key={`say${i}`} color={role === 'amber' ? palette.amberFg : palette.label}>
             {text}
           </Text>
         ),
@@ -223,16 +256,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     ],
   )
 
-  // Cache reads in the warm colour: cheap, and often most of the bar. In
-  // text each part has its own fill too, since the inks sit close in
-  // lightness: colour is never the only signal. The desktop's parts are
-  // solid, divided by the ground, so its legend marks them solid.
-  const [inputFill, outputFill, readsFill] = Svg ? ['■', '■', '■'] : ascii ? ['#', '=', '+'] : ['█', '▓', '▒']
-  const tokenParts: ReadonlyArray<readonly [string, SplitPart]> = [
-    ['input', { n: spend.sent, color: palette.meterFill, mark: inputFill }],
-    ['output', { n: spend.back, color: palette.coin, mark: outputFill }],
-    ['cache reads', { n: spend.cached, color: palette.warm, mark: readsFill }],
-  ]
+  const tokenParts = tokenPartsOf(kit, read)
   const split = (size: BarSize) =>
     splitBar(kit, { alt: 'token split: input, output, cache reads', parts: tokenParts.map(([, part]) => part), size })
   const lastRow = spend.lastText === undefined ? null : factRow('lastMessage', 'last message', spend.lastText)
@@ -307,19 +331,23 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
    *  says for the worst. */
   const limitRows = (w: LimitView): readonly [RenderChildren, RenderChildren] => {
     const { name, frac, tone } = w
-    if (w.passed) return [factRow(undefined, name, 'reset'), null]
+    const drew = (what: 'window' | 'pace' | 'reset') => w.key !== 'other' && shown.has(`${what}:${w.key}` as const)
+    if (w.passed) return [drew('window') ? null : factRow(undefined, name, 'reset'), null]
     const value = w.valueMarked
     const reset = w.cardResetLess(o.windowResets ?? 'countdown', saidOf(w))
     const room = Math.max(4, inner - [...name].length - [...value].length - 2)
+    const wordsDrawn = drew('reset') && (w.pace === '' || drew('pace'))
     return [
-      <Box key={`fact:${name}`} flexDirection="row" columnGap={1}>
-        <Text color={palette.label}>{name}</Text>
-        <Box key="bar" flexGrow={1} width={0} minWidth={0}>
-          {meter(kit, { label: name, frac, tone, accent: accentOf(kit, w), size: { px: room * measure.pxPerCell, cells: room }, stretch: true })}
+      drew('window') ? null : (
+        <Box key={`fact:${name}`} flexDirection="row" columnGap={1}>
+          <Text color={palette.label}>{name}</Text>
+          <Box key="bar" flexGrow={1} width={0} minWidth={0}>
+            {meter(kit, { label: name, frac, tone, accent: accentOf(kit, w), size: { px: room * measure.pxPerCell, cells: room }, stretch: true })}
+          </Box>
+          <Text color={onTone(tone, palette.cardValue)}>{value}</Text>
         </Box>
-        <Text color={onTone(tone, palette.cardValue)}>{value}</Text>
-      </Box>,
-      w === worst || reset === undefined ? null : <Box key={`fact:${name} pace`}>{oneLine({ color: palette.label }, reset)}</Box>,
+      ),
+      w === worst || reset === undefined || wordsDrawn ? null : <Box key={`fact:${name} pace`}>{oneLine({ color: palette.label }, reset)}</Box>,
     ]
   }
   /** The lead row, then every window's rows; short of rows, each window's
@@ -366,13 +394,19 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
 
   return [
     stripPlace === 'top' ? strip : null,
-    <Box key="cards" flexDirection="column" rowGap={lineGap} marginTop={stripPlace === 'top' ? 0 : 1}>
-      {Array.from({ length: lineCount }, (_, i) => (
-        <Box key={`cards:${i}`} flexDirection="row" columnGap={1}>
-          {cardViews.slice(i * perLine, (i + 1) * perLine)}
-        </Box>
-      ))}
-    </Box>,
+    cardsFit ? (
+      <Box key="cards" flexDirection="column" rowGap={lineGap} marginTop={stripPlace === 'top' ? 0 : 1}>
+        {Array.from({ length: lineCount }, (_, i) => (
+          <Box key={`cards:${i}`} flexDirection="row" columnGap={1}>
+            {cardViews.slice(i * perLine, (i + 1) * perLine)}
+          </Box>
+        ))}
+      </Box>
+    ) : alerts.length > 0 ? (
+      <Box key="alert" marginTop={1}>
+        {oneLine({ key: 'alert', color: palette.amberFg }, alerts.join(' · '))}
+      </Box>
+    ) : null,
     // A strip in the footer grows into all the room the buttons leave, at
     // least the room its cards are given; the hint leaves it to air.
     <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>
