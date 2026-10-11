@@ -1,96 +1,142 @@
-// Ledger, the band in words alone: `·`-separated, with `! ` leading what
-// needs you. The reference view: every other layout follows its shape.
+// Ledger, the band in plain words: one sentence, each reading named and bold
+// on its figure alone, `│` between readings and `·` within one, what needs
+// you moved to the front. Behind ▵, the shared cards, with no lens: none
+// repeats a fact the sentence says.
 
-import type { RenderChildren, RenderElement } from 'claude-code'
+import type { RenderElement } from 'claude-code'
 import type { Kit } from '../kit'
+import { ROW_SLACK } from '../layout'
 import type { LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
-import { EMPTY, type Amber } from '../words'
-import { toggleButton, type Strip } from './frame'
-import { amberWords, anyAmber, emptyWords, fitLine, grid, gridRoom, limitSentence, line, lineRoom, section, separatedBy, words, type Keeps, type SentenceStyle } from './parts'
-import { defineView } from './view'
+import { BETWEEN_READINGS, type Amber, type Say } from '../words'
+import { cardsView, type Fact } from './cards'
+import { toggleButton } from './frame'
+import { ROLE_INK, amberFirst, amberSay, beforeLast, fitLine, type Keeps } from './parts'
+import { rowsOf, type View } from './view'
 
-/** What gives way as the line narrows, first to last; `cacheWords` is the
- *  narrow-width ruling's. Amber never does. */
-const ORDER = ['resetWords', 'resetTimes', 'calmSeven', 'calmContext', 'cost', 'calmFive', 'cacheWords'] as const
+/** What gives way as the row narrows, first to last: the closest limit's ↻
+ *  clock and pace words, the calm readings, then the cold cache's long
+ *  words. Amber never does. */
+const ORDER = ['reset', 'pace', 'calmSeven', 'calmContext', 'cost', 'calmFive', 'cacheWords'] as const
 type Piece = (typeof ORDER)[number]
 
-/** A reading that can turn amber: its reason while amber, else its calm piece. */
-const amberOr = (kit: Kit, key: string, amber: Amber | undefined, keeps: Keeps<Piece>, calm: RenderChildren): RenderChildren =>
-  amber !== undefined ? amberWords(kit, key, amber, keeps) : calm
+/** A reading in the sentence: its words, its warning if it has one, and the
+ *  card facts its words say, which the cards then skip. */
+type Part = Readonly<{ say: Say; amber: Amber | undefined; says: readonly Fact[] }>
 
-/** A limit: amber, its reason; calm, its value and its reset as the squeeze allows. */
-const limitPiece = (kit: Kit, l: LimitView, step: Piece, keeps: Keeps<Piece>): RenderChildren => {
-  if (l.amber !== undefined) return amberWords(kit, l.name, l.amber, keeps)
+/** A warning's words, long until every calm piece has gone. */
+const warning = (amber: Amber, keeps: Keeps<Piece>, says: readonly Fact[] = []): Part => ({ say: amberSay(amber, keeps), amber, says })
+
+const cachePart = (read: Readings, keeps: Keeps<Piece>): Part => {
+  const c = read.cache
+  // The long warning and a cold cache's words both say the re-warm price.
+  if (c.amber !== undefined) return warning(c.amber, keeps, beforeLast(keeps) ? ['reWarm'] : [])
+  return { say: keeps.has('cacheWords') ? c.sentence : c.sentenceShort, amber: undefined, says: c.mood === 'cold' ? ['reWarm'] : [] }
+}
+
+const contextPart = (read: Readings, keeps: Keeps<Piece>): Part | null => {
+  const x = read.context
+  // Unreported, the context says nothing collapsed; open, its card says so.
+  if (!x.known) return null
+  // The long warning names the room before compaction.
+  if (x.amber !== undefined) return warning(x.amber, keeps, beforeLast(keeps) && x.roomText !== undefined ? ['room'] : [])
+  return keeps.has('calmContext') ? { say: x.sentence, amber: undefined, says: [] } : null
+}
+
+/** A limit: its warning, or its value; the closest, LIMITS' headline, adds
+ *  the pace and the reset LIMITS' lead row would say. */
+const limitPart = (read: Readings, l: LimitView | undefined, step: Piece, keeps: Keeps<Piece>): Part | null => {
+  if (l === undefined) return null
+  const closest = l === read.worstLimit
+  if (l.amber !== undefined) return warning(l.amber, keeps, closest && l.fullIn !== undefined ? ['pace'] : [])
   if (!keeps.has(step)) return null
-  const reset = keeps.has('resetTimes') ? (keeps.has('resetWords') ? l.resetWords : l.resetGlyph) : undefined
-  return words(kit, l.name, reset === undefined ? l.say : [...l.say, [`, ${reset}`, 'label']])
+  if (!closest) return { say: l.say, amber: undefined, says: [] }
+  const pace = keeps.has('pace') && l.pace !== ''
+  const reset = keeps.has('reset') && l.resetAtGlyph !== undefined
+  return {
+    say: l.sentence(pace, reset),
+    amber: undefined,
+    says: [...(pace ? (['pace'] as const) : []), ...(reset ? (['reset'] as const) : [])],
+  }
 }
 
-const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
-  const c = read.cache
-  const x = read.context
-  // Built once: none of these changes with the squeeze.
+/** The readings in order, what needs you first. */
+const partsOf = (read: Readings, keeps: Keeps<Piece>): Part[] =>
+  amberFirst(
+    [
+      cachePart(read, keeps),
+      keeps.has('cost') ? { say: read.spend.sentence, amber: undefined, says: [] } : null,
+      contextPart(read, keeps),
+      limitPart(read, read.fiveHour, 'calmFive', keeps),
+      limitPart(read, read.sevenDay, 'calmSeven', keeps),
+    ].filter((p): p is Part => p !== null),
+  )
+
+/** The sentence as one line of text, so it reads aloud and copies whole: a
+ *  figure bold in value ink, every other word in label ink, a warning on its
+ *  own ground. */
+const sentence = (kit: Kit, parts: readonly Part[]): RenderElement => {
+  const { Text, palette, oneLine } = kit
+  return oneLine(
+    {},
+    parts.flatMap((part, i) => [
+      i === 0 ? null : (
+        <Text key={`sep${i}`} color={palette.label}>
+          {BETWEEN_READINGS}
+        </Text>
+      ),
+      ...part.say.map(([text, role], j) => (
+        <Text
+          key={`${i}:${j}`}
+          color={palette[ROLE_INK[role]]}
+          bold={role === 'value'}
+          {...(role === 'amber' && palette.filled ? { backgroundColor: palette.amberBg } : {})}
+        >
+          {text}
+        </Text>
+      )),
+    ]),
+  )
+}
+
+/** The row fitted to its width, and the facts its sentence says. On the
+ *  desktop the sentence sits on one pill's ground; a terminal grounds the
+ *  whole row, toggle and all; plain draws it bare. */
+const fitted = (kit: Kit, read: Readings, act: BandActions): Readonly<{ row: RenderElement; shown: readonly Fact[] }> => {
+  const { Box, Svg, palette } = kit
   const toggle = toggleButton(kit, read, act)
-  const cost = words(kit, 'cost', [[read.spend.totalText, 'value']])
-  const calmCache = words(kit, 'cache', c.say)
-  // Cold, the short words keep the price: `cold ~$2.13`; a countdown keeps its words.
-  const calmCacheShort = c.condition === 'cold' ? words(kit, 'cache', c.sayShort) : calmCache
-  const calmContext = words(kit, 'ctx', x.say)
-  const separated = separatedBy(kit, '·', 4)
-  return [
-    fitLine(kit, ORDER, lineRoom(kit), keeps => {
-      const pieces = [
-        amberOr(kit, 'cache', c.amber, keeps, keeps.has('cacheWords') ? calmCache : calmCacheShort),
-        keeps.has('cost') ? cost : null,
-        // Unreported, the context says nothing collapsed; open, its section says so.
-        x.known ? amberOr(kit, 'ctx', x.amber, keeps, keeps.has('calmContext') ? calmContext : null) : null,
-        read.fiveHour === undefined ? null : limitPiece(kit, read.fiveHour, 'calmFive', keeps),
-        read.sevenDay === undefined ? null : limitPiece(kit, read.sevenDay, 'calmSeven', keeps),
-      ].filter((p): p is RenderElement => p !== null)
-      return line(kit, 'line', separated(pieces), toggle, 1)
-    }),
-  ]
+  let shown: readonly Fact[] = []
+  const row = fitLine(kit, ORDER, kit.columns - ROW_SLACK, keeps => {
+    const parts = partsOf(read, keeps)
+    // The line drawn is the last one built.
+    shown = parts.flatMap(part => part.says)
+    return (
+      <Box
+        key="row"
+        flexDirection="row"
+        flexWrap="nowrap"
+        overflow="hidden"
+        columnGap={1}
+        {...(palette.filled && !Svg ? { backgroundColor: palette.surface } : {})}
+      >
+        <Box key="sentence" flexShrink={1} minWidth={0} {...(Svg ? { backgroundColor: palette.surface, paddingX: 1 } : {})}>
+          {sentence(kit, parts)}
+        </Box>
+        <Box flexGrow={1} />
+        {toggle}
+      </Box>
+    )
+  })
+  return { row, shown }
 }
 
-/** Ledger's limit sentences: `5h 4%, resets in 3h 00m, on pace for ~10%`. */
-const SENTENCE: SentenceStyle = { lead: 'text', reset: 'resetWords', sep: ', ' }
-
-/** The facts behind ▵: four columns of short sentences. */
-const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
-  const c = read.cache
-  const x = read.context
-  const s = read.spend
-  const room = gridRoom(kit, bodyRows)
-  const sentence = (key: string, text: string | undefined): RenderChildren => (text === undefined ? null : words(kit, key, [[text, 'value']]))
-  return grid(kit, [
-    section(kit, 'cache', 'CACHE', [
-      sentence('now', c.value),
-      sentence('reWarm', c.reWarmText),
-      c.savedText === undefined || c.hitText === undefined ? null : sentence('saved', `saved ${c.savedText}, ${c.hitText} hit rate`),
-      sentence('lasts', `lasts ${c.lastsText}`),
-    ], room),
-    section(kit, 'spend', 'SPEND', [
-      sentence('total', `${s.totalText} this session`),
-      s.lastText === undefined ? null : sentence('last', `last message ${s.lastText}`),
-      sentence('tokens', `${s.tokensText} tokens: ${s.split.map(part => `${part.text} ${part.label}`).join(', ')}`),
-    ], room),
-    section(kit, 'context', 'CONTEXT', !x.known ? [emptyWords(kit, 'none', EMPTY.context)] : [
-      sentence('pct', `${x.valueText} ${x.towardText}`),
-      sentence('in', x.compactsAtText === undefined ? `${x.inContextText} in context` : `${x.inContextText} in context, compacts at ${x.compactsAtText}`),
-      x.roomText === undefined ? null : sentence('room', `${x.roomText} room in a ${x.windowText} window`),
-    ], room),
-    // What needs you leads, so a body short of rows keeps it; an amber
-    // closest limit is named by its own sentence.
-    section(kit, 'limits', 'LIMITS', read.limits.length === 0 ? [emptyWords(kit, 'none', EMPTY.limits)] : [
-      ...read.limits.filter(l => l.amber !== undefined).map(l => limitSentence(kit, l, SENTENCE)),
-      read.worstLimit === undefined || read.worstLimit.amber !== undefined ? null : sentence('closest', `closest is ${read.worstLimit.text}`),
-      ...read.limits.filter(l => l.amber === undefined).map(l => limitSentence(kit, l, SENTENCE)),
-    ], room, anyAmber(read.limits)),
-  ], bodyRows)
+/** Fitted once, so the cards skip what that very row says. */
+export const ledgerView: View = {
+  name: 'ledger',
+  rows: { desktop: 1, terminal: 1 },
+  draw: (kit, read, act) => {
+    const { row, shown } = fitted(kit, read, act)
+    // Each window says its reset at its clock time, as the sentence does.
+    return cardsView(kit, read, act, [row], { shown, windowResets: 'clock', compactSplit: true, collapsedRows: rowsOf(ledgerView, kit) })
+  },
 }
-
-/** Ledger's own strip: the workspace as a sentence. */
-const strip: Strip = (kit, read) => (read.workspaceText === undefined ? null : words(kit, 'workspace', [[read.workspaceText, 'label']]))
-
-export const ledgerView = defineView('ledger', { desktop: 1, terminal: 1 }, lines, body, strip)

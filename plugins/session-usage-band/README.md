@@ -147,12 +147,12 @@ amber at once, the end of the row is clipped rather than wrapped.
 
 Chips is one of nine layouts. The other eight show the same readings in
 another shape, on a filled panel (bare in `plain`), and each opens with `▵`
-to its own view of every fact, under the workspace line and the same
-`Collapse` and `Hide band` buttons. Ledger writes the workspace line in
-plain words and departures as a flap on its board; the others draw it as
-chips does. Every layout turns amber at the same moments, by the same
-rules. Only chips has hover cards on its readings; the workspace line has
-them wherever it is drawn as chips draws it.
+to its own view of every fact, or as ledger does, to chips' cards, under
+the workspace line and the same `Collapse` and `Hide band` buttons.
+Departures writes the workspace line as a flap on its board; the others
+draw it as chips does. Every layout turns amber at the same moments, by
+the same rules. Only chips has hover cards on its readings; the workspace
+line has them wherever it is drawn as chips draws it.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-layouts-dark.png">
@@ -163,7 +163,7 @@ them wherever it is drawn as chips draws it.
 | --- | --- | --- |
 | `chips` | The row of chips above, and four cards behind `▵`; the default | 1 / 1 |
 | `gauges` | Two rows of labelled bars: the cache's time left, context up to compaction, and the 5h and 7d limits with a tick for how much of each window has gone | 2 / 2 |
-| `ledger` | The band in words alone, `·`-separated, with `! ` leading what needs you | 1 / 1 |
+| `ledger` | The band in plain words: one sentence, each reading named and `│`-separated, with `! ` leading what needs you; it opens into chips' cards | 1 / 1 |
 | `rings` | A ring per reading, its value over its label, with a dot on each limit for how much of the window has gone; the terminal draws a bar | 2 / 1 |
 | `pulse` | Trends rather than totals: each message's cost as bars, and which way the 5-hour limit is heading | 2 / 1 |
 | `tiles` | Each reading as a bold value over a small label, with a thin underline on the desktop | 2 / 2 |

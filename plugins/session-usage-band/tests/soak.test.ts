@@ -103,14 +103,14 @@ test('a calm ten-minute walk repaints once a minute, not once a second', LONG, a
 })
 
 test('with the cache cold, a reset countdown repaints as its minute turns', LONG, async ($, on) => {
-  const clock = setup(on, { store: { layout: 'ledger' } })
+  const clock = setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
-  const ui = await mountBand($, 'terminal', 120)
+  const ui = await mountBand($, 'terminal', 200)
   // Cold at 60 minutes; the 5h window resets at 3 hours.
   await clock.advance(61 * MIN)
-  expect(shown(await ui.drawn())).toMatch(/resets in 1h 59m/)
+  expect(shown(await ui.drawn())).toMatch(/↻ 1h 59m/)
   await clock.advance(1000)
-  expect(shown(await ui.drawn())).toMatch(/resets in 1h 58m/)
+  expect(shown(await ui.drawn())).toMatch(/↻ 1h 58m/)
   await ui.unmount()
 })
