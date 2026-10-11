@@ -64,14 +64,13 @@ This section describes chips, the default layout; the others are under
 | --- | --- | --- |
 | Cache | A battery that drains as the cache ages, and the time until it goes cold; `cache warm` while Claude is working, `cache warming` before a new conversation's first reply, `cache –` when the band loaded mid-conversation and hasn't measured it yet | Its last minute: `0:47 left · re-warm ~$0.52` |
 | Cost | The session's total so far | Never |
-| Tokens | Every token this conversation used | Never |
 | Context | How full the conversation is toward auto-compaction (`63% full`), or of the model window when compaction is off | Near compaction: `95% full · compacts in ~8k`. Without auto-compaction: 80% (`!`), 95% (`!!`) |
-| 5h | Your 5-hour limit: usage on a bar with a thumb at the fill's end, and the reset | 80%, or when your pace would fill it before it resets: `full in ~40m` |
+| 5h | Your 5-hour limit: usage on a bar, and the reset | 80%, or when your pace would fill it before it resets: `full in ~40m` |
 | 7d | Your weekly limit, the same way | 80% |
+| Tokens | Every token this conversation used | Never |
 
-A bar carries one number, the one beside it, with a thumb where its fill
-ends. Pace is in words, on the chip when it matters and in the Limits card
-always.
+A bar carries one number, the one beside it. Pace is in words, on the
+chip when it matters and in the Limits card always.
 Once a window's reset time has passed, its chip says `reset` until the next
 reply brings a fresh reading.
 
@@ -113,7 +112,7 @@ Then come four cards with every fact labelled:
 | Cache | Time left on a bar, what a re-warm would cost if it went cold, what the cache has saved, the hit rate, how long it lasts idle, unexpected rebuilds |
 | Spend | The session total, a bar of the token split with its legend (input, output, cache reads), your last message |
 | Context | How full toward auto-compaction, tokens in context, where compaction runs, room left, the model window |
-| Limits | The window closest to its limit, then each window (5h, 7d, a gateway's spend limit) with its bar and value, its reset and its pace in words: `on pace for ~50%` or `full before reset` |
+| Limits | The window closest to its limit, led by its reset and pace where the row doesn't say them, `resets Sat 13:30 · full before reset` (a countdown in departures); then each window (5h, 7d, a gateway's spend limit) with its bar and value, and each of the others named on a line of its own with its reset and pace in words: `5h resets 3h 00m · on pace for ~10%` |
 
 The cards sit four across when they fit, else two by two, each line sharing
 its width equally; on the desktop each has a visible border. A card's title
@@ -130,11 +129,11 @@ hides the band; `/usage-band` brings it back.
 At full width in the terminal, chips' row reads:
 
 ```
-◷ cache 52m   $3.19   Σ 225k   ◔ ██░░░░ 38% full   5h ░░░░░░ 4% │ ↻ 3h 00m   7d ██░░░░ 30% │ ↻ 2d 19h   ▵
+◷ cache 52m   $3.19   ◔ ██░░░░ 38% full   5h ░░░░░░ 4% │ ↻ 3h 00m   7d ██░░░░ 30% │ ↻ 2d 19h   Σ 225k   ▵
 ```
 
-On the desktop app's Code tab the glyphs are small icons, and the bars are
-drawn as SVG meters.
+On the desktop app's Code tab the glyphs are small icons, but for a
+reset's `↻`, and the bars are drawn as SVG meters.
 
 Chips' row stays on one line. As it narrows, pieces give way in this
 order: the tokens chip, the 7d reset time, the 5h reset time, the context
@@ -151,9 +150,10 @@ and icons, one bold figure to a reading, its words in label ink. Every
 layout opens with `▵` into the same four cards, Cache, Spend, Context and
 Limits, under the workspace line and the same `Collapse` and `Hide band`
 buttons; most layouts mark each card's head their own way, and no card
-repeats what the row above it already says. Every layout turns amber at the same
-moments, by the same rules, but for departures' last call, ten minutes
-before an hour's cache goes cold or a limit fills. Chips, rings, pulse,
+repeats what the row above it already says, but for gauges' Limits card,
+which leads with the worst window's reset as its board does. Every layout
+turns amber at the same moments, by the same rules, but for departures'
+last call, ten minutes before an hour's cache goes cold or a limit fills. Chips, rings, pulse,
 week and forecast explain each pill on hover with chips' own cards; the
 workspace line has them in every layout.
 

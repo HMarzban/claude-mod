@@ -5,7 +5,7 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
-## [0.13.0] - 2026-10-11
+## [0.13.0] - 2026-10-12
 
 ### Changed
 - Every layout is redesigned in one language, chips': its pills, tints and
@@ -35,13 +35,20 @@ version may change how the band reads.
   Cache, Spend, Context and Limits, under the workspace line and the
   `Collapse` and `Hide band` buttons. Most layouts mark each card's head
   their own way, with its bar, ring or countdown, and no card repeats what
-  the row above it says; as the row narrows and drops a fact, its card says it again.
+  the row above it says, but for gauges' Limits, which leads with the
+  worst window's reset as its board does. As the row narrows and drops a
+  fact, its card says it again.
 - Formatting: dollars are grouped, `$1,027`, and tokens reach billions,
   `2.1B`. A card's head is bold on its figure alone, its words lowercase in
-  label ink. Limits opens with what the row never says, the closest
-  window's reset at its clock time and its pace, `resets Sat 13:30 · full
-  before reset`. No fill ends in a bright thumb. The tokens chip comes
-  last, and a limit's reset is in label ink, its pace not bold.
+  label ink. Limits leads with the worst window's reset and pace, `resets
+  Sat 13:30 · full before reset` (a countdown in departures), then names
+  each other window on its own line, `5h resets 3h 00m · on pace for
+  ~10%`. No fill ends in a bright thumb. The tokens chip comes last, and a
+  limit's reset is in label ink, its pace not bold.
+- Departures' amber moment: its `LAST CALL` was the cache's last minute.
+  Its `! last call` now comes under 10 minutes before the cache goes cold
+  or a limit fills, never before a reset, so it is the one amber moment
+  that differs from every other layout's.
 
 ### Fixed
 - A limit with nothing used could say `on pace for ~0%`. Its window may
