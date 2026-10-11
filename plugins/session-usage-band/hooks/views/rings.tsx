@@ -1,174 +1,167 @@
-// Rings: a small ring per reading, its value over its label beside it; on a
-// limit, a dot marks how much of the window has gone. The terminal draws a
-// meter, the value and the label on one line.
+// Rings: chips' pills, each led by a 16 px ring where its reading has a cap,
+// its figure before its label: the cache drains, the context, 5h and 7d fill.
+// A limit's ring notches the time gone and dashes its projection; the
+// terminal draws each ring as a glyph. Open, the shared cards, each card's
+// own ring in its head.
 
-import type { RenderChildren, RenderElement } from 'claude-code'
-import { meter, ring } from '../charts'
+import type { RenderChildren } from 'claude-code'
+import { ring } from '../charts'
 import type { Kit } from '../kit'
-import type { CacheReading, ContextReading, LimitView, Readings, Tone } from '../reading'
+import { GIVES_WAY, ROW_SLACK, cellsOf, keeps } from '../layout'
+import type { CacheReading, ContextReading, LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
-import { EMPTY, type Amber } from '../words'
-import { toggleButton } from './frame'
-import { accentOf, amberFirst, amberSay, anyAmber, chartsIfRoom, emptyWords, fact, fitLine, grid, gridRoom, limitSentence, line, lineRoom, section, words, type Keeps, type SentenceStyle } from './parts'
-import { defineView } from './view'
+import type { Amber } from '../words'
+import type { Fact, Slots } from './cards'
+import { chipsPills, pillRow, shortAt } from './chips'
+import { accentOf } from './parts'
+import type { PillSpec } from './parts'
+import { defineCardsView, type Lens } from './view'
 
-/** What gives way as the line narrows, first to last; `marks`, `calmFive`
- *  and `amberRing` are the narrow-width ruling's. Amber's words never do. */
-const ORDER = ['labelsLong', 'resetText', 'calmSeven', 'cost', 'calmContext', 'marks', 'calmFive', 'amberRing'] as const
-type Piece = (typeof ORDER)[number]
-/** The collapsed ring, within spec §3.1's 22–30 px, and the expanded one. */
-const RING_PX = 26
-const BIG_PX = 64
+/** Every ring, in a pill and in a card's head, at most a lens slot's 16 px. */
+const RING_PX = 16
 
-const cacheRing = (kit: Kit, c: CacheReading, px: number, centre?: string): RenderChildren =>
-  ring(kit, { key: 'ring', alt: c.alt, frac: c.charge, color: kit.onTone(c.tone, kit.palette.warm), px, centre })
+/** Where a ring sits: in a pill, on its ground with air after it; in a card's head, neither. */
+type Place = Readonly<{ ground?: string; air?: boolean }>
 
-const contextRing = (kit: Kit, x: ContextReading, px: number, centre?: string): RenderChildren =>
-  ring(kit, { key: 'ring', alt: x.alt, frac: x.frac, color: kit.onTone(x.tone, kit.palette.meterFill), px, centre })
+const cacheRing = (kit: Kit, c: CacheReading, place: Place = {}): RenderChildren =>
+  ring(kit, { key: 'ring:cache', alt: c.alt, frac: c.charge, color: kit.onTone(c.tone, kit.palette.warm), px: RING_PX, ...place })
 
-/** A limit's ring in its window's accent, with a dot where the window has gone to. */
-const limitRing = (kit: Kit, l: LimitView, px: number, centre?: string): RenderChildren =>
-  ring(kit, { key: l.name, alt: l.alt, frac: l.frac, color: kit.onTone(l.tone, accentOf(kit, l)), px, centre, dot: l.gone })
+const contextRing = (kit: Kit, x: ContextReading, place: Place = {}): RenderChildren =>
+  ring(kit, { key: 'ring:context', alt: x.alt, frac: x.frac, color: kit.onTone(x.tone, kit.palette.meterFill), px: RING_PX, ...place })
 
-/** A reading as the collapsed line draws it: its ring and value, built once;
- *  its label, chosen by the squeeze; and the step it gives way at, if any. */
-type Figure = Readonly<{
-  key: string
-  tone: Tone
-  amber: Amber | undefined
-  ring: RenderChildren
-  value: RenderElement
-  label: (keeps: Keeps<Piece>) => string
-  step?: Piece
-}>
+/** A window's ring in its accent, notched where its window has gone to and
+ *  dashed to where it is heading; empty once it has reset. */
+const limitRing = (kit: Kit, l: LimitView, place: Place = {}): RenderChildren =>
+  ring(kit, {
+    key: `ring:${l.name}`,
+    alt: l.alt,
+    frac: l.passed ? 0 : l.frac,
+    color: kit.onTone(l.tone, accentOf(kit, l)),
+    px: RING_PX,
+    notch: l.gone,
+    projectTo: l.projectedFrac,
+    ...place,
+  })
 
-/** A figure's value: bold, and amber while its reading is. */
-const valueWords = (kit: Kit, text: string, tone: Tone): RenderElement => words(kit, 'value', [[text, tone === 'amber' ? 'amber' : 'value']], true)
-
-/** A figure at a squeeze: amber, its label is its reason, and its ring stays
- *  until `amberRing`, so it goes before the reason shortens; calm, its ring
- *  gives way at `marks`. */
-const drawFigure = (kit: Kit, f: Figure, keeps: Keeps<Piece>): RenderElement => {
-  const { Box, Svg } = kit
-  const label = words(kit, 'label', f.amber !== undefined ? amberSay(f.amber, keeps) : [[f.label(keeps), 'label']])
-  const ringKept = keeps.has(f.amber !== undefined ? 'amberRing' : 'marks')
-  return (
-    <Box key={f.key} flexDirection="row" columnGap={1} alignItems="center">
-      {ringKept ? f.ring : null}
-      {/* The desktop puts the value over its label; text surfaces, side by side. */}
-      <Box key="said" {...(Svg ? { flexDirection: 'column' as const } : { flexDirection: 'row' as const, columnGap: 1 })}>
-        {f.value}
-        {label}
-      </Box>
-    </Box>
-  )
+/** What a window's pill says after its figure at a squeeze: its pace, unless
+ *  an amber reason already says it, then its reset, each while kept. The 5h
+ *  counts down to its reset; the 7d names its day and time once known. */
+const limitTail = (l: LimitView, squeeze: number): Readonly<{ pace: string; reset: string | undefined }> => {
+  const five = l.key === '5h'
+  const step = l.tone === 'amber' ? (five ? 'amberFiveReset' : 'amberWeekReset') : five ? 'fiveReset' : 'weekReset'
+  const r = l.reset
+  if (!keeps(squeeze, step) || r?.kind !== 'in') return { pace: '', reset: undefined }
+  return { pace: l.fullIn === undefined ? l.pace : '', reset: l.key === '7d' ? (l.resetClock ?? r.text) : r.text }
 }
 
-const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
+/** Rings' pills at a squeeze: chips' own, keeping their keys, tints, tones,
+ *  hovers and give-way, each with its ring and figure in place of chips'
+ *  icon and words. Amber, a reading says its reason; calm, its figure in
+ *  bold, then its label, which shortens where chips' wording does: the
+ *  cache's and the spend's go, the context's is `ctx`. */
+const ringsPills = (kit: Kit, read: Readings, squeeze: number): PillSpec[] => {
+  const { Text, palette, onTone, icon } = kit
+  const short = shortAt(kit, squeeze)
+  const figure = (text: string, color: string) => (
+    <Text key="v" color={color} bold>
+      {text}
+    </Text>
+  )
+  const label = (text: string, color = palette.label) => <Text key="l" color={color}>{` ${text}`}</Text>
+  const amber = (a: Amber) => (
+    <Text key="amber" color={palette.amberFg}>
+      {short ? a.short : a.long}
+    </Text>
+  )
   const c = read.cache
   const x = read.context
-  // Built once: none of these changes with the squeeze.
-  const toggle = toggleButton(kit, read, act)
-  // Long, the cache's label names its condition, unless its value already does
-  // (warming, or warm with no countdown); cold, the price to re-warm it, which
-  // stays once the labels shorten, since a cold cache is a price.
-  const valueNamesCondition = c.condition === 'warming' || (c.condition === 'warm' && c.leftShort === '')
-  const cacheLong = c.condition === 'cold' ? `re-warm ${c.estimate}` : valueNamesCondition ? 'cache' : `cache ${c.condition}`
-  const cacheShort = c.condition === 'cold' ? c.estimate : 'cache'
-  const cache: Figure = {
-    key: 'cache',
-    tone: c.tone,
-    amber: c.amber,
-    ring: cacheRing(kit, c, RING_PX),
-    value: valueWords(kit, c.leftShort === '' ? c.value : c.leftShort, c.tone),
-    label: keeps => (keeps.has('labelsLong') ? cacheLong : cacheShort),
+  const bodyOf = (spec: PillSpec): RenderChildren[] => {
+    // A pill's ring sits on its ground, as pill() paints it.
+    const place: Place = { ground: onTone(spec.tone, spec.bg ?? palette.surface, palette.amberBg), air: true }
+    switch (spec.key) {
+      case 'cache':
+        return [cacheRing(kit, c, place), ...(c.amber ? [amber(c.amber)] : [figure(c.leftShort === '' ? c.value : c.leftShort, palette.value), short ? null : label('cache')])]
+      case 'cost':
+        return [figure(read.spend.totalText, palette.value), short ? null : label('spent')]
+      case 'ctx':
+        return [
+          keeps(squeeze, 'contextMeter') ? contextRing(kit, x, place) : null,
+          ...(x.amber ? [amber(x.amber)] : [figure(x.valueText, palette.value), label(short ? 'ctx' : 'context')]),
+        ]
+      case 'tokens':
+        return [figure(read.spend.tokensText, palette.value), label('tokens')]
+    }
+    const l = spec.key === '5h' ? read.fiveHour : read.sevenDay
+    if (l === undefined) return spec.body
+    const fg = onTone(l.tone, l.key === '5h' ? palette.fiveFg : palette.weekFg)
+    const mark = keeps(squeeze, 'limitBars') ? limitRing(kit, l, place) : null
+    if (l.passed) return [mark, <Text key="l" color={fg}>{l.text}</Text>]
+    const { pace, reset } = limitTail(l, squeeze)
+    // The pace and the reset are qualifiers, in label ink.
+    const ink = onTone(l.tone, palette.label)
+    return [
+      mark,
+      ...(l.amber ? [amber(l.amber)] : [figure(l.valueMarked, fg), label(l.name, fg)]),
+      pace === '' ? null : <Text key="p" color={ink}>{` │ ${pace}`}</Text>,
+      ...(reset === undefined ? [] : [<Text key="d" color={palette.label}>{' │ '}</Text>, ...icon('reset', ink), <Text key="r" color={ink}>{reset}</Text>]),
+    ]
   }
-  // Unreported, the context says nothing collapsed; open, its section says so.
-  const context: Figure | undefined = !x.known ? undefined : {
-    key: 'ctx',
-    tone: x.tone,
-    amber: x.amber,
-    ring: contextRing(kit, x, RING_PX),
-    value: valueWords(kit, x.valueText, x.tone),
-    label: keeps => (keeps.has('labelsLong') ? 'context' : 'ctx'),
-    step: 'calmContext',
-  }
-  const limit = (l: LimitView | undefined, step: Piece): Figure | undefined => l === undefined ? undefined : {
-    key: l.name,
-    tone: l.tone,
-    amber: l.amber,
-    ring: limitRing(kit, l, RING_PX),
-    value: valueWords(kit, l.valueText, l.tone),
-    // The reset is its own step: it gives way after the long labels, whatever they say.
-    label: keeps => {
-      const name = keeps.has('labelsLong') ? `${l.name} limit` : l.name
-      return keeps.has('resetText') && l.resetGlyph !== undefined ? `${name} ${l.resetGlyph}` : name
-    },
-    step,
-  }
-  const cost: Figure = {
-    key: 'cost',
-    tone: 'calm',
-    amber: undefined,
-    ring: null,
-    value: valueWords(kit, read.spend.totalText, 'calm'),
-    label: () => 'this session',
-    step: 'cost',
-  }
-  const figures = [cache, context, limit(read.fiveHour, 'calmFive'), limit(read.sevenDay, 'calmSeven'), cost].filter((f): f is Figure => f !== undefined)
-  return [
-    fitLine(kit, ORDER, lineRoom(kit), keeps =>
-      line(kit, 'line', figures.map(f => (f.step === undefined || keeps.calm(f.step, f.tone) ? drawFigure(kit, f, keeps) : null)), toggle),
-    ),
-  ]
+  // Chips' terminal cache is a battery painting its own ground; rings' is a pill, its ring the battery.
+  return chipsPills(kit, read, squeeze).map(spec => ({ ...spec, body: bodyOf(spec), paintsOwnBg: false }))
 }
 
-/** A limit as a row of its panel: `5h 4% · ↻ in 3h 00m · on pace for ~10%`. */
-const SENTENCE: SentenceStyle = { lead: 'say', reset: 'resetGlyph', sep: ' · ' }
+/** Rings' row squeezed until it fits, as chips' is, with the squeeze and the pills it fits at. */
+const fit = (kit: Kit, read: Readings, act: BandActions) => {
+  const room = kit.columns - ROW_SLACK
+  for (let squeeze = 0; ; squeeze++) {
+    const pills = ringsPills(kit, read, squeeze)
+    const row = pillRow(kit, read, act, pills)
+    if (squeeze === GIVES_WAY.length || cellsOf(row, kit.measure) <= room) return { row, squeeze, pills }
+  }
+}
 
-/** The facts behind ▵: four panels, each with its big ring and its facts. */
-const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
-  const { Box, Svg, palette: p } = kit
-  const c = read.cache
-  const x = read.context
-  const s = read.spend
-  const room = gridRoom(kit, bodyRows)
-  // A 64 px ring takes three rows on the desktop, one meter line elsewhere.
-  const ringRows = Svg ? 3 : 1
-  const windows = [read.fiveHour, read.sevenDay].filter((l): l is LimitView => l !== undefined)
-  // The donut is drawn as its split bar, a meter per part in spec §2.10's
-  // inks (§3.1). A ring draws one window, so 5h and 7d stand side by side.
-  const splitInks = [p.meterFill, p.label, p.value] as const
-  const limitRings = windows.length === 0 ? null : (
-    <Box key="rings" flexDirection="row" columnGap={1}>
-      {/* Passed, the ring draws no figure: `reset` overruns its hole, and the row says it. */}
-      {windows.map(l => limitRing(kit, l, BIG_PX, l.passed ? undefined : l.value))}
+/** Actions set what a press does, never a width: the lens fits the row without them. */
+const MEASURING: BandActions = { toggleExpanded: async () => undefined, hide: async () => undefined }
+
+/** What the row says at a squeeze that a card would: the worst window's reset
+ *  and pace, an amber cache's price, an amber context's room. */
+const shownAt = (kit: Kit, read: Readings, squeeze: number, pills: readonly PillSpec[]): Fact[] => {
+  const drawn = new Set(pills.map(spec => spec.key))
+  const long = !shortAt(kit, squeeze)
+  const worst = read.worstLimit
+  const tail = worst !== undefined && drawn.has(worst.key) ? limitTail(worst, squeeze) : undefined
+  const facts: Fact[] = []
+  if (tail?.reset !== undefined) facts.push('reset')
+  // An amber reason with a measured fill says the pace itself, kept or not.
+  if (tail !== undefined && (tail.pace !== '' || (worst?.amber !== undefined && worst.fullIn !== undefined))) facts.push('pace')
+  if (read.cache.amber !== undefined && long) facts.push('reWarm')
+  if (read.context.amber !== undefined && long && drawn.has('ctx') && read.context.roomText !== undefined) facts.push('room')
+  return facts
+}
+
+/** Each card's own ring in its head, at its end beside the headline; the
+ *  spend has no cap, so no ring. */
+const slotsOf = (kit: Kit, read: Readings): Slots => {
+  const { Box } = kit
+  const windows = [read.fiveHour, read.sevenDay].filter(l => l !== undefined)
+  const atEnd = (rings: RenderChildren[]) => (
+    <Box flexGrow={1} flexDirection="row" justifyContent="flex-end" columnGap={1}>
+      {rings}
     </Box>
   )
-  return grid(kit, [
-    section(kit, 'cache', 'CACHE', chartsIfRoom(room, [cacheRing(kit, c, BIG_PX, c.leftShort === '' ? undefined : c.leftShort)], [
-      words(kit, 'now', [[c.value, 'value']]),
-      c.reWarmText === undefined ? null : words(kit, 'reWarm', [[c.reWarmText, 'value']]),
-      fact(kit, 'saved', 'saved', c.savedText),
-      fact(kit, 'hit', 'hit rate', c.hitText),
-      fact(kit, 'lasts', 'lasts', c.lastsText),
-    ], ringRows), room),
-    section(kit, 'spend', 'SPEND', chartsIfRoom(room, s.split.map((part, i) => meter(kit, { key: `split${i}`, label: part.label, frac: part.frac, tone: 'calm', accent: splitInks[i] ?? p.meterFill, reads: 'share' })), [
-      fact(kit, 'total', 'session', s.totalText),
-      fact(kit, 'last', 'last message', s.lastText),
-      ...s.split.map(part => fact(kit, part.label, part.label, part.text)),
-    ]), room),
-    section(kit, 'context', 'CONTEXT', !x.known ? [emptyWords(kit, 'none', EMPTY.context)] : chartsIfRoom(room, [contextRing(kit, x, BIG_PX, x.valueText)], [
-      words(kit, 'pct', [[`${x.valueText} ${x.towardText}`, 'value']]),
-      fact(kit, 'in', 'in context', x.inContextText),
-      fact(kit, 'at', 'compacts at', x.compactsAtText),
-      fact(kit, 'room', 'room', x.roomText),
-    ], ringRows), room),
-    // What needs you leads, so a panel short of rows keeps it.
-    section(kit, 'limits', 'LIMITS', read.limits.length === 0 ? [emptyWords(kit, 'none', EMPTY.limits)] : chartsIfRoom(room, [limitRings], [
-      ...amberFirst(read.limits).map(l => limitSentence(kit, l, SENTENCE)),
-    ], ringRows), room, anyAmber(read.limits)),
-  ], bodyRows)
+  return {
+    cache: atEnd([cacheRing(kit, read.cache)]),
+    ...(read.context.known ? { context: atEnd([contextRing(kit, read.context)]) } : {}),
+    ...(windows.length > 0 ? { limits: atEnd(windows.map(l => limitRing(kit, l))) } : {}),
+  }
 }
 
-export const ringsView = defineView('rings', { desktop: 2, terminal: 1 }, lines, body)
+/** Open, each card's ring and what the row already says; shut, no card is
+ *  drawn, so the row isn't fitted twice. */
+const lens: Lens = (kit, read) => {
+  if (!read.frame.expanded) return {}
+  const { squeeze, pills } = fit(kit, read, MEASURING)
+  return { slots: slotsOf(kit, read), shown: shownAt(kit, read, squeeze, pills) }
+}
+
+export const ringsView = defineCardsView('rings', { desktop: 1, terminal: 1 }, (kit, read, act) => [fit(kit, read, act).row], lens)

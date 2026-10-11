@@ -60,8 +60,9 @@ test('every layout\'s toggle points the way the band will move: up while shut, d
 })
 test('every new view draws its empty states in a label\'s ink', () => {
   // Departures writes them on its board, upper case, in the board's ink.
-  // At 40 columns pulse's desktop says its short costs.
-  const layouts = LAYOUT_NAMES.filter(name => name !== 'chips' && name !== 'departures')
+  // At 40 columns pulse's desktop says its short costs. Rings opens into
+  // chips' cards, which leave out a section with nothing reported.
+  const layouts = LAYOUT_NAMES.filter(name => name !== 'chips' && name !== 'departures' && name !== 'rings')
   const phrases = Object.values(EMPTY)
   const inks: string[] = []
   for (const layout of layouts)

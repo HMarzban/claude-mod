@@ -4,7 +4,7 @@
 
 import type { RenderChildren } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
-import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, firstRow, shown, walk, type Node } from './helpers'
+import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, byKey, firstRow, shown, walk, type Node } from './helpers'
 import type { Ttl } from '../hooks/cache'
 import { DESKTOP, ROW_PX, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
@@ -46,7 +46,8 @@ export const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
   contextNoCompaction: /! context \d+%|! ctx \d+%|! CONTEXT \d+%/,
   limit80: /! 5h|! NEAR LIMIT/,
   fiveHourAhead: /! 5h|! FULL/,
-  otherLimit80: /! spend \d+%|! NEAR LIMIT/,
+  // The shared cards mark it as chips does: LIMITS' headline, `spend 92%!`.
+  otherLimit80: /! spend \d+%|! NEAR LIMIT|spend \d+%!/,
 }
 /** Amber the collapsed part never shows: other limits are drawn only open (spec §2.7). */
 const OPEN_ONLY: ReadonlySet<AmberReason> = new Set(['otherLimit80'])
@@ -134,8 +135,8 @@ const coloursOf = (n: Node): string[] => {
   return [...colourProps(n.props ?? {}), ...[...source.matchAll(SVG_PAINT)].map(m => m[1] ?? '')]
 }
 
-/** What each glyph tier may draw (spec §3.2): the unicode tier's glyphs and braille, or ASCII alone. */
-const UNICODE_TIER = /^[\x20-\x7e█▓░▒│·↻Σ◷◔▿▵…±●■–↑↓\u2800-\u28ff]*$/
+/** What each glyph tier may draw (spec §3.2): the unicode tier's glyphs, rings' quarters and braille, or ASCII alone. */
+const UNICODE_TIER = /^[\x20-\x7e█▓░▒│·↻Σ◷○◔◑◕▿▵…±●■–↑↓\u2800-\u28ff]*$/
 const ASCII_TIER = /^[\x20-\x7e]*$/
 /** What a value missing from a phrase leaves drawn (spec §2.8), in any case: departures upper-cases its own. */
 const NOTHING = /\b(NaN|undefined|null)\b/i
@@ -197,7 +198,9 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   if (!svgDraws && svgs.length > 0) fail('svgPlacement', `${svgs.length} Svg where none draws`)
   for (const s of svgs) {
     const alt = s.props?.alt
-    if (typeof alt !== 'string' || alt === '' || typeof s.props?.width !== 'number') fail('svgProps', 'an Svg without an alt or a width')
+    // The shared cards' bars alone have no width: stretched, their card caps them.
+    const stretched = /preserveAspectRatio="none"/.test(typeof s.props?.source === 'string' ? s.props.source : '')
+    if (typeof alt !== 'string' || alt === '' || (typeof s.props?.width !== 'number' && !stretched)) fail('svgProps', 'an Svg without an alt or a width')
     if (s.props?.id !== undefined || SVG_BARRED.test(typeof s.props?.source === 'string' ? s.props.source : ''))
       fail('svgProps', 'an Svg with an id, a gradient, a pattern or a clipPath')
     if (typeof alt === 'string' && NOTHING.test(alt)) fail('empty', `an alt reads "${alt}"`)
@@ -234,7 +237,12 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   if (nodes > (ctx.expanded ? 1500 : 400)) fail('size', `${nodes} nodes`)
   if (ctx.expanded) {
     const tall = visualRows(tree, ctx.surface)
-    if (tall > ctx.maxRows) fail('height', `${tall} rows at maxRows ${ctx.maxRows}`)
+    // The shared cards keep each card to its head and a fact, so short of the
+    // rows those take the band runs over, as chips' does: its collapsed rows,
+    // the air and the buttons, and two rows a line of cards, a row apart.
+    const cardLines = (byKey(tree, 'cards')?.children ?? []).length
+    const floor = cardLines === 0 ? 0 : declared + 3 + 3 * cardLines - 1
+    if (tall > Math.max(ctx.maxRows, floor)) fail('height', `${tall} rows at maxRows ${ctx.maxRows}`)
   }
   return errors
 }
