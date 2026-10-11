@@ -64,12 +64,12 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/band.tsx` | `drawBand(elements, snapshot, actions)`: a pure function from a snapshot to a tree. It builds the kit and the readings, draws the chosen layout, and falls back to chips. |
 | `hooks/kit.tsx` | The drawing kit made once per draw: elements, the Svg gate, palette, measure, hover cards, gaps, icons. |
 | `hooks/reading.ts` | `readingsOf`: everything a view reads, built once per draw. Each section's facts, with its words from `words.ts`. |
-| `hooks/words.ts` | The phrasebook: every phrase a new layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. |
-| `hooks/views/view.ts` | `View`, `rowsOf`, `defineCardsView`, which makes a layout from its rows, its collapsed lines and its lens on the shared cards, and `defineView`, which makes one from its own body, until each layout moves to the cards. |
+| `hooks/words.ts` | The phrasebook: every phrase a layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. |
+| `hooks/views/view.ts` | `View`, `rowsOf`, and `defineCardsView`, which makes a layout from its rows, its collapsed lines and its lens on the shared cards. |
 | `hooks/views/index.ts` | `VIEWS`: every layout by name. |
 | `hooks/views/cards.tsx` | `openBody`, the open view every layout shares: chips' four cards and its footer, each card's head with the layout's lens, a headline or first row in the layout's words, and no card repeating what the collapsed lines show. |
-| `hooks/views/frame.tsx` | The toggle, and the expanded scaffold of the layouts still on `defineView`: the workspace strip, the view's body and the buttons. |
-| `hooks/views/parts.tsx` | The pieces several layouts draw: pills, the shared cache pill, and the lines, sections and grid they're laid out with. |
+| `hooks/views/frame.tsx` | The toggle every layout ends its row with, and the rows the shared cards get beneath the collapsed lines. |
+| `hooks/views/parts.tsx` | The pieces several layouts draw: pills, the cache's battery, the shared cache pill, and the lines they squeeze to fit and the words they're written in. |
 | `hooks/views/<name>.tsx` | One file per layout: `chips`, `gauges`, `ledger`, `rings`, `pulse`, `tiles`, `week`, `departures`, `forecast`. Chips exports its pill builders and its pill row, for a layout to compose. |
 | `hooks/strip.tsx` | The workspace strip: project, branch or worktree, changes, ahead/behind. |
 | `hooks/charts.tsx` | The charts: `meter`, `splitBar`, `ring`, `sparkline`, `barChart`, `dayCells`, `sliceCells`, `braille`. Each is an Svg on the desktop and text elsewhere. |

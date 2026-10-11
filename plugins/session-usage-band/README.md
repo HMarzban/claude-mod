@@ -6,10 +6,10 @@ it is one row of chips:
 
 ![The chip row, labelled: the cache countdown and what a re-warm will cost, the session cost, context toward auto-compaction, the 5-hour limit with its pace, the weekly limit and its reset, and the toggle that opens the cards](https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-anatomy.png)
 
-Eight more [layouts](#layouts) draw the same readings in other shapes:
-`gauges` (bars), `ledger` (words alone), `rings`, `pulse` (trends),
-`tiles`, `week` (day cells), `departures` (countdowns) or
-`forecast`. Try every state live on the [website](https://hmarzban.github.io/claude-mod/),
+Eight more [layouts](#layouts) draw the same readings in other shapes,
+each asking one question of them: `gauges` (bars), `ledger` (one
+sentence), `rings`, `pulse` (cost trends), `tiles`, `week` (day cells),
+`departures` (countdowns) or `forecast` (clock times). Try every state live on the [website](https://hmarzban.github.io/claude-mod/),
 and see the [changelog](CHANGELOG.md) for what changed in each version. Found
 something off? [Open an issue](https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml).
 
@@ -145,32 +145,34 @@ amber at once, the end of the row is clipped rather than wrapped.
 
 ## Layouts
 
-Chips is one of nine layouts. The other eight show the same readings in
-another shape, on a filled panel (bare in `plain`), and each opens with `▵`
-to its own view of every fact, or as ledger and pulse do, to chips' cards,
-under the workspace line and the same `Collapse` and `Hide band` buttons.
-Every layout draws the workspace line as chips does, and turns amber at the
-same moments, by the same rules, but for departures' last call, ten minutes
-before an hour's cache goes cold or a limit fills. Only chips has hover
-cards on its readings; the workspace line has them wherever it is drawn as
-chips draws it.
+Chips is one of nine layouts. The other eight each ask one question of
+the same readings and draw its answer in chips' language: its pills, tints
+and icons, one bold figure to a reading, its words in label ink. Every
+layout opens with `▵` into the same four cards, Cache, Spend, Context and
+Limits, under the workspace line and the same `Collapse` and `Hide band`
+buttons; a layout heads each card its own way, and no card repeats what
+the row above it already says. Every layout turns amber at the same
+moments, by the same rules, but for departures' last call, ten minutes
+before an hour's cache goes cold or a limit fills. Chips, rings, pulse,
+week and forecast explain each pill on hover with chips' own cards; the
+workspace line has them in every layout.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-layouts-dark.png">
   <img alt="The nine layouts on the desktop, each drawn twice from the band's own output, calm and in the cache's last minute: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" src="https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-layouts-light.png">
 </picture>
 
-| Layout | Shows | Rows (desktop / terminal) |
+| Layout | Asks, and shows | Rows (desktop / terminal) |
 | --- | --- | --- |
-| `chips` | The row of chips above, and four cards behind `▵`; the default | 1 / 1 |
-| `gauges` | Four bars on one scale in a 2×2 grid: the cache's time left as a battery, context up to compaction, and the 5h and 7d limits notched where each window's time has gone | 2 / 2 |
-| `ledger` | The band in plain words: one sentence, each reading named and `│`-separated, with `! ` leading what needs you; it opens into chips' cards | 1 / 1 |
-| `rings` | A ring per reading, its value over its label, with a dot on each limit for how much of the window has gone; the terminal draws a bar | 2 / 1 |
-| `pulse` | Is my spending speeding up? Chips' pills with each message's cost and the last hour of the 5h limit drawn inside them; it opens into chips' cards, their heads carrying the history | 1 / 1 |
-| `tiles` | Every reading side by side in equal tiles, figure first, with a bar or the cache's battery where there's a cap | 1 / 1 |
-| `week` | How your week looks: the weekly limit as seven day cells in its pill, solid where measured and dashed where guessed, a notch in today and the day the guess fills it; open, the 5-hour limit by the hour | 1 / 1 |
-| `departures` | Every reading as a countdown in chips' pills, soonest first: the cache, the 5h and 7d resets or when they fill, the messages to compaction, then the spend. Under 10 minutes from cold or full, the cache's or a limit's is its `! last call` | 1 / 1 |
-| `forecast` | What changes next, and when: each reading's next change as a chip, its clock time in bold, soonest first, so the cache goes cold at 16:13 and the 7d fills ~Mon | 1 / 1 |
+| `chips` | Is my cache warm, what is this costing, am I near a limit? The row of chips above; the default | 1 / 1 |
+| `gauges` | How much room is left on each meter, and is it filling faster than the clock? Four bars on one scale in a 2×2 grid: the cache's time left as a battery, context up to compaction, and the 5h and 7d limits notched where each window's time has gone; then the cost | 2 / 2 |
+| `ledger` | What does the band say, in plain words? One sentence, each reading named and bold on its figure alone, `│` between readings and `·` within one, what needs you moved to the front | 1 / 1 |
+| `rings` | How full is each one? Chips' pills, each led by a small ring where its reading has a cap: the cache drains, the context and the limits fill, a limit's ring notched for the time gone and dashed to where it lands; the terminal draws each ring as a glyph | 1 / 1 |
+| `pulse` | Is my spending speeding up? Chips' pills with each message's cost as bars beside the total and the last hour of the 5h limit drawn inside them; open, the cards' heads carry the history | 1 / 1 |
+| `tiles` | How does everything compare? One row of equal tiles, each its figure, its label and, where there's a cap, a bar or the cache's battery | 1 / 1 |
+| `week` | How does my week look? The weekly limit's pill holds seven day cells, solid where measured and dashed where guessed, a notch in today and the day the guess fills it named; open, the 5-hour limit by the hour | 1 / 1 |
+| `departures` | How long until each thing goes? Every reading as a countdown in chips' pills, soonest first, `›` between them: the cache, the 5h and 7d resets or when they fill, the messages to compaction, then the spend. Under 10 minutes from cold or full, the cache's or a limit's is its `! last call` | 1 / 1 |
+| `forecast` | What changes next, and at what clock time? Each reading's next change as a chip, its time the figure, soonest first and amber in front, so the cache goes cold at 16:13 and the 7d fills ~Mon | 1 / 1 |
 
 ```
 /usage-band layout pulse    # draw pulse; /usage-band layout chips goes back
