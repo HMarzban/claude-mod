@@ -12,18 +12,26 @@ import type { CacheReading, ContextReading, LimitView, Readings, Tone } from '..
 import type { BandActions } from '../snapshot'
 import type { ReadingAmber, Say } from '../words'
 import { limitTint, pillRow, type ChipKey } from './chips'
-import { accentOf, amberFirst, batteryMark, fitLine, once, words, type Keeps, type PillSpec } from './parts'
+import { GLYPH } from '../icons'
+import { accentOf, amberFirst, batteryMark, fitLine, words, type Keeps, type PillSpec } from './parts'
 import { defineCardsView, type Lens } from './view'
 
 /** What gives way as the row narrows, first to last: the board's tokens,
  *  resets, bar length and calm 7d, then chips' calm context and 5h around
  *  the marks, the tiles' even widths, then the calm spend, so a tile goes
- *  before a figure loses its name, and last the labels. Amber never does. */
-const ORDER = ['tokens', 'resets', 'barLength', 'calmSeven', 'calmContext', 'marks', 'calmFive', 'evenWidths', 'calmCost', 'labels'] as const
+ *  before a figure loses its name, and last the labels. On the desktop a
+ *  reset's ↻ goes before its words. Amber never does. */
+const ORDER = ['tokens', 'resetGlyph', 'resets', 'barLength', 'calmSeven', 'calmContext', 'marks', 'calmFive', 'evenWidths', 'calmCost', 'labels'] as const
 type Piece = (typeof ORDER)[number]
 
-/** A tile's mark, then once the bar length gives way; a card head's. */
-const MARK: BarSize = { px: 40, cells: 6 }
+/** A tile's mark at its lengths, longest first, a cell shorter each: the
+ *  row takes the longest it holds before a word gives way, and the shortest
+ *  once the bar length has. A card head's mark. */
+const MARKS: readonly BarSize[] = [
+  { px: 40, cells: 6 },
+  { px: 32, cells: 5 },
+  { px: 24, cells: 4 },
+]
 const SHORT_MARK: BarSize = { px: 24, cells: 4 }
 const SLOT: BarSize = { px: 64, cells: 6 }
 
@@ -38,19 +46,21 @@ type Tile = Readonly<{
   figure: RenderElement
   /** Its name, or amber, its reason in its place. */
   label: (keeps: Keeps<Piece>) => RenderElement
-  /** Its mark, full or short; none where there's no cap. */
-  mark: (short: boolean) => RenderChildren
+  /** Its mark at a length; none where there's no cap. */
+  mark: (size: BarSize) => RenderChildren
   step?: Piece
 }>
 
 /** The columns every tile shares, or none once the tiles hug their text. */
 type Columns = Readonly<{ figure: number; label: number; mark: number }> | undefined
 
-/** A mark built at most once at each size, when first asked for. */
-const bySize = (make: (size: BarSize) => RenderChildren): ((short: boolean) => RenderChildren) => {
-  const full = once(() => make(MARK))
-  const short = once(() => make(SHORT_MARK))
-  return isShort => (isShort ? short() : full())
+/** A mark built at most once at each length, when first asked for. */
+const bySize = (make: (size: BarSize) => RenderChildren): ((size: BarSize) => RenderChildren) => {
+  const built = new Map<number, RenderChildren>()
+  return size => {
+    if (!built.has(size.cells)) built.set(size.cells, make(size))
+    return built.get(size.cells)
+  }
 }
 const NO_MARK = (): RenderChildren => null
 
@@ -84,20 +94,24 @@ const limitMark = (kit: Kit, l: LimitView, size: BarSize, ground: string): Rende
     dash: '╌',
   })
 
-/** A limit's tile, in its chip's tint, its name in its accent. */
+/** A limit's tile, in its chip's tint, its name in its accent, then its
+ *  reset whole as the board says it: the 5h counting down, the 7d at its
+ *  clock time. On the desktop ↻ goes first, then the reset whole. */
 const limitTile = (kit: Kit, l: LimitView, key: ChipKey): Tile => {
-  const { palette, onTone } = kit
+  const { Svg, palette, onTone } = kit
   const bg = limitTint(palette, key).bg
   const name = nameOf(l.amber, [l.name, key === '5h' ? 'accent5' : 'accent7'])
   const named = words(kit, 'label', [name])
-  const reset = l.resetShort === undefined ? named : words(kit, 'label', [name, [` ${l.resetShort}`, 'label']])
+  const when = l.resetSaid
+  const reset = when === undefined ? named : words(kit, 'label', [name, [` ${GLYPH.reset} ${when}`, 'label']])
+  const bare = when === undefined ? named : words(kit, 'label', [name, [` ${when}`, 'label']])
   return {
     key,
     tone: l.tone,
     amber: l.amber,
     bg,
     figure: figureOf(kit, l.valueText, l.tone),
-    label: keeps => (keeps.has('resets') ? reset : named),
+    label: keeps => (!keeps.has('resets') ? named : Svg && !keeps.has('resetGlyph') ? bare : reset),
     mark: l.passed ? NO_MARK : bySize(size => limitMark(kit, l, size, onTone(l.tone, bg, palette.amberBg))),
     step: key === '5h' ? 'calmFive' : 'calmSeven',
   }
@@ -136,27 +150,32 @@ const tilesOf = (kit: Kit, read: Readings): Tile[] => {
 /** A Box's width, when it has one. */
 const sized = (width: number | undefined) => (width === undefined ? {} : { width })
 
-/** A tile at a squeeze, in columns `cols`: its figure right-aligned, then
- *  its label, an amber one's kept, then its mark, or the room for one. */
-const tileSpec = (kit: Kit, t: Tile, keeps: Keeps<Piece>, cols: Columns): PillSpec => {
+/** A tile at a squeeze, its mark at `size`, in columns `cols`: its figure
+ *  right-aligned, then its label, an amber one's kept, then its mark, or the
+ *  room for one. In its equal width the label never shrinks and the mark
+ *  gives way first, so where a font runs wider than the measure no word is
+ *  cut. */
+const tileSpec = (kit: Kit, t: Tile, keeps: Keeps<Piece>, cols: Columns, size: BarSize): PillSpec => {
   const { Box } = kit
-  const mark =
-    cols === undefined || !keeps.has('marks') ? null : (
-      <Box key="mark" justifyContent="flex-end" width={cols.mark}>
-        {t.mark(!keeps.has('barLength'))}
-      </Box>
-    )
+  const labelled = keeps.calm('labels', t.tone)
+  const marked = cols !== undefined && keeps.has('marks')
+  const mark = marked ? (
+    <Box key="mark" justifyContent="flex-end" width={cols.mark} flexShrink={1} minWidth={0} overflow="hidden">
+      {t.mark(size)}
+    </Box>
+  ) : null
+  const width = cols === undefined ? undefined : cols.figure + (labelled ? 1 + cols.label : 0) + (marked ? 1 + cols.mark : 0)
   return {
     key: t.key,
     tone: t.tone,
     bg: t.bg,
     body: [
-      <Box key="tile" flexDirection="row" alignItems="center" columnGap={1}>
+      <Box key="tile" flexDirection="row" alignItems="center" columnGap={1} {...sized(width)}>
         <Box key="fig" justifyContent="flex-end" {...sized(cols?.figure)}>
           {t.figure}
         </Box>
-        {keeps.calm('labels', t.tone) ? (
-          <Box key="label" {...sized(cols?.label)}>
+        {labelled ? (
+          <Box key="label" flexShrink={0} {...(cols === undefined ? {} : { minWidth: cols.label })}>
             {t.label(keeps)}
           </Box>
         ) : null}
@@ -167,18 +186,31 @@ const tileSpec = (kit: Kit, t: Tile, keeps: Keeps<Piece>, cols: Columns): PillSp
 }
 
 /** Tiles' one row, squeezed until it fits: each tile as wide as the widest
- *  figure, label and mark the row keeps, so they all shrink together. */
+ *  figure, label and mark the row keeps, as the measure gives them, so they
+ *  all shrink together; its marks the longest the row holds. */
 const tilesRow = (kit: Kit, read: Readings, act: BandActions): RenderElement => {
   const { Svg, measure } = kit
   const tiles = tilesOf(kit, read)
-  const widest = (els: readonly RenderChildren[]) => Math.ceil(Math.max(0, ...els.map(el => cellsOf(el, measure))))
-  return fitLine(kit, ORDER, kit.columns - ROW_SLACK, keeps => {
+  const room = kit.columns - ROW_SLACK
+  const widest = (els: readonly RenderChildren[]) => Math.max(0, ...els.map(el => cellsOf(el, measure)))
+  return fitLine(kit, ORDER, room, keeps => {
     const kept = tiles.filter(t => t.step === undefined || keeps.calm(t.step, t.tone))
-    const size = keeps.has('barLength') ? MARK : SHORT_MARK
-    const cols: Columns = keeps.has('evenWidths')
-      ? { figure: widest(kept.map(t => t.figure)), label: widest(kept.map(t => t.label(keeps))), mark: Svg ? Math.ceil(size.px / measure.pxPerCell) : size.cells }
-      : undefined
-    return pillRow(kit, read, act, kept.map(t => tileSpec(kit, t, keeps, cols)))
+    const rowAt = (size: BarSize) => {
+      const cols: Columns = keeps.has('evenWidths')
+        ? { figure: widest(kept.map(t => t.figure)), label: widest(kept.map(t => t.label(keeps))), mark: Svg ? size.px / measure.pxPerCell : size.cells }
+        : undefined
+      return pillRow(kit, read, act, kept.map(t => tileSpec(kit, t, keeps, cols, size)))
+    }
+    // A cell shorter at a time before a word gives way; held by none, the
+    // longest, so the squeeze moves on.
+    const sizes = keeps.has('barLength') ? MARKS : [SHORT_MARK]
+    let first: RenderElement | undefined
+    for (const size of sizes) {
+      const row = rowAt(size)
+      if (cellsOf(row, measure) <= room) return row
+      first ??= row
+    }
+    return first ?? rowAt(SHORT_MARK)
   })
 }
 

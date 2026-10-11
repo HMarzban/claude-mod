@@ -53,9 +53,8 @@ const limitRing = (kit: Kit, l: LimitView, place: Place = {}): RenderChildren =>
 const limitTail = (l: LimitView, squeeze: number): Readonly<{ pace: string; reset: string | undefined }> => {
   const five = l.key === '5h'
   const step = l.tone === 'amber' ? (five ? 'amberFiveReset' : 'amberWeekReset') : five ? 'fiveReset' : 'weekReset'
-  const r = l.reset
-  if (!keeps(squeeze, step) || r?.kind !== 'in') return { pace: '', reset: undefined }
-  return { pace: l.fullIn === undefined ? l.pace : '', reset: l.key === '7d' ? (l.resetClock ?? r.text) : r.text }
+  if (!keeps(squeeze, step) || l.resetSaid === undefined) return { pace: '', reset: undefined }
+  return { pace: l.fullIn === undefined ? l.pace : '', reset: l.resetSaid }
 }
 
 /** Rings' pills at a squeeze: chips' own, keeping their keys, tints, tones,

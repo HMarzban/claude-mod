@@ -56,9 +56,9 @@ const boldOf = (n: unknown): string[] => {
 test('the row runs cache, spend, context, 5h and 7d, then the tokens', () => {
   expect(keysOf(rowOf())).toEqual(['cache', 'cost', 'ctx', '5h', '7d', 'tokens'])
 })
-test("each tile leads with its figure, then its label: a limit's reset in chips' short form", () => {
+test("each tile leads with its figure, then its label: the 5h's reset counting down, the 7d's at its clock time", () => {
   const said = tilesOf(rowOf()).map(shown)
-  const leads = [/^59m\s*cache/, /^\$1,027\s*spent$/, /^87%\s*context/, /^0%\s*5h ↻ 4h 55m/, /^66%\s*7d ↻ 5d 22h/, /^2\.1B\s*tokens$/]
+  const leads = [/^59m\s*cache/, /^\$1,027\s*spent$/, /^87%\s*context/, /^0%\s*5h ↻ 4h 55m/, /^66%\s*7d ↻ Tue 22:00/, /^2\.1B\s*tokens$/]
   expect(said.map((s, i) => leads[i]?.test(s))).toEqual(leads.map(() => true))
 })
 test('one bold per tile, on its figure, amber or calm', () => {
@@ -118,10 +118,13 @@ test('the toggle ends the row: ▵ shut, ▿ open', () => {
 test('the row gives way from the right: tokens, resets, bar length, then the calm 7d', () => {
   const at = (columns: number) => rowOf({ columns })
   expect(keysOf(at(160))).toEqual(['cache', 'cost', 'ctx', '5h', '7d'])
-  expect(shown(at(160))).toMatch(/↻ 4h 55m.*↻ 5d 22h/)
-  expect(shown(at(120))).not.toMatch(/↻/)
+  // Both resets whole at 160: the marks shorten a cell before a word gives way.
+  expect(shown(at(160))).toMatch(/0%\s*5h ↻ 4h 55m\s*░{5}66%\s*7d ↻ Tue 22:00\s*█*│█*╌+$/)
   const barCells = (row: Node) => shown(byKey(tile(row, 'ctx'), 'mark', 'Box')).length
-  expect(barCells(at(120))).toBeLessThan(barCells(at(160)))
+  expect(barCells(at(160))).toBe(5)
+  expect(barCells(at(200))).toBe(6)
+  expect(shown(at(120))).not.toMatch(/↻/)
+  expect(barCells(at(120))).toBeLessThan(barCells(at(200)))
   expect(keysOf(at(95))).toEqual(['cache', 'cost', 'ctx', '5h'])
   // Every tile shrinks together, never just one.
   for (const cols of [160, 120, 95]) expect(new Set(tilesOf(at(cols)).map(t => cellsOf(t as unknown as RenderChildren, TERMINAL))).size).toBe(1)
@@ -162,6 +165,35 @@ test('in ascii the marks are # - ~ | >, and the reset glyph drops', () => {
   expect(t).toMatch(/#+>/)
   expect(t).toMatch(/#*\|#*~+/)
   expect(t).toMatch(/5h 4h 55m/)
+  expect(t).toMatch(/7d Tue 22:00/)
+})
+test('on the desktop at 95 columns the row holds five tiles: only the tokens and both resets give way, the 7d keeping its fill, dash and notch', () => {
+  const row = rowOf(desk({ columns: 95 }))
+  expect(keysOf(row)).toEqual(['cache', 'cost', 'ctx', '5h', '7d'])
+  expect(shown(row)).not.toMatch(/↻/)
+  const seven = String(svgsOf(tile(row, '7d'))[0]?.props?.source)
+  expect(['class="fill"', 'class="projection"', 'class="tick"'].map(mark => seven.includes(mark))).toEqual([true, true, true])
+  // Each tile measured as the measure gives it, its columns not each rounded up a column.
+  expect(cellsOf(row as unknown as RenderChildren, DESKTOP)).toBeLessThanOrEqual(91)
+  expect(byKey(tile(row, 'cost'), 'fig', 'Box')?.props?.width).toBe(4.5)
+})
+test("on the desktop ↻ goes before a reset's words do; a reset goes whole, never cut", () => {
+  const labels = (columns: number) => ['5h', '7d'].map(key => shown(byKey(tile(rowOf(desk({ columns })), key), 'label', 'Box')))
+  expect(labels(200)).toEqual(['5h ↻ 4h 55m', '7d ↻ Tue 22:00'])
+  const widths = Array.from({ length: 106 }, (_, i) => 200 - i)
+  const bare = widths.find(columns => !labels(columns).join('').includes('↻'))
+  expect(bare === undefined ? [] : labels(bare)).toEqual(['5h 4h 55m', '7d Tue 22:00'])
+  for (const columns of widths) for (const label of labels(columns)) expect(`${columns} ${label}`).toMatch(/^\d+ (5h|7d)( (↻ )?(4h 55m|Tue 22:00))?$/)
+})
+test('inside an equal tile the mark gives way before the words: the label is never held to a width, the mark may shrink', () => {
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const t = tile(rowOf({ surface }), '7d')
+    const label = byKey(t, 'label', 'Box')?.props
+    const mark = byKey(t, 'mark', 'Box')?.props
+    expect([label?.width, label?.flexShrink]).toEqual([undefined, 0])
+    expect([mark?.flexShrink, mark?.minWidth, mark?.overflow]).toEqual([1, 0, 'hidden'])
+    expect(typeof byKey(t, 'tile', 'Box')?.props?.width).toBe('number')
+  }
 })
 test('open is the four cards, a mark in every head but the spend’s', () => {
   for (const surface of ['terminal', 'desktop'] as const) {
