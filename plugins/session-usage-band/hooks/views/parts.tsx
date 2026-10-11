@@ -100,25 +100,38 @@ export const batteryBar = (kit: Kit, charge: number, tone: Tone, alt: string, si
   )
 }
 
+/** Text in runs, each bold or not: a figure among its words. */
+export type BoldRuns = ReadonlyArray<readonly [text: string, bold: boolean]>
+
 /** On a text surface the battery is the pill itself: its charge painted as
  *  the background of the leading characters, draining right to left. `text`
- *  arrives in the glyphs it is drawn in, so the cut falls where it shows. */
-export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string): RenderChildren[] => {
+ *  arrives in the glyphs it is drawn in, so the cut falls where it shows; in
+ *  runs, a bold one stays bold either side of the cut. */
+export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string | BoldRuns): RenderChildren[] => {
   const { Text, palette, onTone } = kit
-  const chars = [...` ${text} `]
+  const runs: BoldRuns = typeof text === 'string' ? [[text, false]] : text
+  const pad = { ch: ' ', bold: false }
+  const chars = [pad, ...runs.flatMap(([run, bold]) => [...run].map(ch => ({ ch, bold }))), pad]
   const cut = Math.round(clamp01(charge) * chars.length)
   const fg = onTone(tone, palette.value)
+  /** One side of the cut: a Text for each run of one weight, or nothing. */
+  const side = (key: string, part: readonly (typeof pad)[], ground: string): RenderChildren[] => {
+    const pieces: Array<{ text: string; bold: boolean }> = []
+    for (const { ch, bold } of part) {
+      const last = pieces.at(-1)
+      if (last?.bold === bold) last.text += ch
+      else pieces.push({ text: ch, bold })
+    }
+    if (pieces.length === 0) return [null]
+    return pieces.map(({ text: run, bold }, i) => (
+      <Text key={i === 0 ? key : `${key}${i}`} color={fg} backgroundColor={ground} {...(bold ? { bold } : {})}>
+        {run}
+      </Text>
+    ))
+  }
   return [
-    cut > 0 ? (
-      <Text key="bf" color={fg} backgroundColor={onTone(tone, palette.batteryFill, palette.batteryAmber)}>
-        {chars.slice(0, cut).join('')}
-      </Text>
-    ) : null,
-    cut < chars.length ? (
-      <Text key="be" color={fg} backgroundColor={onTone(tone, palette.surface, palette.amberBg)}>
-        {chars.slice(cut).join('')}
-      </Text>
-    ) : null,
+    ...side('bf', chars.slice(0, cut), onTone(tone, palette.batteryFill, palette.batteryAmber)),
+    ...side('be', chars.slice(cut), onTone(tone, palette.surface, palette.amberBg)),
   ]
 }
 

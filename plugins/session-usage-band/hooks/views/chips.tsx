@@ -34,7 +34,8 @@ type LimitSpec = Readonly<{
   tint: (p: Readonly<Palette>) => Tint
 }>
 
-/** The two limit chips: one shape, their own tint and steps. */
+/** The two limit chips: one shape, their own tint and steps. A layout's
+ *  own limit pills take their icon and tint from here. */
 export const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
   '5h': {
     icon: 'five',

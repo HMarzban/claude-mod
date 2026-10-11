@@ -40,17 +40,17 @@ export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({
 export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide: async () => undefined }
 
 /** Every layout's words for each amber trigger. ` · ` reads `, ` in the ascii
- *  tier. An other limit, open only, is the shared cards' LIMITS headline,
- *  marked as chips marks it: `spend 92%!`. */
+ *  tier, and ` - ` in departures'. An other limit, open only, is the shared
+ *  cards' LIMITS headline, marked as chips marks it: `spend 92%!`. */
 export const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
   // Gauges' mark leads its gauge, its bar between the name and the figure;
   // tiles' figure comes first, its reason beside it: `30s! cache`, `98%! context`.
-  cacheLastMinute: /! \d+s( left)?|LAST CALL|! cooling( ·|,) \d+s left|! cache\W*\d+s|\d+s ?! cache/,
-  nearCompaction: /! context\W*\d+%|! ctx\W*\d+%|! COMPACTS IN ~|\d+% ?! context/,
-  contextNoCompaction: /! context\W*\d+%|! ctx\W*\d+%|! CONTEXT \d+%|\d+% ?! context/,
-  limit80: /! 5h|! NEAR LIMIT/,
-  fiveHourAhead: /! 5h|! FULL/,
-  otherLimit80: /! spend \d+%|! NEAR LIMIT|spend \d+%!/,
+  cacheLastMinute: /! \d+s( left)?|! last call|! cooling( ·|,) \d+s left|! cache\W*\d+s|\d+s ?! cache/,
+  nearCompaction: /! context\W*\d+%|! ctx\W*\d+%|\d+% ?! context/,
+  contextNoCompaction: /! context\W*\d+%|! ctx\W*\d+%|\d+% ?! context/,
+  limit80: /! (last call [·-] )?5h/,
+  fiveHourAhead: /! (last call [·-] )?5h/,
+  otherLimit80: /! spend \d+%|spend \d+%!/,
 }
 /** Amber the collapsed part never shows: other limits are drawn only open (spec §2.7). */
 const OPEN_ONLY: ReadonlySet<AmberReason> = new Set(['otherLimit80'])
@@ -139,9 +139,9 @@ const coloursOf = (n: Node): string[] => {
 }
 
 /** What each glyph tier may draw (spec §3.2): the unicode tier's glyphs, rings' quarters and braille, or ASCII alone. */
-const UNICODE_TIER = /^[\x20-\x7e█▓░▒│╌╸·↻Σ◷○◔◑◕▿▵…±●■–↑↓\u2800-\u28ff]*$/
+const UNICODE_TIER = /^[\x20-\x7e█▓░▒│╌╸·›↻Σ◷○◔◑◕▿▵…±●■–↑↓\u2800-\u28ff]*$/
 const ASCII_TIER = /^[\x20-\x7e]*$/
-/** What a value missing from a phrase leaves drawn (spec §2.8), in any case: departures upper-cases its own. */
+/** What a value missing from a phrase leaves drawn (spec §2.8), in any case. */
 const NOTHING = /\b(NaN|undefined|null)\b/i
 /** What spec §2.9 bars from any Svg's markup: an id, a gradient, a pattern, a clipPath. */
 const SVG_BARRED = /<(linearGradient|radialGradient|pattern|clipPath)\b|\bid=/
@@ -266,6 +266,7 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   }
   return errors
 }
+
 
 /** Fails the test with every broken check named. */
 export const expectInvariants = (tree: Node, ctx: InvariantContext): void => {

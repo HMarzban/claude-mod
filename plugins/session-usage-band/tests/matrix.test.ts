@@ -126,7 +126,7 @@ test('estimate: a price or a fill time carries ~', () => {
   expect(failed(view([row(t('5h full 14:20'), toggle())]))).toContain('estimate')
   expect(failed(view([row(t('7d on pace for 50%'), toggle())]))).toContain('estimate')
   expect(failed(view([row(t('last message $0.21'), toggle())]))).not.toContain('estimate')
-  expect(failed(view([row(t('! FULL ~14:20'), toggle())]))).not.toContain('estimate')
+  expect(failed(view([row(t('! 5h full ~14:20'), toggle())]))).not.toContain('estimate')
 })
 test('projection: a landing of 100% or more says full before reset', () => {
   expect(failed(view([row(t('7d ~112% at reset'), toggle())]), { scenario: 'sevenFullBeforeReset' })).toContain('projection')

@@ -25,7 +25,7 @@ export const drawnTier = (snap: Pick<BandSnapshot, 'surface' | 'glyphs'>): Glyph
 /** Each glyph the band draws, in ASCII; an empty mapping drops the glyph. */
 export const ASCII_MAP: Readonly<Record<string, string>> = {
   '█': '#', '░': '-', '▒': ':', '│': '|', '·': '-', '…': '.', '±': '+',
-  '●': '*', '■': '#', '–': '-', '↑': '+', '↓': '-', '▿': 'v', '▵': '^',
+  '●': '*', '■': '#', '–': '-', '↑': '+', '↓': '-', '▿': 'v', '▵': '^', '›': '>',
   // A projection's dash and a battery's cap: Neutral, but not ASCII.
   '╌': '~', '╸': '>',
   '↻': '', 'Σ': '', '◷': '', '◔': '',

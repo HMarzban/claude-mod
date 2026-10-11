@@ -2,7 +2,7 @@
 // resets, projections, ages, clipped names and the context in use.
 
 import { test, expect } from 'claude-code/testing'
-import { clipMiddle, clipWords, contextUsed, fmtAgo, fmtCost, fmtCountdown, fmtEstimate, fmtEta, fmtPct, fmtSmallCost, fmtTokens, resetIn } from '../hooks/format'
+import { clipMiddle, clipWords, contextUsed, fmtAgo, fmtCost, fmtCountdown, fmtEstimate, fmtEta, fmtEtaDays, fmtPct, fmtSmallCost, fmtTokens, resetIn } from '../hooks/format'
 
 const SEC = 1000
 const MIN = 60 * SEC
@@ -120,6 +120,15 @@ test('a projection from 57.5 minutes is in 15-minute steps, whole hours without 
   expect(fmtEta(82.4 * MIN)).toBe('~1h 15m')
   expect(fmtEta(82.5 * MIN)).toBe('~1h 30m')
   expect(fmtEta(120 * MIN)).toBe('~2h')
+})
+test("a projection keeps its hours past a day; departures' says whole days, rounded down", () => {
+  expect(fmtEta(36 * HOUR)).toBe('~36h')
+  expect(fmtEtaDays(23.5 * HOUR)).toBe('~23h 30m')
+  expect(fmtEtaDays(24 * HOUR)).toBe('~1d')
+  expect(fmtEtaDays(31.4 * HOUR)).toBe('~1d')
+  // Never later than it is: 36h is a day and a half, not two.
+  expect(fmtEtaDays(36 * HOUR)).toBe('~1d')
+  expect(fmtEtaDays(68 * HOUR)).toBe('~2d')
 })
 
 test('an age under a minute is now, then minutes, hours and minutes, days and hours', () => {

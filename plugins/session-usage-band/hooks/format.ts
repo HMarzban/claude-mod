@@ -2,6 +2,8 @@
 
 /** The cache's last minute: the one span where acting changes the bill. */
 export const SOON_MS = 60_000
+/** Departures' last call: an hour's cache this near cold, or a limit this near full, leads its row in amber. */
+export const LAST_CALL_MS = 10 * 60_000
 
 /** At this share a pill turns amber and gains `!`, and a toast speaks. */
 export const WARN_AT = 0.8
@@ -83,6 +85,9 @@ export const resetIn = (iso: string | undefined, now: number): ResetIn | undefin
 /** The words for escalation: colour is never the only signal. */
 export const severityMark = (frac: number): string => (frac >= SEVERE_AT ? '!!' : frac >= WARN_AT ? '!' : '')
 
+/** A day's minutes, from which a projection is said in days. */
+const DAY_MINUTES = 24 * 60
+
 /** A projection's whole minutes: 5-minute steps under an hour, 15 from one. */
 const etaMinutes = (ms: number): number => {
   const mins = Math.max(0, ms) / 60_000
@@ -95,6 +100,13 @@ export const fmtEta = (ms: number): string => {
   const hours = Math.floor(mins / 60)
   const rest = mins % 60
   return hours === 0 ? `~${mins}m` : rest ? `~${hours}h ${rest}m` : `~${hours}h`
+}
+
+/** Departures' projection: from a day, whole days rounded down, so it never
+ *  reads later than it is, `~1d`; under a day, as `fmtEta`. */
+export const fmtEtaDays = (ms: number): string => {
+  const days = Math.floor(etaMinutes(ms) / DAY_MINUTES)
+  return days >= 1 ? `~${days}d` : fmtEta(ms)
 }
 
 /** `text` at most `max` characters, cut in the middle: a branch keeps both
@@ -142,7 +154,7 @@ export const fmtClock = (ms: number, utcOffsetMin: number): string => hhmm(wallT
 const dayOf = (ms: number, utcOffsetMin: number): number => Math.floor(wallTime(ms, utcOffsetMin) / DAY_MS)
 
 /** Whether `ms` falls on the same local day as `now`. */
-export const isToday = (ms: number, utcOffsetMin: number, now: number): boolean => dayOf(ms, utcOffsetMin) === dayOf(now, utcOffsetMin)
+const isToday = (ms: number, utcOffsetMin: number, now: number): boolean => dayOf(ms, utcOffsetMin) === dayOf(now, utcOffsetMin)
 
 /** A clock time, with its weekday when it isn't today: `16:40`, `Mon 08:40`. */
 export const fmtDayClock = (ms: number, utcOffsetMin: number, now: number): string => {
@@ -183,16 +195,6 @@ export const fmtLeftShort = (ms: number): string =>
 
 /** A countdown in words for the new layouts: `1h 00m left`, `52m left`, `10m left`, `47s left`. */
 export const fmtLeft = (ms: number): string => `${fmtLeftShort(ms)} left`
-
-/** Whole minutes as a departures board says them: `1H 00 MIN`, `52 MIN`. */
-const boardSpan = (mins: number): string =>
-  mins >= 60 ? `${Math.floor(mins / 60)}H ${String(mins % 60).padStart(2, '0')} MIN` : `${mins} MIN`
-
-/** The countdown on a departures board: `IN 1H 00 MIN`, `IN 52 MIN`, never `52M`. */
-export const fmtBoardLeft = (ms: number): string => `IN ${boardSpan(minutesLeft(ms))}`
-
-/** A projection on a departures board, rounded as `fmtEta` rounds it: `IN ~40 MIN`, `IN ~1H 15 MIN`. */
-export const fmtBoardEta = (ms: number): string => `IN ~${boardSpan(etaMinutes(ms))}`
 
 const plural = (n: number, unit: string): string => `${n} ${unit}${n === 1 ? '' : 's'}`
 

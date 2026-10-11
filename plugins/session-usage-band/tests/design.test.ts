@@ -60,18 +60,17 @@ for (const [name, p, hosts] of [
 
   test(`${name}: a hover card is inverted, its ink legible and its ground apart from every chip's and the band's`, () => {
     expect(contrast(p.tooltipFg, p.tooltipBg)).toBeGreaterThanOrEqual(4.5)
-    // Cards are drawn over chips' row and the workspace strip alone, never
-    // over a flap, so the grounds they cover are the chips' and the host's.
+    // Cards are drawn over chips' row and the workspace strip alone, so the
+    // grounds they cover are the chips' and the host's.
     const covered = [...pillGrounds, p.meterTrack, p.batteryFill, p.batteryAmber, ...hosts]
     const low = covered.filter(bg => contrast(p.tooltipBg, bg) < 3)
     expect(low.map(bg => `${bg} ${contrast(p.tooltipBg, bg).toFixed(2)}`)).toEqual([])
   })
 
-  test(`${name}: the new layouts' text and marks hold on the card ground and on flaps`, () => {
+  test(`${name}: the new layouts' text and marks hold on the card ground`, () => {
     expect(contrast(p.amberFg, p.cardBg)).toBeGreaterThanOrEqual(4.5)
     for (const mark of [p.meterFill, p.warm, p.fiveAccent, p.weekAccent]) expect(contrast(mark, p.cardBg)).toBeGreaterThanOrEqual(3)
     expect(contrast(p.value, p.surface)).toBeGreaterThanOrEqual(4.5)
-    for (const ink of [p.flapText, p.flapDim, p.flapWarm, p.flapAmber, p.flapFive, p.flapWeek, p.flapCoin]) expect(contrast(ink, p.flap)).toBeGreaterThanOrEqual(4.5)
   })
 
   test(`${name}: every role a layout's words take is text that holds on the card ground`, () => {

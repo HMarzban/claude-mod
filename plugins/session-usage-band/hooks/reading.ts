@@ -8,6 +8,7 @@ import type { Week, WindowNow } from './calendar'
 import {
   COMPACT_NEAR,
   FIVE_HOUR_MS,
+  LAST_CALL_MS,
   SEVEN_DAY_MS,
   SOON_MS,
   WARN_AT,
@@ -128,6 +129,19 @@ export const contextReading = (ctx: BandSnapshot['context']) => {
   }
 }
 
+/** Messages until `room` more tokens are in context, at the pace the trail
+ *  has grown since its last drop, a compaction or a clear; undefined until
+ *  two points show it growing. */
+export const messagesTo = (trail: readonly number[], room: number | undefined): number | undefined => {
+  let start = 0
+  for (let i = 1; i < trail.length; i++) if ((trail[i] ?? 0) < (trail[i - 1] ?? 0)) start = i
+  const first = trail[start]
+  const last = trail[trail.length - 1]
+  const steps = trail.length - 1 - start
+  if (room === undefined || first === undefined || last === undefined || steps < 1 || last <= first) return undefined
+  return Math.max(1, Math.ceil(room / ((last - first) / steps)))
+}
+
 // ---- the limits -------------------------------------------------------------
 
 /** A window past its reset: its last reading is from before it. */
@@ -170,9 +184,19 @@ export type CacheFacts = Readonly<{
   hitFrac: number | undefined
   /** Time to cold while it counts down: expiring, or warm while Claude isn't working. */
   coldInMs: number | undefined
+  /** Departures' last call: under LAST_CALL_MS to cold, or for the 5-minute
+   *  cache its last minute. */
+  lastCall: boolean
 }>
 
-export type ContextFacts = ReturnType<typeof contextReading> & Readonly<{ compactAt: number | undefined; autoCompactOff: boolean; window: number }>
+export type ContextFacts = ReturnType<typeof contextReading> &
+  Readonly<{
+    compactAt: number | undefined
+    autoCompactOff: boolean
+    window: number
+    /** Messages until compaction at the conversation's pace; undefined until it shows one. */
+    msgsToCompact: number | undefined
+  }>
 
 export type SpendFacts = Readonly<{
   totalUsd: number
@@ -210,6 +234,11 @@ export type LimitFacts = Readonly<{
   /** Time to full before the reset: a measured fill, else the average's,
    *  once it lands at 100% or more; undefined while it lands short. */
   fillInMs: number | undefined
+  /** `fillInMs` while there is something left to fill: undefined once
+   *  passed, or full. */
+  fullInMs: number | undefined
+  /** Departures' last call: under LAST_CALL_MS to full. */
+  lastCall: boolean
 }>
 
 // What the views read: each section's facts, and its words beside them.
@@ -292,16 +321,23 @@ export const cacheFacts = (snap: BandSnapshot): CacheFacts => {
     known: measured || c.recalled,
     hitFrac: measured && c.hitRatio !== null ? c.hitRatio : undefined,
     coldInMs: counting ? c.msLeft : undefined,
+    // A 5-minute cache is always under ten minutes from cold, so its last
+    // call is its last minute, when chips turns amber too.
+    lastCall: counting && (c.ttl === '5m' ? mood === 'expiring' : c.msLeft < LAST_CALL_MS),
   }
 }
 
 /** The context's fill, with the compaction point and the model window it is read against. */
-export const contextFacts = (snap: BandSnapshot): ContextFacts => ({
-  ...contextReading(snap.context),
-  compactAt: snap.context.compactAt,
-  autoCompactOff: snap.context.autoCompactOff,
-  window: snap.context.window,
-})
+export const contextFacts = (snap: BandSnapshot): ContextFacts => {
+  const reading = contextReading(snap.context)
+  return {
+    ...reading,
+    compactAt: snap.context.compactAt,
+    autoCompactOff: snap.context.autoCompactOff,
+    window: snap.context.window,
+    msgsToCompact: messagesTo(snap.history.context, reading.toCompact),
+  }
+}
 
 /** The session's cost and its tokens: sent, back, read from cache, and their total. */
 export const spendFacts = (snap: BandSnapshot): SpendFacts => {
@@ -325,6 +361,9 @@ export const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
       projectedPct === undefined || projectedPct < 100 || gone === undefined || windowMs === undefined
         ? undefined
         : (Math.max(0, 100 - reading.percentUsed) / reading.percentUsed) * gone * windowMs
+    const fillInMs = etaMs ?? averageFill
+    // A full window has nothing left to fill: it says its percent, and its reset.
+    const fullInMs = passed || reading.percentUsed >= 100 ? undefined : fillInMs
     return {
       name,
       key,
@@ -340,7 +379,9 @@ export const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
       projectedPct,
       projectedFrac: passed || projectedPct === undefined ? undefined : clamp01(projectedPct / 100),
       resetInMs: reset?.kind === 'in' ? Date.parse(reading.resetsAt ?? '') - snap.now : undefined,
-      fillInMs: etaMs ?? averageFill,
+      fillInMs,
+      fullInMs,
+      lastCall: fullInMs !== undefined && fullInMs < LAST_CALL_MS,
     }
   }
   return [
@@ -418,7 +459,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     frame,
     cache: { ...cache, ...cacheWords(cache, c, frame) },
     spend: { ...spend, ...spendWords(spend) },
-    context: { ...context, ...contextWords(context) },
+    context: { ...context, ...contextWords(context, frame) },
     fiveHour,
     sevenDay,
     limits,
