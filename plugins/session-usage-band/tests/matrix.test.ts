@@ -72,9 +72,11 @@ test('svgPlacement: Svg only where it draws', () => {
   expect(failed(view([row(t('a'), svg({ width: 20, alt: 'x' }), toggle())]))).toContain('svgPlacement')
   expect(failed(view([row(t('a'), svg({ width: 20, alt: 'x' }), toggle())]), { surface: 'desktop', appearance: 'plain' })).toContain('svgPlacement')
 })
-test('svgProps: every Svg has an alt and a width', () => {
+test('svgProps: every Svg has an alt and a width, but a bar stretched to its card', () => {
   expect(failed(view([row(t('a'), svg({ width: 20 }), toggle())]), { surface: 'desktop' })).toContain('svgProps')
   expect(failed(view([row(t('a'), svg({ alt: 'x' }), toggle())]), { surface: 'desktop' })).toContain('svgProps')
+  const stretched = svg({ alt: 'x', source: '<svg preserveAspectRatio="none"/>' })
+  expect(failed(view([row(t('a'), stretched, toggle())]), { surface: 'desktop' })).not.toContain('svgProps')
 })
 test('svgProps: no Svg has an id, a gradient, a pattern or a clipPath', () => {
   const desk = { surface: 'desktop' } as const
@@ -109,11 +111,12 @@ test("amber: each of the scenario's triggers has its words", () => {
   expect(failed(GOOD, { scenario: 'lastMinute' })).toContain('amber')
   expect(failed(view([row(t('! 30s left · re-warm ~$1.66'), toggle())]), { scenario: 'lastMinute' })).not.toContain('amber')
 })
-test("amber: another limit's words are owed only open, where it is drawn", () => {
+test("amber: another limit's words are owed only open, where it is drawn, the cards' marked figure among them", () => {
   expect(failed(GOOD, { scenario: 'gatewaySpend' })).not.toContain('amber')
   const open = view([row(t('a'), toggle('▿'))], [t('spend 92%')])
   expect(failed(open, { scenario: 'gatewaySpend', expanded: true })).toContain('amber')
   expect(failed(view([row(t('a'), toggle('▿'))], [t('! spend 92%')]), { scenario: 'gatewaySpend', expanded: true })).not.toContain('amber')
+  expect(failed(view([row(t('a'), toggle('▿'))], [t('spend 92%!')]), { scenario: 'gatewaySpend', expanded: true })).not.toContain('amber')
 })
 test('estimate: a price or a fill time carries ~', () => {
   expect(failed(view([row(t('re-warm $1.66'), toggle())]))).toContain('estimate')
@@ -158,6 +161,13 @@ test("glyphs: the tier's own, and ASCII alone in the ascii tier", () => {
 test('size: at most 400 nodes shut, 1,500 open', () => {
   expect(failed(view([row(...Array.from({ length: 400 }, (_, i) => t(String(i % 10))), toggle())]))).toContain('size')
 })
-test('height: open, the view fits maxRows', () => {
+test('height: open, the view fits maxRows, or the shared cards their least', () => {
   expect(failed(view([row(t('a'), toggle('▿'))], [t('b'), t('c')]), { expanded: true, maxRows: 2 })).toContain('height')
+  // One line of cards, a head and a fact each, takes 6 rows with its row, air and buttons.
+  const card = { type: 'Box', props: { flexDirection: 'column' }, children: [t('CACHE'), t('saved')] }
+  const cards = (lines: number) => ({ type: 'Box', props: { key: 'cards', flexDirection: 'column', rowGap: 1, marginTop: 1 }, children: Array.from({ length: lines }, () => row(card)) })
+  const open = (lines: number) => view([row(t('a'), toggle('▿'))], [cards(lines), { type: 'Box', props: { marginTop: 1 }, children: [t('Collapse')] }])
+  expect(failed(open(1), { expanded: true, maxRows: 4 })).not.toContain('height')
+  expect(failed(open(2), { expanded: true, maxRows: 4 })).not.toContain('height')
+  expect(failed(view([row(t('a'), toggle('▿'))], [cards(1), t('x'), t('y'), t('z')]), { expanded: true, maxRows: 4 })).toContain('height')
 })

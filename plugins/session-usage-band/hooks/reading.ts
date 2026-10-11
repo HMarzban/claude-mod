@@ -203,6 +203,9 @@ export type LimitFacts = Readonly<{
   projectedFrac: number | undefined
   /** Time to the reset; undefined once it has passed. */
   resetInMs: number | undefined
+  /** Time to full before the reset: a measured fill, else the average's,
+   *  once it lands at 100% or more; undefined while it lands short. */
+  fillInMs: number | undefined
 }>
 
 // What the views read: each section's facts, and its words beside them.
@@ -311,6 +314,11 @@ export const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
     // A measured fill lands it at 100, so the words and the amber agree; else
     // the average's landing, once 5% of the window has gone.
     const projectedPct = etaMs !== null ? 100 : gone === undefined || gone < 0.05 ? undefined : reading.percentUsed / gone
+    // At the average's pace, what is left takes the time gone so far, scaled by what is left over what is used.
+    const averageFill =
+      projectedPct === undefined || projectedPct < 100 || gone === undefined || windowMs === undefined
+        ? undefined
+        : (Math.max(0, 100 - reading.percentUsed) / reading.percentUsed) * gone * windowMs
     return {
       name,
       key,
@@ -325,6 +333,7 @@ export const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
       projectedPct,
       projectedFrac: passed || projectedPct === undefined ? undefined : clamp01(projectedPct / 100),
       resetInMs: reset?.kind === 'in' ? Date.parse(reading.resetsAt ?? '') - snap.now : undefined,
+      fillInMs: etaMs ?? averageFill,
     }
   }
   return [

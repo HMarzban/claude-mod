@@ -1,177 +1,171 @@
-// Forecast, the band read like the weather: now, then each change ahead at
-// its clock time, how it gives way as it narrows, and the outlook behind ▵.
+// Forecast as its board draws it: each reading's next change a chips pill,
+// its clock time the figure, soonest first and amber in front; open, chips'
+// cards through a lens of when.
 
 import { test, expect } from 'claude-code/testing'
-import type { Engine } from 'claude-code/testing'
-import type { On } from 'claude-code'
+import { drawBand } from '../hooks/band'
 import { makeKit } from '../hooks/kit'
+import { DARK } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
+import type { BandSnapshot } from '../hooks/snapshot'
 import { forecastView } from '../hooks/views/forecast'
-import { HOUR, LONG, MIN, fakeEl, shown, svgsOf, weekdayLead } from './helpers'
-import { NO_ACT, caseKey, drawCases, snapOf, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
+import { HOUR, MIN, byKey, cardOf, fakeEl, firstRow, shown, svgsOf, walk, type Node } from './helpers'
+import { NO_ACT, snapOf, viewSuite, visualRows } from './matrix'
 
 viewSuite('forecast')
 
-const T160: Mount = { surface: 'terminal', cols: 160 }
-const D160: Mount = { surface: 'desktop', cols: 160 }
-const T40: Mount = { surface: 'terminal', cols: 40 }
-/** One scenario on one mount: its trees, shut and open. */
-const at = async ($: Engine, on: On, scenario: ScenarioName, m: Mount = T160, ttl: Ttl = '1h') => {
-  const trees = await drawCases($, on, { layout: 'forecast', scenario, appearance: 'dark', ttl }, [m])
-  return { shut: trees[caseKey(m, 'shut')], open: trees[caseKey(m, 'open')] }
-}
-/** The weekday the 5h reset leads with on this host, '' today: calm's, 3h on
- *  and drawn at 0; cold's at 5m, drawn a minute past its 5 minutes; and
- *  fiveHourAhead's, 4h on and drawn 12 minutes in. */
-const CALM_RESET_DAY = weekdayLead(3 * HOUR, 0)
-const COLD_RESET_DAY = weekdayLead(3 * HOUR, 6 * MIN)
-const PACED_RESET_DAY = weekdayLead(4 * HOUR, 12 * MIN)
+/** The board's moment, Sunday 15:14, its zone pinned to UTC. */
+const NOW = Date.parse('2026-10-11T15:14:00Z')
+const later = (ms: number): string => new Date(NOW + ms).toISOString()
+const SEVEN_RESET = NOW + 5 * 24 * HOUR + 22 * HOUR + 16 * MIN
 
-test('now, then the changes ahead in time order, at most three', async ($, on) => {
-  const t = shown((await at($, on, 'calm')).shut)
-  expect(t).toMatch(new RegExp(String.raw`^now\s*·\s*warm\s*│\s*\d{2}:\d{2}\s*·\s*in 1h 00m\s*·\s*cold\s*│\s*${CALM_RESET_DAY}\d{2}:\d{2}\s*·\s*5h resets`))
-  expect((t.match(/│/g) ?? []).length).toBeLessThanOrEqual(3)
-  // The 7d reset, 67h off, is past the day a change ahead looks to.
-  expect(t).not.toMatch(/7d resets/)
+/** The board's session: 59 minutes of cache, $1,027 spent, the context at
+ *  839k of 967k and growing 10.7k a message, the 5h at 0% and the 7d at 66%,
+ *  resetting Saturday 13:30. */
+const board = (over: Partial<BandSnapshot> = {}): BandSnapshot => {
+  const base = snapOf()
+  return snapOf({
+    layout: 'forecast',
+    columns: 160,
+    now: NOW,
+    utcOffsetMin: 0,
+    cache: { ...base.cache, msLeft: 59 * MIN, reWarmUsd: 0.8, savedUsd: 1350 },
+    costUsd: 1027,
+    lastTurnUsd: 0.1,
+    context: { tokens: 839_000, window: 1_000_000, percent: 84, compactAt: 967_000, autoCompactOff: false },
+    history: { costs: [], fiveHour: [], context: Array.from({ length: 11 }, (_, i) => 732_000 + i * 10_700) },
+    fiveHour: { percentUsed: 0, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: null },
+    sevenDay: { percentUsed: 66, resetsAt: new Date(SEVEN_RESET).toISOString() },
+    samples: [{ at: NOW - HOUR, fivePct: 0, sevenPct: 60, fiveResetAt: NOW + 4 * HOUR + 55 * MIN, sevenResetAt: SEVEN_RESET }],
+    ...over,
+  })
+}
+const drawn = (snap: BandSnapshot): Node => forecastView.draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT) as unknown as Node
+const rowOf = (snap: BandSnapshot): Node => firstRow(drawn(snap)) as Node
+/** The row's pills, by key, each as it reads. */
+const pillsOf = (row: Node): Array<readonly [unknown, string]> =>
+  ((row.children ?? []) as Array<Node | null>)
+    .filter(k => k?.props?.flexShrink === 0 && k.props?.key !== undefined)
+    .map(k => [k?.props?.key, shown(k)] as const)
+const boldOf = (n: unknown): string[] => {
+  const out: string[] = []
+  walk(n, k => {
+    if (k.type === 'Text' && k.props?.bold === true) out.push(shown(k))
+  })
+  return out
+}
+/** The first body row of a card, past its head, as it reads. */
+const firstRowOf = (tree: Node, name: string): string => shown(((cardOf(tree, name)?.children ?? []) as Node[]).filter(Boolean)[1])
+const headOf = (tree: Node, name: string): string => shown(byKey(cardOf(tree, name), 'head'))
+
+test("the row is the board's: the cache going cold, the 7d's fill day, then compaction", () => {
+  expect(pillsOf(rowOf(board()))).toEqual([
+    ['cache', '◷ cold at 16:13 · in 59m · re-warm ~$0.80'],
+    ['7d', '7d 66% · full ~Mon · ↻ Sat 13:30'],
+    ['ctx', '◔ compacts in ~128k'],
+  ])
 })
-test('only the next change says how far off it is', async ($, on) => {
-  expect(shown((await at($, on, 'calm')).shut).match(/\bin \d/g)).toEqual(['in 1'])
+test('each pill is bold on its time alone', () => {
+  expect(boldOf(rowOf(board()))).toEqual(['16:13', '~Mon', '~128k'])
+  expect(boldOf(rowOf(board({ surface: 'desktop' })))).toEqual(['16:13', '~Mon', '~128k'])
 })
-test('a cold cache is no change ahead: the next one is the reset', async ($, on) => {
-  expect(shown((await at($, on, 'cold', T160, '5m')).shut)).toMatch(new RegExp(String.raw`^now\s*·\s*cold[^│]*│\s*${COLD_RESET_DAY}\d{2}:\d{2}\s*·\s*in \d+h \d+m\s*·\s*5h resets`))
+test("each pill keeps chips' ground and tint: the 7d on its own", () => {
+  const row = rowOf(board())
+  expect(['cache', '7d', 'ctx'].map(key => byKey(row, key, 'Box')?.props?.backgroundColor)).toEqual([DARK.surface, DARK.weekBg, DARK.surface])
+  expect(byKey(byKey(row, '7d', 'Box'), 'name', 'Text')?.props?.color).toBe(DARK.weekFg)
 })
-test('in the terminal, a cold cache says its price in its head', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'cold', T160, '5m')).shut)).toMatch(/^now · cold · re-warm ~\$\S+\s*│/)
-})
-test('on a plain desktop, with no detail row, a cold cache says its price in its head', LONG, async ($, on) => {
-  const plain = await drawCases($, on, { layout: 'forecast', scenario: 'cold', appearance: 'plain', ttl: '5m' }, [D160])
-  expect(shown(plain[caseKey(D160, 'shut')])).toMatch(/^now · cold · re-warm ~\$\S+\s*│/)
-})
-test('on the desktop, a cold cache says its price once, beneath now', LONG, async ($, on) => {
-  const t = shown((await at($, on, 'cold', D160, '5m')).shut)
-  expect(t).toMatch(/^now · cold\s*next message ~\$\S+\s*│/)
-  expect(t.match(/~\$/g)).toHaveLength(1)
-})
-test('at 40 columns a cold cache keeps its price short, past the next change', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'cold', T40, '5m')).shut)).toMatch(/^now · cold ~\$[\d.]+$/)
-})
-test('at 40 columns an amber limit still fits beside the cold price', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'coldLimit80', T40, '5m')).shut)).toMatch(/^now · cold ~\$[\d.]+\s*│\s*! 5h 82%$/)
-})
-test('the last minute is "! cooling" with seconds', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'lastMinute', T160, '5m')).shut)).toMatch(/^! cooling · 30s left/)
-})
-test('at 40 columns amber still leads, short once the calm changes have given way', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'lastMinute', T40, '5m')).shut)).toMatch(/^! 30s$/)
-})
-test('in the terminal, the last minute says its price in its head', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'lastMinute', T160, '5m')).shut)).toMatch(/^! cooling · 30s left · re-warm ~\$\S+\s*│/)
-})
-test('on a plain desktop, with no detail row, the last minute says its price in its head', LONG, async ($, on) => {
-  const plain = await drawCases($, on, { layout: 'forecast', scenario: 'lastMinute', appearance: 'plain', ttl: '5m' }, [D160])
-  expect(shown(plain[caseKey(D160, 'shut')])).toMatch(/^! cooling · 30s left · re-warm ~\$\S+\s*│/)
-})
-test('on the desktop, the last minute says its price once, beneath now', LONG, async ($, on) => {
-  const t = shown((await at($, on, 'lastMinute', D160, '5m')).shut)
-  expect(t).toMatch(/^! cooling · 30s left\s*re-warm ~\$\S+\s*│/)
-  expect(t.match(/re-warm/g)).toHaveLength(1)
-})
-test('a measured fill is a change before the reset', LONG, async ($, on) => {
-  const t = shown((await at($, on, 'fiveHourAhead')).shut)
-  expect(t).toMatch(/~\d{2}:\d{2}\s*·\s*in ~\S+\s*·\s*! 5h full/)
-  expect(t.indexOf('! 5h full')).toBeLessThan(t.indexOf('5h resets'))
-  expect(t.match(/! 5h full/g)).toHaveLength(1)
-})
-test('a limit at 80% speaks, though it is no change', async ($, on) => {
-  expect(shown((await at($, on, 'limit80')).shut)).toMatch(/│\s*! 5h 82%/)
-})
-test('context near compaction speaks', async ($, on) => {
-  expect(shown((await at($, on, 'nearCompaction')).shut)).toMatch(/! context 94% · compacts in ~10k/)
-})
-test('no weather glyphs in the terminal: the words carry it', async ($, on) => {
-  expect(shown((await at($, on, 'calm')).shut)).not.toMatch(/[☼☁❄✱◐]/)
-})
-test('calm gives way in spec order: the far changes, then the "in", on the terminal', async ($, on) => {
-  // Each width sits inside its step's band, not at its edge.
-  const mounts = [120, 60, 40].map((cols): Mount => ({ surface: 'terminal', cols }))
-  const trees = await drawCases($, on, { layout: 'forecast', scenario: 'calm', appearance: 'dark', ttl: '1h' }, mounts)
-  const [whole, next, bare] = mounts.map(m => shown(trees[caseKey(m, 'shut')]))
-  expect(whole).toMatch(/in 1h 00m\s*·\s*cold\s*│.*5h resets/)
-  expect(next).toMatch(/in 1h 00m\s*·\s*cold/)
-  expect(next).not.toMatch(/5h resets/)
-  expect(bare).toMatch(/^now\s*·\s*warm\s*│\s*\d{2}:\d{2}\s*·\s*cold/)
-  expect(bare).not.toMatch(/\bin \d/)
-})
-test('the desktop gives each column its detail, and the now icon its words', async ($, on) => {
-  const { shut } = await at($, on, 'calm', D160)
-  expect(shown(shut)).toMatch(/now\s*·\s*warm\s*1h 00m left/)
-  expect(shown(shut)).toMatch(/cold\s*re-warm ~\$/)
-  expect(svgsOf(shut).map(s => s.props?.alt)).toEqual(['cache 1 hour left, warm'])
-})
-test('narrow, the desktop detail shortens and keeps its row', () => {
-  // Drawn directly, the zone pinned: on a host where the 5h reset falls
-  // tomorrow, its weekday widens the column past 40, and it gives way.
-  const snap = snapOf({ layout: 'forecast', surface: 'desktop', columns: 40, isWorking: true, utcOffsetMin: 0 })
-  const t = shown(forecastView.draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT))
-  expect(t).toMatch(/^now\s*·\s*warm\s*~\$\S+\s*│/)
-  expect(t).not.toMatch(/re-warm/)
-})
-test('open, an outlook row for each reading, in spec order', async ($, on) => {
-  const t = shown((await at($, on, 'calm')).open)
-  expect(t).toMatch(/Cache\s*1h 00m left\S*\s*cold at \d{2}:\d{2}, then re-warm ~\$\S+\s*Context/)
-  expect(t).toMatch(/Context\s*38%\S*\s*76k of a 200k window\s*5h/)
-  expect(t).toMatch(new RegExp(String.raw`5h\s*4%\S*\s*on pace for ~\d+%\s*·\s*↻ ${CALM_RESET_DAY}\d{2}:\d{2}\s*7d`))
-  expect(t).toMatch(/7d\s*30%\S*\s*on pace for ~\d+%\s*·\s*↻ \S+ \d{2}:\d{2}\s*Spend/)
-  expect(t).toMatch(/Spend\s*\$2\.41\s*\d+k tokens/)
-})
-test('open, the outlook keeps the facts every view shows behind ▵, and a long name whole', () => {
-  // Drawn directly: no scenario measures what the cache saved.
-  const snap = snapOf({ layout: 'forecast', columns: 160, expanded: true, otherLimits: [{ kind: 'seven_day_opus', percentUsed: 12, resetsAt: undefined }] })
-  const t = shown(forecastView.draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT))
-  expect(t).toMatch(/re-warm ~\$1\.66\s*·\s*saved ~\$11\.40, 96% hit rate\s*Context/)
-  expect(t).toMatch(/compacts in ~114k, at 190k\s*·\s*76k in context\s*5h/)
-  expect(t).toMatch(/225k tokens: 18k input, 9\.0k output, 198k cache reads/)
-  expect(t).toMatch(/seven day opus\s*12%/)
-})
-test('open near compaction, the reason says how close and the outcome where', async ($, on) => {
-  expect(shown((await at($, on, 'nearCompaction')).open)).toMatch(/! context 94% · compacts in ~10k\s*·\s*\d+k in context, compacts at \d+k\s*5h/)
-})
-test('open, the context bar dashes to compaction, where it lands', async ($, on) => {
-  expect(shown((await at($, on, 'nearCompaction')).open)).toMatch(/Context\s*\S+\s*█+▒+[^░]/)
-})
-test('open with compaction off, the context bar lands nowhere', async ($, on) => {
-  expect(shown((await at($, on, 'compactionOff')).open)).toMatch(/Context\s*\S+\s*█+░+[^▒]/)
-})
-test('open with no context, its row says so', async ($, on) => {
-  expect(shown((await at($, on, 'warming')).open)).toMatch(/Context\s*not reported/)
-})
-test('open with no limits, their row says so', async ($, on) => {
-  expect(shown((await at($, on, 'noLimits')).open)).toMatch(/Context\s*38%.*Limits\s*none reported\s*Spend/)
-})
-test('open, a fill says it once, in its reason', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'fiveHourAhead')).open)).toMatch(new RegExp(String.raw`! 5h full in ~\S+\s*·\s*↻ ${PACED_RESET_DAY}\d{2}:\d{2}(?!.*full)`))
-})
-test('open and short of rows, an amber limit keeps its words', async ($, on) => {
-  const mounts = ([[120, 6], [80, 7], [120, 13]] as const).flatMap(([cols, maxRows]) =>
-    (['terminal', 'desktop'] as const).map((surface): Mount => ({ surface, cols, maxRows })))
-  const trees = await drawCases($, on, { layout: 'forecast', scenario: 'gatewaySpend', appearance: 'dark', ttl: '1h' }, mounts)
-  for (const m of mounts) expect(`${caseKey(m, 'open')} ${shown(trees[caseKey(m, 'open')])}`).toMatch(/spend\s*92%\s*\S*\s*! spend 92%/)
-})
-test('with the offset unknown, each change reads as a duration, and a 7d reset within a day gives way first', () => {
-  // Drawn directly: no scenario puts the 7d reset within a day.
-  const drawn = (columns: number) => {
-    const snap = snapOf({ layout: 'forecast', columns, utcOffsetMin: undefined, sevenDay: { percentUsed: 30, resetsAt: new Date(20 * HOUR).toISOString() } })
-    return shown(forecastView.draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT))
+test('the toggle is last, ▵ shut and ▿ open', () => {
+  for (const expanded of [false, true]) {
+    const kids = (rowOf(board({ expanded })).children ?? []) as Node[]
+    expect(byKey(kids.at(-1), 'more', 'Button')?.props?.label).toBe(expanded ? '▿' : '▵')
   }
-  expect(drawn(120)).toBe('now · warm│in 52m · cold│in 3h 00m · 5h resets│in 20h 00m · 7d resets')
-  expect(drawn(70)).toBe('now · warm│in 52m · cold│in 3h 00m · 5h resets')
 })
-test('in ascii, an outlook says when a limit resets in words', LONG, async ($, on) => {
-  const trees = await drawCases($, on, { layout: 'forecast', scenario: 'calm', appearance: 'dark', ttl: '1h', env: { CC_BAND_GLYPHS: 'ascii' } }, [T160])
-  const open = shown(trees[caseKey(T160, 'open')])
-  expect(open).toMatch(new RegExp(String.raw`on pace for ~\d+%,\s*resets ${CALM_RESET_DAY}\d{2}:\d{2}`))
+test('collapsed, it is one row on both surfaces, its cache a battery on the desktop', () => {
+  for (const surface of ['terminal', 'desktop'] as const) expect(visualRows(drawn(board({ surface })), surface)).toBe(1)
+  const desk = rowOf(board({ surface: 'desktop' }))
+  expect(svgsOf(byKey(desk, 'cache', 'Box')).map(s => s.props?.alt)).toEqual(['cache 59 minutes left, warm'])
+  expect(shown(desk)).toMatch(/^cold at 16:13 · in 59m/)
 })
-test('open, an unmeasured cache draws no bar, so no alt says 0% left', LONG, async ($, on) => {
-  const trees = await drawCases($, on, { layout: 'forecast', scenario: 'unmeasured', appearance: 'dark', ttl: '1h' }, [D160])
-  expect(svgsOf(trees[caseKey(D160, 'open')]).map(n => String(n.props?.alt)).filter(a => /cache 0%/.test(a))).toEqual([])
+test('a 5h at 0% gets no pill; once it moves, its reset and pace', () => {
+  expect(pillsOf(rowOf(board())).map(([key]) => key)).not.toContain('5h')
+  const moved = pillsOf(rowOf(board({ fiveHour: { percentUsed: 4, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: null } })))
+  expect(moved.find(([key]) => key === '5h')?.[1]).toBe('5h 4% · ↻ 20:09')
+})
+test("'in' is said once, on the soonest change", () => {
+  expect(shown(rowOf(board())).match(/\bin \d/g)).toEqual(['in 5'])
+  // Working, the cache counts nothing down: the 7d's fill is the soonest, and the cache follows the timed pills.
+  expect(pillsOf(rowOf(board({ isWorking: true })))).toEqual([
+    ['7d', '7d 66% · full ~Mon · in ~13h 15m · ↻ Sat 13:30'],
+    ['cache', '◷ cache warm'],
+    ['ctx', '◔ compacts in ~128k'],
+  ])
+})
+test('with the offset unknown, each time reads as a duration', () => {
+  expect(pillsOf(rowOf(board({ utcOffsetMin: undefined })))).toEqual([
+    ['cache', '◷ cold in 59m · re-warm ~$0.80'],
+    ['7d', '7d 66% · full in ~13h 15m · ↻ in 5d 22h'],
+    ['ctx', '◔ compacts in ~128k'],
+  ])
+})
+test('a cold cache leads with its price, short once the row is tight', () => {
+  const cold = { cache: { ...board().cache, msLeft: 0 } }
+  expect(pillsOf(rowOf(board(cold)))[0]).toEqual(['cache', '◷ cold · re-warm ~$0.80'])
+  expect(boldOf(byKey(rowOf(board(cold)), 'cache', 'Box'))).toEqual(['~$0.80'])
+  expect(shown(rowOf(board({ ...cold, columns: 40 })))).toBe('◷ cold ~$0.80')
+})
+test('it gives way by width: the limits\' resets, the "in", the price, compaction, then the 7d', () => {
+  const at = (columns: number) => shown(rowOf(board({ columns })))
+  expect(at(160)).toBe('◷ cold at 16:13 · in 59m · re-warm ~$0.807d 66% · full ~Mon · ↻ Sat 13:30◔ compacts in ~128k')
+  expect(at(100)).toBe('◷ cold at 16:13 · in 59m · re-warm ~$0.807d 66% · full ~Mon◔ compacts in ~128k')
+  expect(at(90)).toBe('◷ cold at 16:13 · re-warm ~$0.807d 66% · full ~Mon◔ compacts in ~128k')
+  expect(at(75)).toBe('◷ cold at 16:137d 66% · full ~Mon◔ compacts in ~128k')
+  expect(at(50)).toBe('◷ cold at 16:137d 66% · full ~Mon')
+  expect(at(40)).toBe('◷ cold at 16:13')
+})
+test('amber leads the row, in its own words, and holds out narrowest', () => {
+  const five = { fiveHour: { percentUsed: 82, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: null } }
+  const first = (over: Partial<BandSnapshot>) => pillsOf(rowOf(board(over)))[0]
+  expect(first(five)).toEqual(['5h', '! 5h 82%'])
+  expect(byKey(rowOf(board(five)), '5h', 'Box')?.props?.backgroundColor).toBe(DARK.amberBg)
+  expect(first({ cache: { ...board().cache, msLeft: 30_000 } })).toEqual(['cache', '! 30s left · re-warm ~$0.80'])
+  expect(first({ context: { tokens: 900_000, window: 1_000_000, percent: 90, compactAt: 967_000, autoCompactOff: false } })).toEqual(['ctx', '! context 93% · compacts in ~67k'])
+  expect(first({ fiveHour: { percentUsed: 40, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: 40 * MIN } })).toEqual(['5h', '! 5h full in ~40m'])
+  expect(shown(rowOf(board({ ...five, columns: 40 })))).toBe('! 5h 82%◷ cold at 16:13')
+})
+test('open, the four cards with the lens in each head, and no first row the row said', () => {
+  // At 120 columns, two lines of cards, three rows of body each.
+  const tree = drawn(board({ expanded: true, maxRows: 13, columns: 120 }))
+  expect(['cache', 'spend', 'context'].map(name => headOf(tree, name))).toEqual([
+    'CACHEcold at 16:1359m left',
+    'SPEND$1,027',
+    'CONTEXT~12 messages to compaction87% full',
+  ])
+  expect(headOf(tree, 'limits')).toMatch(/^LIMITS.+ full ~Mon7d 66%$/)
+  expect(byKey(cardOf(tree, 'limits'), 'cells')).toBeDefined()
+  expect(['cache', 'spend', 'context'].map(name => firstRowOf(tree, name))).toEqual(['saved by cache~$1,350', 'last message$0.10', 'auto-compacts at967k'])
+  expect(firstRowOf(tree, 'limits')).toMatch(/^5h░+0%$/)
+})
+test("open on the desktop, LIMITS' lens is the week's day cells, 16px tall", () => {
+  const tree = drawn(board({ surface: 'desktop', expanded: true }))
+  const cells = svgsOf(byKey(cardOf(tree, 'limits'), 'head')).find(s => /weekly limit by day/.test(String(s.props?.alt)))
+  expect(cells?.props?.height).toBe(16)
+})
+test('open, the band fits its rows and nothing ends a fill in a thumb', () => {
+  for (const surface of ['terminal', 'desktop'] as const) {
+    for (const maxRows of [13, 20, 40]) {
+      const tree = drawn(board({ surface, expanded: true, maxRows }))
+      const edges = surface === 'desktop' ? 2 * (byKey(tree, 'cards')?.children ?? []).length : 0
+      expect(`${surface} ${maxRows} ${visualRows(tree, surface) + edges <= maxRows}`).toBe(`${surface} ${maxRows} true`)
+      expect(svgsOf(tree).filter(s => /class="(tick|knockout)"/.test(String(s.props?.source)))).toEqual([])
+      expect(shown(tree)).not.toMatch(/[█░▒]│|│[█░▒]/)
+    }
+  }
+})
+test('in ascii, the row says its resets in words, and the whole band is ASCII', () => {
+  for (const expanded of [false, true]) {
+    const band = drawBand(fakeEl, board({ glyphs: 'ascii', expanded }), NO_ACT)
+    expect(shown(band)).toMatch(/^[\x20-\x7e]*$/)
+    expect(byKey(firstRow(band), 'more', 'Button')?.props?.label).toBe(expanded ? 'v' : '^')
+    if (!expanded) expect(shown(firstRow(band))).toBe('cold at 16:13, in 59m, re-warm ~$0.807d 66%, full ~Mon, resets Sat 13:30compacts in ~128k')
+  }
 })

@@ -23,6 +23,27 @@ test('a card says when a limit resets: its clock once the offset is known, else 
   expect(readingsOf(snapOf()).limits.map(l => l.resetWhen)).toEqual(['in 3h 00m', 'in 2d 19h'])
   expect(readingsOf(snapOf({ now: 4 * HOUR })).fiveHour?.resetWhen).toBeUndefined()
 })
+test('a window that fills before its reset says when: a measured fill, else the average pace\'s, its day past today', () => {
+  // 7d at 66% with 30h of 168 gone fills in another 30h × 34/66, 15h 27m:
+  // from Sunday 20:00, Monday; from Sunday midnight, that day at 15:27.
+  const sevenFrom = (now: number) => readingsOf(snapOf({ utcOffsetMin: 0, now, sevenDay: { percentUsed: 66, resetsAt: new Date(now + 138 * HOUR).toISOString() } })).sevenDay
+  const seven = sevenFrom(3 * 24 * HOUR + 20 * HOUR)
+  expect(Math.abs((seven?.fillInMs ?? 0) - (30 * HOUR * 34) / 66)).toBeLessThan(1e-3)
+  expect([seven?.fillAt, seven?.fillText, seven?.ahead?.figure]).toEqual(['~Mon', 'full ~Mon', '~Mon'])
+  expect(sevenFrom(3 * 24 * HOUR)?.fillAt).toBe('~15:27')
+  expect(readingsOf(snapOf({ sevenDay: { percentUsed: 66, resetsAt: new Date(138 * HOUR).toISOString() } })).sevenDay?.fillAt).toBe('in ~15h 30m')
+  // Measured, the 5h's own fill; landing short, none, and its next change is its reset.
+  expect(readingsOf(snapOf({ utcOffsetMin: 0, fiveHour: { percentUsed: 40, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 40 * MIN } })).fiveHour?.fillAt).toBe('~00:40')
+  const calm = readingsOf(snapOf({ utcOffsetMin: 0 })).fiveHour
+  expect([calm?.fillInMs, calm?.ahead?.figure, calm?.ahead?.soon, calm?.ahead?.tail]).toEqual([undefined, '03:00', 'in 3h 00m', 'on pace for ~10%'])
+  expect(readingsOf(snapOf({ fiveHour: { percentUsed: 0, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } })).fiveHour?.ahead).toBeUndefined()
+})
+test('the context says how many messages to compaction at its average rise a message', () => {
+  const at = (context: readonly number[]) => readingsOf(snapOf({ history: { costs: [], fiveHour: [], context } })).history.toCompactionText
+  // 114k of room at 10k a message.
+  expect(at([56_000, 66_000, 76_000])).toBe('~11 messages to compaction')
+  expect([at([76_000]), at([80_000, 76_000])]).toEqual([undefined, undefined])
+})
 test("a card can say each limit's reset at its clock time, with its pace, as LIMITS' lead row does", () => {
   expect(readingsOf(snapOf({ utcOffsetMin: 0 })).limits.map(l => l.cardResetAt)).toEqual(['resets 03:00 · on pace for ~10%', 'resets Sat 19:00 · on pace for ~50%'])
   expect(readingsOf(snapOf()).fiveHour?.cardResetAt).toBe('resets in 3h 00m · on pace for ~10%')

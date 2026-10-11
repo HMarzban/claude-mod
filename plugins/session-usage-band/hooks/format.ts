@@ -148,6 +148,13 @@ export const fmtDayClock = (ms: number, utcOffsetMin: number, now: number): stri
   return isToday(ms, utcOffsetMin, now) ? hhmm(wall) : `${DAYS[new Date(wall).getUTCDay()]} ${hhmm(wall)}`
 }
 
+/** A projection's day, which its minute would claim too much for: its
+ *  weekday, `Mon`, or today its clock time, `16:40`. */
+export const fmtDay = (ms: number, utcOffsetMin: number, now: number): string => {
+  const wall = wallTime(ms, utcOffsetMin)
+  return isToday(ms, utcOffsetMin, now) ? hhmm(wall) : `${DAYS[new Date(wall).getUTCDay()]}`
+}
+
 /** This machine's offset from UTC at `now`, east-positive minutes; undefined
  *  when the time can't be read. A real UTC offset of 0 can't be told from a
  *  sandbox that reports no zone. */
