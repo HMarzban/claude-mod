@@ -8,6 +8,7 @@ import { clamp01 } from '../format'
 import { asciiText } from '../glyphs'
 import type { Kit } from '../kit'
 import { ROW_SLACK, isDrawn, keepsIn, squeezeToFit } from '../layout'
+import type { BarSize } from '../layout'
 import type { Palette } from '../palette'
 import type { LimitKey, LimitView, Readings, Tone } from '../reading'
 import type { Amber, Role, Say } from '../words'
@@ -49,20 +50,37 @@ export const pill = (kit: Kit, { key, tone, body, hover, paintsOwnBg, bg }: Pill
   )
 }
 
-/** The desktop's battery: an outline, its cap, and the charge filling it. */
-export const batteryIcon = (kit: Kit, charge: number, tone: Tone, alt: string): RenderChildren => {
+/** The desktop's battery, `px` wide: an outline, its cap, and the charge
+ *  filling it. */
+export const batteryIcon = (kit: Kit, charge: number, tone: Tone, alt: string, px = 22): RenderChildren => {
   const { Svg, palette, onTone } = kit
   if (!Svg) return null
   const outline = onTone(tone, palette.label)
   const fill = onTone(tone, palette.warm)
-  const width = Math.round(clamp01(charge) * 15 * 10) / 10
+  const width = Math.round(clamp01(charge) * (px - 7) * 10) / 10
   const source =
-    '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="12" viewBox="0 0 22 12">' +
-    `<rect x="0.75" y="0.75" width="18.5" height="10.5" rx="3" fill="none" stroke="${outline}" stroke-width="1.5"/>` +
-    `<rect x="19.75" y="4" width="1.75" height="4" rx="0.8" fill="${outline}"/>` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="12" viewBox="0 0 ${px} 12">` +
+    `<rect x="0.75" y="0.75" width="${px - 3.5}" height="10.5" rx="3" fill="none" stroke="${outline}" stroke-width="1.5"/>` +
+    `<rect x="${px - 2.25}" y="4" width="1.75" height="4" rx="0.8" fill="${outline}"/>` +
     `<rect class="charge" x="2.5" y="2.5" width="${width}" height="7" rx="1.5" fill="${fill}"/>` +
     '</svg>'
-  return <Svg key="battery" source={source} alt={alt} width={22} height={12} />
+  return <Svg key="battery" source={source} alt={alt} width={px} height={12} />
+}
+
+/** The battery as a mark of `size`: the desktop's icon, or in text its
+ *  charge in cells, draining right to left, and its cap `╸`. */
+export const batteryMark = (kit: Kit, charge: number, tone: Tone, alt: string, size: BarSize): RenderChildren => {
+  const { Svg, Text, palette, onTone } = kit
+  if (Svg) return batteryIcon(kit, charge, tone, alt, size.px)
+  const cells = size.cells - 1
+  const filled = Math.round(clamp01(charge) * cells)
+  return (
+    <Text key="battery" color={onTone(tone, palette.label)}>
+      {filled > 0 ? <Text key="charge" color={onTone(tone, palette.warm)}>{'█'.repeat(filled)}</Text> : null}
+      {filled < cells ? <Text key="track" color={palette.meterTrack}>{'░'.repeat(cells - filled)}</Text> : null}
+      {'╸'}
+    </Text>
+  )
 }
 
 /** On a text surface the battery is the pill itself: its charge painted as

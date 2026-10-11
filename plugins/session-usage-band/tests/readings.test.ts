@@ -83,7 +83,7 @@ test('the cache speaks in words for the new views', () => {
 test('in its last minute the cache is amber, long and short', () => {
   const c = readingsOf(snapOf({ cache: cacheAt(47_000) })).cache
   expect(c.condition).toBe('cooling')
-  expect(c.amber).toEqual({ long: '! 47s left · re-warm ~$1.66', short: '! 47s' })
+  expect(c.amber).toEqual({ long: '! 47s left · re-warm ~$1.66', short: '! 47s', beside: '! cache' })
   expect([c.board, c.boardLeft]).toEqual(['LAST CALL', '47s'])
 })
 test('working, the cache shows no countdown', () => {
@@ -146,7 +146,7 @@ test('limits speak in words, amber with one "! "', () => {
   const r = readingsOf(snapOf({ fiveHour: { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }))
   expect(r.fiveHour?.text).toBe('5h 82%')
   expect(r.fiveHour?.say).toEqual([['5h ', 'label'], ['82%', 'value']])
-  expect(r.fiveHour?.amber).toEqual({ long: '! 5h 82%', short: '! 5h 82%' })
+  expect(r.fiveHour?.amber).toEqual({ long: '! 5h 82%', short: '! 5h 82%', beside: '! 5h' })
   expect(r.fiveHour?.boardAmber).toBe('! NEAR LIMIT')
   expect([r.fiveHour?.resetWords, r.fiveHour?.resetGlyph, r.fiveHour?.resetInMs]).toEqual(['resets in 3h 00m', '↻ in 3h 00m', 3 * HOUR])
   expect([r.sevenDay?.projectedText, r.sevenDay?.pace, r.sevenDay?.boardShort]).toEqual(['~50%', 'on pace for ~50%', '~50% AT ↻'])
@@ -158,7 +158,7 @@ test('a measured fill is an estimate, with ~, in words and on the board', () => 
   const r = readingsOf(snapOf({ now, utcOffsetMin: 0, fiveHour: { percentUsed: 84, resetsAt: new Date(now + 70 * MIN).toISOString(), etaMs: 40 * MIN } }))
   const at = fmtClock(now + 40 * MIN, 0)
   expect([r.fiveHour?.fullIn, r.fiveHour?.fullAtClock, r.fiveHour?.boardAmber]).toEqual(['~40m', `~${at}`, `! FULL ~${at}`])
-  expect(r.fiveHour?.amber).toEqual({ long: '! 5h full in ~40m', short: '! 5h ~40m' })
+  expect(r.fiveHour?.amber).toEqual({ long: '! 5h full in ~40m', short: '! 5h ~40m', beside: '! 5h ~40m' })
   expect(r.fiveHour?.alt).toBe('5h limit 84 percent used, needs attention, full in about 40 minutes')
 })
 test('with no UTC offset a measured fill says on the board when, in board minutes, never "~40M"', () => {
@@ -191,7 +191,7 @@ test('a passed window has no fill time', () => {
 })
 test('context speaks toward compaction, or of the window when it is off', () => {
   const near = readingsOf(snapOf({ context: { tokens: 176_000, window: 200_000, percent: 88, compactAt: 190_000, autoCompactOff: false } })).context
-  expect(near.amber).toEqual({ long: '! context 93% · compacts in ~14k', short: '! ctx 93%' })
+  expect(near.amber).toEqual({ long: '! context 93% · compacts in ~14k', short: '! ctx 93%', beside: '! context' })
   expect([near.boardAmber, near.towardText, near.roomText]).toEqual(['! COMPACTS IN ~14K', 'toward compaction', '~14k'])
   const off = readingsOf(snapOf({ context: { tokens: 170_000, window: 200_000, percent: 85, compactAt: undefined, autoCompactOff: true } })).context
   expect([off.amber?.long, off.boardAmber, off.towardText, off.compactionOffText]).toEqual(['! context 85%', '! CONTEXT 85%', 'of the window', 'auto-compaction off'])

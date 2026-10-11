@@ -54,6 +54,9 @@ const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
   },
 }
 
+/** A limit chip's tint: its ground, its ink and its accent. */
+export const limitTint = (p: Readonly<Palette>, key: ChipKey): Tint => LIMITS[key].tint(p)
+
 // ---- the pills --------------------------------------------------------------
 
 /** Whether the row says the cache and context short at `squeeze`: always

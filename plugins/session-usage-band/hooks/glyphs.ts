@@ -26,6 +26,8 @@ export const drawnTier = (snap: Pick<BandSnapshot, 'surface' | 'glyphs'>): Glyph
 export const ASCII_MAP: Readonly<Record<string, string>> = {
   '█': '#', '░': '-', '▒': ':', '│': '|', '·': '-', '…': '.', '±': '+',
   '●': '*', '■': '#', '–': '-', '↑': '+', '↓': '-', '▿': 'v', '▵': '^',
+  // A projection's dash and a battery's cap: Neutral, but not ASCII.
+  '╌': '~', '╸': '>',
   '↻': '', 'Σ': '', '◷': '', '◔': '',
   // A hover card's caps: a space each keeps its width. ▐ is Neutral, but
   // goes with ▌ so a card's two ends match.

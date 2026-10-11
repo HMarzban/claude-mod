@@ -28,7 +28,7 @@ test('the open-only amber starts at a body of one row', () => {
     Math.min(...suiteCases(layout).filter(c => c.options.scenario === 'gatewaySpend').flatMap(c => c.mounts).flatMap(m => (m.surface === surface && m.maxRows !== undefined ? [m.maxRows] : [])))
   expect([lowest('ledger', 'terminal'), lowest('ledger', 'desktop')]).toEqual([5, 5])
   expect([lowest('rings', 'terminal'), lowest('rings', 'desktop')]).toEqual([5, 6])
-  expect([lowest('tiles', 'terminal'), lowest('tiles', 'desktop')]).toEqual([6, 6])
+  expect([lowest('tiles', 'terminal'), lowest('tiles', 'desktop')]).toEqual([5, 5])
 })
 test('light, plain and the ascii tier are each drawn', () => {
   expect(cases.some(c => c.options.appearance === 'light')).toBe(true)

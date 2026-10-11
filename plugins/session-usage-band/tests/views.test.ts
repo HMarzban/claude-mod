@@ -60,9 +60,10 @@ test('every layout\'s toggle points the way the band will move: up while shut, d
 })
 test('every new view draws its empty states in a label\'s ink', () => {
   // Departures writes them on its board, upper case, in the board's ink.
-  // Ledger opens into chips' cards, which leave an unreported reading out.
-  // At 40 columns pulse's desktop says its short costs.
-  const layouts = LAYOUT_NAMES.filter(name => name !== 'chips' && name !== 'departures' && name !== 'ledger')
+  // At 40 columns pulse's desktop says its short costs. Chips and the
+  // layouts on its cards (ledger, tiles) say none: a card with nothing known is left out.
+  const onCards: ReadonlySet<string> = new Set(['chips', 'ledger', 'tiles'])
+  const layouts = LAYOUT_NAMES.filter(name => !onCards.has(name) && name !== 'departures')
   const phrases = Object.values(EMPTY)
   const inks: string[] = []
   for (const layout of layouts)

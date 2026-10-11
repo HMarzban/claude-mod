@@ -63,6 +63,15 @@ test("a layout's lens sits in its card's head, after the title", () => {
   expect(shown(headOf(tree, 'context'))).toBe('CONTEXTLENS40% full')
   expect(shown(headOf(tree, 'cache'))).not.toMatch(/LENS/)
 })
+test("a lens that stands for its card's bar takes the bar's place, and only where it is set", () => {
+  const firstKeys = (tree: Node) => ['cache', 'context'].map(name => String(((cardOf(tree, name)?.children ?? []) as Node[]).filter(Boolean)[1]?.props?.key))
+  const lens = { slots: { cache: text('LENS') } }
+  for (const surface of ['terminal', 'desktop'] as const) {
+    // With rows to spare, a card leads with its bar, a lens or not.
+    expect(firstKeys(opened(lens, { surface }))).toEqual(['meter', 'meter'])
+    expect(firstKeys(opened({ ...lens, slotsReplaceBars: true }, { surface }))).toEqual(['fact:re-warm if cold', 'meter'])
+  }
+})
 test('a lens too wide for its head gives way before the headline does', () => {
   // The fake elements lay nothing out, so this holds the head's flex: the
   // title and the headline keep their width, the lens takes what is left.

@@ -53,7 +53,7 @@ test('pace speaks a measured rate first, then the average', () => {
   expect(paceText({ etaMs: null, projectedPct: 9.6 })).toBe('on pace for ~10%')
   expect(paceText({ etaMs: null, projectedPct: undefined })).toBe('')
 })
-test('every amber phrase, long and short, starts with "! " once', () => {
+test('every amber phrase, long, short and beside its figure, starts with "! " once', () => {
   const all = [
     AMBER.cache('47s left', '47s', '~$1.66'),
     AMBER.context(0.93, 12_000),
@@ -62,13 +62,13 @@ test('every amber phrase, long and short, starts with "! " once', () => {
     AMBER.limitPace('5h', '~40m'),
   ]
   expect(all).toEqual([
-    { long: '! 47s left · re-warm ~$1.66', short: '! 47s' },
-    { long: '! context 93% · compacts in ~12k', short: '! ctx 93%' },
-    { long: '! context 85%', short: '! ctx 85%' },
-    { long: '! 5h 82%', short: '! 5h 82%' },
-    { long: '! 5h full in ~40m', short: '! 5h ~40m' },
+    { long: '! 47s left · re-warm ~$1.66', short: '! 47s', beside: '! cache' },
+    { long: '! context 93% · compacts in ~12k', short: '! ctx 93%', beside: '! context' },
+    { long: '! context 85%', short: '! ctx 85%', beside: '! context' },
+    { long: '! 5h 82%', short: '! 5h 82%', beside: '! 5h' },
+    { long: '! 5h full in ~40m', short: '! 5h ~40m', beside: '! 5h ~40m' },
   ])
-  for (const a of all) for (const s of [a.long, a.short]) {
+  for (const a of all) for (const s of [a.long, a.short, a.beside]) {
     expect(s.startsWith('! ')).toBe(true)
     expect(s.match(/!/g)?.length).toBe(1)
   }

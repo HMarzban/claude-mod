@@ -51,6 +51,9 @@ export type OpenOptions = Readonly<{
   /** The rows the collapsed lines take, so the cards take only what is left. */
   collapsedRows: number
   slots?: Slots
+  /** Whether a card's lens stands for its bar, which it then draws in place
+   *  of: tiles' marks read as the bar does. */
+  slotsReplaceBars?: boolean
   /** A card's headline in the layout's words, in place of its own: bold on
    *  its figure, `~12 msgs`. */
   heads?: Readonly<Partial<Record<CardName, Say>>>
@@ -164,6 +167,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     const slot = o.slots?.[name]
     const lead = o.lead?.[name]
     const say = headline(o.heads?.[name] ?? head.say, head.tone ?? 'calm')
+    const ownBar = slot !== undefined && o.slotsReplaceBars === true ? null : bar
     return (
       <Box
         key={`card:${name}`}
@@ -194,7 +198,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
                 </Box>,
               ]}
         </Box>
-        {fitBody(bar, lead === undefined ? body : [factRow(undefined, ...lead), ...body])}
+        {fitBody(ownBar, lead === undefined ? body : [factRow(undefined, ...lead), ...body])}
       </Box>
     )
   }

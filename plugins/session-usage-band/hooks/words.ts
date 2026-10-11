@@ -38,20 +38,27 @@ export type Role = 'label' | 'value' | 'amber' | 'accent5' | 'accent7'
 export type Say = ReadonlyArray<readonly [string, Role]>
 /** An amber reading's words: long while a calm piece remains to give way, then short. */
 export type Amber = Readonly<{ long: string; short: string }>
+/** A reading's amber words, and `beside`: its reason after its figure, drawn
+ *  apart, naming the reading in place of its label: `! 5h ~1h`, `! cache`. */
+export type ReadingAmber = Amber & Readonly<{ beside: string }>
 
 /** A value not known yet: unknown, never 0. */
 const UNKNOWN = '–'
 
 /** What an amber reading says, long and short, always led by one `! `. */
 export const AMBER = {
-  cache: (left: string, leftShort: string, estimate: string): Amber => ({ long: `! ${left} · re-warm ${estimate}`, short: `! ${leftShort}` }),
-  context: (frac: number, toCompact: number): Amber => ({ long: `! context ${fmtPct(frac)} · compacts in ~${fmtTokens(toCompact)}`, short: `! ctx ${fmtPct(frac)}` }),
-  contextNoCompaction: (frac: number): Amber => ({ long: `! context ${fmtPct(frac)}`, short: `! ctx ${fmtPct(frac)}` }),
-  limit: (name: string, percentUsed: number): Amber => {
+  cache: (left: string, leftShort: string, estimate: string): ReadingAmber => ({ long: `! ${left} · re-warm ${estimate}`, short: `! ${leftShort}`, beside: '! cache' }),
+  context: (frac: number, toCompact: number): ReadingAmber => ({
+    long: `! context ${fmtPct(frac)} · compacts in ~${fmtTokens(toCompact)}`,
+    short: `! ctx ${fmtPct(frac)}`,
+    beside: '! context',
+  }),
+  contextNoCompaction: (frac: number): ReadingAmber => ({ long: `! context ${fmtPct(frac)}`, short: `! ctx ${fmtPct(frac)}`, beside: '! context' }),
+  limit: (name: string, percentUsed: number): ReadingAmber => {
     const said = `! ${name} ${Math.round(percentUsed)}%`
-    return { long: said, short: said }
+    return { long: said, short: said, beside: `! ${name}` }
   },
-  limitPace: (name: string, eta: string): Amber => ({ long: `! ${name} full in ${eta}`, short: `! ${name} ${eta}` }),
+  limitPace: (name: string, eta: string): ReadingAmber => ({ long: `! ${name} full in ${eta}`, short: `! ${name} ${eta}`, beside: `! ${name} ${eta}` }),
 } as const
 
 export const EMPTY = {
@@ -109,7 +116,7 @@ export type CacheWords = Readonly<{
   text: string
   textShort: string
   /** The last minute: `! 47s left · re-warm ~$1.66`, then `! 47s`. */
-  amber: Amber | undefined
+  amber: ReadingAmber | undefined
   /** `re-warm ~$1.66 if it goes cold`, or cold, `next message ~$1.66`; undefined until the price is known. */
   reWarmText: string | undefined
   /** When it goes cold, `14:32`, while counting and the offset is known. */
@@ -144,7 +151,7 @@ export type ContextWords = Readonly<{
   say: Say
   sayShort: Say
   /** `! context 93% · compacts in ~14k` / `! ctx 93%`; compaction off, `! context 85%`. */
-  amber: Amber | undefined
+  amber: ReadingAmber | undefined
   /** `! COMPACTS IN ~14K`, or compaction off, `! CONTEXT 85%`. */
   boardAmber: string | undefined
   /** What the share is of: `toward compaction`, or `of the window` when compaction is off. */
@@ -202,6 +209,8 @@ export type LimitWords = Readonly<{
   /** `resets in 3h 00m` and `↻ in 3h 00m`; undefined once passed. */
   resetWords: string | undefined
   resetGlyph: string | undefined
+  /** Chips' short form, `↻ 3h 00m`; undefined once passed. */
+  resetShort: string | undefined
   /** `16:40`, or `Mon 08:40` past today, when the offset is known. */
   resetClock: string | undefined
   /** After `↻`, a clock time: `↻ 16:40`, else `↻ in 3h 00m`; in the ascii
@@ -220,7 +229,7 @@ export type LimitWords = Readonly<{
   fullIn: string | undefined
   fullAtClock: string | undefined
   /** `! 5h 82%`, or with a measured fill, `! 5h full in ~40m` / `! 5h ~40m`. */
-  amber: Amber | undefined
+  amber: ReadingAmber | undefined
   /** `! NEAR LIMIT`, `! FULL ~14:20`, or without the offset, `! FULL IN ~40 MIN`. */
   boardAmber: string | undefined
   /** `~10% AT ↻`, `FULL BEFORE ↻`, or `RESET`; in the ascii tier, `~10% AT RESET`. */
@@ -415,6 +424,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     pace,
     resetWords: f.reset?.kind === 'in' ? resetPhrase(f.reset, 'words') : undefined,
     resetGlyph,
+    resetShort: f.reset?.kind === 'in' ? `↻ ${f.reset.text}` : undefined,
     resetClock,
     resetAtGlyph,
     sentence: (withPace, withReset) => [

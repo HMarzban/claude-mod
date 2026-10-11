@@ -75,6 +75,9 @@ test('svgPlacement: Svg only where it draws', () => {
 test('svgProps: every Svg has an alt and a width', () => {
   expect(failed(view([row(t('a'), svg({ width: 20 }), toggle())]), { surface: 'desktop' })).toContain('svgProps')
   expect(failed(view([row(t('a'), svg({ alt: 'x' }), toggle())]), { surface: 'desktop' })).toContain('svgProps')
+  // A card's bar stretched to its slot has none: the slot caps it.
+  const stretched = svg({ alt: 'x', source: '<svg preserveAspectRatio="none"/>' })
+  expect(failed(view([row(t('a'), stretched, toggle())]), { surface: 'desktop' })).not.toContain('svgProps')
 })
 test('svgProps: no Svg has an id, a gradient, a pattern or a clipPath', () => {
   const desk = { surface: 'desktop' } as const
@@ -114,6 +117,8 @@ test("amber: another limit's words are owed only open, where it is drawn", () =>
   const open = view([row(t('a'), toggle('▿'))], [t('spend 92%')])
   expect(failed(open, { scenario: 'gatewaySpend', expanded: true })).toContain('amber')
   expect(failed(view([row(t('a'), toggle('▿'))], [t('! spend 92%')]), { scenario: 'gatewaySpend', expanded: true })).not.toContain('amber')
+  // The shared cards' own mark for it, as chips' are.
+  expect(failed(view([row(t('a'), toggle('▿'))], [t('spend 92%!')]), { scenario: 'gatewaySpend', expanded: true })).not.toContain('amber')
 })
 test('estimate: a price or a fill time carries ~', () => {
   expect(failed(view([row(t('re-warm $1.66'), toggle())]))).toContain('estimate')
@@ -160,4 +165,22 @@ test('size: at most 400 nodes shut, 1,500 open', () => {
 })
 test('height: open, the view fits maxRows', () => {
   expect(failed(view([row(t('a'), toggle('▿'))], [t('b'), t('c')]), { expanded: true, maxRows: 2 })).toContain('height')
+})
+test('height: past maxRows, only the shared cards at their floor, a head and a row each, beneath the rows declared', () => {
+  const card = (...rows: unknown[]) => ({ type: 'Box', props: { key: 'card:cache', flexDirection: 'column' }, children: [t('CACHE'), ...rows] })
+  const footer = (...rows: unknown[]) => ({ type: 'Box', props: { key: 'actions', flexDirection: 'column', marginTop: 1 }, children: rows })
+  const open = (lines: unknown[], rows: unknown[], buttons: unknown[] = [toggle('Collapse')]) => view(lines, [card(...rows), footer(...buttons)])
+  const tiles = { layout: 'tiles', expanded: true, maxRows: 2 } as const
+  const shut = [row(t('a'), toggle('▿'))]
+  expect(failed(open(shut, [t('b')]), tiles)).not.toContain('height')
+  expect(failed(open(shut, [t('b'), t('c')]), tiles)).toContain('height')
+  // At the floor, a collapsed row that wrapped or a footer past its row is still too tall.
+  expect(failed(open([row(t('a')), row(t('a'), toggle('▿'))], [t('b')]), tiles)).toContain('height')
+  expect(failed(open(shut, [t('b')], [t('hint'), toggle('Collapse')]), tiles)).toContain('height')
+})
+test("amber: tiles' figure-first reasons name the reading", () => {
+  const amber = (text: string, scenario: InvariantContext['scenario']) => failed(view([row(t(text), toggle())]), { scenario })
+  expect(amber('30s! cache', 'lastMinute')).not.toContain('amber')
+  expect(amber('98%! context', 'nearCompaction')).not.toContain('amber')
+  expect(amber('98%! cache', 'nearCompaction')).toContain('amber')
 })
