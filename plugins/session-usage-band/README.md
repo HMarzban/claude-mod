@@ -150,8 +150,8 @@ and icons, one bold figure to a reading, its words in label ink. Every
 layout opens with `▵` into the same four cards, Cache, Spend, Context and
 Limits, under the workspace line and the same `Collapse` and `Hide band`
 buttons; most layouts mark each card's head their own way, and no card
-repeats what the row above it already says, but for gauges' Limits card,
-which leads with the worst window's reset as its board does. Every layout
+repeats what the row above it already says, though Limits' first row may
+name the worst window's reset again. Every layout
 turns amber at the same moments, by the same rules, but for departures'
 last call, ten minutes before an hour's cache goes cold or a limit fills. Chips, rings, pulse,
 week and forecast explain each pill on hover with chips' own cards; the

@@ -35,9 +35,9 @@ version may change how the band reads.
   Cache, Spend, Context and Limits, under the workspace line and the
   `Collapse` and `Hide band` buttons. Most layouts mark each card's head
   their own way, with its bar, ring or countdown, and no card repeats what
-  the row above it says, but for gauges' Limits, which leads with the
-  worst window's reset as its board does. As the row narrows and drops a
-  fact, its card says it again.
+  the row above it says, though Limits' first row may name the worst
+  window's reset again. As the row narrows and drops a fact, its card says
+  it again.
 - Formatting: dollars are grouped, `$1,027`, and tokens reach billions,
   `2.1B`. A card's head is bold on its figure alone, its words lowercase in
   label ink. Limits leads with the worst window's reset and pace, `resets
