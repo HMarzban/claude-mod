@@ -73,8 +73,8 @@ export type OpenOptions = Readonly<{
   collapsedRows: number
   slots?: Slots
   /** Whether a card's lens stands for its bar, which it then draws in place
-   *  of: tiles' marks read as the bar does. */
-  slotsReplaceBars?: boolean
+   *  of: tiles' marks read as the bar does; or the cards whose lenses do. */
+  slotsReplaceBars?: boolean | readonly CardName[]
   /** A card's headline in the layout's words, in place of its own: bold on
    *  its figure, `~12 msgs`; one with amber words draws its figure amber. */
   heads?: Readonly<Partial<Record<CardName, Say>>>
@@ -269,7 +269,8 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     // headline, a column either side.
     const room = inner - cellsOf(titled, measure) - cellsOf(say, measure) - 2
     const slot = lens === undefined || !isForms(lens) ? lens : (lens.forms.find(form => cellsOf(form, measure) <= room) ?? lens.forms.at(-1))
-    const ownBar = slot !== undefined && o.slotsReplaceBars === true ? null : bar
+    const replaces = o.slotsReplaceBars === true || (Array.isArray(o.slotsReplaceBars) && o.slotsReplaceBars.includes(name))
+    const ownBar = slot !== undefined && replaces ? null : bar
     return (
       <Box
         key={`card:${name}`}

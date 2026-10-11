@@ -370,10 +370,18 @@ export type SparklineOptions = Readonly<{
   area?: boolean
   /** Spanning its slot, as a card head's lens does, rather than `px` wide. */
   stretch?: boolean
+  /** Rising across the chart, from its lowest point to its highest, under a
+   *  1px cap in label ink at the top: where it is headed, as pulse's board
+   *  draws the context. `max` and `level` give way to it. */
+  rise?: boolean
 }>
 
 /** The air a line keeps from the chart's edges. */
 const SPARK_AIR = 2
+/** A rising line's air beneath it, and the room above it its cap keeps, as
+ *  pulse's board draws them: 14.6 down to 3.6 of 16. */
+const RISE_FLOOR = 1.4
+const RISE_ROOF = 3.6
 /** The width a projection takes beyond the newest point. */
 const SPARK_AHEAD = 20
 
@@ -386,19 +394,24 @@ const peaksOf = (values: readonly number[], count: number): number[] =>
 /** A line over time, ending bare at its newest point. Text draws it in braille. */
 export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   const { Svg, palette } = kit
-  const { key, alt, values, color, px, height, max, projectTo, level, cells, track = false, area = false, stretch = false } = o
+  const { key, alt, values, color, px, height, max, projectTo, level, cells, track = false, area = false, stretch = false, rise = false } = o
   const top = max ?? topOf(values)
   if (!Svg) return brailleText(kit, key, cells === undefined ? values : peaksOf(values, 2 * cells), color, top)
   const end = px - SPARK_AIR - (projectTo === undefined ? 0 : SPARK_AHEAD)
   const x = (i: number) => (values.length <= 1 ? end : tenth(SPARK_AIR + (i * (end - SPARK_AIR)) / (values.length - 1)))
   const y = (frac: number) => tenth(height - SPARK_AIR - clamp01(frac) * (height - 2 * SPARK_AIR))
-  const points = values.map((v, i) => [x(i), y(top > 0 ? v / top : 0)] as const)
+  // Risen, the lowest point sits on the floor and the highest under the cap.
+  const low = Math.min(...values)
+  const span = Math.max(...values) - low
+  const risen = (v: number) => tenth(height - RISE_FLOOR - (span > 0 ? (v - low) / span : 0) * (height - RISE_FLOOR - RISE_ROOF))
+  const points = values.map((v, i) => [x(i), rise ? risen(v) : y(top > 0 ? v / top : 0)] as const)
   const line = points.map(p => p.join(',')).join(' ')
   const keep = stretch ? KEEP_STROKE : ''
   // Beneath the line, so the line reads over it.
   let marks = track ? trackOf(kit, px, height) : ''
   if (area && points.length > 1) marks += `<polygon class="area" points="${points[0]?.[0]},${height} ${line} ${points.at(-1)?.[0]},${height}" fill="${color}" opacity="0.16"/>`
-  if (level !== undefined) marks += `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.trackStroke}" stroke-width="1"${keep}/>`
+  if (rise) marks += `<line class="cap" x1="0" y1="0.5" x2="${px}" y2="0.5" stroke="${palette.label}" stroke-width="1"${keep}/>`
+  else if (level !== undefined) marks += `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.trackStroke}" stroke-width="1"${keep}/>`
   if (points.length > 1) marks += `<polyline points="${line}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"${keep}/>`
   const newest = points.at(-1)
   if (newest !== undefined && projectTo !== undefined) {

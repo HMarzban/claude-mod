@@ -42,8 +42,9 @@ const ROW_TRAIL_PX = 14
  *  text: the 24 costs kept, two to a cell. */
 const LENS_PX = 200
 const LENS_CELLS = 12
-/** A measured day's cell on the desktop. */
+/** A measured day's cell on the desktop before it spans its slot, and the air between. */
 const DAY_PX = 12
+const DAY_GAP_PX = 4
 /** The top of a limit's scale: its percentages run to 100. */
 const PERCENT = 100
 /** The cost charts' top: three times the warm average, so a warm message
@@ -195,10 +196,11 @@ const fitted = (kit: Kit, read: Readings, act: BandActions): Readonly<{ row: Ren
   return { row, shown }
 }
 
-/** Pulse's lens on the cards: the conversation's costs, its context and the
- *  week's measured days, each in its card's head, and the 5h window's last
- *  hour in its row on LIMITS; the cache runs in minutes, so its head stays
- *  bare. The ascii tier has no braille, so no lens. */
+/** Pulse's lens on the cards: the conversation's costs, its context rising
+ *  across its slot in place of its bar, and the week's measured days
+ *  spanning theirs, each in its card's head, and the 5h window's last hour
+ *  in its row on LIMITS; the cache runs in minutes, so its head stays bare.
+ *  The ascii tier has no braille, so no lens. */
 const lens: Lens = (kit, read) => {
   const { palette: p } = kit
   const { context: x, history: hist, week, fiveHour: five } = read
@@ -206,7 +208,7 @@ const lens: Lens = (kit, read) => {
   return {
     slots: {
       spend: hist.empty ? undefined : costBars(kit, hist, hist.costValues.length, true),
-      // Its scale tops out where it compacts, ruled there.
+      // In text its scale tops out where it compacts; on the desktop it rises across its slot under its cap.
       context:
         !x.known || hist.context.length < 2
           ? undefined
@@ -218,11 +220,11 @@ const lens: Lens = (kit, read) => {
               px: LENS_PX,
               height: CHART_PX,
               max: x.compactAt ?? x.window,
-              level: x.compactAt === undefined ? undefined : 1,
               cells: LENS_CELLS,
               track: true,
               area: true,
               stretch: true,
+              rise: true,
             }),
       limits: !week.days.some(isKnown)
         ? undefined
@@ -230,11 +232,14 @@ const lens: Lens = (kit, read) => {
             key: 'days',
             alt: week.measuredAlt,
             values: week.days.map(d => (d.guess ? undefined : d.pct)),
-            color: p.meterFill,
+            color: p.trackStroke,
             cellPx: DAY_PX,
             height: CHART_PX - 2,
+            stretch: true,
+            gapPx: DAY_GAP_PX,
           }),
     },
+    slotsReplaceBars: ['context'],
     limitMarks: five === undefined ? {} : { '5h': size => fiveHourTrail(kit, five, hist, size, ROW_TRAIL_PX, true) },
   }
 }

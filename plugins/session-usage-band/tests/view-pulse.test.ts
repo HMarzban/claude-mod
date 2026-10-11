@@ -9,7 +9,7 @@ import type { Sample } from '../hooks/memory'
 import { DARK } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { EMPTY } from '../hooks/words'
-import { CLEAR, HOUR, LONG, MIN, START, byKey, cardOf, fakeEl, firstRow, mountBand, pacing, resp, respond, setup, shown, svgAlts, svgsOf, usage, walk, type Node } from './helpers'
+import { CLEAR, HOUR, LONG, MIN, START, byKey, cardOf, fakeEl, firstRow, mountBand, pacing, resp, respond, setup, shown, svgAlts, svgRect, svgsOf, usage, walk, type Node } from './helpers'
 import { NO_ACT, snapOf, viewSuite, visualRows } from './matrix'
 
 viewSuite('pulse')
@@ -179,15 +179,38 @@ test("open is the four cards, spend's bars, context's trail and the measured day
     for (const name of ['spend', 'context', 'limits']) for (const s of svgsOf(slot(name))) expect(Number(s.props?.height)).toBeLessThanOrEqual(16)
   }
 })
-test("the spend lens rules the warm average and scales as the row's bars do; the context lens tops out where it compacts", () => {
+test("the spend lens rules the warm average and scales as the row's bars do; the context lens rises across its slot under its cap", () => {
   const open = band({ surface: 'desktop', expanded: true })
   const bars = String(svgsOf(byKey(cardOf(open, 'spend'), 'head')).find(s => /^cost of/.test(String(s.props?.alt)))?.props?.source)
   expect(bars).toMatch(/<line class="level" [^>]*stroke="[^"]+"/)
   expect(bars).toMatch(/preserveAspectRatio="none"/)
   const trail = String(svgsOf(byKey(cardOf(open, 'context'), 'head')).find(s => /^context over/.test(String(s.props?.alt)))?.props?.source)
-  // The newest point, 76k of the 190k it compacts at, and the rule at the top, 2 px in.
-  expect(trail).toMatch(/<line class="level" [^>]*y1="2"/)
-  expect(trail).not.toMatch(/<circle/)
+  // As its board draws it: the oldest point at 14.6 of 16, the newest at 3.6,
+  // the line in the meter's grey over a 16% fill, a 1px cap in label ink on top.
+  const ys = (/<polyline points="([^"]+)"/.exec(trail)?.[1] ?? '').split(' ').map(p => Number(p.split(',')[1]))
+  expect([ys[0], ys.at(-1)]).toEqual([14.6, 3.6])
+  expect(trail).toMatch(new RegExp(`<polyline [^>]*stroke="${DARK.meterFill}"`))
+  expect(trail).toMatch(new RegExp(`class="area"[^>]*fill="${DARK.meterFill}" opacity="0.16"`))
+  expect(trail).toMatch(new RegExp(`<line class="cap" [^>]*y1="0.5"[^>]*stroke="${DARK.label}" stroke-width="1"`))
+  expect(trail).not.toMatch(/<circle|class="level"/)
+})
+test("open on the desktop, CONTEXT's lens stands for its bar: no bar beneath its head", () => {
+  const open = band({ surface: 'desktop', expanded: true })
+  const keys = ((cardOf(open, 'context')?.children ?? []) as Node[]).flat().filter(Boolean).map(k => String(k.props?.key))
+  expect(keys).not.toContain('meter')
+  // The spend's split bar is drawn nowhere else, so it stays.
+  expect(byKey(cardOf(open, 'spend'), 'split')).toBeDefined()
+})
+test("open on the desktop, LIMITS' measured days span its slot, 4px apart and 3px round: a measured day filled in the track's grey, an empty one a solid edge", () => {
+  const days = svgsOf(byKey(cardOf(band({ surface: 'desktop', expanded: true }), 'limits'), 'head')).find(s => /^weekly limit by day/.test(String(s.props?.alt)))
+  const source = String(days?.props?.source)
+  expect(days?.props?.width).toBeUndefined()
+  expect(source).toMatch(/preserveAspectRatio="none"/)
+  expect(source).not.toMatch(/stroke-dasharray/)
+  expect(source).toMatch(new RegExp(`class="fill"[^>]*fill="${DARK.trackStroke}"`))
+  expect(source.match(new RegExp(`class="edge"[^>]*stroke="${DARK.meterTrack}"`, 'g'))?.length).toBeGreaterThan(0)
+  const xs = [...source.matchAll(/class="edge" x="([\d.]+)"/g)].map(([, x]) => Number(x))
+  expect([(xs[1] ?? 0) - (xs[0] ?? 0) - (svgRect(source, 'edge')?.width ?? 0) - 1, svgRect(source, 'edge')?.rx]).toEqual([4, 3])
 })
 test('no card opens on a row the collapsed one shows', () => {
   for (const surface of ['terminal', 'desktop'] as const) {
