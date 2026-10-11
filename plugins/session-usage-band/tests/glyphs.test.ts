@@ -3,7 +3,8 @@
 import { test, expect } from 'claude-code/testing'
 import { ASCII_MAP, asciiText, resolveGlyphs } from '../hooks/glyphs'
 import { ROW_SLACK } from '../hooks/layout'
-import { caseKey, drawCases, type Mount } from './matrix'
+import { LAYOUT_NAMES } from '../hooks/snapshot'
+import { caseKey, cutBySurface, drawCases, type Mount } from './matrix'
 import {
   HOUR_1,
   LONG,
@@ -19,6 +20,7 @@ import {
   segments,
   setup,
   textOf,
+  walk,
   widthOf,
 } from './helpers'
 
@@ -71,3 +73,23 @@ test('the ascii battery drops its glyph before the cut, so its charge and spacin
   expect(seg[0]?.text.length).toBe(Math.round((8 / 60) * all.length))
   await ui.unmount()
 })
+
+// Ink's cut adds U+2026, East-Asian-Ambiguous, which a CJK terminal draws two
+// columns wide where Ink counts one: every narrow cut would overflow its row
+// for the tier's main audience. The tree can't show a cut the surface makes
+// as it draws, so no ascii Text may leave one to it.
+for (const layout of LAYOUT_NAMES) {
+  for (const scenario of ['calm', 'lastMinute'] as const) {
+    test(`${layout} in the ascii tier never draws U+2026, shut or open, at any width from 20 to 200: ${scenario}`, LONG, async ($, on) => {
+      const mounts: Mount[] = Array.from({ length: 181 }, (_, i) => ({ surface: 'terminal', cols: 20 + i }))
+      const trees = await drawCases($, on, { scenario, appearance: 'dark', layout, env: { CC_BAND_GLYPHS: 'ascii' } }, mounts)
+      for (const [drawn, tree] of Object.entries(trees)) {
+        let cut = 0
+        walk(tree, n => {
+          if (cutBySurface(n)) cut++
+        })
+        expect(`${drawn} ${textOf(tree).includes('…')} ${cut}`).toBe(`${drawn} false 0`)
+      }
+    })
+  }
+}

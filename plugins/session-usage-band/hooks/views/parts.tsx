@@ -200,17 +200,16 @@ export const ROLE_INK: Readonly<Record<Role, Exclude<keyof Palette, 'filled'>>> 
   accent7: 'weekAccent',
 }
 
-/** A phrase in its roles' colours, one Text, truncated rather than wrapped. */
+/** A phrase in its roles' colours, one line, cut rather than wrapped. */
 export const words = (kit: Kit, key: string, say: Say, bold = false): RenderElement => {
-  const { Text, palette } = kit
-  return (
-    <Text key={key} bold={bold} wrap="truncate-end">
-      {say.map(([text, role], i) => (
-        <Text key={String(i)} color={palette[ROLE_INK[role]]}>
-          {text}
-        </Text>
-      ))}
-    </Text>
+  const { Text, palette, oneLine } = kit
+  return oneLine(
+    { key, bold },
+    say.map(([text, role], i) => (
+      <Text key={String(i)} color={palette[ROLE_INK[role]]}>
+        {text}
+      </Text>
+    )),
   )
 }
 

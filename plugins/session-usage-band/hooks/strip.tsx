@@ -36,7 +36,7 @@ const keyOf = (n: RenderChildren): string | undefined => {
 }
 
 const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'footer', edge: number, room: number): RenderElement => {
-  const { Box, Text, Svg, measure, asDrawn, hoverable, hoverCard, icon } = kit
+  const { Box, Text, Svg, measure, asDrawn, oneLine, hoverable, hoverCard, icon } = kit
   const kept = (piece: (typeof STRIP_GIVES_WAY)[number]) => stripKeeps(squeeze, piece)
   const git = ws.git
   const { parent, name: fullName } = splitPath(ws.path)
@@ -61,10 +61,8 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
   const where: RenderChildren[] = [
     <Box flexDirection="row" {...explains('ws:path', git === undefined ? ws.path : `${ws.path}: ${gitSummary(git)}`)}>
       {Svg ? icon('folder', BARE.icon, clipped ? `folder ${ws.path}` : ALT.folder) : null}
-      {parentShown === '' ? null : <Text color={BARE.label} wrap="truncate-end">{parentShown}</Text>}
-      <Text color={BARE.value} bold wrap="truncate-end">
-        {name}
-      </Text>
+      {parentShown === '' ? null : oneLine({ color: BARE.label }, parentShown)}
+      {oneLine({ color: BARE.value, bold: true }, name)}
     </Box>,
   ]
   if (git?.branch !== undefined) {
@@ -72,9 +70,7 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
     where.push(
       <Box flexDirection="row" {...explains('ws:head', `Branch ${git.branch}${git.commit === undefined ? ', no commits yet' : ''}: ${tracking(git)}`)}>
         {Svg ? icon('branch', BARE.branch, branch === git.branch ? ALT.branch : `branch ${git.branch}`) : <Text color={BARE.label}>{'on '}</Text>}
-        <Text color={BARE.value} wrap="truncate-end">
-          {branch}
-        </Text>
+        {oneLine({ color: BARE.value }, branch)}
       </Box>,
     )
   } else if (git !== undefined) {

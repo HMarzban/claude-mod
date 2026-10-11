@@ -267,6 +267,27 @@ test('in the ascii tier a card keeps its width, with a space for each cap, and c
   await ui.unmount()
 })
 
+test('in the ascii tier a card too long for its row is cut by the band, with a `.`, never by the surface', async ($, on) => {
+  setup(on, { env: { CC_BAND_GLYPHS: 'ascii', ...HOUR_1 } })
+  await $.session.start(START)
+  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  const ui = await mountBand($, 'terminal', 50)
+  const found = cards(await ui.drawn())
+  expect(found.length).toBeGreaterThan(0)
+  let cut = 0
+  for (const [, card] of found) {
+    const ground = ((card.children ?? []) as Node[])[1]
+    const words = ((ground?.children ?? []) as Node[])[0]
+    expect(words?.props?.wrap).toBeUndefined()
+    const text = textOf(words)
+    const avail = Number(ground?.props?.width) - 2
+    expect(text.length).toBeLessThanOrEqual(avail)
+    if (text.endsWith('.') && text.length === avail) cut++
+  }
+  expect(cut).toBeGreaterThan(0) // 50 columns cut at least the longest
+  await ui.unmount()
+})
+
 test('in the light palette a card is inverted too: a dark ground under light ink', async ($, on) => {
   setup(on, { env: { CC_BAND_APPEARANCE: 'light', ...HOUR_1 } })
   await $.session.start(START)

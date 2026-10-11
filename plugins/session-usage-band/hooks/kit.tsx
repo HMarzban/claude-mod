@@ -2,8 +2,8 @@
 // draw from the surface's element table and the snapshot. JSX compiles to the
 // global h(), so nothing here, or anywhere, is named h.
 
-import type { ElementTable, RenderChildren } from 'claude-code'
-import { asciiTree, drawnTier } from './glyphs'
+import type { ElementTable, RenderChildren, RenderElement, TextProps } from 'claude-code'
+import { asciiText, asciiTree, drawnTier } from './glyphs'
 import { ALT, GLYPH, ICON_PATHS, ICON_PX } from './icons'
 import type { Icon } from './icons'
 import { DESKTOP, DESKTOP_CARD_TEXT, TERMINAL } from './layout'
@@ -65,6 +65,26 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
   // the row with, so no cards and no scopes.
   const scopeOf = (key: string) => `band-${key}`
 
+  /** One line of text, cut where its box ends rather than wrapped. The
+   *  unicode tier leaves the cut to the surface, which ends it with `…`; the
+   *  ascii tier clips it to its row instead, at its last whole word, since
+   *  that `…` is East-Asian-Ambiguous: a CJK terminal, the tier's own,
+   *  draws it two columns wide where Ink counts one. */
+  const oneLine = ({ key, ...props }: TextProps & { key?: string }, children: RenderChildren): RenderElement => {
+    const keyed = key === undefined ? {} : { key }
+    if (glyphs !== 'ascii')
+      return (
+        <Text {...keyed} {...props} wrap="truncate-end">
+          {children}
+        </Text>
+      )
+    return (
+      <Box {...keyed} height={1} overflow="hidden">
+        <Text {...props}>{children}</Text>
+      </Box>
+    )
+  }
+
   /** The props that make a keyed Box reveal the hover card drawn for `key`. */
   const hoverable = (key: string) => (palette.filled ? { hover: { scope: scopeOf(key) } } : {})
 
@@ -81,17 +101,25 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
   const hoverCard = (key: string, text: string, place: CardPlace): RenderChildren => {
     if (!palette.filled) return null
     const capped = snap.surface !== 'desktop'
+    // Sized in the glyphs it is drawn in: the ascii tier's are narrower.
+    const shown = glyphs === 'ascii' ? asciiText(text) : text
     // A text surface counts a cell a character; the desktop sizes by its font.
-    const cells = capped ? text.length + 4 : Math.ceil(text.length * DESKTOP_CARD_TEXT) + 2
+    const cells = capped ? shown.length + 4 : Math.ceil(shown.length * DESKTOP_CARD_TEXT) + 2
     const span = cardSpan(place, cells)
     if (span.width < (capped ? 5 : 3)) return null
     const shell = { position: 'absolute', top: 0, ...span, display: 'none', hover: { display: 'flex', scope: scopeOf(key) } } as const
     const ground = { backgroundColor: palette.tooltipBg, paddingX: 1 }
-    const words = (
-      <Text color={palette.tooltipFg} wrap="truncate-end">
-        {text}
-      </Text>
-    )
+    // The ascii tier knows its room to the cell, so it makes its own cut,
+    // with a `.`: the surface's would end in a two-column `…` (see oneLine).
+    const room = span.width - (capped ? 4 : 2)
+    const words =
+      glyphs === 'ascii' ? (
+        <Text color={palette.tooltipFg}>{shown.length > room ? `${shown.slice(0, room - 1)}.` : shown}</Text>
+      ) : (
+        <Text color={palette.tooltipFg} wrap="truncate-end">
+          {text}
+        </Text>
+      )
     if (!capped) return <Box {...shell} {...ground}>{words}</Box>
     return (
       <Box {...shell}>
@@ -117,7 +145,7 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
     return GLYPH[name] ? [<Text key={`i-${name}`} color={color}>{`${GLYPH[name]} `}</Text>] : []
   }
 
-  return { Box, Button, Text, Svg, palette, measure, columns: snap.columns, glyphs, asDrawn, onTone, hoverable, hoverCard, gap, icon }
+  return { Box, Button, Text, Svg, palette, measure, columns: snap.columns, glyphs, asDrawn, onTone, oneLine, hoverable, hoverCard, gap, icon }
 }
 
 export type Kit = ReturnType<typeof makeKit>

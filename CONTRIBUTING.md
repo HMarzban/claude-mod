@@ -111,6 +111,10 @@ Run `/reload-plugins` in your session afterwards.
   its piece and covers whole pieces: its text, then the rest of any piece it
   enters, never part of one. A control the card may reach, like the band's
   ▵, comes after it.
+- **A line that may be cut is `kit.oneLine`**, never a Text with
+  `wrap="truncate-end"`. The surface's cut ends in `…`, which a CJK
+  terminal draws two columns wide, so the ascii tier clips the line to its
+  row instead.
 - **A Button holds text alone.** It has no icon prop and no children but its
   label, so a button's icon is a glyph.
 - **Atoms are declared in `register.tsx`.** They are the band's state in the

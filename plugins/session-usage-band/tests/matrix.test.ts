@@ -150,6 +150,10 @@ test("emptyState: open, each empty state follows its own section's name", () => 
 test("glyphs: the tier's own, and ASCII alone in the ascii tier", () => {
   expect(failed(view([row(t('◐ cache'), toggle())]))).toContain('glyphs')
   expect(failed(view([row(t('cache · 52m'), toggle('v'))]), { glyphs: 'ascii' })).toContain('glyphs')
+  // A cut the surface makes ends in `…`, so ascii leaves none to it.
+  const cut = { type: 'Text', props: { wrap: 'truncate-end' }, children: ['cache 52m'] }
+  expect(failed(view([row(cut, toggle('^'))]), { glyphs: 'ascii' })).toContain('glyphs')
+  expect(failed(view([row(cut, toggle())]))).not.toContain('glyphs')
 })
 test('size: at most 400 nodes shut, 1,500 open', () => {
   expect(failed(view([row(...Array.from({ length: 400 }, (_, i) => t(String(i % 10))), toggle())]))).toContain('size')

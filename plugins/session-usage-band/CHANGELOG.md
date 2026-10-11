@@ -40,6 +40,10 @@ version may change how the band reads.
 - The toggle sat on the top row in tiles, the bottom in gauges and the
   middle in forecast and rings. Since its arrow points toward or away from
   the prompt, it now sits on the row nearest the prompt in every layout.
+- In the ascii tier, text too long for its box still ended in `…`, which a
+  CJK terminal, the tier's own, draws two columns wide, so every narrow
+  hover card and cut line overflowed its row. A hover card now cuts its
+  own words with a `.`, and any other line clips at its row's edge.
 
 ## [0.12.0] - 2026-10-10
 

@@ -147,6 +147,10 @@ const MISSTATED = new RegExp(`\\b(hit rate|${SPLIT_LABELS.join('|')}) \\d+% (use
 /** A price or a fill time drawn without its `~` (spec §2.4). */
 const UNMARKED = /re-warm \$|next message \$|full (in |at )?\d|on pace for \d/i
 
+/** Whether a Text leaves its cut to the surface, which ends it with `…`:
+ *  East-Asian-Ambiguous, so the ascii tier never may (spec §3.2). */
+export const cutBySurface = (n: Node): boolean => n.type === 'Text' && typeof n.props?.wrap === 'string' && n.props.wrap !== 'wrap'
+
 /** Each failed check as `<check>: <why>`; none when the tree keeps the spec
  *  §2 contract: the checks spec §7 lists, §9's node budget and §2.6's open height. */
 export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => {
@@ -217,6 +221,10 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
     })
   }
   if (!(ascii ? ASCII_TIER : UNICODE_TIER).test(text)) fail('glyphs', 'a glyph outside the tier')
+  if (ascii)
+    walk(tree, n => {
+      if (cutBySurface(n)) fail('glyphs', 'a Text the surface would cut with …')
+    })
 
   // Open, a body short of rows keeps a calm section's title, so an empty
   // state is never said without its section's name.

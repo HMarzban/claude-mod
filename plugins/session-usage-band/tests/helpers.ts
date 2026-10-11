@@ -474,14 +474,11 @@ export const cards = (tree: unknown): Array<[string, Node]> => {
 /** The hover card that `key`'s piece reveals. */
 export const hoverCardOf = (tree: unknown, key: string): Node | undefined => cards(tree).find(([k]) => k === key)?.[1]
 
-/** The words a hover card says: its one truncating Text, without the end
- *  caps a text surface draws either side of it. */
+/** The words a hover card says, without the end caps a text surface draws
+ *  either side of its ground. */
 export const cardText = (card: unknown): string => {
-  let text = ''
-  walk(card, n => {
-    if (text === '' && n.type === 'Text' && n.props?.wrap === 'truncate-end') text = textOf(n)
-  })
-  return text
+  const kids = ((card as Node | undefined)?.children ?? []) as unknown[]
+  return textOf(kids.length === 3 ? kids[1] : card)
 }
 
 /** The value a card row shows for `label` in the expanded view. */

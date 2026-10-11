@@ -77,7 +77,7 @@ const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
 type CardName = 'cache' | 'spend' | 'context' | 'limits'
 
 const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement => {
-  const { Box, Button, Text, Svg, palette, measure, asDrawn, onTone, hoverCard, gap, icon } = kit
+  const { Box, Button, Text, Svg, palette, measure, asDrawn, onTone, oneLine, hoverCard, gap, icon } = kit
   const snap = read.chips.raw
   const c = snap.cache
   const ascii = read.frame.glyphs === 'ascii'
@@ -355,9 +355,7 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
             {Svg ? icon(...cardIcon[name]) : null}
             <Text color={palette.label}>{title.toUpperCase()}</Text>
           </Box>
-          <Text color={onTone(head.tone ?? 'calm', palette.value)} bold wrap="truncate-end">
-            {head.text}
-          </Text>
+          {oneLine({ color: onTone(head.tone ?? 'calm', palette.value), bold: true }, head.text)}
         </Box>
         {fitBody(bar, body)}
       </Box>
@@ -485,7 +483,7 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
         </Box>,
         r === undefined ? null : (
           <Box key={`fact:${name} pace`}>
-            <Text color={palette.label} wrap="truncate-end">{`resets ${r.text}${pace}`}</Text>
+            {oneLine({ color: palette.label }, `resets ${r.text}${pace}`)}
           </Box>
         ),
       ]

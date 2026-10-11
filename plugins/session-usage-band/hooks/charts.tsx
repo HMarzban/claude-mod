@@ -48,14 +48,8 @@ export const braille = (values: readonly number[], max: number): string => {
 
 /** A line or bar chart in text: braille against the top of its scale, by
  *  default its largest value. It never wraps: a row too narrow cuts it. */
-const brailleText = (kit: Kit, key: string, values: readonly number[], color: string, top = topOf(values)): RenderChildren => {
-  const { Text } = kit
-  return (
-    <Text key={key} color={color} wrap="truncate-end">
-      {braille(values, top)}
-    </Text>
-  )
-}
+const brailleText = (kit: Kit, key: string, values: readonly number[], color: string, top = topOf(values)): RenderChildren =>
+  kit.oneLine({ key, color }, braille(values, top))
 
 // ---- meter ----------------------------------------------------------------
 
