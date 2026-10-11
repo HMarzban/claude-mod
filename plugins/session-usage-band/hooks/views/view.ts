@@ -16,8 +16,9 @@ export type View = Readonly<{ name: LayoutName; rows: Rows; draw: (kit: Kit, rea
 export type Lines = (kit: Kit, read: Readings, act: BandActions) => RenderElement[]
 /** A view's expanded body, given the rows it may take. */
 export type Body = (kit: Kit, read: Readings) => (bodyRows: number) => RenderChildren[]
-/** What a view brings to the shared cards: its mark in each card's head, and
- *  the facts its collapsed lines already show. */
+/** What a view brings to the shared cards: its mark in each card's head, a
+ *  card's headline and first row in its own words, and the facts its
+ *  collapsed lines already show. */
 export type Lens = (kit: Kit, read: Readings) => Omit<OpenOptions, 'collapsedRows'>
 
 /** The rows a view declares where it is drawn: the desktop's only where Svg

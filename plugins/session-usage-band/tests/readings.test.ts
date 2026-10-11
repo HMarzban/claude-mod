@@ -23,6 +23,11 @@ test('a card says when a limit resets: its clock once the offset is known, else 
   expect(readingsOf(snapOf()).limits.map(l => l.resetWhen)).toEqual(['in 3h 00m', 'in 2d 19h'])
   expect(readingsOf(snapOf({ now: 4 * HOUR })).fiveHour?.resetWhen).toBeUndefined()
 })
+test("a card can say each limit's reset at its clock time, with its pace, as LIMITS' lead row does", () => {
+  expect(readingsOf(snapOf({ utcOffsetMin: 0 })).limits.map(l => l.cardResetAt)).toEqual(['resets 03:00 · on pace for ~10%', 'resets Sat 19:00 · on pace for ~50%'])
+  expect(readingsOf(snapOf()).fiveHour?.cardResetAt).toBe('resets in 3h 00m · on pace for ~10%')
+  expect(readingsOf(snapOf({ now: 4 * HOUR })).fiveHour?.cardResetAt).toBeUndefined()
+})
 test('a card heads its section with one figure, the rest in words, in lowercase', () => {
   const r = readingsOf(snapOf())
   expect(r.cache.cardHead).toEqual([['52m', 'value'], [' left', 'label']])

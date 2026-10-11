@@ -1,7 +1,8 @@
 // The open view every layout shares: chips' four cards, CACHE, SPEND,
 // CONTEXT and LIMITS, and its footer of the workspace strip and the buttons.
-// A layout brings a lens for each card's head, and names the facts its
-// collapsed lines already show, so each card's body adds and never repeats.
+// A layout brings a lens for each card's head, may say a card's headline and
+// first row its own way, and names the facts its collapsed lines already
+// show, so each card's body adds and never repeats.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { meter, splitBar } from '../charts'
@@ -34,7 +35,7 @@ export type Fact =
   | 'room'
   | 'compactsAt'
   | 'inContext'
-  | 'window'
+  | 'modelWindow'
   | 'reset'
   | 'pace'
 
@@ -42,12 +43,25 @@ export type Fact =
  *  cells in a terminal. */
 export type Slots = Readonly<Partial<Record<CardName, RenderChildren>>>
 
+/** A card's first row, as its facts are drawn: a label and its value,
+ *  `used so far` and `5h 0% · 7d 66%`. */
+export type Lead = readonly [label: string, value: string]
+
 export type OpenOptions = Readonly<{
   /** The rows the collapsed lines take, so the cards take only what is left. */
   collapsedRows: number
   slots?: Slots
+  /** A card's headline in the layout's words, in place of its own: bold on
+   *  its figure, `~12 msgs`. */
+  heads?: Readonly<Partial<Record<CardName, Say>>>
+  /** A card's first row, before its own facts and counted with them. */
+  lead?: Readonly<Partial<Record<CardName, Lead>>>
   /** What the collapsed lines already show: no card repeats it. */
   shown?: readonly Fact[]
+  /** How each window's own line says its reset: as a countdown, chips'
+   *  `resets 3h 00m · …`, or at its clock time as the lead row does,
+   *  `resets 16:40 · …`. */
+  windowResets?: 'countdown' | 'clock'
 }>
 
 /** What opens beneath a layout's collapsed lines: as many cards to a line as
@@ -142,9 +156,11 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
       ),
     )
   /** A card: its title, the layout's lens and its headline on one line, then
-   *  its bar and body. */
+   *  its bar, the layout's lead and its body. */
   const card = (name: CardName, title: string, head: Readonly<{ say: Say; tone?: Tone }>, bar: RenderChildren, body: RenderChildren[]) => {
     const slot = o.slots?.[name]
+    const lead = o.lead?.[name]
+    const say = headline(o.heads?.[name] ?? head.say, head.tone ?? 'calm')
     return (
       <Box
         key={`card:${name}`}
@@ -161,11 +177,21 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
             {/* Desktop alone: a terminal title stays plain text. */}
             {Svg ? icon(...cardIcon[name]) : null}
             <Text color={palette.label}>{title.toUpperCase()}</Text>
-            {slot === undefined ? null : [kit.gap('g-slot'), <Box key="slot" flexShrink={0}>{slot}</Box>]}
           </Box>
-          {headline(head.say, head.tone ?? 'calm')}
+          {/* A lens takes the room the title and headline leave, and gives
+              way before the headline's figure does. */}
+          {slot === undefined
+            ? say
+            : [
+                <Box key="slot" flexDirection="row" flexGrow={1} flexShrink={1} minWidth={0} overflow="hidden">
+                  {slot}
+                </Box>,
+                <Box key="headline" flexShrink={0}>
+                  {say}
+                </Box>,
+              ]}
         </Box>
-        {fitBody(bar, body)}
+        {fitBody(bar, lead === undefined ? body : [factRow(undefined, ...lead), ...body])}
       </Box>
     )
   }
@@ -205,7 +231,9 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     'spend',
     'Spend',
     { say: [[spend.totalText, 'value']] },
-    cache.measured ? splitBar(kit, { alt: 'token split: input, output, cache reads', parts: tokenParts.map(([, part]) => part), size: cardBar }) : null,
+    cache.measured && !shown.has('tokenSplit')
+      ? splitBar(kit, { alt: 'token split: input, output, cache reads', parts: tokenParts.map(([, part]) => part), size: cardBar })
+      : null,
     [spend.lastText === undefined ? null : factRow('lastMessage', 'last message', spend.lastText), ...tokenRows],
   )
 
@@ -219,7 +247,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
           knownRow('room', 'room left', context.roomText),
           knownRow('compactsAt', 'auto-compacts at', context.compactsAtText),
           factRow('inContext', 'in context', context.inContextText),
-          factRow('window', 'model window', context.windowText),
+          factRow('modelWindow', 'model window', context.windowText),
         ],
       )
     : null
@@ -231,7 +259,8 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     if (worst === undefined) return null
     const pace = shown.has('pace') ? '' : worst.pace
     const when = shown.has('reset') ? undefined : worst.resetWhen
-    if (when === undefined) return pace === '' ? null : factRow(undefined, 'pace', pace)
+    // Its pace alone needs no label: the phrase says it is one.
+    if (when === undefined) return pace === '' ? null : <Box key="fact:pace">{oneLine({ color: palette.label }, pace)}</Box>
     return (
       <Box key="fact:resets" flexDirection="row" justifyContent="space-between" columnGap={2}>
         <Text color={palette.label}>resets</Text>
@@ -250,6 +279,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     const { name, frac, tone } = w
     if (w.passed) return [factRow(undefined, name, 'reset'), null]
     const value = w.valueMarked
+    const reset = o.windowResets === 'clock' ? w.cardResetAt : w.cardReset
     const room = Math.max(4, inner - [...name].length - [...value].length - 2)
     return [
       <Box key={`fact:${name}`} flexDirection="row" columnGap={1}>
@@ -259,7 +289,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
         </Box>
         <Text color={onTone(tone, palette.cardValue)}>{value}</Text>
       </Box>,
-      w === worst || w.cardReset === undefined ? null : <Box key={`fact:${name} pace`}>{oneLine({ color: palette.label }, w.cardReset)}</Box>,
+      w === worst || reset === undefined ? null : <Box key={`fact:${name} pace`}>{oneLine({ color: palette.label }, reset)}</Box>,
     ]
   }
   /** The lead row, then every window's rows; short of rows, each window's
@@ -268,7 +298,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     const lead = leadRow()
     const rows = read.limits.map(limitRows)
     const lines = rows.flat().filter(part => part !== null)
-    const room = bodyRows - (lead === null ? 0 : 1)
+    const room = bodyRows - (lead === null ? 0 : 1) - (o.lead?.limits === undefined ? 0 : 1)
     return [lead, ...(lines.length <= room ? lines : [...rows.map(([bar]) => bar), ...rows.map(([, pace]) => pace)])]
   }
   const limitsView =

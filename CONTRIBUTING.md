@@ -67,7 +67,7 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/words.ts` | The phrasebook: every phrase a new layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. |
 | `hooks/views/view.ts` | `View`, `rowsOf`, `defineCardsView`, which makes a layout from its rows, its collapsed lines and its lens on the shared cards, and `defineView`, which makes one from its own body, until each layout moves to the cards. |
 | `hooks/views/index.ts` | `VIEWS`: every layout by name. |
-| `hooks/views/cards.tsx` | `openBody`, the open view every layout shares: chips' four cards and its footer, each card's head with the layout's lens, and no card repeating what the collapsed lines show. |
+| `hooks/views/cards.tsx` | `openBody`, the open view every layout shares: chips' four cards and its footer, each card's head with the layout's lens, a headline or first row in the layout's words, and no card repeating what the collapsed lines show. |
 | `hooks/views/frame.tsx` | The toggle, and the expanded scaffold of the layouts still on `defineView`: the workspace strip, the view's body and the buttons. |
 | `hooks/views/parts.tsx` | The pieces several layouts draw: pills, the shared cache pill, and the lines, sections and grid they're laid out with. |
 | `hooks/views/<name>.tsx` | One file per layout: `chips`, `gauges`, `ledger`, `rings`, `pulse`, `tiles`, `week`, `departures`, `forecast`. Chips exports its pill builders and its pill row, for a layout to compose. |
@@ -149,11 +149,12 @@ Run `/reload-plugins` in your session afterwards.
   A clock time is the host's zone's, which the kit can't pin, so the hash
   reads every clock time alike (`tests/golden/hash.ts`); the readings' tests
   hold each to its zone. `tools/golden/capture.sh` runs only on the hooks at
-  `846e17d`, so it can't recapture a fix. If your change is meant to alter what chips draws, update
-  the failing keys in `tests/golden/chips.ts` to the hashes the failures
-  print. For a key also held in `GOLDEN_TREES`, replace its whole tree too:
-  log `JSON.stringify(canon(tree))` for that key in `tests/golden/suite.ts`,
-  paste the output in, and drop the log. Say why in the pull request.
+  `846e17d`, so it can't recapture a fix. If your change is meant to alter
+  what chips draws, update the failing keys in `tests/golden/chips.ts` to
+  the hashes the failures print. For a key also held in `GOLDEN_TREES`,
+  replace its whole tree too: log `JSON.stringify(canon(tree))` for that
+  key in `tests/golden/suite.ts`, paste the output in, and drop the log.
+  Say why in the pull request.
 
 ## Demos and the website
 

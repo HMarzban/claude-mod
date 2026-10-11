@@ -183,6 +183,9 @@ export type LimitWords = Readonly<{
   /** When it resets, after `resets`: `16:40` or `Sat 13:30` once the offset
    *  is known, else `in 3h 00m`; undefined without a reset to come. */
   resetWhen: string | undefined
+  /** A card's reset at its clock time and pace, as LIMITS' lead row says
+   *  it: `resets 16:40 · on pace for ~10%`, else `resets in 3h 00m · …`. */
+  cardResetAt: string | undefined
   /** `5h 4%`, or once its window has passed, `5h reset`. */
   text: string
   say: Say
@@ -371,11 +374,14 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const ascii = frame.glyphs === 'ascii'
   const boardReset = ascii ? 'RESET' : '↻'
   const pace = live ? paceText(f) : ''
+  const withPace = pace === '' ? '' : ` · ${pace}`
+  const resetWhen = f.reset?.kind !== 'in' ? undefined : (resetClock ?? `in ${f.reset.text}`)
   return {
     valueText,
     valueMarked: `${f.value}${severityMark(f.frac)}`,
-    cardReset: f.reset?.kind === 'in' ? `resets ${f.reset.text}${pace === '' ? '' : ` · ${pace}`}` : undefined,
-    resetWhen: f.reset?.kind !== 'in' ? undefined : (resetClock ?? `in ${f.reset.text}`),
+    cardReset: f.reset?.kind === 'in' ? `resets ${f.reset.text}${withPace}` : undefined,
+    resetWhen,
+    cardResetAt: resetWhen === undefined ? undefined : `resets ${resetWhen}${withPace}`,
     text: joined(say),
     say,
     pace,
