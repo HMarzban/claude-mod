@@ -118,7 +118,7 @@ test('a limit as a sentence: its value or its words, its reset, and its pace, in
   if (five === undefined) throw new Error('no 5h limit')
   expect(shown(limitSentence(k, five, { lead: 'text', reset: 'resetWords', sep: ', ' }))).toMatch(/^5h \d+%, resets in \S+ \S+(, on pace for ~\d+%)?$/)
   expect(shown(limitSentence(k, five, { lead: 'say', reset: 'resetGlyph', sep: ' · ' }))).toMatch(/^5h \d+% · ↻ in \S+ \S+( · on pace for ~\d+%)?$/)
-  const amber = { ...five, amber: { long: '! 5h 82%', short: '! 5h' } }
+  const amber = { ...five, amber: { long: '! 5h 82%', short: '! 5h', beside: '! 5h' } }
   expect(shown(limitSentence(k, amber, { lead: 'text', reset: 'resetWords', sep: ', ' }))).toMatch(/^! 5h 82%, resets in /)
 })
 test('what needs you comes first, each part in its order; a piece is built once', () => {

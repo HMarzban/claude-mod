@@ -24,7 +24,7 @@ import { defineCardsView } from './view'
 // ---- limits ---------------------------------------------------------------
 
 export type ChipKey = Exclude<LimitKey, 'other'>
-export type Tint = Readonly<{ bg: string; fg: string; accent: string }>
+type Tint = Readonly<{ bg: string; fg: string; accent: string }>
 type LimitSpec = Readonly<{
   icon: Icon
   title: string

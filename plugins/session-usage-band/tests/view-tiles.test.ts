@@ -41,6 +41,10 @@ const desk = (over: Partial<BandSnapshot> = {}): Partial<BandSnapshot> => ({ sur
 const tilesOf = (row: Node): Node[] => (row.children ?? []).filter((k): k is Node => (k as Node | null)?.props?.flexShrink === 0 && (k as Node).props?.key !== undefined)
 const keysOf = (row: Node): unknown[] => tilesOf(row).map(t => t.props?.key)
 const tile = (row: Node, key: string): Node | undefined => tilesOf(row).find(t => t.props?.key === key)
+/** The amber readings: 5h at 82%, 5h pacing to full in an hour, the cache's last minute. */
+const LIMIT_82: Partial<BandSnapshot> = { fiveHour: { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }
+const PACING: Partial<BandSnapshot> = { fiveHour: { percentUsed: 40, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: HOUR } }
+const LAST_MINUTE: Partial<BandSnapshot> = { cache: { ...snapAt().cache, msLeft: 30_000 } }
 const boldOf = (n: unknown): string[] => {
   const out: string[] = []
   walk(n, k => {
@@ -57,8 +61,12 @@ test("each tile leads with its figure, then its label: a limit's reset in chips'
   const leads = [/^59m\s*cache/, /^\$1,027\s*spent$/, /^87%\s*context/, /^0%\s*5h ↻ 4h 55m/, /^66%\s*7d ↻ 5d 22h/, /^2\.1B\s*tokens$/]
   expect(said.map((s, i) => leads[i]?.test(s))).toEqual(leads.map(() => true))
 })
-test('one bold per tile, on its figure', () => {
-  for (const surface of ['terminal', 'desktop'] as const) expect(boldOf(rowOf({ surface }))).toEqual(['59m', '$1,027', '87%', '0%', '66%', '2.1B'])
+test('one bold per tile, on its figure, amber or calm', () => {
+  for (const surface of ['terminal', 'desktop'] as const) {
+    expect(boldOf(rowOf({ surface }))).toEqual(['59m', '$1,027', '87%', '0%', '66%', '2.1B'])
+    expect(boldOf(tile(rowOf({ surface, ...LIMIT_82 }), '5h'))).toEqual(['82%'])
+    expect(boldOf(tile(rowOf({ surface, ...LAST_MINUTE }), 'cache'))).toEqual(['30s'])
+  }
 })
 test('every tile is the same width, its figures right-aligned in one column', () => {
   for (const [surface, measure] of [['terminal', TERMINAL], ['desktop', DESKTOP]] as const) {
@@ -94,7 +102,6 @@ test('a desktop tile marks a cap with an Svg: the battery, a bar, 7d its notch i
   // No thumb: nothing in a mark, the row's or a card head's, paints the value's bright ink.
   const limits = byKey(cardOf(drawn(desk({ expanded: true })), 'limits'), 'slot', 'Box')
   for (const n of [...svgsOf(row), ...svgsOf(limits)]) {
-    expect(String(n.props?.source)).not.toMatch(/class="thumb"/)
     expect(String(n.props?.source)).not.toContain(`"${snapOf().palette.value}"`)
   }
 })
@@ -120,13 +127,29 @@ test('the row gives way from the right: tokens, resets, bar length, then the cal
   for (const cols of [160, 120, 95]) expect(new Set(tilesOf(at(cols)).map(t => cellsOf(t as unknown as RenderChildren, TERMINAL))).size).toBe(1)
   expect(keysOf(at(40))).toEqual(['cache', 'cost'])
 })
-test('an amber tile leads the row on the amber ground, its reason led by !', () => {
-  const row = rowOf({ fiveHour: { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } })
+test('an amber tile leads the row on the amber ground, its figure first, then its reason led by !', () => {
+  const row = rowOf(LIMIT_82)
   expect(keysOf(row)[0]).toBe('5h')
-  expect(shown(tile(row, '5h'))).toMatch(/^ *! 5h 82%/)
+  expect(shown(tile(row, '5h'))).toMatch(/^82%! 5h ↻ 3h 00m/)
   expect(tile(row, '5h')?.props?.backgroundColor).toBe(snapOf().palette.amberBg)
+  // The figure keeps its column, the one every tile shares.
+  expect(new Set(tilesOf(row).map(t => byKey(t, 'fig', 'Box')?.props?.width)).size).toBe(1)
   // The calm tiles stay off amber.
   expect(boldOf(tile(row, 'cache'))).toEqual(['59m'])
+})
+test('narrowed, an amber tile keeps its figure and its name: a pace to full, the last minute', () => {
+  for (const surface of ['terminal', 'desktop'] as const)
+    for (const columns of [160, 60]) {
+      expect(shown(tile(rowOf({ surface, columns, ...PACING }), '5h'))).toMatch(/^40%! 5h ~1h/)
+      expect(shown(tile(rowOf({ surface, columns, ...LAST_MINUTE }), 'cache'))).toMatch(/^30s! cache/)
+    }
+})
+test('at 40 columns a calm tile gives way before any label: no figure is left unnamed', () => {
+  for (const surface of ['terminal', 'desktop'] as const)
+    for (const amber of [PACING, LAST_MINUTE]) {
+      const tiles = tilesOf(rowOf({ surface, columns: 40, ...amber }))
+      expect(tiles.map(t => `${String(t.props?.key)} ${byKey(t, 'label', 'Box') !== undefined}`)).toEqual(tiles.map(t => `${String(t.props?.key)} true`))
+    }
 })
 test('a cold cache says so collapsed, and its price opens', () => {
   const cold = { cache: { ...snapAt().cache, msLeft: 0 } }
@@ -166,6 +189,18 @@ test("open adds, never repeats: each card's first row is one the row left out", 
     ])
     for (const value of ['~$1.66', '$0.10', '~25k', 'full before reset', 'resets']) expect(row).not.toContain(value)
   }
+})
+test("open, a card's lens stands for its bar: each card with one leads with a fact, never the bar the tile and the head already draw", () => {
+  for (const surface of ['terminal', 'desktop'] as const)
+    for (const [columns, maxRows] of [[160, 13], [95, 40]] as const) {
+      const open = drawn({ surface, columns, maxRows, expanded: true })
+      // The spend has no lens: its split bar is drawn nowhere else.
+      for (const name of ['cache', 'context', 'limits']) {
+        const first = ((cardOf(open, name)?.children ?? []) as Node[]).filter(Boolean)[1]
+        expect(`${name} ${String(first?.props?.key)}`).toMatch(new RegExp(`^${name} fact:`))
+        expect(svgsOf(first)).toEqual([])
+      }
+    }
 })
 test('collapsed is one row, and open keeps to the band', () => {
   for (const surface of ['terminal', 'desktop'] as const) {

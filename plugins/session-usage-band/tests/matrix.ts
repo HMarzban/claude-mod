@@ -41,9 +41,10 @@ export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide
 
 /** Every layout's words for each amber trigger. ` · ` reads `, ` in the ascii tier. */
 export const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
-  cacheLastMinute: /! \d+s( left)?|LAST CALL|! cooling( ·|,) \d+s left/,
-  nearCompaction: /! context \d+%|! ctx \d+%|! COMPACTS IN ~/,
-  contextNoCompaction: /! context \d+%|! ctx \d+%|! CONTEXT \d+%/,
+  // Tiles' figure first, its reason beside it: `30s! cache`, `98%! context`.
+  cacheLastMinute: /! \d+s( left)?|LAST CALL|! cooling( ·|,) \d+s left|\d+s ?! cache/,
+  nearCompaction: /! context \d+%|! ctx \d+%|! COMPACTS IN ~|\d+% ?! context/,
+  contextNoCompaction: /! context \d+%|! ctx \d+%|! CONTEXT \d+%|\d+% ?! context/,
   limit80: /! 5h|! NEAR LIMIT/,
   fiveHourAhead: /! 5h|! FULL/,
   // Open alone, where the shared cards mark it as chips' do: `spend 92%!`.
@@ -152,14 +153,25 @@ const UNMARKED = /re-warm \$|next message \$|full (in |at )?\d|on pace for \d/i
  *  East-Asian-Ambiguous, so the ascii tier never may (spec §3.2). */
 export const cutBySurface = (n: Node): boolean => n.type === 'Text' && typeof n.props?.wrap === 'string' && n.props.wrap !== 'wrap'
 
-/** Whether an open view is the shared cards at their floor: each its head
- *  and one body row, which a band shorter than that scrolls. */
-const atCardsFloor = (tree: Node): boolean => {
-  const cards: Node[] = []
-  walk(tree, n => {
-    if (n.type === 'Box' && typeof n.props?.key === 'string' && n.props.key.startsWith('card:')) cards.push(n)
-  })
-  return cards.length > 0 && cards.every(card => (card.children ?? []).filter(isDrawn).length <= 2)
+/** The rows an open view of the shared cards takes at its floor, which a
+ *  band shorter than that scrolls: the rows its view declares, then what it
+ *  opens with each card cut to its head and one body row, and the footer to
+ *  its one row. Undefined without the cards. */
+const cardsFloor = (tree: Node, declared: number, surface: Surface): number | undefined => {
+  let cards = 0
+  const atFloor = (n: unknown): unknown => {
+    if (n === null || typeof n !== 'object') return n
+    const node = n as Node
+    const key = node.props?.key
+    if (key === 'actions') return { type: 'Text', props: { marginTop: node.props?.marginTop }, children: [] }
+    if (typeof key === 'string' && key.startsWith('card:')) {
+      cards++
+      return { ...node, children: (node.children ?? []).filter(isDrawn).slice(0, 2) }
+    }
+    return { ...node, children: node.children?.map(atFloor) }
+  }
+  const opened = { type: 'Box', props: { flexDirection: 'column' }, children: (tree.children ?? []).slice(1).map(atFloor) }
+  return cards === 0 ? undefined : declared + visualRows(opened, surface)
 }
 
 /** Each failed check as `<check>: <why>`; none when the tree keeps the spec
@@ -247,7 +259,8 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   if (nodes > (ctx.expanded ? 1500 : 400)) fail('size', `${nodes} nodes`)
   if (ctx.expanded) {
     const tall = visualRows(tree, ctx.surface)
-    if (tall > ctx.maxRows && !atCardsFloor(tree)) fail('height', `${tall} rows at maxRows ${ctx.maxRows}`)
+    const most = Math.max(ctx.maxRows, cardsFloor(tree, declared, ctx.surface) ?? 0)
+    if (tall > most) fail('height', `${tall} rows at maxRows ${ctx.maxRows}, ${most} at most`)
   }
   return errors
 }

@@ -8,7 +8,7 @@ import type { Kit } from '../kit'
 import type { BarSize } from '../layout'
 import type { CacheReading, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
-import { EMPTY, type Amber, type CacheCondition, type Say } from '../words'
+import { EMPTY, type Amber, type CacheCondition, type ReadingAmber, type Say } from '../words'
 import { toggleButton } from './frame'
 import { accentOf, amberWords, emptySay, fitLine, line, lineRoom, separatedBy, words, type Keeps } from './parts'
 import { defineView } from './view'
@@ -161,7 +161,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const cooling = c.amber === undefined ? undefined : lastMinute(kit, c, c.amber)
   // No change ahead says these, so each says itself; a measured fill is a change.
   const triggers = [read.context.amber, read.fiveHour?.fullIn === undefined ? read.fiveHour?.amber : undefined, read.sevenDay?.amber].filter(
-    (a): a is Amber => a !== undefined,
+    (a): a is ReadingAmber => a !== undefined,
   )
   const separated = separatedBy(kit, '│', 6)
   return [
