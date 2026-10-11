@@ -20,8 +20,11 @@ export type Palette = {
   cardBg: string
   cardBorder: string
   cardValue: string
-  /** Hover explanations, a step above the cards. */
+  /** A hover card's ground and ink, inverted against the palette (light in
+   *  dark, dark in light), so a card over the row can't pass for one more
+   *  chip: no chip uses that ground. */
   tooltipBg: string
+  tooltipFg: string
   /** A bar track's edge, so the track reads against any ground. */
   trackStroke: string
   /** The cache battery's charge, calm and in its last minute. */
@@ -52,7 +55,8 @@ export const DARK: Readonly<Palette> = {
   cardBg: '#2a2a31',
   cardBorder: '#76767f',
   cardValue: '#c4c4cc',
-  tooltipBg: '#303037',
+  tooltipBg: '#dcdce4',
+  tooltipFg: '#1d1d22',
   trackStroke: '#7c7c86',
   batteryFill: '#24402b',
   batteryAmber: '#5a4719',
@@ -79,7 +83,8 @@ export const LIGHT: Readonly<Palette> = {
   cardBg: '#f4f4f7',
   cardBorder: '#77777f',
   cardValue: '#3a3a42',
-  tooltipBg: '#ffffff',
+  tooltipBg: '#2b2b33',
+  tooltipFg: '#ececf2',
   trackStroke: '#77777f',
   batteryFill: '#cfe8d3',
   batteryAmber: '#f3d9a0',
@@ -109,6 +114,7 @@ export const PLAIN: Readonly<Palette> = {
   cardBorder: 'subtle',
   cardValue: 'text',
   tooltipBg: '',
+  tooltipFg: 'text',
   trackStroke: 'subtle',
   batteryFill: '',
   batteryAmber: '',
