@@ -67,7 +67,7 @@ for (const [name, p, hosts] of [
     expect(low.map(bg => `${bg} ${contrast(p.tooltipBg, bg).toFixed(2)}`)).toEqual([])
   })
 
-  test(`${name}: the new layouts' text and marks hold on the card ground`, () => {
+  test(`${name}: the layouts' text and marks hold on the card ground`, () => {
     expect(contrast(p.amberFg, p.cardBg)).toBeGreaterThanOrEqual(4.5)
     for (const mark of [p.meterFill, p.warm, p.fiveAccent, p.weekAccent]) expect(contrast(mark, p.cardBg)).toBeGreaterThanOrEqual(3)
     expect(contrast(p.value, p.surface)).toBeGreaterThanOrEqual(4.5)

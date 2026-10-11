@@ -26,7 +26,7 @@ import { drawnTier } from './glyphs'
 import { warmAverageOf } from './insights'
 import type { Trails } from './insights'
 import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
-import { cacheWords, contextWords, historyWords, lastHourOf, limitWords, spendWords, weekWords, workspaceWords } from './words'
+import { cacheWords, contextWords, historyWords, lastHourOf, limitWords, spendWords, weekWords } from './words'
 import type { CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
 
 export type Tone = 'calm' | 'amber'
@@ -276,9 +276,7 @@ export type HistoryReading = Trails &
     reWarms: readonly boolean[]
     /** Their mean, re-warms left out: what a chart scales and rules its bars by. */
     warmAvgUsd: number | undefined
-    /** The 5h trail's percentages. */
-    fiveHourValues: readonly number[]
-    /** The same over the last hour. */
+    /** The 5h trail's percentages over the last hour. */
     fiveHourHour: readonly number[]
   }>
 
@@ -313,8 +311,6 @@ export type Readings = Readonly<{
   limits: readonly LimitView[]
   worstLimit: LimitView | undefined
   workspace: BandSnapshot['workspace']
-  /** The workspace as one line: `~/workspace/claude-mod, branch main, clean`. */
-  workspaceText: string | undefined
   /** Built the first time a view reads it, so chips never pays for it. */
   history: HistoryReading
   /** The week's day and hour cells; built, like history, the first time a view reads it. */
@@ -418,7 +414,6 @@ export const historyFacts = (trails: Trails, fiveHour: LimitView | undefined, co
   costValues: trails.costs.map(e => e.usd),
   reWarms: trails.costs.map(e => e.reWarm),
   warmAvgUsd: warmAverageOf(trails.costs),
-  fiveHourValues: trails.fiveHour.map(p => p.pct),
   fiveHourHour: lastHourOf(trails.fiveHour, now).map(p => p.pct),
 })
 
@@ -507,7 +502,6 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     limits,
     worstLimit,
     workspace: snap.workspace,
-    workspaceText: workspaceWords(snap.workspace),
     get history() {
       return (history ??= historyFacts(snap.history, fiveHour, context, snap.now))
     },

@@ -1,4 +1,4 @@
-// The phrasebook the new layouts speak: clock times, countdowns in words,
+// The phrasebook the layouts speak: clock times, countdowns in words,
 // spoken durations, amber, pace, resets, empty states and alt text.
 
 import { test, expect } from 'claude-code/testing'

@@ -26,7 +26,7 @@ const tracking = (g: GitState): string => {
 /** Where a strip sits: on top, under a row of air, its text lined up with
  *  the cards' (`edge` is their border width); in the footer, in the room the
  *  buttons leave. */
-export const stripPlacement = (place: 'top' | 'footer', edge: number) =>
+const stripPlacement = (place: 'top' | 'footer', edge: number) =>
   place === 'top' ? { paddingX: 1 + edge / 2, marginTop: 1 } : { flexGrow: 1, flexShrink: 1, minWidth: 0 }
 
 /** The key a drawn Box goes by, if any. */

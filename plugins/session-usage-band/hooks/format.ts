@@ -193,7 +193,7 @@ export const fmtSecondsLeft = (ms: number): string => `${secondsLeft(ms)}s left`
 export const fmtLeftShort = (ms: number): string =>
   ms < 60_000 ? `${secondsLeft(ms)}s` : ms < 600_000 ? `${minutesLeft(ms)}m` : fmtCountdown(ms)
 
-/** A countdown in words for the new layouts: `1h 00m left`, `52m left`, `10m left`, `47s left`. */
+/** A countdown in words: `1h 00m left`, `52m left`, `10m left`, `47s left`. */
 export const fmtLeft = (ms: number): string => `${fmtLeftShort(ms)} left`
 
 const plural = (n: number, unit: string): string => `${n} ${unit}${n === 1 ? '' : 's'}`
