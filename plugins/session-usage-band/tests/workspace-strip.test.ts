@@ -16,12 +16,12 @@ import {
   cards,
   contrast,
   engine,
+  cardText,
   hoverCardOf,
   isCard,
   props,
   shown,
   svgsOf,
-  textOf,
   walk,
   widthOf,
   type Node,
@@ -237,7 +237,7 @@ test("the path's hover card says the whole state, so nothing a narrow line drops
   engine.git = { status: DIRTY, dirs: GIT_MAIN_TREE }
   await $.session.start({ ...START, surface: 'desktop' })
   const card = hoverCardOf(stripOf(await expanded($, clock, 'desktop')), 'ws:path')
-  expect(textOf(card)).toBe('~/workspace/claude-mod: branch main, 3 changed, 2 ahead, 1 behind')
+  expect(cardText(card)).toBe('~/workspace/claude-mod: branch main, 3 changed, 2 ahead, 1 behind')
 })
 
 test("the strip's hover cards are drawn after all of it, each sharing its own piece's scope", async ($, on) => {
@@ -262,14 +262,14 @@ test("the strip's hover cards are drawn after all of it, each sharing its own pi
       expect(card.hover?.display).toBe('flex')
     }
     // Ahead and behind, apart on the desktop, each explain the same.
-    expect(new Set(tracking.map(key => textOf(hoverCardOf(strip, key))))).toEqual(new Set(['2 commits to push, 1 to pull']))
+    expect(new Set(tracking.map(key => cardText(hoverCardOf(strip, key))))).toEqual(new Set(['2 commits to push, 1 to pull']))
   }
 })
 
 /** Where the terminal's top strip, `cols` wide, puts its cards: on the
  *  path's side from where the piece starts, slid left only as far as it must
  *  to end within the strip's room; on the state's side ending where the piece
- *  ends, as wide as its text or the room left of that end. */
+ *  ends, as wide as its text and caps or the room left of that end. */
 const expectStripCardsAt = (strip: Node | undefined, cols: number) => {
   const pad = Number(strip?.props?.paddingX)
   const room = cols - ROW_SLACK
@@ -278,7 +278,7 @@ const expectStripCardsAt = (strip: Node | undefined, cols: number) => {
   for (const piece of side('ws:where')) {
     const card = hoverCardOf(strip, String(piece.props?.key))
     if (card !== undefined) {
-      const width = Math.min(textOf(card).length + 2, room)
+      const width = Math.min(cardText(card).length + 4, room)
       expect(card.props?.width).toBe(width)
       expect(card.props?.left).toBe(Math.max(0, Math.min(at, room - width)))
     }
@@ -290,7 +290,7 @@ const expectStripCardsAt = (strip: Node | undefined, cols: number) => {
     if (card !== undefined) {
       expect(card.props?.right).toBe(end)
       expect(card.props?.left).toBeUndefined()
-      expect(card.props?.width).toBe(Math.min(textOf(card).length + 2, room - end))
+      expect(card.props?.width).toBe(Math.min(cardText(card).length + 4, room - end))
     }
     end += widthOf(piece)
   }
@@ -313,7 +313,7 @@ test("on a narrow terminal a card on the state's side still ends within the stri
   await $.session.start(START)
   const strip = stripOf(await expanded($, clock, 'terminal', 24))
   const changes = hoverCardOf(strip, 'ws:changes')
-  expect(textOf(changes).length + 2).toBeGreaterThan(24 - ROW_SLACK - Number(changes?.props?.right))
+  expect(cardText(changes).length + 4).toBeGreaterThan(24 - ROW_SLACK - Number(changes?.props?.right))
   expectStripCardsAt(strip, 24)
 })
 
@@ -325,8 +325,8 @@ test('a footer strip with no room for its cards still draws, and shows no card t
   for (const surface of ['terminal', 'desktop'] as const) {
     const strip = stripOf(byKey(await expanded($, clock, surface, 24, 12), 'actions', 'Box'))
     expect(strip).toBeDefined()
-    // Its padding and one character, or the hover shows a bare patch.
-    for (const [, card] of cards(strip)) expect(card.props?.width).toBeGreaterThanOrEqual(3)
+    // Its padding and one character, and on the terminal its caps, or the hover shows a bare patch.
+    for (const [, card] of cards(strip)) expect(card.props?.width).toBeGreaterThanOrEqual(surface === 'terminal' ? 5 : 3)
   }
 })
 

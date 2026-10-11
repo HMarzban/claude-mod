@@ -54,7 +54,15 @@ for (const [name, p, hosts] of [
   test(`${name}: card edges and bar tracks meet WCAG non-text contrast`, () => {
     for (const host of hosts) expect(contrast(p.cardBorder, host)).toBeGreaterThanOrEqual(3)
     for (const bg of pillGrounds) expect(contrast(p.trackStroke, bg)).toBeGreaterThanOrEqual(3)
-    expect(p.tooltipBg).not.toBe(p.cardBg) // hover cards stand above the cards
+  })
+
+  test(`${name}: a hover card is inverted, its ink legible and its ground apart from every chip's and the band's`, () => {
+    expect(contrast(p.tooltipFg, p.tooltipBg)).toBeGreaterThanOrEqual(4.5)
+    // Cards are drawn over chips' row and the workspace strip alone, never
+    // over a flap, so the grounds they cover are the chips' and the host's.
+    const covered = [...pillGrounds, p.batteryFill, p.batteryAmber, ...hosts]
+    const low = covered.filter(bg => contrast(p.tooltipBg, bg) < 3)
+    expect(low.map(bg => `${bg} ${contrast(p.tooltipBg, bg).toFixed(2)}`)).toEqual([])
   })
 
   test(`${name}: the new layouts' text and marks hold on the card ground and on flaps`, () => {

@@ -10,6 +10,7 @@ import {
   toasts,
   textOf,
   pillOf,
+  cardText,
   hoverCardOf,
   breakdown,
   fact,
@@ -99,7 +100,7 @@ test('the tokens chip totals every token and breaks them down', async ($, on) =>
   const ui = await mountBand($, 'terminal', 140)
   const drawn = await ui.drawn()
   expect(textOf(pillOf(drawn, 'tokens'))).toMatch(/225k/)
-  expect(textOf(hoverCardOf(drawn, 'tokens'))).toBe('input 120k · output 5.0k · cache reads 100k')
+  expect(cardText(hoverCardOf(drawn, 'tokens'))).toBe('input 120k · output 5.0k · cache reads 100k')
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
   expect(fact(tree, 'input')).toBe('120k')

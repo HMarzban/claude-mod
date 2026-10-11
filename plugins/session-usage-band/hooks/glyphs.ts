@@ -24,6 +24,8 @@ export const ASCII_MAP: Readonly<Record<string, string>> = {
   '█': '#', '░': '-', '▒': ':', '│': '|', '·': '-', '…': '.', '±': '+',
   '●': '*', '■': '#', '–': '-', '↑': '+', '↓': '-', '▿': 'v', '▵': '^',
   '↻': '', 'Σ': '', '◷': '', '◔': '',
+  // A hover card's caps: a space each keeps its width.
+  '▐': ' ', '▌': ' ',
 }
 
 /** `s` in ASCII: each glyph mapped, and any other non-ASCII character

@@ -137,12 +137,12 @@ Run `/reload-plugins` in your session afterwards.
   `LONG` budget from `helpers.ts`: the band ticks every second, and CI
   runners are several times slower than a laptop.
 - **Chips' trees are frozen.** `golden-a` and `golden-b` hold chips to the
-  trees it drew before the layouts work, with the 0.11.13 hover fix: dark
-  and plain, desktop and terminal, at 40, 95 and 200 columns, shut and
-  open. `tools/golden/capture.sh` runs only on the hooks at `4882313`, so it
-  can't recapture a fix. If your change is meant to alter what chips draws,
-  update the failing keys in `tests/golden/chips.ts` to the hashes the
-  failures print. For a key also held in `GOLDEN_TREES`, replace its whole
+  trees it drew before the layouts work, with the 0.11.13 hover fix and the
+  0.12.1 hover-contrast fix: dark and plain, desktop and terminal, at 40, 95
+  and 200 columns, shut and open. `tools/golden/capture.sh` runs only on the
+  hooks at `c0b2c6f`, so it can't recapture a fix. If your change is meant
+  to alter what chips draws, update the failing keys in
+  `tests/golden/chips.ts` to the hashes the failures print. For a key also held in `GOLDEN_TREES`, replace its whole
   tree too: log `JSON.stringify(canon(tree))` for that key in
   `tests/golden/suite.ts`, paste the output in, and drop the log. Say why in
   the pull request.

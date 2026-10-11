@@ -13,12 +13,12 @@ import {
   fact,
   pacing,
   pillOf,
+  cardText,
   hoverCardOf,
   resp,
   respond,
   shown,
   svgsOf,
-  textOf,
   usage,
   type Node,
   setup,
@@ -45,7 +45,7 @@ test('the warm cache says what reading costs on the model in force', async ($, o
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   const ui = await mountBand($, 'desktop', 160)
-  const hover = textOf(hoverCardOf(await ui.drawn(), 'cache'))
+  const hover = cardText(hoverCardOf(await ui.drawn(), 'cache'))
   expect(hover).toMatch(/bills input at 5%/)
   expect(hover).not.toMatch(/10%/)
   await ui.unmount()
@@ -57,7 +57,7 @@ test('a model named with its context size, as /model shows a 1M window, is price
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   const ui = await mountBand($, 'desktop', 160)
-  expect(textOf(hoverCardOf(await ui.drawn(), 'cache'))).toMatch(/bills input at 5%/)
+  expect(cardText(hoverCardOf(await ui.drawn(), 'cache'))).toMatch(/bills input at 5%/)
   await ui.unmount()
 })
 
@@ -68,7 +68,7 @@ test('a session named by an alias is priced at the model its replies are billed 
   await $.turn.start({ text: 'hi', turnId: 't1' })
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   const ui = await mountBand($, 'desktop', 160)
-  expect(textOf(hoverCardOf(await ui.drawn(), 'cache'))).toMatch(/bills input at 5%/)
+  expect(cardText(hoverCardOf(await ui.drawn(), 'cache'))).toMatch(/bills input at 5%/)
   await ui.unmount()
 })
 
