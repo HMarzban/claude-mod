@@ -167,10 +167,12 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
         </Text>,
         ...reset,
       ],
+      // The card covers its chip, so it leads with the fact the chip had,
+      // and a short row's cut only takes the description.
       hover:
         r === undefined
           ? `Your ${spec.title.toLowerCase()}, across all your Claude use`
-          : `${spec.title} across all your Claude use; resets in ${r.text}`,
+          : `Resets in ${r.text}; ${spec.title.toLowerCase()}, all your Claude use`,
     }
   }
 
@@ -185,7 +187,7 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
         body: [...icon('cost', palette.coin), <Text key="v" color={palette.value} bold>{fmtCost(snap.costUsd)}</Text>],
         hover:
           snap.lastTurnUsd === null
-            ? 'What this session has cost so far'
+            ? `${fmtCost(snap.costUsd)} so far this session`
             : `${fmtSmallCost(snap.lastTurnUsd)} spent during your last message, subagents included`,
       },
     ]
@@ -224,7 +226,7 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
         ],
         hover:
           ctx.compactAt === undefined || toCompact === undefined
-            ? 'Conversation fill; near full, older turns get summarized'
+            ? `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.window)} (${ctxPct}); near full, older turns get summarized`
             : `Full toward auto-compaction at ${fmtTokens(ctx.compactAt)}; ${fmtTokens(toCompact)} to go`,
       })
     }

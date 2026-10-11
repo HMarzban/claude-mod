@@ -73,7 +73,7 @@ export const cacheCopy = (c: Cache, mood: CacheMood, isWorking: boolean): CacheC
   const left = fmtCountdown(c.msLeft)
   const charge = cacheCharge(c, mood, isWorking)
   const battery = charge <= 0 ? 'cache battery empty' : `cache battery ${Math.round(clamp01(charge) * 100)}% left`
-  const warmHover = `Warm cache bills input at ${readPct}; expires ${c.ttl} after a reply`
+  const warmHover = `${left} left; warm cache bills input at ${readPct}, expires ${c.ttl} after a reply`
   switch (mood) {
     case 'unmeasured':
       return {

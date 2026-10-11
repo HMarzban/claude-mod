@@ -139,13 +139,15 @@ test('every pill explains itself on hover, on a card drawn over the row at its p
     const found = cards(tree)
     expect(found.map(([key]) => key)).toEqual(PILLS)
     expectCardsAt(firstRow(tree), found, cols, surface)
-    for (const [, card] of found) expect(cardText(card).length).toBeLessThan(60)
-    expect(cardText(found[0]?.[1])).toBe('Warm cache bills input at 5%; expires 1h after a reply')
+    for (const [, card] of found) expect(cardText(card).length).toBeLessThan(70)
+    // Each leads with its value, then what changes, then what it means, so a
+    // short row's cut only ever takes the description.
+    expect(cardText(found[0]?.[1])).toBe('1h 00m left; warm cache bills input at 5%, expires 1h after a reply')
     expect(cardText(found[1]?.[1])).toBe('$0.41 spent during your last message, subagents included')
     expect(cardText(found[2]?.[1])).toBe('input 196k · output 12k · cache reads 0')
-    expect(cardText(found[3]?.[1])).toBe('Conversation fill; near full, older turns get summarized')
-    expect(cardText(found[4]?.[1])).toBe('5-hour limit across all your Claude use; resets in 3h 00m')
-    expect(cardText(found[5]?.[1])).toBe('Weekly limit across all your Claude use; resets in 2d 19h')
+    expect(cardText(found[3]?.[1])).toBe('76k of 200k (38%); near full, older turns get summarized')
+    expect(cardText(found[4]?.[1])).toBe('Resets in 3h 00m; 5-hour limit, all your Claude use')
+    expect(cardText(found[5]?.[1])).toBe('Resets in 2d 19h; weekly limit, all your Claude use')
     await ui.unmount()
   }
 })

@@ -21,6 +21,13 @@ version may change how the band reads.
   words, over chips the pointer couldn't reach while it showed. It is now
   sized from the desktop's font, about 0.8 columns a character, then
   rounded out to the end of a chip.
+- A hover card covers its own chip, yet the cost card held no figure and a
+  short row cut the reset time, the one fact left nowhere else. Every card
+  now leads with its value, then what changes, then what it means:
+  `Resets in 3h 00m; 5-hour limit, all your Claude use`, `$2.41 so far
+  this session`, `76k of 200k (38%); near full, older turns get
+  summarized`, `52m left; warm cache bills input at 5%, expires 1h after a
+  reply`.
 - The expand toggle pointed the wrong way: the band is anchored to the
   prompt and grows upward when it opens, yet it showed `▿` to open and `▵`
   to close. It now points the way the band will move, `▵` to open and `▿`
