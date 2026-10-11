@@ -416,9 +416,10 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
   const y = (v: number) => height - (top > 0 ? Math.max(1, Math.round(Math.min(1, v / top) * room)) : 1)
   const marks = values.map((v, i) => {
     const x = barsWidth(i)
+    const barTop = y(v)
     const isMarked = marked[i] === true
-    const bar = `<rect class="bar" x="${x}" y="${y(v)}" width="${BAR_PX}" height="${height - y(v)}" rx="1" fill="${isMarked ? markColor : color}"/>`
-    return isMarked ? `${bar}<rect class="cap" x="${x}" y="${y(v) - CAP_ROOM}" width="${BAR_PX}" height="${CAP_PX}" rx="1" fill="${markColor}"/>` : bar
+    const bar = `<rect class="bar" x="${x}" y="${barTop}" width="${BAR_PX}" height="${height - barTop}" rx="1" fill="${isMarked ? markColor : color}"/>`
+    return isMarked ? `${bar}<rect class="cap" x="${x}" y="${barTop - CAP_ROOM}" width="${BAR_PX}" height="${CAP_PX}" rx="1" fill="${markColor}"/>` : bar
   })
   const rule =
     level === undefined ? '' : `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1"${stretch ? KEEP_STROKE : ''}/>`

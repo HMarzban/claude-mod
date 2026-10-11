@@ -131,9 +131,18 @@ test("amber moves to the front, whole and led by '! ', and outlasts every calm p
     expect(shown(pillOf(row, '5h'))).toMatch(/^! 5h full in ~40m/)
     expect(pillKeys(rowOf({ surface, columns: 40, ...pace }))[0]).toBe('5h')
   }
-  // Narrow, its trail gives way, then the total, and the reason stays whole.
+  // Narrow, its trail gives way, then its words go short, and the total
+  // after them; ▵ stays. A desktop pill's padding and icons make it wider.
   expect(pillKeys(rowOf({ columns: 50, ...pace }))).toEqual(['5h', 'cache', 'cost'])
-  expect([pillKeys(rowOf({ columns: 40, ...pace })), shown(pillOf(rowOf({ columns: 40, ...pace }), '5h'))]).toEqual([['5h', 'cache'], '! 5h full in ~40m'])
+  for (const [surface, columns, keys] of [
+    ['terminal', 40, ['5h', 'cache', 'cost']],
+    ['desktop', 48, ['5h', 'cache', 'cost']],
+    ['desktop', 40, ['5h', 'cache']],
+  ] as const) {
+    const narrow = rowOf({ surface, columns, ...pace })
+    expect([pillKeys(narrow), shown(pillOf(narrow, '5h')).trim()]).toEqual([keys, '! 5h ~40m'])
+    expect(byKey(narrow.children?.at(-1), 'more', 'Button')?.props?.label).toBe('▵')
+  }
   // Amber, the trail is drawn in amber and climbs dashed to where it lands.
   const trail = chartsOf(pillOf(rowOf({ surface: 'desktop', ...pace }), '5h')).find(s => /^5h usage/.test(String(s.props?.alt)))
   expect(String(trail?.props?.source)).toMatch(new RegExp(`stroke="${DARK.amberFg}"[^>]*stroke-dasharray`))
@@ -155,6 +164,8 @@ test("open is the four cards, spend's bars, context's trail and the measured day
     expect(['cache', 'spend', 'context', 'limits'].map(name => cardOf(open, name) !== undefined)).toEqual([true, true, true, true])
     const slot = (name: string) => byKey(byKey(cardOf(open, name), 'head'), 'slot', 'Box')
     expect(slot('cache')).toBeUndefined()
+    // From a zero basis, as a card's meter rows are, so a stretched lens scales to its slot.
+    expect(['spend', 'context', 'limits'].map(name => slot(name)?.props?.width)).toEqual([0, 0, 0])
     if (surface === 'terminal') {
       expect(['spend', 'context', 'limits'].map(name => BRAILLE.test(shown(slot(name))))).toEqual([true, true, true])
       continue
@@ -196,10 +207,37 @@ test('open fits the band from 13 rows, each card keeping a row of its own', () =
     for (const name of ['cache', 'spend', 'context', 'limits']) expect(((cardOf(open, name)?.children ?? []) as Node[]).flat().filter(Boolean).length).toBeGreaterThan(1)
   }
 })
-test("an amber limit heads LIMITS led by '! ', bold on its figure alone", () => {
-  const head = byKey(cardOf(band({ expanded: true, otherLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }] }), 'limits'), 'head')
-  expect(shown(head)).toMatch(/! spend 92%$/)
-  expect(boldOf(head)).toEqual(['92%'])
+test("an amber limit heads LIMITS as chips' cards head it, bold on its figure alone", () => {
+  const otherLimits = [{ kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }]
+  const headOf = (layout: 'pulse' | 'chips') => byKey(cardOf(band({ surface: 'desktop', expanded: true, layout, otherLimits }), 'limits'), 'head')
+  expect(shown(headOf('pulse'))).toMatch(/spend 92%!$/)
+  expect(shown(headOf('pulse'))).toBe(shown(headOf('chips')))
+  expect(boldOf(headOf('pulse'))).toEqual(['92%!'])
+})
+test("narrow, the row's last cost gives way and SPEND says the last message", () => {
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const open = band({ surface, columns: 40, expanded: true })
+    expect(shown(firstRow(open))).not.toMatch(/last \$/)
+    expect(shown(cardOf(open, 'spend'))).toMatch(/last message\$0\.21/)
+    // Wide, the row says it, so the card doesn't.
+    expect(shown(cardOf(band({ surface, expanded: true }), 'spend'))).not.toMatch(/last message/)
+  }
+})
+test("LIMITS' 5h row draws its last hour on a track in the meter's place; 7d keeps its meter", () => {
+  const factOf = (tree: Node, name: string) => byKey(cardOf(tree, 'limits'), `fact:${name}`, 'Box')
+  const desk = band({ surface: 'desktop', expanded: true })
+  const [trail, ...rest] = svgsOf(factOf(desk, '5h'))
+  expect([String(trail?.props?.alt), rest.length]).toEqual(['5h usage over the last hour, rising', 0])
+  expect([trail?.props?.width, trail?.props?.height]).toEqual([undefined, 14])
+  expect(String(trail?.props?.source)).toMatch(/<rect class="track".*preserveAspectRatio="none"|preserveAspectRatio="none".*<rect class="track"/)
+  expect(svgAlts(factOf(desk, '7d'))).toEqual(['7d 30% used'])
+  const term = band({ expanded: true })
+  expect(shown(factOf(term, '5h'))).toMatch(/^5h[⠀-⣿]+4%$/)
+  expect(shown(factOf(term, '7d'))).toMatch(/^7d█+░+30%$/)
+})
+test("amber, LIMITS' lead row leaves the pace the row's pill says", () => {
+  const pace = { fiveHour: { percentUsed: 50, resetsAt: new Date(4 * HOUR).toISOString(), etaMs: 40 * MIN } }
+  for (const columns of [160, 40]) expect(firstRowOf(band({ columns, expanded: true, ...pace }), 'limits')).toBe('resetsin 4h 00m')
 })
 test('in ascii the charts give way to the numbers, shut and open', () => {
   for (const expanded of [false, true]) {
