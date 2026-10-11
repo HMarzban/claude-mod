@@ -15,7 +15,7 @@ import { PILL_LABELS } from '../words'
 import type { ReadingAmber, PillLabel, Say } from '../words'
 import type { Fact, Slots } from './cards'
 import { chipsPills, pillRow, shortAt } from './chips'
-import { ROLE_INK, accentOf } from './parts'
+import { ROLE_INK, accentOf, resetClause } from './parts'
 import type { PillSpec } from './parts'
 import { defineCardsView, type Lens } from './view'
 
@@ -64,7 +64,7 @@ const limitTail = (l: LimitView, squeeze: number): Readonly<{ pace: string; rese
  *  its words stand for its ring; a cold cache, its re-warm price; calm, its
  *  figure in bold, then its label, short once `longLabels` gives way. */
 const ringsPills = (kit: Kit, read: Readings, squeeze: number): PillSpec[] => {
-  const { Text, palette, onTone, icon } = kit
+  const { Text, palette, onTone } = kit
   const longLabels = keeps(squeeze, 'longLabels')
   const figure = (text: string, color: string) => (
     <Text key="v" color={color} bold>
@@ -106,19 +106,19 @@ const ringsPills = (kit: Kit, read: Readings, squeeze: number): PillSpec[] => {
     }
     const l = spec.key === '5h' ? read.fiveHour : read.sevenDay
     if (l === undefined) return spec.body
-    // Rings' window name and figure take the pill's fg, as chips' do: the
-    // board's name in its accent and figure in value ink is left to both.
-    const fg = onTone(l.tone, l.key === '5h' ? palette.fiveFg : palette.weekFg)
+    // As the board draws it: the figure in value ink, then the window's name
+    // in its accent, `0% 5h`; a passed window's words in its tint's ink.
+    const name = l.key === '5h' ? palette.fiveText : palette.weekText
     const mark = l.amber === undefined && keeps(squeeze, 'limitBars') ? limitRing(kit, l, place) : null
-    if (l.passed) return [mark, <Text key="l" color={fg}>{l.text}</Text>]
+    if (l.passed) return [mark, <Text key="l" color={l.key === '5h' ? palette.fiveFg : palette.weekFg}>{l.text}</Text>]
     const { pace, reset } = limitTail(l, squeeze)
     // The pace and the reset are qualifiers, in label ink.
     const ink = onTone(l.tone, palette.label)
     return [
       mark,
-      ...(l.amber ? amber(l.amber) : [figure(l.valueMarked, fg), <Text key="l" color={fg}>{` ${l.name}`}</Text>]),
+      ...(l.amber ? amber(l.amber) : [figure(l.valueMarked, palette.value), <Text key="l" color={name}>{` ${l.name}`}</Text>]),
       pace === '' ? null : <Text key="p" color={ink}>{` │ ${pace}`}</Text>,
-      ...(reset === undefined ? [] : [<Text key="d" color={palette.label}>{' │ '}</Text>, ...icon('reset', ink), <Text key="r" color={ink}>{reset}</Text>]),
+      ...(reset === undefined ? [] : resetClause(kit, ink, reset)),
     ]
   }
   // Chips' terminal cache is a battery painting its own ground; rings' is a pill, its ring the battery.

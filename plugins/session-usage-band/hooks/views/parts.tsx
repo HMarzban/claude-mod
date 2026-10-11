@@ -253,7 +253,7 @@ export const ROLE_INK: Readonly<Record<Role, Exclude<keyof Palette, 'filled'>>> 
   value: 'value',
   amber: 'amberFg',
   accent5: 'fiveText',
-  accent7: 'weekAccent',
+  accent7: 'weekText',
 }
 
 /** A phrase in its roles' colours, one line, cut rather than wrapped. */

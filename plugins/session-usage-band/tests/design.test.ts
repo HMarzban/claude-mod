@@ -86,6 +86,13 @@ for (const [name, p, hosts] of [
     }
   })
 
+  test(`${name}: a window's name holds as text on its own tint, as rings' pills say it`, () => {
+    expect(contrast(p.fiveText, p.fiveBg)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(p.weekText, p.weekBg)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(p.weekText, p.cardBg)).toBeGreaterThanOrEqual(4.5)
+    for (const bg of [p.fiveBg, p.weekBg]) expect(contrast(p.value, bg)).toBeGreaterThanOrEqual(4.5)
+  })
+
   test(`${name}: every role a layout's words take is text that holds on the card ground`, () => {
     const low = Object.entries(ROLE_INK).filter(([, ink]) => contrast(p[ink], p.cardBg) < 4.5)
     expect(low.map(([role, ink]) => `${role} ${ink} ${contrast(p[ink], p.cardBg).toFixed(2)}`)).toEqual([])

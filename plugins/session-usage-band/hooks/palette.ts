@@ -36,12 +36,15 @@ export type Palette = {
   fiveBg: string
   fiveFg: string
   fiveAccent: string
-  /** The 5-hour accent as words on the card: in light, fiveAccent holds
-   *  there only as a mark. */
+  /** The 5-hour accent as words, on the card and on its own tint: in light,
+   *  fiveAccent holds there only as a mark. */
   fiveText: string
   weekBg: string
   weekFg: string
   weekAccent: string
+  /** The 7-day accent as words, on the card and on its own tint, as
+   *  fiveText is the 5-hour's. */
+  weekText: string
   /** Week's text cells in each window's tint: a guess dim, none left
    *  dimmer, both apart from label grey, which is the notch's. */
   weekGuess: string
@@ -77,6 +80,7 @@ export const DARK: Readonly<Palette> = {
   weekBg: '#2a2540',
   weekFg: '#d9d3f5',
   weekAccent: '#a99cf0',
+  weekText: '#a99cf0',
   weekGuess: '#8a80d0',
   weekSpent: '#7a70c0',
   fiveGuess: '#62a86f',
@@ -106,10 +110,11 @@ export const LIGHT: Readonly<Palette> = {
   fiveBg: '#dff0e0',
   fiveFg: '#1f5c2e',
   fiveAccent: '#2f8a45',
-  fiveText: '#287a3d',
+  fiveText: '#26763b',
   weekBg: '#e8e4fa',
   weekFg: '#3c3489',
   weekAccent: '#6b5fd3',
+  weekText: '#5a4ec4',
   weekGuess: '#7a70d8',
   weekSpent: '#8077dc',
   fiveGuess: '#3a9450',
@@ -145,6 +150,7 @@ export const PLAIN: Readonly<Palette> = {
   weekBg: '',
   weekFg: 'text',
   weekAccent: 'text',
+  weekText: 'text',
   weekGuess: 'inactive',
   weekSpent: 'inactive',
   fiveGuess: 'inactive',

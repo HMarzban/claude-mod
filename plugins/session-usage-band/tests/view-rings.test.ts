@@ -94,8 +94,32 @@ test("at 95 columns the desktop keeps a 16 px ring by each meter, none by the sp
   expect(ringAlts(firstRow(tree))).toEqual(['cache', 'context', '5h', '7d'])
   for (const n of ringsOf(firstRow(tree))) expect([n.props?.width, n.props?.height]).toEqual([16, 16])
   expect(svgsOf(pillOf(tree, 'cost'))).toEqual([])
-  expect([pillText(tree, '5h'), pillText(tree, '7d')]).toEqual(['0% 5h │ 4h 55m', '66% 7d'])
+  expect([pillText(tree, '5h'), pillText(tree, '7d')]).toEqual(['0% 5h │ ↻ 4h 55m', '66% 7d'])
 })
+for (const surface of ['terminal', 'desktop'] as const)
+  test(`on the ${surface}, a window's pill says its figure in value ink, bold, then its name in its accent, and ↻ its reset in label grey`, () => {
+    const tree = draw({ surface })
+    const inks = (key: string) => {
+      const out: Array<[string, unknown, unknown]> = []
+      walk(pillOf(tree, key), n => {
+        if (n.type === 'Text' && ['v', 'l', 'd', 'i-reset', 'r'].includes(String(n.props?.key))) out.push([shown(n), n.props?.color, n.props?.bold === true])
+      })
+      return out
+    }
+    expect(inks('5h')).toEqual([
+      ['0%', DARK.value, true],
+      [' 5h', DARK.fiveText, false],
+      [' │ ', DARK.label, false],
+      ['↻ ', DARK.label, false],
+      ['4h 55m', DARK.label, false],
+    ])
+    expect(inks('7d').slice(0, 2)).toEqual([
+      ['66%', DARK.value, true],
+      [' 7d', DARK.weekText, false],
+    ])
+    // ↻ is a glyph, as the board draws it: no reading's reset is the clock icon.
+    expect(svgsOf(firstRow(tree)).map(n => String(n.props?.key))).not.toContain('i-reset')
+  })
 test('collapsed is one row on either surface, the toggle last: ▵ shut, ▿ open', () => {
   for (const surface of ['terminal', 'desktop'] as const)
     for (const expanded of [false, true]) {
