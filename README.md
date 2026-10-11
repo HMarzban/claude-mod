@@ -129,8 +129,8 @@ These and three more play live, with a guided tour, on the
 Prefer another shape? `/usage-band layout <name>` draws the same readings
 in one of nine [layouts](plugins/session-usage-band/README.md#layouts):
 `chips` (as above), `gauges` (bars), `ledger` (words alone), `rings`,
-`pulse` (trends), `tiles`, `week` (day cells), `departures` (a split-flap
-board) or `forecast`.
+`pulse` (trends), `tiles`, `week` (day cells), `departures` (countdowns)
+or `forecast`.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/band-layouts-dark.png">

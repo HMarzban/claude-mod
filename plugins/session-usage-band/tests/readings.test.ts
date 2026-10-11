@@ -1,6 +1,7 @@
 import { test, expect } from 'claude-code/testing'
 import { fmtClock, fmtDayClock } from '../hooks/format'
 import { readingsOf } from '../hooks/reading'
+import { usedSoFar } from '../hooks/words'
 import { HOUR, MIN } from './helpers'
 import { snapOf } from './matrix'
 
@@ -285,4 +286,85 @@ test('with no samples and no pace yet, the week is not known yet', () => {
   const wk = readingsOf(snapOf({ now: HOUR, sevenDay: { percentUsed: 1, resetsAt: new Date(168 * HOUR).toISOString() } })).week
   expect(wk.daysAlt).toBe('weekly limit by day: not known yet')
   expect(wk.empty).toBe(true)
+})
+
+// ---- departures' countdowns ---------------------------------------------------
+
+test('a limit fills in its measured time, else on its average once it lands at 100% or more, never once passed', () => {
+  const fullIn = (over: Parameters<typeof snapOf>[0]) => readingsOf(snapOf(over)).limits.map(l => l.fullInMs)
+  expect(fullIn({})).toEqual([undefined, undefined])
+  expect(fullIn({ fiveHour: { percentUsed: 40, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 40 * MIN } })[0]).toBe(40 * MIN)
+  // 79% in the 118h gone of 168: the 21% left takes 118h × 21 / 79.
+  const seven = fullIn({ sevenDay: { percentUsed: 79, resetsAt: new Date(50 * HOUR).toISOString() } })[1] ?? 0
+  expect(Math.abs(seven - (118 * HOUR * 21) / 79)).toBeLessThan(1)
+  expect(fullIn({ now: 4 * HOUR, fiveHour: { percentUsed: 84, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 0 } })[0]).toBeUndefined()
+})
+test("a limit's departure: when it resets, or when it fills and then its reset, amber with one '! '", () => {
+  const words = (over: Parameters<typeof snapOf>[0], key: '5h' | '7d' = '5h') => {
+    const l = readingsOf(snapOf(over)).limits.find(w => w.key === key)
+    return [l?.departure, l?.departureReset, l?.departureLens, l?.departureHead]
+  }
+  expect(words({})).toEqual([
+    { long: { words: '5h resets ', figure: '3h 00m', after: '' }, short: { words: '5h resets ', figure: '3h 00m', after: '' } },
+    undefined,
+    '5h resets',
+    [['5h in ', 'label'], ['3h 00m', 'value']],
+  ])
+  expect(words({ sevenDay: { percentUsed: 79, resetsAt: new Date(50 * HOUR).toISOString() } }, '7d')).toEqual([
+    { long: { words: '7d full ', figure: '~1d', after: '' }, short: { words: '7d ', figure: '~1d', after: '' } },
+    '2d 2h',
+    '7d fills',
+    [['7d full ', 'label'], ['~1d', 'value']],
+  ])
+  expect(words({ fiveHour: { percentUsed: 40, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 40 * MIN } }).slice(0, 2)).toEqual([
+    { long: { words: '! 5h full ', figure: '~40m', after: '' }, short: { words: '! 5h ', figure: '~40m', after: '' } },
+    '3h 00m',
+  ])
+  // Half an hour from its reset, 82% lands at ~91%: amber on its value alone.
+  expect(words({ fiveHour: { percentUsed: 82, resetsAt: new Date(30 * MIN).toISOString(), etaMs: null } }).slice(0, 2)).toEqual([
+    { long: { words: '! 5h ', figure: '82%', after: '' }, short: { words: '! 5h ', figure: '82%', after: '' } },
+    '30m',
+  ])
+  expect(words({ now: 4 * HOUR })).toEqual([{ long: { words: '5h reset', figure: '', after: '' }, short: { words: '5h reset', figure: '', after: '' } }, undefined, '5h reset', undefined])
+})
+test('the cache counts down to cold; under 10 minutes it is its last call, a 5-minute cache in its last minute', () => {
+  const cache = (over: Partial<ReturnType<typeof snapOf>['cache']>) => readingsOf(snapOf({ cache: { ...snapOf().cache, ...over } })).cache
+  expect([cache({}).lastCall, cache({}).departure.long]).toEqual([false, { words: 'cache ', figure: '52m', after: '' }])
+  const soon = cache({ msLeft: 6 * MIN })
+  expect([soon.lastCall, soon.tone, soon.departure]).toEqual([
+    true,
+    'calm',
+    { long: { words: '! last call · cache ', figure: '6m', after: ' · re-warm ~$1.66' }, short: { words: '! last call · cache ', figure: '6m', after: '' } },
+  ])
+  expect(cache({ msLeft: 10 * MIN }).lastCall).toBe(false)
+  expect([cache({ ttl: '5m', msLeft: 4 * MIN }).lastCall, cache({ ttl: '5m', msLeft: 59_000 }).lastCall]).toEqual([false, true])
+  expect(cache({ msLeft: 0 }).departure).toEqual({ long: { words: 'cache cold · re-warm ', figure: '~$1.66', after: '' }, short: { words: 'cold ', figure: '~$1.66', after: '' } })
+  expect([cache({}).departureLens, cache({ msLeft: 0 }).departureLens]).toEqual(['goes cold', 'went cold'])
+  expect(readingsOf(snapOf({ isWorking: true })).cache.departure.long).toEqual({ words: 'cache ', figure: 'warm', after: '' })
+})
+test('compaction is messages away at the trail\'s pace since its last drop, else tokens away', () => {
+  const context = (trail: readonly number[]) => readingsOf(snapOf({ history: { costs: [], context: trail, fiveHour: [] } })).context
+  // 6.5k a message: 114k is 17.5 messages, so 18.
+  const paced = context([50_000, 56_500, 63_000, 69_500, 76_000])
+  expect([paced.msgsToCompact, paced.departure?.long, paced.msgsHead, paced.roomLead]).toEqual([
+    18,
+    { words: 'compacts ', figure: '~18', after: ' msgs' },
+    [['~18', 'value'], [' msgs', 'label']],
+    ['room left · auto-compacts at 190k', '~114k'],
+  ])
+  // A compaction drops the trail: the pace counts from there.
+  expect(context([150_000, 170_000, 40_000, 58_000, 76_000]).msgsToCompact).toBe(7)
+  for (const trail of [[], [76_000], [76_000, 76_000]]) {
+    const x = context(trail)
+    expect([x.msgsToCompact, x.departure?.long, x.msgsHead, x.roomLead]).toEqual([undefined, { words: 'compacts in ', figure: '~114k', after: '' }, undefined, undefined])
+  }
+  const off = readingsOf(snapOf({ context: { tokens: 76_000, window: 200_000, percent: 38, compactAt: undefined, autoCompactOff: true } })).context
+  expect(off.departure).toBeUndefined()
+  const near = readingsOf(snapOf({ context: { tokens: 176_000, window: 200_000, percent: 88, compactAt: 190_000, autoCompactOff: false } })).context
+  expect(near.departure).toEqual({ long: { words: '! context ', figure: '93%', after: ' · compacts in ~14k' }, short: { words: '! ctx ', figure: '93%', after: '' } })
+})
+test("LIMITS' first row in departures says what each window has used", () => {
+  expect(usedSoFar(readingsOf(snapOf()).limits)).toEqual(['used so far', '5h 4% · 7d 30%'])
+  expect(usedSoFar(readingsOf(snapOf({ now: 4 * HOUR })).limits)).toEqual(['used so far', '5h reset · 7d 30%'])
+  expect(usedSoFar([])).toBeUndefined()
 })

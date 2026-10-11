@@ -8,7 +8,7 @@ it is one row of chips:
 
 Eight more [layouts](#layouts) draw the same readings in other shapes:
 `gauges` (bars), `ledger` (words alone), `rings`, `pulse` (trends),
-`tiles`, `week` (day cells), `departures` (a split-flap board) or
+`tiles`, `week` (day cells), `departures` (countdowns) or
 `forecast`. Try every state live on the [website](https://hmarzban.github.io/claude-mod/),
 and see the [changelog](CHANGELOG.md) for what changed in each version. Found
 something off? [Open an issue](https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml).
@@ -149,10 +149,11 @@ Chips is one of nine layouts. The other eight show the same readings in
 another shape, on a filled panel (bare in `plain`), and each opens with `▵`
 to its own view of every fact, under the workspace line and the same
 `Collapse` and `Hide band` buttons. Ledger writes the workspace line in
-plain words and departures as a flap on its board; the others draw it as
-chips does. Every layout turns amber at the same moments, by the same
-rules. Only chips has hover cards on its readings; the workspace line has
-them wherever it is drawn as chips draws it.
+plain words; the others draw it as chips does. Every layout turns amber at
+the same moments, by the same rules, but for departures' last call, ten
+minutes before an hour's cache goes cold. Only chips has hover cards on
+its readings; the workspace line has them wherever it is drawn as chips
+draws it.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-layouts-dark.png">
@@ -168,7 +169,7 @@ them wherever it is drawn as chips draws it.
 | `pulse` | Trends rather than totals: each message's cost as bars, and which way the 5-hour limit is heading | 2 / 1 |
 | `tiles` | Each reading as a bold value over a small label, with a thin underline on the desktop | 2 / 2 |
 | `week` | Where your limits went: the weekly limit as day cells and the 5-hour limit as hour cells, each filled to its rise | 2 / 2 |
-| `departures` | A split-flap board: the cache `DEPARTS` at its clock time, and its last minute is `LAST CALL` | 1 / 1 |
+| `departures` | Every reading as a countdown in chips' pills, soonest first: the cache, the 5h and 7d resets or when they fill, the messages to compaction, then the spend. Under 10 minutes the cache's is its `! last call` | 1 / 1 |
 | `forecast` | The band read like the weather: now, then up to three changes ahead at their clock times, soonest first | 2 / 1 |
 
 ```
@@ -211,12 +212,12 @@ chips included, and only in the terminal.
 
 ### Clock times
 
-Week, departures and forecast name clock times in your local zone. The band
-reads the zone's offset from UTC off the clock when the session starts and
-after each reply, so a change of zone shows by the next reply. Where it
-can't be read, week names its days and hours in UTC, and its reset, like
-every time on departures and forecast, says how long until it comes rather
-than when (`in 52m`, not `14:32`).
+Week and forecast name clock times in your local zone; departures counts
+down instead. The band reads the zone's offset from UTC off the clock when
+the session starts and after each reply, so a change of zone shows by the
+next reply. Where it can't be read, week names its days and hours in UTC,
+and its reset, like every time on forecast, says how long until it comes
+rather than when (`in 52m`, not `14:32`).
 
 ## The cache countdown
 

@@ -121,6 +121,13 @@ test('a projection from 57.5 minutes is in 15-minute steps, whole hours without 
   expect(fmtEta(82.5 * MIN)).toBe('~1h 30m')
   expect(fmtEta(120 * MIN)).toBe('~2h')
 })
+test('a projection a day or more off is in whole days', () => {
+  expect(fmtEta(23.5 * HOUR)).toBe('~23h 30m')
+  expect(fmtEta(24 * HOUR)).toBe('~1d')
+  expect(fmtEta(31.4 * HOUR)).toBe('~1d')
+  expect(fmtEta(36 * HOUR)).toBe('~2d')
+  expect(fmtEta(68 * HOUR)).toBe('~3d')
+})
 
 test('an age under a minute is now, then minutes, hours and minutes, days and hours', () => {
   expect(fmtAgo(-1)).toBe('now')

@@ -41,6 +41,7 @@ test('ascii text is pure ASCII, a dropped glyph takes its space, and padding sta
   expect(asciiText('◷ cache 52m · ↻ 3h 00m Σ 225k ↑2 ↓1 cache – ●… █░▒│▿▵■ ◔ ±')).toMatch(/^[\x20-\x7e]*$/)
   expect(asciiText('◷ cache 52m')).toBe('cache 52m')
   expect(asciiText('↻ in 3h 00m')).toBe('in 3h 00m')
+  expect(asciiText('cache 52m › 5h resets 3h 00m')).toBe('cache 52m > 5h resets 3h 00m')
   expect(asciiText('café latte')).toBe('caf latte') // an unmapped character goes alone
   expect(asciiText('ITEM      STATUS')).toBe('ITEM      STATUS')
 })

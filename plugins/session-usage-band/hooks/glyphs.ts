@@ -25,7 +25,7 @@ export const drawnTier = (snap: Pick<BandSnapshot, 'surface' | 'glyphs'>): Glyph
 /** Each glyph the band draws, in ASCII; an empty mapping drops the glyph. */
 export const ASCII_MAP: Readonly<Record<string, string>> = {
   '█': '#', '░': '-', '▒': ':', '│': '|', '·': '-', '…': '.', '±': '+',
-  '●': '*', '■': '#', '–': '-', '↑': '+', '↓': '-', '▿': 'v', '▵': '^',
+  '●': '*', '■': '#', '–': '-', '↑': '+', '↓': '-', '▿': 'v', '▵': '^', '›': '>',
   '↻': '', 'Σ': '', '◷': '', '◔': '',
   // A hover card's caps: a space each keeps its width. ▐ is Neutral, but
   // goes with ▌ so a card's two ends match.

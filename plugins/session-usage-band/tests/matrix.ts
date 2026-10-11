@@ -41,7 +41,7 @@ export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide
 
 /** Every layout's words for each amber trigger. ` · ` reads `, ` in the ascii tier. */
 export const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
-  cacheLastMinute: /! \d+s( left)?|LAST CALL|! cooling( ·|,) \d+s left/,
+  cacheLastMinute: /! \d+s( left)?|! last call|! cooling( ·|,) \d+s left/,
   nearCompaction: /! context \d+%|! ctx \d+%|! COMPACTS IN ~/,
   contextNoCompaction: /! context \d+%|! ctx \d+%|! CONTEXT \d+%/,
   limit80: /! 5h|! NEAR LIMIT/,
@@ -135,9 +135,9 @@ const coloursOf = (n: Node): string[] => {
 }
 
 /** What each glyph tier may draw (spec §3.2): the unicode tier's glyphs and braille, or ASCII alone. */
-const UNICODE_TIER = /^[\x20-\x7e█▓░▒│·↻Σ◷◔▿▵…±●■–↑↓\u2800-\u28ff]*$/
+const UNICODE_TIER = /^[\x20-\x7e█▓░▒│·›↻Σ◷◔▿▵…±●■–↑↓\u2800-\u28ff]*$/
 const ASCII_TIER = /^[\x20-\x7e]*$/
-/** What a value missing from a phrase leaves drawn (spec §2.8), in any case: departures upper-cases its own. */
+/** What a value missing from a phrase leaves drawn (spec §2.8), in any case. */
 const NOTHING = /\b(NaN|undefined|null)\b/i
 /** What spec §2.9 bars from any Svg's markup: an id, a gradient, a pattern, a clipPath. */
 const SVG_BARRED = /<(linearGradient|radialGradient|pattern|clipPath)\b|\bid=/

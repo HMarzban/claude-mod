@@ -2,6 +2,8 @@
 
 /** The cache's last minute: the one span where acting changes the bill. */
 export const SOON_MS = 60_000
+/** Departures' last call: an hour's cache this near cold leads its row in amber. */
+export const LAST_CALL_MS = 10 * 60_000
 
 /** At this share a pill turns amber and gains `!`, and a toast speaks. */
 export const WARN_AT = 0.8
@@ -83,15 +85,19 @@ export const resetIn = (iso: string | undefined, now: number): ResetIn | undefin
 /** The words for escalation: colour is never the only signal. */
 export const severityMark = (frac: number): string => (frac >= SEVERE_AT ? '!!' : frac >= WARN_AT ? '!' : '')
 
+/** A day's minutes, from which a projection is said in days. */
+const DAY_MINUTES = 24 * 60
+
 /** A projection's whole minutes: 5-minute steps under an hour, 15 from one. */
 const etaMinutes = (ms: number): number => {
   const mins = Math.max(0, ms) / 60_000
   return mins < 57.5 ? Math.max(5, Math.round(mins / 5) * 5) : Math.round(mins / 15) * 15
 }
 
-/** A projection, never a countdown: `~40m`, `~1h`, `~1h 15m`. */
+/** A projection, never a countdown: `~40m`, `~1h`, `~1h 15m`; from a day, whole days, `~1d`. */
 export const fmtEta = (ms: number): string => {
   const mins = etaMinutes(ms)
+  if (mins >= DAY_MINUTES) return `~${Math.round(mins / DAY_MINUTES)}d`
   const hours = Math.floor(mins / 60)
   const rest = mins % 60
   return hours === 0 ? `~${mins}m` : rest ? `~${hours}h ${rest}m` : `~${hours}h`

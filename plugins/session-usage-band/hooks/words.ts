@@ -42,6 +42,14 @@ export type Amber = Readonly<{ long: string; short: string }>
 /** A value not known yet: unknown, never 0. */
 const UNKNOWN = '–'
 
+/** A reading as departures' row says it: its words, then its figure, bold
+ *  alone, then the words after it. */
+export type Countdown = Readonly<{ words: string; figure: string; after: string }>
+/** A countdown's long words, and its short ones for a row out of room. */
+export type Departure = Readonly<{ long: Countdown; short: Countdown }>
+const departs = (words: string, figure: string, after = ''): Countdown => ({ words, figure, after })
+const alike = (said: Countdown): Departure => ({ long: said, short: said })
+
 /** What an amber reading says, long and short, always led by one `! `. */
 export const AMBER = {
   cache: (left: string, leftShort: string, estimate: string): Amber => ({ long: `! ${left} · re-warm ${estimate}`, short: `! ${leftShort}` }),
@@ -125,6 +133,12 @@ export type CacheWords = Readonly<{
   cardHead: Say
   /** The cache card's line while there is nothing to count. */
   cardNote: string | undefined
+  /** Departures' countdown: `cache 52m`, `cache warm`; cold, `cache cold ·
+   *  re-warm ~$1.66`, then `cold ~$1.66`; its last call, `! last call · cache
+   *  6m · re-warm ~$1.66`, then without the price. */
+  departure: Departure
+  /** What the cache's place in departures' queue is for: `goes cold`, once cold `went cold`. */
+  departureLens: string
   /** The board's status: `DEPARTS`, `LAST CALL`, `DEPARTED`, `BOARDING`, `WARMING` or `NOT MEASURED`. */
   board: string
   /** The board's countdown: `IN 52 MIN`, `47s` in the last minute; empty while not counting. */
@@ -141,6 +155,15 @@ export type ContextWords = Readonly<{
   sayShort: Say
   /** `! context 93% · compacts in ~14k` / `! ctx 93%`; compaction off, `! context 85%`. */
   amber: Amber | undefined
+  /** Departures' countdown: `compacts ~12 msgs`, or with no pace yet
+   *  `compacts in ~114k`; amber, `! context 93% · compacts in ~14k`, then
+   *  `! ctx 93%`. None while calm with no compaction to count to. */
+  departure: Departure | undefined
+  /** `~12 msgs`, while the pace is known: departures' CONTEXT headline. */
+  msgsHead: Say | undefined
+  /** Room and compaction as one row, `room left · auto-compacts at 190k`,
+   *  `~114k`, while the row counts messages. */
+  roomLead: readonly [string, string] | undefined
   /** `! COMPACTS IN ~14K`, or compaction off, `! CONTEXT 85%`. */
   boardAmber: string | undefined
   /** What the share is of: `toward compaction`, or `of the window` when compaction is off. */
@@ -210,6 +233,16 @@ export type LimitWords = Readonly<{
   fullAtClock: string | undefined
   /** `! 5h 82%`, or with a measured fill, `! 5h full in ~40m` / `! 5h ~40m`. */
   amber: Amber | undefined
+  /** Departures' countdown: `5h resets 3h 00m`, or filling before then,
+   *  `7d full ~1d`; amber, `! 5h 82%` or `! 5h full ~40m`, then `! 5h ~40m`;
+   *  once passed, `5h reset`. */
+  departure: Departure
+  /** The reset after a countdown that isn't it, `2d 2h`, said after `↻`. */
+  departureReset: string | undefined
+  /** What its place in departures' queue is for: `5h resets`, `7d fills`, `5h reset`. */
+  departureLens: string
+  /** Departures' LIMITS headline: `5h in 3h 00m`, `7d full ~1d`; none once passed. */
+  departureHead: Say | undefined
   /** `! NEAR LIMIT`, `! FULL ~14:20`, or without the offset, `! FULL IN ~40 MIN`. */
   boardAmber: string | undefined
   /** `~10% AT ↻`, `FULL BEFORE ↻`, or `RESET`; in the ascii tier, `~10% AT RESET`. */
@@ -293,6 +326,13 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     cardHead,
     cardNote:
       f.mood === 'unmeasured' ? "Countdown starts with Claude's next reply." : f.mood === 'warming' ? 'First message builds the cache.' : undefined,
+    departure:
+      f.mood === 'cold'
+        ? { long: departs('cache cold · re-warm ', f.estimate), short: departs('cold ', f.estimate) }
+        : f.lastCall
+          ? { long: departs('! last call · cache ', leftShort, ` · re-warm ${f.estimate}`), short: departs('! last call · cache ', leftShort) }
+          : alike(departs('cache ', counting ? leftShort : value)),
+    departureLens: f.mood === 'cold' ? 'went cold' : 'goes cold',
     board: working ? 'BOARDING' : BOARD[f.mood],
     boardLeft: !counting ? '' : f.mood === 'expiring' ? leftShort : fmtBoardLeft(f.coldInMs),
     alt:
@@ -317,6 +357,9 @@ export const contextWords = (f: ContextFacts): ContextWords => {
   const say: Say = [['context ', 'label'], [value, 'value']]
   const sayShort: Say = [['ctx ', 'label'], [value, 'value']]
   const amber = f.tone !== 'amber' ? undefined : f.toCompact !== undefined ? AMBER.context(f.frac, f.toCompact) : AMBER.contextNoCompaction(f.frac)
+  const msgs = f.msgsToCompact === undefined ? undefined : `~${f.msgsToCompact}`
+  const msgsUnit = f.msgsToCompact === 1 ? ' msg' : ' msgs'
+  const compactsAtText = f.compactAt === undefined ? undefined : fmtTokens(f.compactAt)
   return {
     valueText: value,
     text: joined(say),
@@ -327,11 +370,19 @@ export const contextWords = (f: ContextFacts): ContextWords => {
     boardAmber: f.tone !== 'amber' ? undefined : roomText !== undefined ? `! COMPACTS IN ${roomText.toUpperCase()}` : `! CONTEXT ${f.pct}`,
     towardText,
     inContextText: f.known ? fmtTokens(f.used) : UNKNOWN,
-    compactsAtText: f.compactAt === undefined ? undefined : fmtTokens(f.compactAt),
+    compactsAtText,
     roomText,
     compactionOffText: f.autoCompactOff ? 'auto-compaction off' : undefined,
     windowText: fmtTokens(f.window),
     cardHead: [[`${f.pct}${f.compactAt === undefined ? severityMark(f.frac) : ''}`, 'value'], [' full', 'label']],
+    departure:
+      amber !== undefined
+        ? { long: departs('! context ', f.pct, roomText === undefined ? '' : ` · compacts in ${roomText}`), short: departs('! ctx ', f.pct) }
+        : roomText === undefined
+          ? undefined
+          : alike(msgs === undefined ? departs('compacts in ', roomText) : departs('compacts ', msgs, msgsUnit)),
+    msgsHead: msgs === undefined ? undefined : [[msgs, 'value'], [msgsUnit, 'label']],
+    roomLead: amber !== undefined || msgs === undefined || roomText === undefined || compactsAtText === undefined ? undefined : [`room left · auto-compacts at ${compactsAtText}`, roomText],
     alt: f.known
       ? altOf('context', `${Math.round(f.frac * 100)} percent ${towardText}`, f.tone === 'amber' ? 'near the limit' : 'fine')
       : altOf('context', EMPTY.context),
@@ -376,6 +427,9 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const pace = live ? paceText(f) : ''
   const withPace = pace === '' ? '' : ` · ${pace}`
   const resetWhen = f.reset?.kind !== 'in' ? undefined : (resetClock ?? `in ${f.reset.text}`)
+  const resetSpan = f.reset?.kind === 'in' ? f.reset.text : undefined
+  const fillsIn = f.fullInMs === undefined ? undefined : fmtEta(f.fullInMs)
+  const mark = f.tone === 'amber' ? '! ' : ''
   return {
     valueText,
     valueMarked: `${f.value}${severityMark(f.frac)}`,
@@ -394,6 +448,22 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     fullIn,
     fullAtClock,
     amber: f.tone !== 'amber' ? undefined : fullIn !== undefined ? AMBER.limitPace(f.name, fullIn) : AMBER.limit(f.name, f.percentUsed),
+    departure: f.passed
+      ? alike(departs(`${f.name} reset`, ''))
+      : fillsIn !== undefined
+        ? { long: departs(`${mark}${f.name} full `, fillsIn), short: departs(`${mark}${f.name} `, fillsIn) }
+        : f.tone === 'amber' || resetSpan === undefined
+          ? alike(departs(`${mark}${f.name} `, f.value))
+          : alike(departs(`${f.name} resets `, resetSpan)),
+    departureReset: fillsIn !== undefined || f.tone === 'amber' ? resetSpan : undefined,
+    departureLens: `${f.name} ${f.passed ? 'reset' : fillsIn !== undefined ? 'fills' : 'resets'}`,
+    departureHead: f.passed
+      ? undefined
+      : fillsIn !== undefined
+        ? [[`${f.name} full `, 'label'], [fillsIn, 'value']]
+        : resetSpan === undefined
+          ? undefined
+          : [[`${f.name} in `, 'label'], [resetSpan, 'value']],
     boardAmber:
       f.tone !== 'amber'
         ? undefined
@@ -421,6 +491,18 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
           : landing,
     ),
   }
+}
+
+/** Departures' words beside each reading's own: SPEND's lens, the one card
+ *  with no countdown, CONTEXT's, and the tokens' unit in the ascii tier,
+ *  which drops `Σ`. */
+export const DEPARTURES = { noClock: 'no clock', compacts: 'compacts', tokensUnit: ' tok' } as const
+
+/** Departures' LIMITS first row, what the row's windows have used: `used so
+ *  far`, `5h 4% · 7d 30%`; none without a window. */
+export const usedSoFar = (limits: readonly LimitView[]): readonly [string, string] | undefined => {
+  const windows = limits.filter(l => l.key !== 'other')
+  return windows.length === 0 ? undefined : ['used so far', windows.map(l => l.text).join(' · ')]
 }
 
 /** Where the session is, as one line: the path, then git in words. */
