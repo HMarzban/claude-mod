@@ -17,7 +17,7 @@ import type { CardName, Fact } from './cards'
 import { LIMITS, costPill, tokensPill } from './chips'
 import type { ChipKey } from './chips'
 import { toggleButton } from './frame'
-import { batteryIcon, beforeLast, line, pill, fitLineKeeps, textBattery } from './parts'
+import { batteryIcon, beforeLast, line, pill, fitLineKeeps, resetClause, textBattery } from './parts'
 import type { BoldRuns, Keeps } from './parts'
 import { defineCardsView } from './view'
 import type { Lens, Lines } from './view'
@@ -88,11 +88,11 @@ const cacheStop = (kit: Kit, read: Readings): Stop => {
 }
 
 /** A limit in its chip's tint: when it resets, or when it fills and then,
- *  after `↻`, the reset, in label ink as chips says it; amber on its last
- *  call, though calm by its percent. The worst window's pill may say what
- *  LIMITS' first row would. */
+ *  after `↻`, the reset, in label ink as chips says it, ` · ` before it on
+ *  the desktop as the board draws it; amber on its last call, though calm by
+ *  its percent. The worst window's pill may say what LIMITS' first row would. */
 const limitStop = (kit: Kit, key: ChipKey, l: LimitView, worst: boolean): Stop => {
-  const { Text, palette, onTone, icon } = kit
+  const { Svg, palette, onTone, icon } = kit
   const spec = LIMITS[key]
   const tint = spec.tint(palette)
   const tone: Tone = l.lastCall ? 'amber' : l.tone
@@ -100,7 +100,7 @@ const limitStop = (kit: Kit, key: ChipKey, l: LimitView, worst: boolean): Stop =
     if (!keeps.calm(key === '5h' ? 'calmFive' : 'calmSeven', tone)) return null
     const resetInk = onTone(tone, palette.label)
     const aside = l.departureReset !== undefined && (tone === 'amber' ? beforeLast(keeps) : keeps.has('reset'))
-    const reset = aside ? [<Text key="d" color={palette.label}>{' │ '}</Text>, ...icon('reset', resetInk), <Text key="r" color={resetInk}>{l.departureReset}</Text>] : []
+    const reset = aside && l.departureReset !== undefined ? resetClause(kit, resetInk, l.departureReset, Svg ? ' · ' : ' │ ') : []
     // With no reset aside, the countdown is the reset itself; a fill, or a
     // full window's 100%, says its pace.
     const saysPace = l.fullInMs !== undefined || l.frac === 1

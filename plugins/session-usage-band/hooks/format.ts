@@ -102,11 +102,15 @@ export const fmtEta = (ms: number): string => {
   return hours === 0 ? `~${mins}m` : rest ? `~${hours}h ${rest}m` : `~${hours}h`
 }
 
-/** Departures' projection: from a day, whole days rounded down, so it never
- *  reads later than it is, `~1d`; under a day, as `fmtEta`. */
+/** From this far off, departures' projection says its day, not its minutes. */
+const DAYS_FROM_MINUTES = 12 * 60
+
+/** Departures' projection: from 12 hours, whole days to the nearest, at
+ *  least one, `~1d`, since its minute would claim too much; nearer, as
+ *  `fmtEta`. */
 export const fmtEtaDays = (ms: number): string => {
-  const days = Math.floor(etaMinutes(ms) / DAY_MINUTES)
-  return days >= 1 ? `~${days}d` : fmtEta(ms)
+  const mins = etaMinutes(ms)
+  return mins >= DAYS_FROM_MINUTES ? `~${Math.max(1, Math.round(mins / DAY_MINUTES))}d` : fmtEta(ms)
 }
 
 /** `text` at most `max` characters, cut in the middle: a branch keeps both

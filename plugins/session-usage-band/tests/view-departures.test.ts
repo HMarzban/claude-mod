@@ -5,6 +5,7 @@
 import { test, expect } from 'claude-code/testing'
 import type { RenderChildren } from 'claude-code'
 import { drawBand } from '../hooks/band'
+import { asciiTree } from '../hooks/glyphs'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
@@ -198,13 +199,32 @@ const BOARD: Over = {
 }
 test("at 95 desktop columns the calm row keeps every fact of the board's, its icons gone", () => {
   const row = rowOf({ ...BOARD, columns: 95 })
-  expect(piecesOf(row)).toEqual(['cache cache 59m', '›', '5h 5h resets 4h 55m', '›', '7d 7d full ~1d │ 5d 22h', '›', 'ctx compacts ~12 msgs', 'air', 'cost $1,027'])
-  // The battery is the cache itself, and ↻ says what the aside is: neither is an icon.
+  expect(piecesOf(row)).toEqual(['cache cache 59m', '›', '5h 5h resets 4h 55m', '›', '7d 7d full ~1d · ↻ 5d 22h', '›', 'ctx compacts ~12 msgs', 'air', 'cost $1,027'])
+  // The battery is the cache itself, and ↻ is a glyph, as the board draws it: neither is an icon.
   const svgs: string[] = []
   walk(row, n => {
     if (n.type === 'Svg') svgs.push(String(n.props?.key))
   })
-  expect(svgs).toEqual(['battery', 'i-reset'])
+  expect(svgs).toEqual(['battery'])
+})
+test("the 7d's reset after its fill: on the desktop ` · ↻ 5d 22h` in label grey, `│ ↻` in a terminal, `|` in ascii; only the fill is bold", () => {
+  const seven = (over: Over) => byKey(rowOf({ ...BOARD, columns: 160, ...over }), '7d', 'Box')
+  const desk = seven({})
+  expect(shown(desk)).toBe('7d full ~1d · ↻ 5d 22h')
+  const after: Array<[string, unknown]> = []
+  walk(desk, n => {
+    if (n.type === 'Text' && ['d', 'i-reset', 'r'].includes(String(n.props?.key))) after.push([shown(n), n.props?.color])
+  })
+  expect(after).toEqual([[' · ', DARK.label], ['↻ ', DARK.label], ['5d 22h', DARK.label]])
+  expect(boldOf(rowOf({ ...BOARD, columns: 160 }))['7d']).toBe('~1d')
+  expect(shown(seven({ surface: 'terminal' }))).toBe('7d full ~1d │ ↻ 5d 22h')
+  expect(shown(asciiTree(seven({ surface: 'terminal', glyphs: 'ascii' })))).toBe('7d full ~1d | 5d 22h')
+})
+test('a fill at least 12 hours off says its day, ~1d, never a falsely precise ~13h 15m', () => {
+  // 66% with 15% of its week gone fills in ~13h 15m, on the day after today.
+  const sevenDay = { percentUsed: 66, resetsAt: new Date(142.8 * HOUR).toISOString() }
+  const row = rowOf({ now: 25.2 * HOUR, sevenDay: { ...sevenDay, resetsAt: new Date(25.2 * HOUR + 142.8 * HOUR).toISOString() } })
+  expect(shown(byKey(row, '7d', 'Box'))).toBe('7d full ~1d │ ↻ 5d 22h')
 })
 test("the last call's row is the board's, its reset aside and icons gone: from 101 desktop columns with the context", () => {
   const lastCall = (columns: number) => piecesOf(rowOf({ ...BOARD, columns, cache: { ...snapOf().cache, ...BOARD.cache, msLeft: 6 * MIN } }))
