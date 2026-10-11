@@ -1,5 +1,5 @@
 import { test, expect } from 'claude-code/testing'
-import { barChart, barsWidth, braille, dayCells, meter, ring, sparkline, underline } from '../hooks/charts'
+import { barChart, barsWidth, braille, meter, ring, sliceCells, sparkline, underline } from '../hooks/charts'
 import { makeKit } from '../hooks/kit'
 import { METER_CELLS } from '../hooks/layout'
 import { byKey, fakeEl, textOf, type Node } from './helpers'
@@ -24,7 +24,7 @@ for (const [name, el] of [
   ['sparkline', sparkline(desk, { key: 's', alt: '5h usage over the last hour', values: [1, 2, 3], color: '#7fcf8a', px: 90, height: 36, projectTo: 1 })],
   ['sparkline with a level', sparkline(desk, { key: 's', alt: 'context over the conversation', values: [50, 120], color: '#b8b8c2', px: 90, height: 36, max: 200, level: 0.95 })],
   ['barChart', barChart(desk, { key: 'b', alt: 'cost of the last 3 messages', values: [1, 2, 9], marked: [false, false, true], color: '#888888', markColor: '#eeeeee', newestColor: '#ececf2', px: 18, height: 36 })],
-  ['dayCells', dayCells(desk, { key: 'd', alt: 'weekly limit by day', values: [6, 9, 11, 4, 7, 7, 7], guess: [false, false, false, false, true, true, true], today: 3, color: '#a99cf0', cellPx: 16, height: 16, labels: ['T', 'W', 'T', 'F', 'S', 'S', 'M'] })],
+  ['sliceCells', sliceCells(desk, { key: 'd', alt: 'weekly limit by day', row: { marks: [{ kind: 'measured', pct: 66 }, { kind: 'fills', pct: 34 }, { kind: 'spent', pct: 0 }], notch: 0.6 }, color: '#a99cf0', ground: '#2a2540', cellPx: 14, wide: true })],
   ['underline', underline(desk, { key: 'u', alt: 'context 38 percent', frac: 0.38, color: '#b8b8c2', px: 64, dashed: true })],
   ['meter with a tick and a projection', meter(desk, { key: 'm', label: '5h', frac: 0.04, tone: 'calm', accent: '#7fcf8a', tick: 0.4, projectTo: 0.1 })],
 ] as const) {
@@ -66,8 +66,25 @@ test("the meter's tick has a 1 px knockout of the card's ground either side", ()
 test('a meter of a share says its percent alone, neither used nor left', () => {
   expect(svg(meter(desk, { label: 'hit rate', frac: 0.96, tone: 'calm', accent: '#7fcf8a', reads: 'share' })).props.alt).toBe('hit rate 96%')
 })
-test('a guessed day cell is dashed', () => {
-  expect(svg(dayCells(desk, { key: 'd', alt: 'week', values: [6, 7], guess: [false, true], today: 0, color: '#a99cf0', cellPx: 16, height: 16 })).props.source).toMatch(/stroke-dasharray/)
+/** The board's week: today measured, tomorrow fills the limit, none left after; now 0.6 into today. */
+const WEEK_ROW = { marks: [{ kind: 'measured', pct: 66 }, { kind: 'fills', pct: 34 }, { kind: 'spent', pct: 0 }, { kind: 'guess', pct: 10 }], notch: 0.6 } as const
+const slices = (kit: typeof desk, wide = true, row: Parameters<typeof sliceCells>[1]['row'] = WEEK_ROW) =>
+  sliceCells(kit, { key: 'd', alt: 'week', row, color: '#a99cf0', ground: '#2a2540', cellPx: 14, wide })
+test('a slice is solid while measured and dashed while guessed, filled toward its cap', () => {
+  const source = svg(slices(desk)).props.source
+  // Today's 66% of a 12px cell, on a dim track of its own.
+  expect(source).toMatch(/<rect x="0" y="6.1" width="14" height="7.9" rx="2" fill="#a99cf0"\/>/)
+  expect(source.match(/stroke-dasharray/g)).toHaveLength(3)
+  // The fill day's edge alone at full colour; a guess filled at 0.45.
+  expect(source.match(/stroke-opacity/g)).toHaveLength(2)
+  expect(source.match(/fill-opacity="0.45"/g)).toHaveLength(2)
+  expect(svg(slices(desk)).props.width).toBe(4 * 17 - 3)
+})
+test("a slice row's notch is label grey, knocked out of its ground, and absent where now isn't known", () => {
+  const source = svg(slices(desk)).props.source
+  const label = snapOf().palette.label
+  expect(source).toContain(`<rect x="6.4" y="0" width="4" height="16" rx="1.5" fill="#2a2540"/><rect x="7.4" y="0" width="2" height="16" rx="1" fill="${label}"/>`)
+  expect(svg(slices(desk, true, { ...WEEK_ROW, notch: undefined })).props.source).not.toContain(label)
 })
 
 const term = makeKit(fakeEl, snapOf())
@@ -115,14 +132,15 @@ test("a sparkline's level is a solid rule across it, beneath the line, on its sc
   expect(source.indexOf('class="level"')).toBeLessThan(source.indexOf('<polyline'))
   expect(textOf(sparkline(term, { key: 's', alt: 'context', values: [50, 120], color: '#b8b8c2', px: 90, height: 36, max: 200, level: 0.95 }))).toBe(braille([50, 120], 200))
 })
-test("in text, day cells are a braille height each, a guess is a dot, and today is in brackets", () => {
-  const cells = dayCells(term, { key: 'd', alt: 'week', values: [4, 2, undefined, 4], guess: [false, false, false, true], today: 1, color: '#a99cf0', cellPx: 16, height: 16 })
-  expect(textOf(cells)).toBe(` ${braille([4, 0], 4)}[${braille([2, 0], 4)}]· · `)
-})
-test('in text, day cells keep one width wherever today falls', () => {
-  const values = [4, 2, 3, 4]
-  const widths = values.map((_, today) => textOf(dayCells(term, { key: 'd', alt: 'week', values, today, color: '#a99cf0', cellPx: 16, height: 16 })).length)
-  expect(widths).toEqual(values.map(() => 2 * values.length + 1))
+test('in text, a slice is a height toward its cap, the notch at the edge nearest now', () => {
+  expect(textOf(slices(term))).toBe('▅▅▏▃▃ ╌╌ ▁▁')
+  expect(textOf(slices(term, false))).toBe('▅▏▃╌▁')
+  expect(textOf(slices(term, true, { ...WEEK_ROW, notch: 0.2 }))).toBe('▏▅▅ ▃▃ ╌╌ ▁▁')
+  expect(textOf(slices(term, true, { ...WEEK_ROW, notch: 4 }))).toBe('▅▅ ▃▃ ╌╌ ▁▁▏')
+  expect(textOf(slices(term, true, { ...WEEK_ROW, notch: undefined }))).toBe('▅▅ ▃▃ ╌╌ ▁▁')
+  // Neighbours in one ink share a Text: measured, guessed and none left, apart.
+  expect(((slices(term) as Node).children ?? []).length).toBe(4)
+  expect(textOf(slices(makeKit(fakeEl, snapOf({ glyphs: 'ascii' }))))).toBe('##|++ .. ++')
 })
 test('the weather icons draw on the desktop and leave the word to the text', () => {
   for (const [name, alt] of [['sun', 'warm'], ['cloud', 'cooling'], ['snow', 'cold']] as const) {

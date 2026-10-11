@@ -144,7 +144,7 @@ test("emptyState: open, each empty state follows its own section's name", () => 
   expect(failed(open([t('none reported')]), { expanded: true })).toContain('emptyState')
   expect(failed(open([t('CONTEXT'), t('none reported')]), { expanded: true })).toContain('emptyState')
   expect(failed(open([t('LIMITS'), t('none reported'), t('Context'), t('not reported')]), { expanded: true })).not.toContain('emptyState')
-  // The collapsed part says its own: week's `5h · 7d none reported`.
+  // The collapsed part says its own: `5h · 7d none reported`.
   expect(failed(open([t('LIMITS')], '5h · 7d none reported'), { expanded: true })).not.toContain('emptyState')
 })
 test("glyphs: the tier's own, and ASCII alone in the ascii tier", () => {

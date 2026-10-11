@@ -2,7 +2,7 @@
 // readings hold. Pure, and the one place a layout's words are written, so
 // amber, pace, resets, empty states and alt text read the same everywhere.
 
-import type { DayCell, HourCell, Week } from './calendar'
+import type { DayCell, Week } from './calendar'
 import {
   FIVE_HOUR_MS,
   fmtAgo,
@@ -26,8 +26,9 @@ import {
 } from './format'
 import type { ResetIn } from './format'
 import type { CostEntry, TrailPoint, Trails } from './insights'
+import { CARD_TEXT } from './layout'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
-import type { CacheFacts, CacheMood, ContextFacts, Frame, LimitFacts, LimitView, SpendFacts } from './reading'
+import type { CacheFacts, CacheMood, ContextFacts, Frame, LimitFacts, LimitView, SliceMark, SliceRow, SpendFacts } from './reading'
 import type { BandSnapshot } from './snapshot'
 import { gitSummary } from './workspace'
 import type { Workspace } from './workspace'
@@ -59,7 +60,6 @@ export const EMPTY = {
   /** Pulse's, where the full sentence won't fit: at most 10 characters, the
    *  room a 40-column desktop line leaves it. */
   costsShort: 'No costs.',
-  history: 'History fills in as you use Claude.',
   context: 'not reported',
   limits: 'none reported',
 } as const
@@ -150,6 +150,8 @@ export type ContextWords = Readonly<{
   inContextText: string
   compactsAtText: string | undefined
   roomText: string | undefined
+  /** Its room and where it compacts as one row's label: `room left · compacts at 190k`. */
+  roomCompactsText: string | undefined
   /** `auto-compaction off`, only when the engine says so; unknown says nothing. */
   compactionOffText: string | undefined
   windowText: string
@@ -210,6 +212,8 @@ export type LimitWords = Readonly<{
   fullAtClock: string | undefined
   /** `! 5h 82%`, or with a measured fill, `! 5h full in ~40m` / `! 5h ~40m`. */
   amber: Amber | undefined
+  /** The long amber words as a headline, bold on the figure: `! spend 92%`. */
+  amberSay: Say | undefined
   /** `! NEAR LIMIT`, `! FULL ~14:20`, or without the offset, `! FULL IN ~40 MIN`. */
   boardAmber: string | undefined
   /** `~10% AT ↻`, `FULL BEFORE ↻`, or `RESET`; in the ascii tier, `~10% AT RESET`. */
@@ -329,6 +333,7 @@ export const contextWords = (f: ContextFacts): ContextWords => {
     inContextText: f.known ? fmtTokens(f.used) : UNKNOWN,
     compactsAtText: f.compactAt === undefined ? undefined : fmtTokens(f.compactAt),
     roomText,
+    roomCompactsText: roomText === undefined || f.compactAt === undefined ? undefined : `room left · compacts at ${fmtTokens(f.compactAt)}`,
     compactionOffText: f.autoCompactOff ? 'auto-compaction off' : undefined,
     windowText: fmtTokens(f.window),
     cardHead: [[`${f.pct}${f.compactAt === undefined ? severityMark(f.frac) : ''}`, 'value'], [' full', 'label']],
@@ -394,6 +399,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     fullIn,
     fullAtClock,
     amber: f.tone !== 'amber' ? undefined : fullIn !== undefined ? AMBER.limitPace(f.name, fullIn) : AMBER.limit(f.name, f.percentUsed),
+    amberSay: f.tone !== 'amber' ? undefined : fullIn !== undefined ? [[`! ${f.name} full in `, 'label'], [fullIn, 'value']] : [[`! ${f.name} `, 'label'], [f.value, 'value']],
     boardAmber:
       f.tone !== 'amber'
         ? undefined
@@ -514,36 +520,74 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, co
   }
 }
 
-/** What the week says: its cells for a reader, and a summary per window. */
+/** What week's open view names: LIMITS' first row, and the lens in its head. */
+export const WEEK = { byDay: 'by day', byHour: '5h by the hour' } as const
+
+/** Characters LIMITS' first row may take after its label: a card's line
+ *  less the label and the two columns between them. */
+const BY_DAY_ROOM = CARD_TEXT - WEEK.byDay.length - 2
+
+/** What the week says of its slices as drawn: for a reader, the day the
+ *  guess fills the 7d, and the week from today in words. */
 export type WeekWords = Readonly<{
-  /** 'weekly limit by day: Tuesday 6%, Wednesday 9%, Saturday about 7%' */
+  /** 'weekly limit by day: Sunday 66%, Monday about 34% and fills it, Tuesday to Saturday none left' */
   daysAlt: string
   /** '5-hour limit by hour: 08:40 10%, 09:40 15%' */
   hoursAlt: string
-  /** '30% used · on pace for ~50% by Mon 08:40 · busiest Thu', or once passed, 'reset' */
-  summary7: string | undefined
-  /** '4% used · on pace for ~10% by 16:40' */
-  summary5: string | undefined
+  /** 'full ~Mon': the day the guess fills the 7d; undefined unless it does. */
+  fullDay: string | undefined
+  /** 'Sun +66% · Mon ~+34% fills it': today's rise, then each run of days
+   *  ahead alike, as many as hold in a card's line; undefined when none is known. */
+  byDay: string | undefined
 }>
 
-/** The cells known or guessed, each named, a guess said as about. */
-const cellsSpoken = <C extends DayCell | HourCell>(title: string, cells: readonly C[], name: (c: C) => string): string => {
-  const said = cells.flatMap(c => (c.pct === undefined ? [] : [`${name(c)} ${c.guess ? `about ${Math.round(c.pct)}%` : c.text}`]))
-  return `${title}: ${said.length === 0 ? 'not known yet' : said.join(', ')}`
+/** A slice's rise: `+66%` measured, `~+34%` a guess. */
+const riseText = (m: SliceMark): string => `${m.kind === 'measured' ? '' : '~'}+${Math.round(m.pct)}%`
+
+/** The slices known or guessed, each named, a guess said as about, the one
+ *  that fills the limit so, and the run after it as none left. */
+const slicesSpoken = (title: string, names: readonly string[], marks: readonly SliceMark[]): string => {
+  const said = marks.flatMap((m, i) => {
+    const name = names[i] ?? ''
+    const pct = `${Math.round(m.pct)}%`
+    return m.kind === 'measured' ? [`${name} ${pct}`] : m.kind === 'guess' ? [`${name} about ${pct}`] : m.kind === 'fills' ? [`${name} about ${pct} and fills it`] : []
+  })
+  const spent = names.filter((_, i) => marks[i]?.kind === 'spent')
+  const none = spent.length === 0 ? [] : [`${spent.length === 1 ? spent[0] : `${spent[0]} to ${spent.at(-1)}`} none left`]
+  const all = [...said, ...none]
+  return `${title}: ${all.length === 0 ? 'not known yet' : all.join(', ')}`
 }
 
-/** A window's summary: its use and its pace, then the busiest day when given. */
-const summaryOf = (l: LimitView | undefined, busiest?: string): string | undefined => {
-  if (l === undefined) return undefined
-  // Only a landing reads by the reset: a fill has its own time, and full before reset says it.
-  const pace = l.projectedText !== undefined && l.resetClock !== undefined ? `${l.pace} by ${l.resetClock}` : l.pace
-  const standing = l.reset?.kind === 'passed' ? [resetPhrase(l.reset, 'words')] : [`${l.value} used`, pace]
-  return [...standing, busiest === undefined ? '' : `busiest ${busiest}`].filter(Boolean).join(' · ')
+/** The week from today: today's rise, then each run of days alike; a day not
+ *  known is left out. Runs follow while the line holds them. */
+const byDayOf = (days: readonly DayCell[], marks: readonly SliceMark[]): string | undefined => {
+  const today = days.findIndex(d => d.today)
+  if (today < 0) return undefined
+  const said = (m: SliceMark | undefined): string =>
+    m === undefined || m.kind === 'unknown' ? '' : m.kind === 'spent' ? 'none left' : m.kind === 'fills' ? `${riseText(m)} fills it` : riseText(m)
+  const runs: Array<{ from: string; to: string; text: string }> = []
+  days.slice(today).forEach((d, i) => {
+    const day = d.name.slice(0, 3)
+    const text = said(marks[today + i])
+    const last = runs.at(-1)
+    if (i > 0 && last?.text === text) last.to = day
+    else runs.push({ from: day, to: day, text })
+  })
+  let line = ''
+  for (const run of runs.filter(r => r.text !== '')) {
+    const next = `${line === '' ? '' : `${line} · `}${run.from === run.to ? run.from : `${run.from}–${run.to}`} ${run.text}`
+    if ([...next].length > BY_DAY_ROOM) break
+    line = next
+  }
+  return line === '' ? undefined : line
 }
 
-export const weekWords = (w: Week, seven: LimitView | undefined, five: LimitView | undefined): WeekWords => ({
-  daysAlt: cellsSpoken('weekly limit by day', w.days, d => d.name),
-  hoursAlt: cellsSpoken('5-hour limit by hour', w.hours, c => c.startClock),
-  summary7: summaryOf(seven, w.busiest),
-  summary5: summaryOf(five),
-})
+export const weekWords = (w: Week, rows: Readonly<{ days: SliceRow; hours: SliceRow }>): WeekWords => {
+  const fills = rows.days.marks.findIndex(m => m.kind === 'fills')
+  return {
+    daysAlt: slicesSpoken('weekly limit by day', w.days.map(d => d.name), rows.days.marks),
+    hoursAlt: slicesSpoken('5-hour limit by hour', w.hours.map(c => c.startClock), rows.hours.marks),
+    fullDay: fills < 0 ? undefined : `full ~${w.days[fills]?.name.slice(0, 3) ?? ''}`,
+    byDay: byDayOf(w.days, rows.days.marks),
+  }
+}

@@ -135,7 +135,7 @@ const coloursOf = (n: Node): string[] => {
 }
 
 /** What each glyph tier may draw (spec §3.2): the unicode tier's glyphs and braille, or ASCII alone. */
-const UNICODE_TIER = /^[\x20-\x7e█▓░▒│·↻Σ◷◔▿▵…±●■–↑↓\u2800-\u28ff]*$/
+const UNICODE_TIER = /^[\x20-\x7e▁▂▃▄▅▆▇█▓░▒│╌▏·↻Σ◷◔▿▵…±●■–↑↓\u2800-\u28ff]*$/
 const ASCII_TIER = /^[\x20-\x7e]*$/
 /** What a value missing from a phrase leaves drawn (spec §2.8), in any case: departures upper-cases its own. */
 const NOTHING = /\b(NaN|undefined|null)\b/i
@@ -150,6 +150,18 @@ const UNMARKED = /re-warm \$|next message \$|full (in |at )?\d|on pace for \d/i
 /** Whether a Text leaves its cut to the surface, which ends it with `…`:
  *  East-Asian-Ambiguous, so the ascii tier never may (spec §3.2). */
 export const cutBySurface = (n: Node): boolean => n.type === 'Text' && typeof n.props?.wrap === 'string' && n.props.wrap !== 'wrap'
+
+/** Whether an open view sits at openBody's floor: every card down to its
+ *  head and one fact, the strip in the footer. Short of rows it holds there
+ *  and runs over rather than drop a card, as cards.test pins. */
+const atCardsFloor = (tree: Node): boolean => {
+  const cards: Node[] = []
+  walk(tree, n => {
+    if (n.type === 'Box' && String(n.props?.key ?? '').startsWith('card:')) cards.push(n)
+  })
+  const stripOnTop = (tree.children ?? []).some(k => (k as Node | null)?.props?.key === 'strip')
+  return cards.length > 0 && !stripOnTop && cards.every(card => (card.children ?? []).filter(isDrawn).length === 2)
+}
 
 /** Each failed check as `<check>: <why>`; none when the tree keeps the spec
  *  §2 contract: the checks spec §7 lists, §9's node budget and §2.6's open height. */
@@ -197,7 +209,9 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   if (!svgDraws && svgs.length > 0) fail('svgPlacement', `${svgs.length} Svg where none draws`)
   for (const s of svgs) {
     const alt = s.props?.alt
-    if (typeof alt !== 'string' || alt === '' || typeof s.props?.width !== 'number') fail('svgProps', 'an Svg without an alt or a width')
+    // A card's bar is stretched: no width of its own, its slot caps it.
+    const stretched = typeof s.props?.source === 'string' && s.props.source.includes('preserveAspectRatio="none"')
+    if (typeof alt !== 'string' || alt === '' || (typeof s.props?.width !== 'number' && !stretched)) fail('svgProps', 'an Svg without an alt or a width')
     if (s.props?.id !== undefined || SVG_BARRED.test(typeof s.props?.source === 'string' ? s.props.source : ''))
       fail('svgProps', 'an Svg with an id, a gradient, a pattern or a clipPath')
     if (typeof alt === 'string' && NOTHING.test(alt)) fail('empty', `an alt reads "${alt}"`)
@@ -234,7 +248,7 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   if (nodes > (ctx.expanded ? 1500 : 400)) fail('size', `${nodes} nodes`)
   if (ctx.expanded) {
     const tall = visualRows(tree, ctx.surface)
-    if (tall > ctx.maxRows) fail('height', `${tall} rows at maxRows ${ctx.maxRows}`)
+    if (tall > ctx.maxRows && !atCardsFloor(tree)) fail('height', `${tall} rows at maxRows ${ctx.maxRows}`)
   }
   return errors
 }

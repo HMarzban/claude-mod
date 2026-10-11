@@ -6,14 +6,14 @@ import { clamp01 } from './format'
 import type { Kit } from './kit'
 import { CHIP_BAR } from './layout'
 import type { BarSize } from './layout'
-import type { Tone } from './reading'
+import type { SliceMark, SliceRow, Tone } from './reading'
 
 /** One decimal: enough for an Svg coordinate, short enough to read. */
 const tenth = (n: number): number => Math.round(n * 10) / 10
 
 /** A projection's dash, in every chart: where a mark is heading. */
 const PROJECTION_DASH = 'stroke-dasharray="3 2"'
-/** A guess's dash: a day cell whose value is yet to come. */
+/** A guess's dash: a slice whose value is yet to come. */
 const GUESS_DASH = 'stroke-dasharray="2 2"'
 
 /** The largest value, 0 for none: the top of a chart's scale. */
@@ -352,66 +352,95 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
   return <Svg key={key} source={svgOf(px, height, marks.join(''))} alt={alt} width={px} height={height} />
 }
 
-// ---- day cells ------------------------------------------------------------
+// ---- slice cells ----------------------------------------------------------
 
-export type DayCellsOptions = Readonly<{
+export type SliceCellsOptions = Readonly<{
   key: string
   alt: string
-  /** A value per cell; undefined for one with nothing to show yet. */
-  values: ReadonlyArray<number | undefined>
-  /** Cells whose value is a guess, as a day to come is. */
-  guess?: readonly boolean[]
-  today: number
+  row: SliceRow
   color: string
+  /** The ground the notch is knocked out of: its pill's or its card's. */
+  ground: string
   cellPx: number
-  height: number
-  labels?: readonly string[]
+  /** A day: two text cells, a space apart. An hour: one, none between. */
+  wide: boolean
 }>
 
-const DAY_GAP = 3
-/** Room around the cells for today's outline. */
-const DAY_EDGE = 1
-/** What labels add beneath the cells, and their size. */
-const LABEL_ROOM = 11
-const LABEL_PX = 9
+const SLICE_GAP = 3
+const SLICE_PX = 16
+/** A text cell's height in eighths, from ▁ to █. */
+const HEIGHTS = '▁▂▃▄▅▆▇█'
 
-/** A cell per day or hour, filled from the bottom; a guess dashed, today
- *  outlined. Text draws a braille height per cell. */
-export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
-  const { Svg, Text, palette } = kit
-  const { key, alt, values, guess = [], today, color, cellPx, height, labels } = o
-  const top = topOf(values)
-  const isGuess = (i: number) => guess[i] === true
-  if (!Svg) {
-    // Cell i sits at column 2i + 1, so a line of labels spaced alike sits
-    // under it; today's brackets take the spaces either side, and a closing
-    // space keeps the line 2n + 1 wide wherever today falls.
-    const cells = values.map((v, i) => (i === today ? '[' : i - 1 === today ? ']' : ' ') + (v === undefined || isGuess(i) ? '·' : braille([v, 0], top)))
-    return (
-      <Text key={key} color={color}>
-        {cells.join('') + (today === values.length - 1 ? ']' : ' ')}
-      </Text>
-    )
-  }
-  const step = cellPx + DAY_GAP
-  const width = values.length * step - DAY_GAP + 2 * DAY_EDGE
-  const tall = height + 2 * DAY_EDGE + (labels === undefined ? 0 : LABEL_ROOM)
-  const marks = values.map((v, i) => {
-    const x = DAY_EDGE + i * step
-    const fillPx = v === undefined || top <= 0 ? 0 : Math.round((v / top) * (height - 2))
-    const filled = fillPx > 0 ? `<rect x="${x + 1}" y="${DAY_EDGE + height - 1 - fillPx}" width="${cellPx - 2}" height="${fillPx}" rx="2" fill="${color}"/>` : ''
-    const outline =
-      i === today
-        ? `<rect x="${x}" y="${DAY_EDGE}" width="${cellPx}" height="${height}" rx="3" fill="none" stroke="${palette.value}" stroke-width="2"/>`
-        : `<rect x="${x + 0.5}" y="${DAY_EDGE + 0.5}" width="${cellPx - 1}" height="${height - 1}" rx="3" fill="none" stroke="${palette.trackStroke}"${v === undefined || isGuess(i) ? ` ${GUESS_DASH}` : ''}/>`
-    const label = labels?.[i]
-    const caption =
-      label === undefined
+/** A cell per slice of a window, filled toward its cap: solid while
+ *  measured, dashed while guessed, the guess that fills it outlined in full
+ *  and those after it empty; a label-grey notch where now falls. Text draws
+ *  a height per cell, the notch at the edge of the slice nearest now. */
+export const sliceCells = (kit: Kit, o: SliceCellsOptions): RenderChildren => {
+  const { Svg, Text, palette, glyphs } = kit
+  const { key, alt, row, color, ground, cellPx, wide } = o
+  const { marks, notch } = row
+  if (Svg) {
+    const step = cellPx + SLICE_GAP
+    const width = marks.length * step - SLICE_GAP
+    const cells = marks.map(({ kind, pct }, i) => {
+      const x = i * step
+      const share = clamp01(pct / 100)
+      if (kind === 'measured') {
+        const tall = tenth(share * 12)
+        return (
+          `<rect x="${x}" y="2" width="${cellPx}" height="12" rx="2.5" fill="${color}" fill-opacity="0.35"/>` +
+          (tall > 0 ? `<rect x="${x}" y="${tenth(14 - tall)}" width="${cellPx}" height="${tall}" rx="2" fill="${color}"/>` : '')
+        )
+      }
+      // A guess or what is left is dashed; only the fill day's edge is full.
+      const edge = `<rect x="${x + 0.5}" y="2.5" width="${cellPx - 1}" height="11" rx="2.5" fill="none" stroke="${color}"${kind === 'fills' ? '' : ' stroke-opacity="0.55"'} ${GUESS_DASH}/>`
+      const tall = tenth(share * 9)
+      const guess = (kind === 'guess' || kind === 'fills') && tall > 0 ? `<rect x="${x + 2}" y="${tenth(12.5 - tall)}" width="${cellPx - 4}" height="${tall}" rx="1" fill="${color}" fill-opacity="0.45"/>` : ''
+      return edge + guess
+    })
+    const at = notch === undefined ? undefined : Math.max(1, Math.min(width - 1, tenth(Math.floor(notch) * step + (notch - Math.floor(notch)) * cellPx)))
+    // Knocked out of the ground a pixel either side, so it reads over a fill.
+    const mark =
+      at === undefined
         ? ''
-        : `<text x="${x + cellPx / 2}" y="${tall - 1}" text-anchor="middle" font-family="system-ui, sans-serif" font-size="${LABEL_PX}" fill="${i === today ? palette.value : palette.label}">${svgText(label)}</text>`
-    return filled + outline + caption
+        : `<rect x="${tenth(at - 2)}" y="0" width="4" height="${SLICE_PX}" rx="1.5" fill="${ground}"/><rect x="${tenth(at - 1)}" y="0" width="2" height="${SLICE_PX}" rx="1" fill="${palette.label}"/>`
+    return <Svg key={key} source={svgOf(width, SLICE_PX, cells.join('') + mark)} alt={alt} width={width} height={SLICE_PX} />
+  }
+  const ascii = glyphs === 'ascii'
+  /** A cell's glyph and ink: a height measured or guessed, a dash where there is none. */
+  const glyphOf = ({ kind, pct }: SliceMark): readonly [string, string] => {
+    const height = HEIGHTS[Math.max(0, Math.round(clamp01(pct / 100) * 8) - 1)] ?? '▁'
+    if (kind === 'measured') return [ascii ? '#' : height, color]
+    if (kind === 'guess' || kind === 'fills') return [ascii ? '+' : height, palette.label]
+    return [ascii ? '.' : '╌', palette.trackStroke]
+  }
+  const edge = notch === undefined ? undefined : Math.round(notch)
+  const notchMark: readonly [string, string] = [ascii ? '|' : '▏', palette.label]
+  // The notch takes the space at its edge, or adds a cell where there is none.
+  const parts: Array<readonly [string, string]> = []
+  marks.forEach((m, i) => {
+    const [glyph, ink] = glyphOf(m)
+    if (i === edge) parts.push(notchMark)
+    else if (wide && i > 0) parts.push([' ', parts.at(-1)?.[1] ?? ink])
+    parts.push([wide ? glyph + glyph : glyph, ink])
   })
-  return <Svg key={key} source={svgOf(width, tall, marks.join(''))} alt={alt} width={width} height={tall} />
+  if (edge === marks.length) parts.push(notchMark)
+  // Neighbouring cells in one ink share a Text.
+  const runs: Array<{ text: string; ink: string }> = []
+  for (const [text, ink] of parts) {
+    const last = runs.at(-1)
+    if (last?.ink === ink) last.text += text
+    else runs.push({ text, ink })
+  }
+  return (
+    <Text key={key}>
+      {runs.map((run, i) => (
+        <Text key={`run-${i}`} color={run.ink}>
+          {run.text}
+        </Text>
+      ))}
+    </Text>
+  )
 }
 
 // ---- underline ------------------------------------------------------------
