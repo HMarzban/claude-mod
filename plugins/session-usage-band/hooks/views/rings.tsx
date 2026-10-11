@@ -25,9 +25,10 @@ const RING_PX = 16
 /** Where a ring sits: in a pill, on its ground with air after it; in a card's head, neither. */
 type Place = Readonly<{ ground?: string; air?: boolean }>
 
-/** The cache's ring, drained in the warm ink, empty in the cold one once cold. */
+/** The cache's ring, drained in the warm ink; once cold, empty in label ink,
+ *  since the cold ink holds 3:1 only on plain's bare ground. */
 const cacheRing = (kit: Kit, c: CacheReading, place: Place = {}): RenderChildren =>
-  ring(kit, { key: 'ring:cache', alt: c.alt, frac: c.charge, color: kit.onTone(c.tone, c.mood === 'cold' ? kit.palette.cold : kit.palette.warm), px: RING_PX, ...place })
+  ring(kit, { key: 'ring:cache', alt: c.alt, frac: c.charge, color: kit.onTone(c.tone, c.mood === 'cold' ? kit.palette.label : kit.palette.warm), px: RING_PX, ...place })
 
 const contextRing = (kit: Kit, x: ContextReading, place: Place = {}): RenderChildren =>
   ring(kit, { key: 'ring:context', alt: x.alt, frac: x.frac, color: kit.onTone(x.tone, kit.palette.meterFill), px: RING_PX, ...place })

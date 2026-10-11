@@ -129,7 +129,7 @@ test('a wider row never shows less than a narrower one, on either surface', () =
     }
   }
 })
-test('a cold cache says its price on the row at every width, in the cold ink, and its card says it no more', () => {
+test("a cold cache says its price on the row at every width, its ring in label ink, not the warm one, and its card says it no more", () => {
   for (const surface of ['terminal', 'desktop'] as const)
     for (const columns of [40, 160]) {
       const tree = draw({ ...COLD, surface, columns })
@@ -137,7 +137,8 @@ test('a cold cache says its price on the row at every width, in the cold ink, an
       expect(boldOf(pillOf(tree, 'cache'))).toEqual(['~$0.80'])
       expect(shown(cardOf(draw({ ...COLD, ...OPEN, surface, columns }), 'cache'))).not.toMatch(/next message|~\$0\.80/)
     }
-  expect(byKey(pillOf(draw(COLD), 'cache'), 'ring:cache', 'Text')?.props?.color).toBe(DARK.cold)
+  // The cold ink is plain's alone: on a filled pill it falls short of 3:1.
+  expect(byKey(pillOf(draw(COLD), 'cache'), 'ring:cache', 'Text')?.props?.color).toBe(DARK.label)
 })
 test('no ring draws a thumb: a label-grey notch marks the time gone, and an empty 5h has none', () => {
   const row = firstRow(draw(DESK95))
