@@ -149,12 +149,14 @@ const tilesOf = (kit: Kit, read: Readings): Tile[] => {
 
 /** A Box's width, when it has one. */
 const sized = (width: number | undefined) => (width === undefined ? {} : { width })
+/** A Box's least width, when it has one: it grows past it, never shrinks. */
+const least = (minWidth: number | undefined) => (minWidth === undefined ? {} : { minWidth })
 
 /** A tile at a squeeze, its mark at `size`, in columns `cols`: its figure
  *  right-aligned, then its label, an amber one's kept, then its mark, or the
- *  room for one. In its equal width the label never shrinks and the mark
- *  gives way first, so where a font runs wider than the measure no word is
- *  cut. */
+ *  room for one. In its equal width the figure and the label never shrink
+ *  and the mark gives way first, so where a bold or a font runs wider than
+ *  the measure no figure or word is cut. */
 const tileSpec = (kit: Kit, t: Tile, keeps: Keeps<Piece>, cols: Columns, size: BarSize): PillSpec => {
   const { Box } = kit
   const labelled = keeps.calm('labels', t.tone)
@@ -171,11 +173,11 @@ const tileSpec = (kit: Kit, t: Tile, keeps: Keeps<Piece>, cols: Columns, size: B
     bg: t.bg,
     body: [
       <Box key="tile" flexDirection="row" alignItems="center" columnGap={1} {...sized(width)}>
-        <Box key="fig" justifyContent="flex-end" {...sized(cols?.figure)}>
+        <Box key="fig" justifyContent="flex-end" flexShrink={0} {...least(cols?.figure)}>
           {t.figure}
         </Box>
         {labelled ? (
-          <Box key="label" flexShrink={0} {...(cols === undefined ? {} : { minWidth: cols.label })}>
+          <Box key="label" flexShrink={0} {...least(cols?.label)}>
             {t.label(keeps)}
           </Box>
         ) : null}

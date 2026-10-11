@@ -73,7 +73,7 @@ test('every tile is the same width, its figures right-aligned in one column', ()
     const tiles = tilesOf(rowOf({ surface }))
     expect(new Set(tiles.map(t => cellsOf(t as unknown as RenderChildren, measure))).size).toBe(1)
     const figures = tiles.map(t => byKey(t, 'fig', 'Box')?.props)
-    expect(new Set(figures.map(p => p?.width)).size).toBe(1)
+    expect(new Set(figures.map(p => p?.minWidth)).size).toBe(1)
     expect(figures.every(p => p?.justifyContent === 'flex-end')).toBe(true)
   }
 })
@@ -136,7 +136,7 @@ test('an amber tile leads the row on the amber ground, its figure first, then it
   expect(shown(tile(row, '5h'))).toMatch(/^82%! 5h ↻ 3h 00m/)
   expect(tile(row, '5h')?.props?.backgroundColor).toBe(snapOf().palette.amberBg)
   // The figure keeps its column, the one every tile shares.
-  expect(new Set(tilesOf(row).map(t => byKey(t, 'fig', 'Box')?.props?.width)).size).toBe(1)
+  expect(new Set(tilesOf(row).map(t => byKey(t, 'fig', 'Box')?.props?.minWidth)).size).toBe(1)
   // The calm tiles stay off amber.
   expect(boldOf(tile(row, 'cache'))).toEqual(['59m'])
 })
@@ -175,7 +175,18 @@ test('on the desktop at 95 columns the row holds five tiles: only the tokens and
   expect(['class="fill"', 'class="projection"', 'class="tick"'].map(mark => seven.includes(mark))).toEqual([true, true, true])
   // Each tile measured as the measure gives it, its columns not each rounded up a column.
   expect(cellsOf(row as unknown as RenderChildren, DESKTOP)).toBeLessThanOrEqual(91)
-  expect(byKey(tile(row, 'cost'), 'fig', 'Box')?.props?.width).toBe(4.5)
+  expect(byKey(tile(row, 'cost'), 'fig', 'Box')?.props?.minWidth).toBe(4.5)
+})
+test('a figure is never held to a width: its column is its least, and a bold wider than the measure takes from the mark', () => {
+  for (const surface of ['terminal', 'desktop'] as const)
+    for (const columns of [95, 160, 200])
+      for (const amber of [{}, LIMIT_82, LAST_MINUTE]) {
+        const tiles = tilesOf(rowOf({ surface, columns, ...amber }))
+        const figures = tiles.map(t => byKey(t, 'fig', 'Box')?.props)
+        expect(figures.map(p => [p?.width, p?.flexShrink])).toEqual(figures.map(() => [undefined, 0]))
+        expect(new Set(figures.map(p => p?.minWidth)).size).toBe(1)
+        expect(tiles.every(t => typeof byKey(t, 'tile', 'Box')?.props?.width === 'number')).toBe(true)
+      }
 })
 test("on the desktop ↻ goes before a reset's words do; a reset goes whole, never cut", () => {
   const labels = (columns: number) => ['5h', '7d'].map(key => shown(byKey(tile(rowOf(desk({ columns })), key), 'label', 'Box')))
