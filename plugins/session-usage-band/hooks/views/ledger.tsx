@@ -8,7 +8,7 @@ import type { Kit } from '../kit'
 import { ROW_SLACK } from '../layout'
 import type { LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
-import type { Amber, Say } from '../words'
+import { BETWEEN_READINGS, type Amber, type Say } from '../words'
 import { cardsView, type Fact } from './cards'
 import { toggleButton } from './frame'
 import { ROLE_INK, amberFirst, amberSay, beforeLast, fitLine, type Keeps } from './parts'
@@ -51,13 +51,12 @@ const limitPart = (read: Readings, l: LimitView | undefined, step: Piece, keeps:
   if (l.amber !== undefined) return warning(l.amber, keeps, closest && l.fullIn !== undefined ? ['pace'] : [])
   if (!keeps.has(step)) return null
   if (!closest) return { say: l.say, amber: undefined, says: [] }
-  const pace = keeps.has('pace') && l.pace !== '' ? l.pace : undefined
-  const reset = keeps.has('reset') ? l.resetAtGlyph : undefined
-  const tail = [pace, reset].filter((t): t is string => t !== undefined)
+  const pace = keeps.has('pace') && l.pace !== ''
+  const reset = keeps.has('reset') && l.resetAtGlyph !== undefined
   return {
-    say: [...l.say, ...tail.map((t): Say[number] => [` · ${t}`, 'label'])],
+    say: l.sentence(pace, reset),
     amber: undefined,
-    says: [...(pace === undefined ? [] : (['pace'] as const)), ...(reset === undefined ? [] : (['reset'] as const))],
+    says: [...(pace ? (['pace'] as const) : []), ...(reset ? (['reset'] as const) : [])],
   }
 }
 
@@ -83,7 +82,7 @@ const sentence = (kit: Kit, parts: readonly Part[]): RenderElement => {
     parts.flatMap((part, i) => [
       i === 0 ? null : (
         <Text key={`sep${i}`} color={palette.label}>
-          {' │ '}
+          {BETWEEN_READINGS}
         </Text>
       ),
       ...part.say.map(([text, role], j) => (
@@ -101,8 +100,8 @@ const sentence = (kit: Kit, parts: readonly Part[]): RenderElement => {
 }
 
 /** The row fitted to its width, and the facts its sentence says. On the
- *  desktop the sentence sits on one pill's ground; a terminal draws it bare,
- *  on the band's own. */
+ *  desktop the sentence sits on one pill's ground; a terminal grounds the
+ *  whole row, toggle and all; plain draws it bare. */
 const fitted = (kit: Kit, read: Readings, act: BandActions): Readonly<{ row: RenderElement; shown: readonly Fact[] }> => {
   const { Box, Svg, palette } = kit
   const toggle = toggleButton(kit, read, act)
@@ -112,7 +111,14 @@ const fitted = (kit: Kit, read: Readings, act: BandActions): Readonly<{ row: Ren
     // The line drawn is the last one built.
     shown = parts.flatMap(part => part.says)
     return (
-      <Box key="row" flexDirection="row" flexWrap="nowrap" overflow="hidden" columnGap={1}>
+      <Box
+        key="row"
+        flexDirection="row"
+        flexWrap="nowrap"
+        overflow="hidden"
+        columnGap={1}
+        {...(palette.filled && !Svg ? { backgroundColor: palette.surface } : {})}
+      >
         <Box key="sentence" flexShrink={1} minWidth={0} {...(Svg ? { backgroundColor: palette.surface, paddingX: 1 } : {})}>
           {sentence(kit, parts)}
         </Box>
@@ -131,6 +137,6 @@ export const ledgerView: View = {
   draw: (kit, read, act) => {
     const { row, shown } = fitted(kit, read, act)
     // Each window says its reset at its clock time, as the sentence does.
-    return cardsView(kit, read, act, [row], { shown, windowResets: 'clock', collapsedRows: rowsOf(ledgerView, kit) })
+    return cardsView(kit, read, act, [row], { shown, windowResets: 'clock', compactSplit: true, collapsedRows: rowsOf(ledgerView, kit) })
   },
 }

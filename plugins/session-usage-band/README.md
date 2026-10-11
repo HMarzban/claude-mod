@@ -147,11 +147,12 @@ amber at once, the end of the row is clipped rather than wrapped.
 
 Chips is one of nine layouts. The other eight show the same readings in
 another shape, on a filled panel (bare in `plain`), and each opens with `▵`
-to its own view of every fact, under the workspace line and the same
-`Collapse` and `Hide band` buttons. Departures writes the workspace line
-as a flap on its board; the others draw it as chips does. Every layout turns amber at the same moments, by the same
-rules. Only chips has hover cards on its readings; the workspace line has
-them wherever it is drawn as chips draws it.
+to its own view of every fact, or as ledger does, to chips' cards, under
+the workspace line and the same `Collapse` and `Hide band` buttons.
+Departures writes the workspace line as a flap on its board; the others
+draw it as chips does. Every layout turns amber at the same moments, by
+the same rules. Only chips has hover cards on its readings; the workspace
+line has them wherever it is drawn as chips draws it.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-layouts-dark.png">

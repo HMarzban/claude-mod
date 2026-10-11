@@ -15,7 +15,7 @@ import { BARE } from '../palette'
 import type { LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { drawStrip } from '../strip'
-import type { Say } from '../words'
+import { SPLIT_LABELS, type Say } from '../words'
 import { bodyRowsFor } from './frame'
 import { accentOf } from './parts'
 
@@ -62,6 +62,9 @@ export type OpenOptions = Readonly<{
    *  `resets 3h 00m · …`, or at its clock time as the lead row does,
    *  `resets 16:40 · …`. */
   windowResets?: 'countdown' | 'clock'
+  /** Short of rows for SPEND's three legend rows, one in their place: the
+   *  split bar and `input · output · cache reads`, as ledger's board draws it. */
+  compactSplit?: boolean
 }>
 
 /** What opens beneath a layout's collapsed lines: as many cards to a line as
@@ -222,20 +225,30 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     ['output', { n: spend.back, color: palette.coin, mark: outputFill }],
     ['cache reads', { n: spend.cached, color: palette.warm, mark: readsFill }],
   ]
-  const tokenRows = shown.has('tokenSplit')
-    ? []
-    : cache.measured
-      ? spend.split.map((part, i) => factRow(undefined, part.label, part.text, tokenParts[i]?.[1]))
+  const split = (size: BarSize) =>
+    splitBar(kit, { alt: 'token split: input, output, cache reads', parts: tokenParts.map(([, part]) => part), size })
+  const lastRow = spend.lastText === undefined ? null : factRow('lastMessage', 'last message', spend.lastText)
+  const splitShown = cache.measured && !shown.has('tokenSplit')
+  // Short of rows for the legend's three, its one line: the bar, then the
+  // kinds it splits into, in order.
+  const compact = splitShown && o.compactSplit === true && (lastRow === null ? 0 : 1) + tokenParts.length > bodyRows
+  const legend = SPLIT_LABELS.join(' · ')
+  const legendRoom = Math.max(4, inner - [...legend].length - 1)
+  const tokenRows = !splitShown
+    ? shown.has('tokenSplit')
+      ? []
       : [note('Breakdown counts from your next message.')]
-  const spendView = card(
-    'spend',
-    'Spend',
-    { say: [[spend.totalText, 'value']] },
-    cache.measured && !shown.has('tokenSplit')
-      ? splitBar(kit, { alt: 'token split: input, output, cache reads', parts: tokenParts.map(([, part]) => part), size: cardBar })
-      : null,
-    [spend.lastText === undefined ? null : factRow('lastMessage', 'last message', spend.lastText), ...tokenRows],
-  )
+    : compact
+      ? [
+          <Box key="fact:split" flexDirection="row" columnGap={1}>
+            <Box key="bar" flexGrow={1} width={0} minWidth={0}>
+              {split({ px: legendRoom * measure.pxPerCell, cells: legendRoom })}
+            </Box>
+            {oneLine({ color: palette.label }, legend)}
+          </Box>,
+        ]
+      : spend.split.map((part, i) => factRow(undefined, part.label, part.text, tokenParts[i]?.[1]))
+  const spendView = card('spend', 'Spend', { say: [[spend.totalText, 'value']] }, splitShown && !compact ? split(cardBar) : null, [lastRow, ...tokenRows])
 
   const contextView = context.known
     ? card(
@@ -293,13 +306,18 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     ]
   }
   /** The lead row, then every window's rows; short of rows, each window's
-   *  bar row before any pace line. */
+   *  bar row before any pace line, and with no lead row the worst's bar
+   *  last of all, since the headline says its value. */
   const limitLines = (): RenderChildren[] => {
     const lead = leadRow()
     const rows = read.limits.map(limitRows)
     const lines = rows.flat().filter(part => part !== null)
     const room = bodyRows - (lead === null ? 0 : 1) - (o.lead?.limits === undefined ? 0 : 1)
-    return [lead, ...(lines.length <= room ? lines : [...rows.map(([bar]) => bar), ...rows.map(([, pace]) => pace)])]
+    if (lines.length <= room) return [lead, ...lines]
+    const bars = rows.map(([bar]) => bar)
+    const worstAt = lead === null ? read.limits.findIndex(w => w === worst) : -1
+    const worstBar = worstAt < 0 ? [] : bars.splice(worstAt, 1)
+    return [lead, ...bars, ...rows.map(([, pace]) => pace), ...worstBar]
   }
   const limitsView =
     read.limits.length > 0

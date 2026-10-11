@@ -6,9 +6,9 @@ import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import { drawBand } from '../hooks/band'
-import { DARK } from '../hooks/palette'
+import { DARK, PLAIN } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { HOUR, MIN, byKey, cardOf, fakeEl, firstRow, hostClock, shown, svgsOf, walk, type Node } from './helpers'
+import { HOUR, MIN, byKey, cardOf, fakeEl, firstRow, hostClock, shown, svgAlts, svgsOf, walk, type Node } from './helpers'
 import { NO_ACT, caseKey, drawCases, snapOf, viewSuite, visualRows, type Mount } from './matrix'
 
 viewSuite('ledger')
@@ -63,11 +63,21 @@ test('a cold cache says its price, bold on the price alone', () => {
   expect(shown(row)).toMatch(/^cache cold · re-warm ~\$1\.66 │ spent/)
   expect(boldOf(row)[0]).toBe('~$1.66')
 })
-test('no pills, bars or icons: one ground on the desktop, bare words in a terminal', () => {
-  const desktop = firstRow(drawn({ surface: 'desktop' }))
+test('working, the cache has no figure: its words in label ink, nothing bold', () => {
+  const row = firstRow(drawn({ isWorking: true }))
+  expect(shown(row)).toMatch(/^cache warm │ spent/)
+  expect(boldOf(row)).toEqual(['$3.19', '40%', '4%', '30%'])
+})
+test('no pills, bars or icons: one ground, the sentence pill on the desktop, the whole row in a terminal; plain is bare', () => {
+  const desktop = firstRow(drawn({ surface: 'desktop' })) as Node
   expect(svgsOf(desktop)).toEqual([])
-  expect(byKey(desktop, 'sentence', 'Box')?.props?.backgroundColor).toBe(DARK.surface)
-  expect(byKey(firstRow(drawn()), 'sentence', 'Box')?.props?.backgroundColor).toBeUndefined()
+  expect([desktop.props?.backgroundColor, byKey(desktop, 'sentence', 'Box')?.props?.backgroundColor]).toEqual([undefined, DARK.surface])
+  const terminal = firstRow(drawn()) as Node
+  expect([terminal.props?.backgroundColor, byKey(terminal, 'sentence', 'Box')?.props?.backgroundColor]).toEqual([DARK.surface, undefined])
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const plain = firstRow(drawn({ surface, palette: PLAIN })) as Node
+    expect([plain.props?.backgroundColor, byKey(plain, 'sentence', 'Box')?.props?.backgroundColor]).toEqual([undefined, undefined])
+  }
   expect(rowText()).not.toMatch(/[█░▓▒●◷]/)
 })
 test('the toggle is last on the row: ▵ shut, ▿ open', () => {
@@ -95,7 +105,7 @@ test('amber leads, whole and on its own ground', () => {
   expect(amber.map(n => [shown(n), n.props?.backgroundColor])).toEqual([['! 5h 82%', DARK.amberBg]])
 })
 test('at 40 columns a cold cache says its short words, so an amber limit fits beside it', () => {
-  expect(rowText({ columns: 40, cache: COLD, fiveHour: FIVE_82 })).toBe('! 5h 82% │ cold ~$1.66')
+  expect(rowText({ columns: 40, cache: COLD, fiveHour: FIVE_82 })).toBe('! 5h 82% │ cache cold ~$1.66')
 })
 test('the ascii tier: | between readings, commas within, resets in words', () => {
   expect(rowText({ glyphs: 'ascii' })).toBe('cache 52m left | spent $3.19 | context 40% full | 5h 4% | 7d 30%, on pace for ~50%, resets Sat 19:00')
@@ -135,6 +145,29 @@ test('open, the other cards each lead with what the sentence left out', () => {
   expect(firstRowOf(opened({ cache: LAST_MINUTE }), 'cache')).toMatch(/^saved by cache/)
   // Nor the room an amber context names.
   expect(firstRowOf(opened({ context: NEAR_COMPACTION }), 'context')).toMatch(/^auto-compacts at/)
+})
+test("open at the board's own height, each card's two rows are the board's, none repeating its headline", () => {
+  const tree = drawn({
+    expanded: true,
+    surface: 'desktop',
+    columns: 120,
+    maxRows: 15,
+    fiveHour: { percentUsed: 0, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null },
+    sevenDay: { percentUsed: 66, resetsAt: new Date(67 * HOUR).toISOString() },
+  })
+  const body = (name: string) => ((cardOf(tree, name)?.children ?? []) as Node[]).filter(Boolean).slice(1)
+  const read = (name: string) => body(name).map(shown)
+  expect(read('cache')).toEqual(['re-warm if cold~$1.66', 'saved by cache~$11.40'])
+  expect(read('context')).toEqual(['room left~114k', 'auto-compacts at190k'])
+  // SPEND's split: its bar and a one-line legend, as the board draws it.
+  expect(read('spend')).toEqual(['last message$0.21', 'input · output · cache reads'])
+  expect(svgsOf(body('spend')[1]).map(n => n.props?.alt)).toEqual(['token split: input, output, cache reads'])
+  // LIMITS: the 5h bar, bare, then its reset; the 7d headline's bar is not drawn again.
+  const [bar, reset] = body('limits')
+  expect(body('limits').length).toBe(2)
+  expect(svgsOf(bar).map(n => [n.props?.alt, /class="tick"/.test(String(n.props?.source))])).toEqual([['5h 0% used', false]])
+  expect(shown(reset)).toMatch(/^resets \d{2}:\d{2}/)
+  expect(svgAlts(cardOf(tree, 'limits'))).not.toContain('7d 66% used')
 })
 test('open, the row stays the sentence and the band fits its rows', async ($, on) => {
   const mounts: Mount[] = (['terminal', 'desktop'] as const).flatMap(surface => [13, 40].map(maxRows => ({ surface, cols: 120, maxRows })))

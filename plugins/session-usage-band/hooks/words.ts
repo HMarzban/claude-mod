@@ -100,13 +100,12 @@ export type CacheWords = Readonly<{
   /** The countdown alone, `52m` or `47s`; empty while not counting. */
   leftShort: string
   say: Say
-  sayShort: Say
   /** The cache as a sentence names it, bold on its figure alone: `cache
    *  52m left`, `cache cold · re-warm ~$1.66`; cold and short of room,
-   *  `cold ~$1.66`. */
+   *  `cache cold ~$1.66`. Warming or working, it has no figure to bold. */
   sentence: Say
   sentenceShort: Say
-  /** `say` and `sayShort` as plain text: `cache 52m left`, `cache 52m`. */
+  /** `say` and its short form as plain text: `cache 52m left`, `cache 52m`. */
   text: string
   textShort: string
   /** The last minute: `! 47s left · re-warm ~$1.66`, then `! 47s`. */
@@ -208,6 +207,9 @@ export type LimitWords = Readonly<{
   /** After `↻`, a clock time: `↻ 16:40`, else `↻ in 3h 00m`; in the ascii
    *  tier, which drops the glyph, `resets 16:40`. Undefined once passed. */
   resetAtGlyph: string | undefined
+  /** The limit as a sentence says it, bold on its figure, with its pace and
+   *  its reset where asked and known: `7d 30% · on pace for ~50% · ↻ Sat 19:00`. */
+  sentence: (withPace: boolean, withReset: boolean) => Say
   /** Where the window lands at its reset, `~10%`; none at 100% or more,
    *  where `pace` says `full before reset`. */
   projectedText: string | undefined
@@ -228,6 +230,9 @@ export type LimitWords = Readonly<{
   boardTime: string | undefined
   alt: string
 }>
+
+/** Between the readings of a sentence: `cache 52m left │ spent $3.19`. */
+export const BETWEEN_READINGS = ' │ '
 
 /** A phrase's segments as one plain string. */
 const joined = (say: Say): string => say.map(([text]) => text).join('')
@@ -285,16 +290,17 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
       ? [['cache cold · re-warm ', 'label'], [f.estimate, 'value']]
       : counting
         ? [['cache ', 'label'], [leftShort, 'value'], [' left', 'label']]
-        : say
+        : f.mood === 'warming' || working
+          ? [[joined(say), 'label']]
+          : say
   return {
     condition: CONDITION[f.mood],
     value,
     left,
     leftShort,
     say,
-    sayShort,
     sentence,
-    sentenceShort: f.mood === 'cold' ? sayShort : sentence,
+    sentenceShort: f.mood === 'cold' ? [['cache cold ', 'label'], [f.estimate, 'value']] : sentence,
     text: joined(say),
     textShort: joined(sayShort),
     amber: f.mood === 'expiring' ? AMBER.cache(left, leftShort, f.estimate) : undefined,
@@ -397,6 +403,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const pace = live ? paceText(f) : ''
   const withPace = pace === '' ? '' : ` · ${pace}`
   const resetWhen = f.reset?.kind !== 'in' ? undefined : (resetClock ?? `in ${f.reset.text}`)
+  const resetAtGlyph = resetClock === undefined ? resetGlyph : `${ascii ? 'resets' : '↻'} ${resetClock}`
   return {
     valueText,
     valueMarked: `${f.value}${severityMark(f.frac)}`,
@@ -409,7 +416,13 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     resetWords: f.reset?.kind === 'in' ? resetPhrase(f.reset, 'words') : undefined,
     resetGlyph,
     resetClock,
-    resetAtGlyph: resetClock === undefined ? resetGlyph : `${ascii ? 'resets' : '↻'} ${resetClock}`,
+    resetAtGlyph,
+    sentence: (withPace, withReset) => [
+      ...say,
+      ...[withPace ? pace : '', withReset ? (resetAtGlyph ?? '') : '']
+        .filter(t => t !== '')
+        .map((t): Say[number] => [` · ${t}`, 'label']),
+    ],
     projectedText,
     projectedAlt: landing === undefined ? undefined : altOf(`${f.name} limit`, landing),
     fullIn,
