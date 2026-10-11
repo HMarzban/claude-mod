@@ -91,7 +91,12 @@ test('a desktop tile marks a cap with an Svg: the battery, a bar, 7d its notch i
   // Knocked out of the tile's own ground, not the card's.
   expect(seven).toMatch(new RegExp(`class="knockout"[^>]*fill="${snapOf().palette.weekBg}"`))
   expect(seven).toMatch(/class="projection"/)
-  for (const n of svgsOf(row)) expect(String(n.props?.source)).not.toMatch(/class="thumb"/)
+  // No thumb: nothing in a mark, the row's or a card head's, paints the value's bright ink.
+  const limits = byKey(cardOf(drawn(desk({ expanded: true })), 'limits'), 'slot', 'Box')
+  for (const n of [...svgsOf(row), ...svgsOf(limits)]) {
+    expect(String(n.props?.source)).not.toMatch(/class="thumb"/)
+    expect(String(n.props?.source)).not.toContain(`"${snapOf().palette.value}"`)
+  }
 })
 test('the toggle ends the row: ▵ shut, ▿ open', () => {
   const last = (row: Node) => {
