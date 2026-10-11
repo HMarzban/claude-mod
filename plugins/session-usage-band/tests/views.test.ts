@@ -61,8 +61,8 @@ test('every layout\'s toggle points the way the band will move: up while shut, d
 test('every layout that says an empty state draws it in a label\'s ink', () => {
   // Gauges and pulse say one in their rows; the rest leave out what isn't
   // known, as a card with nothing known is left out.
-  const onCards: ReadonlySet<string> = new Set(['chips', 'departures', 'week', 'rings', 'ledger', 'tiles', 'forecast'])
-  const layouts = LAYOUT_NAMES.filter(name => !onCards.has(name))
+  const saysNone: ReadonlySet<string> = new Set(['chips', 'departures', 'week', 'rings', 'ledger', 'tiles', 'forecast'])
+  const layouts = LAYOUT_NAMES.filter(name => !saysNone.has(name))
   const phrases = Object.values(EMPTY)
   const inks: string[] = []
   for (const layout of layouts)
