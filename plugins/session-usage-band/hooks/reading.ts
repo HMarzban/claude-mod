@@ -197,6 +197,9 @@ export type LimitFacts = Readonly<{
   reset: ResetIn | undefined
   passed: boolean
   gone: number | undefined
+  /** Where a bar's notch sits: the share of the window gone, while any of
+   *  it is used; with none used, the window may not have begun. */
+  notch: number | undefined
   /** 100 when a 5h fill is measured; else the average's landing, once 5% of the window has gone. */
   projectedPct: number | undefined
   /** `projectedPct` as a share, at most 1; undefined once passed. */
@@ -317,6 +320,7 @@ export const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
       etaMs,
       reset,
       gone,
+      notch: reading.percentUsed > 0 ? gone : undefined,
       percentUsed: reading.percentUsed,
       frac: clamp01(reading.percentUsed / 100),
       tone: limitTone(reading, snap.now, etaMs),

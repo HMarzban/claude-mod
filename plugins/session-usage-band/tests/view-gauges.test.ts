@@ -1,120 +1,189 @@
-// Gauges, two rows of labelled bars: the cache row and the three cells, how
-// they give way as they narrow, and the four panels behind ▵.
+// Gauges, as its board draws it: four bars on one scale in a 2×2 grid, the
+// conversation's cache and context above the 5h and 7d limits, the cost and
+// the toggle at the end; how the grid gives way as it narrows; and the shared
+// cards behind ▵, each with its bar in its head and none repeating the row.
 
 import { test, expect } from 'claude-code/testing'
-import type { Engine } from 'claude-code/testing'
-import type { On } from 'claude-code'
-import { LONG, byKey, shown, svgAlts, svgsOf } from './helpers'
-import { caseKey, drawCases, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
+import { drawBand } from '../hooks/band'
+import { makeKit } from '../hooks/kit'
+import { DARK } from '../hooks/palette'
+import { readingsOf } from '../hooks/reading'
+import type { BandSnapshot } from '../hooks/snapshot'
+import { gaugesView } from '../hooks/views/gauges'
+import { HOUR, MIN, byKey, cardOf, fakeEl, firstRow, shown, svgsOf, walk, type Node } from './helpers'
+import { NO_ACT, snapOf, viewSuite } from './matrix'
 
 viewSuite('gauges')
 
-const T160: Mount = { surface: 'terminal', cols: 160 }
-const D160: Mount = { surface: 'desktop', cols: 160 }
-/** One scenario on one mount: its trees, shut and open. */
-const at = async ($: Engine, on: On, scenario: ScenarioName, m: Mount = T160, ttl: Ttl = '1h') => {
-  const trees = await drawCases($, on, { layout: 'gauges', scenario, appearance: 'dark', ttl }, [m])
-  return { shut: trees[caseKey(m, 'shut')], open: trees[caseKey(m, 'open')] }
+/** Gauges drawn outside a mount: calm, at 160 terminal columns, the zone UTC. */
+const draw = (over: Partial<BandSnapshot> = {}): Node => {
+  const snap = snapOf({ layout: 'gauges', columns: 160, utcOffsetMin: 0, ...over })
+  return gaugesView.draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT) as unknown as Node
 }
-
-test('row one is the cache with its time-left bar; row two the three cells', async ($, on) => {
-  const t = shown((await at($, on, 'calm')).shut)
-  expect(t).toMatch(/cache.*1h 00m left · re-warm ~\$\S+\s*\$2\.41 · \S+ tokens/)
-  expect(t).toMatch(/context.*38%.*5h.*4%.*7d.*30%/)
-})
-test('5h and 7d bars carry a tick for the window gone; context has none', async ($, on) => {
-  const ticked = svgsOf((await at($, on, 'calm', D160)).shut).filter(n => /class="tick"/.test(String(n.props?.source)))
-  expect(ticked.map(n => String(n.props?.alt).split(' ')[0])).toEqual(['5h', '7d'])
-})
-test('unmeasured, the cache draws no bar', async ($, on) => {
-  const trees = await drawCases($, on, { layout: 'gauges', scenario: 'unmeasured', appearance: 'dark', ttl: '1h' }, [D160, T160])
-  expect(svgAlts(trees[caseKey(D160, 'shut')]).filter(alt => alt.startsWith('cache'))).toEqual([])
-  expect(shown(trees[caseKey(T160, 'shut')])).toMatch(/^cache\s*–/)
-})
-test('warming, the cache draws no bar', async ($, on) => {
-  expect(svgAlts((await at($, on, 'warming', D160)).shut).filter(alt => alt.startsWith('cache'))).toEqual([])
-})
-test('warming, with no limits reported, row two says the context is not known yet', async ($, on) => {
-  const trees = await drawCases($, on, { layout: 'gauges', scenario: 'warming', appearance: 'dark', ttl: '1h' }, [D160, T160])
-  for (const m of [D160, T160]) expect(shown(byKey(trees[caseKey(m, 'shut')], 'cells', 'Box'))).toMatch(/^context\s*–/)
-  expect(svgAlts(trees[caseKey(D160, 'shut')]).filter(alt => alt.startsWith('context'))).toEqual([])
-})
-test('narrow, calm cells become text', async ($, on) => {
-  expect(shown((await at($, on, 'calm', { surface: 'terminal', cols: 50 })).shut)).toMatch(/5h 4%/)
-})
-test('each row gives way in its own spec order', async ($, on) => {
-  // Each width sits inside its step's band, not at its edge. Each row squeezes
-  // on its own, so row two's resets can go while row one keeps its tokens.
-  const mounts = [160, 95, 80, 65, 50].map((cols): Mount => ({ surface: 'terminal', cols }))
-  const trees = await drawCases($, on, { layout: 'gauges', scenario: 'calm', appearance: 'dark', ttl: '1h' }, mounts)
-  const [whole, noResets, costRight, joined, text] = mounts.map(m => shown(trees[caseKey(m, 'shut')]))
-  expect(whole).toMatch(/\$2\.41 · \S+ tokens/)
-  expect(whole).toMatch(/4% ↻ in 3h 00m\s*7d[█░│]{12}30% ↻ in 2d 19h/)
-  expect(noResets).toMatch(/\$2\.41 · \S+ tokens/)
-  expect(noResets).not.toMatch(/↻/)
-  expect(costRight).toMatch(/cache[█░]{24}1h 00m left · re-warm ~\$[\d.]+\$2\.41context[█░]{12}38%/)
-  expect(costRight).not.toMatch(/tokens/)
-  expect(joined).toMatch(/cache[█░]{6}1h 00m left · re-warm ~\$[\d.]+ · \$2\.41context[█░]{6}38%/)
-  expect(text).toMatch(/cache[█░]{6}1h 00m left · \$2\.41context 38%\s*5h 4%\s*7d 30%/)
-})
-test('amber, the cost joins the reason as the calm sentence does, and goes before the reason shortens', LONG, async ($, on) => {
-  const mounts = [60, 50].map((cols): Mount => ({ surface: 'terminal', cols }))
-  const trees = await drawCases($, on, { layout: 'gauges', scenario: 'lastMinute', appearance: 'dark', ttl: '5m' }, mounts)
-  const [mid, held] = mounts.map(m => shown(byKey(trees[caseKey(m, 'shut')], 'cache', 'Box')))
-  expect(mid).toMatch(/! 30s left · re-warm ~\$[\d.]+ · \$2\.41/)
-  expect(held).toMatch(/^cache[█░]+! 30s left · re-warm ~\$[\d.]+$/)
-})
-test('at 40 and 45 columns the last minute\'s bar goes before its reason shortens', LONG, async ($, on) => {
-  const mounts = [40, 45].map((cols): Mount => ({ surface: 'terminal', cols }))
-  const trees = await drawCases($, on, { layout: 'gauges', scenario: 'lastMinute', appearance: 'dark', ttl: '5m' }, mounts)
-  for (const m of mounts) expect(`${m.cols}: ${shown(byKey(trees[caseKey(m, 'shut')], 'cache', 'Box'))}`).toMatch(/^\d+: cache! 30s left · re-warm ~\$[\d.]+$/)
-})
-for (const scenario of ['cold', 'coldLimit80'] as const)
-  test(`at 40 columns ${scenario}'s cold cache keeps its price over the session's total`, LONG, async ($, on) => {
-    const mounts = (['terminal', 'desktop'] as const).map((surface): Mount => ({ surface, cols: 40 }))
-    const trees = await drawCases($, on, { layout: 'gauges', scenario, appearance: 'dark', ttl: '5m' }, mounts)
-    for (const m of mounts) expect(`${m.surface}: ${shown(byKey(trees[caseKey(m, 'shut')], 'cache', 'Box'))}`).toMatch(/^\w+: cache[░]*cold · re-warm ~\$[\d.]+$/)
+const rowOf = (over: Partial<BandSnapshot> = {}): Node => firstRow(draw(over)) as Node
+const pillText = (over: Partial<BandSnapshot>, key: string): string => shown(byKey(rowOf(over), key, 'Box'))
+/** The grid's columns, top to bottom: each piece's key, the toggle's `more`. */
+const columnsOf = (row: Node): unknown[][] =>
+  ((row.children ?? []) as Node[]).map(col => ((col.children ?? []) as Node[]).filter(Boolean).map(k => k.props?.key ?? byKey(k, 'more', 'Button')?.props?.key))
+const boldOf = (n: unknown): string[] => {
+  const out: string[] = []
+  walk(n, k => {
+    if (k.type === 'Text' && k.props?.bold === true) out.push(shown(k))
   })
-test('a measured pace speaks in amber words', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'fiveHourAhead')).shut)).toMatch(/! 5h full in ~/)
+  return out
+}
+/** A card's first body row, past its head, as it reads. */
+const firstRowOf = (tree: Node, name: string): string => shown(((cardOf(tree, name)?.children ?? []) as Node[]).filter(Boolean)[1])
+const desktop = (over: Partial<BandSnapshot> = {}): Partial<BandSnapshot> => ({ surface: 'desktop', columns: 95, ...over })
+const LAST_MINUTE = { cache: { ...snapOf().cache, msLeft: 30_000 } }
+const NEAR_COMPACTION = { context: { tokens: 176_000, window: 200_000, percent: 88, compactAt: 190_000, autoCompactOff: false } }
+const FIVE_AHEAD = { fiveHour: { percentUsed: 84, resetsAt: new Date(70 * MIN).toISOString(), etaMs: 40 * MIN } }
+
+test('collapsed, a 2×2 grid: the cache and 5h, the context and 7d, then air, the cost and the toggle', () => {
+  expect(columnsOf(rowOf())).toEqual([['cache', '5h'], ['ctx', '7d'], [], ['cost', 'more']])
+  expect(columnsOf(rowOf({ surface: 'desktop' }))).toEqual([['cache', '5h'], ['ctx', '7d'], [], ['cost', 'more']])
 })
-test('the last minute speaks in amber words, its price kept', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'lastMinute', T160, '5m')).shut)).toMatch(/cache.*! 30s left · re-warm ~\$/)
+test('at 160 terminal columns every gauge says its name, its bar, its figure and all that qualifies it', () => {
+  // A gauge's pieces are spaced by its row's gap, which draws no text.
+  expect(pillText({}, 'cache')).toBe(`cache${' '.repeat(12)}52m left · re-warm ~$1.66`)
+  expect(pillText({}, 'ctx')).toBe('context█████░░░░░░░40% full · ~114k left')
+  expect(pillText({}, '5h')).toBe('5h▒░░░│░░░░░░░4% · on pace for ~10% · ↻ 03:00')
+  expect(pillText({}, '7d')).toBe('7d████▒▒░│░░░░30% · on pace for ~50% · ↻ Sat 19:00')
+  expect(pillText({}, 'cost')).toBe('$3.19')
 })
-test('a cold cache says its price', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'cold', T160, '5m')).shut)).toMatch(/cache.*cold · re-warm ~\$/)
+test("the names share their column's width, so the bars line up", () => {
+  const row = rowOf()
+  const nameOf = (key: string) => byKey(byKey(row, key, 'Box'), 'name', 'Box')?.props?.minWidth
+  expect([nameOf('cache'), nameOf('5h'), nameOf('ctx'), nameOf('7d')]).toEqual([5, 5, 7, 7])
+  // A column's pills stretch to its widest, so their grounds end together.
+  expect(byKey(row, 'first', 'Box')?.props?.alignItems).toBe('stretch')
 })
-test('open, the limits carry a dashed projection and their pace', async ($, on) => {
-  const { open } = await at($, on, 'calm', D160)
-  expect(shown(open)).toMatch(/on pace for ~\d+%/)
-  expect(svgsOf(open).some(n => /stroke-dasharray="3 2"/.test(String(n.props?.source)))).toBe(true)
+test('one bold per reading, on its figure', () => {
+  expect(boldOf(rowOf())).toEqual(['52m', '4%', '40%', '30%', '$3.19'])
+  expect(boldOf(rowOf(desktop()))).toEqual(['52m', '4%', '40%', '30%', '$3.19'])
 })
-test('open, an amber limit keeps its reset and its pace', async ($, on) => {
-  expect(shown((await at($, on, 'limit80')).open)).toMatch(/LIMITS.*! 5h 82% · resets in 3h 00m · full before reset/)
+test('the qualifiers and the cache and context names read in label ink; a limit is in its tint', () => {
+  const row = rowOf()
+  const inks = (key: string) => {
+    const out = new Set<unknown>()
+    walk(byKey(byKey(row, key, 'Box'), 'say', 'Text'), k => {
+      if (k.type === 'Text' && k.props?.bold !== true && (k.children ?? []).every(c => typeof c === 'string')) out.add(k.props?.color)
+    })
+    return [...out]
+  }
+  expect([inks('cache'), inks('7d')]).toEqual([[DARK.label], [DARK.label]])
+  const nameInk = (key: string) => ((byKey(byKey(row, key, 'Box'), 'name', 'Box')?.children ?? [])[0] as Node | undefined)?.props?.color
+  expect([nameInk('cache'), nameInk('ctx'), nameInk('5h'), nameInk('7d')]).toEqual([DARK.label, DARK.label, DARK.fiveFg, DARK.weekFg])
 })
-test('open, an amber limit leads the calm ones', async ($, on) => {
-  expect(shown((await at($, on, 'gatewaySpend')).open)).toMatch(/LIMITS.*! spend 92% · resets in 5h 00m\s*5h 4%/)
+test("on the desktop the cache's bar is a battery the bars' length, and each limit's notch is label grey in its pill's ground", () => {
+  const row = rowOf(desktop())
+  const svgs = svgsOf(row)
+  expect(byKey(byKey(row, 'cache', 'Box'), 'battery', 'Svg')?.props?.width).toBe(90)
+  const notchOf = (name: string) => {
+    const source = String(svgs.find(n => String(n.props?.alt).startsWith(`${name} `))?.props?.source)
+    return [/class="tick"[^>]*fill="([^"]+)"/.exec(source)?.[1], /class="knockout"[^>]*fill="([^"]+)"/.exec(source)?.[1]]
+  }
+  expect([notchOf('5h'), notchOf('7d'), notchOf('context')]).toEqual([[DARK.label, DARK.fiveBg], [DARK.label, DARK.weekBg], [undefined, undefined]])
 })
-test('open, each limit says when it resets, even where the row has no room for it', async ($, on) => {
-  expect(shown((await at($, on, 'calm', { surface: 'terminal', cols: 80 })).open)).toMatch(/LIMITS.*5h 4% · resets in 3h 00m · on pace for ~10%/)
+test('no bar ends in a thumb, and a 5h at 0% has no notch', () => {
+  const bars = svgsOf(rowOf(desktop())).filter(n => /^(cache|context|5h|7d) /.test(String(n.props?.alt)))
+  expect(bars.length).toBe(4)
+  for (const bar of bars) expect(String(bar.props?.source)).not.toMatch(/thumb|<circle/)
+  const unused = { fiveHour: { percentUsed: 0, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }
+  const five = svgsOf(rowOf(desktop(unused))).find(n => String(n.props?.alt).startsWith('5h '))
+  expect(String(five?.props?.source)).not.toMatch(/class="tick"/)
+  expect(pillText(unused, '5h')).not.toMatch(/│/)
 })
-test('open, the spend panel says the session\'s tokens', async ($, on) => {
-  expect(shown((await at($, on, 'calm', { surface: 'terminal', cols: 80 })).open)).toMatch(/SPEND.*tokens 208k/)
+test('the toggle is last, on the bottom row: ▵ shut, ▿ open', () => {
+  const end = (tree: Node) => ((firstRow(tree) as Node).children ?? []).at(-1) as Node
+  expect(byKey((end(draw()).children ?? [])[1], 'more', 'Button')?.props?.label).toBe('▵')
+  expect(byKey((end(draw({ expanded: true })).children ?? [])[1], 'more', 'Button')?.props?.label).toBe('▿')
 })
-test('open, a limit filling before its reset says so once', LONG, async ($, on) => {
-  const limits = shown((await at($, on, 'fiveHourAhead')).open).split('LIMITS')[1] ?? ''
-  expect(limits).toMatch(/! 5h full in ~1h · resets in/)
-  expect(limits.match(/full in/g)?.length).toBe(1)
+test('on the desktop at 95 columns the resets give way first, the rest of the board kept', () => {
+  const t = shown(rowOf(desktop()))
+  expect(t).not.toMatch(/↻/)
+  expect(t).toMatch(/re-warm ~\$1\.66.*on pace for ~10%.*~114k left.*on pace for ~50%/)
 })
-test('open, a share\'s bar says its share, neither used nor left', async ($, on) => {
-  expect(svgAlts((await at($, on, 'calm', D160)).open).filter(alt => /^(hit rate|input|output|cache reads) /.test(alt))).toEqual(['hit rate 0%', 'input 94%', 'output 6%', 'cache reads 0%'])
+test('the grid gives way in its order as it narrows', () => {
+  const widths = [160, 120, 100, 80, 68, 60, 50, 40]
+  const marks: ReadonlyArray<readonly [string, RegExp]> = [
+    ['resets', /↻/],
+    ['room', /~114k left/],
+    ['reWarm', /re-warm/],
+    ['paces', /on pace/],
+    ['bars', /[█░▒│]{12}/],
+    ['units', / full/],
+    ['smallBars', /[█░▒│]{6}/],
+    ['names', /context/],
+  ]
+  // The desktop's bars are drawn, not written, so its marks are the words'.
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ladder = marks.filter(([name]) => surface === 'terminal' || !/bars/i.test(name))
+    const kept = widths.map(columns => ladder.filter(([, re]) => re.test(shown(rowOf({ surface, columns })))).map(([name]) => name))
+    // At every width what is kept is the ladder's end, and narrower keeps no more.
+    for (const k of kept) expect(k).toEqual(ladder.map(([name]) => name).slice(ladder.length - k.length))
+    expect(kept.map(k => k.length)).toEqual([...kept.map(k => k.length)].sort((a, b) => b - a))
+    expect(kept[0]?.length).toBe(ladder.length)
+  }
+  expect(shown(rowOf({ columns: 40 }))).toBe('cache52m5h4%context40%7d30%$3.19')
+  expect(shown(rowOf({ surface: 'desktop', columns: 40 }))).toBe('cache52m5h4%ctx40%7d30%$3.19')
 })
-test('open, the context says its share beside its bar', async ($, on) => {
-  expect(shown((await at($, on, 'calm')).open)).toMatch(/CONTEXT.*38% of the window/)
+test('amber leads its gauge with "! " on an amber ground, and holds its reason while the calm give way', () => {
+  const cache = byKey(rowOf(LAST_MINUTE), 'cache', 'Box')
+  expect([shown(cache), cache?.props?.backgroundColor]).toEqual([`! cache${' '.repeat(12)}30s left · re-warm ~$1.66`, DARK.amberBg])
+  expect(pillText(NEAR_COMPACTION, 'ctx')).toMatch(/^! context[█░]{12}93% full · compacts in ~14k$/)
+  expect(pillText(FIVE_AHEAD, '5h')).toMatch(/^! 5h[█░▒│]{12}84% · full in ~40m · ↻ 01:10$/)
+  // Narrow, the calm 7d has lost its pace while the amber 5h keeps its reason.
+  const narrow = rowOf({ ...FIVE_AHEAD, columns: 80 })
+  expect([/full in ~40m/.test(shown(byKey(narrow, '5h', 'Box'))), /on pace/.test(shown(byKey(narrow, '7d', 'Box')))]).toEqual([true, false])
+  // Narrowest, amber says its figure alone, still led by its mark.
+  expect(pillText({ ...LAST_MINUTE, columns: 40 }, 'cache')).toBe('! cache30s')
 })
-test('open with no limits, the panel says so', async ($, on) => {
-  expect(shown((await at($, on, 'noLimits')).open)).toMatch(/LIMITS\s*none reported/)
+test('unreported, the context says so in label ink; with no limits, row two holds the toggle alone', () => {
+  const none = { context: { tokens: undefined, window: 200_000, percent: undefined, compactAt: undefined, autoCompactOff: false }, fiveHour: undefined, sevenDay: undefined }
+  const row = rowOf(none)
+  expect(shown(byKey(row, 'ctx', 'Box'))).toBe('contextnot reported')
+  expect(byKey(byKey(row, 'ctx', 'Box'), 's0', 'Text')?.props?.color).toBe(DARK.label)
+  expect(columnsOf(row)).toEqual([['cache'], ['ctx'], [], ['cost', 'more']])
 })
-test('open with no context, the panel says so', async ($, on) => {
-  expect(shown((await at($, on, 'warming')).open)).toMatch(/CONTEXT\s*not reported/)
+test('in the ascii tier the grid draws ASCII alone, its reset in words', () => {
+  const band = drawBand(fakeEl, snapOf({ layout: 'gauges', columns: 160, utcOffsetMin: 0, glyphs: 'ascii' }), NO_ACT)
+  const row = shown(firstRow(band))
+  expect(row).toMatch(/^[\x20-\x7e]*$/)
+  expect(row).toMatch(/5h:---\|-------4%, on pace for ~10%, resets 03:00/)
+  expect(byKey(band, 'more', 'Button')?.props?.label).toBe('^')
+})
+test("open, the four cards each carry gauges' bar in their head", () => {
+  const open = draw(desktop({ expanded: true, maxRows: 13 }))
+  const headAlts = (name: string) => svgsOf(byKey(cardOf(open, name), 'slot', 'Box')).map(n => String(n.props?.alt))
+  expect([headAlts('cache'), headAlts('spend'), headAlts('context'), headAlts('limits')]).toEqual([
+    [readingsOf(snapOf()).cache.alt],
+    ['token split: input, output, cache reads'],
+    ['context 40% used'],
+    ['7d 30% used'],
+  ])
+  // The worst window's lens is notched and dashed, as its gauge is.
+  const limits = String(svgsOf(byKey(cardOf(open, 'limits'), 'slot', 'Box'))[0]?.props?.source)
+  expect(limits).toMatch(/class="tick"/)
+  expect(limits).toMatch(/class="projection"/)
+})
+test('open on the desktop at 95 columns and 13 rows, each card says one new thing, and the buttons stay', () => {
+  const open = draw(desktop({ expanded: true, maxRows: 13 }))
+  expect(['cache', 'spend', 'context', 'limits'].map(name => firstRowOf(open, name))).toEqual([
+    'saved by cache~$11.40',
+    'last message$0.21',
+    'auto-compacts at190k',
+    'resetsSat 19:00',
+  ])
+  expect([byKey(open, 'collapse', 'Button')?.props?.label, byKey(open, 'hide', 'Button')?.props?.label]).toEqual(['Collapse', 'Hide band'])
+})
+test('open, no card repeats what the row kept: at 160 terminal columns the row has the 7d reset, so LIMITS leads with a window', () => {
+  const open = draw({ expanded: true, maxRows: 13 })
+  expect(firstRowOf(open, 'limits')).toMatch(/^5h/)
+  // Narrow, the row lost the re-warm price, so the cache card leads with it.
+  expect(firstRowOf(draw({ expanded: true, maxRows: 16, columns: 60 }), 'cache')).toMatch(/^re-warm if cold/)
+})
+test('open with an amber spend limit, LIMITS still says its reset: the row never draws it', () => {
+  const spend = { otherLimits: [{ kind: 'spend_limit' as const, percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }] }
+  expect(firstRowOf(draw({ ...spend, expanded: true, maxRows: 13 }), 'limits')).toBe('resets05:00')
 })

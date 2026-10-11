@@ -9,7 +9,7 @@ import { meter, splitBar } from '../charts'
 import type { SplitPart } from '../charts'
 import type { Icon } from '../icons'
 import type { Kit } from '../kit'
-import { CARD_TEXT, HOTKEY_MARK, ROW_SLACK, cellsOf } from '../layout'
+import { CARD_TEXT, DESKTOP, HOTKEY_MARK, ROW_SLACK, cellsOf } from '../layout'
 import type { BarSize } from '../layout'
 import { BARE } from '../palette'
 import type { LimitView, Readings, Tone } from '../reading'
@@ -64,6 +64,22 @@ export type OpenOptions = Readonly<{
   windowResets?: 'countdown' | 'clock'
 }>
 
+/** The session's tokens split by kind, each part in its colour. Cache reads
+ *  are in the warm colour: cheap, and often most of the bar. In text each
+ *  part has its own fill too, since the inks sit close in lightness: colour
+ *  is never the only signal. The desktop's parts are solid, divided by the
+ *  ground, so its legend marks them solid. */
+export const tokenPartsOf = (kit: Kit, read: Readings): ReadonlyArray<readonly [string, SplitPart]> => {
+  const { Svg, palette } = kit
+  const { spend } = read
+  const [inputFill, outputFill, readsFill] = Svg ? ['■', '■', '■'] : read.frame.glyphs === 'ascii' ? ['#', '=', '+'] : ['█', '▓', '▒']
+  return [
+    ['input', { n: spend.sent, color: palette.meterFill, mark: inputFill }],
+    ['output', { n: spend.back, color: palette.coin, mark: outputFill }],
+    ['cache reads', { n: spend.cached, color: palette.warm, mark: readsFill }],
+  ]
+}
+
 /** What opens beneath a layout's collapsed lines: as many cards to a line as
  *  hold their text, each as much of its body as the band has rows for; the
  *  workspace strip on top or in the footer; then Collapse and Hide band. */
@@ -71,7 +87,6 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
   const { Box, Button, Text, Svg, palette, measure, columns, onTone, oneLine, icon } = kit
   const { cache, spend, context } = read
   const shown = new Set(o.shown)
-  const ascii = read.frame.glyphs === 'ascii'
 
   /** A label and its value at either end of a line, unless the collapsed
    *  lines show it; `swatch` keys a legend in its part's colour and fill. */
@@ -123,6 +138,17 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
   const ws = read.workspace
   const stripPlace: 'top' | 'footer' | undefined = ws === undefined ? undefined : bodyFor(1) >= 1 ? 'top' : 'footer'
   const bodyRows = Math.max(1, bodyFor(stripPlace === 'top' ? 1 : 0))
+  // Short of a row under each head for a fact, the cards give way whole. The
+  // desktop draws a card's edge as a line of pixels, so there it never
+  // counts as the row a fact needs.
+  const cardsFit = bodyFor(0) + (measure === DESKTOP ? edge : 0) >= 1
+  // Without them, a window only the cards draw (the collapsed lines never
+  // draw the engine's other windows) still says it needs you, on the row
+  // they would have started on, where the band has one.
+  const alerts =
+    cardsFit || bodyRowsFor(read.frame.maxRows, o.collapsedRows, 0) < 1
+      ? []
+      : read.limits.flatMap(l => (l.key === 'other' && l.amber !== undefined ? [l.amber.long] : []))
   const inner = Math.max(4, Math.floor((columns - (perLine - 1)) / perLine) - 2 - edge)
   const cardBar: BarSize = { px: inner * measure.pxPerCell, cells: inner }
   /** As much of a card's body as the band has rows for, its facts listed
@@ -212,16 +238,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     ],
   )
 
-  // Cache reads in the warm colour: cheap, and often most of the bar. In
-  // text each part has its own fill too, since the inks sit close in
-  // lightness: colour is never the only signal. The desktop's parts are
-  // solid, divided by the ground, so its legend marks them solid.
-  const [inputFill, outputFill, readsFill] = Svg ? ['■', '■', '■'] : ascii ? ['#', '=', '+'] : ['█', '▓', '▒']
-  const tokenParts: ReadonlyArray<readonly [string, SplitPart]> = [
-    ['input', { n: spend.sent, color: palette.meterFill, mark: inputFill }],
-    ['output', { n: spend.back, color: palette.coin, mark: outputFill }],
-    ['cache reads', { n: spend.cached, color: palette.warm, mark: readsFill }],
-  ]
+  const tokenParts = tokenPartsOf(kit, read)
   const tokenRows = shown.has('tokenSplit')
     ? []
     : cache.measured
@@ -331,13 +348,19 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
 
   return [
     stripPlace === 'top' ? strip : null,
-    <Box key="cards" flexDirection="column" rowGap={lineGap} marginTop={stripPlace === 'top' ? 0 : 1}>
-      {Array.from({ length: lineCount }, (_, i) => (
-        <Box key={`cards:${i}`} flexDirection="row" columnGap={1}>
-          {cardViews.slice(i * perLine, (i + 1) * perLine)}
-        </Box>
-      ))}
-    </Box>,
+    cardsFit ? (
+      <Box key="cards" flexDirection="column" rowGap={lineGap} marginTop={stripPlace === 'top' ? 0 : 1}>
+        {Array.from({ length: lineCount }, (_, i) => (
+          <Box key={`cards:${i}`} flexDirection="row" columnGap={1}>
+            {cardViews.slice(i * perLine, (i + 1) * perLine)}
+          </Box>
+        ))}
+      </Box>
+    ) : alerts.length > 0 ? (
+      <Box key="alert" marginTop={1}>
+        {oneLine({ key: 'alert', color: palette.amberFg }, alerts.join(' · '))}
+      </Box>
+    ) : null,
     // A strip in the footer grows into all the room the buttons leave, at
     // least the room its cards are given; the hint leaves it to air.
     <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>

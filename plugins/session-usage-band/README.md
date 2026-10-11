@@ -162,7 +162,7 @@ them wherever it is drawn as chips draws it.
 | Layout | Shows | Rows (desktop / terminal) |
 | --- | --- | --- |
 | `chips` | The row of chips above, and four cards behind `▵`; the default | 1 / 1 |
-| `gauges` | Two rows of labelled bars: the cache's time left, context up to compaction, and the 5h and 7d limits with a tick for how much of each window has gone | 2 / 2 |
+| `gauges` | Four bars on one scale in a 2×2 grid: the cache's time left as a battery, context up to compaction, and the 5h and 7d limits notched where each window's time has gone | 2 / 2 |
 | `ledger` | The band in words alone, `·`-separated, with `! ` leading what needs you | 1 / 1 |
 | `rings` | A ring per reading, its value over its label, with a dot on each limit for how much of the window has gone; the terminal draws a bar | 2 / 1 |
 | `pulse` | Trends rather than totals: each message's cost as bars, and which way the 5-hour limit is heading | 2 / 1 |

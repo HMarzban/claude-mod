@@ -63,6 +63,14 @@ test("the meter's tick has a 1 px knockout of the card's ground either side", ()
   expect(tick.tag).not.toMatch(/stroke=/)
   expect(source.indexOf('class="knockout"')).toBeLessThan(source.indexOf('class="tick"'))
 })
+test("the meter's tick is a notch in label ink, knocked out in the ground its bar sits on", () => {
+  const p = snapOf().palette
+  const source = svg(meter(desk, { label: '7d', frac: 0.5, tone: 'calm', accent: '#a99cf0', tick: 0.2, ground: p.weekBg })).props.source
+  expect(/<rect class="knockout"[^>]*>/.exec(source)?.[0]).toMatch(new RegExp(`fill="${p.weekBg}"`))
+  expect(/<rect class="tick"[^>]*>/.exec(source)?.[0]).toMatch(new RegExp(`fill="${p.label}"`))
+  const cells = meter(term, { label: '7d', frac: 0.5, tone: 'calm', accent: '#a99cf0', size: { px: 80, cells: 10 }, tick: 0.2 }) as Node
+  expect(byKey(cells, 'run-1', 'Text')?.props?.color).toBe(p.label)
+})
 test('a meter of a share says its percent alone, neither used nor left', () => {
   expect(svg(meter(desk, { label: 'hit rate', frac: 0.96, tone: 'calm', accent: '#7fcf8a', reads: 'share' })).props.alt).toBe('hit rate 96%')
 })

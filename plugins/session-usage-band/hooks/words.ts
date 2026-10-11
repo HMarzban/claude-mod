@@ -42,6 +42,9 @@ export type Amber = Readonly<{ long: string; short: string }>
 /** A value not known yet: unknown, never 0. */
 const UNKNOWN = '–'
 
+/** What leads an amber reading: its mark, then its words. */
+export const AMBER_LEAD = '! '
+
 /** What an amber reading says, long and short, always led by one `! `. */
 export const AMBER = {
   cache: (left: string, leftShort: string, estimate: string): Amber => ({ long: `! ${left} · re-warm ${estimate}`, short: `! ${leftShort}` }),
@@ -123,6 +126,12 @@ export type CacheWords = Readonly<{
   idleText: string | undefined
   /** The cache card's headline: its countdown, `59m left`, else its mood. */
   cardHead: Say
+  /** A gauge's reading beside its bar: `52m left`, bold on its figure, else
+   *  its mood; short, its figure alone, `52m`. */
+  gaugeSay: Say
+  gaugeShort: Say
+  /** What qualifies it: `re-warm ~$1.66`, while counting down or cold. */
+  gaugeMore: string | undefined
   /** The cache card's line while there is nothing to count. */
   cardNote: string | undefined
   /** The board's status: `DEPARTS`, `LAST CALL`, `DEPARTED`, `BOARDING`, `WARMING` or `NOT MEASURED`. */
@@ -155,6 +164,13 @@ export type ContextWords = Readonly<{
   windowText: string
   /** The context card's headline: `87% full`, marked past 80% when compaction is off. */
   cardHead: Say
+  /** A gauge's reading beside its bar: `87% full`, short `87%`; while not
+   *  reported, `not reported`, short `–`. An amber gauge's mark leads it. */
+  gaugeSay: Say
+  gaugeShort: Say
+  /** What qualifies it: its room, `~114k left`, or near compaction the
+   *  reason, `compacts in ~14k`. */
+  gaugeMore: string | undefined
   alt: string
 }>
 
@@ -291,6 +307,9 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     rebuildsText: c.misses > 0 ? String(c.misses) : undefined,
     idleText: c.recalled && c.idleMs !== null ? fmtAgo(c.idleMs) : undefined,
     cardHead,
+    gaugeSay: counting ? [[leftShort, 'value'], [' left', 'label']] : [[value, 'value']],
+    gaugeShort: [[counting ? leftShort : value, 'value']],
+    gaugeMore: counting || f.mood === 'cold' ? `re-warm ${f.estimate}` : undefined,
     cardNote:
       f.mood === 'unmeasured' ? "Countdown starts with Claude's next reply." : f.mood === 'warming' ? 'First message builds the cache.' : undefined,
     board: working ? 'BOARDING' : BOARD[f.mood],
@@ -332,6 +351,9 @@ export const contextWords = (f: ContextFacts): ContextWords => {
     compactionOffText: f.autoCompactOff ? 'auto-compaction off' : undefined,
     windowText: fmtTokens(f.window),
     cardHead: [[`${f.pct}${f.compactAt === undefined ? severityMark(f.frac) : ''}`, 'value'], [' full', 'label']],
+    gaugeSay: f.known ? [[f.pct, 'value'], [' full', 'label']] : [[EMPTY.context, 'label']],
+    gaugeShort: f.known ? [[f.pct, 'value']] : [[UNKNOWN, 'label']],
+    gaugeMore: roomText === undefined ? undefined : f.nearCompact ? `compacts in ${roomText}` : `${roomText} left`,
     alt: f.known
       ? altOf('context', `${Math.round(f.frac * 100)} percent ${towardText}`, f.tone === 'amber' ? 'near the limit' : 'fine')
       : altOf('context', EMPTY.context),

@@ -35,7 +35,7 @@ type LimitSpec = Readonly<{
 }>
 
 /** The two limit chips: one shape, their own tint and steps. */
-const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
+export const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
   '5h': {
     icon: 'five',
     title: '5-hour limit',

@@ -41,12 +41,14 @@ export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide
 
 /** Every layout's words for each amber trigger. ` · ` reads `, ` in the ascii tier. */
 export const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
-  cacheLastMinute: /! \d+s( left)?|LAST CALL|! cooling( ·|,) \d+s left/,
-  nearCompaction: /! context \d+%|! ctx \d+%|! COMPACTS IN ~/,
-  contextNoCompaction: /! context \d+%|! ctx \d+%|! CONTEXT \d+%/,
+  // Gauges' mark leads its gauge, its bar between the name and the figure.
+  cacheLastMinute: /! \d+s( left)?|LAST CALL|! cooling( ·|,) \d+s left|! cache\W*\d+s/,
+  nearCompaction: /! context\W*\d+%|! ctx\W*\d+%|! COMPACTS IN ~/,
+  contextNoCompaction: /! context\W*\d+%|! ctx\W*\d+%|! CONTEXT \d+%/,
   limit80: /! 5h|! NEAR LIMIT/,
   fiveHourAhead: /! 5h|! FULL/,
-  otherLimit80: /! spend \d+%|! NEAR LIMIT/,
+  // The cards mark it as chips does: its value with the severity mark, `spend ██ 92%!`.
+  otherLimit80: /! spend \d+%|! NEAR LIMIT|spend\W*\d+%!/,
 }
 /** Amber the collapsed part never shows: other limits are drawn only open (spec §2.7). */
 const OPEN_ONLY: ReadonlySet<AmberReason> = new Set(['otherLimit80'])
@@ -197,7 +199,9 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   if (!svgDraws && svgs.length > 0) fail('svgPlacement', `${svgs.length} Svg where none draws`)
   for (const s of svgs) {
     const alt = s.props?.alt
-    if (typeof alt !== 'string' || alt === '' || typeof s.props?.width !== 'number') fail('svgProps', 'an Svg without an alt or a width')
+    // The cards' stretched bars have no width of their own: their slot caps them.
+    const stretched = typeof s.props?.source === 'string' && s.props.source.includes('preserveAspectRatio="none"')
+    if (typeof alt !== 'string' || alt === '' || (typeof s.props?.width !== 'number' && !stretched)) fail('svgProps', 'an Svg without an alt or a width')
     if (s.props?.id !== undefined || SVG_BARRED.test(typeof s.props?.source === 'string' ? s.props.source : ''))
       fail('svgProps', 'an Svg with an id, a gradient, a pattern or a clipPath')
     if (typeof alt === 'string' && NOTHING.test(alt)) fail('empty', `an alt reads "${alt}"`)

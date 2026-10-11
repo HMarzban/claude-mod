@@ -45,11 +45,12 @@ const WORKTREE_DIRS = `${PROJECT}/.git/worktrees/band-strip\n${PROJECT}/.git\n${
 const stripOf = (tree: unknown): Node | undefined => byKey(tree, 'strip', 'Box')
 
 /** The expanded band on `surface`, after the git read has settled. Opening
- *  is the session's, so it presses only when the cards are closed. */
+ *  is the session's, so it presses only while the band is shut: short of
+ *  rows an open band may have no cards, but always its Collapse. */
 const expanded = async ($: Engine, clock: MockClock, surface: 'desktop' | 'terminal', cols = 120, maxRows = 40) => {
   await clock.settle()
   const ui = await mountBand($, surface, cols, { maxRows })
-  if (byKey(await ui.drawn(), 'cards', 'Box') === undefined) await ui.press({ key: 'more' })
+  if (byKey(await ui.drawn(), 'collapse', 'Button') === undefined) await ui.press({ key: 'more' })
   await clock.settle()
   const tree = await ui.drawn()
   await ui.unmount()
