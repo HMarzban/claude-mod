@@ -101,6 +101,11 @@ export type CacheWords = Readonly<{
   leftShort: string
   say: Say
   sayShort: Say
+  /** The cache as a sentence names it, bold on its figure alone: `cache
+   *  52m left`, `cache cold · re-warm ~$1.66`; cold and short of room,
+   *  `cold ~$1.66`. */
+  sentence: Say
+  sentenceShort: Say
   /** `say` and `sayShort` as plain text: `cache 52m left`, `cache 52m`. */
   text: string
   textShort: string
@@ -155,6 +160,8 @@ export type ContextWords = Readonly<{
   windowText: string
   /** The context card's headline: `87% full`, marked past 80% when compaction is off. */
   cardHead: Say
+  /** `context 87% full`, bold on its figure alone. */
+  sentence: Say
   alt: string
 }>
 
@@ -170,6 +177,8 @@ export type SpendWords = Readonly<{
   tokensText: string
   /** The tokens by kind, each with its share of the total. */
   split: readonly SpendSplit[]
+  /** `spent $3.19`, bold on its figure alone. */
+  sentence: Say
 }>
 
 export type LimitWords = Readonly<{
@@ -271,6 +280,12 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
       : f.mood === 'warming'
         ? [['warming', 'value']]
         : [['cache ', 'label'], [counting ? leftShort : value, 'value']]
+  const sentence: Say =
+    f.mood === 'cold'
+      ? [['cache cold · re-warm ', 'label'], [f.estimate, 'value']]
+      : counting
+        ? [['cache ', 'label'], [leftShort, 'value'], [' left', 'label']]
+        : say
   return {
     condition: CONDITION[f.mood],
     value,
@@ -278,6 +293,8 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     leftShort,
     say,
     sayShort,
+    sentence,
+    sentenceShort: f.mood === 'cold' ? sayShort : sentence,
     text: joined(say),
     textShort: joined(sayShort),
     amber: f.mood === 'expiring' ? AMBER.cache(left, leftShort, f.estimate) : undefined,
@@ -317,6 +334,7 @@ export const contextWords = (f: ContextFacts): ContextWords => {
   const say: Say = [['context ', 'label'], [value, 'value']]
   const sayShort: Say = [['ctx ', 'label'], [value, 'value']]
   const amber = f.tone !== 'amber' ? undefined : f.toCompact !== undefined ? AMBER.context(f.frac, f.toCompact) : AMBER.contextNoCompaction(f.frac)
+  const cardHead: Say = [[`${f.pct}${f.compactAt === undefined ? severityMark(f.frac) : ''}`, 'value'], [' full', 'label']]
   return {
     valueText: value,
     text: joined(say),
@@ -331,7 +349,8 @@ export const contextWords = (f: ContextFacts): ContextWords => {
     roomText,
     compactionOffText: f.autoCompactOff ? 'auto-compaction off' : undefined,
     windowText: fmtTokens(f.window),
-    cardHead: [[`${f.pct}${f.compactAt === undefined ? severityMark(f.frac) : ''}`, 'value'], [' full', 'label']],
+    cardHead,
+    sentence: [['context ', 'label'], ...cardHead],
     alt: f.known
       ? altOf('context', `${Math.round(f.frac * 100)} percent ${towardText}`, f.tone === 'amber' ? 'near the limit' : 'fine')
       : altOf('context', EMPTY.context),
@@ -341,14 +360,16 @@ export const contextWords = (f: ContextFacts): ContextWords => {
 /** The session's cost and tokens in words, the tokens split by kind. */
 export const spendWords = (f: SpendFacts): SpendWords => {
   const tokensByLabel: Readonly<Record<SpendSplit['label'], number>> = { input: f.sent, output: f.back, 'cache reads': f.cached }
+  const totalText = fmtCost(f.totalUsd)
   return {
-    totalText: fmtCost(f.totalUsd),
+    totalText,
     lastText: f.lastTurnUsd === null ? undefined : fmtSmallCost(f.lastTurnUsd),
     tokensText: fmtTokens(f.total),
     split: SPLIT_LABELS.map(label => {
       const tokens = tokensByLabel[label]
       return { label, tokens, text: fmtTokens(tokens), frac: f.total > 0 ? tokens / f.total : 0 }
     }),
+    sentence: [['spent ', 'label'], [totalText, 'value']],
   }
 }
 
