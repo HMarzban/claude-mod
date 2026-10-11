@@ -47,6 +47,7 @@ export const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
   limit80: /! 5h|! NEAR LIMIT/,
   fiveHourAhead: /! 5h|! FULL/,
   // The shared cards mark it as chips does: LIMITS' headline, `spend 92%!`.
+  // Pending openBody's own fix, to lead it with `! `, for every layout.
   otherLimit80: /! spend \d+%|! NEAR LIMIT|spend \d+%!/,
 }
 /** Amber the collapsed part never shows: other limits are drawn only open (spec §2.7). */
@@ -240,6 +241,7 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
     // The shared cards keep each card to its head and a fact, so short of the
     // rows those take the band runs over, as chips' does: its collapsed rows,
     // the air and the buttons, and two rows a line of cards, a row apart.
+    // Pending openBody's own fix, to fit its cards within maxRows, for every layout.
     const cardLines = (byKey(tree, 'cards')?.children ?? []).length
     const floor = cardLines === 0 ? 0 : declared + 3 + 3 * cardLines - 1
     if (tall > Math.max(ctx.maxRows, floor)) fail('height', `${tall} rows at maxRows ${ctx.maxRows}`)

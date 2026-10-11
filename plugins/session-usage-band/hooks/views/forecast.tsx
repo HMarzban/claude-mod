@@ -160,9 +160,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
   const nowDetail = nowDetailOf(c)
   const cooling = c.amber === undefined ? undefined : lastMinute(kit, c, c.amber)
   // No change ahead says these, so each says itself; a measured fill is a change.
-  const triggers = [read.context.amber, read.fiveHour?.fullIn === undefined ? read.fiveHour?.amber : undefined, read.sevenDay?.amber].filter(
-    (a): a is Amber => a !== undefined,
-  )
+  const triggers = [read.context.amber, read.fiveHour?.fullIn === undefined ? read.fiveHour?.amber : undefined, read.sevenDay?.amber].filter(a => a !== undefined)
   const separated = separatedBy(kit, '│', 6)
   return [
     fitLine(kit, ORDER, lineRoom(kit), keeps => {

@@ -38,21 +38,41 @@ export type Role = 'label' | 'value' | 'amber' | 'accent5' | 'accent7'
 export type Say = ReadonlyArray<readonly [string, Role]>
 /** An amber reading's words: long while a calm piece remains to give way, then short. */
 export type Amber = Readonly<{ long: string; short: string }>
+/** The same words as segments too, the figure their one `value`. */
+export type AmberSay = Amber & Readonly<{ say: Say; sayShort: Say }>
 
 /** A value not known yet: unknown, never 0. */
 const UNKNOWN = '–'
 
+/** A phrase's segments as one plain string. */
+const joined = (say: Say): string => say.map(([text]) => text).join('')
+
+const amberOf = (say: Say, sayShort: Say): AmberSay => ({ long: joined(say), short: joined(sayShort), say, sayShort })
+
 /** What an amber reading says, long and short, always led by one `! `. */
 export const AMBER = {
-  cache: (left: string, leftShort: string, estimate: string): Amber => ({ long: `! ${left} · re-warm ${estimate}`, short: `! ${leftShort}` }),
-  context: (frac: number, toCompact: number): Amber => ({ long: `! context ${fmtPct(frac)} · compacts in ~${fmtTokens(toCompact)}`, short: `! ctx ${fmtPct(frac)}` }),
-  contextNoCompaction: (frac: number): Amber => ({ long: `! context ${fmtPct(frac)}`, short: `! ctx ${fmtPct(frac)}` }),
-  limit: (name: string, percentUsed: number): Amber => {
-    const said = `! ${name} ${Math.round(percentUsed)}%`
-    return { long: said, short: said }
+  cache: (leftShort: string, estimate: string): AmberSay =>
+    amberOf([['! ', 'amber'], [leftShort, 'value'], [` left · re-warm ${estimate}`, 'amber']], [['! ', 'amber'], [leftShort, 'value']]),
+  context: (frac: number, toCompact: number): AmberSay =>
+    amberOf([['! context ', 'amber'], [fmtPct(frac), 'value'], [` · compacts in ~${fmtTokens(toCompact)}`, 'amber']], [['! ctx ', 'amber'], [fmtPct(frac), 'value']]),
+  contextNoCompaction: (frac: number): AmberSay => amberOf([['! context ', 'amber'], [fmtPct(frac), 'value']], [['! ctx ', 'amber'], [fmtPct(frac), 'value']]),
+  limit: (name: string, percentUsed: number): AmberSay => {
+    const said: Say = [[`! ${name} `, 'amber'], [`${Math.round(percentUsed)}%`, 'value']]
+    return amberOf(said, said)
   },
-  limitPace: (name: string, eta: string): Amber => ({ long: `! ${name} full in ${eta}`, short: `! ${name} ${eta}` }),
+  limitPace: (name: string, eta: string): AmberSay => amberOf([[`! ${name} full in `, 'amber'], [eta, 'value']], [[`! ${name} `, 'amber'], [eta, 'value']]),
 } as const
+
+/** A pill's label after its figure, long and short: rings' `59m cache`,
+ *  then `59m`; an empty short leaves the figure alone. */
+export type PillLabel = Readonly<{ long: string; short: string }>
+
+export const PILL_LABELS = {
+  cache: { long: 'cache', short: '' },
+  spend: { long: 'spent', short: '' },
+  context: { long: 'context', short: 'ctx' },
+  tokens: { long: 'tokens', short: 'tokens' },
+} as const satisfies Readonly<Record<string, PillLabel>>
 
 export const EMPTY = {
   costs: "Costs show after Claude's next reply.",
@@ -105,7 +125,7 @@ export type CacheWords = Readonly<{
   text: string
   textShort: string
   /** The last minute: `! 47s left · re-warm ~$1.66`, then `! 47s`. */
-  amber: Amber | undefined
+  amber: AmberSay | undefined
   /** `re-warm ~$1.66 if it goes cold`, or cold, `next message ~$1.66`; undefined until the price is known. */
   reWarmText: string | undefined
   /** When it goes cold, `14:32`, while counting and the offset is known. */
@@ -140,7 +160,7 @@ export type ContextWords = Readonly<{
   say: Say
   sayShort: Say
   /** `! context 93% · compacts in ~14k` / `! ctx 93%`; compaction off, `! context 85%`. */
-  amber: Amber | undefined
+  amber: AmberSay | undefined
   /** `! COMPACTS IN ~14K`, or compaction off, `! CONTEXT 85%`. */
   boardAmber: string | undefined
   /** What the share is of: `toward compaction`, or `of the window` when compaction is off. */
@@ -209,7 +229,7 @@ export type LimitWords = Readonly<{
   fullIn: string | undefined
   fullAtClock: string | undefined
   /** `! 5h 82%`, or with a measured fill, `! 5h full in ~40m` / `! 5h ~40m`. */
-  amber: Amber | undefined
+  amber: AmberSay | undefined
   /** `! NEAR LIMIT`, `! FULL ~14:20`, or without the offset, `! FULL IN ~40 MIN`. */
   boardAmber: string | undefined
   /** `~10% AT ↻`, `FULL BEFORE ↻`, or `RESET`; in the ascii tier, `~10% AT RESET`. */
@@ -219,9 +239,6 @@ export type LimitWords = Readonly<{
   boardTime: string | undefined
   alt: string
 }>
-
-/** A phrase's segments as one plain string. */
-const joined = (say: Say): string => say.map(([text]) => text).join('')
 
 /** The cache's condition for each mood, as a view names it. */
 const CONDITION: Readonly<Record<CacheMood, CacheCondition>> = {
@@ -280,7 +297,7 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     sayShort,
     text: joined(say),
     textShort: joined(sayShort),
-    amber: f.mood === 'expiring' ? AMBER.cache(left, leftShort, f.estimate) : undefined,
+    amber: f.mood === 'expiring' ? AMBER.cache(leftShort, f.estimate) : undefined,
     reWarmText: !f.known ? undefined : f.mood === 'cold' ? `next message ${f.estimate}` : `re-warm ${f.estimate} if it goes cold`,
     coldAtClock: counting && off !== undefined ? fmtClock(frame.now + f.coldInMs, off) : undefined,
     coldSinceClock: f.mood === 'cold' && c.coldAt !== null && off !== undefined ? fmtClock(c.coldAt, off) : undefined,

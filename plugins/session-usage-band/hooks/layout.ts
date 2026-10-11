@@ -8,6 +8,8 @@ import type { RenderChildren, RenderElement } from 'claude-code'
 export const GIVES_WAY = [
   'tokens',
   'weekReset',
+  // Rings' pill labels, long to short: never past a piece a short row keeps.
+  'longLabels',
   'fiveReset',
   'contextMeter',
   'calmWeek',
@@ -15,6 +17,8 @@ export const GIVES_WAY = [
   'shortWording',
   'calmContext',
   'calmFive',
+  // Rings' cache ring: its words say what it draws.
+  'cacheRing',
   'amberWeekReset',
   'amberFiveReset',
 ] as const
@@ -136,10 +140,16 @@ export const spansOf = (pieces: readonly RenderChildren[], gap: number, m: Measu
   })
 }
 
-/** The first squeeze at which `build` fits `room` columns, or the last tried:
- *  a line drops its pieces in the order its give-way table names them. */
-export const squeezeToFit = (build: (squeeze: number) => RenderElement, steps: number, room: number, m: Measure): RenderElement => {
-  let line = build(0)
-  for (let squeeze = 1; squeeze <= steps && cellsOf(line, m) > room; squeeze++) line = build(squeeze)
-  return line
+/** The first squeeze at which `build` fits `room` columns, or the last tried,
+ *  and the line built there: a line drops its pieces in the order its
+ *  give-way table names them. */
+export const squeezed = (build: (squeeze: number) => RenderElement, steps: number, room: number, m: Measure): Readonly<{ line: RenderElement; squeeze: number }> => {
+  let squeeze = 0
+  let line = build(squeeze)
+  while (squeeze < steps && cellsOf(line, m) > room) line = build(++squeeze)
+  return { line, squeeze }
 }
+
+/** The line `squeezed` fits. */
+export const squeezeToFit = (build: (squeeze: number) => RenderElement, steps: number, room: number, m: Measure): RenderElement =>
+  squeezed(build, steps, room, m).line
