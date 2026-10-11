@@ -136,8 +136,10 @@ const weekCells = (kit: Kit, read: Readings): RenderChildren => {
 
 /** Each card's head says when: the cache goes cold, how many messages to
  *  compaction, and the week's cells with the day it fills. Its body skips
- *  what the row said at its widest. */
+ *  what the row said at its widest. Shut, there are no cards, so the week and
+ *  the history aren't read. */
 const lens: Lens = (kit, read) => {
+  if (!read.frame.expanded) return {}
   const { palette, oneLine, gap } = kit
   const c = read.cache
   const worst = read.worstLimit
