@@ -143,9 +143,9 @@ Run `/reload-plugins` in your session afterwards.
   runners are several times slower than a laptop.
 - **Chips' trees are frozen.** `golden-a` and `golden-b` hold chips to the
   trees it drew before the layouts work, with the 0.11.13 hover fix and the
-  0.12.1 hover-contrast and toggle fixes: dark and plain, desktop and
-  terminal, at 40, 95 and 200 columns, shut and open.
-  `tools/golden/capture.sh` runs only on the hooks at `dffe54a`, so it can't
+  0.12.1 fixes: dark and plain, desktop and terminal, at 40, 95 and 200
+  columns, shut and open; and every frame's hover cards to whole pieces.
+  `tools/golden/capture.sh` runs only on the hooks at `09a9e6c`, so it can't
   recapture a fix. If your change is meant to alter what chips draws, update
   the failing keys in `tests/golden/chips.ts` to the hashes the failures
   print. For a key also held in `GOLDEN_TREES`, replace its whole tree too:
