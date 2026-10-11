@@ -12,7 +12,7 @@ import { LAYOUT_NAMES } from '../hooks/snapshot'
 import { VIEWS } from '../hooks/views/index'
 import { rowsOf, type View } from '../hooks/views/view'
 import { EMPTY } from '../hooks/words'
-import { fakeEl, shown, walk } from './helpers'
+import { byKey, fakeEl, shown, walk } from './helpers'
 import { NO_ACT, snapOf } from './matrix'
 
 const marker: View = { name: 'ledger', rows: { desktop: 1, terminal: 1 }, draw: () => ({ type: 'Text', props: {}, children: ['LEDGER'] }) as unknown as RenderElement }
@@ -41,6 +41,22 @@ test('below 40 columns every layout draws chips', () => {
 })
 test('a view that throws falls back to chips', () => {
   expect(shown(drawBand(fakeEl, snapOf({ layout: 'ledger' }), NO_ACT, { ...VIEWS, ledger: boom }))).toMatch(/\$3\.19/)
+})
+test('every layout\'s toggle points the way the band will move: up while shut, down while open', () => {
+  // The band is anchored to the prompt and grows upward when it opens. The
+  // ascii tier is the terminal's: the desktop draws its own glyphs.
+  const tiers = [
+    { surface: 'terminal', glyphs: 'unicode', shut: '▵', open: '▿' },
+    { surface: 'terminal', glyphs: 'ascii', shut: '^', open: 'v' },
+    { surface: 'desktop', glyphs: 'unicode', shut: '▵', open: '▿' },
+  ] as const
+  for (const layout of LAYOUT_NAMES)
+    for (const { surface, glyphs, shut, open } of tiers)
+      for (const expanded of [false, true]) {
+        const band = drawBand(fakeEl, snapOf({ layout, surface, glyphs, expanded }), NO_ACT)
+        expect({ layout, surface, glyphs, expanded, label: byKey(band, 'more', 'Button')?.props?.label })
+          .toEqual({ layout, surface, glyphs, expanded, label: expanded ? open : shut })
+      }
 })
 test('every new view draws its empty states in a label\'s ink', () => {
   // Departures writes them on its board, upper case, in the board's ink.

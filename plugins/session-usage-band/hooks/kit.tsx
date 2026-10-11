@@ -2,29 +2,44 @@
 // draw from the surface's element table and the snapshot. JSX compiles to the
 // global h(), so nothing here, or anywhere, is named h.
 
-import type { ElementTable, RenderChildren } from 'claude-code'
+import type { ElementTable, RenderChildren, RenderElement, TextProps } from 'claude-code'
+import { clipWords } from './format'
+import { asciiText, asciiTree, drawnTier } from './glyphs'
 import { ALT, GLYPH, ICON_PATHS, ICON_PX } from './icons'
 import type { Icon } from './icons'
-import { DESKTOP, TERMINAL } from './layout'
+import { DESKTOP, DESKTOP_CARD_TEXT, TERMINAL } from './layout'
+import type { Span } from './layout'
 import type { Tone } from './reading'
 import type { BandSnapshot } from './snapshot'
 
-/** Where a hover card sits in its row, which has `room` columns: from
- *  `left`, its piece's first column, slid left only as far as it must to end
- *  within the room; or ending where its piece ends, `right` columns short of
- *  the row's right edge, as wide as the room left of that end allows. */
-export type CardPlace = Readonly<{ left: number; room: number }> | Readonly<{ right: number; room: number }>
+/** Where a hover card sits in its row, which has `room` columns: by `left`,
+ *  its piece's first column, or by `right`, how far short of the row's right
+ *  edge its piece ends. `pieces` are the row's pieces, counted from the same
+ *  side, at least a column apart. */
+export type CardPlace = Readonly<({ left: number } | { right: number }) & { room: number; pieces: readonly Span[] }>
 
-/** The columns a card `cells` wide takes at `place`: its own width or the
- *  room it has, whichever is less, and none where a row has no room. */
+/** The columns a card `cells` wide takes at `place`, counted from its side.
+ *  It starts a column before its piece, where a text surface's cap sits in
+ *  the gap and the desktop's ground takes up the measure's error, slid back
+ *  only as far as it must to end within the room. Then it covers whole
+ *  pieces: each piece it enters, the column either side included, so no
+ *  piece shows in part, all within the room. A row has none to give where
+ *  it has no room. */
 const cardSpan = (place: CardPlace, cells: number) => {
   const room = Math.floor(place.room)
-  if ('right' in place) {
-    const right = Math.round(place.right)
-    return { right, width: Math.max(0, Math.min(cells, room - right)) }
-  }
   const width = Math.max(0, Math.min(cells, room))
-  return { left: Math.max(0, Math.min(Math.round(place.left), room - width)), width }
+  let from = Math.max(0, Math.min(('right' in place ? place.right : place.left) - 1, room - width))
+  let to = from + width
+  for (const [start, end] of place.pieces) {
+    if (start < to && end > from) {
+      from = Math.min(from, start - 1)
+      to = Math.max(to, end + 1)
+    }
+  }
+  // The desktop's columns are estimates: the nearest whole ones.
+  const near = Math.round(Math.max(0, from))
+  const span = { width: Math.max(0, Math.round(Math.min(room, to)) - near) }
+  return 'right' in place ? { right: near, ...span } : { left: near, ...span }
 }
 
 export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
@@ -36,40 +51,85 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
   // appearance keeps text.
   const Svg = snap.surface === 'desktop' && palette.filled && 'Svg' in el ? el.Svg : undefined
   const onTone = (tone: Tone, calm: string, amber: string = palette.amberFg) => (tone === 'amber' ? amber : calm)
+  const glyphs = drawnTier(snap)
+  /** `n` in the glyphs it is drawn in: band.tsx maps the tree last, so a
+   *  piece is measured here where its cards are placed. */
+  const asDrawn = (n: RenderChildren): RenderChildren => (glyphs === 'ascii' ? asciiTree(n) : n)
 
   // A piece and its hover card share a hover scope, so the card can sit
   // apart from the piece, after every piece in their row: a placed Box paints
   // over those before it, so inside its own piece the pieces after would
   // paint over it. The pointer on a showing card keeps it showing, so a card
-  // is as wide as its text and sits at its piece: moving onto a piece it does
-  // not cover switches cards. Plain has no background to cover the row with,
-  // so no cards and no scopes.
+  // sits at its piece and covers no more than its text and the rest of any
+  // piece it enters, which was only a cell or two to hover: moving onto a
+  // piece it leaves whole switches cards. Plain has no background to cover
+  // the row with, so no cards and no scopes.
   const scopeOf = (key: string) => `band-${key}`
+
+  /** One line of text, cut where its box ends rather than wrapped. The
+   *  unicode tier leaves the cut to the surface, which ends it with `…`; the
+   *  ascii tier clips it to its row instead, at its last whole word, since
+   *  that `…` is East-Asian-Ambiguous: a CJK terminal, the tier's own,
+   *  draws it two columns wide where Ink counts one. */
+  const oneLine = ({ key, ...props }: TextProps & { key?: string }, children: RenderChildren): RenderElement => {
+    const keyed = key === undefined ? {} : { key }
+    if (glyphs !== 'ascii')
+      return (
+        <Text {...keyed} {...props} wrap="truncate-end">
+          {children}
+        </Text>
+      )
+    return (
+      <Box {...keyed} height={1} overflow="hidden">
+        <Text {...props}>{children}</Text>
+      </Box>
+    )
+  }
 
   /** The props that make a keyed Box reveal the hover card drawn for `key`. */
   const hoverable = (key: string) => (palette.filled ? { hover: { scope: scopeOf(key) } } : {})
 
   /** The one-line explanation `key`'s piece reveals, for after the pieces of
    *  its row, placed as `place` says. It has no key: a keyed Box is its own
-   *  hover scope, and a hidden one could never be hovered. A card with no
-   *  room past its padding for one character isn't drawn. */
+   *  hover scope, and a hidden one could never be hovered. It is inverted
+   *  against the chips, and on a text surface its ends are half blocks in its
+   *  ground's colour on the band's own background, so they read as rounded
+   *  edges where a one-row band has no room for a border; the desktop, with
+   *  or without Svg, draws the ground alone, whose own edge is sharp. Past
+   *  its text, the ground runs on to the end of the last piece it covers, so
+   *  the card stays one slab. A card with no room past its padding and caps
+   *  for one character isn't drawn. */
   const hoverCard = (key: string, text: string, place: CardPlace): RenderChildren => {
     if (!palette.filled) return null
-    const span = cardSpan(place, text.length + 2)
-    if (span.width < 3) return null
-    return (
-      <Box
-        position="absolute"
-        top={0}
-        {...span}
-        display="none"
-        hover={{ display: 'flex', scope: scopeOf(key) }}
-        backgroundColor={palette.tooltipBg}
-        paddingX={1}
-      >
-        <Text color={palette.value} wrap="truncate-end">
+    const capped = snap.surface !== 'desktop'
+    // Sized in the glyphs it is drawn in: the ascii tier's are narrower.
+    const shown = glyphs === 'ascii' ? asciiText(text) : text
+    // A text surface counts a cell a character; the desktop sizes by its font.
+    const cells = capped ? shown.length + 4 : Math.ceil(shown.length * DESKTOP_CARD_TEXT) + 2
+    const span = cardSpan(place, cells)
+    if (span.width < (capped ? 5 : 3)) return null
+    const shell = { position: 'absolute', top: 0, ...span, display: 'none', hover: { display: 'flex', scope: scopeOf(key) } } as const
+    const ground = { backgroundColor: palette.tooltipBg, paddingX: 1 }
+    // The ascii tier knows its room to the cell, so it makes its own cut, at
+    // its last whole word with a `.`, as oneLine clips: the surface's would
+    // end in a two-column `…`.
+    const room = span.width - (capped ? 4 : 2)
+    const words =
+      glyphs === 'ascii' ? (
+        <Text color={palette.tooltipFg}>{clipWords(shown, room)}</Text>
+      ) : (
+        <Text color={palette.tooltipFg} wrap="truncate-end">
           {text}
         </Text>
+      )
+    if (!capped) return <Box {...shell} {...ground}>{words}</Box>
+    return (
+      <Box {...shell}>
+        <Text color={palette.tooltipBg}>▐</Text>
+        <Box {...ground} width={span.width - 2}>
+          {words}
+        </Box>
+        <Text color={palette.tooltipBg}>▌</Text>
       </Box>
     )
   }
@@ -87,7 +147,7 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
     return GLYPH[name] ? [<Text key={`i-${name}`} color={color}>{`${GLYPH[name]} `}</Text>] : []
   }
 
-  return { Box, Button, Text, Svg, palette, measure, columns: snap.columns, onTone, hoverable, hoverCard, gap, icon }
+  return { Box, Button, Text, Svg, palette, measure, columns: snap.columns, glyphs, asDrawn, onTone, oneLine, hoverable, hoverCard, gap, icon }
 }
 
 export type Kit = ReturnType<typeof makeKit>

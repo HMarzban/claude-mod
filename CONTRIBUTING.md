@@ -108,8 +108,13 @@ Run `/reload-plugins` in your session afterwards.
   over those before it, so a card inside its piece would sit under the
   pieces after. The kit's `hoverable` and `hoverCard` join the two by a hover
   scope. The pointer on a showing card keeps it showing, so a card sits at
-  its piece, as wide as its text, and a control the card may reach, like
-  the band's ▿, comes after it.
+  its piece and covers whole pieces: its text, then the rest of any piece it
+  enters, never part of one. A control the card may reach, like the band's
+  ▵, comes after it.
+- **A line that may be cut is `kit.oneLine`**, never a Text with
+  `wrap="truncate-end"`. The surface's cut ends in `…`, which a CJK
+  terminal draws two columns wide, so the ascii tier clips the line to its
+  row instead.
 - **A Button holds text alone.** It has no icon prop and no children but its
   label, so a button's icon is a glyph.
 - **Atoms are declared in `register.tsx`.** They are the band's state in the
@@ -137,15 +142,15 @@ Run `/reload-plugins` in your session afterwards.
   `LONG` budget from `helpers.ts`: the band ticks every second, and CI
   runners are several times slower than a laptop.
 - **Chips' trees are frozen.** `golden-a` and `golden-b` hold chips to the
-  trees it drew before the layouts work, with the 0.11.13 hover fix: dark
-  and plain, desktop and terminal, at 40, 95 and 200 columns, shut and
-  open. `tools/golden/capture.sh` runs only on the hooks at `4882313`, so it
-  can't recapture a fix. If your change is meant to alter what chips draws,
-  update the failing keys in `tests/golden/chips.ts` to the hashes the
-  failures print. For a key also held in `GOLDEN_TREES`, replace its whole
-  tree too: log `JSON.stringify(canon(tree))` for that key in
-  `tests/golden/suite.ts`, paste the output in, and drop the log. Say why in
-  the pull request.
+  trees it drew before the layouts work, with the 0.11.13 hover fix and the
+  0.12.1 fixes: dark and plain, desktop and terminal, at 40, 95 and 200
+  columns, shut and open; and every frame's hover cards to whole pieces.
+  `tools/golden/capture.sh` runs only on the hooks at `09a9e6c`, so it can't
+  recapture a fix. If your change is meant to alter what chips draws, update
+  the failing keys in `tests/golden/chips.ts` to the hashes the failures
+  print. For a key also held in `GOLDEN_TREES`, replace its whole tree too:
+  log `JSON.stringify(canon(tree))` for that key in `tests/golden/suite.ts`,
+  paste the output in, and drop the log. Say why in the pull request.
 
 ## Demos and the website
 

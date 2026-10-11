@@ -116,7 +116,7 @@ export type { Ttl }
 export const caseKey = (m: Mount, state: State): string => `${m.surface}|${m.cols}|${m.maxRows ?? DEFAULT_MAX_ROWS}|${state}`
 
 /** One setup and one drive, then for each mount, always in this order: draw
- *  it shut, press ▿, draw it open, press ▵, let it go. */
+ *  it shut, press ▵, draw it open, press ▿, let it go. */
 export const drawCases = async ($: Engine, on: On, o: CaseOptions, mounts: readonly Mount[]): Promise<Readonly<Record<string, Node>>> => {
   const s: Scenario = SCENARIOS[o.scenario]
   const ttl = o.ttl ?? '1h'

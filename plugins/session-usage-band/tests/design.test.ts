@@ -54,7 +54,15 @@ for (const [name, p, hosts] of [
   test(`${name}: card edges and bar tracks meet WCAG non-text contrast`, () => {
     for (const host of hosts) expect(contrast(p.cardBorder, host)).toBeGreaterThanOrEqual(3)
     for (const bg of pillGrounds) expect(contrast(p.trackStroke, bg)).toBeGreaterThanOrEqual(3)
-    expect(p.tooltipBg).not.toBe(p.cardBg) // hover cards stand above the cards
+  })
+
+  test(`${name}: a hover card is inverted, its ink legible and its ground apart from every chip's and the band's`, () => {
+    expect(contrast(p.tooltipFg, p.tooltipBg)).toBeGreaterThanOrEqual(4.5)
+    // Cards are drawn over chips' row and the workspace strip alone, never
+    // over a flap, so the grounds they cover are the chips' and the host's.
+    const covered = [...pillGrounds, p.meterTrack, p.batteryFill, p.batteryAmber, ...hosts]
+    const low = covered.filter(bg => contrast(p.tooltipBg, bg) < 3)
+    expect(low.map(bg => `${bg} ${contrast(p.tooltipBg, bg).toFixed(2)}`)).toEqual([])
   })
 
   test(`${name}: the new layouts' text and marks hold on the card ground and on flaps`, () => {
@@ -83,7 +91,7 @@ test('chips never shrink, so their text never wraps', async ($, on) => {
   await ui.unmount()
 })
 
-test("expanding leaves the chip row exactly as it was; only the toggle's icon turns from ▿ to ▵", async ($, on) => {
+test("expanding leaves the chip row exactly as it was; only the toggle's icon turns from ▵ to ▿", async ($, on) => {
   setup(on, { usage: withCompaction(152_000) })
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
@@ -91,10 +99,10 @@ test("expanding leaves the chip row exactly as it was; only the toggle's icon tu
   const ui = await mountBand($, 'desktop', 95)
   const toggle = async () => byKey(firstRow(await ui.drawn()), 'more', 'Button')?.props?.label
   const before = shown(firstRow(await ui.drawn()))
-  expect(await toggle()).toBe('▿')
+  expect(await toggle()).toBe('▵')
   await ui.press({ key: 'more' })
   expect(shown(firstRow(await ui.drawn()))).toBe(before)
-  expect(await toggle()).toBe('▵')
+  expect(await toggle()).toBe('▿')
   await ui.unmount()
 })
 
@@ -188,6 +196,59 @@ test('the cache card leads with the stake: re-warm cost, savings, hit rate, expi
   expect(fact(tree, 'saved by cache')).toBe('~$1.30') // 0.95 * 100k * rate
   expect(fact(tree, 'hit rate')).toBe('45%')
   expect(fact(tree, 'expires')).toBe('1h idle')
+  await ui.unmount()
+})
+
+/** The spend card's split, input then output then cache reads, as a
+ *  terminal draws it: each part's fill, and the mark its legend row leads with. */
+const splitOf = (tree: unknown) => {
+  let bar: { children?: unknown[] } | undefined
+  walk(cardOf(tree, 'spend'), n => {
+    if (bar === undefined && n.type === 'Text' && (n.children ?? []).length > 1 && /^[█▓▒#=+:]+$/.test(shown(n))) bar = n
+  })
+  const fills = ((bar?.children ?? []) as unknown[]).map(seg => shown(seg)).filter(Boolean).map(seg => [...new Set(seg)].join(''))
+  const marks = ['input', 'output', 'cache reads'].map(label => shown(byKey(tree, `fact:${label}`, 'Box')).trim().slice(0, 1))
+  return { fills, marks }
+}
+
+// WCAG 1.4.1: the parts' inks sit 1.0 to 1.3:1 apart in lightness and merge
+// under every colour-vision simulation, so each part has its own fill too.
+for (const [tier, fills] of [['unicode', ['█', '▓', '▒']], ['ascii', ['#', '=', '+']]] as const) {
+  test(`the token split tells its parts apart by fill, not hue alone, its legend marked alike: ${tier}`, async ($, on) => {
+    setup(on, { env: { CC_BAND_GLYPHS: tier } })
+    await $.session.start(START)
+    await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
+    await respond(e => $.turn.step(e), resp(4_000, 100_000, 6_000, 3_000))
+    const ui = await mountBand($, 'terminal', 140)
+    await ui.press({ key: 'more' })
+    expect(splitOf(await ui.drawn())).toEqual({ fills, marks: fills })
+    await ui.unmount()
+  })
+}
+
+/** Each drawn segment's [start, end) in px, from a split Svg's source: a
+ *  rect's x and width, or an end path's straight edges (its round end is
+ *  6px, the bar's radius, past them). */
+const segmentsOf = (source: string): Array<readonly [number, number]> =>
+  [...source.matchAll(/<rect x="([\d.]+)" y="1" width="([\d.]+)"|<path d="M([\d.]+) 1H([\d.]+)(V7|A)/g)].map(m =>
+    m[1] !== undefined
+      ? [Number(m[1]), Number(m[1]) + Number(m[2])]
+      : m[5] === 'V7'
+        ? [Number(m[3]) - 6, Number(m[4])]
+        : [Number(m[3]), Number(m[4]) + 6],
+  )
+
+test('on the desktop each part of the token split ends a pixel short of the next, so the ground divides them', async ($, on) => {
+  setup(on)
+  await $.session.start({ ...START, surface: 'desktop' })
+  await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
+  await respond(e => $.turn.step(e), resp(4_000, 100_000, 6_000, 3_000))
+  const ui = await mountBand($, 'desktop', 140)
+  await ui.press({ key: 'more' })
+  const split = svgsOf(cardOf(await ui.drawn(), 'spend')).find(n => /token split/.test(String(n.props?.alt)))
+  const segments = segmentsOf(String(split?.props?.source))
+  expect(segments).toHaveLength(3)
+  for (let i = 1; i < segments.length; i++) expect(Number(((segments[i]?.[0] ?? 0) - (segments[i - 1]?.[1] ?? 0)).toFixed(1))).toBe(1)
   await ui.unmount()
 })
 
@@ -380,7 +441,7 @@ test('the toggle is a framed native button on the desktop, a plain glyph in the 
   expect(desk?.props?.plain).toBeUndefined()
   const term = await toggleOf('terminal')
   expect(term?.props?.plain).toBe(true)
-  expect(term?.props?.label).toBe('▿')
+  expect(term?.props?.label).toBe('▵')
 })
 
 test('a card short of rows gives up its bar before a fact, since the chips already show it', async ($, on) => {

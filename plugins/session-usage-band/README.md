@@ -81,7 +81,8 @@ red: a cold cache or a full meter is a price, not an error. Colour is
 never the only signal, since escalation always adds words or `!` / `!!`.
 
 On the desktop (not in `plain`), hover any chip for a one-line
-explanation. `▿` opens the expanded view.
+explanation that covers it, so it leads with the chip's figure (`Resets in
+3h 00m; 5-hour limit, all your Claude use`). `▵` opens the expanded view.
 It starts with a line that says where you are:
 
 ```
@@ -117,8 +118,10 @@ Then come four cards with every fact labelled:
 The cards sit four across when they fit, else two by two, each line sharing
 its width equally; on the desktop each has a visible border. A card's title
 and headline share its first line, and when the band is short of rows each
-card drops its bar first (the chips already show it), then its least important facts, so the view never scrolls the
-buttons away. Expanding never changes the chip row; only the toggle's icon turns from `▿` to `▵`.
+card drops its bar first (the chips already show it), then its least
+important facts, so the view never scrolls the buttons away. Expanding
+never changes the chip row; only the toggle's icon turns from `▵` to `▿`,
+pointing the way the band will move.
 Below the cards, `Collapse` (key `c`) closes them and `Hide band` (key `h`)
 hides the band; `/usage-band` brings it back.
 
@@ -127,7 +130,7 @@ hides the band; `/usage-band` brings it back.
 At full width in the terminal, chips' row reads:
 
 ```
-◷ cache 52m   $3.19   Σ 225k   ◔ ██░░░░ 38% full   5h ░░░░░░ 4% │ ↻ 3h 00m   7d ██░░░░ 30% │ ↻ 2d 19h   ▿
+◷ cache 52m   $3.19   Σ 225k   ◔ ██░░░░ 38% full   5h ░░░░░░ 4% │ ↻ 3h 00m   7d ██░░░░ 30% │ ↻ 2d 19h   ▵
 ```
 
 On the desktop app's Code tab the glyphs are small icons, and the bars are
@@ -143,7 +146,7 @@ amber at once, the end of the row is clipped rather than wrapped.
 ## Layouts
 
 Chips is one of nine layouts. The other eight show the same readings in
-another shape, on a filled panel (bare in `plain`), and each opens with `▿`
+another shape, on a filled panel (bare in `plain`), and each opens with `▵`
 to its own view of every fact, under the workspace line and the same
 `Collapse` and `Hide band` buttons. Ledger writes the workspace line in
 plain words and departures as a flap on its board; the others draw it as
@@ -158,7 +161,7 @@ them wherever it is drawn as chips draws it.
 
 | Layout | Shows | Rows (desktop / terminal) |
 | --- | --- | --- |
-| `chips` | The row of chips above, and four cards behind `▿`; the default | 1 / 1 |
+| `chips` | The row of chips above, and four cards behind `▵`; the default | 1 / 1 |
 | `gauges` | Two rows of labelled bars: the cache's time left, context up to compaction, and the 5h and 7d limits with a tick for how much of each window has gone | 2 / 2 |
 | `ledger` | The band in words alone, `·`-separated, with `! ` leading what needs you | 1 / 1 |
 | `rings` | A ring per reading, its value over its label, with a dot on each limit for how much of the window has gone; the terminal draws a bar | 2 / 1 |
@@ -201,9 +204,10 @@ characters wide. In a CJK locale (the first of `LC_ALL`, `LC_CTYPE` and
 itself. The terminal setting can't be detected, so set
 `CC_BAND_GLYPHS=ascii` if you use it, and with a screen reader, which reads
 braille as dots. In ASCII each glyph becomes one character or is dropped
-(`█` is `#`, `▿` is `v`, `◷` goes), and braille charts give way to their
-numbers. It applies to every layout, chips included, and only in the
-terminal.
+(`█` is `#`, `▵` is `^`, `◷` goes), a ` · ` between two facts reads `, `,
+text too long for its room is clipped rather than ended with `…`, and
+braille charts give way to their numbers. It applies to every layout,
+chips included, and only in the terminal.
 
 ### Clock times
 

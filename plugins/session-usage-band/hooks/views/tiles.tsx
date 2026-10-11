@@ -139,7 +139,7 @@ const pair = (kit: Kit, key: string, tiles: readonly RenderChildren[]): RenderCh
   )
 }
 
-/** The facts behind ▿: four groups of tiles, two by two. */
+/** The facts behind ▵: four groups of tiles, two by two. */
 const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
   const p = kit.palette
   const c = read.cache

@@ -39,9 +39,9 @@ export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({
 /** Actions for a draw outside a mount: one function each, so props compare equal. */
 export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide: async () => undefined }
 
-/** Every layout's words for each amber trigger. `·` reads `-` in the ascii tier. */
+/** Every layout's words for each amber trigger. ` · ` reads `, ` in the ascii tier. */
 export const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
-  cacheLastMinute: /! \d+s( left)?|LAST CALL|! cooling [·-] \d+s left/,
+  cacheLastMinute: /! \d+s( left)?|LAST CALL|! cooling( ·|,) \d+s left/,
   nearCompaction: /! context \d+%|! ctx \d+%|! COMPACTS IN ~/,
   contextNoCompaction: /! context \d+%|! ctx \d+%|! CONTEXT \d+%/,
   limit80: /! 5h|! NEAR LIMIT/,
@@ -135,7 +135,7 @@ const coloursOf = (n: Node): string[] => {
 }
 
 /** What each glyph tier may draw (spec §3.2): the unicode tier's glyphs and braille, or ASCII alone. */
-const UNICODE_TIER = /^[\x20-\x7e█░▒│·↻Σ◷◔▿▵…±●■–↑↓\u2800-\u28ff]*$/
+const UNICODE_TIER = /^[\x20-\x7e█▓░▒│·↻Σ◷◔▿▵…±●■–↑↓\u2800-\u28ff]*$/
 const ASCII_TIER = /^[\x20-\x7e]*$/
 /** What a value missing from a phrase leaves drawn (spec §2.8), in any case: departures upper-cases its own. */
 const NOTHING = /\b(NaN|undefined|null)\b/i
@@ -146,6 +146,10 @@ const SVG_BARRED = /<(linearGradient|radialGradient|pattern|clipPath)\b|\bid=/
 const MISSTATED = new RegExp(`\\b(hit rate|${SPLIT_LABELS.join('|')}) \\d+% (used|left)|(?<!\\d percent) at its reset`)
 /** A price or a fill time drawn without its `~` (spec §2.4). */
 const UNMARKED = /re-warm \$|next message \$|full (in |at )?\d|on pace for \d/i
+
+/** Whether a Text leaves its cut to the surface, which ends it with `…`:
+ *  East-Asian-Ambiguous, so the ascii tier never may (spec §3.2). */
+export const cutBySurface = (n: Node): boolean => n.type === 'Text' && typeof n.props?.wrap === 'string' && n.props.wrap !== 'wrap'
 
 /** Each failed check as `<check>: <why>`; none when the tree keeps the spec
  *  §2 contract: the checks spec §7 lists, §9's node budget and §2.6's open height. */
@@ -163,14 +167,14 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   const rows = visualRows(collapsed, ctx.surface)
   if (rows !== declared) fail('rows', `${rows} drawn, ${declared} declared`)
 
-  const mark = ctx.expanded ? (ascii ? '^' : '▵') : ascii ? 'v' : '▿'
+  const mark = ctx.expanded ? (ascii ? 'v' : '▿') : ascii ? '^' : '▵'
   let toggles = 0
   walk(collapsed, n => {
     if (n.type === 'Button' && n.props?.label === mark) toggles++
   })
   if (toggles !== 1) fail('toggle', `${toggles} ${mark} in the collapsed part`)
 
-  // All-amber below 60 columns clips by design, ▿ pinned at the end; a
+  // All-amber below 60 columns clips by design, ▵ pinned at the end; a
   // single amber reading still fits. On the terminal it fits the row less
   // its slack, as each line is squeezed to; the desktop's estimate keeps the
   // row's width, since pulse's costs hold its second row there.
@@ -217,6 +221,10 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
     })
   }
   if (!(ascii ? ASCII_TIER : UNICODE_TIER).test(text)) fail('glyphs', 'a glyph outside the tier')
+  if (ascii)
+    walk(tree, n => {
+      if (cutBySurface(n)) fail('glyphs', 'a Text the surface would cut with …')
+    })
 
   // Open, a body short of rows keeps a calm section's title, so an empty
   // state is never said without its section's name.

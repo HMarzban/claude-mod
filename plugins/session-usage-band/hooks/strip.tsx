@@ -5,7 +5,8 @@ import type { RenderChildren, RenderElement } from 'claude-code'
 import { clipMiddle } from './format'
 import { ALT } from './icons'
 import type { CardPlace, Kit } from './kit'
-import { STRIP_GIVES_WAY, isList, squeezeToFit, startsOf, stripKeeps } from './layout'
+import { STRIP_GIVES_WAY, isList, spansOf, squeezeToFit, stripKeeps } from './layout'
+import type { Span } from './layout'
 import { BARE } from './palette'
 import { gitSummary, splitPath } from './workspace'
 import type { GitState, Workspace } from './workspace'
@@ -35,7 +36,7 @@ const keyOf = (n: RenderChildren): string | undefined => {
 }
 
 const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'footer', edge: number, room: number): RenderElement => {
-  const { Box, Text, Svg, measure, hoverable, hoverCard, icon } = kit
+  const { Box, Text, Svg, measure, asDrawn, oneLine, hoverable, hoverCard, icon } = kit
   const kept = (piece: (typeof STRIP_GIVES_WAY)[number]) => stripKeeps(squeeze, piece)
   const git = ws.git
   const { parent, name: fullName } = splitPath(ws.path)
@@ -60,10 +61,8 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
   const where: RenderChildren[] = [
     <Box flexDirection="row" {...explains('ws:path', git === undefined ? ws.path : `${ws.path}: ${gitSummary(git)}`)}>
       {Svg ? icon('folder', BARE.icon, clipped ? `folder ${ws.path}` : ALT.folder) : null}
-      {parentShown === '' ? null : <Text color={BARE.label} wrap="truncate-end">{parentShown}</Text>}
-      <Text color={BARE.value} bold wrap="truncate-end">
-        {name}
-      </Text>
+      {parentShown === '' ? null : oneLine({ color: BARE.label }, parentShown)}
+      {oneLine({ color: BARE.value, bold: true }, name)}
     </Box>,
   ]
   if (git?.branch !== undefined) {
@@ -71,9 +70,7 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
     where.push(
       <Box flexDirection="row" {...explains('ws:head', `Branch ${git.branch}${git.commit === undefined ? ', no commits yet' : ''}: ${tracking(git)}`)}>
         {Svg ? icon('branch', BARE.branch, branch === git.branch ? ALT.branch : `branch ${git.branch}`) : <Text color={BARE.label}>{'on '}</Text>}
-        <Text color={BARE.value} wrap="truncate-end">
-          {branch}
-        </Text>
+        {oneLine({ color: BARE.value }, branch)}
       </Box>,
     )
   } else if (git !== undefined) {
@@ -143,23 +140,45 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
   }
 
   // Each card at its piece: on the path's side from where the piece starts,
-  // on the state's ending where it ends. A separator is a Text, not a Box, so no card.
+  // on the state's ending where it ends. A separator is a Text, not a Box, so
+  // no card, and air a card may cover in part. A card covers whole pieces of
+  // its own side and stops a column short of the other's: the fill between
+  // the sides has no width the band knows, only that the strip is at least
+  // its room wide.
   const placement = stripPlacement(place, edge)
   const pad = placement.paddingX ?? 0
   const spacing = Svg ? 2 : 0
   const whereLine = joined('where', where)
   const stateLine = joined('state', state)
+  const stateFromRight = [...stateLine].reverse()
+  /** The spans of `line`'s pieces, from its own end of the strip. */
+  const spansFrom = (line: readonly RenderChildren[]): Span[] =>
+    spansOf(line.map(asDrawn), spacing, measure).map(([start, end]): Span => [pad + start, pad + end])
+  const whereSpans = spansFrom(whereLine)
+  const stateSpans = spansFrom(stateFromRight)
+  // Where each side ends, from its own end: the state's side, if it has
+  // anything; the path's side, which shrinks to leave the fill its two
+  // columns before the state's.
+  const stateEnd = stateSpans.at(-1)?.[1]
+  const whereEnd = Math.min(whereSpans.at(-1)?.[1] ?? pad, room - (stateEnd ?? 0) - 2)
+  /** A card's room from its side: up to a column short of where the other
+   *  side ends, if it draws anything. */
+  const shortOf = (otherEnd: number | undefined) => (otherEnd === undefined ? room : room - otherEnd - 1)
   /** The cards of `line`'s pieces, in its order, each placed by `at` from
-   *  how far into the strip its piece's first column sits. */
-  const cardsOf = (line: readonly RenderChildren[], at: (offset: number) => CardPlace) =>
-    startsOf(line, spacing, measure).flatMap((offset, i) => {
-      const key = keyOf(line[i])
+   *  how far into the strip its piece's first column sits, among the spans
+   *  of `pieces`, the line's own less its separators. */
+  const cardsOf = (pieces: readonly RenderChildren[], line: readonly RenderChildren[], spans: readonly Span[], at: (from: number, spans: readonly Span[]) => CardPlace) => {
+    const own = new Set(pieces)
+    const pieceSpans = spans.filter((_, i) => own.has(line[i]))
+    return line.flatMap((piece, i) => {
+      const key = keyOf(piece)
       const text = key === undefined ? undefined : explained.get(key)
-      return key === undefined || text === undefined ? [] : [hoverCard(key, text, at(pad + offset))]
+      return key === undefined || text === undefined ? [] : [hoverCard(key, text, at(spans[i]?.[0] ?? pad, pieceSpans))]
     })
+  }
   const cards = [
-    ...cardsOf(whereLine, left => ({ left, room })),
-    ...cardsOf([...stateLine].reverse(), right => ({ right, room })).reverse(),
+    ...cardsOf(where, whereLine, whereSpans, (left, pieces) => ({ left, room: shortOf(stateEnd), pieces })),
+    ...cardsOf(state, stateFromRight, stateSpans, (right, pieces) => ({ right, room: shortOf(whereEnd), pieces })).reverse(),
   ]
 
   return (

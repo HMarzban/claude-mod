@@ -7,7 +7,7 @@ import type { Node } from './helpers'
 import { invariantErrors, visualRows, type InvariantContext } from './matrix'
 
 const t = (s: string, props: Record<string, unknown> = {}) => ({ type: 'Text', props, children: [s] })
-const toggle = (label = '▿') => ({ type: 'Button', props: { label } })
+const toggle = (label = '▵') => ({ type: 'Button', props: { label } })
 const row = (...kids: unknown[]) => ({ type: 'Box', props: { flexDirection: 'row' }, children: kids })
 const svg = (props: Record<string, unknown>) => ({ type: 'Svg', props: { source: '<svg/>', height: 12, ...props } })
 const view = (lines: unknown[], rest: unknown[] = []) => ({
@@ -45,11 +45,11 @@ test('a good tree passes every check', () => {
 test('rows: the collapsed part takes the rows its view declares', () => {
   expect(failed(view([row(t('a')), row(t('b'), toggle())]))).toContain('rows')
 })
-test('toggle: ▿ shut, ▵ open, once', () => {
+test('toggle: ▵ shut, ▿ open, once', () => {
   expect(failed(view([row(t('a'))]))).toContain('toggle')
   expect(failed(GOOD, { expanded: true })).toContain('toggle')
   expect(failed(view([row(t('a'), toggle(), toggle())]))).toContain('toggle')
-  expect(failed(view([row(t('a'), toggle('v'))]), { glyphs: 'ascii' })).not.toContain('toggle')
+  expect(failed(view([row(t('a'), toggle('^'))]), { glyphs: 'ascii' })).not.toContain('toggle')
 })
 test('width: no wider than the row less its slack on the terminal, the row on the desktop, except all-amber below 60', () => {
   expect(failed(view([row(t('x'.repeat(130)), toggle())]))).toContain('width')
@@ -111,9 +111,9 @@ test("amber: each of the scenario's triggers has its words", () => {
 })
 test("amber: another limit's words are owed only open, where it is drawn", () => {
   expect(failed(GOOD, { scenario: 'gatewaySpend' })).not.toContain('amber')
-  const open = view([row(t('a'), toggle('▵'))], [t('spend 92%')])
+  const open = view([row(t('a'), toggle('▿'))], [t('spend 92%')])
   expect(failed(open, { scenario: 'gatewaySpend', expanded: true })).toContain('amber')
-  expect(failed(view([row(t('a'), toggle('▵'))], [t('! spend 92%')]), { scenario: 'gatewaySpend', expanded: true })).not.toContain('amber')
+  expect(failed(view([row(t('a'), toggle('▿'))], [t('! spend 92%')]), { scenario: 'gatewaySpend', expanded: true })).not.toContain('amber')
 })
 test('estimate: a price or a fill time carries ~', () => {
   expect(failed(view([row(t('re-warm $1.66'), toggle())]))).toContain('estimate')
@@ -140,7 +140,7 @@ test('empty: no NaN, undefined, null or empty Text', () => {
   expect(failed(view([row(t('a'), t(''), toggle('v'))]), { glyphs: 'ascii' })).not.toContain('empty')
 })
 test("emptyState: open, each empty state follows its own section's name", () => {
-  const open = (body: unknown[], said = 'cache 52m left') => view([row(t(said), toggle('▵'))], body)
+  const open = (body: unknown[], said = 'cache 52m left') => view([row(t(said), toggle('▿'))], body)
   expect(failed(open([t('none reported')]), { expanded: true })).toContain('emptyState')
   expect(failed(open([t('CONTEXT'), t('none reported')]), { expanded: true })).toContain('emptyState')
   expect(failed(open([t('LIMITS'), t('none reported'), t('Context'), t('not reported')]), { expanded: true })).not.toContain('emptyState')
@@ -150,10 +150,14 @@ test("emptyState: open, each empty state follows its own section's name", () => 
 test("glyphs: the tier's own, and ASCII alone in the ascii tier", () => {
   expect(failed(view([row(t('◐ cache'), toggle())]))).toContain('glyphs')
   expect(failed(view([row(t('cache · 52m'), toggle('v'))]), { glyphs: 'ascii' })).toContain('glyphs')
+  // A cut the surface makes ends in `…`, so ascii leaves none to it.
+  const cut = { type: 'Text', props: { wrap: 'truncate-end' }, children: ['cache 52m'] }
+  expect(failed(view([row(cut, toggle('^'))]), { glyphs: 'ascii' })).toContain('glyphs')
+  expect(failed(view([row(cut, toggle())]))).not.toContain('glyphs')
 })
 test('size: at most 400 nodes shut, 1,500 open', () => {
   expect(failed(view([row(...Array.from({ length: 400 }, (_, i) => t(String(i % 10))), toggle())]))).toContain('size')
 })
 test('height: open, the view fits maxRows', () => {
-  expect(failed(view([row(t('a'), toggle('▵'))], [t('b'), t('c')]), { expanded: true, maxRows: 2 })).toContain('height')
+  expect(failed(view([row(t('a'), toggle('▿'))], [t('b'), t('c')]), { expanded: true, maxRows: 2 })).toContain('height')
 })

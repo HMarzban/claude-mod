@@ -1,5 +1,5 @@
 // Pulse, trends rather than totals: each message's cost as bars, the 5h
-// trail and its pace, how the charts give way, and the four sections behind ▿.
+// trail and its pace, how the charts give way, and the four sections behind ▵.
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
@@ -220,7 +220,7 @@ test('open on a text surface, each braille chart fits its section, however long 
 test('in ascii the charts give way to numbers', LONG, async ($, on) => {
   const trees = await drawCases($, on, { layout: 'pulse', scenario: 'fullHistory', appearance: 'dark', env: { CC_BAND_GLYPHS: 'ascii' } }, [T160])
   const t = shown(trees[caseKey(T160, 'shut')])
-  expect(t).toMatch(/last \$\S+ - avg \$\S+/)
+  expect(t).toMatch(/last \$\S+, avg \$\S+/)
   expect(t).not.toMatch(/[⠀-⣿]/)
 })
 test('a message after the cache went cold is marked a re-warm', LONG, async ($, on) => {

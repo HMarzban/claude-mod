@@ -1,5 +1,5 @@
 // Forecast, the band read like the weather: now, then each change ahead at
-// its clock time, soonest first; behind ▿, an outlook row for each reading.
+// its clock time, soonest first; behind ▵, an outlook row for each reading.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { meter } from '../charts'
@@ -192,7 +192,7 @@ const OUTLOOK_GAP = 2
 /** An outlook row, and whether it needs you. */
 type Outlook = Readonly<{ amber: boolean; row: RenderElement }>
 
-/** The outlook behind ▿: a row per reading, its value now, a bar to where it
+/** The outlook behind ▵: a row per reading, its value now, a bar to where it
  *  lands, and the outcome in words; an amber row leads its outcome with why. */
 const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
   const { Box, palette } = kit

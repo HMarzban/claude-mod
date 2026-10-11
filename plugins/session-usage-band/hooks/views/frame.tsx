@@ -29,14 +29,16 @@ const placedStrip = (kit: Kit, line: RenderChildren, place: 'top' | 'footer'): R
 export const bodyRowsFor = (maxRows: number, collapsedRows: number, stripRows: number): number =>
   Math.max(0, maxRows - collapsedRows - 3 - stripRows)
 
-/** ▿ while shut, ▵ while open: chips' own toggle, at the end of its row.
- *  It comes after the row's hover cards and, placed relative, stacks over
- *  them on the desktop too, so it stays pressable where the measure sets a
- *  card long. */
+/** ▵ while shut, ▿ while open: chips' own toggle, at the end of its row.
+ *  It points the way the band will move, since the band is anchored to the
+ *  prompt and grows upward when it opens, so in every layout it sits on the
+ *  row nearest the prompt, the bottom of its line. It comes after the row's
+ *  hover cards and, placed relative, stacks over them on the desktop too, so
+ *  it stays pressable where the measure sets a card long. */
 export const toggleButton = (kit: Kit, read: Readings, act: BandActions): RenderElement => {
   const { Box, Button, Svg } = kit
   return (
-    <Box flexShrink={0} position="relative">
+    <Box flexShrink={0} position="relative" alignSelf="flex-end">
       {/* A Button holds text alone, so its icon is a glyph. The outlined
           triangles are measured centred in the line, within half a pixel,
           and wider than tall like a disclosure icon; arrowhead chevrons sit
@@ -44,8 +46,8 @@ export const toggleButton = (kit: Kit, read: Readings, act: BandActions): Render
           terminal bare. */}
       <Button
         key="more"
-        label={read.frame.expanded ? '▵' : '▿'}
-        {...(Svg ? { variant: 'secondary' as const } : { plain: true as const, dimColor: true })}
+        label={read.frame.expanded ? '▿' : '▵'}
+        {...(Svg ? { variant: 'secondary' as const } : { plain: true as const })}
         onPress={act.toggleExpanded}
       />
     </Box>
@@ -99,8 +101,9 @@ export const frame = (
         {panel(kit, 'body', o.body(bodyRows))}
       </Box>
     ) : null,
-    // Chips' actions row: the strip when it takes the footer, else the hint,
-    // then Collapse and Hide band.
+    // Chips' actions row: the strip when it takes the footer, grown into all
+    // the room the buttons leave, else the hint and air; then Collapse and
+    // Hide band.
     <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>
       {place === 'footer' ? (
         strip
@@ -110,7 +113,7 @@ export const frame = (
           <Text color={BARE.label}>Bring it back with /usage-band</Text>
         </Box>
       )}
-      <Box flexGrow={1} />
+      {place === 'footer' && strip !== null ? null : <Box flexGrow={1} />}
       {buttons}
     </Box>,
   ]

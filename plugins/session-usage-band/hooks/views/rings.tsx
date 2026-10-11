@@ -126,7 +126,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
 /** A limit as a row of its panel: `5h 4% · ↻ in 3h 00m · on pace for ~10%`. */
 const SENTENCE: SentenceStyle = { lead: 'say', reset: 'resetGlyph', sep: ' · ' }
 
-/** The facts behind ▿: four panels, each with its big ring and its facts. */
+/** The facts behind ▵: four panels, each with its big ring and its facts. */
 const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
   const { Box, Svg, palette: p } = kit
   const c = read.cache

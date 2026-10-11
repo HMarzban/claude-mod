@@ -1,5 +1,5 @@
 // Departures, the band as a split-flap board: the cache's flight calm and
-// amber, how the line gives way as it narrows, and the board behind ▿.
+// amber, how the line gives way as it narrows, and the board behind ▵.
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
@@ -192,7 +192,7 @@ test('open where TIME can\'t fit whole beside REMARKS\' least, the board drops t
 test('in ascii, a reset today leads REMARKS with its noun on a narrow board, and keeps it in a wide board\'s TIME', () => {
   // Drawn directly, the zone pinned, so the 5h reset 3h on falls today on every host.
   const open = (columns: number) => drawBand(fakeEl, snapOf({ layout: 'departures', columns, glyphs: 'ascii', expanded: true, utcOffsetMin: 0 }), NO_ACT)
-  expect(boardCell(open(67), '5H', 'remarks')).toMatch(/^RESET \d{2}:\d{2} - 4% USED/)
+  expect(boardCell(open(67), '5H', 'remarks')).toMatch(/^RESET \d{2}:\d{2}, 4% USED/)
   expect(boardCell(open(160), '5H', 'time')).toMatch(/^RESET \d{2}:\d{2}$/)
 })
 test('open on a narrow board in the last minute, REMARKS leads with the seconds as TIME draws them', LONG, async ($, on) => {

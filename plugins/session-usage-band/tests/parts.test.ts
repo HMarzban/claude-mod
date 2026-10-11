@@ -105,7 +105,7 @@ test("the layouts' cache pill speaks the readings' words, with no hover", () => 
 })
 test('in the ascii tier the cache pill draws its words in ascii', () => {
   const snap = snapOf({ cache: { ...snapOf().cache, msLeft: 0 }, glyphs: 'ascii' })
-  expect(shown(layoutCachePill(makeKit(fakeEl, snap), readingsOf(snap), false))).toBe(' cache cold - re-warm ~$1.66 ')
+  expect(shown(layoutCachePill(makeKit(fakeEl, snap), readingsOf(snap), false))).toBe(' cache cold, re-warm ~$1.66 ')
 })
 test('off the terminal the ascii tier leaves the cache pill unmapped', () => {
   const snap = snapOf({ surface: 'mobile', cache: { ...snapOf().cache, msLeft: 0 }, glyphs: 'ascii' })

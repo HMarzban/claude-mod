@@ -3,7 +3,8 @@
 import { test, expect } from 'claude-code/testing'
 import { ASCII_MAP, asciiText, resolveGlyphs } from '../hooks/glyphs'
 import { ROW_SLACK } from '../hooks/layout'
-import { caseKey, drawCases, type Mount } from './matrix'
+import { LAYOUT_NAMES } from '../hooks/snapshot'
+import { caseKey, cutBySurface, drawCases, type Mount } from './matrix'
 import {
   HOUR_1,
   LONG,
@@ -19,6 +20,7 @@ import {
   segments,
   setup,
   textOf,
+  walk,
   widthOf,
 } from './helpers'
 
@@ -42,6 +44,10 @@ test('ascii text is pure ASCII, a dropped glyph takes its space, and padding sta
   expect(asciiText('café latte')).toBe('caf latte') // an unmapped character goes alone
   expect(asciiText('ITEM      STATUS')).toBe('ITEM      STATUS')
 })
+test("a spaced separator reads as a comma, never as a minus between numbers", () => {
+  expect(asciiText('input 196k · output 12k · cache reads 0')).toBe('input 196k, output 12k, cache reads 0')
+  expect(asciiText('5h 4%·7d')).toBe('5h 4%-7d') // a bare one keeps its dash
+})
 test('chips in the ascii tier draws only ASCII, within the row, shut and open', LONG, async ($, on) => {
   const m: Mount = { surface: 'terminal', cols: 120 }
   const desktop: Mount = { surface: 'desktop', cols: 120 }
@@ -50,13 +56,13 @@ test('chips in the ascii tier draws only ASCII, within the row, shut and open', 
   const open = trees[caseKey(m, 'open')]
   expect(textOf(shut)).toMatch(/^[\x20-\x7e]*$/)
   expect(widthOf(firstRow(shut))).toBeLessThanOrEqual(120 - ROW_SLACK)
-  expect(byKey(shut, 'more', 'Button')?.props?.label).toBe('v')
-  // Opened (by key), the band stays ASCII and keeps its cards, and the toggle reads ^.
+  expect(byKey(shut, 'more', 'Button')?.props?.label).toBe('^')
+  // Opened (by key), the band stays ASCII and keeps its cards, and the toggle reads v.
   expect(cards(open).length).toBeGreaterThan(0)
   expect(textOf(open)).toMatch(/^[\x20-\x7e]*$/)
-  expect(byKey(open, 'more', 'Button')?.props?.label).toBe('^')
+  expect(byKey(open, 'more', 'Button')?.props?.label).toBe('v')
   // The tier is the terminal's: the desktop draws its own glyphs.
-  expect(byKey(trees[caseKey(desktop, 'shut')], 'more', 'Button')?.props?.label).toBe('▿')
+  expect(byKey(trees[caseKey(desktop, 'shut')], 'more', 'Button')?.props?.label).toBe('▵')
 })
 test('the ascii battery drops its glyph before the cut, so its charge and spacing hold', LONG, async ($, on) => {
   const clock = setup(on, { env: { ...HOUR_1, CC_BAND_GLYPHS: 'ascii' } })
@@ -71,3 +77,23 @@ test('the ascii battery drops its glyph before the cut, so its charge and spacin
   expect(seg[0]?.text.length).toBe(Math.round((8 / 60) * all.length))
   await ui.unmount()
 })
+
+// Ink's cut adds U+2026, East-Asian-Ambiguous, which a CJK terminal draws two
+// columns wide where Ink counts one: every narrow cut would overflow its row
+// for the tier's main audience. The tree can't show a cut the surface makes
+// as it draws, so no ascii Text may leave one to it.
+for (const layout of LAYOUT_NAMES) {
+  for (const scenario of ['calm', 'lastMinute'] as const) {
+    test(`${layout} in the ascii tier never draws U+2026, shut or open, at any width from 20 to 200: ${scenario}`, LONG, async ($, on) => {
+      const mounts: Mount[] = Array.from({ length: 181 }, (_, i) => ({ surface: 'terminal', cols: 20 + i }))
+      const trees = await drawCases($, on, { scenario, appearance: 'dark', layout, env: { CC_BAND_GLYPHS: 'ascii' } }, mounts)
+      for (const [drawn, tree] of Object.entries(trees)) {
+        let cut = 0
+        walk(tree, n => {
+          if (cutBySurface(n)) cut++
+        })
+        expect(`${drawn} ${textOf(tree).includes('…')} ${cut}`).toBe(`${drawn} false 0`)
+      }
+    })
+  }
+}

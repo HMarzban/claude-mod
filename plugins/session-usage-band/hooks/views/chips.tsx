@@ -23,8 +23,8 @@ import {
   SHORT_BELOW,
   cellsOf,
   keeps,
+  spansOf,
   squeezeToFit,
-  startsOf,
 } from '../layout'
 import type { BarSize, Piece } from '../layout'
 import { BARE } from '../palette'
@@ -76,8 +76,11 @@ const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
 /** The expanded view's cards, in the order they are drawn. */
 type CardName = 'cache' | 'spend' | 'context' | 'limits'
 
+/** A part of a split bar as its legend shows it: its colour and its fill. */
+type Swatch = Readonly<{ color: string; mark: string }>
+
 const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement => {
-  const { Box, Button, Text, Svg, palette, measure, onTone, hoverCard, gap, icon } = kit
+  const { Box, Button, Text, Svg, palette, measure, asDrawn, onTone, oneLine, hoverCard, gap, icon } = kit
   const snap = read.chips.raw
   const c = snap.cache
   const ascii = read.frame.glyphs === 'ascii'
@@ -167,10 +170,12 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
         </Text>,
         ...reset,
       ],
+      // The card covers its chip, so it leads with the fact the chip had,
+      // and a short row's cut only takes the description.
       hover:
         r === undefined
           ? `Your ${spec.title.toLowerCase()}, across all your Claude use`
-          : `${spec.title} across all your Claude use; resets in ${r.text}`,
+          : `Resets in ${r.text}; ${spec.title.toLowerCase()}, all your Claude use`,
     }
   }
 
@@ -185,7 +190,7 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
         body: [...icon('cost', palette.coin), <Text key="v" color={palette.value} bold>{fmtCost(snap.costUsd)}</Text>],
         hover:
           snap.lastTurnUsd === null
-            ? 'What this session has cost so far'
+            ? `${fmtCost(snap.costUsd)} so far this session`
             : `${fmtSmallCost(snap.lastTurnUsd)} spent during your last message, subagents included`,
       },
     ]
@@ -224,8 +229,8 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
         ],
         hover:
           ctx.compactAt === undefined || toCompact === undefined
-            ? 'Conversation fill; near full, older turns get summarized'
-            : `Full toward auto-compaction at ${fmtTokens(ctx.compactAt)}; ${fmtTokens(toCompact)} to go`,
+            ? `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.window)} (${ctxPct}); older turns get summarized near full`
+            : `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.compactAt)} (${ctxPct}); auto-compacts in ~${fmtTokens(toCompact)}`,
       })
     }
 
@@ -246,14 +251,14 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
   const rowOf = (specs: PillSpec[]): RenderElement => {
     const pills = specs.map(spec => pill(kit, spec))
     const toggle = toggleButton(kit, read, act)
-    // A card ends short of ▿ and the gap before it.
+    // A card ends short of ▵ and the gap before it, and covers whole pills.
     const room = snap.columns - cellsOf(toggle, measure) - 1
-    const starts = startsOf(pills, 1, measure)
+    const pieces = spansOf(pills.map(asDrawn), 1, measure)
     return (
       <Box key="row" flexDirection="row" flexWrap="nowrap" overflow="hidden" columnGap={1}>
         {pills}
         <Box flexGrow={1} />
-        {specs.map(({ key, hover }, i) => (hover === undefined ? null : hoverCard(key, hover, { left: starts[i] ?? 0, room })))}
+        {specs.map(({ key, hover }, i) => (hover === undefined ? null : hoverCard(key, hover, { left: pieces[i]?.[0] ?? 0, room, pieces })))}
         {toggle}
       </Box>
     )
@@ -264,11 +269,12 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
   // ---- the expanded view: four cards, every fact labelled ----------------
   // Built only when open: a closed band draws the row alone.
   const expandedView = (): RenderChildren[] => {
-    /** A label and its value at either end of a line; `swatch` keys a legend. */
-    const factRow = (label: string, value: string, swatch?: string) => (
+    /** A label and its value at either end of a line; `swatch` keys a legend
+     *  in its part's colour and fill. */
+    const factRow = (label: string, value: string, swatch?: Swatch) => (
       <Box key={`fact:${label}`} flexDirection="row" justifyContent="space-between" columnGap={2}>
         <Text color={palette.label}>
-          {swatch === undefined ? null : <Text key="sw" color={swatch}>{'■ '}</Text>}
+          {swatch === undefined ? null : <Text key="sw" color={swatch.color}>{`${swatch.mark} `}</Text>}
           {label}
         </Text>
         <Text color={palette.cardValue}>{value}</Text>
@@ -353,16 +359,15 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
             {Svg ? icon(...cardIcon[name]) : null}
             <Text color={palette.label}>{title.toUpperCase()}</Text>
           </Box>
-          <Text color={onTone(head.tone ?? 'calm', palette.value)} bold wrap="truncate-end">
-            {head.text}
-          </Text>
+          {oneLine({ color: onTone(head.tone ?? 'calm', palette.value), bold: true }, head.text)}
         </Box>
         {fitBody(bar, body)}
       </Box>
     )
 
-    /** A bar split into parts, each its share of the whole, in its own colour. */
-    const splitBar = (label: string, parts: ReadonlyArray<readonly [number, string]>) => {
+    /** A bar split into parts, each its share of the whole, in its own colour
+     *  and, in text, its own fill. */
+    const splitBar = (label: string, parts: ReadonlyArray<readonly [number, Swatch]>) => {
       const total = parts.reduce((sum, [n]) => sum + n, 0)
       if (total <= 0) return null
       if (Svg) {
@@ -373,13 +378,14 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
         const R = 6
         const shown = parts.filter(([n]) => n > 0)
         let x = 0
-        const segments = shown.map(([n, color], i) => {
+        const segments = shown.map(([n, { color }], i) => {
           const x0 = x
-          const x1 = x + (n / total) * width
-          x = x1
-          const f = (v: number) => v.toFixed(1)
+          x += (n / total) * width
           const first = i === 0
           const last = i === shown.length - 1
+          // Each ends a pixel short of the next, so the ground divides them.
+          const x1 = last ? x : Math.max(x0, x - 1)
+          const f = (v: number) => v.toFixed(1)
           if (x1 - x0 < 2 * R || (!first && !last)) {
             return `<rect x="${f(x0)}" y="1" width="${f(x1 - x0)}" height="6"${first && last ? ` rx="${R}" ry="3"` : ''} fill="${color}"/>`
           }
@@ -395,12 +401,12 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
       let used = 0
       return (
         <Text key="split">
-          {parts.map(([n, color], i) => {
+          {parts.map(([n, { color, mark }], i) => {
             const count = i === parts.length - 1 ? cells - used : Math.round((n / total) * cells)
             used += count
             return (
               <Text key={`s${i}`} color={color}>
-                {'█'.repeat(Math.max(0, count))}
+                {mark.repeat(Math.max(0, count))}
               </Text>
             )
           })}
@@ -428,20 +434,24 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
       ],
     )
 
-    // Cache reads in the warm colour: cheap, and often most of the bar.
-    const tokenParts: ReadonlyArray<readonly [string, number, string]> = [
-      ['input', c.tokens.sent, palette.meterFill],
-      ['output', c.tokens.back, palette.coin],
-      ['cache reads', c.tokens.cached, palette.warm],
+    // Cache reads in the warm colour: cheap, and often most of the bar. In
+    // text each part has its own fill too, since the inks sit close in
+    // lightness: colour is never the only signal. The desktop's parts are
+    // solid, divided by the ground, so its legend marks them solid.
+    const [inputFill, outputFill, readsFill] = Svg ? ['■', '■', '■'] : ascii ? ['#', '=', '+'] : ['█', '▓', '▒']
+    const tokenParts: ReadonlyArray<readonly [string, number, Swatch]> = [
+      ['input', c.tokens.sent, { color: palette.meterFill, mark: inputFill }],
+      ['output', c.tokens.back, { color: palette.coin, mark: outputFill }],
+      ['cache reads', c.tokens.cached, { color: palette.warm, mark: readsFill }],
     ]
     const spendView = card(
       'spend',
       'Spend',
       { text: fmtCost(snap.costUsd) },
-      measured ? splitBar('token split: input, output, cache reads', tokenParts.map(([, n, color]) => [n, color] as const)) : null,
+      measured ? splitBar('token split: input, output, cache reads', tokenParts.map(([, n, swatch]) => [n, swatch] as const)) : null,
       [
       snap.lastTurnUsd !== null ? factRow('last message', fmtSmallCost(snap.lastTurnUsd)) : null,
-      ...(measured ? tokenParts.map(([label, n, color]) => factRow(label, fmtTokens(n), color)) : [note('Breakdown counts from your next message.')]),
+      ...(measured ? tokenParts.map(([label, n, swatch]) => factRow(label, fmtTokens(n), swatch)) : [note('Breakdown counts from your next message.')]),
       ],
     )
 
@@ -483,7 +493,7 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
         </Box>,
         r === undefined ? null : (
           <Box key={`fact:${name} pace`}>
-            <Text color={palette.label} wrap="truncate-end">{`resets ${r.text}${pace}`}</Text>
+            {oneLine({ color: palette.label }, `resets ${r.text}${pace}`)}
           </Box>
         ),
       ]
@@ -533,6 +543,8 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
           </Box>
         ))}
       </Box>,
+      // A strip in the footer grows into all the room the buttons leave, at
+      // least the room its cards are given; the hint leaves it to air.
       <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>
         {stripPlace === 'footer' ? (
           strip
@@ -542,7 +554,7 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
             <Text color={BARE.label}>Bring it back with /usage-band</Text>
           </Box>
         )}
-        <Box flexGrow={1} />
+        {stripPlace === 'footer' && strip !== null ? null : <Box flexGrow={1} />}
         {buttons}
       </Box>,
     ]

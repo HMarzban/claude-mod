@@ -23,7 +23,7 @@ CAPTIONS = [
     (3.6, 7.0, 'The battery ', 'drains', '', 'as the cache ages.'),
     (7.0, 9.4, 'Its ', 'last', ' minute.', 'The band names the price of going cold.'),
     (9.4, 11.0, 'Gone ', 'cold', '.', 'You know the price before you hit enter.'),
-    (11.0, 14.4, '▿ opens ', 'every', ' fact.', 'Cache, spend, context and limits.'),
+    (11.0, 14.4, '▵ opens ', 'every', ' fact.', 'Cache, spend, context and limits.'),
 ]
 CHAPTERS = [('Lunch', 2.3, 3.6), ('Countdown', 3.6, 7.0), ('Last minute', 7.0, 9.4), ('Cold', 9.4, 11.0), ('The cards', 11.0, 14.4)]
 

@@ -44,7 +44,7 @@ const inset = (kit: Kit): number => (kit.Svg !== undefined || !kit.palette.fille
  *  than its text the flap shrinks and its text truncates, so `]` stays;
  *  the line's pieces never shrink, so there it keeps its width. */
 const flap = (kit: Kit, key: string, text: string, ink: Ink = 'text', bracketed = true): RenderElement => {
-  const { Box, Text, palette } = kit
+  const { Box, Text, palette, oneLine } = kit
   const color = palette[INK[ink]]
   // A Text shrinks as Ink's does, so each bracket sits in a Box that never
   // shrinks, and only the text gives way.
@@ -59,9 +59,7 @@ const flap = (kit: Kit, key: string, text: string, ink: Ink = 'text', bracketed 
   return (
     <Box key={key} flexShrink={1} minWidth={0} {...(palette.filled ? { backgroundColor: palette.flap, paddingX: inset(kit) } : {})}>
       {edge('[')}
-      <Text color={color} bold wrap="truncate-end">
-        {text}
-      </Text>
+      {oneLine({ color, bold: true }, text)}
       {edge(']')}
     </Box>
   )
@@ -209,7 +207,7 @@ const fitRows = (rows: readonly BoardRow[], room: number): RenderElement[] => {
     .map(r => r.line)
 }
 
-/** The board behind ▿: a header, then CACHE, CONTEXT, the limits and SPEND. */
+/** The board behind ▵: a header, then CACHE, CONTEXT, the limits and SPEND. */
 const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
   const c = read.cache
   const x = read.context

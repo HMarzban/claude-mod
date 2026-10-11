@@ -5,6 +5,61 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.12.1] - 2026-10-11
+
+### Fixed
+- A chip's hover card drew on a ground close to the chips' own, with no
+  edge, so it read as one more chip. Cards are now inverted, light on a
+  dark band and dark on a light one, a ground no chip uses; in the
+  terminal each card ends in half blocks that round its edges.
+- A hover card could stop partway through a chip, leaving a bare `76` or
+  `0%` beside it that read as a value of its own. A card now covers whole
+  chips: it runs on to the end of any chip it enters, as one solid slab,
+  and starts a column before its own, so in the terminal its rounded ends
+  sit in the gaps; on the desktop that column absorbs some of the font
+  measure's error. In the workspace strip a card covers whole pieces of its
+  own side and stops a column short of the other's, so a long card no
+  longer cuts the branch name into one that reads as another. In the
+  footer the strip now runs up to the buttons, so its cards have the room
+  they're given.
+- On the desktop a hover card ran 150 to 255px of empty ground past its
+  words, over chips the pointer couldn't reach while it showed. It is now
+  sized from the desktop's font, about 0.8 columns a character, then
+  rounded out to the end of a chip.
+- A hover card covers its own chip, yet the cost card held no figure and a
+  short row cut the reset time, the one fact left nowhere else. Every card
+  now leads with its value, then what changes, then what it means:
+  `Resets in 3h 00m; 5-hour limit, all your Claude use`, `$2.41 so far
+  this session`, `76k of 200k (38%); older turns get summarized near
+  full`, `152k of 160k (95%); auto-compacts in ~8.0k`, `52m left; warm
+  cache bills input at 5%, expires 1h after a reply`.
+- The expand toggle pointed the wrong way: the band is anchored to the
+  prompt and grows upward when it opens, yet it showed `▿` to open and `▵`
+  to close. It now points the way the band will move, `▵` to open and `▿`
+  to close (`^` and `v` in ASCII), in every layout, on the desktop and in
+  the terminal.
+- In the terminal the toggle was drawn dim, the faintest thing in the row
+  (about 3.8:1 on a light terminal, and some terminals draw faint text
+  unpredictably) though it is the band's only open and close control. It
+  now draws at full ink, about 12:1.
+- The toggle sat on the top row in tiles, the bottom in gauges and the
+  middle in forecast and rings. Since its arrow points toward or away from
+  the prompt, it now sits on the row nearest the prompt in every layout.
+- In the ascii tier, text too long for its box still ended in `…`, which a
+  CJK terminal, the tier's own, draws two columns wide, so every narrow
+  hover card and cut line overflowed its row. A hover card now cuts its
+  own words, after the last whole one, with a `.`, and any other line
+  clips at its row's last whole word.
+- In the ascii tier `input 196k · output 12k` read `input 196k - output
+  12k`, a subtraction, and a screen reader said "minus". A spaced ` · `
+  now reads `, `; a bare `·` still becomes `-`.
+- The Spend card's token split told input, output and cache reads apart by
+  hue alone, inks too close in lightness to read under any colour-vision
+  simulation. In the terminal each part now has its own fill, `█`, `▓` and
+  `▒` (`#`, `=` and `+` in ASCII), and its legend mark matches; on the
+  desktop each part ends a pixel short of the next, so the ground divides
+  them.
+
 ## [0.12.0] - 2026-10-10
 
 ### Added
