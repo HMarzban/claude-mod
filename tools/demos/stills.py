@@ -1,6 +1,6 @@
 """The still images, drawn from the band's real desktop output (site.txt):
-the social preview card, the expanded band, and the states gallery in a light
-and a dark theme, for the READMEs.
+the social preview card, the expanded band, and the states and layouts
+galleries in a light and a dark theme, for the READMEs.
 
     python3 stills.py out/site.txt OUT_DIR
 """
@@ -67,14 +67,28 @@ body{font-family:-apple-system,system-ui,sans-serif;-webkit-font-smoothing:antia
 .lab span{display:block;font-size:13.5px;color:{text3};margin-top:2px;line-height:1.35}
 .frame{background:#1a1a1a;border-radius:16px;padding:8px;box-shadow:{shadow}}
 .zoom{zoom:.9}
+.band+.band{margin-top:8px}
 ''' + BAND_CSS + '''</style></head><body>{rows}</body></html>'''
 
-ROWS = [
-    ('calm', 'Calm', 'just replied; nothing needs you'),
-    ('amber', 'Last minute', 'the price of going cold'),
-    ('compact', 'Near compaction', 'room left before it summarises'),
-    ('all', 'Everything at once', 'still one row'),
+# Each row: the states it draws, top to bottom, then its title and caption.
+STATES = [
+    (['calm'], 'Calm', 'just replied; nothing needs you'),
+    (['amber'], 'Last minute', 'the price of going cold'),
+    (['compact'], 'Near compaction', 'room left before it summarises'),
+    (['all'], 'Everything at once', 'still one row'),
 ]
+# One row per layout, in the command's order: calm, then the cache's last minute.
+LAYOUTS = [([f'layout-{k}', f'layout-{k}-amber'], t, d) for k, t, d in [
+    ('chips', 'Chips', 'the default: a row of pills'),
+    ('gauges', 'Gauges', 'labelled bars; a tick marks the window gone'),
+    ('ledger', 'Ledger', 'words only'),
+    ('rings', 'Rings', 'a ring per reading'),
+    ('pulse', 'Pulse', 'cost per message and the 5h trend'),
+    ('tiles', 'Tiles', 'a bold value over each label'),
+    ('week', 'Week', 'the 7d window as days, the 5h as hours'),
+    ('departures', 'Departures', 'a split-flap board'),
+    ('forecast', 'Forecast', 'now, then each change at its time'),
+]]
 GTHEME = {
     'light': dict(bg='#faf9f5', text='#1f1e1b', text3='#6b675e', shadow='0 1px 2px rgba(31,30,27,.06), 0 12px 30px -12px rgba(31,30,27,.3)'),
     'dark': dict(bg='#141413', text='#f2f0eb', text3='#8a877f', shadow='0 0 0 1px #2f2e2b'),
@@ -86,6 +100,21 @@ html,body{width:1012px;background:#1a1a1a;overflow:hidden}
 body{font-family:-apple-system,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:24px}
 ''' + BAND_CSS + '''</style></head><body><div class="band">{band}</div></body></html>'''
 
+
+def gallery(out, name, rows, trees):
+    """Write `name`-light.html and `name`-dark.html, a labelled row per entry of `rows`."""
+    body = ''.join(
+        f'<div class="row"><div class="lab"><b>{t}</b><span>{d}</span></div><div class="frame"><div class="zoom">'
+        + ''.join(f'<div class="band">{node(trees[k])}</div>' for k in keys)
+        + '</div></div></div>'
+        for keys, t, d in rows)
+    for th, c in GTHEME.items():
+        page = GALLERY.replace('{rows}', body)
+        for k, v in c.items():
+            page = page.replace('{' + k + '}', v)
+        open(f'{out}/{name}-{th}.html', 'w').write(page)
+
+
 if __name__ == '__main__':
     src, out = sys.argv[1], sys.argv[2]
     trees = {}
@@ -94,10 +123,6 @@ if __name__ == '__main__':
         trees[name] = json.loads(js)
     open(f'{out}/social.html', 'w').write(SOCIAL.replace('{band}', node(trees['amber'])))
     open(f'{out}/expanded.html', 'w').write(EXPANDED.replace('{band}', node(trees['amberOpen'])))
-    rows = ''.join(f'<div class="row"><div class="lab"><b>{t}</b><span>{d}</span></div><div class="frame"><div class="zoom"><div class="band">{node(trees[k])}</div></div></div></div>' for k, t, d in ROWS)
-    for th, c in GTHEME.items():
-        page = GALLERY.replace('{rows}', rows)
-        for k, v in c.items():
-            page = page.replace('{' + k + '}', v)
-        open(f'{out}/states-{th}.html', 'w').write(page)
+    gallery(out, 'states', STATES, trees)
+    gallery(out, 'layouts', LAYOUTS, trees)
     print('stills')

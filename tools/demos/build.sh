@@ -69,13 +69,16 @@ done
 echo "site"
 python3 gen_site.py "$OUT/site.txt" site/template.html "$DOCS/index.html" >/dev/null
 
-# ---- 5. the stills: social card, expanded band, states gallery ---------------
+# ---- 5. the stills: social card, expanded band, states and layouts galleries -
 echo "stills"
 mkdir -p "$OUT/stills"
 python3 stills.py "$OUT/site.txt" "$OUT/stills" >/dev/null
 shot 1280 640 "$OUT/stills/social.html" "$DOCS/social-preview.png"
 shot 1012 700 "$OUT/stills/expanded.html" "$DOCS/band-expanded.png"
-for th in light dark; do shot 1100 900 "$OUT/stills/states-$th.html" "$DOCS/band-states-$th.png"; done
+for th in light dark; do
+  shot 1100 900 "$OUT/stills/states-$th.html" "$DOCS/band-states-$th.png"
+  shot 1100 1600 "$OUT/stills/layouts-$th.html" "$DOCS/band-layouts-$th.png"
+done
 python3 - "$DOCS" <<'EOF'
 import sys
 from PIL import Image
@@ -83,7 +86,7 @@ def crop(path, pad=48):
     im = Image.open(path).convert('RGB'); bg = im.getpixel((2, im.height - 2)); w, h = im.size; px = im.load()
     last = next((y for y in range(h - 1, -1, -1) if any(sum(abs(a - b) for a, b in zip(px[x, y], bg)) > 12 for x in range(0, w, 4))), h)
     im.crop((0, 0, w, min(h, last + pad))).save(path)
-for name in ['band-expanded.png', 'band-states-light.png', 'band-states-dark.png']:
+for name in ['band-expanded.png'] + [f'band-{g}-{th}.png' for g in ('states', 'layouts') for th in ('light', 'dark')]:
     crop(f'{sys.argv[1]}/{name}')
 EOF
 echo "done: docs/ is up to date"

@@ -2,7 +2,7 @@
 // resets, projections, ages, clipped names and the context in use.
 
 import { test, expect } from 'claude-code/testing'
-import { clipMiddle, contextUsed, fmtAgo, fmtCost, fmtCountdown, fmtEstimate, fmtEta, fmtSmallCost, fmtTokens, resetIn } from '../hooks/format'
+import { clipMiddle, contextUsed, fmtAgo, fmtCost, fmtCountdown, fmtEstimate, fmtEta, fmtPct, fmtSmallCost, fmtTokens, resetIn } from '../hooks/format'
 
 const SEC = 1000
 const MIN = 60 * SEC
@@ -24,6 +24,9 @@ test('tokens: whole under a thousand, a tenth of a k to ten thousand, whole k ab
   expect(fmtTokens(1_500_000)).toBe('1.5M')
 })
 
+test('a share reads as a whole percent', () => {
+  expect([fmtPct(0), fmtPct(0.38), fmtPct(0.965), fmtPct(1)]).toEqual(['0%', '38%', '97%', '100%'])
+})
 test('tokens never count below zero', () => {
   expect(fmtTokens(-5)).toBe('0')
 })

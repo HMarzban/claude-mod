@@ -24,5 +24,7 @@ jobs:
           claude plugin validate plugins/session-usage-band
       - name: Test
         run: claude plugin test plugins/session-usage-band
+      - name: Views never format
+        run: tools/views-gate.sh
       # No type check here: the engine writes its API types only when a
       # signed-in session loads the plugin. See CONTRIBUTING.md.

@@ -46,6 +46,15 @@ test("once a reply is seen, the measured cache stands and the recall doesn't", (
   expect(view.window).toBe(81_500)
 })
 
+test('a measured cache goes cold a lifetime after the reply this band saw; a recalled one has no such time', () => {
+  resetCache()
+  noteLoad(2.41)
+  noteRecall(0, RATE)
+  expect(cacheView(10 * MIN, 2.41, 76_000).coldAt).toBeNull()
+  recordResponse({ input_tokens: 1_000, output_tokens: 500, cache_read_input_tokens: 0, cache_creation_input_tokens: 80_000 }, 5 * MIN, true, undefined)
+  expect(cacheView(90 * MIN, 2.41, 76_000).coldAt).toBe(65 * MIN)
+})
+
 test('a reset forgets the recall and the model the tokens were priced at', () => {
   resetCache()
   notePriceModel('claude-opus-5-5')
