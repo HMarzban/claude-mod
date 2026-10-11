@@ -15,8 +15,8 @@ test('readings name every limit with its tone, value, reset and projection', () 
   expect(r.worstLimit?.name).toBe('7d')
   expect(r.limits.map(l => l.name)).toEqual(['5h', '7d'])
 })
-test("chips' card keeps its own pace tail", () => {
-  expect(readingsOf(snapOf()).chips.reading.windows.map(w => w.cardPace)).toEqual([' · on pace for ~10%', ' · on pace for ~50%'])
+test("a card says each limit's reset with its pace", () => {
+  expect(readingsOf(snapOf()).limits.map(l => l.cardReset)).toEqual(['resets 3h 00m · on pace for ~10%', 'resets 2d 19h · on pace for ~50%'])
 })
 test('a limit at 82% reads 5h 82%, with no mark, and is amber', () => {
   const r = readingsOf(snapOf({ fiveHour: { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }))
@@ -27,7 +27,7 @@ test('a measured 5h fill sets its projection to 100', () => {
   const r = readingsOf(snapOf({ fiveHour: { percentUsed: 84, resetsAt: new Date(70 * MIN).toISOString(), etaMs: 40 * MIN } }))
   expect(r.fiveHour?.projectedPct).toBe(100)
   expect(r.fiveHour?.tone).toBe('amber')
-  expect(r.chips.reading.windows[0]?.cardPace).toBe(' · full in ~40m')
+  expect(r.fiveHour?.cardReset).toBe('resets 1h 10m · full in ~40m')
 })
 test('a gateway spend limit is a limit named spend', () => {
   const r = readingsOf(snapOf({ otherLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: undefined }] }))

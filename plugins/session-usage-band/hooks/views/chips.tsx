@@ -1,46 +1,29 @@
-// Chips, the band as it has always been: a row of pills, and four cards
-// beneath it when open. It keeps its own cache pill, limit chips and cards;
-// it draws from the snapshot itself (`read.chips.raw`), as it did in band.tsx.
+// Chips, the band as it has always been: a row of pills, and the shared
+// cards beneath it when open. Its pill builders and its row are exported, so
+// a layout composes chips' pills, tints and icons rather than drawing its
+// own; they draw from the snapshot itself (`read.chips.raw`), as they did in
+// band.tsx.
 
-import type { RenderChildren, RenderElement } from 'claude-code'
+import type { RenderElement } from 'claude-code'
 import { meter } from '../charts'
-import {
-  fmtCost,
-  fmtAgo,
-  fmtEta,
-  fmtSmallCost,
-  fmtTokens,
-  severityMark,
-} from '../format'
+import { fmtCost, fmtEta, fmtSmallCost, fmtTokens, severityMark } from '../format'
 import { asciiText } from '../glyphs'
 import type { Icon } from '../icons'
 import type { Kit } from '../kit'
-import {
-  CARD_TEXT,
-  GIVES_WAY,
-  HOTKEY_MARK,
-  ROW_SLACK,
-  SHORT_BELOW,
-  cellsOf,
-  keeps,
-  spansOf,
-  squeezeToFit,
-} from '../layout'
-import type { BarSize, Piece } from '../layout'
-import { BARE } from '../palette'
+import { GIVES_WAY, ROW_SLACK, SHORT_BELOW, cellsOf, keeps, spansOf, squeezeToFit } from '../layout'
+import type { Piece } from '../layout'
 import type { Palette } from '../palette'
-import type { ChipsWindow, LimitKey, LimitView, Readings, Tone } from '../reading'
+import type { LimitKey, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
-import { drawStrip } from '../strip'
 import { paceText } from '../words'
 import { toggleButton } from './frame'
 import { batteryIcon, pill, textBattery } from './parts'
 import type { PillSpec } from './parts'
-import type { View } from './view'
+import { defineCardsView } from './view'
 
 // ---- limits ---------------------------------------------------------------
 
-type ChipKey = Exclude<LimitKey, 'other'>
+export type ChipKey = Exclude<LimitKey, 'other'>
 type Tint = Readonly<{ bg: string; fg: string; accent: string }>
 type LimitSpec = Readonly<{
   icon: Icon
@@ -71,501 +54,195 @@ const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
   },
 }
 
-// ---- drawing --------------------------------------------------------------
+// ---- the pills --------------------------------------------------------------
 
-/** The expanded view's cards, in the order they are drawn. */
-type CardName = 'cache' | 'spend' | 'context' | 'limits'
+/** Whether the row says the cache and context short at `squeeze`: always
+ *  below `SHORT_BELOW` columns. */
+export const shortAt = (kit: Kit, squeeze: number): boolean => kit.columns < SHORT_BELOW || !keeps(squeeze, 'shortWording')
 
-/** A part of a split bar as its legend shows it: its colour and its fill. */
-type Swatch = Readonly<{ color: string; mark: string }>
-
-const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement => {
-  const { Box, Button, Text, Svg, palette, measure, asDrawn, onTone, oneLine, hoverCard, gap, icon } = kit
-  const snap = read.chips.raw
-  const c = snap.cache
-  const ascii = read.frame.glyphs === 'ascii'
-  // ---- what the pills say, whatever the squeeze ----------------------------
-  const { mood, estimate, tone: cacheTone, charge } = read.cache
-  const { copy, tokenBreakdown } = read.chips.reading
-
-  const ctx = snap.context
-  const {
-    known: hasContext,
-    frac: ctxFrac,
-    pct: ctxPct,
-    toCompact,
-    nearCompact,
-    tone: ctxTone,
-  } = read.context
-
-  // ---- the cache pill ----------------------------------------------------
-  const cachePill = (short: boolean): PillSpec => {
-    const text = copy.pill(short)
-    if (Svg) {
-      // A normal rounded pill led by a draining battery icon; the text-surface
-      // battery would paint a square-cornered block here.
-      return {
-        key: 'cache',
-        tone: cacheTone,
-        body: [batteryIcon(kit, charge, cacheTone, copy.alt), <Text key="c" color={onTone(cacheTone, palette.value)}>{` ${text}`}</Text>],
-        hover: copy.hover,
-      }
-    }
-    // The ascii label is mapped before the battery's cut, so a dropped glyph
-    // neither leaves a gap at the cut nor takes its cells from the charge.
-    if (palette.filled) {
-      const label = `◷ ${text}`
-      return { key: 'cache', tone: cacheTone, body: textBattery(kit, charge, cacheTone, ascii ? asciiText(label) : label), hover: copy.hover, paintsOwnBg: true }
-    }
-    const dot = mood === 'warm' || mood === 'expiring' ? palette.warm : palette.cold
+/** The cache pill: a draining battery and its countdown, or its mood. */
+export const cachePill = (kit: Kit, read: Readings, short: boolean): PillSpec => {
+  const { Text, Svg, palette, onTone } = kit
+  const { mood, tone, charge } = read.cache
+  const { copy } = read.chips.reading
+  const text = copy.pill(short)
+  if (Svg) {
+    // A normal rounded pill led by a draining battery icon; the text-surface
+    // battery would paint a square-cornered block here.
     return {
       key: 'cache',
-      tone: cacheTone,
-      body: [
-        cacheTone === 'amber' ? null : <Text key="dot" color={dot}>{'● '}</Text>,
-        <Text key="c" color={onTone(cacheTone, palette.value)}>
-          {cacheTone === 'amber' ? `◷ ${text}` : text}
-        </Text>,
-      ],
+      tone,
+      body: [batteryIcon(kit, charge, tone, copy.alt), <Text key="c" color={onTone(tone, palette.value)}>{` ${text}`}</Text>],
       hover: copy.hover,
     }
   }
+  // The ascii label is mapped before the battery's cut, so a dropped glyph
+  // neither leaves a gap at the cut nor takes its cells from the charge.
+  if (palette.filled) {
+    const label = `◷ ${text}`
+    return { key: 'cache', tone, body: textBattery(kit, charge, tone, read.frame.glyphs === 'ascii' ? asciiText(label) : label), hover: copy.hover, paintsOwnBg: true }
+  }
+  const dot = mood === 'warm' || mood === 'expiring' ? palette.warm : palette.cold
+  return {
+    key: 'cache',
+    tone,
+    body: [
+      tone === 'amber' ? null : <Text key="dot" color={dot}>{'● '}</Text>,
+      <Text key="c" color={onTone(tone, palette.value)}>
+        {tone === 'amber' ? `◷ ${text}` : text}
+      </Text>,
+    ],
+    hover: copy.hover,
+  }
+}
 
-  // ---- a limit chip ------------------------------------------------------
-  // Its usage on a bar and the reset; a pace that fills it early speaks in
-  // words. A window whose reset has passed shows as reset: its last reading
-  // is from before it.
-  const limitChip = (key: ChipKey, w: LimitView, pace: string, squeeze: number): PillSpec => {
-    const spec = LIMITS[key]
-    const tint = spec.tint(palette)
-    const { reset: r, frac, tone } = w
-    if (r?.kind === 'passed') {
-      return {
-        key,
-        tone: 'calm',
-        bg: tint.bg,
-        body: [...icon(spec.icon, tint.accent), <Text key="l" color={tint.fg}>{`${key} reset`}</Text>],
-        hover: `${spec.title} has reset; it updates after your next message`,
-      }
-    }
-    const fg = onTone(tone, tint.fg)
-    const accent = onTone(tone, tint.accent)
-    const bar = keeps(squeeze, 'limitBars') ? [gap('g-bar'), meter(kit, { label: key, frac, tone, accent: tint.accent })] : []
-    const reset =
-      r !== undefined && keeps(squeeze, tone === 'amber' ? spec.amberReset : spec.reset)
-        ? [<Text key="d" color={palette.label}>{' │ '}</Text>, ...icon('reset', accent), <Text key="r" color={fg}>{r.text}</Text>]
-        : []
+/** The session's cost; its card names the last message's. */
+export const costPill = (kit: Kit, read: Readings): PillSpec => {
+  const { Text, palette, icon } = kit
+  const snap = read.chips.raw
+  return {
+    key: 'cost',
+    tone: 'calm',
+    body: [...icon('cost', palette.coin), <Text key="v" color={palette.value} bold>{fmtCost(snap.costUsd)}</Text>],
+    hover:
+      snap.lastTurnUsd === null
+        ? `${fmtCost(snap.costUsd)} so far this session`
+        : `${fmtSmallCost(snap.lastTurnUsd)} spent during your last message, subagents included`,
+  }
+}
+
+/** The session's tokens; its card splits them by kind. */
+export const tokensPill = (kit: Kit, read: Readings): PillSpec => {
+  const { Text, palette, icon } = kit
+  return {
+    key: 'tokens',
+    tone: 'calm',
+    body: [...icon('tokens', palette.label), <Text key="v" color={palette.value}>{fmtTokens(read.spend.total)}</Text>],
+    hover: read.chips.reading.tokenBreakdown,
+  }
+}
+
+/** The context's fill on a meter, counting down to compaction once near it. */
+export const contextPill = (kit: Kit, read: Readings, squeeze: number): PillSpec => {
+  const { Text, palette, onTone, gap, icon } = kit
+  const ctx = read.chips.raw.context
+  const { frac, pct, toCompact, nearCompact, tone } = read.context
+  const amount =
+    ctx.compactAt !== undefined
+      ? keeps(squeeze, 'shortWording')
+        ? `${pct} full`
+        : pct
+      : !keeps(squeeze, 'shortWording') || ctx.tokens === undefined
+        ? pct
+        : `${fmtTokens(ctx.tokens)} / ${fmtTokens(ctx.window)}`
+  const mark = ctx.compactAt === undefined ? severityMark(frac) : ''
+  const countdown = nearCompact && toCompact !== undefined ? ` · compacts in ~${fmtTokens(toCompact)}` : ''
+  return {
+    key: 'ctx',
+    tone,
+    body: [
+      ...icon('context', onTone(tone, palette.label)),
+      ...(keeps(squeeze, 'contextMeter') ? [meter(kit, { label: 'context', frac, tone, accent: palette.meterFill }), gap('g-bar')] : []),
+      <Text key="v" color={onTone(tone, palette.value)}>
+        {`${amount}${mark}${countdown}`}
+      </Text>,
+    ],
+    hover:
+      ctx.compactAt === undefined || toCompact === undefined
+        ? `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.window)} (${pct}); older turns get summarized near full`
+        : `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.compactAt)} (${pct}); auto-compacts in ~${fmtTokens(toCompact)}`,
+  }
+}
+
+/** A limit chip: its usage on a bar and the reset; a pace that fills it
+ *  early speaks in words. A window whose reset has passed shows as reset:
+ *  its last reading is from before it. Undefined while the engine reports
+ *  no such window. */
+export const limitPill = (kit: Kit, read: Readings, key: ChipKey, squeeze: number, short: boolean): PillSpec | undefined => {
+  const { Text, palette, onTone, gap, icon } = kit
+  const w = key === '5h' ? read.fiveHour : read.sevenDay
+  if (w === undefined) return undefined
+  const spec = LIMITS[key]
+  const tint = spec.tint(palette)
+  const { reset: r, frac, tone } = w
+  if (r?.kind === 'passed') {
     return {
       key,
-      tone,
+      tone: 'calm',
       bg: tint.bg,
-      body: [
-        ...icon(spec.icon, accent),
-        <Text key="l" color={fg}>
-          {key}
-        </Text>,
-        ...bar,
-        <Text key="v" color={fg} bold>
-          {` ${w.value}${severityMark(frac)}${pace}`}
-        </Text>,
-        ...reset,
-      ],
-      // The card covers its chip, so it leads with the fact the chip had,
-      // and a short row's cut only takes the description.
-      hover:
-        r === undefined
-          ? `Your ${spec.title.toLowerCase()}, across all your Claude use`
-          : `Resets in ${r.text}; ${spec.title.toLowerCase()}, all your Claude use`,
+      body: [...icon(spec.icon, tint.accent), <Text key="l" color={tint.fg}>{`${key} reset`}</Text>],
+      hover: `${spec.title} has reset; it updates after your next message`,
     }
   }
-
-  // ---- the row, at a given squeeze ---------------------------------------
-  const buildPills = (squeeze: number): PillSpec[] => {
-    const short = snap.columns < SHORT_BELOW || !keeps(squeeze, 'shortWording')
-    const pills: PillSpec[] = [
-      cachePill(short),
-      {
-        key: 'cost',
-        tone: 'calm',
-        body: [...icon('cost', palette.coin), <Text key="v" color={palette.value} bold>{fmtCost(snap.costUsd)}</Text>],
-        hover:
-          snap.lastTurnUsd === null
-            ? `${fmtCost(snap.costUsd)} so far this session`
-            : `${fmtSmallCost(snap.lastTurnUsd)} spent during your last message, subagents included`,
-      },
-    ]
-
-    if (read.cache.measured && keeps(squeeze, 'tokens')) {
-      pills.push({
-        key: 'tokens',
-        tone: 'calm',
-        body: [...icon('tokens', palette.label), <Text key="v" color={palette.value}>{fmtTokens(read.spend.total)}</Text>],
-        hover: tokenBreakdown,
-      })
-    }
-
-    if (hasContext && (ctxTone === 'amber' || keeps(squeeze, 'calmContext'))) {
-      const amount =
-        ctx.compactAt !== undefined
-          ? keeps(squeeze, 'shortWording')
-            ? `${ctxPct} full`
-            : ctxPct
-          : !keeps(squeeze, 'shortWording') || ctx.tokens === undefined
-            ? ctxPct
-            : `${fmtTokens(ctx.tokens)} / ${fmtTokens(ctx.window)}`
-      const mark = ctx.compactAt === undefined ? severityMark(ctxFrac) : ''
-      const countdown = nearCompact && toCompact !== undefined ? ` · compacts in ~${fmtTokens(toCompact)}` : ''
-      pills.push({
-        key: 'ctx',
-        tone: ctxTone,
-        body: [
-          ...icon('context', onTone(ctxTone, palette.label)),
-          ...(keeps(squeeze, 'contextMeter')
-            ? [meter(kit, { label: 'context', frac: ctxFrac, tone: ctxTone, accent: palette.meterFill }), gap('g-bar')]
-            : []),
-          <Text key="v" color={onTone(ctxTone, palette.value)}>
-            {`${amount}${mark}${countdown}`}
-          </Text>,
-        ],
-        hover:
-          ctx.compactAt === undefined || toCompact === undefined
-            ? `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.window)} (${ctxPct}); older turns get summarized near full`
-            : `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.compactAt)} (${ctxPct}); auto-compacts in ~${fmtTokens(toCompact)}`,
-      })
-    }
-
-    const five = read.fiveHour
-    if (five) {
-      const eta = five.etaMs
-      if (five.tone === 'amber' || keeps(squeeze, LIMITS['5h'].calm)) {
-        const pace = eta === null ? '' : short ? ` ${fmtEta(eta)}` : ` ${paceText(five)}`
-        pills.push(limitChip('5h', five, pace, squeeze))
-      }
-    }
-
-    const seven = read.sevenDay
-    if (seven && (seven.tone === 'amber' || keeps(squeeze, LIMITS['7d'].calm))) pills.push(limitChip('7d', seven, '', squeeze))
-    return pills
+  const pace = w.etaMs === null ? '' : short ? ` ${fmtEta(w.etaMs)}` : ` ${paceText(w)}`
+  const fg = onTone(tone, tint.fg)
+  const accent = onTone(tone, tint.accent)
+  const bar = keeps(squeeze, 'limitBars') ? [gap('g-bar'), meter(kit, { label: key, frac, tone, accent: tint.accent })] : []
+  const reset =
+    r !== undefined && keeps(squeeze, tone === 'amber' ? spec.amberReset : spec.reset)
+      ? [<Text key="d" color={palette.label}>{' │ '}</Text>, ...icon('reset', accent), <Text key="r" color={fg}>{r.text}</Text>]
+      : []
+  return {
+    key,
+    tone,
+    bg: tint.bg,
+    body: [
+      ...icon(spec.icon, accent),
+      <Text key="l" color={fg}>
+        {key}
+      </Text>,
+      ...bar,
+      <Text key="v" color={fg} bold>
+        {` ${w.value}${severityMark(frac)}${pace}`}
+      </Text>,
+      ...reset,
+    ],
+    // The card covers its chip, so it leads with the fact the chip had,
+    // and a short row's cut only takes the description.
+    hover:
+      r === undefined
+        ? `Your ${spec.title.toLowerCase()}, across all your Claude use`
+        : `Resets in ${r.text}; ${spec.title.toLowerCase()}, all your Claude use`,
   }
+}
 
-  const rowOf = (specs: PillSpec[]): RenderElement => {
-    const pills = specs.map(spec => pill(kit, spec))
-    const toggle = toggleButton(kit, read, act)
-    // A card ends short of ▵ and the gap before it, and covers whole pills.
-    const room = snap.columns - cellsOf(toggle, measure) - 1
-    const pieces = spansOf(pills.map(asDrawn), 1, measure)
-    return (
-      <Box key="row" flexDirection="row" flexWrap="nowrap" overflow="hidden" columnGap={1}>
-        {pills}
-        <Box flexGrow={1} />
-        {specs.map(({ key, hover }, i) => (hover === undefined ? null : hoverCard(key, hover, { left: pieces[i]?.[0] ?? 0, room, pieces })))}
-        {toggle}
-      </Box>
-    )
-  }
+/** Chips' pills at a squeeze, in its order: the calm ones give way by
+ *  `GIVES_WAY`, an amber one holds out. */
+export const chipsPills = (kit: Kit, read: Readings, squeeze: number): PillSpec[] => {
+  const short = shortAt(kit, squeeze)
+  const calm = (tone: 'calm' | 'amber', piece: Piece) => tone === 'amber' || keeps(squeeze, piece)
+  const five = read.fiveHour && calm(read.fiveHour.tone, LIMITS['5h'].calm) ? limitPill(kit, read, '5h', squeeze, short) : undefined
+  const seven = read.sevenDay && calm(read.sevenDay.tone, LIMITS['7d'].calm) ? limitPill(kit, read, '7d', squeeze, short) : undefined
+  return [
+    cachePill(kit, read, short),
+    costPill(kit, read),
+    ...(read.cache.measured && keeps(squeeze, 'tokens') ? [tokensPill(kit, read)] : []),
+    ...(read.context.known && calm(read.context.tone, 'calmContext') ? [contextPill(kit, read, squeeze)] : []),
+    ...(five === undefined ? [] : [five]),
+    ...(seven === undefined ? [] : [seven]),
+  ]
+}
 
-  const row = squeezeToFit(squeeze => rowOf(buildPills(squeeze)), GIVES_WAY.length, snap.columns - ROW_SLACK, measure)
-
-  // ---- the expanded view: four cards, every fact labelled ----------------
-  // Built only when open: a closed band draws the row alone.
-  const expandedView = (): RenderChildren[] => {
-    /** A label and its value at either end of a line; `swatch` keys a legend
-     *  in its part's colour and fill. */
-    const factRow = (label: string, value: string, swatch?: Swatch) => (
-      <Box key={`fact:${label}`} flexDirection="row" justifyContent="space-between" columnGap={2}>
-        <Text color={palette.label}>
-          {swatch === undefined ? null : <Text key="sw" color={swatch.color}>{`${swatch.mark} `}</Text>}
-          {label}
-        </Text>
-        <Text color={palette.cardValue}>{value}</Text>
-      </Box>
-    )
-    /** A fact the readings may not know yet: nothing until they do. */
-    const knownRow = (label: string, value: string | undefined) => (value === undefined ? null : factRow(label, value))
-    const note = (text: string) => (
-      <Text key="note" color={palette.label} wrap="wrap">
-        {text}
-      </Text>
-    )
-
-    // The grid: as many cards to a line as hold their text, else two, else one.
-    // Each line shares its width equally (a zero basis, grown alike), so the
-    // cards align whatever their text and a line never wraps one away. A
-    // desktop card has a visible edge; a terminal card is a fill, its border
-    // would cost two columns. Lines keep a row of air between them.
-    const bordered = Svg !== undefined || !palette.filled
-    const edge = bordered ? 2 : 0
-    const minCard = Math.ceil(CARD_TEXT * measure.text) + 2 + edge
-    // The cards present, which the grid lays out.
-    const present: readonly CardName[] = [
-      'cache',
-      'spend',
-      ...(hasContext ? (['context'] as const) : []),
-      ...(snap.fiveHour || snap.sevenDay || snap.otherLimits.length > 0 ? (['limits'] as const) : []),
-    ]
-    const cardCount = present.length
-    const fits = (n: number) => n * minCard + (n - 1) <= snap.columns
-    const perLine = [cardCount, Math.ceil(cardCount / 2)].find(fits) ?? 1
-    const lineCount = Math.ceil(cardCount / perLine)
-    const lineGap = 1
-    // The rows a card's body may take: the band's, less the chip row, the
-    // buttons, the row of air above each line of cards and the buttons and,
-    // when it shows, the workspace strip, shared by the lines, less a card's
-    // edge and its header. A taller band would scroll, hiding the buttons.
-    const bodyFor = (strip: number) =>
-      Math.floor((snap.maxRows - 4 - strip - lineGap * (lineCount - 1)) / lineCount) - edge - 1
-    // The strip heads the view when every card still keeps a fact of its own;
-    // short of that row it takes the footer's, in place of the hint.
-    const stripPlace: 'top' | 'footer' | undefined =
-      snap.workspace === undefined ? undefined : bodyFor(1) >= 1 ? 'top' : 'footer'
-    const bodyRows = Math.max(1, bodyFor(stripPlace === 'top' ? 1 : 0))
-    const inner = Math.max(4, Math.floor((snap.columns - (perLine - 1)) / perLine) - 2 - edge)
-    const cardBar: BarSize = { px: inner * measure.pxPerCell, cells: inner }
-    /** As much of a card's body as the band has rows for, its facts listed
-     *  most important first. Its bar repeats a chip's, so it shows only when
-     *  every fact fits beside it; short of rows, a fact wins. */
-    const fitBody = (bar: RenderChildren, body: RenderChildren[]): RenderChildren[] => {
-      const facts = body.filter(part => part !== null && part !== undefined)
-      return bar !== null && facts.length < bodyRows ? [bar, ...facts] : facts.slice(0, bodyRows)
-    }
-    // Each card's mark: the chips' own icons, so the band speaks one language.
-    const cardIcon: Readonly<Record<CardName, readonly [Icon, string]>> = {
-      cache: ['cache', palette.warm],
-      spend: ['cost', palette.coin],
-      context: ['context', palette.label],
-      limits: ['limits', LIMITS['5h'].tint(palette).accent],
-    }
-    /** A card: its title and headline on one line, then its bar and body. */
-    const card = (
-      name: CardName,
-      title: string,
-      head: Readonly<{ text: string; tone?: Tone }>,
-      bar: RenderChildren,
-      body: RenderChildren[],
-    ) => (
-      <Box
-        key={`card:${name}`}
-        flexDirection="column"
-        flexGrow={1}
-        width={0}
-        minWidth={0}
-        paddingX={1}
-        {...(palette.filled ? { backgroundColor: palette.cardBg } : {})}
-        {...(bordered ? { borderStyle: 'round', borderColor: palette.cardBorder } : {})}
-      >
-        <Box key="head" flexDirection="row" justifyContent="space-between" columnGap={1}>
-          <Box key="title" flexDirection="row" flexShrink={0}>
-            {/* Desktop alone: a terminal title stays plain text. */}
-            {Svg ? icon(...cardIcon[name]) : null}
-            <Text color={palette.label}>{title.toUpperCase()}</Text>
-          </Box>
-          {oneLine({ color: onTone(head.tone ?? 'calm', palette.value), bold: true }, head.text)}
-        </Box>
-        {fitBody(bar, body)}
-      </Box>
-    )
-
-    /** A bar split into parts, each its share of the whole, in its own colour
-     *  and, in text, its own fill. */
-    const splitBar = (label: string, parts: ReadonlyArray<readonly [number, Swatch]>) => {
-      const total = parts.reduce((sum, [n]) => sum + n, 0)
-      if (total <= 0) return null
-      if (Svg) {
-        // Drawn wider than any card and capped by it, like a stretched meter.
-        // No clipPath, whose id would be page-wide: the end segments draw their
-        // own rounded ends, as paths, the inner ones square.
-        const width = cardBar.px * 2
-        const R = 6
-        const shown = parts.filter(([n]) => n > 0)
-        let x = 0
-        const segments = shown.map(([n, { color }], i) => {
-          const x0 = x
-          x += (n / total) * width
-          const first = i === 0
-          const last = i === shown.length - 1
-          // Each ends a pixel short of the next, so the ground divides them.
-          const x1 = last ? x : Math.max(x0, x - 1)
-          const f = (v: number) => v.toFixed(1)
-          if (x1 - x0 < 2 * R || (!first && !last)) {
-            return `<rect x="${f(x0)}" y="1" width="${f(x1 - x0)}" height="6"${first && last ? ` rx="${R}" ry="3"` : ''} fill="${color}"/>`
-          }
-          if (first && last) return `<rect x="${f(x0)}" y="1" width="${f(x1 - x0)}" height="6" rx="${R}" ry="3" fill="${color}"/>`
-          return first
-            ? `<path d="M${f(x0 + R)} 1H${f(x1)}V7H${f(x0 + R)}A${R} 3 0 0 1 ${f(x0 + R)} 1Z" fill="${color}"/>`
-            : `<path d="M${f(x0)} 1H${f(x1 - R)}A${R} 3 0 0 1 ${f(x1 - R)} 7H${f(x0)}Z" fill="${color}"/>`
-        })
-        const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="8" viewBox="0 0 ${width} 8" preserveAspectRatio="none">${segments.join('')}</svg>`
-        return <Svg key="split" source={source} alt={label} height={8} />
-      }
-      const cells = cardBar.cells
-      let used = 0
-      return (
-        <Text key="split">
-          {parts.map(([n, { color, mark }], i) => {
-            const count = i === parts.length - 1 ? cells - used : Math.round((n / total) * cells)
-            used += count
-            return (
-              <Text key={`s${i}`} color={color}>
-                {mark.repeat(Math.max(0, count))}
-              </Text>
-            )
-          })}
-        </Text>
-      )
-    }
-
-    const { measured, known } = read.cache
-    const cacheView = card(
-      'cache',
-      'Cache',
-      {
-        text: copy.head,
-        tone: cacheTone,
-      },
-      known ? meter(kit, { label: 'cache', frac: charge, tone: cacheTone, accent: palette.warm, size: cardBar, stretch: true, reads: 'left' }) : null,
-      [
-        copy.note === undefined ? null : note(copy.note),
-        known ? factRow(mood === 'cold' ? 'next message' : 're-warm if cold', estimate) : null,
-        c.recalled && c.idleMs !== null ? factRow('idle for', fmtAgo(c.idleMs)) : null,
-        knownRow('unexpected rebuilds', read.cache.rebuildsText),
-        knownRow('saved by cache', read.cache.savedText),
-        knownRow('hit rate', read.cache.hitText),
-        factRow('expires', read.cache.lastsText),
-      ],
-    )
-
-    // Cache reads in the warm colour: cheap, and often most of the bar. In
-    // text each part has its own fill too, since the inks sit close in
-    // lightness: colour is never the only signal. The desktop's parts are
-    // solid, divided by the ground, so its legend marks them solid.
-    const [inputFill, outputFill, readsFill] = Svg ? ['■', '■', '■'] : ascii ? ['#', '=', '+'] : ['█', '▓', '▒']
-    const tokenParts: ReadonlyArray<readonly [string, number, Swatch]> = [
-      ['input', c.tokens.sent, { color: palette.meterFill, mark: inputFill }],
-      ['output', c.tokens.back, { color: palette.coin, mark: outputFill }],
-      ['cache reads', c.tokens.cached, { color: palette.warm, mark: readsFill }],
-    ]
-    const spendView = card(
-      'spend',
-      'Spend',
-      { text: fmtCost(snap.costUsd) },
-      measured ? splitBar('token split: input, output, cache reads', tokenParts.map(([, n, swatch]) => [n, swatch] as const)) : null,
-      [
-      snap.lastTurnUsd !== null ? factRow('last message', fmtSmallCost(snap.lastTurnUsd)) : null,
-      ...(measured ? tokenParts.map(([label, n, swatch]) => factRow(label, fmtTokens(n), swatch)) : [note('Breakdown counts from your next message.')]),
-      ],
-    )
-
-    const contextView = hasContext
-      ? card(
-          'context',
-          'Context',
-          { text: `${ctxPct} full${ctx.compactAt === undefined ? severityMark(ctxFrac) : ''}`, tone: ctxTone },
-          meter(kit, { label: 'context', frac: ctxFrac, tone: ctxTone, accent: palette.meterFill, size: cardBar, stretch: true }),
-          [
-          knownRow('room left', read.context.roomText),
-          knownRow('auto-compacts at', read.context.compactsAtText),
-          factRow('in context', read.context.inContextText),
-          factRow('model window', read.context.windowText),
-          ],
-        )
-      : null
-
-    const { windows } = read.chips.reading
-    const worst = read.worstLimit
-    /** A window's bar in its chip's own accent; any other window's in the meter's. */
-    const windowAccent = (w: ChipsWindow) => (w.key === 'other' ? palette.meterFill : LIMITS[w.key].tint(palette).accent)
-    const valueOf = (w: LimitView) => `${w.value}${severityMark(w.frac)}`
-
-    /** One window: its name, bar and value on a line, then its reset and pace in words. */
-    const limitRows = (w: ChipsWindow): readonly [RenderChildren, RenderChildren] => {
-      const { name, reset: r, frac, tone, cardPace: pace } = w
-      if (r?.kind === 'passed') return [factRow(name, 'reset'), null]
-      const accent = windowAccent(w)
-      const value = valueOf(w)
-      const room = Math.max(4, inner - [...name].length - [...value].length - 2)
-      return [
-        <Box key={`fact:${name}`} flexDirection="row" columnGap={1}>
-          <Text color={palette.label}>{name}</Text>
-          <Box key="bar" flexGrow={1} width={0} minWidth={0}>
-            {meter(kit, { label: name, frac, tone, accent, size: { px: room * measure.pxPerCell, cells: room }, stretch: true })}
-          </Box>
-          <Text color={onTone(tone, palette.cardValue)}>{value}</Text>
-        </Box>,
-        r === undefined ? null : (
-          <Box key={`fact:${name} pace`}>
-            {oneLine({ color: palette.label }, `resets ${r.text}${pace}`)}
-          </Box>
-        ),
-      ]
-    }
-    /** Every window's rows; short of rows, each window's bar row before any
-     *  pace line. */
-    const limitLines = (): RenderChildren[] => {
-      const rows = windows.map(limitRows)
-      const lines = rows.flat().filter(part => part !== null)
-      return lines.length <= bodyRows ? lines : [...rows.map(([bar]) => bar), ...rows.map(([, pace]) => pace)]
-    }
-    const limitsView =
-      windows.length > 0
-        ? card(
-            'limits',
-            'Limits',
-            {
-              text: worst === undefined ? 'all reset' : `${worst.name} ${valueOf(worst)}`,
-              tone: worst === undefined ? 'calm' : worst.tone,
-            },
-            // Each window's bar is in its own row, so the card has none apart.
-            null,
-            limitLines(),
-          )
-        : null
-
-    const cardViews = [cacheView, spendView, contextView, limitsView].filter(view => view !== null)
-
-    const buttons = [
-      <Button key="collapse" label="Collapse" variant="secondary" hotkey="c" onPress={act.toggleExpanded} />,
-      <Button key="hide" label="Hide band" variant="secondary" hotkey="h" onPress={act.hide} />,
-    ]
-    let strip: RenderElement | null = null
-    if (stripPlace !== undefined && snap.workspace !== undefined) {
-      // In the footer it shares the line with the buttons and their hotkey marks.
-      const room =
-        snap.columns - ROW_SLACK - (stripPlace === 'footer' ? cellsOf(buttons, measure) + 2 * HOTKEY_MARK + 2 : 0)
-      strip = drawStrip(kit, snap.workspace, stripPlace, edge, room)
-    }
-
-    return [
-      stripPlace === 'top' ? strip : null,
-      <Box key="cards" flexDirection="column" rowGap={lineGap} marginTop={stripPlace === 'top' ? 0 : 1}>
-        {Array.from({ length: lineCount }, (_, i) => (
-          <Box key={`cards:${i}`} flexDirection="row" columnGap={1}>
-            {cardViews.slice(i * perLine, (i + 1) * perLine)}
-          </Box>
-        ))}
-      </Box>,
-      // A strip in the footer grows into all the room the buttons leave, at
-      // least the room its cards are given; the hint leaves it to air.
-      <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>
-        {stripPlace === 'footer' ? (
-          strip
-        ) : (
-          <Box key="hint" flexDirection="row">
-            {Svg ? icon('info', BARE.icon) : null}
-            <Text color={BARE.label}>Bring it back with /usage-band</Text>
-          </Box>
-        )}
-        {stripPlace === 'footer' && strip !== null ? null : <Box flexGrow={1} />}
-        {buttons}
-      </Box>,
-    ]
-  }
-
+/** Pills in a row, each revealing its card, then air and the toggle. A card
+ *  ends short of ▵ and the gap before it, and covers whole pills. */
+export const pillRow = (kit: Kit, read: Readings, act: BandActions, specs: readonly PillSpec[]): RenderElement => {
+  const { Box, measure, asDrawn, hoverCard } = kit
+  const pills = specs.map(spec => pill(kit, spec))
+  const toggle = toggleButton(kit, read, act)
+  const room = kit.columns - cellsOf(toggle, measure) - 1
+  const pieces = spansOf(pills.map(asDrawn), 1, measure)
   return (
-    <Box flexDirection="column">
-      {row}
-      {snap.expanded ? expandedView() : null}
+    <Box key="row" flexDirection="row" flexWrap="nowrap" overflow="hidden" columnGap={1}>
+      {pills}
+      <Box flexGrow={1} />
+      {specs.map(({ key, hover }, i) => (hover === undefined ? null : hoverCard(key, hover, { left: pieces[i]?.[0] ?? 0, room, pieces })))}
+      {toggle}
     </Box>
   )
 }
 
-export const chipsView: View = { name: 'chips', rows: { desktop: 1, terminal: 1 }, draw: drawChips }
+/** Chips' one row, squeezed until it fits. */
+const chipsRow = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
+  squeezeToFit(squeeze => pillRow(kit, read, act, chipsPills(kit, read, squeeze)), GIVES_WAY.length, kit.columns - ROW_SLACK, kit.measure)
+
+export const chipsView = defineCardsView('chips', { desktop: 1, terminal: 1 }, (kit, read, act) => [chipsRow(kit, read, act)])

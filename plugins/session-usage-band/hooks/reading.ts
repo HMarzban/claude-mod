@@ -55,14 +55,12 @@ export const cacheCharge = (c: Cache, mood: CacheMood, isWorking: boolean): numb
  *  known, else the tokens it writes. */
 export const reWarmEstimate = (c: Cache): string => (c.reWarmUsd !== null ? fmtEstimate(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`)
 
-/** Every word the band says about the cache, for one mood: the pill, its
- *  hover, the card's headline and note, and the battery's name. One table,
- *  so a mood's wording changes in one place. */
+/** Every word chips' row says about the cache, for one mood: the pill, its
+ *  hover and the battery's name. One table, so a mood's wording changes in
+ *  one place; the cards read theirs from `cacheWords`. */
 export type CacheCopy = Readonly<{
   pill: (short: boolean) => string
   hover: string
-  head: string
-  note: string | undefined
   alt: string
 }>
 
@@ -79,24 +77,18 @@ export const cacheCopy = (c: Cache, mood: CacheMood, isWorking: boolean): CacheC
       return {
         pill: () => 'cache –',
         hover: "Not measured since the band loaded; the countdown starts with Claude's next reply",
-        head: 'Not measured yet',
-        note: "Countdown starts with Claude's next reply.",
         alt: 'cache not measured yet',
       }
     case 'warming':
       return {
         pill: () => 'cache warming',
         hover: `Your first message builds the cache; after that it bills input at ${readPct}`,
-        head: 'Warming',
-        note: 'First message builds the cache.',
         alt: 'cache warming',
       }
     case 'expiring':
       return {
         pill: short => (short ? `${left} ${estimate}` : `${left} left · re-warm ${estimate}`),
         hover: warmHover,
-        head: `${left} left`,
-        note: undefined,
         alt: battery,
       }
     case 'cold':
@@ -104,8 +96,6 @@ export const cacheCopy = (c: Cache, mood: CacheMood, isWorking: boolean): CacheC
         // Cold is a price, not an error: neutral, no hue, no alarm.
         pill: short => (short ? `cold ${estimate}` : `cache cold · next message ${estimate}`),
         hover: `Cold: next message rebuilds ${fmtTokens(c.window)} tokens${c.reWarmUsd === null ? '' : ` (${fmtEstimate(c.reWarmUsd)})`}`,
-        head: 'Cold',
-        note: undefined,
         alt: battery,
       }
     case 'warm':
@@ -113,8 +103,6 @@ export const cacheCopy = (c: Cache, mood: CacheMood, isWorking: boolean): CacheC
         // Mid-turn every step restarts the TTL, so a countdown would only bounce.
         pill: () => (isWorking ? 'cache warm' : `cache ${left}`),
         hover: warmHover,
-        head: isWorking ? 'Warm' : `${left} left`,
-        note: undefined,
         alt: battery,
       }
   }
@@ -225,13 +213,10 @@ type SpendReading = SpendFacts & SpendWords
  *  is the snapshot's raw window. */
 export type LimitView = LimitFacts & LimitWords
 
-/** A window as chips' Limits card reads it: the view, and the card's pace tail. */
-export type ChipsWindow = LimitView & Readonly<{ cardPace: string }>
-
 type ChipsReadings = Readonly<{
   /** The snapshot itself: chips' own code moved over unchanged. Only chips reads it. */
   raw: BandSnapshot
-  reading: Readonly<{ copy: CacheCopy; tokenBreakdown: string; windows: readonly ChipsWindow[] }>
+  reading: Readonly<{ copy: CacheCopy; tokenBreakdown: string }>
 }>
 
 /** The conversation's trails, their words, and the series a chart draws. */
@@ -435,7 +420,6 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
       reading: {
         copy: cacheCopy(c, cache.mood, snap.isWorking),
         tokenBreakdown: `input ${fmtTokens(c.tokens.sent)} · output ${fmtTokens(c.tokens.back)} · cache reads ${fmtTokens(c.tokens.cached)}`,
-        windows: limits.map((l): ChipsWindow => ({ ...l, cardPace: l.pace === '' ? '' : ` · ${l.pace}` })),
       },
     },
   }

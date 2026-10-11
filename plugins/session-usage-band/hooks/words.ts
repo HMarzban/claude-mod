@@ -5,10 +5,12 @@
 import type { DayCell, HourCell, Week } from './calendar'
 import {
   FIVE_HOUR_MS,
+  fmtAgo,
   fmtBoardEta,
   fmtBoardLeft,
   fmtClock,
   fmtCost,
+  fmtCountdown,
   fmtDayClock,
   fmtEstimate,
   fmtEta,
@@ -20,6 +22,7 @@ import {
   fmtSmallCost,
   fmtTokens,
   isToday,
+  severityMark,
 } from './format'
 import type { ResetIn } from './format'
 import type { CostEntry, TrailPoint, Trails } from './insights'
@@ -116,6 +119,12 @@ export type CacheWords = Readonly<{
   lastsText: string
   /** Unexpected rebuilds, `2`, when there were any. */
   rebuildsText: string | undefined
+  /** How long a recalled cache sat idle, `2h 05m`; undefined unless recalled. */
+  idleText: string | undefined
+  /** The cache card's headline: its countdown, `59m left`, else its mood. */
+  cardHead: Say
+  /** The cache card's line while there is nothing to count. */
+  cardNote: string | undefined
   /** The board's status: `DEPARTS`, `LAST CALL`, `DEPARTED`, `BOARDING`, `WARMING` or `NOT MEASURED`. */
   board: string
   /** The board's countdown: `IN 52 MIN`, `47s` in the last minute; empty while not counting. */
@@ -144,6 +153,8 @@ export type ContextWords = Readonly<{
   /** `auto-compaction off`, only when the engine says so; unknown says nothing. */
   compactionOffText: string | undefined
   windowText: string
+  /** The context card's headline: `87% full`, marked past 80% when compaction is off. */
+  cardHead: Say
   alt: string
 }>
 
@@ -164,6 +175,11 @@ export type SpendWords = Readonly<{
 export type LimitWords = Readonly<{
   /** `4%`, or once its window has passed, `reset`. */
   valueText: string
+  /** `82%!`: the value with its escalation mark, colour never the only signal. */
+  valueMarked: string
+  /** A card's reset and pace: `resets 3h 00m · on pace for ~10%`; undefined
+   *  without a reset to come. */
+  cardReset: string | undefined
   /** `5h 4%`, or once its window has passed, `5h reset`. */
   text: string
   say: Say
@@ -228,6 +244,18 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
   const off = frame.utcOffsetMin
   // Spoken, a price is never marked ~: the alt says "about".
   const price = c.reWarmUsd !== null ? fmtSmallCost(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`
+  // The card counts down as chips' row always has: `1h 05m`, `0:47`.
+  const countdown: Say = [[fmtCountdown(c.msLeft), 'value'], [' left', 'label']]
+  const cardHead: Say =
+    f.mood === 'unmeasured'
+      ? [['Not measured yet', 'value']]
+      : f.mood === 'warming'
+        ? [['Warming', 'value']]
+        : f.mood === 'cold'
+          ? [['Cold', 'value']]
+          : working
+            ? [['Warm', 'value']]
+            : countdown
   const value = f.mood === 'unmeasured' ? UNKNOWN : f.mood === 'warming' ? 'warming' : f.mood === 'cold' ? 'cold' : working ? 'warm' : left
   const say: Say =
     f.mood === 'cold' ? [['cache ', 'label'], ['cold', 'value'], [' · re-warm ', 'label'], [f.estimate, 'value']] : [['cache ', 'label'], [value, 'value']]
@@ -255,6 +283,10 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     // Inference only ever moves an assumed hour to 5m, so an unpinned hour is the guess.
     lastsText: `${c.ttl} idle${!c.ttlPinned && c.ttl === '1h' ? ' · assumed' : ''}`,
     rebuildsText: c.misses > 0 ? String(c.misses) : undefined,
+    idleText: c.recalled && c.idleMs !== null ? fmtAgo(c.idleMs) : undefined,
+    cardHead,
+    cardNote:
+      f.mood === 'unmeasured' ? "Countdown starts with Claude's next reply." : f.mood === 'warming' ? 'First message builds the cache.' : undefined,
     board: working ? 'BOARDING' : BOARD[f.mood],
     boardLeft: !counting ? '' : f.mood === 'expiring' ? leftShort : fmtBoardLeft(f.coldInMs),
     alt:
@@ -293,6 +325,7 @@ export const contextWords = (f: ContextFacts): ContextWords => {
     roomText,
     compactionOffText: f.autoCompactOff ? 'auto-compaction off' : undefined,
     windowText: fmtTokens(f.window),
+    cardHead: [[f.pct, 'value'], [` full${f.compactAt === undefined ? severityMark(f.frac) : ''}`, 'label']],
     alt: f.known
       ? altOf('context', `${Math.round(f.frac * 100)} percent ${towardText}`, f.tone === 'amber' ? 'near the limit' : 'fine')
       : altOf('context', EMPTY.context),
@@ -334,11 +367,14 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   // The ascii tier drops `↻`, so a phrase whose object is the glyph says its word.
   const ascii = frame.glyphs === 'ascii'
   const boardReset = ascii ? 'RESET' : '↻'
+  const pace = live ? paceText(f) : ''
   return {
     valueText,
+    valueMarked: `${f.value}${severityMark(f.frac)}`,
+    cardReset: f.reset?.kind === 'in' ? `resets ${f.reset.text}${pace === '' ? '' : ` · ${pace}`}` : undefined,
     text: joined(say),
     say,
-    pace: live ? paceText(f) : '',
+    pace,
     resetWords: f.reset?.kind === 'in' ? resetPhrase(f.reset, 'words') : undefined,
     resetGlyph,
     resetClock,

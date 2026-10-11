@@ -65,13 +65,14 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/kit.tsx` | The drawing kit made once per draw: elements, the Svg gate, palette, measure, hover cards, gaps, icons. |
 | `hooks/reading.ts` | `readingsOf`: everything a view reads, built once per draw. Each section's facts, with its words from `words.ts`. |
 | `hooks/words.ts` | The phrasebook: every phrase a new layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. |
-| `hooks/views/view.ts` | `View`, `rowsOf` and `defineView`, which makes a layout from its rows, its collapsed lines and its body. |
+| `hooks/views/view.ts` | `View`, `rowsOf`, `defineCardsView`, which makes a layout from its rows, its collapsed lines and its lens on the shared cards, and `defineView`, which makes one from its own body, until each layout moves to the cards. |
 | `hooks/views/index.ts` | `VIEWS`: every layout by name. |
-| `hooks/views/frame.tsx` | The expanded scaffold the new layouts share: the workspace strip, the view's body and the buttons. |
+| `hooks/views/cards.tsx` | `openBody`, the open view every layout shares: chips' four cards and its footer, each card's head with the layout's lens, and no card repeating what the collapsed lines show. |
+| `hooks/views/frame.tsx` | The toggle, and the expanded scaffold of the layouts still on `defineView`: the workspace strip, the view's body and the buttons. |
 | `hooks/views/parts.tsx` | The pieces several layouts draw: pills, the shared cache pill, and the lines, sections and grid they're laid out with. |
-| `hooks/views/<name>.tsx` | One file per layout: `chips`, `gauges`, `ledger`, `rings`, `pulse`, `tiles`, `week`, `departures`, `forecast`. Chips keeps its own pills and cards. |
+| `hooks/views/<name>.tsx` | One file per layout: `chips`, `gauges`, `ledger`, `rings`, `pulse`, `tiles`, `week`, `departures`, `forecast`. Chips exports its pill builders and its pill row, for a layout to compose. |
 | `hooks/strip.tsx` | The workspace strip: project, branch or worktree, changes, ahead/behind. |
-| `hooks/charts.tsx` | The charts: `meter`, `ring`, `sparkline`, `barChart`, `dayCells`, `underline`, `braille`. Each is an Svg on the desktop and text elsewhere. |
+| `hooks/charts.tsx` | The charts: `meter`, `splitBar`, `ring`, `sparkline`, `barChart`, `dayCells`, `underline`, `braille`. Each is an Svg on the desktop and text elsewhere. |
 | `hooks/glyphs.ts` | The terminal's glyph tier (`CC_BAND_GLYPHS`, a CJK locale) and the ASCII mapping. |
 | `hooks/calendar.ts` | Week's day and hour cells, read off the limit samples. |
 | `hooks/layout.ts` | Give-way orders, sizes, and how many columns a drawn tree takes. |
@@ -123,7 +124,7 @@ Run `/reload-plugins` in your session afterwards.
   `!` / `!!`. Text meets WCAG AA contrast (4.5:1) and edges and tracks meet
   3:1, in every palette. The design tests check both, over every palette.
 - **A new layout** is: its name in `LAYOUT_NAMES` (`hooks/snapshot.ts`);
-  `hooks/views/<name>.tsx`, made with `defineView`; an entry in `VIEWS`
+  `hooks/views/<name>.tsx`, made with `defineCardsView`; an entry in `VIEWS`
   (`hooks/views/index.ts`); and `tests/view-<name>.test.ts`, which calls
   `viewSuite('<name>')`. It draws only words from `read`: outside
   `chips.tsx`, `parts.tsx` and `frame.tsx`, no `.tsx` file in `views/`
