@@ -10,7 +10,7 @@ import { GIVES_WAY, ROW_SLACK, SHORT_BELOW } from '../layout'
 import type { LimitView, Readings, SliceRow } from '../reading'
 import { WEEK, type Say } from '../words'
 import { cachePill, contextPill, costPill, limitPill, pillRow, tokensPill, type ChipKey } from './chips'
-import { accentOf, beforeLast, fitLine, layoutCacheSpec, once, type Keeps, type PillSpec } from './parts'
+import { accentOf, beforeLast, fitLine, layoutCacheSpec, once, resetClause, type Keeps, type PillSpec } from './parts'
 import { defineCardsView, type Lens } from './view'
 
 /** What gives way as the row narrows, first to last: chips' pieces in
@@ -23,7 +23,8 @@ type Piece = (typeof ORDER)[number]
 /** Chips' last squeeze: its pills read there for their tint and card build no meter. */
 const NO_BARS = GIVES_WAY.length
 
-/** A window's slices in its colour and its tints: the days in a pill, the hours in a card's head. */
+/** A window's slices in its colour and its tints: the days in a pill, led
+ *  by their own air, the hours in a card's head. */
 const cellsOf = (kit: Kit, l: LimitView, row: SliceRow, alt: string, ground: string, wide: boolean): RenderChildren => {
   const { palette, onTone } = kit
   const seven = l.key === '7d'
@@ -37,6 +38,7 @@ const cellsOf = (kit: Kit, l: LimitView, row: SliceRow, alt: string, ground: str
     ground,
     cellPx: wide ? 14 : 9,
     wide,
+    air: wide,
   })
 }
 
@@ -75,7 +77,7 @@ const builtOf = (kit: Kit, read: Readings): Built => {
  *  label ink; amber, its reason in place of name and value. Chips' own
  *  always carries a bar and counts its reset down, so week draws its body. */
 const limitSpec = (kit: Kit, read: Readings, built: Built, l: LimitView, keeps: Keeps<Piece>): PillSpec | undefined => {
-  const { Text, Svg, palette, onTone, gap, icon } = kit
+  const { Text, Svg, palette, onTone, icon } = kit
   const seven = l.key === '7d'
   const chip = built.chip[seven ? '7d' : '5h']()
   if (chip === undefined || l.passed) return chip
@@ -99,10 +101,10 @@ const limitSpec = (kit: Kit, read: Readings, built: Built, l: LimitView, keeps: 
     tone: l.tone,
     body: [
       ...named,
-      ...(cells ? [Svg ? gap('g-cells') : null, built.days()] : []),
+      ...(cells ? [built.days()] : []),
       amber === undefined ? <Text key="v" color={fg} bold>{` ${l.valueMarked}`}</Text> : null,
       ...(pace === undefined ? [] : [<Text key="ps" color={resetInk}>{' · '}</Text>, <Text key="p" color={fg}>{pace}</Text>]),
-      ...(reset ? [<Text key="d" color={palette.label}>{Svg ? ' · ' : ' │ '}</Text>, ...icon('reset', resetInk), <Text key="r" color={resetInk}>{when}</Text>] : []),
+      ...(reset && when !== undefined ? resetClause(kit, resetInk, when, Svg ? ' · ' : ' │ ') : []),
     ],
   }
 }

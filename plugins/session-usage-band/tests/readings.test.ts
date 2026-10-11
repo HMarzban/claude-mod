@@ -308,9 +308,10 @@ test("week's notch sits in today's cell, as far in as today has gone; the 5h at 
 test("week says the fill day, and LIMITS' first row says the week from today within a card's line", () => {
   const wk = boardWeek()
   expect(wk.fullDay).toBe('full ~Mon')
-  // Each form a run shorter, longest first, so a card draws the longest its line holds.
-  expect(wk.byDay).toEqual(['Sun +66% · Mon ~+34% fills it · Tue–Sat none left', 'Sun +66% · Mon ~+34% fills it', 'Sun +66%'])
-  expect(boardWeek(100).byDay).toEqual(['Sun +100% · Mon–Sat none left', 'Sun +100%'])
+  // Each form a run shorter, longest first, so a card draws the longest its
+  // line holds; where the guess stops at the cap, each ends with none left.
+  expect(wk.byDay).toEqual(['Sun +66% · Mon ~+34% fills it · Tue–Sat none left', 'Sun +66% · Tue–Sat none left'])
+  expect(boardWeek(100).byDay).toEqual(['Sun +100% · Mon–Sat none left'])
   expect(boardWeek(100).fullDay).toBeUndefined()
   expect(wk.daysAlt).toBe('weekly limit by day: Sunday 66%, Monday about 34% and fills it, Tuesday to Saturday none left')
   expect(wk.hoursAlt).toBe('5-hour limit by hour: 15:09 0%')

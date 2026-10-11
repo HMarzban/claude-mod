@@ -606,6 +606,10 @@ export type SliceCellsOptions = Readonly<{
   cellPx: number
   /** A day: two text cells, a space apart. An hour: one, none between. */
   wide: boolean
+  /** On the desktop, led by its own air, as much as makes it whole columns
+   *  wide, in place of a column's gap before it, so the measure counts it
+   *  as it is drawn. */
+  air?: boolean
 }>
 
 const SLICE_GAP = 3
@@ -620,14 +624,15 @@ const HEIGHTS = '▁▂▃▄▅▆▇█'
  *  measured 0% its empty track as a meter's, a dot where not known, the
  *  notch at the edge of the slice nearest now. */
 export const sliceCells = (kit: Kit, o: SliceCellsOptions): RenderChildren => {
-  const { Svg, Text, palette, glyphs } = kit
-  const { key, alt, row, color, guess, spent, ground, cellPx, wide } = o
+  const { Svg, Text, palette, glyphs, measure } = kit
+  const { key, alt, row, color, guess, spent, ground, cellPx, wide, air = false } = o
   const { marks, notch } = row
   if (Svg) {
     const step = cellPx + SLICE_GAP
     const width = marks.length * step - SLICE_GAP
+    const lead = air ? Math.ceil((width + 1) / measure.pxPerCell) * measure.pxPerCell - width : 0
     const cells = marks.map(({ kind, pct }, i) => {
-      const x = i * step
+      const x = lead + i * step
       const share = clamp01(pct / 100)
       if (kind === 'unknown') return `<rect x="${x + 0.5}" y="2.5" width="${cellPx - 1}" height="11" rx="2.5" fill="none" stroke="${palette.trackStroke}"/>`
       if (kind === 'measured') {
@@ -643,13 +648,13 @@ export const sliceCells = (kit: Kit, o: SliceCellsOptions): RenderChildren => {
       const guess = (kind === 'guess' || kind === 'fills') && tall > 0 ? `<rect x="${x + 2}" y="${tenth(12.5 - tall)}" width="${cellPx - 4}" height="${tall}" rx="1" fill="${color}" fill-opacity="0.45"/>` : ''
       return edge + guess
     })
-    const at = notch === undefined ? undefined : Math.max(1, Math.min(width - 1, tenth(Math.floor(notch) * step + (notch - Math.floor(notch)) * cellPx)))
+    const at = notch === undefined ? undefined : lead + Math.max(1, Math.min(width - 1, tenth(Math.floor(notch) * step + (notch - Math.floor(notch)) * cellPx)))
     // Knocked out of the ground a pixel either side, so it reads over a fill.
     const mark =
       at === undefined
         ? ''
         : `<rect x="${tenth(at - 2)}" y="0" width="4" height="${SLICE_PX}" rx="1.5" fill="${ground}"/><rect x="${tenth(at - 1)}" y="0" width="2" height="${SLICE_PX}" rx="1" fill="${palette.label}"/>`
-    return <Svg key={key} source={svgOf(width, SLICE_PX, cells.join('') + mark)} alt={alt} width={width} height={SLICE_PX} />
+    return <Svg key={key} source={svgOf(lead + width, SLICE_PX, cells.join('') + mark)} alt={alt} width={lead + width} height={SLICE_PX} />
   }
   const ascii = glyphs === 'ascii'
   /** A cell's glyph and ink: a height measured or guessed, an empty track

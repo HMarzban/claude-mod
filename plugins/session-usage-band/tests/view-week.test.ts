@@ -66,10 +66,10 @@ test('collapsed is one row: 7d with its day cells, 5h, cache, cost, context, the
 })
 test('the desktop draws the week as one Svg of seven cells: solid measured, dashed guessed, the fill day in the accent', () => {
   const tree = board(desk)
-  expect(shown(pillOf(tree, '7d'))).toBe('7d 66% · full ~Mon · Sat 13:30')
-  expect(shown(pillOf(tree, '5h'))).toBe('5h 0% · 4h 55m')
+  expect(shown(pillOf(tree, '7d'))).toBe('7d 66% · full ~Mon · ↻ Sat 13:30')
+  expect(shown(pillOf(tree, '5h'))).toBe('5h 0% · ↻ 4h 55m')
   const days = daysSvg(tree)
-  expect([days?.props?.width, days?.props?.height]).toEqual([116, 16])
+  expect([days?.props?.width, days?.props?.height]).toEqual([120, 16])
   expect(days?.props?.alt).toBe('weekly limit by day: Sunday 66%, Monday about 34% and fills it, Tuesday to Saturday none left')
   const source = String(days?.props?.source)
   // Six days guessed or spent, dashed; Monday's outline alone at full accent.
@@ -139,14 +139,31 @@ test('it gives way by its ladder as it narrows, each piece before the ones it ne
   }
 })
 
-// The board draws this at 95 columns; the desktop's measure, about 0.75 of a
-// column a character and an Svg's px over ten, puts the row there at 104 of
-// its 91, so both resets hold from 108.
-test('the desktop row gives the tokens way first and keeps both resets while it can, as its board draws it', () => {
-  const tree = board({ ...desk, columns: 108 })
-  expect(pillKeys(tree)).toEqual(['7d', '5h', 'cache', 'cost', 'ctx'])
-  expect(shown(pillOf(tree, '7d'))).toBe('7d 66% · full ~Mon · Sat 13:30')
-  expect(shown(pillOf(tree, '5h'))).toBe('5h 0% · 4h 55m')
+// The board draws both resets at 95 columns. The desktop's measure, about
+// 0.75 of a column a character and an Svg's px over ten, puts that row at
+// 101 of its 91: the tokens give way first, then the 7d's reset, and the
+// 5h's holds; both hold from 105.
+test('the desktop row gives the tokens way first, then the 7d reset only where it truly does not fit, as its board draws it', () => {
+  // The board's spend, $1,027.
+  const at95 = board({ ...desk, columns: 95, costUsd: 1027 })
+  expect(pillKeys(at95)).toEqual(['7d', '5h', 'cache', 'cost', 'ctx'])
+  expect([shown(pillOf(at95, '7d')), shown(pillOf(at95, '5h'))]).toEqual(['7d 66% · full ~Mon', '5h 0% · ↻ 4h 55m'])
+  const both = board({ ...desk, columns: 105, costUsd: 1027 })
+  expect(pillKeys(both)).toEqual(['7d', '5h', 'cache', 'cost', 'ctx'])
+  expect(shown(pillOf(both, '7d'))).toBe('7d 66% · full ~Mon · ↻ Sat 13:30')
+  // ↻ a glyph in label grey after ` · `, never the clock icon.
+  const inks: Array<[string, unknown]> = []
+  walk(pillOf(both, '7d'), n => {
+    if (n.type === 'Text' && ['d', 'i-reset', 'r'].includes(String(n.props?.key))) inks.push([shown(n), n.props?.color])
+  })
+  expect(inks).toEqual([[' · ', DARK.label], ['↻ ', DARK.label], ['Sat 13:30', DARK.label]])
+  expect(svgsOf(firstRow(both)).map(n => String(n.props?.key))).not.toContain('i-reset')
+})
+test("on the desktop the week's cells carry their own air before them, so the measure counts them in whole columns", () => {
+  const cells = daysSvg(board(desk))
+  // Seven 14px cells 3px apart are 116px, led by 4px of air to 120: twelve columns, no gap column beside them.
+  expect([cells?.props?.width, /<rect x="4"/.test(String(cells?.props?.source))]).toEqual([120, true])
+  expect(byKey(pillOf(board(desk), '7d'), 'g-cells')).toBeUndefined()
 })
 test('a week not measured yet draws no day as none left, and says it is not known', () => {
   // No samples, an hour into the window: nothing measured, too early to guess.
@@ -202,7 +219,8 @@ test("open is chips' four cards: LIMITS' head draws the 5h by the hour, and the 
 })
 test('open adds, never repeats: each card leads with what the row left out', () => {
   const tree = board(open)
-  expect(firstRowOf(tree, 'limits')).toBe('by daySun +66% · Mon ~+34% fills it')
+  // Where the guess stops at the cap, the row ends with what is left after it: none.
+  expect(firstRowOf(tree, 'limits')).toBe('by daySun +66% · Tue–Sat none left')
   expect(firstRowOf(tree, 'context')).toBe('room left · compacts at 190k~114k')
   expect(firstRowOf(tree, 'cache')).toBe('re-warm if cold~$1.66')
   expect(firstRowOf(tree, 'spend')).toBe('last message$0.21')
@@ -218,9 +236,9 @@ test("on the desktop a card's first row says the board's whole words where its l
   const two = board({ ...desk, ...open, columns: 100 })
   expect(firstRowOf(two, 'limits')).toBe('by daySun +66% · Mon ~+34% fills it · Tue–Sat none left')
   expect(firstRowOf(two, 'context')).toBe('room left · auto-compacts at 190k~114k')
-  // Four to a line at 160, the week keeps the runs its line holds.
+  // Four to a line at 160, the week keeps the runs its line holds, still ending with none left.
   const four = board({ ...desk, ...open })
-  expect(firstRowOf(four, 'limits')).toBe('by daySun +66% · Mon ~+34% fills it')
+  expect(firstRowOf(four, 'limits')).toBe('by daySun +66% · Tue–Sat none left')
   expect(firstRowOf(four, 'context')).toBe('room left · auto-compacts at 190k~114k')
 })
 test('a limit the row never draws heads LIMITS in amber while it needs you', () => {

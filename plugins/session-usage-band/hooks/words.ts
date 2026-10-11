@@ -704,7 +704,9 @@ export type WeekWords = Readonly<{
   fullDay: string | undefined
   /** The week from today, each form a run of days shorter, longest first:
    *  'Sun +66% · Mon ~+34% fills it · Tue–Sat none left', then without its
-   *  last run, down to today's rise alone; none when nothing is known. */
+   *  last run, down to today's rise alone; where the guess stops at the cap,
+   *  every form ends with the days none is left, 'Sun +66% · Tue–Sat none
+   *  left'. None when nothing is known. */
   byDay: readonly string[]
 }>
 
@@ -726,7 +728,8 @@ const slicesSpoken = (title: string, names: readonly string[], marks: readonly S
 }
 
 /** The week from today: today's rise, then each run of days alike; a day not
- *  known is left out. Each form drops the last run of the one before. */
+ *  known is left out. Each form drops the last run of the one before, but
+ *  the days none is left, which end every form. */
 const byDayOf = (days: readonly DayCell[], marks: readonly SliceMark[]): string[] => {
   const today = days.findIndex(d => d.today)
   if (today < 0) return []
@@ -740,8 +743,12 @@ const byDayOf = (days: readonly DayCell[], marks: readonly SliceMark[]): string[
     if (i > 0 && last?.text === text) last.to = day
     else runs.push({ from: day, to: day, text })
   })
-  const spoken = runs.filter(r => r.text !== '').map(run => `${run.from === run.to ? run.from : `${run.from}–${run.to}`} ${run.text}`)
-  return spoken.map((_, i) => spoken.slice(0, spoken.length - i).join(' · '))
+  const known = runs.filter(r => r.text !== '')
+  const spoken = known.map(run => `${run.from === run.to ? run.from : `${run.from}–${run.to}`} ${run.text}`)
+  const spent = known.at(-1)?.text === 'none left' && spoken.length > 1
+  const kept = spent ? spoken.slice(0, -1) : spoken
+  const tail = spent ? spoken.slice(-1) : []
+  return kept.map((_, i) => [...kept.slice(0, kept.length - i), ...tail].join(' · '))
 }
 
 export const weekWords = (w: Week, rows: Readonly<{ days: SliceRow; hours: SliceRow }>): WeekWords => {
