@@ -31,7 +31,7 @@ test('a window that fills before its reset says when: a measured fill, else the 
   const sevenFrom = (now: number) => readingsOf(snapOf({ utcOffsetMin: 0, now, sevenDay: { percentUsed: 66, resetsAt: new Date(now + 138 * HOUR).toISOString() } })).sevenDay
   const seven = sevenFrom(3 * 24 * HOUR + 20 * HOUR)
   expect(Math.abs((seven?.fillInMs ?? 0) - (30 * HOUR * 34) / 66)).toBeLessThan(1e-3)
-  expect([seven?.fillAt, seven?.fillText, seven?.fillNamed, seven?.ahead?.figure]).toEqual(['~Mon', 'full ~Mon', '7d full ~Mon', '~Mon'])
+  expect([seven?.fillAt, seven?.fillText, seven?.fillNamed, seven?.fillNamedShort, seven?.ahead?.figure]).toEqual(['~Mon', 'full ~Mon', '7d full ~Mon', '7d ~Mon', '~Mon'])
   expect(sevenFrom(3 * 24 * HOUR)?.fillAt).toBe('~15:27')
   expect(readingsOf(snapOf({ sevenDay: { percentUsed: 66, resetsAt: new Date(138 * HOUR).toISOString() } })).sevenDay?.fillAt).toBe('in ~15h 30m')
   // Measured, the 5h's own fill; landing short, none, and its next change is its reset.
@@ -41,14 +41,16 @@ test('a window that fills before its reset says when: a measured fill, else the 
   expect(readingsOf(snapOf({ fiveHour: { percentUsed: 0, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } })).fiveHour?.ahead).toBeUndefined()
 })
 test('the context says how many messages to compaction at its average rise a message', () => {
-  const at = (context: readonly number[]) => readingsOf(snapOf({ history: { costs: [], fiveHour: [], context } })).history.toCompactionText
+  const at = (context: readonly number[]) => readingsOf(snapOf({ history: { costs: [], fiveHour: [], context } })).history.toCompaction?.[0]
   // 114k of room at 10k a message.
   expect(at([56_000, 66_000, 76_000])).toBe('~11 messages to compaction')
+  // Shorter for a head out of room, then its figure alone.
+  expect(readingsOf(snapOf({ history: { costs: [], fiveHour: [], context: [56_000, 66_000, 76_000] } })).history.toCompaction).toEqual(['~11 messages to compaction', '~11 msgs to compact', '~11'])
   expect([at([76_000]), at([80_000, 76_000])]).toEqual([undefined, undefined])
   // Since the newest compaction: 940k of rise before it would say ~240 messages.
   const compacted = [...Array.from({ length: 95 }, (_, i) => 20_000 + i * 10_000), ...Array.from({ length: 16 }, (_, i) => 150_000 + i * 10_000)]
   const after = (context: readonly number[]) =>
-    readingsOf(snapOf({ context: { tokens: 300_000, window: 1_000_000, percent: 30, compactAt: 967_000, autoCompactOff: false }, history: { costs: [], fiveHour: [], context } })).history.toCompactionText
+    readingsOf(snapOf({ context: { tokens: 300_000, window: 1_000_000, percent: 30, compactAt: 967_000, autoCompactOff: false }, history: { costs: [], fiveHour: [], context } })).history.toCompaction?.[0]
   expect(after(compacted)).toBe('~67 messages to compaction')
   // Just compacted, nothing has risen yet.
   expect(after([...compacted.slice(0, 95), 150_000])).toBeUndefined()

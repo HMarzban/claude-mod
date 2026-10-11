@@ -283,6 +283,8 @@ export type LimitWords = Readonly<{
   fillText: string | undefined
   /** `7d full ~Mon`: the same, named, beside another window's figure. */
   fillNamed: string | undefined
+  /** `7d ~Mon`: named, short of room for its words. */
+  fillNamedShort: string | undefined
   /** Its next change after its name: its fill, `66% · full ~Mon · ↻ Sat
    *  13:30`, else its reset and pace, `4% · ↻ 16:40 · on pace for ~10%`;
    *  none at 0%, where nothing is moving, or once passed. */
@@ -544,6 +546,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     fillAt,
     fillText: fillAt === undefined ? undefined : `full ${fillAt}`,
     fillNamed: fillAt === undefined ? undefined : `${f.name} full ${fillAt}`,
+    fillNamedShort: fillAt === undefined ? undefined : `${f.name} ${fillAt}`,
     ahead,
     fullIn,
     amber: f.tone !== 'amber' ? undefined : fullIn !== undefined ? AMBER.limitPace(f.name, fullIn) : AMBER.limit(f.name, f.percentUsed),
@@ -614,9 +617,10 @@ export type HistoryWords = Readonly<{
   /** 'context over the conversation, rising, compacts at 190k'; with compaction off, no compaction point. */
   contextTrailAlt: string
   /** '~12 messages to compaction', at the context's average rise a message
-   *  since its last compaction; undefined until it has risen, or with
+   *  since its last compaction, then shorter for a head out of room: '~12
+   *  msgs to compact', '~12'; undefined until it has risen, or with
    *  compaction off. */
-  toCompactionText: string | undefined
+  toCompaction: readonly string[] | undefined
 }>
 
 /** A message above this many times the warm average is rising; below the average divided by it, falling. */
@@ -677,7 +681,10 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, co
     costsAltOf,
     trailAlt: `5h usage over the last hour, ${riseOf(lastHourOf(record.fiveHour, now))}${fullIn}`,
     contextTrailAlt: `context over the conversation, ${contextTrendOf(record.context)}${compactsAt}`,
-    toCompactionText: messages === undefined ? undefined : `~${messages} message${messages === 1 ? '' : 's'} to compaction`,
+    toCompaction:
+      messages === undefined
+        ? undefined
+        : [`~${messages} message${messages === 1 ? '' : 's'} to compaction`, `~${messages} msg${messages === 1 ? '' : 's'} to compact`, `~${messages}`],
   }
 }
 

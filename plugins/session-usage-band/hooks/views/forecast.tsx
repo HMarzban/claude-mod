@@ -211,17 +211,22 @@ const weekCells = (kit: Kit, read: Readings): RenderChildren => {
 
 /** Each card's head says when: the cache goes cold, how many messages to
  *  compaction, and the week's cells with the day it fills, the 7d named
- *  beside another window's headline. Its body skips what the row says. */
+ *  beside another window's headline. Short of room, its words give way
+ *  whole, down to the figure alone. Its body skips what the row says. */
 const lens = (kit: Kit, read: Readings, drawn: readonly Drawn[]): Omit<OpenOptions, 'collapsedRows'> => {
   const { palette, oneLine, gap } = kit
   const said = (text: string | undefined) => (text === undefined ? undefined : oneLine({ color: palette.label }, text))
   const cells = weekCells(kit, read)
   const seven = read.sevenDay
-  const fill = said(read.worstLimit?.key === '7d' ? seven?.fillText : seven?.fillNamed)
+  const named = read.worstLimit?.key !== '7d'
+  const fills = (named ? [seven?.fillNamed, seven?.fillNamedShort] : [seven?.fillText, seven?.fillAt]).map(said)
+  /** The week's cells beside a fill's words, or either alone. */
+  const withCells = (fill: RenderChildren) => [cells, cells === null || fill === undefined ? null : gap('g-cells'), fill ?? null]
+  const [fill, fillShort] = fills
   const slots: Slots = {
     cache: said(read.cache.coldAtText),
-    context: said(read.history.toCompactionText),
-    limits: cells === null && fill === undefined ? undefined : [cells, cells === null || fill === undefined ? null : gap('g-cells'), fill ?? null],
+    context: read.history.toCompaction === undefined ? undefined : { forms: read.history.toCompaction.map(said) },
+    limits: cells === null && fill === undefined ? undefined : { forms: [withCells(fill), withCells(fillShort), fillShort ?? null] },
   }
   return {
     slots,

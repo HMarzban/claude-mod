@@ -9,7 +9,7 @@ import { asciiTree } from '../hooks/glyphs'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { HOUR, LONG, MIN, byKey, cardOf, fakeEl, firstRow, shown, walk, type Node } from './helpers'
+import { HOUR, LONG, MIN, byKey, cardOf, fact, fakeEl, firstRow, shown, walk, type Node } from './helpers'
 import { NO_ACT, caseKey, drawCases, snapOf, viewSuite, visualRows, type Mount } from './matrix'
 
 viewSuite('departures')
@@ -103,7 +103,7 @@ test('a full window says its percent and its reset, never a fill to come', () =>
   for (const etaMs of [null, 5 * MIN]) {
     const over: Over = { fiveHour: { percentUsed: 100, resetsAt: new Date(2 * HOUR).toISOString(), etaMs } }
     expect(piecesOf(rowOf(over))[0]).toBe('5h ! 5h 100% │ ↻ 2h 00m')
-    const tree = draw({ expanded: true, maxRows: 40, ...over })
+    const tree = draw({ expanded: true, maxRows: 40, columns: 200, ...over })
     expect(headOf(tree, 'limits')).toBe('LIMITS15h resets37d resets5h in 2h 00m')
     expect(shown(cardOf(tree, 'limits'))).not.toMatch(/full (in|before)/)
   }
@@ -259,7 +259,7 @@ const headOf = (tree: Node, name: string): string => shown(byKey(cardOf(tree, na
 const firstRowOf = (tree: Node, name: string): string => shown(((cardOf(tree, name)?.children ?? []) as Node[]).filter(Boolean)[1])
 
 test("open, the four cards in chips' order, each head led by its place in the queue", () => {
-  const tree = draw({ expanded: true, ...TRAIL })
+  const tree = draw({ expanded: true, columns: 200, ...TRAIL })
   expect(((byKey(tree, 'cards:0', 'Box')?.children ?? []) as Node[]).map(c => c.props?.key)).toEqual(['card:cache', 'card:spend', 'card:context', 'card:limits'])
   expect(['cache', 'spend', 'context', 'limits'].map(name => headOf(tree, name))).toEqual([
     'CACHE1goes cold52m left',
@@ -273,7 +273,8 @@ test("open, each card's first row is one the row left out", () => {
   const tree = draw({ expanded: true, maxRows: 6, ...TRAIL })
   const row = shown(firstRow(tree))
   const firsts = ['cache', 'spend', 'context', 'limits'].map(name => firstRowOf(tree, name))
-  expect(firsts).toEqual(['re-warm when cold~$1.66', 'last message$0.21', 'room left · auto-compacts at 190k~114k', 'used so far5h 4% · 7d 30%'])
+  // Four across, room and compaction can't share a line whole, so each takes its own.
+  expect(firsts).toEqual(['re-warm when cold~$1.66', 'last message$0.21', 'room left~114k', 'used so far5h 4% · 7d 30%'])
   for (const value of ['~$1.66', '$0.21', '~114k', '4% · 7d 30%']) expect(row).not.toContain(value)
   // Without a trail the row says the room, so the card leads with where it compacts.
   expect(firstRowOf(draw({ expanded: true, maxRows: 6 }), 'context')).toBe('auto-compacts at190k')
@@ -305,12 +306,23 @@ for (const surface of ['terminal', 'desktop'] as const)
     }
   })
 test('open, LIMITS heads with the 5h counting down, as its pill does, never its clock', () => {
-  const tree = draw({ expanded: true, maxRows: 40, utcOffsetMin: 0 })
+  const tree = draw({ expanded: true, maxRows: 40, columns: 200, utcOffsetMin: 0 })
   expect(headOf(tree, 'limits')).toBe('LIMITS25h resets37d resets5h in 3h 00m')
   expect(shown(cardOf(tree, 'limits'))).not.toMatch(/resets 03:00/)
 })
+for (const surface of ['terminal', 'desktop'] as const)
+  test(`open four across on the ${surface}, a head's places give way whole, the latest first, and its figure stays`, () => {
+    const tree = draw({ ...BOARD, surface, expanded: true, maxRows: 40 })
+    // No orphan numeral, no clipped word: `3 7d fills` goes with its 3.
+    expect(headOf(tree, 'limits')).toBe('LIMITS25h resets5h in 4h 55m')
+    expect(headOf(draw({ ...BOARD, surface, columns: 200, expanded: true, maxRows: 40 }), 'limits')).toBe('LIMITS25h resets37d fills5h in 4h 55m')
+    // In a terminal room and compaction can't share the line whole, so
+    // compaction takes its own, `~128k` whole; the desktop's measure holds both.
+    const room = [fact(tree, 'room left'), fact(tree, 'auto-compacts at'), fact(tree, 'room left · auto-compacts at 967k')]
+    expect(room).toEqual(surface === 'terminal' ? ['~128k', '967k', undefined] : [undefined, undefined, '~128k'])
+  })
 test('open, an amber limit the row never shows keeps the LIMITS headline', () => {
-  const tree = draw({ expanded: true, otherLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }] })
+  const tree = draw({ expanded: true, columns: 200, otherLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }] })
   expect(headOf(tree, 'limits')).toBe('LIMITS25h resets37d resetsspend 92%!')
 })
 test('open, LIMITS heads with the soonest window, a fill by when it fills', () => {

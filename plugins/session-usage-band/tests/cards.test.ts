@@ -87,6 +87,22 @@ test('a lens too wide for its head gives way before the headline does', () => {
   ])
   expect(shown(byKey(head, 'headline', 'Box'))).toBe('40% full')
 })
+test("a lens in its forms gives way whole: the head draws the first that leaves its title and headline whole", () => {
+  // Four cards across 160 columns leave each head 37 columns: `CONTEXT`, the headline `40% full`, a column either side of the lens.
+  const forms = { slots: { context: { forms: [text('~12 messages to compaction'), text('~12 msgs to compact'), text('~12')] } } }
+  expect(shown(headOf(opened(forms, { columns: 160 }), 'context'))).toBe('CONTEXT~12 msgs to compact40% full')
+  expect(shown(headOf(opened(forms, { columns: 200 }), 'context'))).toBe('CONTEXT~12 messages to compaction40% full')
+  // Held by none, the last; one that draws nothing leaves the headline alone.
+  expect(shown(headOf(opened({ slots: { context: { forms: [text('x'.repeat(40)), null] } } }, { columns: 160 }), 'context'))).toBe('CONTEXT40% full')
+})
+test("a lead that says the card's own facts gives way whole: held by no form, the card says them in its own rows", () => {
+  const lead = { lead: { context: { forms: [['room left · auto-compacts at 190k', '~114k']], says: ['room', 'compactsAt'] } } } as const
+  // Two across 120 columns, it holds; four across 160, `~114k` would be cut, so the card's own rows say it whole.
+  const two = opened(lead)
+  expect([fact(two, 'room left · auto-compacts at 190k'), fact(two, 'room left'), fact(two, 'auto-compacts at')]).toEqual(['~114k', undefined, undefined])
+  const four = opened(lead, { columns: 160 })
+  expect([fact(four, 'room left · auto-compacts at 190k'), fact(four, 'room left'), fact(four, 'auto-compacts at')]).toEqual([undefined, '~114k', '190k'])
+})
 test("a layout's head replaces a card's headline, bold on its figure alone", () => {
   const tree = opened({ heads: { context: [['~12', 'value'], [' msgs', 'label']], limits: [['5h ', 'label'], ['in 3h 00m', 'value']] } })
   expect([shown(headOf(tree, 'context')), shown(headOf(tree, 'limits'))]).toEqual(['CONTEXT~12 msgs', 'LIMITS5h in 3h 00m'])

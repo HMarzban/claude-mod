@@ -13,7 +13,7 @@ import type { LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { DEPARTURES, usedSoFar } from '../words'
 import type { Countdown, Departure } from '../words'
-import type { CardName, Fact } from './cards'
+import type { CardName, Fact, SlotForms } from './cards'
 import { LIMITS, costPill, tokensPill } from './chips'
 import type { ChipKey } from './chips'
 import { toggleButton } from './frame'
@@ -232,15 +232,17 @@ const lens: Lens = (kit, read, act) => {
   const { context: x, worstLimit: worst } = read
   const queue = queueOf(kit, read)
   const placed = queue.map((s, i) => [i + 1, s] as const)
-  const places = (card: CardName) => placesOf(kit, placed.filter(([, s]) => s.card === card))
+  // Short of room, a card's places give way whole, the latest first.
+  const places = (card: CardName): SlotForms => {
+    const mine = placed.filter(([, s]) => s.card === card)
+    return { forms: [...mine.map((_, i) => placesOf(kit, mine.slice(0, mine.length - i))), null] }
+  }
   const soonest = placed.find(([, s]) => s.limit !== undefined)?.[1].limit
   const lead = usedSoFar(read.limits)
   // Another window is never on the row: an amber one keeps LIMITS'
   // headline, where the cards say it.
   const otherAmber = worst?.key === 'other' && worst.tone === 'amber'
-  // CONTEXT's first row, while the row counts messages, says the room and where it compacts.
   const settled = settle(kit, read, act, queue)
-  const shown: Fact[] = [...settled.says, ...(x.roomLead === undefined ? [] : (['room', 'compactsAt'] as const))]
   return {
     slots: {
       cache: places('cache'),
@@ -254,10 +256,11 @@ const lens: Lens = (kit, read, act) => {
       ...(soonest?.departureHead === undefined || otherAmber ? {} : { limits: soonest.departureHead }),
     },
     lead: {
-      ...(x.roomLead === undefined ? {} : { context: x.roomLead }),
+      // While the row counts messages, the room and where it compacts, in one row while it holds both whole.
+      ...(x.roomLead === undefined ? {} : { context: { forms: [x.roomLead], says: ['room', 'compactsAt'] } }),
       ...(lead === undefined ? {} : { limits: lead }),
     },
-    shown,
+    shown: settled.says,
     shownByWindow: settled.byWindow,
     // The board shows no clock times, which are forecast's: every reset counts down, as the row's do.
     clockless: true,

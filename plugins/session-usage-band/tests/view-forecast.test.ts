@@ -144,12 +144,21 @@ test('open, the four cards with the lens in each head, and no first row the row 
   ])
   expect(headOf(tree, 'limits')).toMatch(/^LIMITS.+ full ~Mon7d 66%$/)
   // Headed by another window, the fill day names the 7d's.
-  const five = drawn(board({ expanded: true, fiveHour: { percentUsed: 82, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: null } }))
+  const five = drawn(board({ expanded: true, columns: 120, fiveHour: { percentUsed: 82, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: null } }))
   expect(headOf(five, 'limits')).toMatch(/^LIMITS.+ 7d full ~Mon5h 82%!$/)
   expect(byKey(cardOf(tree, 'limits'), 'cells')).toBeDefined()
   expect(['cache', 'spend', 'context'].map(name => firstRowOf(tree, name))).toEqual(['saved by cache~$1,350', 'last message$0.10', 'auto-compacts at967k'])
   expect(firstRowOf(tree, 'limits')).toMatch(/^5h░+0%$/)
 })
+for (const surface of ['terminal', 'desktop'] as const)
+  test(`open four across on the ${surface}, a head's words give way whole, never cut`, () => {
+    const tree = drawn(board({ surface, expanded: true }))
+    expect(headOf(tree, 'context')).toBe('CONTEXT~12 msgs to compact87% full')
+    expect(headOf(drawn(board({ surface, expanded: true, columns: 120 })), 'context')).toBe('CONTEXT~12 messages to compaction87% full')
+    // Out of room, its fill day's figure stays, the words beside it gone whole.
+    expect(headOf(tree, 'limits')).toMatch(surface === 'terminal' ? /^LIMITS.+ ~Mon7d 66%$/ : /^LIMITSfull ~Mon7d 66%$/)
+    expect(headOf(tree, 'limits')).not.toMatch(/…|full ~…/)
+  })
 test("open on the desktop, LIMITS' lens is the week's day cells, 16px tall", () => {
   const tree = drawn(board({ surface: 'desktop', expanded: true }))
   const cells = svgsOf(byKey(cardOf(tree, 'limits'), 'head')).find(s => /weekly limit by day/.test(String(s.props?.alt)))

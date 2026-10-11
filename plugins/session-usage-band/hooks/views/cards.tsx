@@ -45,9 +45,14 @@ export type Fact =
  *  `reset:5h` its words. */
 type WindowFact = `${'window' | 'pace' | 'reset'}:${Exclude<LimitKey, 'other'>}`
 
+/** A lens's forms, longest first: the head draws the first that leaves its
+ *  title and headline whole, else the last, so its words give way whole. */
+export type SlotForms = Readonly<{ forms: readonly RenderChildren[] }>
 /** A layout's mark for a card's head row: at most 16px on the desktop, a few
- *  cells in a terminal. */
-export type Slots = Readonly<Partial<Record<CardName, RenderChildren>>>
+ *  cells in a terminal; or its forms. */
+export type Slots = Readonly<Partial<Record<CardName, RenderChildren | SlotForms>>>
+
+const isForms = (slot: RenderChildren | SlotForms): slot is SlotForms => typeof slot === 'object' && slot !== null && 'forms' in slot
 
 /** A card's first row, as its facts are drawn: a label and its value,
  *  `used so far` and `5h 0% · 7d 66%`, the value in its roles' inks where
@@ -55,6 +60,11 @@ export type Slots = Readonly<Partial<Record<CardName, RenderChildren>>>
 export type Lead = readonly [label: string, value: string | Say]
 /** One lead, or its forms longest first: the card draws the first its line holds. */
 export type Leads = Lead | readonly Lead[]
+
+/** A lead that says facts the card would: in the first form its line holds,
+ *  the card skipping `says`; held by none, it gives way whole and the card
+ *  says them in its own rows, never one cut. */
+export type FactLead = Readonly<{ forms: readonly Lead[]; says: readonly Fact[] }>
 
 const isLead = (l: Leads): l is Lead => typeof l[0] === 'string'
 
@@ -69,7 +79,7 @@ export type OpenOptions = Readonly<{
    *  its figure, `~12 msgs`; one with amber words draws its figure amber. */
   heads?: Readonly<Partial<Record<CardName, Say>>>
   /** A card's first row, before its own facts and counted with them. */
-  lead?: Readonly<Partial<Record<CardName, Leads>>>
+  lead?: Readonly<Partial<Record<CardName, Leads | FactLead>>>
   /** A window's mark in its bar's place on LIMITS, such as a trail, at the
    *  row's size; its bar while there is none. */
   limitMarks?: Readonly<Partial<Record<LimitKey, (size: BarSize) => RenderChildren>>>
@@ -225,18 +235,40 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
       ),
     )
   }
-  /** A lead's row: the first form whose label and value fit the card's line, else its shortest. */
-  const leadOf = (lead: Leads | undefined): RenderChildren => {
+  /** A lead's row: the first form whose label and value fit the card's line,
+   *  else its shortest; a fact lead's, else none, its facts then the card's. */
+  const leadOf = (lead: Leads | FactLead | undefined): RenderChildren => {
     if (lead === undefined) return null
-    const rows = (isLead(lead) ? [lead] : lead).map(form => factRow(undefined, ...form))
-    return rows.find(row => cellsOf(row, measure) <= inner) ?? rows.at(-1) ?? null
+    const forms = 'says' in lead ? lead.forms : isLead(lead) ? [lead] : lead
+    const rows = forms.map(form => factRow(undefined, ...form))
+    const fitting = rows.find(row => cellsOf(row, measure) <= inner)
+    if ('says' in lead) {
+      // Drawn, it says its facts, so no row of the card's repeats them.
+      if (fitting !== undefined) for (const fact of lead.says) shown.add(fact)
+      return fitting ?? null
+    }
+    return fitting ?? rows.at(-1) ?? null
   }
+  const leads: Readonly<Partial<Record<CardName, RenderChildren>>> = Object.fromEntries(
+    (['cache', 'spend', 'context', 'limits'] as const).map(name => [name, leadOf(o.lead?.[name])]),
+  )
   /** A card: its title, the layout's lens and its headline on one line, then
    *  its bar, the layout's lead and its body. */
   const card = (name: CardName, title: string, head: Readonly<{ say: Say; tone?: Tone }>, bar: RenderChildren, body: RenderChildren[]) => {
-    const slot = o.slots?.[name]
-    const lead = leadOf(o.lead?.[name])
+    const lead = leads[name] ?? null
     const say = headline(o.heads?.[name] ?? head.say, head.tone ?? 'calm')
+    const titled = (
+      <Box key="title" flexDirection="row" flexShrink={0}>
+        {/* Desktop alone: a terminal title stays plain text. */}
+        {Svg ? icon(...cardIcon[name]) : null}
+        <Text color={palette.label}>{title.toUpperCase()}</Text>
+      </Box>
+    )
+    const lens = o.slots?.[name]
+    // A lens in forms takes the first the head holds beside its title and
+    // headline, a column either side.
+    const room = inner - cellsOf(titled, measure) - cellsOf(say, measure) - 2
+    const slot = lens === undefined || !isForms(lens) ? lens : (lens.forms.find(form => cellsOf(form, measure) <= room) ?? lens.forms.at(-1))
     const ownBar = slot !== undefined && o.slotsReplaceBars === true ? null : bar
     return (
       <Box
@@ -250,14 +282,10 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
         {...(bordered ? { borderStyle: 'round', borderColor: palette.cardBorder } : {})}
       >
         <Box key="head" flexDirection="row" justifyContent="space-between" columnGap={1}>
-          <Box key="title" flexDirection="row" flexShrink={0}>
-            {/* Desktop alone: a terminal title stays plain text. */}
-            {Svg ? icon(...cardIcon[name]) : null}
-            <Text color={palette.label}>{title.toUpperCase()}</Text>
-          </Box>
+          {titled}
           {/* A lens takes the room the title and headline leave, and gives
               way before the headline's figure does. */}
-          {slot === undefined
+          {slot === undefined || slot === null
             ? say
             : [
                 <Box key="slot" flexDirection="row" flexGrow={1} flexShrink={1} width={0} minWidth={0} overflow="hidden">
@@ -392,7 +420,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     const lead = leadRow()
     const rows = read.limits.map(limitRows)
     const lines = rows.flat().filter(part => part !== null)
-    const room = bodyRows - (lead === null ? 0 : 1) - (o.lead?.limits === undefined ? 0 : 1)
+    const room = bodyRows - (lead === null ? 0 : 1) - (leads.limits === null || leads.limits === undefined ? 0 : 1)
     if (lines.length <= room) return [lead, ...lines]
     const bars = rows.map(([bar]) => bar)
     const worstAt = lead === null ? read.limits.findIndex(w => w === worst) : -1
