@@ -47,6 +47,12 @@ version may change how the band reads.
 - In the ascii tier `input 196k · output 12k` read `input 196k - output
   12k`, a subtraction, and a screen reader said "minus". A spaced ` · `
   now reads `, `; a bare `·` still becomes `-`.
+- The Spend card's token split told input, output and cache reads apart by
+  hue alone, inks too close in lightness to read under any colour-vision
+  simulation. In the terminal each part now has its own fill, `█`, `▓` and
+  `▒` (`#`, `=` and `+` in ASCII), and its legend mark matches; on the
+  desktop each part ends a pixel short of the next, so the ground divides
+  them.
 
 ## [0.12.0] - 2026-10-10
 

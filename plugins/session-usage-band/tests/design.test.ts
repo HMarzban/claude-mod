@@ -199,6 +199,59 @@ test('the cache card leads with the stake: re-warm cost, savings, hit rate, expi
   await ui.unmount()
 })
 
+/** The spend card's split, input then output then cache reads, as a
+ *  terminal draws it: each part's fill, and the mark its legend row leads with. */
+const splitOf = (tree: unknown) => {
+  let bar: { children?: unknown[] } | undefined
+  walk(cardOf(tree, 'spend'), n => {
+    if (bar === undefined && n.type === 'Text' && (n.children ?? []).length > 1 && /^[█▓▒#=+:]+$/.test(shown(n))) bar = n
+  })
+  const fills = ((bar?.children ?? []) as unknown[]).map(seg => shown(seg)).filter(Boolean).map(seg => [...new Set(seg)].join(''))
+  const marks = ['input', 'output', 'cache reads'].map(label => shown(byKey(tree, `fact:${label}`, 'Box')).trim().slice(0, 1))
+  return { fills, marks }
+}
+
+// WCAG 1.4.1: the parts' inks sit 1.0 to 1.3:1 apart in lightness and merge
+// under every colour-vision simulation, so each part has its own fill too.
+for (const [tier, fills] of [['unicode', ['█', '▓', '▒']], ['ascii', ['#', '=', '+']]] as const) {
+  test(`the token split tells its parts apart by fill, not hue alone, its legend marked alike: ${tier}`, async ($, on) => {
+    setup(on, { env: { CC_BAND_GLYPHS: tier } })
+    await $.session.start(START)
+    await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
+    await respond(e => $.turn.step(e), resp(4_000, 100_000, 6_000, 3_000))
+    const ui = await mountBand($, 'terminal', 140)
+    await ui.press({ key: 'more' })
+    expect(splitOf(await ui.drawn())).toEqual({ fills, marks: fills })
+    await ui.unmount()
+  })
+}
+
+/** Each drawn segment's [start, end) in px, from a split Svg's source: a
+ *  rect's x and width, or an end path's straight edges (its round end is
+ *  6px, the bar's radius, past them). */
+const segmentsOf = (source: string): Array<readonly [number, number]> =>
+  [...source.matchAll(/<rect x="([\d.]+)" y="1" width="([\d.]+)"|<path d="M([\d.]+) 1H([\d.]+)(V7|A)/g)].map(m =>
+    m[1] !== undefined
+      ? [Number(m[1]), Number(m[1]) + Number(m[2])]
+      : m[5] === 'V7'
+        ? [Number(m[3]) - 6, Number(m[4])]
+        : [Number(m[3]), Number(m[4]) + 6],
+  )
+
+test('on the desktop each part of the token split ends a pixel short of the next, so the ground divides them', async ($, on) => {
+  setup(on)
+  await $.session.start({ ...START, surface: 'desktop' })
+  await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
+  await respond(e => $.turn.step(e), resp(4_000, 100_000, 6_000, 3_000))
+  const ui = await mountBand($, 'desktop', 140)
+  await ui.press({ key: 'more' })
+  const split = svgsOf(cardOf(await ui.drawn(), 'spend')).find(n => /token split/.test(String(n.props?.alt)))
+  const segments = segmentsOf(String(split?.props?.source))
+  expect(segments).toHaveLength(3)
+  for (let i = 1; i < segments.length; i++) expect(Number(((segments[i]?.[0] ?? 0) - (segments[i - 1]?.[1] ?? 0)).toFixed(1))).toBe(1)
+  await ui.unmount()
+})
+
 test('the spend card names its split like a legend: input, output, cache reads', async ($, on) => {
   setup(on)
   await $.session.start(START)
