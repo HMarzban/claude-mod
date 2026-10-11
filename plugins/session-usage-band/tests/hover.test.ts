@@ -2,8 +2,8 @@
 
 import type { RenderChildren } from 'claude-code'
 import { test, expect } from 'claude-code/testing'
-import { DESKTOP, cellsOf } from '../hooks/layout'
-import { DARK, LIGHT } from '../hooks/palette'
+import { DESKTOP, ROW_SLACK, cellsOf } from '../hooks/layout'
+import { DARK, LIGHT, type Palette } from '../hooks/palette'
 import {
   LONG,
   START,
@@ -24,30 +24,44 @@ import {
   mountBand,
 } from './helpers'
 
-/** A card drawn inverted, so it can't pass for a chip: the tooltip ground
- *  and ink. On a text surface its two ends are half blocks in the ground's
+/** A card drawn inverted against `palette`, so it can't pass for a chip:
+ *  its tooltip ground and ink. On a text surface its two ends are half blocks in the ground's
  *  colour on the band's own background, either side of a ground two cells
  *  narrower than the card, so the ends read as rounded edges; the desktop
  *  draws the ground alone. */
-const expectInvertedCard = (card: Node, surface: 'terminal' | 'desktop') => {
+const expectInvertedCard = (card: Node, surface: 'terminal' | 'desktop', palette: Readonly<Palette>) => {
   const kids = (card.children ?? []) as Node[]
   if (surface === 'desktop') {
-    expect(card.props?.backgroundColor).toBe(DARK.tooltipBg)
+    expect(card.props?.backgroundColor).toBe(palette.tooltipBg)
     expect(kids).toHaveLength(1)
-    expect(kids[0]?.props).toMatchObject({ color: DARK.tooltipFg, wrap: 'truncate-end' })
+    expect(kids[0]?.props).toMatchObject({ color: palette.tooltipFg, wrap: 'truncate-end' })
     return
   }
   expect(card.props?.backgroundColor).toBeUndefined()
   expect(kids.map(textOf)).toEqual(['▐', cardText(card), '▌'])
   for (const cap of [kids[0], kids[2]]) {
     expect(cap?.type).toBe('Text')
-    expect(cap?.props?.color).toBe(DARK.tooltipBg)
+    expect(cap?.props?.color).toBe(palette.tooltipBg)
     expect(cap?.props?.backgroundColor).toBeUndefined()
   }
   const ground = kids[1]
-  expect(ground?.props).toMatchObject({ backgroundColor: DARK.tooltipBg, paddingX: 1, width: Number(card.props?.width) - 2 })
-  expect((ground?.children as Node[] | undefined)?.[0]?.props).toMatchObject({ color: DARK.tooltipFg, wrap: 'truncate-end' })
+  expect(ground?.props).toMatchObject({ backgroundColor: palette.tooltipBg, paddingX: 1, width: Number(card.props?.width) - 2 })
+  expect((ground?.children as Node[] | undefined)?.[0]?.props).toMatchObject({ color: palette.tooltipFg, wrap: 'truncate-end' })
 }
+
+/** The ▿ toggle that ends chips' `row`. */
+const toggleOf = (row: unknown): Node | undefined => {
+  const kids = ((row as Node).children ?? []).filter(Boolean) as Node[]
+  const toggle = kids[kids.length - 1]
+  expect(byKey(toggle, 'more', 'Button')).toBeDefined()
+  return toggle
+}
+
+/** The columns a card in chips' row, `cols` wide, may span: the row short of
+ *  its ▿ toggle and the gap before it. The desktop has no exact count of its
+ *  own to check against, so its room comes from the band's measure. */
+const roomBefore = (toggle: Node | undefined, cols: number, surface: 'terminal' | 'desktop'): number =>
+  surface === 'terminal' ? cols - widthOf(toggle) - 1 : Math.floor(cols - cellsOf(toggle as RenderChildren, DESKTOP) - 1)
 
 /** What every hover card in the band's `row`, `cols` wide, holds to: drawn
  *  after every pill, so it paints over them all, and before ▿, which stacks
@@ -59,14 +73,13 @@ const expectInvertedCard = (card: Node, surface: 'terminal' | 'desktop') => {
  *  short of ▿: the pills to its left still switch it. */
 const expectCardsAt = (row: unknown, found: Array<[string, Node]>, cols: number, surface: 'terminal' | 'desktop') => {
   const kids = ((row as Node).children ?? []).filter(Boolean) as Node[]
-  const toggle = kids[kids.length - 1]
-  expect(byKey(toggle, 'more', 'Button')).toBeDefined()
+  const toggle = toggleOf(row)
   expect(toggle?.props?.position).toBe('relative')
   const first = kids.findIndex(isCard)
   expect(first).toBeGreaterThan(0)
   expect(kids.slice(first, -1)).toEqual(found.map(([, card]) => card))
   const pills = kids.slice(0, first).filter(k => k.props?.key !== undefined)
-  const room = cols - widthOf(toggle) - 1
+  const room = roomBefore(toggle, cols, surface)
   const startOf = (key: string) => {
     const i = pills.findIndex(pill => pill.props?.key === key)
     expect(i).toBeGreaterThanOrEqual(0)
@@ -79,7 +92,7 @@ const expectCardsAt = (row: unknown, found: Array<[string, Node]>, cols: number,
     expect(card.props?.right).toBeUndefined()
     expect(card.props?.key).toBeUndefined()
     expect(card.hover?.display).toBe('flex')
-    expectInvertedCard(card, surface)
+    expectInvertedCard(card, surface, DARK)
     const left = Number(card.props?.left)
     const width = Number(card.props?.width)
     expect(Number.isInteger(left) && left >= 0).toBe(true)
@@ -87,9 +100,7 @@ const expectCardsAt = (row: unknown, found: Array<[string, Node]>, cols: number,
       expect(width).toBe(Math.min(cardText(card).length + 4, room))
       expect(left).toBe(Math.max(0, Math.min(startOf(key), room - width)))
     } else {
-      // The desktop has no exact count of its own to check against, so its
-      // room comes from the band's measure.
-      expect(left + width).toBeLessThanOrEqual(Math.floor(cols - cellsOf(toggle as RenderChildren, DESKTOP) - 1))
+      expect(left + width).toBeLessThanOrEqual(room)
     }
   }
 }
@@ -180,30 +191,41 @@ test('plain appearance draws no hover cards', async ($, on) => {
   await ui.unmount()
 })
 
-test('every card, shut and open, fits within the band at every width from 20 to 200 and on a short band, its caps included', LONG, async ($, on) => {
-  setup(on)
-  await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
-  for (const surface of ['terminal', 'desktop'] as const) {
-    for (const maxRows of [40, 4]) {
+// One test per surface and band height, each its own LONG budget: a sweep of
+// every width mounts the band hundreds of times.
+for (const surface of ['terminal', 'desktop'] as const) {
+  for (const maxRows of [40, 4]) {
+    test(`on the ${surface}, ${maxRows} rows tall, every card, shut and open, ends within its row's room at every width from 20 to 200, its caps included`, LONG, async ($, on) => {
+      setup(on)
+      await $.session.start(START)
+      await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
       for (let cols = 20; cols <= 200; cols++) {
         const ui = await mountBand($, surface, cols, { maxRows })
         const shut = await ui.drawn()
         await ui.press({ key: 'more' })
         const open = await ui.drawn()
         await ui.press({ key: 'more' }) // being open is stored: shut it for the next mount
-        for (const [, card] of [...cards(shut), ...cards(open)]) {
-          const width = Number(card.props?.width)
-          const from = Number(card.props?.left ?? card.props?.right)
-          expect(`${surface} ${cols}x${maxRows} ${from >= 0 && from + width <= cols}`).toBe(`${surface} ${cols}x${maxRows} true`)
-          expectInvertedCard(card, surface)
-          expect(width).toBeGreaterThanOrEqual(surface === 'terminal' ? 5 : 3) // its edges and one character
+        for (const tree of [shut, open]) {
+          // A card in chips' row ends short of ▿; any other is the workspace
+          // strip's, whose room is at most the band's row.
+          const row = firstRow(tree)
+          const inRow = new Set(cards(row).map(([, card]) => card))
+          const rowRoom = roomBefore(toggleOf(row), cols, surface)
+          for (const [key, card] of cards(tree)) {
+            const room = inRow.has(card) ? rowRoom : cols - ROW_SLACK
+            const width = Number(card.props?.width)
+            const from = Number(card.props?.left ?? card.props?.right)
+            const at = `${cols}x${maxRows} ${key} ${from}+${width} in ${room}`
+            expect(`${at} ${from >= 0 && from + width <= room}`).toBe(`${at} true`)
+            expectInvertedCard(card, surface, DARK)
+            expect(width).toBeGreaterThanOrEqual(surface === 'terminal' ? 5 : 3) // its edges and one character
+          }
         }
         await ui.unmount()
       }
-    }
+    })
   }
-})
+}
 
 test('in the ascii tier a card keeps its width, with a space for each cap', async ($, on) => {
   setup(on, { env: { CC_BAND_GLYPHS: 'ascii', ...HOUR_1 } })
@@ -226,12 +248,11 @@ test('in the light palette a card is inverted too: a dark ground under light ink
   setup(on, { env: { CC_BAND_APPEARANCE: 'light', ...HOUR_1 } })
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
-  const ui = await mountBand($, 'terminal', 160)
-  for (const [, card] of cards(await ui.drawn())) {
-    const [open, ground, close] = (card.children ?? []) as Node[]
-    expect([open?.props?.color, close?.props?.color]).toEqual([LIGHT.tooltipBg, LIGHT.tooltipBg])
-    expect(ground?.props?.backgroundColor).toBe(LIGHT.tooltipBg)
-    expect((ground?.children as Node[] | undefined)?.[0]?.props?.color).toBe(LIGHT.tooltipFg)
+  for (const [surface, cols] of [['desktop', 120], ['terminal', 160]] as const) {
+    const ui = await mountBand($, surface, cols)
+    const found = cards(await ui.drawn())
+    expect(found.map(([key]) => key)).toEqual(PILLS)
+    for (const [, card] of found) expectInvertedCard(card, surface, LIGHT)
+    await ui.unmount()
   }
-  await ui.unmount()
 })

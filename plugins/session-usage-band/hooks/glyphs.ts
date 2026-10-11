@@ -1,4 +1,4 @@
-// The terminal's glyph tier. East-Asian-Ambiguous glyphs (█ ▒ │ · Σ … ±)
+// The terminal's glyph tier. East-Asian-Ambiguous glyphs (█ ▒ ▌ │ · Σ … ±)
 // draw two columns wide in a CJK locale, or with a terminal's "ambiguous is
 // wide" option, while Ink counts one, so the row would overflow. The ascii
 // tier draws ASCII alone; every mapping is one character at most, so the
@@ -24,7 +24,8 @@ export const ASCII_MAP: Readonly<Record<string, string>> = {
   '█': '#', '░': '-', '▒': ':', '│': '|', '·': '-', '…': '.', '±': '+',
   '●': '*', '■': '#', '–': '-', '↑': '+', '↓': '-', '▿': 'v', '▵': '^',
   '↻': '', 'Σ': '', '◷': '', '◔': '',
-  // A hover card's caps: a space each keeps its width.
+  // A hover card's caps: a space each keeps its width. ▐ is Neutral, but
+  // goes with ▌ so a card's two ends match.
   '▐': ' ', '▌': ' ',
 }
 

@@ -60,7 +60,7 @@ for (const [name, p, hosts] of [
     expect(contrast(p.tooltipFg, p.tooltipBg)).toBeGreaterThanOrEqual(4.5)
     // Cards are drawn over chips' row and the workspace strip alone, never
     // over a flap, so the grounds they cover are the chips' and the host's.
-    const covered = [...pillGrounds, p.batteryFill, p.batteryAmber, ...hosts]
+    const covered = [...pillGrounds, p.meterTrack, p.batteryFill, p.batteryAmber, ...hosts]
     const low = covered.filter(bg => contrast(p.tooltipBg, bg) < 3)
     expect(low.map(bg => `${bg} ${contrast(p.tooltipBg, bg).toFixed(2)}`)).toEqual([])
   })

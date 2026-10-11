@@ -142,10 +142,10 @@ Run `/reload-plugins` in your session afterwards.
   and 200 columns, shut and open. `tools/golden/capture.sh` runs only on the
   hooks at `c0b2c6f`, so it can't recapture a fix. If your change is meant
   to alter what chips draws, update the failing keys in
-  `tests/golden/chips.ts` to the hashes the failures print. For a key also held in `GOLDEN_TREES`, replace its whole
-  tree too: log `JSON.stringify(canon(tree))` for that key in
-  `tests/golden/suite.ts`, paste the output in, and drop the log. Say why in
-  the pull request.
+  `tests/golden/chips.ts` to the hashes the failures print. For a key also
+  held in `GOLDEN_TREES`, replace its whole tree too: log
+  `JSON.stringify(canon(tree))` for that key in `tests/golden/suite.ts`,
+  paste the output in, and drop the log. Say why in the pull request.
 
 ## Demos and the website
 

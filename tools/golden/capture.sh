@@ -6,8 +6,10 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/../.." && pwd)"
 PLUGIN="$ROOT/plugins/session-usage-band"; OUT="$HERE/out"; mkdir -p "$OUT"
-if ! git -C "$ROOT" diff --quiet c0b2c6f -- plugins/session-usage-band/hooks; then
-  echo "capture.sh: hooks/ differs from c0b2c6f; the capture must come from the band before the layouts work, with the 0.11.13 hover fix and the 0.12.1 hover-contrast fix" >&2
+PIN=c0b2c6f
+git -C "$ROOT" cat-file -e "$PIN^{commit}" 2>/dev/null || { echo "capture.sh: pin $PIN is not in this clone" >&2; exit 1; }
+if ! git -C "$ROOT" diff --quiet "$PIN" -- plugins/session-usage-band/hooks; then
+  echo "capture.sh: hooks/ differs from $PIN; the capture must come from the band before the layouts work, with the 0.11.13 hover fix and the 0.12.1 hover-contrast fix" >&2
   exit 1
 fi
 COMMIT="$(git -C "$ROOT" rev-parse HEAD)"
