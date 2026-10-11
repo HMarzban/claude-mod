@@ -70,6 +70,10 @@ export const CHIP_BAR: BarSize = { px: METER_PX, cells: METER_CELLS }
 export type Measure = Readonly<{ text: number; pxPerCell: number }>
 export const TERMINAL: Measure = { text: 1, pxPerCell: 8 }
 export const DESKTOP: Measure = { text: 0.75, pxPerCell: 10 }
+/** Columns a desktop hover card's text takes a character: about 0.8, as
+ *  measured on the desktop (the 57-character 7d card runs about 453px), a
+ *  little over the measure's 0.75 so a card never cuts its own words. */
+export const DESKTOP_CARD_TEXT = 0.8
 
 export const isList = (n: RenderChildren): n is readonly RenderChildren[] => Array.isArray(n)
 
@@ -104,14 +108,19 @@ export const cellsOf = (n: RenderChildren, m: Measure): number => {
   }
 }
 
-/** The column each of a row's drawn pieces starts at, the pieces `gap`
+/** The columns a piece takes in its row: from its first, up to its end. */
+export type Span = readonly [start: number, end: number]
+
+/** The columns each of a row's drawn pieces takes, the pieces `gap`
  *  columns apart. */
-export const startsOf = (pieces: readonly RenderChildren[], gap: number, m: Measure): number[] => {
+export const spansOf = (pieces: readonly RenderChildren[], gap: number, m: Measure): Span[] => {
   let at = 0
   return pieces.map(piece => {
     const start = at
-    at += cellsOf(piece, m) + gap
-    return start
+    at += cellsOf(piece, m)
+    const span: Span = [start, at]
+    at += gap
+    return span
   })
 }
 

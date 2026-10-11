@@ -5,26 +5,39 @@
 import type { ElementTable, RenderChildren } from 'claude-code'
 import { ALT, GLYPH, ICON_PATHS, ICON_PX } from './icons'
 import type { Icon } from './icons'
-import { DESKTOP, TERMINAL } from './layout'
+import { DESKTOP, DESKTOP_CARD_TEXT, TERMINAL } from './layout'
+import type { Span } from './layout'
 import type { Tone } from './reading'
 import type { BandSnapshot } from './snapshot'
 
-/** Where a hover card sits in its row, which has `room` columns: from
- *  `left`, its piece's first column, slid left only as far as it must to end
- *  within the room; or ending where its piece ends, `right` columns short of
- *  the row's right edge, as wide as the room left of that end allows. */
-export type CardPlace = Readonly<{ left: number; room: number }> | Readonly<{ right: number; room: number }>
+/** Where a hover card sits in its row, which has `room` columns: by `left`,
+ *  its piece's first column, or by `right`, how far short of the row's right
+ *  edge its piece ends. `pieces` are the row's pieces, counted from the same
+ *  side, at least a column apart. */
+export type CardPlace = Readonly<({ left: number } | { right: number }) & { room: number; pieces: readonly Span[] }>
 
-/** The columns a card `cells` wide takes at `place`: its own width or the
- *  room it has, whichever is less, and none where a row has no room. */
+/** The columns a card `cells` wide takes at `place`, counted from its side.
+ *  It starts a column before its piece, where a text surface's cap sits in
+ *  the gap and the desktop's ground takes up the measure's error, slid back
+ *  only as far as it must to end within the room. Then it covers whole
+ *  pieces: each piece it enters, the column either side included, so no
+ *  piece shows in part, all within the room. A row has none to give where
+ *  it has no room. */
 const cardSpan = (place: CardPlace, cells: number) => {
   const room = Math.floor(place.room)
-  if ('right' in place) {
-    const right = Math.round(place.right)
-    return { right, width: Math.max(0, Math.min(cells, room - right)) }
-  }
   const width = Math.max(0, Math.min(cells, room))
-  return { left: Math.max(0, Math.min(Math.round(place.left), room - width)), width }
+  let from = Math.max(0, Math.min(('right' in place ? place.right : place.left) - 1, room - width))
+  let to = from + width
+  for (const [start, end] of place.pieces) {
+    if (start < to && end > from) {
+      from = Math.min(from, start - 1)
+      to = Math.max(to, end + 1)
+    }
+  }
+  // The desktop's columns are estimates: the nearest whole ones.
+  const near = Math.round(Math.max(0, from))
+  const span = { width: Math.max(0, Math.round(Math.min(room, to)) - near) }
+  return 'right' in place ? { right: near, ...span } : { left: near, ...span }
 }
 
 export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
@@ -60,7 +73,8 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
   const hoverCard = (key: string, text: string, place: CardPlace): RenderChildren => {
     if (!palette.filled) return null
     const capped = Svg === undefined
-    const span = cardSpan(place, text.length + (capped ? 4 : 2))
+    const cells = capped ? text.length + 4 : Math.ceil(text.length * DESKTOP_CARD_TEXT) + 2
+    const span = cardSpan(place, cells)
     if (span.width < (capped ? 5 : 3)) return null
     const shell = { position: 'absolute', top: 0, ...span, display: 'none', hover: { display: 'flex', scope: scopeOf(key) } } as const
     const ground = { backgroundColor: palette.tooltipBg, paddingX: 1 }
