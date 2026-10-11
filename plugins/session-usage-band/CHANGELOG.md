@@ -5,6 +5,61 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.13.0] - 2026-10-11
+
+### Changed
+- Every layout is redesigned in one language, chips': its pills, tints and
+  icons, one bold figure to a reading, its words in label ink, amber moved
+  to the front and led by `! `. Each layout asks one question of the same
+  readings and draws only its answer, and every layout but gauges now
+  takes one row, on the desktop and in the terminal:
+  - `gauges`: how much room is left, and is it filling faster than the
+    clock? Four bars on one scale in a 2×2 grid, the cache's a battery,
+    each limit notched where its window's time has gone, then the cost.
+  - `ledger`: one plain sentence, each reading bold on its figure alone,
+    `│` between readings and `·` within one.
+  - `rings`: chips' pills, each led by a small ring where its reading has
+    a cap.
+  - `pulse`: is my spending speeding up? Each message's cost and the last
+    hour of the 5-hour limit drawn inside chips' pills.
+  - `tiles`: one row of equal tiles, each its figure, its label and, where
+    there's a cap, a bar or the cache's battery.
+  - `week`: the weekly limit's seven day cells inside its pill, solid
+    where measured, dashed where guessed, the day the guess fills it named,
+    then chips' pills.
+  - `departures`: how long until each thing goes, every reading a
+    countdown in chips' pills, soonest first, `›` between them.
+  - `forecast`: each reading's next change as a chip, its clock time the
+    figure, soonest first.
+- One shared inspector: `▵` opens every layout into the same four cards,
+  Cache, Spend, Context and Limits, under the workspace line and the
+  `Collapse` and `Hide band` buttons. A layout heads each card its own way,
+  its bar, ring or countdown, and no card repeats what the row above it
+  says; as the row narrows and drops a fact, its card says it again.
+- Formatting: dollars are grouped, `$1,027`, and tokens reach billions,
+  `2.1B`. A card's head is bold on its figure alone, its words lowercase in
+  label ink. Limits opens with what the row never says, the closest
+  window's reset at its clock time and its pace, `resets Sat 13:30 · full
+  before reset`. No fill ends in a bright thumb. The tokens chip comes
+  last, and a limit's reset is in label ink, its pace not bold.
+
+### Fixed
+- A limit with nothing used could say `on pace for ~0%`. Its window may
+  not have begun, so it has no pace until some of it is used.
+- On the desktop in `plain` appearance, a chip lost the space before its
+  bar.
+
+### Removed
+- Each layout's own open view: gauges' and rings' panels, ledger's columns
+  of sentences, pulse's charts, tiles' groups, week's large cells and
+  summaries, departures' ITEM, STATUS and TIME board and forecast's
+  outlook rows. The shared cards take their place.
+- Departures' split-flap row and its capitals, tiles' underline, week's
+  second row and day initials, forecast's columns and weather icons.
+- Inside, not on screen: the old view body path (`defineView`, the frame's
+  body and panel), the section and grid helpers it laid out with, and the
+  phrases only it read.
+
 ## [0.12.1] - 2026-10-11
 
 ### Fixed
