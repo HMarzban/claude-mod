@@ -163,14 +163,14 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   const rows = visualRows(collapsed, ctx.surface)
   if (rows !== declared) fail('rows', `${rows} drawn, ${declared} declared`)
 
-  const mark = ctx.expanded ? (ascii ? '^' : '▵') : ascii ? 'v' : '▿'
+  const mark = ctx.expanded ? (ascii ? 'v' : '▿') : ascii ? '^' : '▵'
   let toggles = 0
   walk(collapsed, n => {
     if (n.type === 'Button' && n.props?.label === mark) toggles++
   })
   if (toggles !== 1) fail('toggle', `${toggles} ${mark} in the collapsed part`)
 
-  // All-amber below 60 columns clips by design, ▿ pinned at the end; a
+  // All-amber below 60 columns clips by design, ▵ pinned at the end; a
   // single amber reading still fits. On the terminal it fits the row less
   // its slack, as each line is squeezed to; the desktop's estimate keeps the
   // row's width, since pulse's costs hold its second row there.

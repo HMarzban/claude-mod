@@ -91,7 +91,7 @@ test('chips never shrink, so their text never wraps', async ($, on) => {
   await ui.unmount()
 })
 
-test("expanding leaves the chip row exactly as it was; only the toggle's icon turns from ▿ to ▵", async ($, on) => {
+test("expanding leaves the chip row exactly as it was; only the toggle's icon turns from ▵ to ▿", async ($, on) => {
   setup(on, { usage: withCompaction(152_000) })
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
@@ -99,10 +99,10 @@ test("expanding leaves the chip row exactly as it was; only the toggle's icon tu
   const ui = await mountBand($, 'desktop', 95)
   const toggle = async () => byKey(firstRow(await ui.drawn()), 'more', 'Button')?.props?.label
   const before = shown(firstRow(await ui.drawn()))
-  expect(await toggle()).toBe('▿')
+  expect(await toggle()).toBe('▵')
   await ui.press({ key: 'more' })
   expect(shown(firstRow(await ui.drawn()))).toBe(before)
-  expect(await toggle()).toBe('▵')
+  expect(await toggle()).toBe('▿')
   await ui.unmount()
 })
 
@@ -388,7 +388,7 @@ test('the toggle is a framed native button on the desktop, a plain glyph in the 
   expect(desk?.props?.plain).toBeUndefined()
   const term = await toggleOf('terminal')
   expect(term?.props?.plain).toBe(true)
-  expect(term?.props?.label).toBe('▿')
+  expect(term?.props?.label).toBe('▵')
 })
 
 test('a card short of rows gives up its bar before a fact, since the chips already show it', async ($, on) => {

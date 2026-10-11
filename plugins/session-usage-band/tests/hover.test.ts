@@ -52,7 +52,7 @@ const expectInvertedCard = (card: Node, surface: 'terminal' | 'desktop', palette
   expect((ground?.children as Node[] | undefined)?.[0]?.props).toMatchObject({ color: palette.tooltipFg, wrap: 'truncate-end' })
 }
 
-/** The ▿ toggle that ends chips' `row`. */
+/** The ▵ toggle that ends chips' `row`. */
 const toggleOf = (row: unknown): Node | undefined => {
   const kids = ((row as Node).children ?? []).filter(Boolean) as Node[]
   const toggle = kids[kids.length - 1]
@@ -61,19 +61,19 @@ const toggleOf = (row: unknown): Node | undefined => {
 }
 
 /** The columns a card in chips' row, `cols` wide, may span: the row short of
- *  its ▿ toggle and the gap before it. The desktop has no exact count of its
+ *  its ▵ toggle and the gap before it. The desktop has no exact count of its
  *  own to check against, so its room comes from the band's measure. */
 const roomBefore = (toggle: Node | undefined, cols: number, surface: 'terminal' | 'desktop'): number =>
   surface === 'terminal' ? cols - widthOf(toggle) - 1 : Math.floor(cols - cellsOf(toggle as RenderChildren, DESKTOP) - 1)
 
 /** What every hover card in the band's `row`, `cols` wide, holds to: drawn
- *  after every pill, so it paints over them all, and before ▿, which stacks
+ *  after every pill, so it paints over them all, and before ▵, which stacks
  *  over it and so stays pressable; revealed by the scope it shares with its
  *  own pill; a hidden one-line Box with no key, on the tooltip ground in the
- *  tooltip ink, as wide as its text, ending short of ▿. The pointer on a
+ *  tooltip ink, as wide as its text, ending short of ▵. The pointer on a
  *  showing card keeps it showing, so on the terminal, where cells are exact,
  *  a card starts at its own pill, slid left only as far as it must to end
- *  short of ▿: the pills to its left still switch it. */
+ *  short of ▵: the pills to its left still switch it. */
 const expectCardsAt = (row: unknown, found: Array<[string, Node]>, cols: number, surface: 'terminal' | 'desktop') => {
   const kids = ((row as Node).children ?? []).filter(Boolean) as Node[]
   const toggle = toggleOf(row)
@@ -164,7 +164,7 @@ test('every pill reveals a card of its own, in the order the pills are drawn', a
   }
 })
 
-test('when narrower widths drop pills, each pill left keeps its card, slid to end short of ▿', async ($, on) => {
+test('when narrower widths drop pills, each pill left keeps its card, slid to end short of ▵', async ($, on) => {
   setup(on)
   await $.session.start(START)
   const ui = await mountBand($, 'terminal', 50)
@@ -209,7 +209,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
         const open = await ui.drawn()
         await ui.press({ key: 'more' }) // being open is stored: shut it for the next mount
         for (const tree of [shut, open]) {
-          // A card in chips' row ends short of ▿; any other is the workspace
+          // A card in chips' row ends short of ▵; any other is the workspace
           // strip's, whose room is at most the band's row.
           const row = firstRow(tree)
           const inRow = new Set(cards(row).map(([, card]) => card))

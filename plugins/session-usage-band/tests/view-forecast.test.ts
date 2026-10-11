@@ -1,5 +1,5 @@
 // Forecast, the band read like the weather: now, then each change ahead at
-// its clock time, how it gives way as it narrows, and the outlook behind ▿.
+// its clock time, how it gives way as it narrows, and the outlook behind ▵.
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
@@ -124,7 +124,7 @@ test('open, an outlook row for each reading, in spec order', async ($, on) => {
   expect(t).toMatch(/7d\s*30%\S*\s*on pace for ~\d+%\s*·\s*↻ \S+ \d{2}:\d{2}\s*Spend/)
   expect(t).toMatch(/Spend\s*\$2\.41\s*\d+k tokens/)
 })
-test('open, the outlook keeps the facts every view shows behind ▿, and a long name whole', () => {
+test('open, the outlook keeps the facts every view shows behind ▵, and a long name whole', () => {
   // Drawn directly: no scenario measures what the cache saved.
   const snap = snapOf({ layout: 'forecast', columns: 160, expanded: true, otherLimits: [{ kind: 'seven_day_opus', percentUsed: 12, resetsAt: undefined }] })
   const t = shown(forecastView.draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT))

@@ -209,7 +209,7 @@ const fitRows = (rows: readonly BoardRow[], room: number): RenderElement[] => {
     .map(r => r.line)
 }
 
-/** The board behind ▿: a header, then CACHE, CONTEXT, the limits and SPEND. */
+/** The board behind ▵: a header, then CACHE, CONTEXT, the limits and SPEND. */
 const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
   const c = read.cache
   const x = read.context

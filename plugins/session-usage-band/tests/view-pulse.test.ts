@@ -1,5 +1,5 @@
 // Pulse, trends rather than totals: each message's cost as bars, the 5h
-// trail and its pace, how the charts give way, and the four sections behind ▿.
+// trail and its pace, how the charts give way, and the four sections behind ▵.
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'

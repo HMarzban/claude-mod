@@ -1,5 +1,5 @@
 // Rings, a ring per reading: one for each reading and none for the cost, the
-// terminal's meters, the reason as the label, and the four panels behind ▿.
+// terminal's meters, the reason as the label, and the four panels behind ▵.
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'

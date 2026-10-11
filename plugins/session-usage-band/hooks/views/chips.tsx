@@ -246,7 +246,7 @@ const drawChips = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
   const rowOf = (specs: PillSpec[]): RenderElement => {
     const pills = specs.map(spec => pill(kit, spec))
     const toggle = toggleButton(kit, read, act)
-    // A card ends short of ▿ and the gap before it.
+    // A card ends short of ▵ and the gap before it.
     const room = snap.columns - cellsOf(toggle, measure) - 1
     const starts = startsOf(pills, 1, measure)
     return (

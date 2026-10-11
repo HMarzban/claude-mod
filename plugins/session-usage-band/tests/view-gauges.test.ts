@@ -1,5 +1,5 @@
 // Gauges, two rows of labelled bars: the cache row and the three cells, how
-// they give way as they narrow, and the four panels behind ▿.
+// they give way as they narrow, and the four panels behind ▵.
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'

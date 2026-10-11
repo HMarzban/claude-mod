@@ -1,6 +1,6 @@
 // Tiles, a bold value over its label: the tiles calm and amber, the
 // desktop's underlines, how they give way as the line narrows, and the four
-// groups behind ▿.
+// groups behind ▵.
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'

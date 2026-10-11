@@ -29,10 +29,11 @@ const placedStrip = (kit: Kit, line: RenderChildren, place: 'top' | 'footer'): R
 export const bodyRowsFor = (maxRows: number, collapsedRows: number, stripRows: number): number =>
   Math.max(0, maxRows - collapsedRows - 3 - stripRows)
 
-/** ▿ while shut, ▵ while open: chips' own toggle, at the end of its row.
- *  It comes after the row's hover cards and, placed relative, stacks over
- *  them on the desktop too, so it stays pressable where the measure sets a
- *  card long. */
+/** ▵ while shut, ▿ while open: chips' own toggle, at the end of its row.
+ *  It points the way the band will move, since the band is anchored to the
+ *  prompt and grows upward when it opens. It comes after the row's hover
+ *  cards and, placed relative, stacks over them on the desktop too, so it
+ *  stays pressable where the measure sets a card long. */
 export const toggleButton = (kit: Kit, read: Readings, act: BandActions): RenderElement => {
   const { Box, Button, Svg } = kit
   return (
@@ -44,7 +45,7 @@ export const toggleButton = (kit: Kit, read: Readings, act: BandActions): Render
           terminal bare. */}
       <Button
         key="more"
-        label={read.frame.expanded ? '▵' : '▿'}
+        label={read.frame.expanded ? '▿' : '▵'}
         {...(Svg ? { variant: 'secondary' as const } : { plain: true as const, dimColor: true })}
         onPress={act.toggleExpanded}
       />

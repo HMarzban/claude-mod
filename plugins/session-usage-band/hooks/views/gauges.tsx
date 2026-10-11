@@ -156,7 +156,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => [
 /** A limit in its panel: `5h 4% · resets in 3h 00m · on pace for ~10%`. */
 const SENTENCE: SentenceStyle = { lead: 'say', reset: 'resetWords', sep: ' · ' }
 
-/** The facts behind ▿: four panels, each its bars over its facts while they fit. */
+/** The facts behind ▵: four panels, each its bars over its facts while they fit. */
 const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
   const p = kit.palette
   const c = read.cache

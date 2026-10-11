@@ -17,7 +17,7 @@ body:
       placeholder: |
         1. Start a session
         2. Send a message
-        3. Click ▿
+        3. Click ▵
   - type: textarea
     id: screenshot
     attributes:

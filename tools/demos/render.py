@@ -95,7 +95,7 @@ CAPS = {
     'last': 'Its last minute: <em>the band says what a cold cache will cost</em>',
     'last2': 'Its last minute: <em>the band says what a cold cache will cost</em>',
     'cold': 'Gone cold. <span>Now you know what the next message costs.</span>',
-    'cards': '▿ opens every fact <span>· cache, spend, context, limits</span>',
+    'cards': '▵ opens every fact <span>· cache, spend, context, limits</span>',
 }
 
 if __name__ == '__main__':

@@ -137,7 +137,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
 /** Pulse's limit sentences: `5h 4% · resets in 3h 00m · on pace for ~10%`. */
 const SENTENCE: SentenceStyle = { lead: 'say', reset: 'resetWords', sep: ' · ' }
 
-/** The facts behind ▿: the cache, then each history with the facts beside it. */
+/** The facts behind ▵: the cache, then each history with the facts beside it. */
 const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
   const { Svg, palette: p } = kit
   const c = read.cache

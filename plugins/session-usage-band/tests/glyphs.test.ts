@@ -50,13 +50,13 @@ test('chips in the ascii tier draws only ASCII, within the row, shut and open', 
   const open = trees[caseKey(m, 'open')]
   expect(textOf(shut)).toMatch(/^[\x20-\x7e]*$/)
   expect(widthOf(firstRow(shut))).toBeLessThanOrEqual(120 - ROW_SLACK)
-  expect(byKey(shut, 'more', 'Button')?.props?.label).toBe('v')
-  // Opened (by key), the band stays ASCII and keeps its cards, and the toggle reads ^.
+  expect(byKey(shut, 'more', 'Button')?.props?.label).toBe('^')
+  // Opened (by key), the band stays ASCII and keeps its cards, and the toggle reads v.
   expect(cards(open).length).toBeGreaterThan(0)
   expect(textOf(open)).toMatch(/^[\x20-\x7e]*$/)
-  expect(byKey(open, 'more', 'Button')?.props?.label).toBe('^')
+  expect(byKey(open, 'more', 'Button')?.props?.label).toBe('v')
   // The tier is the terminal's: the desktop draws its own glyphs.
-  expect(byKey(trees[caseKey(desktop, 'shut')], 'more', 'Button')?.props?.label).toBe('▿')
+  expect(byKey(trees[caseKey(desktop, 'shut')], 'more', 'Button')?.props?.label).toBe('▵')
 })
 test('the ascii battery drops its glyph before the cut, so its charge and spacing hold', LONG, async ($, on) => {
   const clock = setup(on, { env: { ...HOUR_1, CC_BAND_GLYPHS: 'ascii' } })

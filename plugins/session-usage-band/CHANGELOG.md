@@ -12,6 +12,11 @@ version may change how the band reads.
   edge, so it read as one more chip. Cards are now inverted, light on a
   dark band and dark on a light one, a ground no chip uses; in the
   terminal each card ends in half blocks that round its edges.
+- The expand toggle pointed the wrong way: the band is anchored to the
+  prompt and grows upward when it opens, yet it showed `▿` to open and `▵`
+  to close. It now points the way the band will move, `▵` to open and `▿`
+  to close (`^` and `v` in ASCII), in every layout, on the desktop and in
+  the terminal.
 
 ## [0.12.0] - 2026-10-10
 

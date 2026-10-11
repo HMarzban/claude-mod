@@ -1,5 +1,5 @@
 // Week, the limits as days and hours: its two rows calm and amber, how they
-// give way as they narrow, and LIMITS and the facts line behind ▿.
+// give way as they narrow, and LIMITS and the facts line behind ▵.
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'

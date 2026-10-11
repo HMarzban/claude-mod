@@ -487,7 +487,7 @@
         <div class="swipe" id="swipe">Swipe to see the whole band →</div>
       </div>
       <div class="tip" id="tip"></div>
-      <div class="livebar"><span class="hint"><span class="pulse"></span><span id="note"><b>This is the real band</b>, counting down its last minute. Hover a chip, open ▿, or try Hide band.</span></span><button class="chip" id="replay" type="button"><svg class="i"><use href="#i-replay"/></svg><span>Replay the tour</span></button></div>
+      <div class="livebar"><span class="hint"><span class="pulse"></span><span id="note"><b>This is the real band</b>, counting down its last minute. Hover a chip, open ▵, or try Hide band.</span></span><button class="chip" id="replay" type="button"><svg class="i"><use href="#i-replay"/></svg><span>Replay the tour</span></button></div>
     </div>
   </header>
 
@@ -547,14 +547,14 @@
       <div class="tile wide"><span class="ti"><svg class="i"><use href="#i-coin"/></svg></span><h3>Session spend</h3><p>The running total, and what your last message cost on its own.</p></div>
       <div class="tile"><span class="ti"><svg class="i"><use href="#i-doc"/></svg></span><h3>Context</h3><p>How full the conversation is, and how close auto-compaction is.</p></div>
       <div class="tile"><span class="ti"><svg class="i"><use href="#i-gauge"/></svg></span><h3>5-hour limit</h3><p>Usage and the reset, with a warning when <span class="mark">your pace would run out</span> first.</p></div>
-      <div class="tile last"><span class="ti"><svg class="i"><use href="#i-cal"/></svg></span><h3>Weekly limit</h3><p>Usage and when it resets. Open ▿ for every fact labelled, under your project and git branch.</p></div>
+      <div class="tile last"><span class="ti"><svg class="i"><use href="#i-cal"/></svg></span><h3>Weekly limit</h3><p>Usage and when it resets. Open ▵ for every fact labelled, under your project and git branch.</p></div>
     </div>
   </section>
 
   <section id="layouts" class="reveal">
     <span class="badge"><svg class="i"><use href="#i-layers"/></svg></span>
     <h2>The same readings, in <span class="em">nine</span> shapes.</h2>
-    <p class="sub">Chips is the default. <code>/usage-band layout &lt;name&gt;</code> draws another, and every session draws it from then on; <code>/usage-band layout</code> alone lists them. Each opens with ▿ to its own view of every fact.</p>
+    <p class="sub">Chips is the default. <code>/usage-band layout &lt;name&gt;</code> draws another, and every session draws it from then on; <code>/usage-band layout</code> alone lists them. Each opens with ▵ to its own view of every fact.</p>
     <div class="lay" id="lay">
       <div class="laypick" role="group" aria-label="Layout">
         <button type="button" data-layout="chips" aria-pressed="true">chips</button>
@@ -574,7 +574,7 @@
       <div class="tip" id="ltip"></div>
       <div class="layfoot">
         <div>
-          <p class="what" id="laywhat" aria-live="polite" data-name="chips"><b>chips</b>The row of chips, with four cards behind ▿. The default.<span class="rows">1 row on the desktop, 1 row in the terminal</span></p>
+          <p class="what" id="laywhat" aria-live="polite" data-name="chips"><b>chips</b>The row of chips, with four cards behind ▵. The default.<span class="rows">1 row on the desktop, 1 row in the terminal</span></p>
           <div class="install laycmd">
             <pre id="laycmd">/usage-band layout chips</pre>
             <button class="copy" type="button" id="laycopy" data-copy="/usage-band layout chips"><svg class="i ic"><use href="#i-copy"/></svg><svg class="i ok"><use href="#i-check"/></svg><span class="lbl">Copy</span></button>
@@ -582,12 +582,12 @@
         </div>
         <div class="layctl">
           <div class="seg" role="group" aria-label="Moment"><button type="button" data-amber="false" aria-pressed="true">Calm</button><button type="button" data-amber="true" aria-pressed="false">Last minute</button></div>
-          <div class="seg"><button type="button" id="layopen" aria-pressed="false">Open ▿</button></div>
+          <div class="seg"><button type="button" id="layopen" aria-pressed="false">Open ▵</button></div>
         </div>
       </div>
       <p class="livebar">The band's own drawings on the desktop, from one session sixteen replies in. Below 40 columns every layout draws chips.</p>
     </div>
-    <noscript><ul style="margin:24px 0 0 20px;color:var(--text-2)"><li><code>chips</code> The row of chips, with four cards behind ▿. The default.</li><li><code>gauges</code> Two rows of labelled bars: the cache's time left, context up to compaction, and the 5h and 7d limits, each with a tick for how much of its window has gone.</li><li><code>ledger</code> The band in words alone, <code>·</code>-separated, with <code>!</code> leading what needs you.</li><li><code>rings</code> A ring per reading, its value over its label, with a dot on each limit for how much of the window has gone. The terminal draws a bar.</li><li><code>pulse</code> Trends rather than totals: each message's cost as bars, and which way the 5-hour limit is heading.</li><li><code>tiles</code> Each reading as a bold value over a small label, with a thin underline on the desktop.</li><li><code>week</code> Where your limits went: the weekly limit as day cells, the 5-hour limit as hour cells.</li><li><code>departures</code> A split-flap board: the cache <code>DEPARTS</code> at its clock time, and its last minute is <code>LAST CALL</code>.</li><li><code>forecast</code> The band read like the weather: now, then up to three changes ahead at their clock times.</li></ul><img src="band-layouts-light.png" alt="The nine layouts, one panel each, drawn calm and then in the cache's last minute: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" style="display:block;width:100%;height:auto;margin-top:24px"></noscript>
+    <noscript><ul style="margin:24px 0 0 20px;color:var(--text-2)"><li><code>chips</code> The row of chips, with four cards behind ▵. The default.</li><li><code>gauges</code> Two rows of labelled bars: the cache's time left, context up to compaction, and the 5h and 7d limits, each with a tick for how much of its window has gone.</li><li><code>ledger</code> The band in words alone, <code>·</code>-separated, with <code>!</code> leading what needs you.</li><li><code>rings</code> A ring per reading, its value over its label, with a dot on each limit for how much of the window has gone. The terminal draws a bar.</li><li><code>pulse</code> Trends rather than totals: each message's cost as bars, and which way the 5-hour limit is heading.</li><li><code>tiles</code> Each reading as a bold value over a small label, with a thin underline on the desktop.</li><li><code>week</code> Where your limits went: the weekly limit as day cells, the 5-hour limit as hour cells.</li><li><code>departures</code> A split-flap board: the cache <code>DEPARTS</code> at its clock time, and its last minute is <code>LAST CALL</code>.</li><li><code>forecast</code> The band read like the weather: now, then up to three changes ahead at their clock times.</li></ul><img src="band-layouts-light.png" alt="The nine layouts, one panel each, drawn calm and then in the cache's last minute: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" style="display:block;width:100%;height:auto;margin-top:24px"></noscript>
     <details class="how gallery"><summary><svg class="i"><use href="#i-grid"/></svg>All nine at once</summary><img id="laygallery" src="band-layouts-light.png" alt="The nine layouts, one panel each, drawn calm and then in the cache's last minute: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" loading="lazy"></details>
   </section>
 
@@ -805,7 +805,7 @@
     S.mode = mode; S.open = false; S.hidden = false; clearInterval(S.timer); clearTimeout(S.next)
     for (const t of tabs) { t.setAttribute('aria-selected', t.dataset.mode === mode); t.tabIndex = t.dataset.mode === mode ? 0 : -1 }
     moveIndicator()
-    note.innerHTML = NOTES[mode] + ' <span style="color:var(--text-3)">Hover a chip or open ▿.</span>'
+    note.innerHTML = NOTES[mode] + ' <span style="color:var(--text-3)">Hover a chip or open ▵.</span>'
     note.classList.remove('fade'); void note.offsetWidth; note.classList.add('fade')
     if (mode === 'last') {
       S.secs = S.touring ? 6 : 15; draw(true)
@@ -865,7 +865,7 @@
   const lay = $('#lay'), lhost = $('#layhost'), lfit = $('#lfit')
   const lscale = () => fitBand($('#lscroller'), $('#lfitbox'), lfit, $('#lswipe'))
   const LAYOUTS = {
-    chips: ['The row of chips, with four cards behind ▿. The default.', 1, 1],
+    chips: ['The row of chips, with four cards behind ▵. The default.', 1, 1],
     gauges: ['Two rows of labelled bars: the cache\'s time left, context up to compaction, and the 5h and 7d limits, each with a tick for how much of its window has gone.', 2, 2],
     ledger: ['The band in words alone, <code>·</code>-separated, with <code>!</code> leading what needs you.', 1, 1],
     rings: ['A ring per reading, its value over its label, with a dot on each limit for how much of the window has gone. The terminal draws a bar.', 2, 1],

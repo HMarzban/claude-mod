@@ -14,7 +14,7 @@ CAPS = {
     'last': ('Its ', 'last', ' minute.', 'The band names the price of going cold.'),
     'last2': ('Its ', 'last', ' minute.', 'The band names the price of going cold.'),
     'cold': ('Gone ', 'cold', '.', 'You know the price before you hit enter.'),
-    'cards': ('▿ opens ', 'every', ' fact.', 'Cache, spend, context and limits.'),
+    'cards': ('▵ opens ', 'every', ' fact.', 'Cache, spend, context and limits.'),
 }
 src, out, theme = sys.argv[1], sys.argv[2], sys.argv[3]
 c = T[theme]

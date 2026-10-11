@@ -1,5 +1,5 @@
 // Departures, the band as a split-flap board: the cache's flight calm and
-// amber, how the line gives way as it narrows, and the board behind ▿.
+// amber, how the line gives way as it narrows, and the board behind ▵.
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'

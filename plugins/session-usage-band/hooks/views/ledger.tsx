@@ -56,7 +56,7 @@ const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
 /** Ledger's limit sentences: `5h 4%, resets in 3h 00m, on pace for ~10%`. */
 const SENTENCE: SentenceStyle = { lead: 'text', reset: 'resetWords', sep: ', ' }
 
-/** The facts behind ▿: four columns of short sentences. */
+/** The facts behind ▵: four columns of short sentences. */
 const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
   const c = read.cache
   const x = read.context

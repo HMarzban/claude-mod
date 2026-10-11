@@ -146,7 +146,7 @@ Resume or fork a session (`claude --resume`, `/resume`, or a past session
 in the desktop app) and the band picks up its cache and spend where they
 were ([how it reads them](plugins/session-usage-band/README.md#reopening-an-old-session)).
 
-Press `▿` to open every fact, under a line that says where you are: the
+Press `▵` to open every fact, under a line that says where you are: the
 project, its git branch or worktree, uncommitted changes and ahead/behind.
 Chips opens four labelled cards; each other layout opens its own view.
 

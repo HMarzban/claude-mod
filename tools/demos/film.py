@@ -72,7 +72,7 @@ CAPTIONS = [
     (3.6, 7.0, 'The battery drains', 'as the cache ages.'),
     (7.0, 9.4, 'Its last minute:', 'the band tells you what going cold will cost.'),
     (9.4, 11.0, 'Gone cold.', 'You know the price before you hit enter.'),
-    (11.0, 14.4, '▿ opens every fact.', 'Cache, spend, context and limits.'),
+    (11.0, 14.4, '▵ opens every fact.', 'Cache, spend, context and limits.'),
 ]
 
 

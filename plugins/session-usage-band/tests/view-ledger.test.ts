@@ -1,5 +1,5 @@
 // Ledger, the band in words alone: its sentence calm and amber, how it gives
-// way as it narrows, and the four sections behind ▿.
+// way as it narrows, and the four sections behind ▵.
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'

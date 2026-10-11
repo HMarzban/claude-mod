@@ -27,8 +27,8 @@ test("the toggle is golden's Button: bare on the terminal, framed on the desktop
     const snap = snapOf(over)
     return byKey(toggleButton(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT), 'more', 'Button')?.props
   }
-  expect(toggleOf({})).toEqual({ key: 'more', label: '▿', plain: true, dimColor: true, onPress: NO_ACT.toggleExpanded })
-  expect(toggleOf({ surface: 'desktop', expanded: true })).toEqual({ key: 'more', label: '▵', variant: 'secondary', onPress: NO_ACT.toggleExpanded })
+  expect(toggleOf({})).toEqual({ key: 'more', label: '▵', plain: true, dimColor: true, onPress: NO_ACT.toggleExpanded })
+  expect(toggleOf({ surface: 'desktop', expanded: true })).toEqual({ key: 'more', label: '▿', variant: 'secondary', onPress: NO_ACT.toggleExpanded })
 })
 test('shut, a view draws its collapsed part alone', () => {
   expect(shown(opened({ expanded: false }))).toBe('LINE')
