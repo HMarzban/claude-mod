@@ -69,11 +69,12 @@ done
 echo "site"
 python3 gen_site.py "$OUT/site.txt" site/template.html "$DOCS/index.html" >/dev/null
 
-# ---- 5. the stills: social card, expanded band, states and layouts galleries -
+# ---- 5. the stills: social card, anatomy, expanded band, the galleries -------
 echo "stills"
 mkdir -p "$OUT/stills"
 python3 stills.py "$OUT/site.txt" "$OUT/stills" >/dev/null
 shot 1280 640 "$OUT/stills/social.html" "$DOCS/social-preview.png"
+shot 1100 270 "$OUT/stills/anatomy.html" "$DOCS/band-anatomy.png"
 shot 1012 700 "$OUT/stills/expanded.html" "$DOCS/band-expanded.png"
 for th in light dark; do
   shot 1100 900 "$OUT/stills/states-$th.html" "$DOCS/band-states-$th.png"
