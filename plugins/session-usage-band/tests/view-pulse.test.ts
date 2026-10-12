@@ -216,6 +216,28 @@ const NEAR = { tokens: 180_000, window: 200_000, percent: 90, compactAt: 190_000
 const EXPIRING = { ...snapOf().cache, msLeft: 30_000, ttl: '5m' as const }
 const WS = { path: '/u/claude-mod', git: { branch: 'main', changed: 0 } } as BandSnapshot['workspace']
 
+test('open, an amber band never gives way: near compaction Context stays, an expiring Cache and an amber 7d too, where calm they go', () => {
+  const AMBER_7D = { ...LIMITS, sevenDay: { ...LIMITS.sevenDay, percentUsed: 85 } }
+  const cases = [
+    ['band:context', { context: NEAR }],
+    ['band:cache', { cache: EXPIRING }],
+    ['band:limits', AMBER_7D],
+  ] as const
+  for (const surface of ['terminal', 'desktop'] as const)
+    for (const [key, amber] of cases)
+      // From a body of two rows, which holds any one band.
+      for (const maxRows of [6, 7, 8]) {
+        const calm = band({ surface, expanded: true, maxRows, ...LIMITS })
+        const open = band({ surface, expanded: true, maxRows, ...LIMITS, ...amber })
+        // Short of rows the calm band has gone; the amber one stays, and the stack still fits.
+        const kept = byKey(open, key, 'Box') !== undefined || byKey(calm, key, 'Box') !== undefined
+        expect(`${surface} ${key} ${maxRows} ${kept}`).toBe(`${surface} ${key} ${maxRows} true`)
+        expect(visualRows(open, surface)).toBeLessThanOrEqual(maxRows)
+      }
+  // The calm Context does go short of rows, so the case above means something.
+  expect(byKey(band({ surface: 'desktop', expanded: true, maxRows: 8, ...LIMITS }), 'band:context', 'Box')).toBeUndefined()
+  expect(byKey(band({ surface: 'desktop', expanded: true, maxRows: 8, ...LIMITS, context: NEAR }), 'band:context', 'Box')).toBeDefined()
+})
 test('open, no limits: in a body of 6 Context stays, since Limits draws nothing', () => {
   const open = band({ surface: 'desktop', expanded: true, maxRows: 10, fiveHour: undefined, sevenDay: undefined })
   expect(byKey(open, 'band:limits', 'Box')).toBeUndefined()

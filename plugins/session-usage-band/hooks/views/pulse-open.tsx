@@ -4,8 +4,8 @@
 // a grid: every band's chart at one width, fitted once to the room, then a
 // name column as wide as the longest name, then its words and any note.
 // A band with too little to chart draws its chart flat, so the grid keeps
-// its look. Short of rows, the bands give way by STEPS; the footer, with the
-// strip in its row, stays.
+// its look. Short of rows, the calm bands give way by STEPS, an amber one
+// never; the footer, with the strip in its row, stays.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { barChart, dayCells, dayCellsFit, flatBeats, sparkline, stackGrid, type StackGrid } from '../charts'
@@ -28,7 +28,7 @@ type Step = Readonly<Partial<Record<Band, Size>>>
 /** What the stack draws at each step, first to last (spec §4.2's give-way):
  *  every band; Other gone; Context gone; Limits at two rows, then one;
  *  Spend to one; Cache gone; nothing. The stack takes the first whose
- *  bands, as they draw, fit. */
+ *  bands, as they draw, fit; an amber band is kept at every step (fitted). */
 const STEPS: readonly Step[] = [
   { cache: 'chart', spend: 'chart', context: 'chart', limits: 'chart', other: 'words' },
   { cache: 'chart', spend: 'chart', context: 'chart', limits: 'chart' },
@@ -197,16 +197,23 @@ const bands = (kit: Kit, read: Readings, grid: StackGrid, step: Step, room: numb
   return drawn
 }
 
-/** The first step whose bands, as drawn, fit `rows`: Other kept at every
- *  step while it is amber (spec §2.1: an amber reading never gives way);
- *  none when not even that fits. */
+/** The first step whose bands, as drawn, fit `rows`, every amber band kept
+ *  at every step (spec §2.1: an amber reading never gives way): Cache in
+ *  its last minute, Context near compaction, Limits with 5h or 7d amber, at
+ *  least as words, and Other. A band the step keeps keeps the step's size.
+ *  None when not even that fits. */
 const fitted = (kit: Kit, read: Readings, rows: number, room: number): Drawn[] => {
-  const amberOther = read.limits.some(l => l.key === 'other' && l.amber !== undefined)
   const { cache, context, history: hist, fiveHour, sevenDay } = read
+  const amber: Step = {
+    ...(cache.amber !== undefined ? { cache: 'chart' } : {}),
+    ...(context.amber !== undefined ? { context: 'chart' } : {}),
+    ...(fiveHour?.amber !== undefined || sevenDay?.amber !== undefined ? { limits: 'words' } : {}),
+    ...(read.limits.some(l => l.key === 'other' && l.amber !== undefined) ? { other: 'words' } : {}),
+  }
   const names = [cache.bandName, hist.spendBandName, context.bandName, ...[fiveHour, sevenDay].flatMap(l => (l === undefined ? [] : [l.bandName]))]
   const grid = stackGrid(kit, room, names, read.frame.glyphs === 'unicode')
   for (const step of STEPS) {
-    const drawn = bands(kit, read, grid, amberOther ? { ...step, other: 'words' } : step, room)
+    const drawn = bands(kit, read, grid, { ...amber, ...step }, room)
     if (drawn.reduce((n, d) => n + d.rows, 0) <= rows) return drawn
   }
   return []
