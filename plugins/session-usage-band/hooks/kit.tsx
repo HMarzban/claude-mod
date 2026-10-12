@@ -56,7 +56,8 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
    *  piece is measured here where its cards are placed. */
   const asDrawn = (n: RenderChildren): RenderChildren => (glyphs === 'ascii' ? asciiTree(n) : n)
 
-  // A piece and its card share this hover scope; see hoverCard.
+  // A piece and its card share this hover scope; see hoverCard and
+  // CONTRIBUTING's hover-card rules.
   const scopeOf = (key: string) => `band-${key}`
 
   /** One line of text, cut where its box ends rather than wrapped. The

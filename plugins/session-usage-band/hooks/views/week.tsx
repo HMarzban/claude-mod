@@ -120,7 +120,7 @@ const figure = (kit: Kit, say: Say, ink: string): RenderChildren[] => {
 
 /** The context's pill: its fill as the card heads it, `87% full`, short its
  *  figure alone; amber, its reason. Chips' own carries a meter. */
-const contextSpec = (kit: Kit, read: Readings, built: Built, short: boolean, keeps: Keeps<Piece>): PillSpec => {
+const contextSpec = (kit: Kit, read: Readings, short: boolean, keeps: Keeps<Piece>): PillSpec => {
   const { Text, palette, icon } = kit
   const x = read.context
   const hover = contextHover(read)
@@ -140,7 +140,7 @@ const weekPills = (kit: Kit, read: Readings, built: Built, keeps: Keeps<Piece>):
     fiveHour === undefined || !keeps.calm('calmFive', fiveHour.tone) ? undefined : limitSpec(kit, read, built, fiveHour, keeps),
     built.cache[cacheShort ? 'short' : 'long'](),
     keeps.has('cost') ? costPill(kit, read) : undefined,
-    context.known && keeps.calm('calmContext', context.tone) ? contextSpec(kit, read, built, short, keeps) : undefined,
+    context.known && keeps.calm('calmContext', context.tone) ? contextSpec(kit, read, short, keeps) : undefined,
     read.cache.measured && keeps.has('tokens') ? tokensPill(kit, read) : undefined,
   ].filter((p): p is PillSpec => p !== undefined)
   return [...pills.filter(p => p.tone === 'amber'), ...pills.filter(p => p.tone !== 'amber')]

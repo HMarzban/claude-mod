@@ -1,8 +1,8 @@
 // Chips: a row of pills, and the shared cards beneath it when open. Its pill
 // builders, their hover strings, LIMITS and its row are exported, so a layout
 // composes chips' pills, tints and icons rather than drawing its own. They
-// draw from the readings' words; only the context's pill and hover still
-// read raw facts (`read.chips.raw`).
+// draw from the readings' words; only the context's pill and hover read
+// raw facts (`read.chips.raw`).
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { meter } from '../charts'

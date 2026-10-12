@@ -24,10 +24,10 @@ import { defineCardsView, type CardOptions } from './view'
 const ORDER = ['tokens', 'resetGlyph', 'resets', 'barLength', 'calmSeven', 'calmContext', 'marks', 'calmFive', 'evenWidths', 'calmCost', 'labels'] as const
 type Piece = (typeof ORDER)[number]
 
+const SHORT_MARK: BarSize = { px: 24, cells: 4 }
 /** A tile's mark at its lengths, longest first, a cell shorter each: the
  *  row takes the longest it holds before a word gives way, and the shortest
  *  once the bar length has. A card head's mark. */
-const SHORT_MARK: BarSize = { px: 24, cells: 4 }
 const MARKS: readonly [BarSize, ...BarSize[]] = [{ px: 40, cells: 6 }, { px: 32, cells: 5 }, SHORT_MARK]
 const SLOT: BarSize = { px: 64, cells: 6 }
 

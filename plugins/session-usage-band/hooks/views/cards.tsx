@@ -105,7 +105,6 @@ export type OpenOptions = Readonly<{
   reWarmLabel?: string
 }>
 
-/** The token split bar's alt text. */
 export const SPLIT_ALT = `token split: ${SPLIT_LABELS.join(', ')}`
 
 /** The session's tokens split by kind, in `SPLIT_LABELS`' order, each part
@@ -170,8 +169,8 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
   const edge = bordered ? 2 : 0
   const minCard = Math.ceil(CARD_TEXT * measure.text) + 2 + edge
   // The cards present, which the grid lays out.
-  const drawn: Readonly<Record<CardName, boolean>> = { cache: true, spend: true, context: context.known, limits: read.limits.length > 0 }
-  const present = CARD_NAMES.filter(name => drawn[name])
+  const hasCard: Readonly<Record<CardName, boolean>> = { cache: true, spend: true, context: context.known, limits: read.limits.length > 0 }
+  const present = CARD_NAMES.filter(name => hasCard[name])
   const cardCount = present.length
   const fits = (n: number) => n * minCard + (n - 1) <= columns
   const perLine = [cardCount, Math.ceil(cardCount / 2)].find(fits) ?? 1
