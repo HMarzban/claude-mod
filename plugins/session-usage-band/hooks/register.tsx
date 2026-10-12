@@ -61,6 +61,8 @@ import {
   SEVEN_DAY,
   addSample,
   asLayoutName,
+  REMOVED_IN,
+  removedLayoutOf,
   asLimitSamples,
   asRates,
   asSessions,
@@ -135,6 +137,8 @@ const band: {
   palette: Readonly<Palette>
   /** The layout the band draws in. */
   layout: LayoutName
+  /** A removed layout the store still names, which the command mentions; else undefined. */
+  removed: string | undefined
   /** The terminal's glyph tier, read from the environment at session.start. */
   glyphs: Glyphs
   /** Where auto-compaction runs, as the context breakdown last said; read
@@ -162,6 +166,7 @@ const band: {
 } = {
   palette: DARK,
   layout: DEFAULT_LAYOUT,
+  removed: undefined,
   glyphs: 'unicode',
   compactAt: undefined,
   autoCompactOff: false,
@@ -416,24 +421,30 @@ const readLayout = async ($: EngineInterface): Promise<void> => {
     () => undefined,
   )
   if (read !== undefined) band.layout = asLayoutName(read.stored) ?? DEFAULT_LAYOUT
+  if (read !== undefined) band.removed = removedLayoutOf(read.stored)
 }
 
 /** The layouts /usage-band layout offers. */
-const LAYOUT_LIST = `Choose one: ${LAYOUT_NAMES.join(', ')}.`
+const LAYOUT_PURPOSE: Readonly<Record<LayoutName, string>> = { chips: 'at a glance', pulse: 'trends', departures: 'times' }
+const LAYOUT_LIST = `Choose one: ${LAYOUT_NAMES.map(n => `${n} (${LAYOUT_PURPOSE[n]})`).join(', ')}.`
 /** `layout`, then what follows it, if anything. */
 const LAYOUT_ARG = /^\s*layout(?:\s+(.*))?$/i
 
 /** What a layout reply adds when the store couldn't keep it. */
 const UNSAVED = "It couldn't be saved, so it lasts until Claude's next reply."
 /** The reply naming the layout the band draws in. */
-const layoutReply = (name: LayoutName): string => `Usage band layout: ${name}.`
+const layoutReply = (name: LayoutName, removed?: string): string =>
+  `Usage band layout: ${name}${removed === undefined ? '' : ` (${removed} was removed in ${REMOVED_IN})`}.`
 
 /** `/usage-band layout [name]`: lists, or switches and remembers. Only this writes the layout. */
 const chooseLayout = async ($: EngineInterface, arg: string): Promise<string> => {
-  if (arg.trim() === '') return `${layoutReply(band.layout)} ${LAYOUT_LIST}`
+  if (arg.trim() === '') return `${layoutReply(band.layout, band.removed)} ${LAYOUT_LIST}`
   const name = asLayoutName(arg)
+  const gone = removedLayoutOf(arg)
+  if (gone !== undefined) return `${gone} was removed in ${REMOVED_IN}. ${LAYOUT_LIST}`
   if (name === undefined) return `Unknown layout "${clipMiddle(arg.trim(), 20)}". ${LAYOUT_LIST}`
   band.layout = name
+  band.removed = undefined
   // Remembered for the next session. A store that fails leaves this one
   // switched until the next turn reads the store back, and the reply says so.
   const saved = await $.store.set(LAYOUT_KEY, name).then(

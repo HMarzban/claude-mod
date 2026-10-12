@@ -150,7 +150,11 @@ export const drawCases = async ($: Engine, on: On, o: CaseOptions, mounts: reado
 /** Golden's grid: the 20 scenarios its capture froze (the one added since has
  *  no hashes), on two surfaces at three widths, each drawn shut and open, in
  *  dark and plain. 20 scenarios × 2 appearances × 6 mounts × 2 = 480 cases. */
-export const GOLDEN_SCENARIOS: readonly ScenarioName[] = SCENARIO_NAMES.filter(s => s !== 'coldLimit80')
+// Frozen: golden's capture holds these. A scenario added later is never golden.
+export const GOLDEN_SCENARIOS: readonly ScenarioName[] = [
+  'calm', 'unmeasured', 'warming', 'recalled', 'cold', 'lastMinute', 'working', 'nearCompaction', 'compactionOff', 'limit80',
+  'fiveHourAhead', 'sevenFullBeforeReset', 'noLimits', 'gatewaySpend', 'resetPassed', 'noWorkspace', 'notARepo', 'gitFails', 'emptyHistory', 'fullHistory',
+]
 export const GOLDEN_APPEARANCES: readonly Appearance[] = ['dark', 'plain']
 export const GOLDEN_MOUNTS: readonly Mount[] = (['terminal', 'desktop'] as const).flatMap(surface => [40, 95, 200].map(cols => ({ surface, cols })))
 export const goldenKey = (scenario: ScenarioName, appearance: Appearance, drawn: string): string => `${scenario}|${appearance}|${drawn}`

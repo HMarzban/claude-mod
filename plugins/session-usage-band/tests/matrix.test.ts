@@ -16,7 +16,7 @@ const view = (lines: unknown[], rest: unknown[] = []) => ({
   children: [{ type: 'Box', props: { key: 'collapsed', flexDirection: 'column', paddingX: 1 }, children: lines }, ...rest],
 })
 const CTX: InvariantContext = {
-  layout: 'ledger',
+  layout: 'pulse',
   surface: 'terminal',
   appearance: 'dark',
   cols: 120,
@@ -167,7 +167,7 @@ test('height: past maxRows, only the shared cards at their floor, a head and a r
   const card = (...rows: unknown[]) => ({ type: 'Box', props: { key: 'card:cache', flexDirection: 'column' }, children: [t('CACHE'), ...rows] })
   const footer = (...rows: unknown[]) => ({ type: 'Box', props: { key: 'actions', flexDirection: 'column', marginTop: 1 }, children: rows })
   const open = (lines: unknown[], rows: unknown[], buttons: unknown[] = [toggle('Collapse')]) => view(lines, [card(...rows), footer(...buttons)])
-  const tiles = { layout: 'tiles', expanded: true, maxRows: 2 } as const
+  const tiles = { layout: 'departures', expanded: true, maxRows: 2 } as const
   const shut = [row(t('a'), toggle('▿'))]
   expect(failed(open(shut, [t('b')]), tiles)).not.toContain('height')
   expect(failed(open(shut, [t('b'), t('c')]), tiles)).toContain('height')

@@ -114,14 +114,8 @@ STATES = [
 # One row per layout, in the command's order: calm, then the cache's last minute.
 LAYOUTS = [([f'layout-{k}', f'layout-{k}-amber'], t, d) for k, t, d in [
     ('chips', 'Chips', 'the default: a row of pills'),
-    ('gauges', 'Gauges', 'room left on each bar; a tick marks the window gone'),
-    ('ledger', 'Ledger', 'one plain sentence'),
-    ('rings', 'Rings', 'a ring per reading'),
     ('pulse', 'Pulse', 'cost per message and the 5h trend'),
-    ('tiles', 'Tiles', 'equal tiles, each its figure, then its label'),
-    ('week', 'Week', 'the 7d window as days'),
     ('departures', 'Departures', 'every reading a countdown, soonest first'),
-    ('forecast', 'Forecast', 'each next change at its clock time'),
 ]]
 GTHEME = {
     'light': dict(bg='#faf9f5', text='#1f1e1b', text3='#6b675e', shadow='0 1px 2px rgba(31,30,27,.06), 0 12px 30px -12px rgba(31,30,27,.3)'),

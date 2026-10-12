@@ -14,7 +14,7 @@ import type { Workspace } from './workspace'
 export type Glyphs = 'unicode' | 'ascii'
 
 /** Every layout the band can be drawn in. */
-export const LAYOUT_NAMES = ['chips', 'gauges', 'ledger', 'rings', 'pulse', 'tiles', 'week', 'departures', 'forecast'] as const
+export const LAYOUT_NAMES = ['chips', 'pulse', 'departures'] as const
 export type LayoutName = (typeof LAYOUT_NAMES)[number]
 /** The layout drawn until /usage-band layout chooses another. */
 export const DEFAULT_LAYOUT: LayoutName = 'chips'
