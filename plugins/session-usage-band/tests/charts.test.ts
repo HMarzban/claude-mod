@@ -2,8 +2,9 @@ import { test, expect } from 'claude-code/testing'
 import { barChart, barsWidth, braille, dayCells, meter, ring, sliceCells, sparkline } from '../hooks/charts'
 import { makeKit } from '../hooks/kit'
 import { METER_CELLS } from '../hooks/layout'
-import { byKey, fakeEl, textOf, type Node } from './helpers'
-import { snapOf } from './matrix'
+import { drawBand } from '../hooks/band'
+import { byKey, fakeEl, svgsOf, textOf, type Node } from './helpers'
+import { NO_ACT, snapOf } from './matrix'
 
 test('braille puts two values in a cell, four heights each', () => {
   expect(braille([0, 0], 4)).toBe('⠀')
@@ -105,6 +106,35 @@ test("day cells as pulse's board draws them: spanning their slot 4px apart, a me
   const xs = [...cells.props.source.matchAll(/class="edge" x="([\d.]+)"/g)].map(([, x]) => Number(x))
   expect([xs[1]! - xs[0]!, /class="edge"[^>]* rx="3"/.test(cells.props.source)]).toEqual([24, true])
 })
+// Pulse's SPEND sliver (Task 0): a card lens drawn stretched has no width of its own, so the host
+// squashes its bars into whatever slot it gets. Today's pulse still draws one, hence the skip.
+// turns on in Task 9: swap `skip` for `test`. (The engine's `test` has no .skip, so `skip` takes the
+// same arguments and runs nothing.)
+const skip = (_name: string, _body: () => void): void => {}
+skip('no chart the new layouts draw stretches: every Svg has its own width and keeps its aspect', () => {
+  for (const layout of ['pulse', 'departures'] as const) for (const expanded of [false, true]) {
+    const tree = drawBand(fakeEl, snapOf({ layout, surface: 'desktop', columns: 160, maxRows: 13, expanded }), NO_ACT)
+    for (const s of svgsOf(tree)) {
+      expect(typeof s.props?.width).toBe('number')
+      expect(String(s.props?.source)).not.toMatch(/preserveAspectRatio="none"/)
+    }
+  }
+})
+// Guard for the day cells pulse reuses: each fill sits in its own cell and is as tall as its value.
+for (const [cellPx, height] of [[18, 56], [4, 14]] as const) {
+  test(`day cells at ${cellPx}x${height}: each fill lies inside its own cell's edge and is as tall as its value`, () => {
+    const values = [50, 100]
+    const source = svg(dayCells(desk, { key: 'd', alt: 'week', values, today: 1, max: 100, color: '#a99cf0', cellPx, height })).props.source
+    const num = (tag: string, attr: string): number[] => [...source.matchAll(new RegExp(`<rect class="${tag}"[^>]* ${attr}="([\\d.]+)"`, 'g'))].map(([, v]) => Number(v))
+    const [edgeX, edgeW, fillX, fillW, fillH] = [num('edge', 'x'), num('edge', 'width'), num('fill', 'x'), num('fill', 'width'), num('fill', 'height')]
+    expect(fillX).toHaveLength(2)
+    values.forEach((v, i) => {
+      expect(fillX[i]!).toBeGreaterThanOrEqual(edgeX[i]! - 0.01)
+      expect(fillX[i]! + fillW[i]!).toBeLessThanOrEqual(edgeX[i]! + edgeW[i]! + 0.01)
+      expect(Math.abs(fillH[i]! - (v / 100) * (height - 2))).toBeLessThan(0.1)
+    })
+  })
+}
 /** The board's week: today measured, tomorrow fills the limit, none left after; now 0.6 into today. */
 const WEEK_ROW = { marks: [{ kind: 'measured', pct: 66 }, { kind: 'fills', pct: 34 }, { kind: 'spent', pct: 0 }, { kind: 'guess', pct: 10 }], notch: 0.6 } as const
 /** A week with nothing measured yet but a day at 0%, and two days not known. */
