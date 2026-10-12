@@ -10,7 +10,7 @@ import type { LimitKey, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import type { Ahead, Amber } from '../words'
 import type { Fact, Slots } from './cards'
-import { cachePill, contextPill, limitPill, pillRow, type ChipKey } from './chips'
+import { cacheHover, contextHover, limitHover, pillRow, type ChipKey } from './chips'
 import { AMBER_STEP, ROLE_INK, batteryIcon, beforeLast, fitLine, type Keeps, type PillSpec } from './parts'
 import { defineCardsView, type CardOptions } from './view'
 
@@ -82,7 +82,7 @@ const limitChange = (kit: Kit, read: Readings, key: ChipKey): Change[] => {
         says: [...(pace ? (['pace'] as const) : []), ...(reset ? (['reset'] as const) : [])],
       },
       says: { figure, tail, amberLong: amberSays, amberShort: amberSays },
-      hover: limitPill(kit, read, key, 0, false)?.hover,
+      hover: limitHover(read, key),
     },
   ]
 }
@@ -107,7 +107,7 @@ const changesOf = (kit: Kit, read: Readings): Change[] => {
       tail: 'price',
       // Cold, its figure is the price; counting down, its tail.
       says: { figure: c.mood === 'cold' ? 'reWarm' : undefined, tail: 'reWarm', amberLong: 'reWarm' },
-      hover: cachePill(kit, read, false).hover,
+      hover: cacheHover(read),
     },
     ...limitChange(kit, read, '5h'),
     ...limitChange(kit, read, '7d'),
@@ -122,7 +122,7 @@ const changesOf = (kit: Kit, read: Readings): Change[] => {
             tail: 'compaction',
             calm: 'compaction',
             says: { figure: 'room', amberLong: x.roomText === undefined ? undefined : 'room' },
-            hover: contextPill(kit, read, 0).hover,
+            hover: contextHover(read),
           } as const,
         ]
       : []),

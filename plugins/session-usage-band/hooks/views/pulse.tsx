@@ -16,7 +16,7 @@ import type { BandActions } from '../snapshot'
 import { EMPTY } from '../words'
 import type { Amber } from '../words'
 import type { Fact } from './cards'
-import { cachePill, contextPill, costPill, limitPill, pillRow, type ChipKey } from './chips'
+import { cachePill, contextHover, contextPill, costPill, limitPill, pillRow, type ChipKey } from './chips'
 import { AMBER_STEP, beforeLast, fitLine, layoutCacheSpec, once, type Keeps, type PillSpec } from './parts'
 import { defineCardsView, type CardOptions } from './view'
 
@@ -100,7 +100,7 @@ const fiveHourTrail = (kit: Kit, f: LimitView, hist: HistoryReading, size: BarSi
 /** An amber reading as its chip: its reason whole, led by `! ` and long
  *  until the amber step, then its chart; on the desktop its icon, in amber,
  *  ahead of it. */
-const amberSpec = (kit: Kit, chip: PillSpec, icon: Icon, amber: Amber, keeps: Keeps<Step>, chart: RenderChildren = null): PillSpec => {
+const amberSpec = (kit: Kit, chip: Pick<PillSpec, 'key' | 'bg' | 'hover'>, icon: Icon, amber: Amber, keeps: Keeps<Step>, chart: RenderChildren = null): PillSpec => {
   const { Svg, Text, palette, gap } = kit
   return {
     ...chip,
@@ -143,7 +143,7 @@ const costSpec = (kit: Kit, read: Readings, keeps: Keeps<Step>, bars: RenderChil
 const contextSpec = (kit: Kit, read: Readings, keeps: Keeps<Step>, short: boolean): PillSpec | undefined => {
   const x = read.context
   if (!x.known) return undefined
-  if (x.amber !== undefined) return amberSpec(kit, contextPill(kit, read, 0), 'context', x.amber, keeps)
+  if (x.amber !== undefined) return amberSpec(kit, { key: 'ctx', hover: contextHover(read) }, 'context', x.amber, keeps)
   return keeps.has('calmContext') ? contextPill(kit, read, past(short ? 'shortWording' : 'contextMeter')) : undefined
 }
 

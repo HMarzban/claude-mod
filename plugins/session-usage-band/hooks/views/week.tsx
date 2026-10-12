@@ -9,7 +9,7 @@ import type { Kit } from '../kit'
 import { GIVES_WAY, ROW_SLACK, SHORT_BELOW } from '../layout'
 import type { LimitView, Readings, SliceRow } from '../reading'
 import { WEEK, type Say } from '../words'
-import { cachePill, contextPill, costPill, limitPill, pillRow, tokensPill, type ChipKey } from './chips'
+import { cachePill, contextHover, costPill, limitPill, pillRow, tokensPill, type ChipKey } from './chips'
 import { accentOf, beforeLast, fitLine, layoutCacheSpec, once, resetClause, type Keeps, type PillSpec } from './parts'
 import { defineCardsView, type CardOptions } from './view'
 
@@ -48,7 +48,6 @@ type Built = Readonly<{
   chip: Readonly<Record<ChipKey, () => PillSpec | undefined>>
   /** The 7d's day cells on its pill's ground. */
   days: () => RenderChildren
-  contextHover: () => string | undefined
   /** The cache's pill, long and short. */
   cache: Readonly<Record<'long' | 'short', () => PillSpec>>
 }>
@@ -67,7 +66,6 @@ const builtOf = (kit: Kit, read: Readings): Built => {
       const ground = onTone(seven.tone, chip['7d']()?.bg ?? palette.surface, palette.amberBg)
       return cellsOf(kit, seven, read.week.dayRow, read.week.daysAlt, ground, true)
     }),
-    contextHover: once(() => contextPill(kit, read, NO_BARS).hover),
     cache: { long: once(cache(false)), short: once(cache(true)) },
   }
 }
@@ -124,7 +122,7 @@ const figure = (kit: Kit, say: Say, ink: string): RenderChildren[] => {
 const contextSpec = (kit: Kit, read: Readings, built: Built, short: boolean, keeps: Keeps<Piece>): PillSpec => {
   const { Text, palette, icon } = kit
   const x = read.context
-  const hover = built.contextHover()
+  const hover = contextHover(read)
   if (x.amber !== undefined) return { key: 'ctx', tone: 'amber', body: [<Text key="a" color={palette.amberFg}>{keeps.amber(x.amber)}</Text>], hover }
   return { key: 'ctx', tone: 'calm', body: [...icon('context', palette.label), ...figure(kit, short ? x.cardHead.slice(0, 1) : x.cardHead, palette.value)], hover }
 }

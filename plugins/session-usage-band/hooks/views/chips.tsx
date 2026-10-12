@@ -63,6 +63,9 @@ export const limitTint = (p: Readonly<Palette>, key: ChipKey): Tint => LIMITS[ke
  *  below `SHORT_BELOW` columns. */
 export const shortAt = (kit: Kit, squeeze: number): boolean => kit.columns < SHORT_BELOW || !keeps(squeeze, 'shortWording')
 
+/** The cache pill's hover card: what its mood means now. */
+export const cacheHover = (read: Readings): string => read.chips.reading.copy.hover
+
 /** The cache pill: a draining battery and its countdown, or its mood. A
  *  layout that bolds each reading's figure asks for the countdown `bold`;
  *  chips' own draws it plain. */
@@ -88,14 +91,14 @@ export const cachePill = (kit: Kit, read: Readings, short: boolean, bold = false
   if (Svg) {
     // A normal rounded pill led by a draining battery icon; the text-surface
     // battery would paint a square-cornered block here.
-    return { key: 'cache', tone, body: [batteryIcon(kit, charge, tone, copy.alt), ...words('c', ` ${text}`)], hover: copy.hover }
+    return { key: 'cache', tone, body: [batteryIcon(kit, charge, tone, copy.alt), ...words('c', ` ${text}`)], hover: cacheHover(read) }
   }
   if (palette.filled) {
     return {
       key: 'cache',
       tone,
       body: textBattery(kit, charge, tone, [[`◷ ${text.slice(0, text.length - figure.length)}`, false], [figure, true]]),
-      hover: copy.hover,
+      hover: cacheHover(read),
       paintsOwnBg: true,
     }
   }
@@ -104,7 +107,7 @@ export const cachePill = (kit: Kit, read: Readings, short: boolean, bold = false
     key: 'cache',
     tone,
     body: [tone === 'amber' ? null : <Text key="dot" color={dot}>{'● '}</Text>, ...words('c', tone === 'amber' ? `◷ ${text}` : text)],
-    hover: copy.hover,
+    hover: cacheHover(read),
   }
 }
 
@@ -134,6 +137,15 @@ export const tokensPill = (kit: Kit, read: Readings): PillSpec => {
   }
 }
 
+/** The context pill's hover card: how much of the window is used, and where it compacts. */
+export const contextHover = (read: Readings): string => {
+  const ctx = read.chips.raw.context
+  const { pct, toCompact } = read.context
+  return ctx.compactAt === undefined || toCompact === undefined
+    ? `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.window)} (${pct}); older turns get summarized near full`
+    : `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.compactAt)} (${pct}); auto-compacts in ~${fmtTokens(toCompact)}`
+}
+
 /** The context's fill on a meter, counting down to compaction once near it. */
 export const contextPill = (kit: Kit, read: Readings, squeeze: number): PillSpec => {
   const { Text, palette, onTone, gap, icon } = kit
@@ -159,11 +171,20 @@ export const contextPill = (kit: Kit, read: Readings, squeeze: number): PillSpec
         {`${amount}${mark}${countdown}`}
       </Text>,
     ],
-    hover:
-      ctx.compactAt === undefined || toCompact === undefined
-        ? `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.window)} (${pct}); older turns get summarized near full`
-        : `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.compactAt)} (${pct}); auto-compacts in ~${fmtTokens(toCompact)}`,
+    hover: contextHover(read),
   }
+}
+
+/** A limit chip's hover card: once passed, that it has reset; else its
+ *  reset first, the fact the chip had, so a short row's cut only takes the
+ *  description. Undefined while the engine reports no such window. */
+export const limitHover = (read: Readings, key: ChipKey): string | undefined => {
+  const w = key === '5h' ? read.fiveHour : read.sevenDay
+  if (w === undefined) return undefined
+  const { title } = LIMITS[key]
+  const r = w.reset
+  if (r?.kind === 'passed') return `${title} has reset; it updates after your next message`
+  return r === undefined ? `Your ${title.toLowerCase()}, across all your Claude use` : `Resets in ${r.text}; ${title.toLowerCase()}, all your Claude use`
 }
 
 /** A limit chip: its usage on a bar and the reset; a pace that fills it
@@ -183,7 +204,7 @@ export const limitPill = (kit: Kit, read: Readings, key: ChipKey, squeeze: numbe
       tone: 'calm',
       bg: tint.bg,
       body: [...icon(spec.icon, tint.accent), <Text key="l" color={tint.fg}>{`${key} reset`}</Text>],
-      hover: `${spec.title} has reset; it updates after your next message`,
+      hover: limitHover(read, key),
     }
   }
   const pace = w.etaMs === null ? '' : short ? ` ${fmtEta(w.etaMs)}` : ` ${paceText(w)}`
@@ -209,12 +230,7 @@ export const limitPill = (kit: Kit, read: Readings, key: ChipKey, squeeze: numbe
       pace === '' ? null : <Text key="p" color={fg}>{pace}</Text>,
       ...reset,
     ],
-    // The card covers its chip, so it leads with the fact the chip had,
-    // and a short row's cut only takes the description.
-    hover:
-      r === undefined
-        ? `Your ${spec.title.toLowerCase()}, across all your Claude use`
-        : `Resets in ${r.text}; ${spec.title.toLowerCase()}, all your Claude use`,
+    hover: limitHover(read, key),
   }
 }
 
