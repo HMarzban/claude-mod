@@ -64,14 +64,15 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/band.tsx` | `drawBand(elements, snapshot, actions)`: a pure function from a snapshot to a tree. It builds the kit and the readings, draws the chosen layout, and falls back to chips. |
 | `hooks/kit.tsx` | The drawing kit made once per draw: elements, the Svg gate, palette, measure, hover cards, gaps, icons. |
 | `hooks/reading.ts` | `readingsOf`: everything a view reads, built once per draw. Each section's facts, with its words from `words.ts`. |
-| `hooks/words.ts` | The phrasebook: every phrase a new layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. |
-| `hooks/views/view.ts` | `View`, `rowsOf` and `defineView`, which makes a layout from its rows, its collapsed lines and its body. |
+| `hooks/words.ts` | The phrasebook: every phrase a layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. |
+| `hooks/views/view.ts` | `View`, `rowsOf`, and `defineCardsView`, which makes a layout from its rows, its collapsed lines and its lens on the shared cards. |
 | `hooks/views/index.ts` | `VIEWS`: every layout by name. |
-| `hooks/views/frame.tsx` | The expanded scaffold the new layouts share: the workspace strip, the view's body and the buttons. |
-| `hooks/views/parts.tsx` | The pieces several layouts draw: pills, the shared cache pill, and the lines, sections and grid they're laid out with. |
-| `hooks/views/<name>.tsx` | One file per layout: `chips`, `gauges`, `ledger`, `rings`, `pulse`, `tiles`, `week`, `departures`, `forecast`. Chips keeps its own pills and cards. |
+| `hooks/views/cards.tsx` | `openBody`, the open view every layout shares: chips' four cards and its footer, each card's head with the layout's lens, a headline or first row in the layout's words, and no card repeating what the collapsed lines show. |
+| `hooks/views/frame.tsx` | The toggle every layout ends its row with, and the rows the shared cards get beneath the collapsed lines. |
+| `hooks/views/parts.tsx` | The pieces several layouts draw: pills, the cache's battery, the shared cache pill, and the lines they squeeze to fit and the words they're written in. |
+| `hooks/views/<name>.tsx` | One file per layout: `chips`, `gauges`, `ledger`, `rings`, `pulse`, `tiles`, `week`, `departures`, `forecast`. Chips exports its pill builders and its pill row, for a layout to compose. |
 | `hooks/strip.tsx` | The workspace strip: project, branch or worktree, changes, ahead/behind. |
-| `hooks/charts.tsx` | The charts: `meter`, `ring`, `sparkline`, `barChart`, `dayCells`, `underline`, `braille`. Each is an Svg on the desktop and text elsewhere. |
+| `hooks/charts.tsx` | The charts: `meter`, `splitBar`, `ring`, `sparkline`, `barChart`, `dayCells`, `sliceCells`, `braille`. Each is an Svg on the desktop and text elsewhere. |
 | `hooks/glyphs.ts` | The terminal's glyph tier (`CC_BAND_GLYPHS`, a CJK locale) and the ASCII mapping. |
 | `hooks/calendar.ts` | Week's day and hour cells, read off the limit samples. |
 | `hooks/layout.ts` | Give-way orders, sizes, and how many columns a drawn tree takes. |
@@ -123,7 +124,7 @@ Run `/reload-plugins` in your session afterwards.
   `!` / `!!`. Text meets WCAG AA contrast (4.5:1) and edges and tracks meet
   3:1, in every palette. The design tests check both, over every palette.
 - **A new layout** is: its name in `LAYOUT_NAMES` (`hooks/snapshot.ts`);
-  `hooks/views/<name>.tsx`, made with `defineView`; an entry in `VIEWS`
+  `hooks/views/<name>.tsx`, made with `defineCardsView`; an entry in `VIEWS`
   (`hooks/views/index.ts`); and `tests/view-<name>.test.ts`, which calls
   `viewSuite('<name>')`. It draws only words from `read`: outside
   `chips.tsx`, `parts.tsx` and `frame.tsx`, no `.tsx` file in `views/`
@@ -142,15 +143,18 @@ Run `/reload-plugins` in your session afterwards.
   `LONG` budget from `helpers.ts`: the band ticks every second, and CI
   runners are several times slower than a laptop.
 - **Chips' trees are frozen.** `golden-a` and `golden-b` hold chips to the
-  trees it drew before the layouts work, with the 0.11.13 hover fix and the
-  0.12.1 fixes: dark and plain, desktop and terminal, at 40, 95 and 200
+  trees it draws as its 0.13 board does, its open view the cards every
+  layout shares: dark and plain, desktop and terminal, at 40, 95 and 200
   columns, shut and open; and every frame's hover cards to whole pieces.
-  `tools/golden/capture.sh` runs only on the hooks at `09a9e6c`, so it can't
-  recapture a fix. If your change is meant to alter what chips draws, update
-  the failing keys in `tests/golden/chips.ts` to the hashes the failures
-  print. For a key also held in `GOLDEN_TREES`, replace its whole tree too:
-  log `JSON.stringify(canon(tree))` for that key in `tests/golden/suite.ts`,
-  paste the output in, and drop the log. Say why in the pull request.
+  A clock time is the host's zone's, which the kit can't pin, so the hash
+  reads every clock time alike (`tests/golden/hash.ts`); the readings' tests
+  hold each to its zone. `tools/golden/capture.sh` runs only on the hooks at
+  `846e17d`, so it can't recapture a fix. If your change is meant to alter
+  what chips draws, update the failing keys in `tests/golden/chips.ts` to
+  the hashes the failures print. For a key also held in `GOLDEN_TREES`,
+  replace its whole tree too: log `JSON.stringify(canon(tree))` for that
+  key in `tests/golden/suite.ts`, paste the output in, and drop the log.
+  Say why in the pull request.
 
 ## Demos and the website
 

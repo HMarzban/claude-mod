@@ -375,6 +375,9 @@ export const weekdayLead = (ms: number, now: number): string => {
   const day = new Date(ms).toDateString()
   return day === new Date(now).toDateString() ? '' : `${day.slice(0, 3)} `
 }
+/** A clock time at `ms`, drawn at `now`, as this host's band says it:
+ *  `05:00`, or past today `Thu 05:00`, read off the host's own calendar. */
+export const hostClock = (ms: number, now: number): string => `${weekdayLead(ms, now)}${new Date(ms).toTimeString().slice(0, 5)}`
 /** The time budget of a test that walks the clock through many minutes, or
  *  draws the band at many widths. The band ticks every second, so an hour
  *  walked is 3,600 ticks: under a second on a laptop, but a shared CI runner

@@ -22,3 +22,12 @@ test("canon drops the engine's press handles, which renumber between tests", () 
   const b = { type: 'Button', props: { key: 'more', label: '▿', press: { plugin: 'session-usage-band', handle: 225709693 } } }
   expect(treeHash(a)).toBe(treeHash(b))
 })
+
+test('canon reads every clock time alike, so a tree hashes the same in every zone', () => {
+  const at = (when: string) => ({ type: 'Text', props: { key: 'when' }, children: [when, ' · full before reset'] })
+  expect(treeHash(at('Sat 13:30'))).toBe(treeHash(at('02:00')))
+  expect(treeHash(at('Sat 13:30'))).toBe(treeHash(at('Sun 23:59')))
+  // A countdown is no clock: under ten minutes it reads M:SS.
+  expect(treeHash(at('0:47'))).not.toBe(treeHash(at('9:47')))
+  expect(treeHash(at('1h 05m'))).not.toBe(treeHash(at('Sat 13:30')))
+})

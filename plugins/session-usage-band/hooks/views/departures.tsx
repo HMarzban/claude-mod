@@ -1,278 +1,271 @@
-// Departures, the band as a split-flap board. The cache is a flight that
-// departs; its last minute is LAST CALL, said with its price and nothing
-// more. The board speaks in capitals: it upper-cases whole phrases from the
-// readings, its own style, and never takes one apart.
+// Departures, the countdown board: how long until each thing goes. Every
+// reading is a countdown in chips' pills and tints, soonest first, `›`
+// reading "then"; compaction counts messages, not minutes, so it follows the
+// clocks, and the spend, with no clock, waits after the board. Amber jumps
+// the queue. Open, it is the shared cards, each lens its card's place in the
+// queue, each first row one the row left out.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
+import { asciiText } from '../glyphs'
 import type { Kit } from '../kit'
-import type { CacheReading, LimitView, Readings } from '../reading'
+import { ROW_SLACK } from '../layout'
+import type { LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
-import { EMPTY } from '../words'
-import { toggleButton, type Strip } from './frame'
-import { beforeLast, fitLine, line, lineRoom, once, words, type Keeps } from './parts'
-import { defineView } from './view'
+import { DEPARTURES, usedSoFar } from '../words'
+import type { Countdown, Departure } from '../words'
+import type { CardName, Fact, SlotForms } from './cards'
+import { LIMITS, costPill, tokensPill } from './chips'
+import type { ChipKey } from './chips'
+import { toggleButton } from './frame'
+import { batteryIcon, beforeLast, line, pill, fitLineKeeps, resetClause, textBattery } from './parts'
+import type { BoldRuns, Keeps } from './parts'
+import { defineCardsView } from './view'
+import type { Lens, Lines } from './view'
 
-/** What gives way as the line narrows, first to last. Amber never does.
- *  Plain's brackets go first: they mark a flap's edges and say nothing.
- *  A calm price, `reWarm`, goes last: the narrow-width ruling's. */
-const ORDER = ['brackets', 'fiveProjection', 'boardMinutes', 'calmSeven', 'calmFiveGroup', 'cost', 'calmFive', 'coldSince', 'reWarm'] as const
+/** What gives way as the row narrows, first to last; amber never does. The
+ *  tokens go first, as on chips' row, then the pills' icons, the coin with
+ *  them, before the reset after a fill, a fact; the cache, the board's
+ *  lead, stays. */
+const ORDER = ['tokens', 'icons', 'reset', 'calmContext', 'calmSeven', 'cost', 'calmFive', 'shortWording'] as const
 type Piece = (typeof ORDER)[number]
 
-/** Each ink a flap is drawn in, made for the flap ground. */
-const INK = { text: 'flapText', dim: 'flapDim', warm: 'flapWarm', amber: 'flapAmber', five: 'flapFive', week: 'flapWeek', coin: 'flapCoin' } as const
-type Ink = keyof typeof INK
+/** A stop's pill as a squeeze keeps it, the card facts its words say there,
+ *  and what they say of its own window. */
+type Drawn = Readonly<{ pill: RenderElement; says: readonly Fact[]; window?: readonly [ChipKey, readonly Fact[]] }>
 
-/** The board's fixed columns, in cells of text: ITEM, as wide as `SPEND LIMIT`;
- *  STATUS, as wide as `! FULL IN ~4H 45 MIN`, the widest a fill before a 5h
- *  reset reads; and TIME. REMARKS takes the rest. */
-const COLUMNS = [11, 20, 14] as const
-/** The least REMARKS keeps beside TIME, as wide as `RE-WARM ~$2.13`. */
-const MIN_REMARKS = 14
+/** A reading in the queue: the card it opens into, its tone, how long until
+ *  it goes (none for what has no clock), what its place is for, and its pill
+ *  as a squeeze keeps it, or nothing once it has given way. */
+type Stop = Readonly<{
+  card: CardName
+  tone: Tone
+  inMs: number | undefined
+  lens: string
+  limit?: LimitView
+  /** Its pill at a squeeze, its icon only where `icons` says. */
+  draw: (keeps: Keeps<Piece>, icons: boolean) => Drawn | null
+}>
 
-/** The session's spend row's ITEM. */
-const SPEND_ITEM = 'SPEND'
+/** Long words until the row is out of room: an amber reading's at the amber
+ *  step, a calm one's at `shortWording`. */
+const formOf = (d: Departure, tone: Tone, keeps: Keeps<Piece>): Countdown =>
+  (tone === 'amber' ? beforeLast(keeps) : keeps.has('shortWording')) ? d.long : d.short
 
-const up = (text: string): string => text.toUpperCase()
-
-/** How far a flap's text sits in from its edge: its padding on the filled
- *  desktop, its `[` on plain. On the filled terminal the 1-column gap
- *  between flaps shows the ground. */
-const inset = (kit: Kit): number => (kit.Svg !== undefined || !kit.palette.filled ? 1 : 0)
-
-/** One flap: the flap ground and an ink made for it. Plain has no ground,
- *  so `[ ]` draws its edges, unless it is drawn bare. In a cell narrower
- *  than its text the flap shrinks and its text truncates, so `]` stays;
- *  the line's pieces never shrink, so there it keeps its width. */
-const flap = (kit: Kit, key: string, text: string, ink: Ink = 'text', bracketed = true): RenderElement => {
-  const { Box, Text, palette, oneLine } = kit
-  const color = palette[INK[ink]]
-  // A Text shrinks as Ink's does, so each bracket sits in a Box that never
-  // shrinks, and only the text gives way.
-  const edge = (bracket: string) =>
-    bracketed && !palette.filled ? (
-      <Box flexShrink={0}>
-        <Text color={color} bold>
-          {bracket}
-        </Text>
-      </Box>
-    ) : null
-  return (
-    <Box key={key} flexShrink={1} minWidth={0} {...(palette.filled ? { backgroundColor: palette.flap, paddingX: inset(kit) } : {})}>
-      {edge('[')}
-      {oneLine({ color, bold: true }, text)}
-      {edge(']')}
-    </Box>
-  )
-}
-/** A flap of one look, bracketed or bare. */
-type FlapOf = (key: string, text: string, ink?: Ink) => RenderElement
-
-/** Flaps that read as one entry on the board. */
-const group = (kit: Kit, key: string, flaps: readonly RenderChildren[]): RenderElement => {
-  const { Box } = kit
-  return (
-    <Box key={key} flexDirection="row" columnGap={1} flexShrink={0}>
-      {flaps}
-    </Box>
-  )
-}
-
-/** The cache's status: its board word, then the clock time it goes cold,
- *  or went cold unless `since` is false, when known. */
-const cacheStatus = (c: CacheReading, since = true): string => {
-  const clock = c.condition === 'cooling' ? undefined : (c.coldAtClock ?? (since ? c.coldSinceClock : undefined))
-  return clock === undefined ? c.board : `${c.board} ${clock}`
-}
-
-/** Amber in its last minute, warm while it departs or boards, else quiet. */
-const cacheInk = (c: CacheReading): Ink => (c.amber !== undefined ? 'amber' : c.condition === 'warm' ? 'warm' : 'dim')
-
-/** A limit's ink: its window's accent, or the board's text for any other. */
-const limitInk = (l: LimitView): Ink => (l.key === '5h' ? 'five' : l.key === '7d' ? 'week' : 'text')
-
-/** A limit's flaps, built once: whole, without its calm projection, and as
- *  one flap; amber, its short reason for the amber step. */
-const limitEntries = (kit: Kit, flapOf: FlapOf, l: LimitView) => {
-  const value = up(l.valueText)
-  const name = flapOf('name', up(l.name), limitInk(l))
-  const valueFlap = flapOf('value', value)
-  const status = l.boardAmber !== undefined ? flapOf('status', l.boardAmber, 'amber') : l.passed || l.boardShort === undefined ? null : flapOf('status', l.boardShort, 'dim')
-  return {
-    whole: group(kit, l.name, [name, valueFlap, status]),
-    bare: group(kit, l.name, [name, valueFlap, l.boardAmber === undefined ? null : status]),
-    short: group(kit, l.name, [flapOf('name', `${up(l.name)} ${value}`, limitInk(l))]),
-    amberShort: l.amber === undefined ? undefined : flapOf(l.name, l.amber.short, 'amber'),
-  }
-}
-type LimitEntries = ReturnType<typeof limitEntries>
-
-/** A limit on the line: amber, its board words until the amber step, then
- *  its short reason, which names the window; calm, what the squeeze keeps. */
-const limitPiece = (e: LimitEntries, keeps: Keeps<Piece>, calm: RenderChildren): RenderChildren =>
-  e.amberShort === undefined ? calm : beforeLast(keeps) ? e.bare : e.amberShort
-
-const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
-  const c = read.cache
-  const x = read.context
-  const toggle = toggleButton(kit, read, act)
-  // Built once for each look: the squeeze only chooses among them.
-  const flapsOf = (bracketed: boolean) => {
-    const flapOf: FlapOf = (key, text, ink) => flap(kit, key, text, ink, bracketed)
-    return {
-      label: flapOf('label', 'CACHE'),
-      status: flapOf('status', cacheStatus(c), cacheInk(c)),
-      statusShort: flapOf('status', cacheStatus(c, false), cacheInk(c)),
-      left: c.boardLeft === '' ? null : flapOf('left', c.boardLeft, c.amber !== undefined ? 'amber' : 'text'),
-      reWarm: c.condition === 'cooling' || c.condition === 'cold' ? flapOf('reWarm', `RE-WARM ${up(c.estimate)}`, c.amber !== undefined ? 'amber' : 'text') : null,
-      five: read.fiveHour === undefined ? undefined : limitEntries(kit, flapOf, read.fiveHour),
-      seven: read.sevenDay === undefined ? undefined : limitEntries(kit, flapOf, read.sevenDay),
-      // The line shows no calm context, so its trigger gets a flap of its own.
-      context: x.boardAmber === undefined || x.amber === undefined ? undefined : { long: flapOf('ctx', x.boardAmber, 'amber'), short: flapOf('ctx', x.amber.short, 'amber') },
-      cost: flapOf('cost', read.spend.totalText, 'coin'),
-    }
-  }
-  const bracketed = once(() => flapsOf(true))
-  const bare = once(() => flapsOf(false))
+/** A countdown in one ink, bold on its figure alone. */
+const said = (kit: Kit, cd: Countdown, ink: string): RenderChildren[] => {
+  const { Text } = kit
   return [
-    fitLine(kit, ORDER, lineRoom(kit), keeps => {
-      // A filled flap has its ground for edges, so only plain draws a second look.
-      const { label, status, statusShort, left, reWarm, five, seven, context, cost } = kit.palette.filled || keeps.has('brackets') ? bracketed() : bare()
-      return line(
-        kit,
-        'line',
-        [
-          group(kit, 'cache', [
-            label,
-            // When it went cold gives way after the 5h and before its price.
-            keeps.has('coldSince') ? status : statusShort,
-            // The minutes give way to the clock time alone; with no clock they
-            // go with the 5h, at `calmFive`, so an amber reason still fits.
-            // LAST CALL keeps its seconds.
-            c.amber !== undefined || keeps.has(c.coldAtClock === undefined ? 'calmFive' : 'boardMinutes') ? left : null,
-            (c.amber === undefined ? keeps.has('reWarm') : beforeLast(keeps)) ? reWarm : null,
-          ]),
-          five === undefined
-            ? null
-            : limitPiece(five, keeps, !keeps.has('calmFive') ? null : !keeps.has('calmFiveGroup') ? five.short : keeps.has('fiveProjection') ? five.whole : five.bare),
-          seven === undefined ? null : limitPiece(seven, keeps, keeps.has('calmSeven') ? seven.bare : null),
-          context === undefined ? null : beforeLast(keeps) ? context.long : context.short,
-          keeps.has('cost') ? cost : null,
-        ],
-        toggle,
-        1,
-      )
-    }),
+    cd.words === '' ? null : <Text key="w" color={ink}>{cd.words}</Text>,
+    cd.figure === '' ? null : (
+      <Text key="f" color={ink} bold>
+        {cd.figure}
+      </Text>
+    ),
+    cd.after === '' ? null : <Text key="a" color={ink}>{cd.after}</Text>,
   ]
 }
 
-/** A row of the board, and whether it is amber, so a board short of rows keeps it. */
-type BoardRow = Readonly<{ amber: boolean; line: RenderElement }>
-
-/** The cells these columns take, a flap's edges and the gaps between them included. */
-const boardCells = (kit: Kit, columns: readonly number[]): number => columns.reduce((sum, cells) => sum + cells + 2 * inset(kit), columns.length - 1)
-
-/** One board line: the fixed columns, each as wide as its text and a flap's
- *  two edges and truncating what outgrows that, then REMARKS, which
- *  truncates first. TIME is null where the board has no room for it whole. */
-const boardLine = (kit: Kit, key: string, [item, status, time, remarks]: readonly [RenderElement, RenderElement, RenderElement | null, RenderElement]): RenderElement => {
-  const { Box } = kit
-  const edges = 2 * inset(kit)
-  return (
-    <Box key={key} flexDirection="row" columnGap={1} overflow="hidden">
-      <Box key="item" width={COLUMNS[0] + edges} flexShrink={0} overflow="hidden">
-        {item}
-      </Box>
-      <Box key="status" width={COLUMNS[1] + edges} flexShrink={0} overflow="hidden">
-        {status}
-      </Box>
-      {time === null ? null : (
-        <Box key="time" width={COLUMNS[2] + edges} flexShrink={0} overflow="hidden">
-          {time}
-        </Box>
-      )}
-      <Box key="remarks" flexGrow={1} width={0} minWidth={0} overflow="hidden">
-        {remarks}
-      </Box>
-    </Box>
-  )
-}
-
-/** The rows a board of `room` rows keeps, in board order: calm rows go from
- *  the bottom first, and amber ones only once no calm row is left. */
-const fitRows = (rows: readonly BoardRow[], room: number): RenderElement[] => {
-  const calm = rows.filter(r => !r.amber).slice(0, Math.max(0, room - rows.filter(r => r.amber).length))
-  return rows
-    .filter(r => r.amber || calm.includes(r))
-    .slice(0, room)
-    .map(r => r.line)
-}
-
-/** The board behind ▵: a header, then CACHE, CONTEXT, the limits and SPEND. */
-const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
+/** The cache as chips draws it, a draining battery, saying its countdown;
+ *  amber on its last call. */
+const cacheStop = (kit: Kit, read: Readings): Stop => {
+  const { Svg, palette, onTone, gap } = kit
   const c = read.cache
-  const x = read.context
-  const s = read.spend
-  const { Box } = kit
-  // Where the room can't hold TIME whole and REMARKS' least, TIME's words lead
-  // REMARKS as TIME draws them, never cut mid-word.
-  const timed = boardCells(kit, [...COLUMNS, MIN_REMARKS]) <= lineRoom(kit)
-  // Each title sits over its column's text, as far in as a flap's.
-  const head = (key: string, title: string) => (
-    <Box key={key} paddingLeft={inset(kit)}>
-      {words(kit, 'title', [[title, 'label']], true)}
-    </Box>
-  )
-  /** A row of flaps; a time or remarks not known read `–`. */
-  const row = (key: string, item: readonly [string, Ink?], status: readonly [string, Ink], time: string | undefined, remarks: readonly (string | undefined)[]): BoardRow => {
-    const said = [...(timed || time === undefined ? [] : [time]), ...remarks.filter((r): r is string => r !== undefined && r !== '').map(up)]
+  const tone: Tone = c.lastCall ? 'amber' : 'calm'
+  const cachePill = (cd: Countdown): RenderElement => {
+    if (Svg) return pill(kit, { key: 'cache', tone, body: [batteryIcon(kit, c.charge, tone, c.alt), gap('g-battery'), ...said(kit, cd, onTone(tone, palette.value))] })
+    if (!palette.filled) return pill(kit, { key: 'cache', tone, body: said(kit, cd, onTone(tone, palette.value)) })
+    // The ascii words are mapped before the battery's cut, as chips maps its own.
+    const runs: BoldRuns = [[`◷ ${cd.words}`, false], [cd.figure, true], [cd.after, false]]
+    const drawn: BoldRuns = read.frame.glyphs === 'ascii' ? runs.map(([text, bold]) => [asciiText(text), bold]) : runs
+    return pill(kit, { key: 'cache', tone, body: textBattery(kit, c.charge, tone, drawn), paintsOwnBg: true })
+  }
+  const draw = (keeps: Keeps<Piece>): Drawn => {
+    const cd = formOf(c.departure, tone, keeps)
+    // Cold, both forms say the price; a last call, its long form alone.
+    const saysReWarm = c.mood === 'cold' || (c.lastCall && cd === c.departure.long)
+    return { pill: cachePill(cd), says: saysReWarm ? ['reWarm'] : [] }
+  }
+  // A cache with no countdown, working, cold or not yet measured, still leads.
+  return { card: 'cache', tone, inMs: c.coldInMs ?? 0, lens: c.departureLens, draw }
+}
+
+/** A limit in its chip's tint: when it resets, or when it fills and then,
+ *  after `↻`, the reset, in label ink as chips says it, ` · ` before it on
+ *  the desktop as the board draws it; amber on its last call, though calm by
+ *  its percent. The worst window's pill may say what LIMITS' first row would. */
+const limitStop = (kit: Kit, key: ChipKey, l: LimitView, worst: boolean): Stop => {
+  const { Svg, palette, onTone, icon } = kit
+  const spec = LIMITS[key]
+  const tint = spec.tint(palette)
+  const tone: Tone = l.lastCall ? 'amber' : l.tone
+  const draw = (keeps: Keeps<Piece>, icons: boolean): Drawn | null => {
+    if (!keeps.calm(key === '5h' ? 'calmFive' : 'calmSeven', tone)) return null
+    const resetInk = onTone(tone, palette.label)
+    const aside = l.departureReset !== undefined && (tone === 'amber' ? beforeLast(keeps) : keeps.has('reset'))
+    const reset = aside && l.departureReset !== undefined ? resetClause(kit, resetInk, l.departureReset, Svg ? ' · ' : ' │ ') : []
+    // With no reset aside, the countdown is the reset itself; a fill, or a
+    // full window's 100%, says its pace.
+    const saysPace = l.fullInMs !== undefined || l.frac === 1
+    const told: Fact[] = [...(aside || l.departureReset === undefined ? (['reset'] as const) : []), ...(saysPace ? (['pace'] as const) : [])]
     return {
-      amber: status[1] === 'amber',
-      line: boardLine(kit, key, [
-        flap(kit, 'item', ...item),
-        flap(kit, 'status', ...status),
-        timed ? flap(kit, 'time', time ?? '–') : null,
-        flap(kit, 'remarks', said.length === 0 ? '–' : said.join(' · '), 'dim'),
-      ]),
+      says: worst ? told : [],
+      window: [key, told],
+      pill: pill(kit, {
+        key,
+        tone,
+        bg: tint.bg,
+        body: [...(icons ? icon(spec.icon, onTone(tone, tint.accent)) : []), ...said(kit, formOf(l.departure, tone, keeps), onTone(tone, tint.fg)), ...reset],
+      }),
     }
   }
-  const limitRow = (l: LimitView): BoardRow => {
-    // A gateway's limit is named by its kind, `spend`, so its item says it is a limit, apart from SPEND.
-    const item = up(l.name) === SPEND_ITEM ? `${SPEND_ITEM} LIMIT` : up(l.name)
-    return row(item, [item, limitInk(l)], [l.boardAmber ?? l.boardShort ?? l.value, l.boardAmber !== undefined ? 'amber' : 'text'], l.boardTime, l.passed ? [] : [`${l.value} used`])
-  }
-  const rows: BoardRow[] = [
-    row('cache', ['CACHE'], [cacheStatus(c), cacheInk(c)], c.boardLeft === '' ? undefined : c.boardLeft, [
-      c.known ? `re-warm ${c.estimate}` : undefined,
-      c.savedText === undefined ? undefined : `saved ${c.savedText}`,
-      c.hitText === undefined ? undefined : `${c.hitText} hit rate`,
-    ]),
-    x.known
-      ? row('context', ['CONTEXT'], [x.boardAmber ?? x.valueText, x.boardAmber !== undefined ? 'amber' : 'text'], up(`${x.inContextText} of ${x.windowText}`), [
-          x.towardText,
-          x.compactsAtText === undefined ? x.compactionOffText : `compacts at ${x.compactsAtText}`,
-          x.roomText === undefined ? undefined : `room ${x.roomText}`,
-        ])
-      : row('context', ['CONTEXT'], [up(EMPTY.context), 'dim'], undefined, []),
-    ...(read.limits.length === 0 ? [row('limits', ['LIMITS'], [up(EMPTY.limits), 'dim'], undefined, [])] : read.limits.filter(l => l.key !== 'other').map(limitRow)),
-    row('spend', [SPEND_ITEM], [s.totalText, 'coin'], s.lastText === undefined ? undefined : `LAST ${s.lastText}`, [
-      `${s.tokensText} tokens`,
-      ...s.split.map(part => `${part.text} ${part.label}`),
-    ]),
-    ...read.limits.filter(l => l.key === 'other').map(limitRow),
-  ]
-  const header = boardLine(kit, 'head', [head('item', 'ITEM'), head('status', 'STATUS'), timed ? head('time', 'TIME') : null, head('remarks', 'REMARKS')])
-  // With no row under the header, the header goes: each board row names itself in ITEM, and fitRows keeps an amber row first.
-  return bodyRows > 1 ? [header, ...fitRows(rows, bodyRows - 1)] : fitRows(rows, bodyRows)
+  return { card: 'limits', tone, inMs: l.passed ? undefined : (l.fullInMs ?? l.resetInMs), lens: l.departureLens, limit: l, draw }
 }
 
-/** Departures' own strip: the workspace on a flap, heading the board. */
-const strip: Strip = (kit, read) => {
-  const { Box } = kit
-  return read.workspaceText === undefined ? null : (
-    <Box key="board" flexGrow={1} width={0} minWidth={0} overflow="hidden">
-      {flap(kit, 'workspace', read.workspaceText, 'dim')}
+/** The context counting down to compaction, in messages once its pace is known. */
+const contextStop = (kit: Kit, read: Readings, d: Departure): Stop => {
+  const { palette, onTone, icon } = kit
+  const x = read.context
+  const { tone } = x
+  const draw = (keeps: Keeps<Piece>, icons: boolean): Drawn | null => {
+    if (!keeps.calm('calmContext', tone)) return null
+    const cd = formOf(d, tone, keeps)
+    // Calm, it says the room until it counts messages; amber, in its long form.
+    const saysRoom = tone === 'amber' ? cd === d.long && x.roomText !== undefined : x.msgsHead === undefined
+    return {
+      pill: pill(kit, {
+        key: 'ctx',
+        tone,
+        body: [...(icons ? icon('context', onTone(tone, palette.label)) : []), ...said(kit, cd, onTone(tone, palette.value))],
+      }),
+      says: saysRoom ? ['room'] : [],
+    }
+  }
+  return { card: 'context', tone, inMs: undefined, lens: DEPARTURES.compacts, draw }
+}
+
+/** The board's queue: amber first, then soonest first, what has no clock last. */
+const queueOf = (kit: Kit, read: Readings): Stop[] => {
+  const { fiveHour, sevenDay, worstLimit } = read
+  const d = read.context.departure
+  const stops = [
+    cacheStop(kit, read),
+    ...(fiveHour === undefined ? [] : [limitStop(kit, '5h', fiveHour, fiveHour === worstLimit)]),
+    ...(sevenDay === undefined ? [] : [limitStop(kit, '7d', sevenDay, sevenDay === worstLimit)]),
+    ...(d === undefined ? [] : [contextStop(kit, read, d)]),
+  ]
+  const rank = (s: Stop) => (s.tone === 'amber' ? 0 : 1)
+  return stops.sort((a, b) => rank(a) - rank(b) || (a.inMs ?? Number.MAX_SAFE_INTEGER) - (b.inMs ?? Number.MAX_SAFE_INTEGER))
+}
+
+/** The one row: the queue, `›` between its stops; air, the spend and the
+ *  tokens; then the toggle. A calm row carries every pill's icon while it
+ *  has room; on the desktop an amber one none. With it,
+ *  the card facts the row says at the squeeze it settled on. */
+const settle = (
+  kit: Kit,
+  read: Readings,
+  act: BandActions,
+  queue: readonly Stop[],
+): Readonly<{ row: RenderElement; says: readonly Fact[]; byWindow: Partial<Record<ChipKey, readonly Fact[]>> }> => {
+  const { Box, Text, Svg, palette } = kit
+  // Built once: the squeeze only chooses among them.
+  const seps = queue.slice(1).map((_, i) => <Text key={`sep${i}`} color={palette.label}>›</Text>)
+  const cost = costPill(kit, read)
+  const tokens = tokensPill(kit, read)
+  const air = <Box key="air" />
+  // The coin goes with the other icons: the figure alone stays.
+  const spend = [air, pill(kit, { key: cost.key, tone: cost.tone, body: cost.body })]
+  const spendBare = [air, pill(kit, { key: cost.key, tone: cost.tone, body: cost.body.slice(-1) })]
+  // The ascii tier drops `Σ`, so the tokens say their unit.
+  const unit = read.frame.glyphs === 'ascii' ? <Text key="unit" color={palette.value}>{DEPARTURES.tokensUnit}</Text> : null
+  const tokensPiece = pill(kit, { key: tokens.key, tone: tokens.tone, body: [...tokens.body, unit] })
+  const tokensBare = pill(kit, { key: tokens.key, tone: tokens.tone, body: [...tokens.body.slice(-1), unit] })
+  const toggle = toggleButton(kit, read, act)
+  // The desktop's amber row is the board's last call, which draws no icon;
+  // a terminal's glyphs stay as chips draws them.
+  const iconed = Svg === undefined || queue.every(s => s.tone === 'calm')
+  const iconsAt = (keeps: Keeps<Piece>) => iconed && keeps.has('icons')
+  const drawnAt = (keeps: Keeps<Piece>) => queue.map(s => s.draw(keeps, iconsAt(keeps))).filter(s => s !== null)
+  const { line: row, keeps } = fitLineKeeps(kit, ORDER, kit.columns - ROW_SLACK, keeps => {
+    const pills = drawnAt(keeps).map(s => s.pill)
+    return line(
+      kit,
+      'row',
+      [
+        ...pills.flatMap((s, i) => (i === 0 ? [s] : [seps[i - 1] ?? null, s])),
+        ...(keeps.has('cost') ? (iconsAt(keeps) ? spend : spendBare) : []),
+        read.cache.measured && keeps.has('tokens') ? (iconed ? tokensPiece : tokensBare) : null,
+      ],
+      toggle,
+      1,
+    )
+  })
+  const drawn = drawnAt(keeps)
+  return { row, says: drawn.flatMap(s => s.says), byWindow: Object.fromEntries(drawn.flatMap(s => (s.window === undefined ? [] : [s.window]))) }
+}
+
+const lines: Lines = (kit, read, act) => [settle(kit, read, act, queueOf(kit, read)).row]
+
+/** A card's places in the queue: each number on a chip's ground, then what goes. */
+const placesOf = (kit: Kit, stops: readonly (readonly [number, Stop])[]): RenderChildren => {
+  const { Box, Text, palette } = kit
+  if (stops.length === 0) return undefined
+  return (
+    <Box key="queue" flexDirection="row" columnGap={1}>
+      {stops.flatMap(([n, s]) => [
+        <Box key={`n${n}`} flexShrink={0} {...(palette.filled ? { backgroundColor: palette.surface, paddingX: 1 } : {})}>
+          <Text color={palette.label}>{String(n)}</Text>
+        </Box>,
+        <Text key={`l${n}`} color={palette.label}>
+          {s.lens}
+        </Text>,
+      ])}
     </Box>
   )
 }
 
-export const departuresView = defineView('departures', { desktop: 1, terminal: 1 }, lines, body, strip)
+/** Each card's place in the queue, LIMITS headed by its soonest window
+ *  unless another needs you, and no card repeating what the row says at
+ *  the squeeze it settled on. */
+const lens: Lens = (kit, read, act) => {
+  const { Text, palette } = kit
+  const { context: x, worstLimit: worst } = read
+  const queue = queueOf(kit, read)
+  const placed = queue.map((s, i) => [i + 1, s] as const)
+  // Short of room, a card's places give way whole, the latest first.
+  const places = (card: CardName): SlotForms => {
+    const mine = placed.filter(([, s]) => s.card === card)
+    return { forms: [...mine.map((_, i) => placesOf(kit, mine.slice(0, mine.length - i))), null] }
+  }
+  const soonest = placed.find(([, s]) => s.limit !== undefined)?.[1].limit
+  const lead = usedSoFar(read.limits)
+  // Another window is never on the row: an amber one keeps LIMITS'
+  // headline, where the cards say it.
+  const otherAmber = worst?.key === 'other' && worst.tone === 'amber'
+  const settled = settle(kit, read, act, queue)
+  return {
+    slots: {
+      cache: places('cache'),
+      spend: <Text key="clock" color={palette.label}>{DEPARTURES.noClock}</Text>,
+      context: places('context'),
+      limits: places('limits'),
+    },
+    heads: {
+      cache: read.cache.departureHead,
+      ...(x.msgsHead === undefined ? {} : { context: x.msgsHead }),
+      ...(soonest?.departureHead === undefined || otherAmber ? {} : { limits: soonest.departureHead }),
+    },
+    lead: {
+      // While the row counts messages, the room and where it compacts, in one row while it holds both whole.
+      ...(x.roomLead === undefined ? {} : { context: { forms: [x.roomLead], says: ['room', 'compactsAt'] } }),
+      ...(lead === undefined ? {} : { limits: lead }),
+    },
+    shown: settled.says,
+    shownByWindow: settled.byWindow,
+    // The board shows no clock times, which are forecast's: every reset counts down, as the row's do.
+    clockless: true,
+    reWarmLabel: DEPARTURES.reWarm,
+  }
+}
+
+export const departuresView = defineCardsView('departures', { desktop: 1, terminal: 1 }, lines, lens)

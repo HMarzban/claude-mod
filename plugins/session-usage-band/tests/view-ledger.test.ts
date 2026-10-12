@@ -1,85 +1,201 @@
-// Ledger, the band in words alone: its sentence calm and amber, how it gives
-// way as it narrows, and the four sections behind ▵.
+// Ledger, the band in plain words: one sentence, its readings named and
+// ranked, how it gives way as it narrows, what needs you leading it, and the
+// shared cards behind ▵, which never repeat what the sentence says.
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import type { On, RenderChildren } from 'claude-code'
-import { ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
-import { LONG, byKey, shown } from './helpers'
-import { caseKey, drawCases, viewSuite, type Mount, type ScenarioName, type Ttl } from './matrix'
+import type { On } from 'claude-code'
+import { drawBand } from '../hooks/band'
+import { DARK, PLAIN } from '../hooks/palette'
+import type { BandSnapshot } from '../hooks/snapshot'
+import { HOUR, MIN, byKey, cardOf, fakeEl, firstRow, hostClock, shown, svgAlts, svgsOf, walk, type Node } from './helpers'
+import { NO_ACT, caseKey, drawCases, snapOf, viewSuite, visualRows, type Mount } from './matrix'
 
 viewSuite('ledger')
 
-const T160: Mount = { surface: 'terminal', cols: 160 }
-/** One scenario on one mount: its trees, shut and open. */
-const at = async ($: Engine, on: On, scenario: ScenarioName, m: Mount = T160, ttl: Ttl = '1h') => {
-  const trees = await drawCases($, on, { layout: 'ledger', scenario, appearance: 'dark', ttl }, [m])
-  return { shut: trees[caseKey(m, 'shut')], open: trees[caseKey(m, 'open')] }
+/** The band drawn as ledger at 160 columns, the zone's offset known. */
+const drawn = (over: Partial<BandSnapshot> = {}): Node =>
+  drawBand(fakeEl, snapOf({ layout: 'ledger', columns: 160, utcOffsetMin: 0, ...over }), NO_ACT) as unknown as Node
+/** The collapsed row as it reads; the toggle is a Button, its label no text. */
+const rowText = (over: Partial<BandSnapshot> = {}): string => shown(firstRow(drawn(over)))
+/** The bold Texts of a node, as they read. */
+const boldOf = (n: unknown): string[] => {
+  const out: string[] = []
+  walk(n, k => {
+    if (k.type === 'Text' && k.props?.bold === true) out.push(shown(k))
+  })
+  return out
 }
+/** A card's first body row, past its head, as it reads. */
+const firstRowOf = (tree: Node, name: string): string => shown(((cardOf(tree, name)?.children ?? []) as Node[]).filter(Boolean)[1])
+/** Open at 120 columns and 13 rows: two cards to a line, three rows of body each. */
+const opened = (over: Partial<BandSnapshot> = {}): Node => drawn({ expanded: true, columns: 120, maxRows: 13, ...over })
 
-test('calm reads as one sentence of readings', async ($, on) => {
-  expect(shown((await at($, on, 'calm')).shut)).toMatch(/cache 1h 00m left\s*·\s*\$2\.41\s*·\s*context 38%\s*·\s*5h 4%, resets in 3h 00m\s*·\s*7d 30%, resets in 2d 19h/)
+const CALM = 'cache 52m left │ spent $3.19 │ context 40% full │ 5h 4% │ 7d 30% · on pace for ~50% · ↻ Sat 19:00'
+const COLD: BandSnapshot['cache'] = { ...snapOf().cache, msLeft: -MIN }
+const LAST_MINUTE: BandSnapshot['cache'] = { ...snapOf().cache, msLeft: 30_000 }
+const FIVE_82: BandSnapshot['fiveHour'] = { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null }
+const FIVE_FILLING: BandSnapshot['fiveHour'] = { percentUsed: 50, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 40 * MIN }
+const NEAR_COMPACTION: BandSnapshot['context'] = { tokens: 150_000, window: 200_000, percent: 75, compactAt: 160_000, autoCompactOff: false }
+
+test('one sentence: each reading named, │ between them, the closest limit with its pace and reset', () => {
+  expect(rowText()).toBe(CALM)
 })
-test('the last minute leads with "! " and the price', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'lastMinute', T160, '5m')).shut)).toMatch(/^! 30s left · re-warm ~\$/)
-})
-test('narrow, the resets give way first and the cache stays', async ($, on) => {
-  const t = shown((await at($, on, 'calm', { surface: 'terminal', cols: 60 })).shut)
-  expect(t).toMatch(/cache 1h 00m left/)
-  expect(t).not.toMatch(/resets in/)
-})
-test('calm gives way in spec order: the reset words, the reset times, 7d, the context, the cost, then 5h', async ($, on) => {
-  // Each width sits inside its step's band, not at its edge.
-  const mounts = [120, 95, 86, 60, 40].map((cols): Mount => ({ surface: 'terminal', cols }))
+test('mounted, it reads the same on both surfaces', async ($, on) => {
+  const mounts: Mount[] = [{ surface: 'terminal', cols: 160 }, { surface: 'desktop', cols: 160 }]
   const trees = await drawCases($, on, { layout: 'ledger', scenario: 'calm', appearance: 'dark', ttl: '1h' }, mounts)
-  const [whole, glyph, noResets, noSeven, cacheAndFive] = mounts.map(m => shown(trees[caseKey(m, 'shut')]))
-  expect(whole).toMatch(/5h 4%, resets in 3h 00m\s*·\s*7d 30%, resets in 2d 19h/)
-  expect(whole).not.toMatch(/↻/)
-  expect(glyph).toMatch(/5h 4%, ↻ in 3h 00m\s*·\s*7d 30%, ↻ in 2d 19h/)
-  expect(glyph).not.toMatch(/resets in/)
-  expect(noResets).toMatch(/7d 30%/)
-  expect(noResets).not.toMatch(/↻|resets in/)
-  expect(noSeven).toMatch(/context 38%\s*·\s*5h 4%/)
-  expect(noSeven).not.toMatch(/7d/)
-  expect(cacheAndFive).toMatch(/^cache 1h 00m left\s*·\s*5h 4%/)
-  expect(cacheAndFive).not.toMatch(/\$2\.41|context/)
+  for (const m of mounts)
+    expect(shown(firstRow(trees[caseKey(m, 'shut')]))).toBe(
+      `cache 1h 00m left │ spent $2.41 │ context 38% full │ 5h 4% │ 7d 30% · on pace for ~50% · ↻ ${hostClock(67 * HOUR, 0)}`,
+    )
 })
-test('at 40 columns amber still leads', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'lastMinute', { surface: 'terminal', cols: 40 }, '5m')).shut)).toMatch(/^! 30s/)
+test('one bold per reading, on its figure; names, qualifiers and separators in label ink', () => {
+  const row = firstRow(drawn())
+  expect(boldOf(row)).toEqual(['52m', '$3.19', '40%', '4%', '30%'])
+  const inks = new Set<unknown>()
+  walk(row, n => {
+    if (n.type === 'Text' && n.props?.bold !== true && typeof n.children?.[0] === 'string') inks.add(n.props?.color)
+  })
+  expect([...inks]).toEqual([DARK.label])
 })
-test('at 40 columns a cold cache says its short words, so an amber limit fits beside it', LONG, async ($, on) => {
-  const line = byKey((await at($, on, 'coldLimit80', { surface: 'terminal', cols: 40 }, '5m')).shut, 'line', 'Box')
-  expect(shown(line)).toMatch(/^cold ~\$[\d.]+\s*·\s*! 5h 82%$/)
-  expect(cellsOf(line as RenderChildren, TERMINAL)).toBeLessThanOrEqual(40 - ROW_SLACK - 2)
+test('a cold cache says its price, bold on the price alone', () => {
+  const row = firstRow(drawn({ cache: COLD }))
+  expect(shown(row)).toMatch(/^cache cold · re-warm ~\$1\.66 │ spent/)
+  expect(boldOf(row)[0]).toBe('~$1.66')
 })
-test('at 40 columns a warm countdown keeps its words beside an amber context', async ($, on) => {
-  expect(shown(byKey((await at($, on, 'nearCompaction', { surface: 'terminal', cols: 40 })).shut, 'line', 'Box'))).toMatch(/^cache 1h 00m left·! ctx 94%$/)
+test('working, the cache has no figure: its words in label ink, nothing bold', () => {
+  const row = firstRow(drawn({ isWorking: true }))
+  expect(shown(row)).toMatch(/^cache warm │ spent/)
+  expect(boldOf(row)).toEqual(['$3.19', '40%', '4%', '30%'])
 })
-test('a limit at 80% says why, in words', async ($, on) => {
-  expect(shown((await at($, on, 'limit80')).shut)).toMatch(/! 5h 82%/)
+test('no pills, bars or icons: one ground, the sentence pill on the desktop, the whole row in a terminal; plain is bare', () => {
+  const desktop = firstRow(drawn({ surface: 'desktop' })) as Node
+  expect(svgsOf(desktop)).toEqual([])
+  expect([desktop.props?.backgroundColor, byKey(desktop, 'sentence', 'Box')?.props?.backgroundColor]).toEqual([undefined, DARK.surface])
+  const terminal = firstRow(drawn()) as Node
+  expect([terminal.props?.backgroundColor, byKey(terminal, 'sentence', 'Box')?.props?.backgroundColor]).toEqual([DARK.surface, undefined])
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const plain = firstRow(drawn({ surface, palette: PLAIN })) as Node
+    expect([plain.props?.backgroundColor, byKey(plain, 'sentence', 'Box')?.props?.backgroundColor]).toEqual([undefined, undefined])
+  }
+  expect(rowText()).not.toMatch(/[█░▓▒●◷]/)
 })
-test('open: the workspace as a sentence, then four sections', async ($, on) => {
-  const t = shown((await at($, on, 'calm')).open)
-  expect(t).toMatch(/claude-mod, branch main, clean/)
-  for (const title of ['CACHE', 'SPEND', 'CONTEXT', 'LIMITS']) expect(t).toContain(title)
-  expect(t).toMatch(/re-warm ~\$\S+ if it goes cold/)
+test('the toggle is last on the row: ▵ shut, ▿ open', () => {
+  for (const [expanded, mark] of [[false, '▵'], [true, '▿']] as const) {
+    const kids = ((firstRow(drawn({ expanded })) as Node).children ?? []) as Node[]
+    expect(byKey(kids.at(-1), 'more', 'Button')?.props?.label).toBe(mark)
+  }
 })
-test('open with no limits, the section says so', async ($, on) => {
-  expect(shown((await at($, on, 'noLimits')).open)).toMatch(/LIMITS\s*none reported/)
+test('narrowing, the ↻ clock gives way first, then the pace, the calm 7d, the context, the cost', () => {
+  const at = (columns: number) => rowText({ columns })
+  expect(at(95)).toBe('cache 52m left │ spent $3.19 │ context 40% full │ 5h 4% │ 7d 30% · on pace for ~50%')
+  expect(at(80)).toBe('cache 52m left │ spent $3.19 │ context 40% full │ 5h 4% │ 7d 30%')
+  expect(at(65)).toBe('cache 52m left │ spent $3.19 │ context 40% full │ 5h 4%')
+  expect(at(48)).toBe('cache 52m left │ spent $3.19 │ 5h 4%')
+  expect(at(40)).toBe('cache 52m left │ 5h 4%')
 })
-test('open with no context, the section says so', async ($, on) => {
-  expect(shown((await at($, on, 'warming')).open)).toMatch(/CONTEXT\s*not reported/)
+test('amber leads, whole and on its own ground, its reset and pace with it while the row has room', () => {
+  expect(rowText({ fiveHour: FIVE_82 })).toBe('! 5h 82% · full before reset · ↻ 03:00 │ cache 52m left │ spent $3.19 │ context 40% full │ 7d 30% · on pace for ~50% · ↻ Sat 19:00')
+  // A filling limit's warning says its pace, so its reset alone follows.
+  expect(rowText({ fiveHour: FIVE_FILLING })).toMatch(/^! 5h full in ~40m · ↻ 03:00 │ cache 52m left │/)
+  expect(rowText({ context: NEAR_COMPACTION })).toMatch(/^! context 94% · compacts in ~10k │ cache 52m left │ spent \$3\.19 │ 5h 4%/)
+  const amber: Node[] = []
+  walk(firstRow(drawn({ fiveHour: FIVE_82 })), n => {
+    if (n.type === 'Text' && n.props?.color === DARK.amberFg) amber.push(n)
+  })
+  expect(amber.map(n => [shown(n), n.props?.backgroundColor])).toEqual([
+    ['! 5h 82%', DARK.amberBg],
+    [' · full before reset', DARK.amberBg],
+    [' · ↻ 03:00', DARK.amberBg],
+  ])
 })
-test('open and short of rows, an amber limit keeps its words', async ($, on) => {
-  // Each mount leaves LIMITS one row under its title.
-  const mounts = ([[120, 7], [80, 7], [80, 10]] as const).flatMap(([cols, maxRows]) =>
-    (['terminal', 'desktop'] as const).map((surface): Mount => ({ surface, cols, maxRows })))
-  const trees = await drawCases($, on, { layout: 'ledger', scenario: 'gatewaySpend', appearance: 'dark', ttl: '1h' }, mounts)
-  for (const m of mounts) expect(`${caseKey(m, 'open')} ${shown(trees[caseKey(m, 'open')])}`).toMatch(/LIMITS\s*! spend 92%, resets in 5h 00m/)
+test("narrowing an amber row, width alone decides: the 7d's tail goes first, the amber window's reset and pace last of all", () => {
+  const at = (columns: number) => rowText({ columns, fiveHour: FIVE_82 })
+  expect(at(120)).toBe('! 5h 82% · full before reset · ↻ 03:00 │ cache 52m left │ spent $3.19 │ context 40% full │ 7d 30%')
+  expect(at(63)).toBe('! 5h 82% · full before reset · ↻ 03:00 │ cache 52m left')
+  expect(at(40)).toBe('! 5h 82% │ cache 52m left')
+  // A measured fill's words shorten before its reset gives way, as rings' do.
+  expect(rowText({ columns: 44, fiveHour: FIVE_FILLING })).toBe('! 5h ~40m · ↻ 03:00 │ cache 52m left')
+  for (let columns = 160; columns >= 40; columns--) expect(`${columns} ${rowText({ columns, fiveHour: FIVE_FILLING })}`).not.toMatch(/full in ~40m │/)
 })
-test('open, an amber limit keeps its pace', async ($, on) => {
-  expect(shown((await at($, on, 'limit80')).open)).toMatch(/! 5h 82%, resets in 3h 00m, full before reset/)
+test("open with the 5h amber, the cards say no reset or pace the sentence says, the 7d's either", () => {
+  const tree = opened({ fiveHour: FIVE_82, columns: 160, maxRows: 40 })
+  const limits = shown(cardOf(tree, 'limits'))
+  for (const said of ['03:00', 'Sat 19:00', 'full before reset', 'on pace for ~50%']) expect(limits).not.toContain(said)
 })
-test('open, a limit filling before its reset says so once', LONG, async ($, on) => {
-  expect(shown((await at($, on, 'fiveHourAhead')).open)).toMatch(/! 5h full in ~1h, resets in \d+h \d+m(?!, full)/)
+test('at 40 columns a cold cache says its short words, so an amber limit fits beside it', () => {
+  expect(rowText({ columns: 40, cache: COLD, fiveHour: FIVE_82 })).toBe('! 5h 82% │ cache cold ~$1.66')
+})
+test('the ascii tier: | between readings, commas within, resets in words', () => {
+  expect(rowText({ glyphs: 'ascii' })).toBe('cache 52m left | spent $3.19 | context 40% full | 5h 4% | 7d 30%, on pace for ~50%, resets Sat 19:00')
+})
+test('one row on both surfaces, shut and open', () => {
+  for (const surface of ['terminal', 'desktop'] as const)
+    for (const expanded of [false, true]) expect(visualRows(firstRow(drawn({ surface, expanded })), surface)).toBe(1)
+})
+
+test('open: the four shared cards, their heads with no lens, then Collapse and Hide band', () => {
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const tree = opened({ surface })
+    for (const name of ['cache', 'spend', 'context', 'limits']) {
+      expect(cardOf(tree, name)).toBeDefined()
+      expect(byKey(cardOf(tree, name), 'slot', 'Box')).toBeUndefined()
+    }
+    expect([byKey(tree, 'collapse', 'Button')?.props?.label, byKey(tree, 'hide', 'Button')?.props?.label]).toEqual(['Collapse', 'Hide band'])
+  }
+})
+test('open, no fill ends in a thumb', () => {
+  const sources = svgsOf(opened({ surface: 'desktop', maxRows: 40 })).map(n => String(n.props?.source))
+  expect(sources.length).toBeGreaterThan(0)
+  for (const source of sources) expect(source).not.toMatch(/class="thumb"/)
+})
+test("open, LIMITS skips the closest limit's pace and reset the sentence says", () => {
+  expect(firstRowOf(opened(), 'limits')).toMatch(/^5h/)
+  // At 80 columns the sentence gives both up, so the card says them.
+  expect(firstRowOf(opened({ columns: 80 }), 'limits')).toBe('resetsSat 19:00 · on pace for ~50%')
+  // A filling limit's warning says its pace, and its reset while the row
+  // has room; out of room, its reset is the card's.
+  expect(firstRowOf(opened({ fiveHour: FIVE_FILLING }), 'limits')).toMatch(/^5h/)
+  expect(shown(cardOf(opened({ fiveHour: FIVE_FILLING, columns: 40, maxRows: 40 }), 'limits'))).toContain('resets03:00')
+})
+test('open, the other cards each lead with what the sentence left out', () => {
+  const calm = opened()
+  expect([firstRowOf(calm, 'cache'), firstRowOf(calm, 'spend'), firstRowOf(calm, 'context')]).toEqual(['re-warm if cold~$1.66', 'last message$0.21', 'room left~114k'])
+  // A price the sentence says, cold or in the last minute, is not said twice.
+  expect(firstRowOf(opened({ cache: COLD }), 'cache')).toMatch(/^saved by cache/)
+  expect(firstRowOf(opened({ cache: LAST_MINUTE }), 'cache')).toMatch(/^saved by cache/)
+  // Nor the room an amber context names.
+  expect(firstRowOf(opened({ context: NEAR_COMPACTION }), 'context')).toMatch(/^auto-compacts at/)
+})
+test("open at the board's own height, each card's two rows are the board's, none repeating its headline", () => {
+  const tree = drawn({
+    expanded: true,
+    surface: 'desktop',
+    columns: 120,
+    maxRows: 15,
+    fiveHour: { percentUsed: 0, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null },
+    sevenDay: { percentUsed: 66, resetsAt: new Date(67 * HOUR).toISOString() },
+  })
+  const body = (name: string) => ((cardOf(tree, name)?.children ?? []) as Node[]).filter(Boolean).slice(1)
+  const read = (name: string) => body(name).map(shown)
+  expect(read('cache')).toEqual(['re-warm if cold~$1.66', 'saved by cache~$11.40'])
+  expect(read('context')).toEqual(['room left~114k', 'auto-compacts at190k'])
+  // SPEND's split: its bar and a one-line legend, as the board draws it.
+  expect(read('spend')).toEqual(['last message$0.21', 'input · output · cache reads'])
+  expect(svgsOf(body('spend')[1]).map(n => n.props?.alt)).toEqual(['token split: input, output, cache reads'])
+  // LIMITS: the 5h bar, bare, then its reset; the 7d headline's bar is not drawn again.
+  const [bar, reset] = body('limits')
+  expect(body('limits').length).toBe(2)
+  expect(svgsOf(bar).map(n => [n.props?.alt, /class="tick"/.test(String(n.props?.source))])).toEqual([['5h 0% used', false]])
+  expect(shown(reset)).toMatch(/^5h resets \d{2}:\d{2}/)
+  expect(svgAlts(cardOf(tree, 'limits'))).not.toContain('7d 66% used')
+})
+test('open, the row stays the sentence and the band fits its rows', async ($, on) => {
+  const mounts: Mount[] = (['terminal', 'desktop'] as const).flatMap(surface => [13, 40].map(maxRows => ({ surface, cols: 120, maxRows })))
+  const trees = await drawCases($, on, { layout: 'ledger', scenario: 'calm', appearance: 'dark', ttl: '1h' }, mounts)
+  for (const m of mounts) {
+    const tree = trees[caseKey(m, 'open')]
+    expect(shown(firstRow(tree))).toMatch(/^cache 1h 00m left │ spent \$2\.41 │/)
+    expect(`${caseKey(m, 'open')} ${visualRows(tree, m.surface) <= (m.maxRows ?? 40)}`).toBe(`${caseKey(m, 'open')} true`)
+  }
 })

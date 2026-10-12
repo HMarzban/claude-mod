@@ -58,10 +58,11 @@ test('every layout\'s toggle points the way the band will move: up while shut, d
           .toEqual({ layout, surface, glyphs, expanded, label: expanded ? open : shut })
       }
 })
-test('every new view draws its empty states in a label\'s ink', () => {
-  // Departures writes them on its board, upper case, in the board's ink.
-  // At 40 columns pulse's desktop says its short costs.
-  const layouts = LAYOUT_NAMES.filter(name => name !== 'chips' && name !== 'departures')
+test('every layout that says an empty state draws it in a label\'s ink', () => {
+  // Gauges and pulse say one in their rows; the rest leave out what isn't
+  // known, as a card with nothing known is left out.
+  const saysNone: ReadonlySet<string> = new Set(['chips', 'departures', 'week', 'rings', 'ledger', 'tiles', 'forecast'])
+  const layouts = LAYOUT_NAMES.filter(name => !saysNone.has(name))
   const phrases = Object.values(EMPTY)
   const inks: string[] = []
   for (const layout of layouts)

@@ -2,7 +2,7 @@
 // resets, projections, ages, clipped names and the context in use.
 
 import { test, expect } from 'claude-code/testing'
-import { clipMiddle, clipWords, contextUsed, fmtAgo, fmtCost, fmtCountdown, fmtEstimate, fmtEta, fmtPct, fmtSmallCost, fmtTokens, resetIn } from '../hooks/format'
+import { clipMiddle, clipWords, contextUsed, fmtAgo, fmtCost, fmtCountdown, fmtEstimate, fmtEta, fmtEtaDays, fmtPct, fmtSmallCost, fmtTokens, resetIn } from '../hooks/format'
 
 const SEC = 1000
 const MIN = 60 * SEC
@@ -10,7 +10,7 @@ const HOUR = 60 * MIN
 const NOW = 1_000_000
 const at = (ms: number): string => new Date(NOW + ms).toISOString()
 
-test('tokens: whole under a thousand, a tenth of a k to ten thousand, whole k above, a tenth of an M from a million', () => {
+test('tokens: whole under a thousand, a tenth of a k to ten thousand, whole k above, a tenth of an M from a million, of a B from a billion', () => {
   expect(fmtTokens(0)).toBe('0')
   expect(fmtTokens(999)).toBe('999')
   expect(fmtTokens(999.4)).toBe('999') // rounded first
@@ -22,6 +22,7 @@ test('tokens: whole under a thousand, a tenth of a k to ten thousand, whole k ab
   expect(fmtTokens(999_499)).toBe('999k')
   expect(fmtTokens(1_000_000)).toBe('1.0M')
   expect(fmtTokens(1_500_000)).toBe('1.5M')
+  expect(fmtTokens(2_083_300_000)).toBe('2.1B')
 })
 
 test('a share reads as a whole percent', () => {
@@ -31,13 +32,14 @@ test('tokens never count below zero', () => {
   expect(fmtTokens(-5)).toBe('0')
 })
 
-test('dollars: cents under a thousand, whole dollars from one', () => {
+test('dollars: cents under a thousand, whole dollars from one, grouped by thousands', () => {
   expect(fmtCost(0)).toBe('$0.00')
   expect(fmtCost(2.41)).toBe('$2.41')
   expect(fmtCost(999.99)).toBe('$999.99')
-  expect(fmtCost(1000)).toBe('$1000')
-  expect(fmtCost(1234.4)).toBe('$1234')
-  expect(fmtCost(1234.56)).toBe('$1235')
+  expect(fmtCost(1000)).toBe('$1,000')
+  expect(fmtCost(1234.4)).toBe('$1,234')
+  expect(fmtCost(1234.56)).toBe('$1,235')
+  expect(fmtCost(1_234_567)).toBe('$1,234,567')
 })
 
 test('a small cost under a cent says so, never $0.00', () => {
@@ -119,6 +121,16 @@ test('a projection from 57.5 minutes is in 15-minute steps, whole hours without 
   expect(fmtEta(82.5 * MIN)).toBe('~1h 30m')
   expect(fmtEta(120 * MIN)).toBe('~2h')
 })
+test("a projection keeps its hours past a day; departures' says whole days from 12 hours, coarsely", () => {
+  expect(fmtEta(36 * HOUR)).toBe('~36h')
+  expect(fmtEtaDays(11.5 * HOUR)).toBe('~11h 30m')
+  // From 12 hours a fill is said in whole days, the nearest: its day, never a falsely precise `~13h 15m`.
+  expect(fmtEtaDays(12 * HOUR)).toBe('~1d')
+  expect(fmtEtaDays(13.25 * HOUR)).toBe('~1d')
+  expect(fmtEtaDays(35 * HOUR)).toBe('~1d')
+  expect(fmtEtaDays(36 * HOUR)).toBe('~2d')
+  expect(fmtEtaDays(68 * HOUR)).toBe('~3d')
+})
 
 test('an age under a minute is now, then minutes, hours and minutes, days and hours', () => {
   expect(fmtAgo(-1)).toBe('now')
@@ -180,12 +192,14 @@ test('a token count that rounds up to the next unit is written in it', () => {
   expect(fmtTokens(9_999)).toBe('10k') // not 10.0k, which the next unit already says
   expect(fmtTokens(999_499)).toBe('999k')
   expect(fmtTokens(999_999)).toBe('1.0M') // not 1000k
+  expect(fmtTokens(999_949_999)).toBe('999.9M')
+  expect(fmtTokens(999_950_000)).toBe('1.0B') // not 1000.0M
 })
 
-test('a cost that rounds to $1000 is written as whole dollars, as $1000 itself is', () => {
+test('a cost that rounds to $1,000 is written as whole dollars, as $1,000 itself is', () => {
   expect(fmtCost(999.994)).toBe('$999.99')
-  expect(fmtCost(999.995)).toBe('$1000')
-  expect(fmtEstimate(1234.5)).toBe('~$1235') // estimates switch at $1000 too
+  expect(fmtCost(999.995)).toBe('$1,000')
+  expect(fmtEstimate(1234.5)).toBe('~$1,235') // estimates switch at $1,000 too, grouped alike
   expect(fmtEstimate(12.344)).toBe('~$12.34')
 })
 

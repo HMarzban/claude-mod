@@ -1,206 +1,238 @@
-// Tiles, the band as type: a bold value over a small label, and on the
-// desktop a thin underline beneath each but the cost's. No pills.
+// Tiles, everything side by side at the same size: one row of equal tiles,
+// each its figure, its label and, where there's a cap, its mark, in chips'
+// order and tints; and chips' cards beneath it when open, a mark in each
+// head but the spend's.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
-import { UNDERLINE_PX, underline } from '../charts'
+import { meter } from '../charts'
 import type { Kit } from '../kit'
-import { ROW_PX } from '../layout'
-import type { CacheReading, LimitView, Readings, Tone } from '../reading'
+import { ROW_SLACK, cellsOf } from '../layout'
+import type { BarSize } from '../layout'
+import type { CacheReading, ContextReading, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
-import { EMPTY, type Amber, type Role, type Say } from '../words'
-import { toggleButton } from './frame'
-import { accentOf, amberFirst, amberWords, anyAmber, beforeLast, emptySay, emptyWords, fitLine, grid, gridRoom, line, lineRoom, section, words, type Keeps } from './parts'
-import { defineView } from './view'
+import type { ReadingAmber, Say } from '../words'
+import { limitTint, pillRow, type ChipKey } from './chips'
+import { GLYPH } from '../icons'
+import { accentOf, amberFirst, batteryMark, fitLine, words, type Keeps, type PillSpec } from './parts'
+import { defineCardsView, type Lens } from './view'
 
-/** What gives way as the line narrows, first to last. Amber never does.
- *  Spec §6 ends at the context tile; at 40 columns an amber 5h or context
- *  tile fits only once the cost's has gone too, the last minute's reason
- *  only once the 5h's has, and an amber limit beside a cold cache only once
- *  the cache's label is its price alone. */
-const ORDER = ['underline', 'resetText', 'calmSeven', 'calmContext', 'cost', 'calmFive', 'cacheWords'] as const
+/** What gives way as the row narrows, first to last: the board's tokens,
+ *  resets, bar length and calm 7d, then chips' calm context and 5h around
+ *  the marks, the tiles' even widths, then the calm spend, so a tile goes
+ *  before a figure loses its name, and last the labels. On the desktop a
+ *  reset's ↻ goes before its words. Amber never does. */
+const ORDER = ['tokens', 'resetGlyph', 'resets', 'barLength', 'calmSeven', 'calmContext', 'marks', 'calmFive', 'evenWidths', 'calmCost', 'labels'] as const
 type Piece = (typeof ORDER)[number]
-/** An underline's length. */
-const UNDER_PX = 64
 
-/** A value over its label, and on the desktop its underline beneath. */
-const stack = (kit: Kit, key: string, value: RenderElement, label: RenderElement, bar: RenderChildren): RenderElement => {
-  const { Box } = kit
-  return (
-    <Box key={key} flexDirection="column" flexShrink={0}>
-      {value}
-      {label}
-      {bar}
-    </Box>
-  )
-}
+/** A tile's mark at its lengths, longest first, a cell shorter each: the
+ *  row takes the longest it holds before a word gives way, and the shortest
+ *  once the bar length has. A card head's mark. */
+const MARKS: readonly BarSize[] = [
+  { px: 40, cells: 6 },
+  { px: 32, cells: 5 },
+  { px: 24, cells: 4 },
+]
+const SHORT_MARK: BarSize = { px: 24, cells: 4 }
+const SLOT: BarSize = { px: 64, cells: 6 }
 
-/** The cache as a tile says it: the countdown alone while it counts, else its condition. */
-const cacheValue = (c: CacheReading): string => (c.leftShort === '' ? c.value : c.leftShort)
-
-/** A tile's value: bold, amber while its reading is. */
-const valueOf = (kit: Kit, text: string, amber: Amber | undefined): RenderElement =>
-  words(kit, 'v', [[text, amber !== undefined ? 'amber' : 'value']], true)
-
-/** A tile's underline, amber while its reading is. */
-const barOf = (kit: Kit, alt: string, frac: number, color: string, amber: Amber | undefined, dashed = false): RenderChildren =>
-  underline(kit, { key: 'u', alt, frac, color: amber !== undefined ? kit.palette.amberFg : color, px: UNDER_PX, dashed })
-
-/** A collapsed tile, built once: the squeeze picks its calm label, and
+/** A tile, built once: the squeeze picks its label, its mark's size, and
  *  whether a calm tile with a give-way step stays. */
 type Tile = Readonly<{
   key: string
-  value: RenderElement
-  label: (keeps: Keeps<Piece>) => RenderElement
-  bar: RenderChildren
-  amber: Amber | undefined
   tone: Tone
+  amber: ReadingAmber | undefined
+  /** Its ground while calm, the surface's unless tinted. */
+  bg?: string
+  figure: RenderElement
+  /** Its name, or amber, its reason in its place. */
+  label: (keeps: Keeps<Piece>) => RenderElement
+  /** Its mark at a length; none where there's no cap. */
+  mark: (size: BarSize) => RenderChildren
   step?: Piece
 }>
 
-/** A tile at a squeeze: amber, its reason, its underline until the amber
- *  step; calm, its label, its underline until the first step. */
-const drawTile = (kit: Kit, t: Tile, keeps: Keeps<Piece>): RenderChildren => {
-  if (t.step !== undefined && !keeps.calm(t.step, t.tone)) return null
-  return t.amber !== undefined
-    ? stack(kit, t.key, t.value, amberWords(kit, 'l', t.amber, keeps), beforeLast(keeps) ? t.bar : null)
-    : stack(kit, t.key, t.value, t.label(keeps), keeps.has('underline') ? t.bar : null)
+/** The columns every tile shares, or none once the tiles hug their text. */
+type Columns = Readonly<{ figure: number; label: number; mark: number }> | undefined
+
+/** A mark built at most once at each length, when first asked for. */
+const bySize = (make: (size: BarSize) => RenderChildren): ((size: BarSize) => RenderChildren) => {
+  const built = new Map<number, RenderChildren>()
+  return size => {
+    if (!built.has(size.cells)) built.set(size.cells, make(size))
+    return built.get(size.cells)
+  }
 }
+const NO_MARK = (): RenderChildren => null
 
-/** A limit's name in its accent; a limit with none has the label's. */
-const nameRole = (l: LimitView): Role => (l.key === '5h' ? 'accent5' : l.key === '7d' ? 'accent7' : 'label')
+/** A tile's figure: its one bold, amber or calm. */
+const figureOf = (kit: Kit, text: string, tone: Tone): RenderElement => words(kit, 'fig', [[text, tone === 'amber' ? 'amber' : 'value']], true)
 
-/** A limit's label: its name, then its reset when it has one. */
-const limitLabel = (l: LimitView): Say =>
-  l.resetGlyph === undefined ? [[l.name, nameRole(l)]] : [[l.name, nameRole(l)], [` ${l.resetGlyph}`, 'label']]
+/** A tile's name, or amber, its reason beside the figure in its place:
+ *  `! cache`, `! 5h ~1h`. */
+const nameOf = (amber: ReadingAmber | undefined, name: Say[number]): Say[number] => (amber === undefined ? name : [amber.beside, 'amber'])
 
-/** A limit's tile: its name in its accent, and its reset while the squeeze allows. */
-const limitTile = (kit: Kit, l: LimitView, step?: Piece): Tile => {
-  const named = words(kit, 'l', [[l.name, nameRole(l)]])
-  const reset = words(kit, 'l', limitLabel(l))
-  return {
-    key: l.name,
-    value: valueOf(kit, l.valueText, l.amber),
-    label: keeps => (keeps.has('resetText') ? reset : named),
-    bar: barOf(kit, l.alt, l.frac, accentOf(kit, l), l.amber),
-    amber: l.amber,
+/** The cache's countdown alone while it counts, else its condition. */
+const cacheFigure = (c: CacheReading): string => (c.leftShort === '' ? c.value : c.leftShort)
+
+/** The context's fill toward its cap. */
+const contextMark = (kit: Kit, x: ContextReading, size: BarSize): RenderChildren =>
+  meter(kit, { key: 'bar', label: 'context', frac: x.frac, tone: x.tone, accent: kit.palette.meterFill, size })
+
+/** A window's fill, its notch where time has gone and the fill has begun,
+ *  knocked out of `ground`, and its projection dashed. */
+const limitMark = (kit: Kit, l: LimitView, size: BarSize, ground: string): RenderChildren =>
+  meter(kit, {
+    key: 'bar',
+    label: l.name,
+    frac: l.frac,
     tone: l.tone,
-    step,
+    accent: accentOf(kit, l),
+    size,
+    tick: l.frac > 0 ? l.gone : undefined,
+    projectTo: l.projectedFrac,
+    ground,
+    dash: '╌',
+  })
+
+/** A limit's tile, in its chip's tint, its name in its accent, then its
+ *  reset whole as the board says it: the 5h counting down, the 7d at its
+ *  clock time. On the desktop ↻ goes first, then the reset whole. */
+const limitTile = (kit: Kit, l: LimitView, key: ChipKey): Tile => {
+  const { Svg, palette, onTone } = kit
+  const bg = limitTint(palette, key).bg
+  const name = nameOf(l.amber, [l.name, key === '5h' ? 'accent5' : 'accent7'])
+  const named = words(kit, 'label', [name])
+  const when = l.resetSaid
+  const reset = when === undefined ? named : words(kit, 'label', [name, [` ${GLYPH.reset} ${when}`, 'label']])
+  const bare = when === undefined ? named : words(kit, 'label', [name, [` ${when}`, 'label']])
+  return {
+    key,
+    tone: l.tone,
+    amber: l.amber,
+    bg,
+    figure: figureOf(kit, l.valueText, l.tone),
+    label: keeps => (!keeps.has('resets') ? named : Svg && !keeps.has('resetGlyph') ? bare : reset),
+    mark: l.passed ? NO_MARK : bySize(size => limitMark(kit, l, size, onTone(l.tone, bg, palette.amberBg))),
+    step: key === '5h' ? 'calmFive' : 'calmSeven',
   }
 }
 
-const lines = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
-  const p = kit.palette
-  const c = read.cache
-  const x = read.context
-  // Built once: none of these changes with the squeeze.
-  const toggle = toggleButton(kit, read, act)
-  // Cold is a price, so its label names it, and short, says it alone.
-  const reWarm = c.condition === 'cold' ? c.reWarmText : undefined
-  const cacheLabel = words(kit, 'l', [[reWarm ?? 'cache', 'label']])
-  const cacheShort = reWarm === undefined ? cacheLabel : words(kit, 'l', [[c.estimate, 'label']])
-  const contextLabel = words(kit, 'l', [['context', 'label']])
-  const costLabel = words(kit, 'l', [['this session', 'label']])
-  const cache: Tile = {
-    key: 'cache',
-    value: valueOf(kit, cacheValue(c), c.amber),
-    label: keeps => (keeps.has('cacheWords') ? cacheLabel : cacheShort),
-    bar: barOf(kit, c.alt, c.charge, p.warm, c.amber),
-    amber: c.amber,
-    tone: c.tone,
+/** The tiles in chips' order, the tokens last, what needs you first. */
+const tilesOf = (kit: Kit, read: Readings): Tile[] => {
+  const { cache: c, context: x, spend: s } = read
+  const label = (amber: ReadingAmber | undefined, text: string) => {
+    const said = words(kit, 'label', [nameOf(amber, [text, 'label'])])
+    return () => said
   }
-  const cost: Tile = { key: 'cost', value: valueOf(kit, read.spend.totalText, undefined), label: () => costLabel, bar: null, amber: undefined, tone: 'calm', step: 'cost' }
-  // Unreported, the context has no tile; open, its group says so.
-  const context: Tile | undefined = !x.known ? undefined : {
-    key: 'ctx',
-    value: valueOf(kit, x.valueText, x.amber),
-    label: () => contextLabel,
-    bar: barOf(kit, x.alt, x.frac, p.meterFill, x.amber),
-    amber: x.amber,
-    tone: x.tone,
-    step: 'calmContext',
-  }
-  const five = read.fiveHour === undefined ? undefined : limitTile(kit, read.fiveHour, 'calmFive')
-  const seven = read.sevenDay === undefined ? undefined : limitTile(kit, read.sevenDay, 'calmSeven')
-  const tiles = [cache, cost, context, five, seven].filter((t): t is Tile => t !== undefined)
-  return [fitLine(kit, ORDER, lineRoom(kit), keeps => line(kit, 'line', tiles.map(t => drawTile(kit, t, keeps)), toggle, 3))]
+  const tiles: Array<Tile | undefined> = [
+    {
+      key: 'cache',
+      tone: c.tone,
+      amber: c.amber,
+      figure: figureOf(kit, cacheFigure(c), c.tone),
+      label: label(c.amber, 'cache'),
+      mark: c.known ? bySize(size => batteryMark(kit, c.charge, c.tone, c.alt, size)) : NO_MARK,
+    },
+    { key: 'cost', tone: 'calm', amber: undefined, figure: figureOf(kit, s.totalText, 'calm'), label: label(undefined, 'spent'), mark: NO_MARK, step: 'calmCost' },
+    // Unreported, the context has no tile, and open no card.
+    x.known
+      ? { key: 'ctx', tone: x.tone, amber: x.amber, figure: figureOf(kit, x.valueText, x.tone), label: label(x.amber, 'context'), mark: bySize(size => contextMark(kit, x, size)), step: 'calmContext' }
+      : undefined,
+    read.fiveHour === undefined ? undefined : limitTile(kit, read.fiveHour, '5h'),
+    read.sevenDay === undefined ? undefined : limitTile(kit, read.sevenDay, '7d'),
+    c.measured
+      ? { key: 'tokens', tone: 'calm', amber: undefined, figure: figureOf(kit, s.tokensText, 'calm'), label: label(undefined, 'tokens'), mark: NO_MARK, step: 'tokens' }
+      : undefined,
+  ]
+  return amberFirst(tiles.filter((t): t is Tile => t !== undefined))
 }
 
-/** A reading's headline, where a group has no row for its tiles: its reason while amber. */
-const headOf = (text: string, amber: Amber | undefined): Say[number] => (amber !== undefined ? [amber.long, 'amber'] : [text, 'value'])
+/** A Box's width, when it has one. */
+const sized = (width: number | undefined) => (width === undefined ? {} : { width })
+/** A Box's least width, when it has one: it grows past it, never shrinks. */
+const least = (minWidth: number | undefined) => (minWidth === undefined ? {} : { minWidth })
 
-/** Tiles side by side, one row of a group; nothing when none is known. */
-const pair = (kit: Kit, key: string, tiles: readonly RenderChildren[]): RenderChildren => {
+/** A tile at a squeeze, its mark at `size`, in columns `cols`: its figure
+ *  right-aligned, then its label, an amber one's kept, then its mark, or the
+ *  room for one. In its equal width the figure and the label never shrink
+ *  and the mark gives way first, so where a bold or a font runs wider than
+ *  the measure no figure or word is cut. */
+const tileSpec = (kit: Kit, t: Tile, keeps: Keeps<Piece>, cols: Columns, size: BarSize): PillSpec => {
   const { Box } = kit
-  const drawn = tiles.filter(t => t !== null)
-  return drawn.length === 0 ? null : (
-    <Box key={key} flexDirection="row" columnGap={2}>
-      {drawn}
+  const labelled = keeps.calm('labels', t.tone)
+  const marked = cols !== undefined && keeps.has('marks')
+  const mark = marked ? (
+    <Box key="mark" justifyContent="flex-end" width={cols.mark} flexShrink={1} minWidth={0} overflow="hidden">
+      {t.mark(size)}
+    </Box>
+  ) : null
+  const width = cols === undefined ? undefined : cols.figure + (labelled ? 1 + cols.label : 0) + (marked ? 1 + cols.mark : 0)
+  return {
+    key: t.key,
+    tone: t.tone,
+    bg: t.bg,
+    body: [
+      <Box key="tile" flexDirection="row" alignItems="center" columnGap={1} {...sized(width)}>
+        <Box key="fig" justifyContent="flex-end" flexShrink={0} {...least(cols?.figure)}>
+          {t.figure}
+        </Box>
+        {labelled ? (
+          <Box key="label" flexShrink={0} {...least(cols?.label)}>
+            {t.label(keeps)}
+          </Box>
+        ) : null}
+        {mark}
+      </Box>,
+    ],
+  }
+}
+
+/** Tiles' one row, squeezed until it fits: each tile as wide as the widest
+ *  figure, label and mark the row keeps, as the measure gives them, so they
+ *  all shrink together; its marks the longest the row holds. */
+const tilesRow = (kit: Kit, read: Readings, act: BandActions): RenderElement => {
+  const { Svg, measure } = kit
+  const tiles = tilesOf(kit, read)
+  const room = kit.columns - ROW_SLACK
+  const widest = (els: readonly RenderChildren[]) => Math.max(0, ...els.map(el => cellsOf(el, measure)))
+  return fitLine(kit, ORDER, room, keeps => {
+    const kept = tiles.filter(t => t.step === undefined || keeps.calm(t.step, t.tone))
+    const rowAt = (size: BarSize) => {
+      const cols: Columns = keeps.has('evenWidths')
+        ? { figure: widest(kept.map(t => t.figure)), label: widest(kept.map(t => t.label(keeps))), mark: Svg ? size.px / measure.pxPerCell : size.cells }
+        : undefined
+      return pillRow(kit, read, act, kept.map(t => tileSpec(kit, t, keeps, cols, size)))
+    }
+    // A cell shorter at a time before a word gives way; held by none, the
+    // longest, so the squeeze moves on.
+    const sizes = keeps.has('barLength') ? MARKS : [SHORT_MARK]
+    let first: RenderElement | undefined
+    for (const size of sizes) {
+      const row = rowAt(size)
+      if (cellsOf(row, measure) <= room) return row
+      first ??= row
+    }
+    return first ?? rowAt(SHORT_MARK)
+  })
+}
+
+/** Each card's head: the tile's mark at the card's size, at the head's end. */
+const lens: Lens = (kit, read) => {
+  const { Box, palette } = kit
+  const { cache: c, context: x, worstLimit: worst } = read
+  const slot = (mark: RenderChildren) => (
+    <Box key="lens" flexGrow={1} justifyContent="flex-end">
+      {mark}
     </Box>
   )
-}
-
-/** The facts behind ▵: four groups of tiles, two by two. */
-const body = (kit: Kit, read: Readings) => (bodyRows: number): RenderChildren[] => {
-  const p = kit.palette
-  const c = read.cache
-  const x = read.context
-  const s = read.spend
-  // What needs you leads, so a group short of rows keeps it.
-  const limits = amberFirst(read.limits)
-  const room = gridRoom(kit, bodyRows)
-  // A pair is two lines tall: a group holds as many as fit under its title,
-  // and short of one, says its headline in a line. A desktop pair's
-  // underlines add 4 px, so they go first: they stay while the deepest
-  // group's pairs fit its room with them. Only the limits hold more than two.
-  const pairs = Math.floor(room / 2)
-  const deepest = Math.min(pairs, Math.max(2, read.limits.length))
-  const barred = deepest * (2 * ROW_PX + UNDERLINE_PX) <= room * ROW_PX
-  /** A tile, or nothing while its value is unknown; amber, its label is the
-   *  reason, then what it `keeps`. */
-  const tile = (key: string, value: string | undefined, label: string | Say, bar: RenderChildren = null, amber?: Amber, keeps: Say = []): RenderChildren => {
-    if (value === undefined) return null
-    const said: Say = amber !== undefined ? [[amber.long, 'amber'], ...keeps] : typeof label === 'string' ? [[label, 'label']] : label
-    return stack(kit, key, valueOf(kit, value, amber), words(kit, 'l', said), barred ? bar : null)
+  return {
+    slotsReplaceBars: true,
+    slots: {
+      ...(c.known ? { cache: slot(batteryMark(kit, c.charge, c.tone, c.alt, SLOT)) } : {}),
+      ...(x.known ? { context: slot(contextMark(kit, x, SLOT)) } : {}),
+      ...(worst === undefined ? {} : { limits: slot(limitMark(kit, worst, SLOT, palette.cardBg)) }),
+    },
   }
-  /** A group of pairs, or short of a pair its headline, which takes the
-   *  title's place in a body of one row while it is amber (`amberLeads`). */
-  const group = (key: string, title: string, rows: readonly RenderChildren[], headline: Say, amberLeads = false): RenderElement =>
-    section(kit, key, title, pairs > 0 ? rows : [words(kit, 'head', headline)], pairs > 0 ? pairs : room, amberLeads)
-  /** A group with nothing known: its empty words, in a line either way. */
-  const emptyGroup = (key: string, title: string, text: string): RenderElement => group(key, title, [emptyWords(kit, 'none', text)], emptySay(text))
-  return grid(kit, [
-    group('cache', 'CACHE', [
-      pair(kit, 'a', [
-        tile('left', cacheValue(c), c.leftShort === '' ? 'cache' : 'left', barOf(kit, c.alt, c.charge, p.warm, c.amber), c.amber),
-        tile('reWarm', c.known ? c.estimate : undefined, c.condition === 'cold' ? 'next message' : 're-warm if cold'),
-      ]),
-      pair(kit, 'b', [tile('saved', c.savedText, 'saved'), tile('hit', c.hitText, 'hit rate')]),
-    ], [headOf(c.text, c.amber)], c.amber !== undefined),
-    group('spend', 'SPEND', [
-      pair(kit, 'a', [tile('total', s.totalText, 'this session'), tile('last', s.lastText, 'last message')]),
-      pair(kit, 'b', [tile('tokens', s.tokensText, 'tokens'), tile('reads', s.split.find(part => part.label === 'cache reads')?.text, 'cache reads')]),
-    ], [[`${s.totalText} this session`, 'value']]),
-    !x.known ? emptyGroup('context', 'CONTEXT', EMPTY.context) : group('context', 'CONTEXT', [
-      pair(kit, 'a', [
-        tile('pct', x.valueText, x.towardText, barOf(kit, x.alt, x.frac, p.meterFill, x.amber), x.amber),
-        tile('in', x.inContextText, 'in context'),
-      ]),
-      pair(kit, 'b', [tile('room', x.roomText, 'room left'), tile('window', x.windowText, 'window')]),
-    ], [headOf(x.text, x.amber)], x.amber !== undefined),
-    limits.length === 0 ? emptyGroup('limits', 'LIMITS', EMPTY.limits) : group('limits', 'LIMITS', limits.map(l => {
-      // The landing's dashed underline, drawn where the landing has a figure.
-      const landingBar = l.projectedAlt === undefined || l.projectedFrac === undefined ? null : barOf(kit, l.projectedAlt, l.projectedFrac, accentOf(kit, l), undefined, true)
-      return pair(kit, l.name, [
-        // Amber, a limit still says when it resets.
-        tile('now', l.valueText, limitLabel(l), barOf(kit, l.alt, l.frac, accentOf(kit, l), l.amber), l.amber, l.resetGlyph === undefined ? [] : [[` ${l.resetGlyph}`, 'label']]),
-        l.projectedText !== undefined
-          ? tile('then', l.projectedText, `${l.name} at its reset`, landingBar)
-          : // A landing past the top has no figure: its pace says it fills first,
-            // unless the reason is a measured fill, which says it.
-            tile('then', l.fullIn === undefined && l.pace !== '' ? l.pace : undefined, `${l.name} at this pace`),
-      ])
-    }), limits.flatMap((l, i): Say => (i === 0 ? [headOf(l.text, l.amber)] : [[' · ', 'label'], headOf(l.text, l.amber)])), anyAmber(limits)),
-  ], bodyRows)
 }
 
-export const tilesView = defineView('tiles', { desktop: 2, terminal: 2 }, lines, body)
+export const tilesView = defineCardsView('tiles', { desktop: 1, terminal: 1 }, (kit, read, act) => [tilesRow(kit, read, act)], lens)

@@ -3,11 +3,13 @@
 // Pure, so each can be checked without mounting the band.
 
 import { TTL_MS } from './cache'
-import { isKnown, weekOf } from './calendar'
-import type { Week, WindowNow } from './calendar'
+import { weekOf } from './calendar'
+import type { DayCell, HourCell, Week, WindowNow } from './calendar'
 import {
   COMPACT_NEAR,
+  DAY_MS,
   FIVE_HOUR_MS,
+  LAST_CALL_MS,
   SEVEN_DAY_MS,
   SOON_MS,
   WARN_AT,
@@ -21,9 +23,10 @@ import {
 } from './format'
 import type { ResetIn } from './format'
 import { drawnTier } from './glyphs'
+import { warmAverageOf } from './insights'
 import type { Trails } from './insights'
 import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
-import { cacheWords, contextWords, historyWords, lastHourOf, limitWords, spendWords, thisWindowOf, weekWords, workspaceWords } from './words'
+import { cacheWords, contextWords, historyWords, lastHourOf, limitWords, spendWords, weekWords } from './words'
 import type { CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
 
 export type Tone = 'calm' | 'amber'
@@ -55,14 +58,14 @@ export const cacheCharge = (c: Cache, mood: CacheMood, isWorking: boolean): numb
  *  known, else the tokens it writes. */
 export const reWarmEstimate = (c: Cache): string => (c.reWarmUsd !== null ? fmtEstimate(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`)
 
-/** Every word the band says about the cache, for one mood: the pill, its
- *  hover, the card's headline and note, and the battery's name. One table,
- *  so a mood's wording changes in one place. */
+/** Every word chips' row says about the cache, for one mood: the pill, its
+ *  hover and the battery's name. One table, so a mood's wording changes in
+ *  one place; the cards read theirs from `cacheWords`. */
 export type CacheCopy = Readonly<{
   pill: (short: boolean) => string
+  /** The countdown a calm pill ends on, `52m`: its figure, for a layout that bolds it. */
+  figure: string | undefined
   hover: string
-  head: string
-  note: string | undefined
   alt: string
 }>
 
@@ -78,43 +81,38 @@ export const cacheCopy = (c: Cache, mood: CacheMood, isWorking: boolean): CacheC
     case 'unmeasured':
       return {
         pill: () => 'cache –',
+        figure: undefined,
         hover: "Not measured since the band loaded; the countdown starts with Claude's next reply",
-        head: 'Not measured yet',
-        note: "Countdown starts with Claude's next reply.",
         alt: 'cache not measured yet',
       }
     case 'warming':
       return {
         pill: () => 'cache warming',
+        figure: undefined,
         hover: `Your first message builds the cache; after that it bills input at ${readPct}`,
-        head: 'Warming',
-        note: 'First message builds the cache.',
         alt: 'cache warming',
       }
     case 'expiring':
       return {
         pill: short => (short ? `${left} ${estimate}` : `${left} left · re-warm ${estimate}`),
+        figure: undefined,
         hover: warmHover,
-        head: `${left} left`,
-        note: undefined,
         alt: battery,
       }
     case 'cold':
       return {
         // Cold is a price, not an error: neutral, no hue, no alarm.
         pill: short => (short ? `cold ${estimate}` : `cache cold · next message ${estimate}`),
+        figure: undefined,
         hover: `Cold: next message rebuilds ${fmtTokens(c.window)} tokens${c.reWarmUsd === null ? '' : ` (${fmtEstimate(c.reWarmUsd)})`}`,
-        head: 'Cold',
-        note: undefined,
         alt: battery,
       }
     case 'warm':
       return {
         // Mid-turn every step restarts the TTL, so a countdown would only bounce.
         pill: () => (isWorking ? 'cache warm' : `cache ${left}`),
+        figure: isWorking ? undefined : left,
         hover: warmHover,
-        head: isWorking ? 'Warm' : `${left} left`,
-        note: undefined,
         alt: battery,
       }
   }
@@ -138,6 +136,19 @@ export const contextReading = (ctx: BandSnapshot['context']) => {
     nearCompact,
     tone,
   }
+}
+
+/** Messages until `room` more tokens are in context, at the pace the trail
+ *  has grown since its last drop, a compaction or a clear; undefined until
+ *  two points show it growing. */
+const messagesTo = (trail: readonly number[], room: number | undefined): number | undefined => {
+  let start = 0
+  for (let i = 1; i < trail.length; i++) if ((trail[i] ?? 0) < (trail[i - 1] ?? 0)) start = i
+  const first = trail[start]
+  const last = trail[trail.length - 1]
+  const steps = trail.length - 1 - start
+  if (room === undefined || first === undefined || last === undefined || steps < 1 || last <= first) return undefined
+  return Math.max(1, Math.ceil(room / ((last - first) / steps)))
 }
 
 // ---- the limits -------------------------------------------------------------
@@ -182,9 +193,19 @@ export type CacheFacts = Readonly<{
   hitFrac: number | undefined
   /** Time to cold while it counts down: expiring, or warm while Claude isn't working. */
   coldInMs: number | undefined
+  /** Departures' last call: under LAST_CALL_MS to cold, or for the 5-minute
+   *  cache its last minute. */
+  lastCall: boolean
 }>
 
-export type ContextFacts = ReturnType<typeof contextReading> & Readonly<{ compactAt: number | undefined; autoCompactOff: boolean; window: number }>
+export type ContextFacts = ReturnType<typeof contextReading> &
+  Readonly<{
+    compactAt: number | undefined
+    autoCompactOff: boolean
+    window: number
+    /** Messages until compaction at the conversation's pace; undefined until it shows one. */
+    msgsToCompact: number | undefined
+  }>
 
 export type SpendFacts = Readonly<{
   totalUsd: number
@@ -209,12 +230,24 @@ export type LimitFacts = Readonly<{
   reset: ResetIn | undefined
   passed: boolean
   gone: number | undefined
-  /** 100 when a 5h fill is measured; else the average's landing, once 5% of the window has gone. */
+  /** Where a bar's notch sits: the share of the window gone, while any of
+   *  it is used; with none used, the window may not have begun. */
+  notch: number | undefined
+  /** 100 when a 5h fill is measured; else the average's landing, once 5% of
+   *  the window has gone and any of it is used. */
   projectedPct: number | undefined
   /** `projectedPct` as a share, at most 1; undefined once passed. */
   projectedFrac: number | undefined
   /** Time to the reset; undefined once it has passed. */
   resetInMs: number | undefined
+  /** Time to full before the reset: a measured fill, else the average's,
+   *  once it lands at 100% or more; undefined while it lands short. */
+  fillInMs: number | undefined
+  /** `fillInMs` while there is something left to fill: undefined once
+   *  passed, or full. */
+  fullInMs: number | undefined
+  /** Departures' last call: under LAST_CALL_MS to full. */
+  lastCall: boolean
 }>
 
 // What the views read: each section's facts, and its words beside them.
@@ -225,13 +258,10 @@ type SpendReading = SpendFacts & SpendWords
  *  is the snapshot's raw window. */
 export type LimitView = LimitFacts & LimitWords
 
-/** A window as chips' Limits card reads it: the view, and the card's pace tail. */
-export type ChipsWindow = LimitView & Readonly<{ cardPace: string }>
-
 type ChipsReadings = Readonly<{
   /** The snapshot itself: chips' own code moved over unchanged. Only chips reads it. */
   raw: BandSnapshot
-  reading: Readonly<{ copy: CacheCopy; tokenBreakdown: string; windows: readonly ChipsWindow[] }>
+  reading: Readonly<{ copy: CacheCopy; tokenBreakdown: string }>
 }>
 
 /** The conversation's trails, their words, and the series a chart draws. */
@@ -244,22 +274,30 @@ export type HistoryReading = Trails &
     costValues: readonly number[]
     /** Which of them were re-warms. */
     reWarms: readonly boolean[]
-    /** The 5h trail's percentages. */
-    fiveHourValues: readonly number[]
-    /** The same over the last hour. */
+    /** Their mean, re-warms left out: what a chart scales and rules its bars by. */
+    warmAvgUsd: number | undefined
+    /** The 5h trail's percentages over the last hour. */
     fiveHourHour: readonly number[]
-    /** The same since the 5h window started; none while no window is known. */
-    fiveHourWindow: readonly number[]
   }>
 
 export type { DayCell, HourCell } from './calendar'
 
-/** The week's day and hour cells, their words, and whether any is known. */
+/** How week draws a slice: measured, a guess, the guess that fills the
+ *  limit, none left after it, or not known. */
+type SliceKind = 'measured' | 'guess' | 'fills' | 'spent' | 'unknown'
+/** A slice as drawn: its kind and its rise in points toward the cap. */
+export type SliceMark = Readonly<{ kind: SliceKind; pct: number }>
+/** A window's slices as drawn, and where now falls among them, counted in
+ *  slices: 0.5 is halfway through the first. Undefined where not known. */
+export type SliceRow = Readonly<{ marks: readonly SliceMark[]; notch: number | undefined }>
+
+/** The week's day and hour cells, as calendar.ts reads them and as drawn, with their words. */
 type WeekReading = Week &
   WeekWords &
   Readonly<{
-    /** No cell measured yet: history fills in as you use Claude. */
-    empty: boolean
+    /** The days and the hours as drawn, each guess stopped at the cap. */
+    dayRow: SliceRow
+    hourRow: SliceRow
   }>
 
 export type Readings = Readonly<{
@@ -273,8 +311,6 @@ export type Readings = Readonly<{
   limits: readonly LimitView[]
   worstLimit: LimitView | undefined
   workspace: BandSnapshot['workspace']
-  /** The workspace as one line: `~/workspace/claude-mod, branch main, clean`. */
-  workspaceText: string | undefined
   /** Built the first time a view reads it, so chips never pays for it. */
   history: HistoryReading
   /** The week's day and hour cells; built, like history, the first time a view reads it. */
@@ -300,16 +336,23 @@ export const cacheFacts = (snap: BandSnapshot): CacheFacts => {
     known: measured || c.recalled,
     hitFrac: measured && c.hitRatio !== null ? c.hitRatio : undefined,
     coldInMs: counting ? c.msLeft : undefined,
+    // A 5-minute cache is always under ten minutes from cold, so its last
+    // call is its last minute, when chips turns amber too.
+    lastCall: counting && (c.ttl === '5m' ? mood === 'expiring' : c.msLeft < LAST_CALL_MS),
   }
 }
 
 /** The context's fill, with the compaction point and the model window it is read against. */
-export const contextFacts = (snap: BandSnapshot): ContextFacts => ({
-  ...contextReading(snap.context),
-  compactAt: snap.context.compactAt,
-  autoCompactOff: snap.context.autoCompactOff,
-  window: snap.context.window,
-})
+const contextFacts = (snap: BandSnapshot): ContextFacts => {
+  const reading = contextReading(snap.context)
+  return {
+    ...reading,
+    compactAt: snap.context.compactAt,
+    autoCompactOff: snap.context.autoCompactOff,
+    window: snap.context.window,
+    msgsToCompact: messagesTo(snap.history.context, reading.toCompact),
+  }
+}
 
 /** The session's cost and its tokens: sent, back, read from cache, and their total. */
 export const spendFacts = (snap: BandSnapshot): SpendFacts => {
@@ -324,14 +367,25 @@ export const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
     const passed = reset?.kind === 'passed'
     const gone = windowGone(reading, windowMs, snap.now)
     // A measured fill lands it at 100, so the words and the amber agree; else
-    // the average's landing, once 5% of the window has gone.
-    const projectedPct = etaMs !== null ? 100 : gone === undefined || gone < 0.05 ? undefined : reading.percentUsed / gone
+    // the average's landing, once 5% of the window has gone and any of it is
+    // used: with none, the window may not have begun.
+    const projectedPct =
+      etaMs !== null ? 100 : gone === undefined || gone < 0.05 || reading.percentUsed <= 0 ? undefined : reading.percentUsed / gone
+    // At the average's pace, what is left takes the time gone so far, scaled by what is left over what is used.
+    const averageFill =
+      projectedPct === undefined || projectedPct < 100 || gone === undefined || windowMs === undefined
+        ? undefined
+        : (Math.max(0, 100 - reading.percentUsed) / reading.percentUsed) * gone * windowMs
+    const fillInMs = etaMs ?? averageFill
+    // A full window has nothing left to fill: it says its percent, and its reset.
+    const fullInMs = passed || reading.percentUsed >= 100 ? undefined : fillInMs
     return {
       name,
       key,
       etaMs,
       reset,
       gone,
+      notch: reading.percentUsed > 0 ? gone : undefined,
       percentUsed: reading.percentUsed,
       frac: clamp01(reading.percentUsed / 100),
       tone: limitTone(reading, snap.now, etaMs),
@@ -340,6 +394,9 @@ export const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
       projectedPct,
       projectedFrac: passed || projectedPct === undefined ? undefined : clamp01(projectedPct / 100),
       resetInMs: reset?.kind === 'in' ? Date.parse(reading.resetsAt ?? '') - snap.now : undefined,
+      fillInMs,
+      fullInMs,
+      lastCall: fullInMs !== undefined && fullInMs < LAST_CALL_MS,
     }
   }
   return [
@@ -356,9 +413,8 @@ export const historyFacts = (trails: Trails, fiveHour: LimitView | undefined, co
   empty: trails.costs.length === 0,
   costValues: trails.costs.map(e => e.usd),
   reWarms: trails.costs.map(e => e.reWarm),
-  fiveHourValues: trails.fiveHour.map(p => p.pct),
+  warmAvgUsd: warmAverageOf(trails.costs),
   fiveHourHour: lastHourOf(trails.fiveHour, now).map(p => p.pct),
-  fiveHourWindow: thisWindowOf(trails.fiveHour, fiveHour, now).map(p => p.pct),
 })
 
 /** A window as the calendar reads it: its reset and a measured fill as times. */
@@ -372,20 +428,43 @@ const windowOf = (l: LimitView | undefined, now: number): WindowNow | undefined 
         fullAt: l.etaMs === null ? undefined : now + l.etaMs,
       }
 
+/** A window's slices with each guess stopped at the cap: the slice calendar
+ *  marks full takes what is left, and none is left after it, so the cells
+ *  and their words agree. calendar.ts keeps every slice's guess. */
+export const cappedMarks = (cells: ReadonlyArray<DayCell | HourCell>, percentUsed: number): SliceMark[] => {
+  const full = cells.findIndex(c => c.fullMark)
+  let left = Math.max(0, 100 - percentUsed)
+  return cells.map((c, i): SliceMark => {
+    if (full >= 0 && i > full) return { kind: 'spent', pct: 0 }
+    if (c.pct === undefined) return { kind: 'unknown', pct: 0 }
+    if (!c.guess) return { kind: 'measured', pct: c.pct }
+    // The fill takes what is left, though the step's guess may say less or more.
+    if (i === full) return { kind: 'fills', pct: left }
+    if (left <= 0) return { kind: 'spent', pct: 0 }
+    const pct = Math.min(c.pct, left)
+    left -= pct
+    return { kind: 'guess', pct }
+  })
+}
+
 /** The week's cells from the limit samples, with their words. With the zone
  *  unknown, the cells are named in UTC. */
 export const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour: LimitView | undefined): WeekReading => {
-  const week = weekOf({
-    samples: snap.samples,
-    seven: windowOf(sevenDay, snap.now),
-    five: windowOf(fiveHour, snap.now),
-    now: snap.now,
-    utcOffsetMin: snap.utcOffsetMin ?? 0,
-  })
+  const utcOffsetMin = snap.utcOffsetMin ?? 0
+  const week = weekOf({ samples: snap.samples, seven: windowOf(sevenDay, snap.now), five: windowOf(fiveHour, snap.now), now: snap.now, utcOffsetMin })
+  // Now sits in today's cell as far in as today has gone by the local clock.
+  const today = week.days.findIndex(d => d.today)
+  const todayGone = ((((snap.now + utcOffsetMin * 60_000) % DAY_MS) + DAY_MS) % DAY_MS) / DAY_MS
+  // The hours are an hour each up to the reset, so the share of the window
+  // gone places now among them; at 0% the 5h has no notch.
+  const hourNotch = fiveHour?.gone === undefined || fiveHour.percentUsed === 0 || week.hours.length === 0 ? undefined : fiveHour.gone * week.hours.length
+  const dayRow: SliceRow = { marks: cappedMarks(week.days, sevenDay?.percentUsed ?? 0), notch: today < 0 ? undefined : today + todayGone }
+  const hourRow: SliceRow = { marks: cappedMarks(week.hours, fiveHour?.percentUsed ?? 0), notch: hourNotch }
   return {
     ...week,
-    ...weekWords(week, sevenDay, fiveHour),
-    empty: ![...week.days, ...week.hours].some(isKnown),
+    ...weekWords(week, { days: dayRow, hours: hourRow }),
+    dayRow,
+    hourRow,
   }
 }
 
@@ -417,13 +496,12 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     frame,
     cache: { ...cache, ...cacheWords(cache, c, frame) },
     spend: { ...spend, ...spendWords(spend) },
-    context: { ...context, ...contextWords(context) },
+    context: { ...context, ...contextWords(context, frame) },
     fiveHour,
     sevenDay,
     limits,
     worstLimit,
     workspace: snap.workspace,
-    workspaceText: workspaceWords(snap.workspace),
     get history() {
       return (history ??= historyFacts(snap.history, fiveHour, context, snap.now))
     },
@@ -435,7 +513,6 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
       reading: {
         copy: cacheCopy(c, cache.mood, snap.isWorking),
         tokenBreakdown: `input ${fmtTokens(c.tokens.sent)} · output ${fmtTokens(c.tokens.back)} · cache reads ${fmtTokens(c.tokens.cached)}`,
-        windows: limits.map((l): ChipsWindow => ({ ...l, cardPace: l.pace === '' ? '' : ` · ${l.pace}` })),
       },
     },
   }

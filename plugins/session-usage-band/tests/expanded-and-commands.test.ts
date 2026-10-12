@@ -18,6 +18,7 @@ import {
   turn,
   USAGE,
   HOUR,
+  hostClock,
   breakdown,
   type Node,
   svgsOf,
@@ -164,7 +165,9 @@ test('the limits card: each window with its usage and reset', async ($, on) => {
   expect(fact(tree, '5h')).toBe('4%')
   expect(fact(tree, '7d')).toBe('30%')
   expect(fact(tree, 'spend')).toBe('92%!') // past 80%: marked, never colour alone
-  expect(fact(tree, 'spend pace')).toBe('resets 5h 00m') // no window length, so no pace
+  // The worst, spend, leads with its reset; no window length, so no pace.
+  expect(fact(tree, 'resets')).toBe(hostClock(5 * HOUR, 0))
+  expect(fact(tree, '5h pace')).toBe('5h resets 3h 00m · on pace for ~10%')
   await ui.unmount()
 })
 

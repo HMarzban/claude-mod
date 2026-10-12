@@ -1,8 +1,8 @@
-// The phrasebook the new layouts speak: clock times, countdowns in words,
+// The phrasebook the layouts speak: clock times, countdowns in words,
 // spoken durations, amber, pace, resets, empty states and alt text.
 
 import { test, expect } from 'claude-code/testing'
-import { fmtClock, fmtDayClock, fmtEtaSpoken, fmtLeft, fmtLeftSpoken, fmtSecondsLeft } from '../hooks/format'
+import { fmtClock, fmtDay, fmtDayClock, fmtEtaSpoken, fmtLeft, fmtLeftSpoken, fmtSecondsLeft } from '../hooks/format'
 import { AMBER, EMPTY, altOf, paceText, resetPhrase } from '../hooks/words'
 
 const T = Date.UTC(2026, 9, 9, 13, 40) // a Friday, 13:40 UTC
@@ -16,6 +16,11 @@ test('clock times are local and 24-hour', () => {
 test('a clock time on another day names the day', () => {
   expect(fmtDayClock(T + 3 * 60 * MIN, 0, T)).toBe('16:40')
   expect(fmtDayClock(T + 67 * 60 * MIN, 0, T)).toBe('Mon 08:40')
+})
+test("a projection's day is today's clock, else its weekday, a week on the next one", () => {
+  expect([fmtDay(T + 3 * 60 * MIN, 0, T), fmtDay(T + 67 * 60 * MIN, 0, T), fmtDay(T + 6 * 24 * 60 * MIN, 0, T)]).toEqual(['16:40', 'Mon', 'Thu'])
+  // Friday a week on is not today.
+  expect(fmtDay(T + (7 * 24 - 1) * 60 * MIN, 0, T)).toBe('next Fri')
 })
 test('a countdown is words, never a clock', () => {
   expect(fmtSecondsLeft(47_000)).toBe('47s left')
@@ -53,33 +58,42 @@ test('pace speaks a measured rate first, then the average', () => {
   expect(paceText({ etaMs: null, projectedPct: 9.6 })).toBe('on pace for ~10%')
   expect(paceText({ etaMs: null, projectedPct: undefined })).toBe('')
 })
-test('every amber phrase, long and short, starts with "! " once', () => {
+test('every amber phrase, long, short and beside its figure, starts with "! " once', () => {
   const all = [
-    AMBER.cache('47s left', '47s', '~$1.66'),
+    AMBER.cache('47s', '~$1.66'),
     AMBER.context(0.93, 12_000),
     AMBER.contextNoCompaction(0.85),
     AMBER.limit('5h', 82),
     AMBER.limitPace('5h', '~40m'),
   ]
-  expect(all).toEqual([
-    { long: '! 47s left · re-warm ~$1.66', short: '! 47s' },
-    { long: '! context 93% · compacts in ~12k', short: '! ctx 93%' },
-    { long: '! context 85%', short: '! ctx 85%' },
-    { long: '! 5h 82%', short: '! 5h 82%' },
-    { long: '! 5h full in ~40m', short: '! 5h ~40m' },
+  expect(all.map(({ long, short, beside }) => ({ long, short, beside }))).toEqual([
+    { long: '! 47s left · re-warm ~$1.66', short: '! 47s', beside: '! cache' },
+    { long: '! context 93% · compacts in ~12k', short: '! ctx 93%', beside: '! context' },
+    { long: '! context 85%', short: '! ctx 85%', beside: '! context' },
+    { long: '! 5h 82%', short: '! 5h 82%', beside: '! 5h' },
+    { long: '! 5h full in ~40m', short: '! 5h ~40m', beside: '! 5h ~40m' },
   ])
-  for (const a of all) for (const s of [a.long, a.short]) {
+  for (const a of all) for (const s of [a.long, a.short, a.beside]) {
     expect(s.startsWith('! ')).toBe(true)
     expect(s.match(/!/g)?.length).toBe(1)
   }
 })
+test('every amber phrase says its words in segments too, its figure the one value', () => {
+  const all = [AMBER.cache('47s', '~$1.66'), AMBER.context(0.93, 12_000), AMBER.contextNoCompaction(0.85), AMBER.limit('5h', 82), AMBER.limitPace('5h', '~40m')]
+  const figures = (say: readonly (readonly [string, string])[]) => say.filter(([, role]) => role === 'value').map(([text]) => text)
+  expect(all.map(a => [figures(a.say), figures(a.sayShort)])).toEqual([
+    [['47s'], ['47s']],
+    [['93%'], ['93%']],
+    [['85%'], ['85%']],
+    [['82%'], ['82%']],
+    [['~40m'], ['~40m']],
+  ])
+  for (const a of all) expect([a.say, a.sayShort].map(say => say.map(([text]) => text).join(''))).toEqual([a.long, a.short])
+})
 test('empty states read like the band', () => {
   expect(EMPTY).toEqual({
     costs: "Costs show after Claude's next reply.",
-    costsShort: 'No costs.',
-    history: 'History fills in as you use Claude.',
     context: 'not reported',
-    limits: 'none reported',
   })
 })
 test('alt text is words: no ~ and no ↻', () => {

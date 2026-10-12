@@ -36,28 +36,21 @@ export type Palette = {
   fiveBg: string
   fiveFg: string
   fiveAccent: string
-  /** The 5-hour accent as words on the card: in light, fiveAccent holds
-   *  there only as a mark. */
+  /** The 5-hour accent as words, on the card and on its own tint: in light,
+   *  fiveAccent holds there only as a mark. */
   fiveText: string
   weekBg: string
   weekFg: string
   weekAccent: string
-  /** Departures' split-flap cell, near-black in every filled palette. */
-  flap: string
-  /** A flap's text. */
-  flapText: string
-  /** A flap's quieter labels. */
-  flapDim: string
-  /** A warm cache, on a flap. */
-  flapWarm: string
-  /** Amber words, on a flap. */
-  flapAmber: string
-  /** The 5-hour limit's accent, on a flap. */
-  flapFive: string
-  /** The 7-day limit's accent, on a flap. */
-  flapWeek: string
-  /** The coin, on a flap. */
-  flapCoin: string
+  /** The 7-day accent as words, on the card and on its own tint, as
+   *  fiveText is the 5-hour's. */
+  weekText: string
+  /** Week's text cells in each window's tint: a guess dim, none left
+   *  dimmer, both apart from label grey, which is the notch's. */
+  weekGuess: string
+  weekSpent: string
+  fiveGuess: string
+  fiveSpent: string
 }
 
 export const DARK: Readonly<Palette> = {
@@ -87,14 +80,11 @@ export const DARK: Readonly<Palette> = {
   weekBg: '#2a2540',
   weekFg: '#d9d3f5',
   weekAccent: '#a99cf0',
-  flap: '#111113',
-  flapText: '#f2f2f5',
-  flapDim: '#a2a2ac',
-  flapWarm: '#7fcf8a',
-  flapAmber: '#f0c969',
-  flapFive: '#7fcf8a',
-  flapWeek: '#a99cf0',
-  flapCoin: '#c9a54a',
+  weekText: '#a99cf0',
+  weekGuess: '#8a80d0',
+  weekSpent: '#7a70c0',
+  fiveGuess: '#62a86f',
+  fiveSpent: '#4f8a5b',
 }
 
 export const LIGHT: Readonly<Palette> = {
@@ -120,18 +110,15 @@ export const LIGHT: Readonly<Palette> = {
   fiveBg: '#dff0e0',
   fiveFg: '#1f5c2e',
   fiveAccent: '#2f8a45',
-  fiveText: '#287a3d',
+  fiveText: '#26763b',
   weekBg: '#e8e4fa',
   weekFg: '#3c3489',
   weekAccent: '#6b5fd3',
-  flap: '#1d1d22',
-  flapText: '#f2f2f5',
-  flapDim: '#a8a8b2',
-  flapWarm: '#7fcf8a',
-  flapAmber: '#f0c969',
-  flapFive: '#7fcf8a',
-  flapWeek: '#b9aef5',
-  flapCoin: '#d9b45a',
+  weekText: '#5a4ec4',
+  weekGuess: '#7a70d8',
+  weekSpent: '#8077dc',
+  fiveGuess: '#3a9450',
+  fiveSpent: '#3f9a55',
 }
 
 // No backgrounds at all: every colour is a theme key, so it follows whatever
@@ -163,14 +150,11 @@ export const PLAIN: Readonly<Palette> = {
   weekBg: '',
   weekFg: 'text',
   weekAccent: 'text',
-  flap: '',
-  flapText: 'text',
-  flapDim: 'subtle',
-  flapWarm: 'success',
-  flapAmber: 'warning',
-  flapFive: 'success',
-  flapWeek: 'text',
-  flapCoin: 'warning',
+  weekText: 'text',
+  weekGuess: 'inactive',
+  weekSpent: 'inactive',
+  fiveGuess: 'inactive',
+  fiveSpent: 'inactive',
 }
 
 /** The palette CC_BAND_APPEARANCE names; NO_COLOR forces plain. */
@@ -179,12 +163,13 @@ export const resolvePalette = (appearance: string | undefined, noColor: string |
 
 /** Colours for what sits on the band's bare ground, which is the host's and
  *  may be dark or light whatever the palette says. Text there takes theme
- *  keys; an icon needs hex, so these hold 3:1 on dark and light grounds
- *  alike. The branch icon is the band's one blue: it means git, never a
- *  status. */
+ *  keys, its label `inactive`, about 5.8:1 on Claude Code's grounds, where
+ *  `subtle` is 2.07:1 in terminal dark; an icon needs hex, so these hold
+ *  3:1 on dark and light grounds alike. The branch icon is the band's one
+ *  blue: it means git, never a status. */
 export const BARE = {
   value: 'text',
-  label: 'subtle',
+  label: 'inactive',
   icon: '#80808a',
   branch: '#5c85d6',
 } as const

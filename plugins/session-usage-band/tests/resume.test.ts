@@ -32,7 +32,7 @@ test('reopened two days later, the cache is cold and the next message has a pric
   // 1.25 × 76k tokens × the rate
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold · next message ~\$0\.95/)
   const tree = await mounted($, true)
-  expect(shown(cardOf(tree, 'cache'))).toMatch(/^CACHECold/)
+  expect(shown(cardOf(tree, 'cache'))).toMatch(/^CACHEcold/)
   expect(fact(tree, 'idle for')).toBe('2d 0h')
   expect(fact(tree, 'next message')).toBe('~$0.95')
 })

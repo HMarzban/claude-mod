@@ -9,6 +9,7 @@ import {
   CLEAR,
   DARK_HOSTS,
   FRESH,
+  HOUR,
   LIGHT_HOSTS,
   contrast,
   START,
@@ -18,6 +19,7 @@ import {
   cardOf,
   fact,
   firstRow,
+  hostClock,
   pillOf,
   resp,
   respond,
@@ -58,18 +60,37 @@ for (const [name, p, hosts] of [
 
   test(`${name}: a hover card is inverted, its ink legible and its ground apart from every chip's and the band's`, () => {
     expect(contrast(p.tooltipFg, p.tooltipBg)).toBeGreaterThanOrEqual(4.5)
-    // Cards are drawn over chips' row and the workspace strip alone, never
-    // over a flap, so the grounds they cover are the chips' and the host's.
+    // Cards are drawn over chips' row and the workspace strip alone, so the
+    // grounds they cover are the chips' and the host's.
     const covered = [...pillGrounds, p.meterTrack, p.batteryFill, p.batteryAmber, ...hosts]
     const low = covered.filter(bg => contrast(p.tooltipBg, bg) < 3)
     expect(low.map(bg => `${bg} ${contrast(p.tooltipBg, bg).toFixed(2)}`)).toEqual([])
   })
 
-  test(`${name}: the new layouts' text and marks hold on the card ground and on flaps`, () => {
+  test(`${name}: the layouts' text and marks hold on the card ground`, () => {
     expect(contrast(p.amberFg, p.cardBg)).toBeGreaterThanOrEqual(4.5)
     for (const mark of [p.meterFill, p.warm, p.fiveAccent, p.weekAccent]) expect(contrast(mark, p.cardBg)).toBeGreaterThanOrEqual(3)
     expect(contrast(p.value, p.surface)).toBeGreaterThanOrEqual(4.5)
-    for (const ink of [p.flapText, p.flapDim, p.flapWarm, p.flapAmber, p.flapFive, p.flapWeek, p.flapCoin]) expect(contrast(ink, p.flap)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  test(`${name}: week's text cells, guessed and none left, are marks in their window's tint on every ground they sit on`, () => {
+    // The days sit in the 7d pill, amber or calm, and the hours in a card's head.
+    for (const [guess, spent, grounds] of [
+      [p.weekGuess, p.weekSpent, [p.weekBg, p.amberBg, p.cardBg]],
+      [p.fiveGuess, p.fiveSpent, [p.cardBg]],
+    ] as const) {
+      for (const bg of grounds) for (const mark of [guess, spent]) expect(contrast(mark, bg)).toBeGreaterThanOrEqual(3)
+      // Label grey means the notch alone.
+      expect([guess, spent]).not.toContain(p.label)
+      expect(guess).not.toBe(spent)
+    }
+  })
+
+  test(`${name}: a window's name holds as text on its own tint, as rings' pills say it`, () => {
+    expect(contrast(p.fiveText, p.fiveBg)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(p.weekText, p.weekBg)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(p.weekText, p.cardBg)).toBeGreaterThanOrEqual(4.5)
+    for (const bg of [p.fiveBg, p.weekBg]) expect(contrast(p.value, bg)).toBeGreaterThanOrEqual(4.5)
   })
 
   test(`${name}: every role a layout's words take is text that holds on the card ground`, () => {
@@ -154,7 +175,7 @@ test('after a reload with spend on the ledger, the cache is not measured yet, no
   expect(shown(pillOf(await ui.drawn(), 'cache'))).toMatch(/cache –/)
   await ui.press({ key: 'more' })
   const card = shown(cardOf(await ui.drawn(), 'cache'))
-  expect(card).toMatch(/Not measured yet/)
+  expect(card).toMatch(/not measured yet/)
   expect(card).toMatch(/Countdown starts with Claude's next reply/)
   expect(shown(cardOf(await ui.drawn(), 'spend'))).toMatch(/Breakdown counts from your next message/)
   await ui.unmount()
@@ -274,8 +295,10 @@ test('the limits card puts each value beside its bar and says the pace in words'
   const tree = await ui.drawn()
   expect(shown(cardOf(tree, 'limits'))).toMatch(/^LIMITS7d 30%/) // the window closest to trouble
   expect(fact(tree, '5h')).toBe('4%')
-  expect(fact(tree, '5h pace')).toBe('resets 3h 00m · on pace for ~10%')
-  expect(fact(tree, '7d pace')).toBe('resets 2d 19h · on pace for ~50%')
+  expect(fact(tree, '5h pace')).toBe('5h resets 3h 00m · on pace for ~10%')
+  // The worst window, 7d, leads the card with its reset at its clock time and its pace.
+  expect(fact(tree, 'resets')).toBe(`${hostClock(67 * HOUR, 0)} · on pace for ~50%`)
+  expect(fact(tree, '7d pace')).toBeUndefined()
   await ui.unmount()
 })
 

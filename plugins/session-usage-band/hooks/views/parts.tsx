@@ -1,15 +1,18 @@
 // The pieces several views draw: the pill a chip sits in; the cache's
 // battery, an icon on the desktop and the pill itself in a terminal; the
-// cache pill the new views share; and the lines, sections and grid every new
-// view is laid out with.
+// cache pill pulse and week share; and the lines every layout squeezes to
+// fit, with the words they're written in.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
+import { meter } from '../charts'
 import { clamp01 } from '../format'
 import { asciiText } from '../glyphs'
+import { GLYPH } from '../icons'
 import type { Kit } from '../kit'
-import { ROW_SLACK, isDrawn, keepsIn, squeezeToFit } from '../layout'
+import { fitSqueeze, isDrawn, keepsIn } from '../layout'
+import type { BarSize } from '../layout'
 import type { Palette } from '../palette'
-import type { LimitKey, LimitView, Readings, Tone } from '../reading'
+import type { LimitKey, Readings, Tone } from '../reading'
 import type { Amber, Role, Say } from '../words'
 
 export type PillSpec = Readonly<{
@@ -49,47 +52,111 @@ export const pill = (kit: Kit, { key, tone, body, hover, paintsOwnBg, bg }: Pill
   )
 }
 
-/** The desktop's battery: an outline, its cap, and the charge filling it. */
-export const batteryIcon = (kit: Kit, charge: number, tone: Tone, alt: string): RenderChildren => {
+/** The desktop's battery: an outline, its cap, and the charge filling it,
+ *  `px` wide: an icon's 22, or a bar's length. */
+export const batteryIcon = (kit: Kit, charge: number, tone: Tone, alt: string, px = 22): RenderChildren => {
   const { Svg, palette, onTone } = kit
   if (!Svg) return null
   const outline = onTone(tone, palette.label)
   const fill = onTone(tone, palette.warm)
-  const width = Math.round(clamp01(charge) * 15 * 10) / 10
+  const width = Math.round(clamp01(charge) * (px - 7) * 10) / 10
   const source =
-    '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="12" viewBox="0 0 22 12">' +
-    `<rect x="0.75" y="0.75" width="18.5" height="10.5" rx="3" fill="none" stroke="${outline}" stroke-width="1.5"/>` +
-    `<rect x="19.75" y="4" width="1.75" height="4" rx="0.8" fill="${outline}"/>` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="12" viewBox="0 0 ${px} 12">` +
+    `<rect x="0.75" y="0.75" width="${px - 3.5}" height="10.5" rx="3" fill="none" stroke="${outline}" stroke-width="1.5"/>` +
+    `<rect x="${px - 2.25}" y="4" width="1.75" height="4" rx="0.8" fill="${outline}"/>` +
     `<rect class="charge" x="2.5" y="2.5" width="${width}" height="7" rx="1.5" fill="${fill}"/>` +
     '</svg>'
-  return <Svg key="battery" source={source} alt={alt} width={22} height={12} />
+  return <Svg key="battery" source={source} alt={alt} width={px} height={12} />
 }
+
+/** The battery across a card head's slot, as gauges' board draws it: 8px
+ *  tall, a 1px edge, the charge inside it and the 2×4 nub, drawn at the
+ *  slot's estimate and stretched to it. The desktop's alone. */
+export const batterySlot = (kit: Kit, charge: number, tone: Tone, alt: string, size: BarSize): RenderChildren => {
+  const { Svg, palette, onTone } = kit
+  if (!Svg) return null
+  const edge = onTone(tone, palette.trackStroke)
+  const body = size.px - 3
+  const width = Math.round(clamp01(charge) * (body - 2) * 10) / 10
+  const source =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size.px}" height="8" viewBox="0 0 ${size.px} 8" preserveAspectRatio="none">` +
+    `<rect class="edge" x="0.5" y="0.5" width="${body}" height="7" rx="2" fill="none" stroke="${edge}" stroke-width="1" vector-effect="non-scaling-stroke"/>` +
+    `<rect class="nub" x="${body + 1}" y="2" width="2" height="4" rx="0.5" fill="${edge}"/>` +
+    `<rect class="charge" x="1.5" y="1.5" width="${width}" height="5" rx="1" fill="${onTone(tone, palette.warm)}"/>` +
+    '</svg>'
+  return <Svg key="battery" source={source} alt={alt} height={8} />
+}
+
+/** The battery as a mark of `size`: the desktop's icon, or in text its
+ *  charge in cells, draining right to left, and its cap `╸`. */
+export const batteryMark = (kit: Kit, charge: number, tone: Tone, alt: string, size: BarSize): RenderChildren => {
+  const { Svg, Text, palette, onTone } = kit
+  if (Svg) return batteryIcon(kit, charge, tone, alt, size.px)
+  const cells = size.cells - 1
+  const filled = Math.round(clamp01(charge) * cells)
+  return (
+    <Text key="battery" color={onTone(tone, palette.label)}>
+      {filled > 0 ? <Text key="charge" color={onTone(tone, palette.warm)}>{'█'.repeat(filled)}</Text> : null}
+      {filled < cells ? <Text key="track" color={palette.meterTrack}>{'░'.repeat(cells - filled)}</Text> : null}
+      {'╸'}
+    </Text>
+  )
+}
+
+/** The battery as long as a bar: time left, draining. On the desktop its
+ *  outline; in a terminal its cells, the charge painted in the warm colour
+ *  and the drained in the track's; with no ground to paint, a bar's glyphs. */
+export const batteryBar = (kit: Kit, charge: number, tone: Tone, alt: string, size: BarSize): RenderChildren => {
+  const { Svg, Text, palette, onTone } = kit
+  if (Svg) return batteryIcon(kit, charge, tone, alt, size.px)
+  if (!palette.filled) return meter(kit, { key: 'battery', label: 'cache', frac: charge, tone, accent: palette.warm, size, reads: 'left' })
+  const cut = Math.round(clamp01(charge) * size.cells)
+  return (
+    <Text key="battery">
+      {cut > 0 ? <Text key="charge" backgroundColor={onTone(tone, palette.warm)}>{' '.repeat(cut)}</Text> : null}
+      {cut < size.cells ? <Text key="drained" backgroundColor={palette.meterTrack}>{' '.repeat(size.cells - cut)}</Text> : null}
+    </Text>
+  )
+}
+
+/** Text in runs, each bold or not: a figure among its words. */
+export type BoldRuns = ReadonlyArray<readonly [text: string, bold: boolean]>
 
 /** On a text surface the battery is the pill itself: its charge painted as
  *  the background of the leading characters, draining right to left. `text`
- *  arrives in the glyphs it is drawn in, so the cut falls where it shows. */
-export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string): RenderChildren[] => {
+ *  arrives in the glyphs it is drawn in, so the cut falls where it shows; in
+ *  runs, a bold one stays bold either side of the cut. */
+export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string | BoldRuns): RenderChildren[] => {
   const { Text, palette, onTone } = kit
-  const chars = [...` ${text} `]
+  const runs: BoldRuns = typeof text === 'string' ? [[text, false]] : text
+  const pad = { ch: ' ', bold: false }
+  const chars = [pad, ...runs.flatMap(([run, bold]) => [...run].map(ch => ({ ch, bold }))), pad]
   const cut = Math.round(clamp01(charge) * chars.length)
   const fg = onTone(tone, palette.value)
+  /** One side of the cut: a Text for each run of one weight, or nothing. */
+  const side = (key: string, part: readonly (typeof pad)[], ground: string): RenderChildren[] => {
+    const pieces: Array<{ text: string; bold: boolean }> = []
+    for (const { ch, bold } of part) {
+      const last = pieces.at(-1)
+      if (last?.bold === bold) last.text += ch
+      else pieces.push({ text: ch, bold })
+    }
+    if (pieces.length === 0) return [null]
+    return pieces.map(({ text: run, bold }, i) => (
+      <Text key={i === 0 ? key : `${key}${i}`} color={fg} backgroundColor={ground} {...(bold ? { bold } : {})}>
+        {run}
+      </Text>
+    ))
+  }
   return [
-    cut > 0 ? (
-      <Text key="bf" color={fg} backgroundColor={onTone(tone, palette.batteryFill, palette.batteryAmber)}>
-        {chars.slice(0, cut).join('')}
-      </Text>
-    ) : null,
-    cut < chars.length ? (
-      <Text key="be" color={fg} backgroundColor={onTone(tone, palette.surface, palette.amberBg)}>
-        {chars.slice(cut).join('')}
-      </Text>
-    ) : null,
+    ...side('bf', chars.slice(0, cut), onTone(tone, palette.batteryFill, palette.batteryAmber)),
+    ...side('be', chars.slice(cut), onTone(tone, palette.surface, palette.amberBg)),
   ]
 }
 
-/** The cache as a pill for a new view (pulse, week): chips' battery and
- *  ground, the readings' words, and no hover card; amber, its reason. */
-export const layoutCachePill = (kit: Kit, read: Readings, short: boolean): RenderElement => {
+/** The cache as a pill for pulse and week: chips' battery and ground, the
+ *  readings' words, and no hover card; amber, its reason. */
+export const layoutCacheSpec = (kit: Kit, read: Readings, short: boolean): PillSpec => {
   const { Text, Svg, palette, onTone } = kit
   const c = read.cache
   const text = c.amber !== undefined ? (short ? c.amber.short : c.amber.long) : short ? c.textShort : c.text
@@ -100,10 +167,10 @@ export const layoutCachePill = (kit: Kit, read: Readings, short: boolean): Rende
     : palette.filled
       ? textBattery(kit, c.charge, c.tone, read.frame.glyphs === 'ascii' ? asciiText(text) : text)
       : [<Text key="c" color={fg}>{text}</Text>]
-  return pill(kit, { key: 'cache', tone: c.tone, body, paintsOwnBg: !Svg && palette.filled })
+  return { key: 'cache', tone: c.tone, body, paintsOwnBg: !Svg && palette.filled }
 }
 
-// ---- what every new view draws its lines and sections with ------------------
+// ---- what every layout squeezes its lines with ----------------------------
 
 /** What a line's build may ask at its squeeze. */
 export type Keeps<P extends string> = Readonly<{
@@ -111,17 +178,14 @@ export type Keeps<P extends string> = Readonly<{
   has: (p: P) => boolean
   /** Whether a piece of this tone is kept: an amber one always is. */
   calm: (p: P, tone: Tone) => boolean
-  /** An amber reading's words: long until the last step, then short. */
+  /** An amber reading's words: long until the amber step, then short. */
   amber: (a: Amber) => string
 }>
 
-/** The step `fitLine` appends to every order: amber turns short. */
-const AMBER_STEP = 'amberShort'
+/** The step `fitLine` appends to every order that doesn't name it: amber turns short. */
+export const AMBER_STEP = 'amberShort'
 /** Asks a `Keeps` which of an amber reading's forms it would pick. */
 const AMBER_PROBE: Amber = { long: 'long', short: 'short' }
-
-/** Columns a collapsed line may take: the row's, less the slack and the panel's padding. */
-export const lineRoom = (kit: Kit): number => kit.columns - ROW_SLACK - 2
 
 /** One collapsed line: its pieces, each kept whole, then air, then the toggle
  *  or nothing. Never wraps; past its room it clips, as chips' row does. */
@@ -141,23 +205,29 @@ export const line = (kit: Kit, key: string, pieces: readonly RenderChildren[], e
 }
 
 /** A line squeezed by its give-way order: the smallest squeeze at which it
- *  fits. The amber step is always last, so amber shortens only once every
- *  calm piece has gone. */
-export const fitLine = <P extends string>(kit: Kit, order: readonly P[], room: number, build: (keeps: Keeps<P>) => RenderElement): RenderElement => {
-  const steps: ReadonlyArray<P | typeof AMBER_STEP> = [...order, AMBER_STEP]
+ *  fits, and what that squeeze keeps. The amber step is last unless the
+ *  order names it, so amber shortens only once every calm piece before it
+ *  has gone. */
+export const fitLineKeeps = <P extends string>(
+  kit: Kit,
+  order: readonly P[],
+  room: number,
+  build: (keeps: Keeps<P>) => RenderElement,
+): Readonly<{ line: RenderElement; keeps: Keeps<P> }> => {
+  const steps: ReadonlyArray<P | typeof AMBER_STEP> = order.includes(AMBER_STEP as P) ? order : [...order, AMBER_STEP]
   const at = keepsIn(steps)
-  return squeezeToFit(
-    squeeze =>
-      build({
-        has: p => at(squeeze, p),
-        calm: (p, tone) => tone === 'amber' || at(squeeze, p),
-        amber: a => (at(squeeze, AMBER_STEP) ? a.long : a.short),
-      }),
-    steps.length,
-    room,
-    kit.measure,
-  )
+  const keepsAt = (squeeze: number): Keeps<P> => ({
+    has: p => at(squeeze, p),
+    calm: (p, tone) => tone === 'amber' || at(squeeze, p),
+    amber: a => (at(squeeze, AMBER_STEP) ? a.long : a.short),
+  })
+  const { line, squeeze } = fitSqueeze(squeeze => build(keepsAt(squeeze)), steps.length, room, kit.measure)
+  return { line, keeps: keepsAt(squeeze) }
 }
+
+/** `fitLineKeeps`' line alone. */
+export const fitLine = <P extends string>(kit: Kit, order: readonly P[], room: number, build: (keeps: Keeps<P>) => RenderElement): RenderElement =>
+  fitLineKeeps(kit, order, room, build).line
 
 /** True until the amber step: an amber reading's chart stays while this holds. */
 export const beforeLast = <P extends string>(keeps: Keeps<P>): boolean => keeps.amber(AMBER_PROBE) === AMBER_PROBE.long
@@ -165,25 +235,11 @@ export const beforeLast = <P extends string>(keeps: Keeps<P>): boolean => keeps.
 /** An amber reading's reason, long until every calm piece has gone. */
 export const amberSay = <P extends string>(amber: Amber, keeps: Keeps<P>): Say => [[keeps.amber(amber), 'amber']]
 
-/** The same reason as its own words. */
-export const amberWords = <P extends string>(kit: Kit, key: string, amber: Amber, keeps: Keeps<P>): RenderElement =>
-  words(kit, key, amberSay(amber, keeps))
-
-/** Whether any item needs you, so `amberFirst` leads with one. */
-export const anyAmber = (items: readonly Readonly<{ amber: Amber | undefined }>[]): boolean => items.some(i => i.amber !== undefined)
-
 /** What needs you first: the amber items, then the calm, each in its order. */
 export const amberFirst = <T extends Readonly<{ amber: Amber | undefined }>>(items: readonly T[]): T[] => [
   ...items.filter(i => i.amber !== undefined),
   ...items.filter(i => i.amber === undefined),
 ]
-
-/** Lays `glyph` between a line's pieces; the separators, up to `most`, are
- *  built once, before the squeeze. */
-export const separatedBy = (kit: Kit, glyph: string, most: number): ((pieces: readonly RenderElement[]) => RenderChildren[]) => {
-  const seps = Array.from({ length: most }, (_, i) => words(kit, `sep${i + 1}`, [[glyph, 'label']]))
-  return pieces => pieces.flatMap((p, i) => (i === 0 ? [p] : [seps[i - 1] ?? null, p]))
-}
 
 /** A piece built the first time it is asked for, then kept. */
 export const once = <T,>(build: () => T): (() => T) => {
@@ -197,7 +253,7 @@ export const ROLE_INK: Readonly<Record<Role, Exclude<keyof Palette, 'filled'>>> 
   value: 'value',
   amber: 'amberFg',
   accent5: 'fiveText',
-  accent7: 'weekAccent',
+  accent7: 'weekText',
 }
 
 /** A phrase in its roles' colours, one line, cut rather than wrapped. */
@@ -213,81 +269,20 @@ export const words = (kit: Kit, key: string, say: Say, bold = false): RenderElem
   )
 }
 
-/** An empty state's words (`EMPTY`), drawn in a label's ink in every view. */
-export const emptySay = (text: string): Say => [[text, 'label']]
-
-/** The same words as their own element. */
-export const emptyWords = (kit: Kit, key: string, text: string): RenderElement => words(kit, key, emptySay(text))
-
-/** How a view writes a limit's sentence: led while calm by its `text` or its
- *  `say`, the reset phrase it says, and what joins the phrases. */
-export type SentenceStyle = Readonly<{ lead: 'text' | 'say'; reset: 'resetWords' | 'resetGlyph'; sep: ', ' | ' · ' }>
-
-/** A limit as a sentence: its reason while amber, else its value; then its
- *  reset and its pace, unless the reason is a measured fill, which says it. */
-export const limitSentence = (kit: Kit, l: LimitView, style: SentenceStyle): RenderElement => {
-  const lead: Say = l.amber !== undefined ? [[l.amber.long, 'amber']] : style.lead === 'say' ? l.say : [[l.text, 'value']]
-  const tail = [l[style.reset], l.fullIn === undefined ? l.pace : undefined].filter((t): t is string => t !== undefined && t !== '')
-  return words(kit, l.name, [...lead, ...tail.map((t): Say[number] => [`${style.sep}${t}`, 'label'])])
-}
-
-/** `label value`, or nothing while the value is unknown. */
-export const fact = (kit: Kit, key: string, label: string, value: string | undefined): RenderChildren =>
-  value === undefined ? null : words(kit, key, [[`${label} `, 'label'], [value, 'value']])
-
-/** A titled column: its title, then as many of its rows as `room` holds.
- *  With no room under the title, a first row that is amber takes the
- *  title's place, so a body of one row still says what needs you.
- *  `amberLeads` is the caller's word that its first row is amber, as an
- *  `amberFirst` list's is while any item is; `section` can't see a row's tone. */
-export const section = (kit: Kit, key: string, title: string, rows: readonly RenderChildren[], room: number, amberLeads = false): RenderElement => {
-  const { Box } = kit
-  const drawn = rows.filter(isDrawn)
-  const lifted = amberLeads && room <= 0 && drawn.length > 0
-  return (
-    <Box key={key} flexDirection="column" flexGrow={1} width={0} minWidth={0}>
-      {lifted ? null : words(kit, 'title', [[title, 'label']], true)}
-      {drawn.slice(0, lifted ? 1 : Math.max(0, room))}
-    </Box>
-  )
-}
-
-/** Cells between a grid line's sections. */
-const GRID_GAP = 2
-
-/** Sections to a line: all of them from 100 columns, or until two lines each
- *  keep a row under their titles (5 rows, with the row of air); else two. */
-const perLineOf = (kit: Kit, bodyRows: number, count: number): number =>
-  kit.columns >= 100 || bodyRows < 5 ? count : Math.min(2, count)
-
-/** Cells each section has across its line, `GRID_GAP` apart. */
-export const sectionCells = (kit: Kit, bodyRows: number, count = 4): number => {
-  const perLine = perLineOf(kit, bodyRows, count)
-  return Math.floor((lineRoom(kit) - GRID_GAP * (perLine - 1)) / perLine)
-}
-
-/** Rows each section holds under its title, with a row of air between lines. */
-export const gridRoom = (kit: Kit, bodyRows: number, count = 4): number => {
-  const lines = Math.ceil(count / perLineOf(kit, bodyRows, count))
-  return Math.max(0, Math.floor((bodyRows - (lines - 1)) / lines) - 1)
-}
-
-/** Sections laid out in lines, sharing each line's width equally. */
-export const grid = (kit: Kit, sections: readonly RenderElement[], bodyRows: number): RenderElement[] => {
-  const { Box } = kit
-  const perLine = perLineOf(kit, bodyRows, sections.length)
-  return Array.from({ length: Math.ceil(sections.length / perLine) }, (_, i) => (
-    <Box key={`line${i}`} flexDirection="row" columnGap={GRID_GAP} {...(i > 0 ? { marginTop: 1 } : {})}>
-      {sections.slice(i * perLine, (i + 1) * perLine)}
-    </Box>
-  ))
-}
-
-/** A section's rows with its charts first, when they fit; short of rows, facts win. */
-export const chartsIfRoom = (room: number, charts: readonly RenderChildren[], facts: readonly RenderChildren[], chartRows = 1): RenderChildren[] => {
-  const drawnCharts = charts.filter(isDrawn)
-  const drawnFacts = facts.filter(isDrawn)
-  return drawnCharts.length * chartRows + drawnFacts.length <= room ? [...drawnCharts, ...drawnFacts] : drawnFacts
+/** A reset after its reading: the separator in label ink, then `↻` and
+ *  when, in `ink`. `↻` is a glyph on every surface, as the boards draw it,
+ *  never the clock icon; elsewhere it is the reset icon's own glyph. */
+export const resetClause = (kit: Kit, ink: string, when: string, separator = ' │ '): RenderElement[] => {
+  const { Text, palette } = kit
+  return [
+    <Text key="d" color={palette.label}>
+      {separator}
+    </Text>,
+    <Text key="i-reset" color={ink}>{`${GLYPH.reset} `}</Text>,
+    <Text key="r" color={ink}>
+      {when}
+    </Text>,
+  ]
 }
 
 /** A limit's accent: its window's, or the meter's for any other. */

@@ -2,6 +2,8 @@
 
 /** The cache's last minute: the one span where acting changes the bill. */
 export const SOON_MS = 60_000
+/** Departures' last call: an hour's cache this near cold, or a limit this near full, leads its row in amber. */
+export const LAST_CALL_MS = 10 * 60_000
 
 /** At this share a pill turns amber and gains `!`, and a toast speaks. */
 export const WARN_AT = 0.8
@@ -18,24 +20,29 @@ export const fmtPct = (frac: number): string => `${Math.round(frac * 100)}%`
 export const fmtTokens = (n: number): string => {
   const v = Math.max(0, Math.round(n))
   // Each unit from where the one below would round up to it: 9,999 is 10k,
-  // not 10.0k; 999,999 is 1.0M, not 1000k.
+  // not 10.0k; 999,999 is 1.0M, not 1000k; 999.95M is 1.0B, not 1000.0M.
+  if (v >= 999_950_000) return `${(v / 1_000_000_000).toFixed(1)}B`
   if (v >= 999_500) return `${(v / 1_000_000).toFixed(1)}M`
   if (v >= 9_950) return `${Math.round(v / 1000)}k`
   if (v >= 1_000) return `${(v / 1000).toFixed(1)}k`
   return String(v)
 }
 
-/** Whole dollars from $1000, and from what would round to it. */
+/** Whole dollars from $1,000, and from what would round to it. */
 const WHOLE_FROM = 999.995
 
-export const fmtCost = (usd: number): string => (usd >= WHOLE_FROM ? `$${Math.round(usd)}` : `$${usd.toFixed(2)}`)
+/** Whole dollars grouped by thousands, `1,027`: by hand, since the sandbox's
+ *  locale formatting can't be relied on. */
+const wholeDollars = (usd: number): string => String(Math.round(usd)).replace(/\B(?=(\d{3})+$)/g, ',')
+
+export const fmtCost = (usd: number): string => (usd >= WHOLE_FROM ? `$${wholeDollars(usd)}` : `$${usd.toFixed(2)}`)
 
 /** A small figure honestly: under a cent is not $0.00. */
 export const fmtSmallCost = (usd: number): string => (usd < 0.01 ? '<$0.01' : fmtCost(usd))
 
 /** An estimate is always marked as one. */
 export const fmtEstimate = (usd: number): string =>
-  usd < 0.01 ? '~<$0.01' : usd >= WHOLE_FROM ? `~$${Math.round(usd)}` : `~$${usd.toFixed(2)}`
+  usd < 0.01 ? '~<$0.01' : usd >= WHOLE_FROM ? `~$${wholeDollars(usd)}` : `~$${usd.toFixed(2)}`
 
 /** The countdowns' seconds, drawn and spoken alike. */
 const wholeSeconds = (ms: number): number => Math.max(0, Math.round(ms / 1000))
@@ -78,6 +85,9 @@ export const resetIn = (iso: string | undefined, now: number): ResetIn | undefin
 /** The words for escalation: colour is never the only signal. */
 export const severityMark = (frac: number): string => (frac >= SEVERE_AT ? '!!' : frac >= WARN_AT ? '!' : '')
 
+/** A day's minutes, from which a projection is said in days. */
+const DAY_MINUTES = 24 * 60
+
 /** A projection's whole minutes: 5-minute steps under an hour, 15 from one. */
 const etaMinutes = (ms: number): number => {
   const mins = Math.max(0, ms) / 60_000
@@ -90,6 +100,17 @@ export const fmtEta = (ms: number): string => {
   const hours = Math.floor(mins / 60)
   const rest = mins % 60
   return hours === 0 ? `~${mins}m` : rest ? `~${hours}h ${rest}m` : `~${hours}h`
+}
+
+/** From this far off, departures' projection says its day, not its minutes. */
+const DAYS_FROM_MINUTES = 12 * 60
+
+/** Departures' projection: from 12 hours, whole days to the nearest, at
+ *  least one, `~1d`, since its minute would claim too much; nearer, as
+ *  `fmtEta`. */
+export const fmtEtaDays = (ms: number): string => {
+  const mins = etaMinutes(ms)
+  return mins >= DAYS_FROM_MINUTES ? `~${Math.max(1, Math.round(mins / DAY_MINUTES))}d` : fmtEta(ms)
 }
 
 /** `text` at most `max` characters, cut in the middle: a branch keeps both
@@ -133,14 +154,26 @@ const hhmm = (wall: number): string => {
 /** A local 24-hour clock time: `14:32`. The offset is east-positive minutes. */
 export const fmtClock = (ms: number, utcOffsetMin: number): string => hhmm(wallTime(ms, utcOffsetMin))
 
+/** The local day `ms` falls on, counted from the epoch. */
+const dayOf = (ms: number, utcOffsetMin: number): number => Math.floor(wallTime(ms, utcOffsetMin) / DAY_MS)
+
 /** Whether `ms` falls on the same local day as `now`. */
-export const isToday = (ms: number, utcOffsetMin: number, now: number): boolean =>
-  Math.floor(wallTime(ms, utcOffsetMin) / DAY_MS) === Math.floor(wallTime(now, utcOffsetMin) / DAY_MS)
+const isToday = (ms: number, utcOffsetMin: number, now: number): boolean => dayOf(ms, utcOffsetMin) === dayOf(now, utcOffsetMin)
 
 /** A clock time, with its weekday when it isn't today: `16:40`, `Mon 08:40`. */
 export const fmtDayClock = (ms: number, utcOffsetMin: number, now: number): string => {
   const wall = wallTime(ms, utcOffsetMin)
   return isToday(ms, utcOffsetMin, now) ? hhmm(wall) : `${DAYS[new Date(wall).getUTCDay()]} ${hhmm(wall)}`
+}
+
+/** A projection's day, which its minute would claim too much for: its
+ *  weekday, `Mon`, a week on `next Sun`, so it never reads as today, or
+ *  today its clock time, `16:40`. */
+export const fmtDay = (ms: number, utcOffsetMin: number, now: number): string => {
+  const wall = wallTime(ms, utcOffsetMin)
+  if (isToday(ms, utcOffsetMin, now)) return hhmm(wall)
+  const day = `${DAYS[new Date(wall).getUTCDay()]}`
+  return dayOf(ms, utcOffsetMin) - dayOf(now, utcOffsetMin) >= 7 ? `next ${day}` : day
 }
 
 /** This machine's offset from UTC at `now`, east-positive minutes; undefined
@@ -164,18 +197,8 @@ export const fmtSecondsLeft = (ms: number): string => `${secondsLeft(ms)}s left`
 export const fmtLeftShort = (ms: number): string =>
   ms < 60_000 ? `${secondsLeft(ms)}s` : ms < 600_000 ? `${minutesLeft(ms)}m` : fmtCountdown(ms)
 
-/** A countdown in words for the new layouts: `1h 00m left`, `52m left`, `10m left`, `47s left`. */
+/** A countdown in words: `1h 00m left`, `52m left`, `10m left`, `47s left`. */
 export const fmtLeft = (ms: number): string => `${fmtLeftShort(ms)} left`
-
-/** Whole minutes as a departures board says them: `1H 00 MIN`, `52 MIN`. */
-const boardSpan = (mins: number): string =>
-  mins >= 60 ? `${Math.floor(mins / 60)}H ${String(mins % 60).padStart(2, '0')} MIN` : `${mins} MIN`
-
-/** The countdown on a departures board: `IN 1H 00 MIN`, `IN 52 MIN`, never `52M`. */
-export const fmtBoardLeft = (ms: number): string => `IN ${boardSpan(minutesLeft(ms))}`
-
-/** A projection on a departures board, rounded as `fmtEta` rounds it: `IN ~40 MIN`, `IN ~1H 15 MIN`. */
-export const fmtBoardEta = (ms: number): string => `IN ~${boardSpan(etaMinutes(ms))}`
 
 const plural = (n: number, unit: string): string => `${n} ${unit}${n === 1 ? '' : 's'}`
 

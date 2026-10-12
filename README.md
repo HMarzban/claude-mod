@@ -127,10 +127,11 @@ These and three more play live, with a guided tour, on the
 [website](https://hmarzban.github.io/claude-mod/#live).
 
 Prefer another shape? `/usage-band layout <name>` draws the same readings
-in one of nine [layouts](plugins/session-usage-band/README.md#layouts):
-`chips` (as above), `gauges` (bars), `ledger` (words alone), `rings`,
-`pulse` (trends), `tiles`, `week` (day cells), `departures` (a split-flap
-board) or `forecast`.
+in one of nine [layouts](plugins/session-usage-band/README.md#layouts),
+each asking one question of them in chips' language: `chips` (as above),
+`gauges` (bars), `ledger` (one sentence), `rings`, `pulse` (cost trends),
+`tiles`, `week` (day cells), `departures` (countdowns) or `forecast`
+(clock times).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/band-layouts-dark.png">
@@ -140,7 +141,8 @@ board) or `forecast`.
 In every layout a reading turns amber when it needs you: the cache's last
 minute, context near auto-compaction, a limit at 80% or a 5-hour pace that
 would run out before the reset. Nothing is ever red. On the desktop, hover
-any chip in chips for a one-line explanation.
+any chip for a one-line explanation, in chips, rings, pulse, week or
+forecast.
 
 Resume or fork a session (`claude --resume`, `/resume`, or a past session
 in the desktop app) and the band picks up its cache and spend where they
@@ -148,7 +150,7 @@ were ([how it reads them](plugins/session-usage-band/README.md#reopening-an-old-
 
 Press `▵` to open every fact, under a line that says where you are: the
 project, its git branch or worktree, uncommitted changes and ahead/behind.
-Chips opens four labelled cards; each other layout opens its own view.
+Every layout opens the same four labelled cards.
 
 ![The band expanded on the desktop: chips for the cache, cost, context and the 5h and 7d limits, then the Cache, Spend, Context and Limits cards, the project path and branch, and the Collapse and Hide band buttons](docs/band-expanded.png)
 

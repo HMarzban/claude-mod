@@ -8,6 +8,7 @@ import {
   START,
   MIN,
   HOUR,
+  hostClock,
   CLEAR,
   resp,
   respond,
@@ -26,7 +27,7 @@ import {
   mountBand,
 } from './helpers'
 
-test('the 5h and 7d chips show usage, a thumb at the end of the fill, and the reset countdown', async ($, on) => {
+test('the 5h and 7d chips show usage on a fill with no thumb, and the reset countdown', async ($, on) => {
   setup(on) // 5h 4%, resets in 3h; 7d 30%, resets in 67h
   await $.session.start({ ...START, surface: 'desktop' })
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
@@ -39,21 +40,20 @@ test('the 5h and 7d chips show usage, a thumb at the end of the fill, and the re
   expect(shown(week)).toMatch(/7d.*30%.*2d 19h/)
   expect(five?.props?.backgroundColor).toBe(DARK.fiveBg)
   expect(week?.props?.backgroundColor).toBe(DARK.weekBg)
-  // the thumb marks where the fill ends, the number beside it, and nothing else
+  // the fill ends bare: the number beside it says where, and no bright knob
   for (const n of [five, week]) {
     const bar = svgsOf(n).find(s => /% used/.test(String(s.props?.alt)))
     const source = String(bar?.props?.source)
-    expect(source).not.toMatch(/class="(tick|notch)"/)
-    const fill = svgRect(source, 'fill')
-    const thumb = svgRect(source, 'thumb')
-    expect(fill?.y).toBe(1)
-    expect(Number(thumb?.x) + Number(thumb?.width) / 2).toBe(fill?.width) // centred on the fill's end
-    expect(Number(thumb?.y) + Number(thumb?.height)).toBeLessThanOrEqual(Number(bar?.props?.height)) // inside the drawing
+    expect(source).not.toMatch(/class="(tick|notch|thumb)"/)
+    expect(source).not.toContain(`fill="${DARK.value}"`)
+    expect(svgRect(source, 'fill')?.y).toBe(1)
   }
   const alts = svgsOf(firstRow(tree)).map(s => String(s.props?.alt))
   expect(alts).toContain('five-hour')
   expect(alts).toContain('week')
-  expect(alts).toContain('resets')
+  // The reset is ↻, a glyph as the board draws it, never the clock icon.
+  expect(alts).not.toContain('resets')
+  expect(shown(five)).toMatch(/│ ↻ 3h 00m/)
   await ui.unmount()
 })
 
@@ -156,7 +156,8 @@ test('/clear keeps the 5h pace and does not repeat its toast', LONG, async ($, o
   await measure(85)
   expect(toasts).toHaveLength(1)
   const ui = await mountBand($, 'terminal', 110)
-  expect(await ui.find({ type: 'Text', text: /85%! full in ~/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^ 85%!$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^ full in ~/ })).toBeDefined()
   await ui.unmount()
 })
 
@@ -190,6 +191,8 @@ test('a gateway spend limit is listed in the expanded line', async ($, on) => {
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
   expect(fact(tree, 'spend')).toBe('92%!') // past 80%: marked, never colour alone
-  expect(fact(tree, 'spend pace')).toBe('resets 5h 00m')
+  // The worst window's reset leads the card, at its clock time; no window length, so no pace.
+  expect(fact(tree, 'resets')).toBe(hostClock(5 * HOUR, 0))
+  expect(fact(tree, 'spend pace')).toBeUndefined()
   await ui.unmount()
 })

@@ -72,9 +72,12 @@ test('svgPlacement: Svg only where it draws', () => {
   expect(failed(view([row(t('a'), svg({ width: 20, alt: 'x' }), toggle())]))).toContain('svgPlacement')
   expect(failed(view([row(t('a'), svg({ width: 20, alt: 'x' }), toggle())]), { surface: 'desktop', appearance: 'plain' })).toContain('svgPlacement')
 })
-test('svgProps: every Svg has an alt and a width', () => {
+test('svgProps: every Svg has an alt and a width, but a bar stretched to its card', () => {
   expect(failed(view([row(t('a'), svg({ width: 20 }), toggle())]), { surface: 'desktop' })).toContain('svgProps')
   expect(failed(view([row(t('a'), svg({ alt: 'x' }), toggle())]), { surface: 'desktop' })).toContain('svgProps')
+  // A card's bar stretched to its slot has none: the slot caps it.
+  const stretched = svg({ alt: 'x', source: '<svg preserveAspectRatio="none"/>' })
+  expect(failed(view([row(t('a'), stretched, toggle())]), { surface: 'desktop' })).not.toContain('svgProps')
 })
 test('svgProps: no Svg has an id, a gradient, a pattern or a clipPath', () => {
   const desk = { surface: 'desktop' } as const
@@ -109,11 +112,13 @@ test("amber: each of the scenario's triggers has its words", () => {
   expect(failed(GOOD, { scenario: 'lastMinute' })).toContain('amber')
   expect(failed(view([row(t('! 30s left · re-warm ~$1.66'), toggle())]), { scenario: 'lastMinute' })).not.toContain('amber')
 })
-test("amber: another limit's words are owed only open, where it is drawn", () => {
+test("amber: another limit's words are owed only open, where it is drawn, the cards' marked figure among them", () => {
   expect(failed(GOOD, { scenario: 'gatewaySpend' })).not.toContain('amber')
   const open = view([row(t('a'), toggle('▿'))], [t('spend 92%')])
   expect(failed(open, { scenario: 'gatewaySpend', expanded: true })).toContain('amber')
   expect(failed(view([row(t('a'), toggle('▿'))], [t('! spend 92%')]), { scenario: 'gatewaySpend', expanded: true })).not.toContain('amber')
+  // The shared cards' own mark for it, as chips' are.
+  expect(failed(view([row(t('a'), toggle('▿'))], [t('spend 92%!')]), { scenario: 'gatewaySpend', expanded: true })).not.toContain('amber')
 })
 test('estimate: a price or a fill time carries ~', () => {
   expect(failed(view([row(t('re-warm $1.66'), toggle())]))).toContain('estimate')
@@ -121,7 +126,7 @@ test('estimate: a price or a fill time carries ~', () => {
   expect(failed(view([row(t('5h full 14:20'), toggle())]))).toContain('estimate')
   expect(failed(view([row(t('7d on pace for 50%'), toggle())]))).toContain('estimate')
   expect(failed(view([row(t('last message $0.21'), toggle())]))).not.toContain('estimate')
-  expect(failed(view([row(t('! FULL ~14:20'), toggle())]))).not.toContain('estimate')
+  expect(failed(view([row(t('! 5h full ~14:20'), toggle())]))).not.toContain('estimate')
 })
 test('projection: a landing of 100% or more says full before reset', () => {
   expect(failed(view([row(t('7d ~112% at reset'), toggle())]), { scenario: 'sevenFullBeforeReset' })).toContain('projection')
@@ -144,7 +149,7 @@ test("emptyState: open, each empty state follows its own section's name", () => 
   expect(failed(open([t('none reported')]), { expanded: true })).toContain('emptyState')
   expect(failed(open([t('CONTEXT'), t('none reported')]), { expanded: true })).toContain('emptyState')
   expect(failed(open([t('LIMITS'), t('none reported'), t('Context'), t('not reported')]), { expanded: true })).not.toContain('emptyState')
-  // The collapsed part says its own: week's `5h · 7d none reported`.
+  // The collapsed part says its own: `5h · 7d none reported`.
   expect(failed(open([t('LIMITS')], '5h · 7d none reported'), { expanded: true })).not.toContain('emptyState')
 })
 test("glyphs: the tier's own, and ASCII alone in the ascii tier", () => {
@@ -158,6 +163,21 @@ test("glyphs: the tier's own, and ASCII alone in the ascii tier", () => {
 test('size: at most 400 nodes shut, 1,500 open', () => {
   expect(failed(view([row(...Array.from({ length: 400 }, (_, i) => t(String(i % 10))), toggle())]))).toContain('size')
 })
-test('height: open, the view fits maxRows', () => {
-  expect(failed(view([row(t('a'), toggle('▿'))], [t('b'), t('c')]), { expanded: true, maxRows: 2 })).toContain('height')
+test('height: past maxRows, only the shared cards at their floor, a head and a row each, beneath the rows declared', () => {
+  const card = (...rows: unknown[]) => ({ type: 'Box', props: { key: 'card:cache', flexDirection: 'column' }, children: [t('CACHE'), ...rows] })
+  const footer = (...rows: unknown[]) => ({ type: 'Box', props: { key: 'actions', flexDirection: 'column', marginTop: 1 }, children: rows })
+  const open = (lines: unknown[], rows: unknown[], buttons: unknown[] = [toggle('Collapse')]) => view(lines, [card(...rows), footer(...buttons)])
+  const tiles = { layout: 'tiles', expanded: true, maxRows: 2 } as const
+  const shut = [row(t('a'), toggle('▿'))]
+  expect(failed(open(shut, [t('b')]), tiles)).not.toContain('height')
+  expect(failed(open(shut, [t('b'), t('c')]), tiles)).toContain('height')
+  // At the floor, a collapsed row that wrapped or a footer past its row is still too tall.
+  expect(failed(open([row(t('a')), row(t('a'), toggle('▿'))], [t('b')]), tiles)).toContain('height')
+  expect(failed(open(shut, [t('b')], [t('hint'), toggle('Collapse')]), tiles)).toContain('height')
+})
+test("amber: tiles' figure-first reasons name the reading", () => {
+  const amber = (text: string, scenario: InvariantContext['scenario']) => failed(view([row(t(text), toggle())]), { scenario })
+  expect(amber('30s! cache', 'lastMinute')).not.toContain('amber')
+  expect(amber('98%! context', 'nearCompaction')).not.toContain('amber')
+  expect(amber('98%! cache', 'nearCompaction')).toContain('amber')
 })

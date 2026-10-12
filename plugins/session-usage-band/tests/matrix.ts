@@ -4,7 +4,7 @@
 
 import type { RenderChildren } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
-import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, firstRow, shown, walk, type Node } from './helpers'
+import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, byKey, firstRow, shown, svgsOf, walk, type Node } from './helpers'
 import type { Ttl } from '../hooks/cache'
 import { DESKTOP, ROW_PX, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
@@ -39,14 +39,18 @@ export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({
 /** Actions for a draw outside a mount: one function each, so props compare equal. */
 export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide: async () => undefined }
 
-/** Every layout's words for each amber trigger. ` · ` reads `, ` in the ascii tier. */
+/** Every layout's words for each amber trigger. ` · ` reads `, ` in the ascii
+ *  tier, and ` - ` in departures'. An other limit, open only, is the shared
+ *  cards' LIMITS headline, marked as chips marks it: `spend 92%!`. */
 export const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
-  cacheLastMinute: /! \d+s( left)?|LAST CALL|! cooling( ·|,) \d+s left/,
-  nearCompaction: /! context \d+%|! ctx \d+%|! COMPACTS IN ~/,
-  contextNoCompaction: /! context \d+%|! ctx \d+%|! CONTEXT \d+%/,
-  limit80: /! 5h|! NEAR LIMIT/,
-  fiveHourAhead: /! 5h|! FULL/,
-  otherLimit80: /! spend \d+%|! NEAR LIMIT/,
+  // Gauges' mark leads its gauge, its bar between the name and the figure;
+  // tiles' figure comes first, its reason beside it: `30s! cache`, `98%! context`.
+  cacheLastMinute: /! \d+s( left)?|! last call|! cooling( ·|,) \d+s left|! cache\W*\d+s|\d+s ?! cache/,
+  nearCompaction: /! context\W*\d+%|! ctx\W*\d+%|\d+% ?! context/,
+  contextNoCompaction: /! context\W*\d+%|! ctx\W*\d+%|\d+% ?! context/,
+  limit80: /! (last call [·-] )?5h/,
+  fiveHourAhead: /! (last call [·-] )?5h/,
+  otherLimit80: /! spend \d+%|spend \d+%!/,
 }
 /** Amber the collapsed part never shows: other limits are drawn only open (spec §2.7). */
 const OPEN_ONLY: ReadonlySet<AmberReason> = new Set(['otherLimit80'])
@@ -134,10 +138,10 @@ const coloursOf = (n: Node): string[] => {
   return [...colourProps(n.props ?? {}), ...[...source.matchAll(SVG_PAINT)].map(m => m[1] ?? '')]
 }
 
-/** What each glyph tier may draw (spec §3.2): the unicode tier's glyphs and braille, or ASCII alone. */
-const UNICODE_TIER = /^[\x20-\x7e█▓░▒│·↻Σ◷◔▿▵…±●■–↑↓\u2800-\u28ff]*$/
+/** What each glyph tier may draw (spec §3.2): the unicode tier's glyphs, rings' quarters and braille, or ASCII alone. */
+const UNICODE_TIER = /^[\x20-\x7e▁▂▃▄▅▆▇█▓░▒│╌╸▏·›↻Σ◷○◔◑◕▿▵…±●■–↑↓\u2800-\u28ff]*$/
 const ASCII_TIER = /^[\x20-\x7e]*$/
-/** What a value missing from a phrase leaves drawn (spec §2.8), in any case: departures upper-cases its own. */
+/** What a value missing from a phrase leaves drawn (spec §2.8), in any case. */
 const NOTHING = /\b(NaN|undefined|null)\b/i
 /** What spec §2.9 bars from any Svg's markup: an id, a gradient, a pattern, a clipPath. */
 const SVG_BARRED = /<(linearGradient|radialGradient|pattern|clipPath)\b|\bid=/
@@ -150,6 +154,27 @@ const UNMARKED = /re-warm \$|next message \$|full (in |at )?\d|on pace for \d/i
 /** Whether a Text leaves its cut to the surface, which ends it with `…`:
  *  East-Asian-Ambiguous, so the ascii tier never may (spec §3.2). */
 export const cutBySurface = (n: Node): boolean => n.type === 'Text' && typeof n.props?.wrap === 'string' && n.props.wrap !== 'wrap'
+
+/** The rows an open view of the shared cards takes at its floor, which a
+ *  band shorter than that scrolls: the rows its view declares, then what it
+ *  opens with each card cut to its head and one body row, and the footer to
+ *  its one row. Undefined without the cards. */
+const cardsFloor = (tree: Node, declared: number, surface: Surface): number | undefined => {
+  let cards = 0
+  const atFloor = (n: unknown): unknown => {
+    if (n === null || typeof n !== 'object') return n
+    const node = n as Node
+    const key = node.props?.key
+    if (key === 'actions') return { type: 'Text', props: { marginTop: node.props?.marginTop }, children: [] }
+    if (typeof key === 'string' && key.startsWith('card:')) {
+      cards++
+      return { ...node, children: (node.children ?? []).filter(isDrawn).slice(0, 2) }
+    }
+    return { ...node, children: node.children?.map(atFloor) }
+  }
+  const opened = { type: 'Box', props: { flexDirection: 'column' }, children: (tree.children ?? []).slice(1).map(atFloor) }
+  return cards === 0 ? undefined : declared + visualRows(opened, surface)
+}
 
 /** Each failed check as `<check>: <why>`; none when the tree keeps the spec
  *  §2 contract: the checks spec §7 lists, §9's node budget and §2.6's open height. */
@@ -197,7 +222,9 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   if (!svgDraws && svgs.length > 0) fail('svgPlacement', `${svgs.length} Svg where none draws`)
   for (const s of svgs) {
     const alt = s.props?.alt
-    if (typeof alt !== 'string' || alt === '' || typeof s.props?.width !== 'number') fail('svgProps', 'an Svg without an alt or a width')
+    // The shared cards' bars stretch to their slot, which caps them: they alone have no width.
+    const stretched = /preserveAspectRatio="none"/.test(typeof s.props?.source === 'string' ? s.props.source : '')
+    if (typeof alt !== 'string' || alt === '' || (typeof s.props?.width !== 'number' && !stretched)) fail('svgProps', 'an Svg without an alt or a width')
     if (s.props?.id !== undefined || SVG_BARRED.test(typeof s.props?.source === 'string' ? s.props.source : ''))
       fail('svgProps', 'an Svg with an id, a gradient, a pattern or a clipPath')
     if (typeof alt === 'string' && NOTHING.test(alt)) fail('empty', `an alt reads "${alt}"`)
@@ -234,10 +261,12 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   if (nodes > (ctx.expanded ? 1500 : 400)) fail('size', `${nodes} nodes`)
   if (ctx.expanded) {
     const tall = visualRows(tree, ctx.surface)
-    if (tall > ctx.maxRows) fail('height', `${tall} rows at maxRows ${ctx.maxRows}`)
+    const most = Math.max(ctx.maxRows, cardsFloor(tree, declared, ctx.surface) ?? 0)
+    if (tall > most) fail('height', `${tall} rows at maxRows ${ctx.maxRows}, ${most} at most`)
   }
   return errors
 }
+
 
 /** Fails the test with every broken check named. */
 export const expectInvariants = (tree: Node, ctx: InvariantContext): void => {

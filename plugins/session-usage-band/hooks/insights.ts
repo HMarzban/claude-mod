@@ -39,6 +39,13 @@ export type CostEntry = Readonly<{ usd: number; reWarm: boolean }>
 export type TrailPoint = Readonly<{ at: number; pct: number }>
 export type Trails = Readonly<{ costs: readonly CostEntry[]; context: readonly number[]; fiveHour: readonly TrailPoint[] }>
 
+/** The mean cost of the messages that found the cache warm: a re-warm's
+ *  rebuild left out. Undefined while there is none. */
+export const warmAverageOf = (costs: readonly CostEntry[]): number | undefined => {
+  const warm = costs.filter(e => !e.reWarm)
+  return warm.length === 0 ? undefined : warm.reduce((sum, e) => sum + e.usd, 0) / warm.length
+}
+
 // Changed in place only, so the snapshot can hold them by reference.
 const kept = { costs: [] as CostEntry[], context: [] as number[], fiveHour: [] as TrailPoint[] }
 

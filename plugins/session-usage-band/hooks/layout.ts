@@ -8,6 +8,8 @@ import type { RenderChildren, RenderElement } from 'claude-code'
 export const GIVES_WAY = [
   'tokens',
   'weekReset',
+  // Rings' pill labels, long to short: never past a piece a short row keeps.
+  'longLabels',
   'fiveReset',
   'contextMeter',
   'calmWeek',
@@ -15,6 +17,8 @@ export const GIVES_WAY = [
   'shortWording',
   'calmContext',
   'calmFive',
+  // Rings' cache ring: its words say what it draws.
+  'cacheRing',
   'amberWeekReset',
   'amberFiveReset',
 ] as const
@@ -52,9 +56,9 @@ export const METER_CELLS = 6
 export const METER_PX = 44
 /** A row's height on the desktop, for counting how many rows a layout takes. */
 export const ROW_PX = 24
-/** The longest line a card holds unwrapped, in characters:
- *  `resets 2d 19h · full before reset`. */
-export const CARD_TEXT = 33
+/** The longest line a card holds unwrapped, in characters: LIMITS' lead
+ *  row, `resets  Mon 08:40 · full before reset`, its label two columns apart. */
+export const CARD_TEXT = 37
 /** Columns a framed Button's padding and edges take beyond its label. */
 export const BUTTON_CHROME = 3
 /** Columns a Button's hotkey mark takes beside its label. */
@@ -136,10 +140,15 @@ export const spansOf = (pieces: readonly RenderChildren[], gap: number, m: Measu
   })
 }
 
-/** The first squeeze at which `build` fits `room` columns, or the last tried:
- *  a line drops its pieces in the order its give-way table names them. */
-export const squeezeToFit = (build: (squeeze: number) => RenderElement, steps: number, room: number, m: Measure): RenderElement => {
-  let line = build(0)
-  for (let squeeze = 1; squeeze <= steps && cellsOf(line, m) > room; squeeze++) line = build(squeeze)
-  return line
+/** The first squeeze at which `build` fits `room` columns, or the last tried,
+ *  and its line: a line drops its pieces in the order its give-way table names them. */
+export const fitSqueeze = (build: (squeeze: number) => RenderElement, steps: number, room: number, m: Measure): Readonly<{ line: RenderElement; squeeze: number }> => {
+  let squeeze = 0
+  let line = build(squeeze)
+  while (squeeze < steps && cellsOf(line, m) > room) line = build(++squeeze)
+  return { line, squeeze }
 }
+
+/** `fitSqueeze`'s line alone. */
+export const squeezeToFit = (build: (squeeze: number) => RenderElement, steps: number, room: number, m: Measure): RenderElement =>
+  fitSqueeze(build, steps, room, m).line
