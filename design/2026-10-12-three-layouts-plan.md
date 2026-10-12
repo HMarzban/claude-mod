@@ -1580,7 +1580,7 @@ git commit -m "refactor: drop what only the removed layouts used"
 
 ### Task 12: Sign off by screenshot
 
-First line, from Task 0: _decision B goes here._
+Decision B (Task 0): the demo renderer cannot gate — it reproduces the stretch only partly and not the notch — so the user's desktop screenshots are the final gate.
 
 **Files:**
 - Create: `tools/demos/capture/signoff.test.ts`, a capture rather than a test
