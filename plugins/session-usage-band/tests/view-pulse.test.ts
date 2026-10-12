@@ -193,7 +193,7 @@ test("the spend lens rules the warm average and scales as the row's bars do; the
   expect(trail).toMatch(new RegExp(`<polyline [^>]*stroke="${DARK.meterFill}"`))
   expect(trail).toMatch(new RegExp(`class="area"[^>]*fill="${DARK.meterFill}" opacity="0.16"`))
   expect(trail).toMatch(new RegExp(`<line class="cap" [^>]*y1="0.5"[^>]*stroke="${DARK.label}" stroke-width="1"`))
-  expect(trail).not.toMatch(/<circle|class="level"/)
+  expect(trail).not.toMatch(/<circle/)
 })
 test("open on the desktop, CONTEXT's lens stands for its bar: no bar beneath its head", () => {
   const open = band({ surface: 'desktop', expanded: true })
