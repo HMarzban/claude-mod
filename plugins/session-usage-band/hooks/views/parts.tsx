@@ -156,6 +156,9 @@ export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string |
   ]
 }
 
+/** The cache pill's hover card: what its mood means now. */
+export const cacheHover = (read: Readings): string => read.chips.reading.copy.hover
+
 /** An amber cache as a pill for pulse and week: chips' battery, ground and
  *  hover card, and its reason, long or short. */
 export const layoutCacheSpec = (kit: Kit, read: Readings, amber: Amber, short: boolean): PillSpec => {
@@ -168,7 +171,7 @@ export const layoutCacheSpec = (kit: Kit, read: Readings, amber: Amber, short: b
     : palette.filled
       ? textBattery(kit, c.charge, c.tone, text)
       : [<Text key="c" color={fg}>{text}</Text>]
-  return { key: 'cache', tone: c.tone, body, hover: read.chips.reading.copy.hover, paintsOwnBg: !Svg && palette.filled }
+  return { key: 'cache', tone: c.tone, body, hover: cacheHover(read), paintsOwnBg: !Svg && palette.filled }
 }
 
 // ---- what every layout squeezes its lines with ----------------------------

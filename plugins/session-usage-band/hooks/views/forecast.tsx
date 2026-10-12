@@ -10,8 +10,8 @@ import type { LimitKey, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import type { Ahead, Amber } from '../words'
 import type { Fact, Slots } from './cards'
-import { LIMITS, cacheHover, contextHover, limitHover, pillRow, type ChipKey } from './chips'
-import { AMBER_STEP, PERCENT, ROLE_INK, batteryIcon, beforeLast, fitLine, type Keeps, type PillSpec } from './parts'
+import { LIMITS, contextHover, limitHover, pillRow, type ChipKey } from './chips'
+import { AMBER_STEP, PERCENT, ROLE_INK, batteryIcon, beforeLast, cacheHover, fitLine, type Keeps, type PillSpec } from './parts'
 import { defineCardsView, type CardOptions } from './view'
 
 /** What gives way as the row narrows, first to last: the limits' tails, how

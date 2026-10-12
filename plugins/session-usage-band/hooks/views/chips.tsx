@@ -15,7 +15,7 @@ import type { Palette } from '../palette'
 import type { LimitKey, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { toggleButton } from './frame'
-import { batteryIcon, pill, resetClause, textBattery } from './parts'
+import { batteryIcon, cacheHover, pill, resetClause, textBattery } from './parts'
 import type { PillSpec } from './parts'
 import { defineCardsView } from './view'
 
@@ -58,9 +58,6 @@ export const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
 /** Whether the row says the cache and context short at `squeeze`: always
  *  below `SHORT_BELOW` columns. */
 export const shortAt = (kit: Kit, squeeze: number): boolean => kit.columns < SHORT_BELOW || !keeps(squeeze, 'shortWording')
-
-/** The cache pill's hover card: what its mood means now. */
-export const cacheHover = (read: Readings): string => read.chips.reading.copy.hover
 
 /** The cache pill: a draining battery and its countdown, or its mood. A
  *  layout that bolds each reading's figure asks for the countdown `bold`;
