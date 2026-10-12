@@ -711,11 +711,7 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, co
   }
   const fullIn = fiveHour === undefined || fiveHour.etaMs === null ? '' : `, full in ${fmtEtaSpoken(fiveHour.etaMs)}`
   const compactsAt = context.compactAt === undefined ? '' : `, compacts at ${fmtTokens(context.compactAt)}`
-  // A compaction drops the context, so its rise is measured since the newest drop.
-  const trail = record.context
-  const tokens = trail.slice(Math.max(0, trail.findLastIndex((t, i) => i > 0 && t < (trail[i - 1] ?? 0))))
-  const risePerMessage = tokens.length < 2 ? 0 : ((tokens[tokens.length - 1] ?? 0) - (tokens[0] ?? 0)) / (tokens.length - 1)
-  const messages = context.toCompact === undefined || risePerMessage <= 0 ? undefined : Math.max(1, Math.round(context.toCompact / risePerMessage))
+  const messages = context.msgsToCompact
   return {
     lastText,
     numbersShort: lastText === undefined ? '' : `last ${lastText}`,
