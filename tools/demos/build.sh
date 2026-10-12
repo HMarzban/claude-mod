@@ -74,7 +74,7 @@ done
 for th in light dark; do
   echo "film ($th)"
   mkdir -p "$OUT/film-$th"
-  "$PY" film2.py "$OUT/film.txt" "$OUT/film-$th" "$th" >/dev/null
+  "$PY" film.py "$OUT/film.txt" "$OUT/film-$th" "$th" >/dev/null
   node shoot.mjs "$OUT/film-$th" 1.5
   suffix=$([ "$th" = dark ] && echo "-dark" || echo "")
   ffmpeg -y -loglevel error -framerate 30 -i "$OUT/film-$th/f%04d.png" -c:v libx264 -crf 18 -preset slow \
