@@ -447,3 +447,9 @@ test("fiveHourWindow's now stays on the chart: at the window's very end it is th
 test('windowAlt speaks the whole window, not the last hour', () => {
   expect(readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0), fiveHour: FIVE })).week.windowAlt).toMatch(/^5h window from start to reset, 4% used/)
 })
+test("a recalled cache's time is marked ~ in pulse's words, until a reply measures it", () => {
+  const cache = (over: Partial<ReturnType<typeof snapOf>['cache']>) => readingsOf(snapOf({ cache: { ...snapOf().cache, ...over } })).cache
+  expect([cache({ requests: 0, recalled: true }).textMarked, cache({ requests: 0, recalled: true }).textShortMarked]).toEqual(['cache ~52m left', 'cache ~52m'])
+  expect([cache({}).textMarked, cache({}).textShortMarked]).toEqual(['cache 52m left', 'cache 52m'])
+  expect(cache({ requests: 1, recalled: true }).textMarked).toBe('cache 52m left')
+})

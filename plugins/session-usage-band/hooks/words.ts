@@ -142,6 +142,10 @@ export type CacheWords = Readonly<{
   /** `say` and `sayShort` as plain text: `cache 52m left`, `cache 52m`. */
   text: string
   textShort: string
+  /** `text` and `textShort` with the time marked `~` while it is recalled,
+   *  not measured: `cache ~40m left`, `cache ~40m`. Pulse's row says these. */
+  textMarked: string
+  textShortMarked: string
   /** The last minute: `! 47s left · re-warm ~$1.66`, then `! 47s`. */
   amber: ReadingAmber | undefined
   /** `cold at 14:32`, as a lens says it, while counting and the offset is known. */
@@ -291,6 +295,8 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
   const working = f.mood === 'warm' && !counting
   const left = counting ? fmtLeft(f.coldInMs) : ''
   const leftShort = counting ? fmtLeftShort(f.coldInMs) : ''
+  // Recalled from the session's last reply, its time is an estimate until a reply measures it.
+  const recalledTime = counting && c.recalled && !f.measured
   const zone = frame.zone
   // Spoken, a price is never marked ~: the alt says "about".
   const price = c.reWarmUsd !== null ? fmtSmallCost(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`
@@ -335,6 +341,8 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     sentenceShort: f.mood === 'cold' ? [['cache cold ', 'label'], [f.estimate, 'value']] : sentence,
     text: joined(say),
     textShort: joined(sayShort),
+    textMarked: recalledTime ? `cache ~${left}` : joined(say),
+    textShortMarked: recalledTime ? `cache ~${leftShort}` : joined(sayShort),
     amber: f.mood === 'expiring' ? AMBER.cache(leftShort, f.estimate) : undefined,
     coldAtText: coldAtClock === undefined ? undefined : `cold at ${coldAtClock}`,
     ahead,

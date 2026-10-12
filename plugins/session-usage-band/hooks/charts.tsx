@@ -26,6 +26,9 @@ const topOf = (values: ReadonlyArray<number | undefined>): number => Math.max(0,
 const svgOf = (width: number, height: number, marks: string, attrs = ''): string =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"${attrs}>${marks}</svg>`
 
+/** Marks set `air` px down, below the air above them. */
+const airOf = (marks: string, air: number): string => (air > 0 ? `<g transform="translate(0 ${air})">${marks}</g>` : marks)
+
 // ---- braille --------------------------------------------------------------
 
 /** Values as braille, two to a cell: the left column takes dots 7,3,2,1 from
@@ -365,6 +368,8 @@ type SparklineOptions = Readonly<{
   nowAt?: number
   /** A line to read against, as a fraction of the scale's top, such as compaction. */
   level?: number
+  /** Px of air above the chart, inside its Svg: a band's room past its chart. */
+  air?: number
 }>
 
 /** The air a line keeps from the chart's edges. */
@@ -386,7 +391,7 @@ const peaksOf = (values: readonly number[], count: number): number[] =>
  *  braille on its floor, on one line that a row too narrow cuts. */
 export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   const { Svg, palette, oneLine } = kit
-  const { key, alt, values, color, px, height, max, projectTo, cells, track = false, area = false, stretch = false, rise = false, nowAt, level } = o
+  const { key, alt, values, color, px, height, max, projectTo, cells, track = false, area = false, stretch = false, rise = false, nowAt, level, air = 0 } = o
   const top = max ?? topOf(values)
   if (!Svg) return oneLine({ key, color }, braille(cells === undefined ? values : peaksOf(values, 2 * cells), top, 1))
   const end = px - SPARK_AIR - (projectTo === undefined ? 0 : SPARK_AHEAD)
@@ -420,7 +425,7 @@ export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   return stretch ? (
     <Svg key={key} source={stretchedOf(kit, px, height, marks)} alt={alt} height={height} />
   ) : (
-    <Svg key={key} source={svgOf(px, height, marks)} alt={alt} width={px} height={height} />
+    <Svg key={key} source={svgOf(px, height + air, airOf(marks, air))} alt={alt} width={px} height={height + air} />
   )
 }
 
@@ -448,6 +453,8 @@ type BarChartOptions = Readonly<{
   /** Bars, one to a value, or beats: one ECG path, a marked value capped flat
    *  across its peak. The text form is the same either way. */
   shape?: 'bars' | 'beats'
+  /** Px of air above the chart, inside its Svg: a band's room past its chart. */
+  air?: number
 }>
 
 const BAR_PX = 4
@@ -463,7 +470,7 @@ export const barsWidth = (count: number): number => count * (BAR_PX + BAR_GAP)
  *  a cell holding a marked bar in the mark's colour. */
 export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
   const { Svg, palette } = kit
-  const { key, alt, values, marked, color, markColor, px, height, max, level, track = false, stretch = false, shape = 'bars' } = o
+  const { key, alt, values, marked, color, markColor, px, height, max, level, track = false, stretch = false, shape = 'bars', air = 0 } = o
   const top = max ?? topOf(values)
   if (!Svg) {
     const cells = Array.from({ length: Math.ceil(values.length / 2) }, (_, c): readonly [string, string] => {
@@ -488,7 +495,7 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
     }).join('')
     const rule = level === undefined ? '' : `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1" stroke-dasharray="1 2"/>`
     const beats = `<path class="beats" d="${d}" fill="none" stroke="${color}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>`
-    return <Svg key={key} source={svgOf(px, height, rule + beats)} alt={alt} width={px} height={height} />
+    return <Svg key={key} source={svgOf(px, height + air, airOf(rule + beats, air))} alt={alt} width={px} height={height + air} />
   }
   const marks = values.map((v, i) => {
     const x = barsWidth(i)
@@ -503,7 +510,7 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
   return stretch ? (
     <Svg key={key} source={stretchedOf(kit, px, height, drawn)} alt={alt} height={height} />
   ) : (
-    <Svg key={key} source={svgOf(px, height, drawn)} alt={alt} width={px} height={height} />
+    <Svg key={key} source={svgOf(px, height + air, airOf(drawn, air))} alt={alt} width={px} height={height + air} />
   )
 }
 
@@ -544,6 +551,8 @@ type DayCellsOptions = Readonly<{
   stretch?: boolean
   /** The air between cells, 3px unless said. */
   gapPx?: number
+  /** Px of air above the cells, inside their Svg: a band's room past its chart. */
+  air?: number
 }>
 
 const DAY_GAP = 3
@@ -559,7 +568,7 @@ const TODAY_DASH = 'stroke-dasharray="2 1.6"'
  *  Text draws a braille height per cell. */
 export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
   const { Svg, Text, palette } = kit
-  const { key, alt, values, guess = [], today, color, cellPx, height, max, stretch = false, gapPx = DAY_GAP } = o
+  const { key, alt, values, guess = [], today, color, cellPx, height, max, stretch = false, gapPx = DAY_GAP, air = 0 } = o
   const top = max ?? topOf(values)
   const isGuess = (i: number) => guess[i] === true
   const isToday = (i: number) => today !== undefined && i === today
@@ -599,7 +608,7 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
   return stretch ? (
     <Svg key={key} source={svgOf(width, tall, marks.join(''), ' preserveAspectRatio="none"')} alt={alt} height={tall} />
   ) : (
-    <Svg key={key} source={svgOf(width, tall, marks.join(''))} alt={alt} width={width} height={tall} />
+    <Svg key={key} source={svgOf(width, tall + air, airOf(marks.join(''), air))} alt={alt} width={width} height={tall + air} />
   )
 }
 

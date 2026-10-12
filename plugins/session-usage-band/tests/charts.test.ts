@@ -107,17 +107,30 @@ test("day cells as pulse's board draws them: spanning their slot 4px apart, a me
   expect([xs[1]! - xs[0]!, /class="edge"[^>]* rx="3"/.test(cells.props.source)]).toEqual([24, true])
 })
 // Pulse's SPEND sliver (Task 0): a card lens drawn stretched has no width of its own, so the host
-// squashes its bars into whatever slot it gets. Today's pulse still draws one, hence the skip.
-// turns on in Task 9: swap `skip` for `test`. (The engine's `test` has no .skip, so `skip` takes the
-// same arguments and runs nothing.)
-const skip = (_name: string, _body: () => void): void => {}
-skip('no chart the new layouts draw stretches: every Svg has its own width and keeps its aspect', () => {
+// squashes its bars into whatever slot it gets. Pulse and departures draw none.
+test('no chart the new layouts draw stretches: every Svg has its own width and keeps its aspect', () => {
   for (const layout of ['pulse', 'departures'] as const) for (const expanded of [false, true]) {
     const tree = drawBand(fakeEl, snapOf({ layout, surface: 'desktop', columns: 160, maxRows: 13, expanded }), NO_ACT)
     for (const s of svgsOf(tree)) {
       expect(typeof s.props?.width).toBe('number')
       expect(String(s.props?.source)).not.toMatch(/preserveAspectRatio="none"/)
     }
+  }
+})
+// Pulse's open bands are whole rows of 24 px: a chart 40 px tall takes two
+// with 8 px of air above it, inside its own Svg, the desktop's only unit finer than a row.
+test('air: a chart drawn below its air, the Svg as tall as both, its marks as they were', () => {
+  const charts = [
+    (air?: number) => sparkline(desk, { key: 's', alt: 'a', values: [1, 2, 3], color: '#7fcf8a', px: 90, height: 40, nowAt: 1, air }),
+    (air?: number) => barChart(desk, { key: 'b', alt: 'b', values: [1, 2, 9], marked: [false, false, true], color: '#888888', markColor: '#eeeeee', px: 18, height: 40, shape: 'beats', air }),
+    (air?: number) => dayCells(desk, { key: 'd', alt: 'd', values: [6, 9], today: 1, color: '#a99cf0', cellPx: 18, height: 38, air }),
+  ]
+  for (const chart of charts) {
+    const [bare, aired] = [svg(chart()), svg(chart(8))]
+    expect(Number(aired.props.height)).toBe(Number(bare.props.height) + 8)
+    expect(aired.props.width).toBe(bare.props.width)
+    const marks = (source: string) => source.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '')
+    expect(marks(aired.props.source)).toBe(`<g transform="translate(0 8)">${marks(bare.props.source)}</g>`)
   }
 })
 // Guard for the day cells pulse reuses: each fill sits in its own cell and is as tall as its value.

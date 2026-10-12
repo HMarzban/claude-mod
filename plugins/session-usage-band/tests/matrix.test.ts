@@ -17,8 +17,9 @@ const view = (lines: unknown[], rest: unknown[] = []) => ({
   props: { flexDirection: 'column' },
   children: [{ type: 'Box', props: { key: 'collapsed', flexDirection: 'column', paddingX: 1 }, children: lines }, ...rest],
 })
+// Chips' rules, the loosest: pulse and departures add the order and ▵ last.
 const CTX: InvariantContext = {
-  layout: 'pulse',
+  layout: 'chips',
   surface: 'terminal',
   appearance: 'dark',
   cols: 120,
@@ -212,14 +213,25 @@ test("amber: the board's capitals name the reading, its item and cell joined, br
   const open = view([row(t('a'), toggle('▿'))], [t('SPEND LIMIT  ! NEAR LIMIT  05:00  92%')])
   expect(failed(open, { scenario: 'gatewaySpend', expanded: true })).not.toContain('amber')
 })
-test('width: departures clips below 60 only where amber is raised, ▵ still last; calm fits at every width', () => {
-  const dep = (scenario: InvariantContext['scenario'], cols: number, kids: unknown[]) =>
-    failed(view([row(...kids)]), { layout: 'departures', scenario, cols })
-  const wide = t(`5H ! 82% ${'x'.repeat(60)}`)
-  expect(dep('limit80', 50, [wide, toggle()])).not.toContain('width')
-  expect(dep('limit80', 60, [wide, toggle()])).toContain('width')
-  expect(dep('calm', 50, [wide, toggle()])).toContain('width')
-  expect(dep('limit80', 50, [toggle(), wide])).toContain('toggle')
+test('width: pulse and departures clip below 60 only where amber is raised, ▵ still last; calm fits at every width', () => {
+  for (const layout of ['pulse', 'departures'] as const) {
+    const dep = (scenario: InvariantContext['scenario'], cols: number, kids: unknown[]) =>
+      failed(view([row(...kids)]), { layout, scenario, cols })
+    const wide = t(`5H ! 82% ${'x'.repeat(60)}`)
+    expect(dep('limit80', 50, [wide, toggle()])).not.toContain('width')
+    expect(dep('limit80', 60, [wide, toggle()])).toContain('width')
+    expect(dep('calm', 50, [wide, toggle()])).toContain('width')
+    expect(dep('limit80', 50, [toggle(), wide])).toContain('toggle')
+  }
+})
+test('order: pulse and departures keep the one order on the collapsed row; chips its own', () => {
+  const box = (key: string): Node => ({ type: 'Box', props: { key }, children: [t(key)] }) as Node
+  const keyed = (...keys: string[]) => view([row(...keys.map(box), toggle())])
+  for (const layout of ['pulse', 'departures'] as const) {
+    expect(failed(keyed('cache', 'spend', 'context', '5h', '7d'), { layout })).not.toContain('order')
+    expect(failed(keyed('7d', 'cache'), { layout })).toContain('order')
+  }
+  expect(failed(keyed('7d', 'cache'))).not.toContain('order')
 })
 test("amber: a limit's marked short form names it", () => {
   const amber = (text: string, scenario: InvariantContext['scenario']) => failed(view([row(t(text), toggle())]), { scenario })

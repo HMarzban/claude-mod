@@ -80,7 +80,7 @@ test('every layout that says an empty state draws it in a label\'s ink', () => {
           })
         }
   expect(new Set(inks.map(i => i.split(' ')[0]))).toEqual(new Set(layouts))
-  // Not every phrase: 'not reported' was gauges' alone, and pulse says the rest.
-  expect(inks.length).toBeGreaterThan(0)
+  // Not every phrase: 'not reported' was gauges' alone; pulse says the costs'.
+  expect(inks.some(i => i.includes(EMPTY.costs))).toBe(true)
   expect(inks.filter(i => !i.endsWith(' label'))).toEqual([])
 })

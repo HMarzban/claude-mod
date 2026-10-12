@@ -241,8 +241,8 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
     if (n.type === 'Button' && n.props?.label === mark) toggles++
   })
   if (toggles !== 1) fail('toggle', `${toggles} ${mark} in the collapsed part`)
-  // Departures pins ▵ at the row's end, where a clipped row still shows it.
-  if (ctx.layout === 'departures') {
+  // Pulse and departures pin ▵ at the row's end, where a clipped row still shows it.
+  if (ctx.layout !== 'chips') {
     let last: Node | undefined
     walk(collapsed, n => {
       if (n.type === 'Text' || n.type === 'Button' || n.type === 'Svg') last = n
@@ -252,19 +252,17 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
 
   // Below 60 columns an amber reading's words may not fit beside the rest:
   // calm pieces go first, then amber turns short, and past that the row
-  // clips, ▵ pinned at its end (the old spec's §2.6). For chips and pulse
-  // that is all-amber, which lastMinute stands for; for departures any amber
-  // scenario, a calm one fitting at every width. On the terminal it fits the
-  // row less its slack, as each line is squeezed to; the desktop's estimate
-  // keeps the row's width, since pulse's costs hold its second row there.
-  // (Task 9 holds the rebuilt pulse to departures' rule, and to the one
-  // order below.)
-  const clipsByDesign = ctx.cols < 60 && (ctx.layout === 'departures' ? amber.some(r => !OPEN_ONLY.has(r)) : ctx.scenario === ALL_AMBER)
+  // clips, ▵ pinned at its end (the old spec's §2.6). For chips that is
+  // all-amber, which lastMinute stands for; for pulse and departures any
+  // scenario whose collapsed row is amber, a calm one fitting at every width.
+  // On the terminal it fits the row less its slack, as each line is squeezed
+  // to; the desktop's estimate keeps the row's width.
+  const clipsByDesign = ctx.cols < 60 && (ctx.layout !== 'chips' ? amber.some(r => !OPEN_ONLY.has(r)) : ctx.scenario === ALL_AMBER)
   const width = cellsOf(collapsed as RenderChildren, ctx.surface === 'desktop' ? DESKTOP : TERMINAL)
   const room = ctx.surface === 'terminal' ? ctx.cols - ROW_SLACK : ctx.cols
   if (!clipsByDesign && width > room) fail('width', `${width} columns at ${ctx.cols}`)
 
-  if (ctx.layout === 'departures') for (const e of orderErrors(collapsed, { has7d: hasSevenDay(ctx.scenario) })) errors.push(e)
+  if (ctx.layout !== 'chips') for (const e of orderErrors(collapsed, { has7d: hasSevenDay(ctx.scenario) })) errors.push(e)
 
   let nodes = 0
   const svgs: Node[] = []
