@@ -13,7 +13,7 @@ import type { CacheReading, ContextReading, LimitView, Readings, Tone } from '..
 import { PILL_LABELS } from '../words'
 import type { ReadingAmber, PillLabel, Say } from '../words'
 import type { Fact, Slots } from './cards'
-import { chipsPills, pillRow, shortAt } from './chips'
+import { LIMITS, chipsPills, pillRow, shortAt, type ChipKey } from './chips'
 import { ROLE_INK, accentOf, resetClause } from './parts'
 import type { PillSpec } from './parts'
 import { defineCardsView } from './view'
@@ -102,13 +102,14 @@ const ringsPills = (kit: Kit, read: Readings, squeeze: number): PillSpec[] => {
       case 'tokens':
         return [figure(read.spend.tokensText, palette.value), label(PILL_LABELS.tokens)]
     }
-    const l = spec.key === '5h' ? read.fiveHour : read.sevenDay
+    const key: ChipKey = spec.key === '5h' ? '5h' : '7d'
+    const l = key === '5h' ? read.fiveHour : read.sevenDay
     if (l === undefined) return spec.body
     // As the board draws it: the figure in value ink, then the window's name
     // in its accent, `0% 5h`; a passed window's words in its tint's ink.
     const name = l.key === '5h' ? palette.fiveText : palette.weekText
     const mark = l.amber === undefined && keeps(squeeze, 'limitBars') ? limitRing(kit, l, place) : null
-    if (l.passed) return [mark, <Text key="l" color={l.key === '5h' ? palette.fiveFg : palette.weekFg}>{l.text}</Text>]
+    if (l.passed) return [mark, <Text key="l" color={LIMITS[key].tint(palette).fg}>{l.text}</Text>]
     const { pace, reset } = limitTail(l, squeeze)
     // The pace and the reset are qualifiers, in label ink.
     const ink = onTone(l.tone, palette.label)

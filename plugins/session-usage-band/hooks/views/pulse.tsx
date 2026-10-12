@@ -16,7 +16,7 @@ import type { BandActions } from '../snapshot'
 import { EMPTY } from '../words'
 import type { Amber } from '../words'
 import type { Fact } from './cards'
-import { cachePill, contextHover, contextPill, costPill, limitPill, pillRow, type ChipKey } from './chips'
+import { LIMITS, cachePill, contextHover, contextPill, costPill, limitPill, pillRow, type ChipKey } from './chips'
 import { AMBER_STEP, beforeLast, fitLine, layoutCacheSpec, once, type Keeps, type PillSpec } from './parts'
 import { defineCardsView, type CardOptions } from './view'
 
@@ -145,10 +145,10 @@ const contextSpec = (kit: Kit, read: Readings, keeps: Keeps<Step>, short: boolea
   return keeps.has('calmContext') ? contextPill(kit, read, past(short ? 'shortWording' : 'contextMeter')) : undefined
 }
 
-/** Each limit's icon, the step its calm pill gives way at, and its mark's. */
-const LIMIT_STEPS: Readonly<Record<ChipKey, Readonly<{ icon: Icon; calm: Step; mark: Step }>>> = {
-  '5h': { icon: 'five', calm: 'calmFive', mark: 'trailChart' },
-  '7d': { icon: 'week', calm: 'calmWeek', mark: 'weekBar' },
+/** The step each limit's calm pill gives way at, and its mark's. */
+const LIMIT_STEPS: Readonly<Record<ChipKey, Readonly<{ calm: Step; mark: Step }>>> = {
+  '5h': { calm: 'calmFive', mark: 'trailChart' },
+  '7d': { calm: 'calmWeek', mark: 'weekBar' },
 }
 
 /** A limit: chips' chip with `mark` in its bar's place, the bar itself when
@@ -158,7 +158,7 @@ const limitSpec = (kit: Kit, read: Readings, keeps: Keeps<Step>, short: boolean,
   const steps = LIMIT_STEPS[key]
   const chip = limitPill(kit, read, key, past(keeps.has(steps.mark) ? 'fiveReset' : 'limitBars'), short, mark ?? undefined)
   if (chip === undefined || w?.amber === undefined) return keeps.has(steps.calm) ? chip : undefined
-  return amberSpec(kit, chip, steps.icon, w.amber, keeps, keeps.has('amberChart') ? mark : null)
+  return amberSpec(kit, chip, LIMITS[key].icon, w.amber, keeps, keeps.has('amberChart') ? mark : null)
 }
 
 /** Pulse's one row, fitted to its width: amber first, then the cache, the

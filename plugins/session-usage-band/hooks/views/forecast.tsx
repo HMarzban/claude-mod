@@ -10,7 +10,7 @@ import type { LimitKey, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import type { Ahead, Amber } from '../words'
 import type { Fact, Slots } from './cards'
-import { cacheHover, contextHover, limitHover, pillRow, type ChipKey } from './chips'
+import { LIMITS, cacheHover, contextHover, limitHover, pillRow, type ChipKey } from './chips'
 import { AMBER_STEP, ROLE_INK, batteryIcon, beforeLast, fitLine, type Keeps, type PillSpec } from './parts'
 import { defineCardsView, type CardOptions } from './view'
 
@@ -57,8 +57,8 @@ const limitChange = (kit: Kit, read: Readings, key: ChipKey): Change[] => {
   const { palette, onTone, icon } = kit
   const l = key === '5h' ? read.fiveHour : read.sevenDay
   if (l === undefined) return []
-  const [tint, bg, fg, accent] =
-    key === '5h' ? (['five', palette.fiveBg, palette.fiveFg, palette.fiveAccent] as const) : (['week', palette.weekBg, palette.weekFg, palette.weekAccent] as const)
+  const spec = LIMITS[key]
+  const t = spec.tint(palette)
   const [figure, tail] = l.fillAt === undefined ? (['reset', 'pace'] as const) : (['pace', 'reset'] as const)
   // A measured fill's amber says the pace, long and short.
   const amberSays = l.fullIn === undefined ? undefined : 'pace'
@@ -71,9 +71,9 @@ const limitChange = (kit: Kit, read: Readings, key: ChipKey): Change[] => {
       ahead: l.ahead,
       amber: l.amber,
       inMs: l.fillInMs ?? l.resetInMs,
-      mark: icon(tint, onTone(l.tone, accent)),
-      name: { text: l.name, ink: fg },
-      bg,
+      mark: icon(spec.icon, onTone(l.tone, t.accent)),
+      name: { text: l.name, ink: t.fg },
+      bg: t.bg,
       tail: 'limitTails',
       calm: key === '5h' ? 'calmFive' : 'calmSeven',
       amberTail: {

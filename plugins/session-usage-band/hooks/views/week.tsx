@@ -9,7 +9,7 @@ import type { Kit } from '../kit'
 import { GIVES_WAY, ROW_SLACK, SHORT_BELOW } from '../layout'
 import type { LimitView, Readings, SliceRow } from '../reading'
 import { WEEK, type Say } from '../words'
-import { cachePill, contextHover, costPill, limitPill, pillRow, tokensPill, type ChipKey } from './chips'
+import { LIMITS, cachePill, contextHover, costPill, limitPill, pillRow, tokensPill, type ChipKey } from './chips'
 import { accentOf, beforeLast, fitLine, layoutCacheSpec, once, resetClause, type Keeps, type PillSpec } from './parts'
 import { defineCardsView, type CardOptions } from './view'
 
@@ -77,10 +77,11 @@ const builtOf = (kit: Kit, read: Readings): Built => {
 const limitSpec = (kit: Kit, read: Readings, built: Built, l: LimitView, keeps: Keeps<Piece>): PillSpec | undefined => {
   const { Text, Svg, palette, onTone, icon } = kit
   const seven = l.key === '7d'
-  const chip = built.chip[seven ? '7d' : '5h']()
+  const key: ChipKey = seven ? '7d' : '5h'
+  const chip = built.chip[key]()
   if (chip === undefined || l.passed) return chip
   const amber = l.amber
-  const fg = onTone(l.tone, seven ? palette.weekFg : palette.fiveFg)
+  const fg = onTone(l.tone, LIMITS[key].tint(palette).fg)
   const wk = read.week
   const cells = seven && wk.days.length > 0 && (amber === undefined ? keeps.has('weekCells') : beforeLast(keeps))
   const pace = seven && keeps.has('weekPace') ? wk.fullDay : undefined
@@ -92,7 +93,7 @@ const limitSpec = (kit: Kit, read: Readings, built: Built, l: LimitView, keeps: 
   const before = cells && !Svg ? ' ' : ''
   const named =
     amber === undefined
-      ? [...icon(seven ? 'week' : 'five', onTone(l.tone, accentOf(kit, l))), <Text key="l" color={fg}>{`${l.name}${before}`}</Text>]
+      ? [...icon(LIMITS[key].icon, onTone(l.tone, accentOf(kit, l))), <Text key="l" color={fg}>{`${l.name}${before}`}</Text>]
       : [<Text key="a" color={palette.amberFg}>{`${keeps.amber(amber)}${before}`}</Text>]
   return {
     ...chip,

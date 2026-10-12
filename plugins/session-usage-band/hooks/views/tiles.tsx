@@ -11,7 +11,7 @@ import type { BarSize } from '../layout'
 import type { CacheReading, ContextReading, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import type { ReadingAmber, Say } from '../words'
-import { limitTint, pillRow, type ChipKey } from './chips'
+import { LIMITS, pillRow, type ChipKey } from './chips'
 import { GLYPH } from '../icons'
 import { accentOf, amberFirst, batteryMark, fitLine, words, type Keeps, type PillSpec } from './parts'
 import { defineCardsView, type CardOptions } from './view'
@@ -99,7 +99,7 @@ const limitMark = (kit: Kit, l: LimitView, size: BarSize, ground: string): Rende
  *  clock time. On the desktop ↻ goes first, then the reset whole. */
 const limitTile = (kit: Kit, l: LimitView, key: ChipKey): Tile => {
   const { Svg, palette, onTone } = kit
-  const bg = limitTint(palette, key).bg
+  const { bg } = LIMITS[key].tint(palette)
   const name = nameOf(l.amber, [l.name, key === '5h' ? 'accent5' : 'accent7'])
   const named = words(kit, 'label', [name])
   const when = l.resetSaid
