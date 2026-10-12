@@ -5,7 +5,7 @@ import { snapOf } from './matrix'
 
 const T = Date.UTC(2026, 9, 9, 12)
 test('the host zone is east-positive minutes, as the clock reports each instant', () => {
-  expect(hostZone(T)).toBe(-new Date(T).getTimezoneOffset())
+  expect(hostZone(T)).toBe(0 - new Date(T).getTimezoneOffset())
 })
 test('a clock at UTC reads +0, never -0', () => {
   expect(Object.is(zoneOf(() => 0)(T), 0)).toBe(true)
