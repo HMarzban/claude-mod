@@ -40,3 +40,6 @@ test('boardRoom: the tiles a board row holds, at an 11 px pitch on the desktop, 
   expect(boardRoom(kit('terminal'))).toBe(114)
   expect(boardRoom(kit('desktop'))).toBe(103)
 })
+test("boardRoom: plain brackets each of a line's four runs, so its room is 8 fewer", () => {
+  expect(boardRoom(makeKit(fakeEl, snapOf({ surface: 'terminal', columns: 120, palette: PLAIN })))).toBe(106)
+})

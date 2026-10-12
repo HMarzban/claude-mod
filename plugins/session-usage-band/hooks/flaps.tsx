@@ -18,12 +18,15 @@ const tilesOf = (runs: readonly Run[]): Array<readonly [string, string]> =>
 
 /** The columns a board's paddingX takes, either side. */
 const BOARD_PAD = 2
+/** The runs on a board line, which plain brackets two columns each. */
+const BOARD_RUNS = 4
 /** The tiles a board row holds: its columns less the row's slack and the
  *  board's padding; on the desktop at a tile's pitch, 11 px against a 10 px
- *  column, in a terminal a cell each. */
+ *  column, in a terminal a cell each, less plain's brackets. */
 export const boardRoom = (kit: Kit): number => {
   const columns = kit.columns - ROW_SLACK - BOARD_PAD
-  return kit.Svg ? Math.floor((columns * kit.measure.pxPerCell) / (TILE_PX + TILE_GAP)) : columns
+  if (kit.Svg) return Math.floor((columns * kit.measure.pxPerCell) / (TILE_PX + TILE_GAP))
+  return kit.palette.filled ? columns : Math.max(0, columns - 2 * BOARD_RUNS)
 }
 
 /** The px the runs' tiles take: a flaps Svg's width. */

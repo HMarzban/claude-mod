@@ -16,9 +16,10 @@ import { beforeLast, fitLine, line, type Keeps } from './parts'
 import type { View } from './view'
 
 /** What gives way as the row narrows, first to last (spec §5.2), calm only:
- *  amber words shorten last of all, at the step fitLine appends. 5H goes
- *  after its remark, before the short forms, so at 40 columns the row is
- *  CACHE and 7D alone. CACHE and 7D never go. */
+ *  5h's ↻, 7d's ↻, SPEND, CONTEXT, 5h's remark, then 5H itself, so at 40
+ *  columns the row is CACHE and 7D alone, then the short forms. An amber
+ *  reading keeps its whole cell, ↻ too, until fitLine's amber step, last of
+ *  all. CACHE and 7D never go. */
 const ORDER = ['reset5h', 'reset7d', 'spend', 'context', 'remark5h', 'five', 'long'] as const
 type Piece = (typeof ORDER)[number]
 
@@ -33,15 +34,15 @@ const group = (kit: Kit, row: BoardRow, cell: string): RenderElement => {
   )
 }
 
-/** A row's cell as the squeeze keeps it, chosen among its forms, never cut:
- *  a limit's reset while its step holds, then its remark, then its value; any
- *  other reading's long form, then its short. An amber cell keeps its words
- *  until the amber step. */
+/** A row's cell as the squeeze keeps it, chosen among its forms, never cut.
+ *  Amber: whole until the amber step, then short. A calm limit: its reset
+ *  while its step holds, then its remark (5h's until its own step, 7d's
+ *  until the short forms), then its value. Any other: long, then short. */
 const cellOf = (row: BoardRow, k: Keeps<Piece>): string => {
-  const long = row.tone === 'amber' ? beforeLast(k) : k.has('long')
-  if (row.key !== '5h' && row.key !== '7d') return long ? row.cell : row.cellShort
+  if (row.tone === 'amber') return beforeLast(k) ? row.cell : row.cellShort
+  if (row.key !== '5h' && row.key !== '7d') return k.has('long') ? row.cell : row.cellShort
   if (k.has(row.key === '5h' ? 'reset5h' : 'reset7d')) return row.cell
-  return long || (row.key === '5h' && k.has('remark5h')) ? (row.cellNoReset ?? row.cell) : row.cellShort
+  return k.has(row.key === '5h' ? 'remark5h' : 'long') ? (row.cellNoReset ?? row.cell) : row.cellShort
 }
 
 /** Whether a reading keeps its group at a squeeze: an amber one always; the

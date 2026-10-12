@@ -51,9 +51,10 @@ const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
   cacheLastMinute: /! \d+s( left)?|! last call|! cooling( ·|,) \d+s left|! cache\W*\d+s|\d+s ?! cache|CACHE\W*(LAST CALL \d+S|! \d+S)/,
   nearCompaction: /! context\W*\d+%|! ctx\W*\d+%|\d+% ?! context|CONTEXT\W*! (COMPACTS IN ~\d+K|CONTEXT \d+%)/,
   contextNoCompaction: /! context\W*\d+%|! ctx\W*\d+%|\d+% ?! context|CONTEXT\W*! CONTEXT \d+%/,
-  // The board's short form keeps the mark and the value: `5H ! 82%`.
-  limit80: /! (last call [·-] )?5h|5H\W*\d+%[^!]*! (NEAR LIMIT|FULL ~\d\d:\d\d|FULL IN ~)|5H\W*! \d+%/,
-  fiveHourAhead: /! (last call [·-] )?5h|5H\W*\d+%[^!]*! FULL (~\d\d:\d\d|IN ~)|5H\W*! \d+%/,
+  // The board's short form keeps the mark and the value: `5H ! 82%`. The
+  // span after 5h's value stops at 7D's group, so 7D's amber is never 5h's.
+  limit80: /! (last call [·-] )?5h|5H\W*\d+%(?:(?!7D)[^!])*! (NEAR LIMIT|FULL ~\d\d:\d\d|FULL IN ~)|5H\W*! \d+%/,
+  fiveHourAhead: /! (last call [·-] )?5h|5H\W*\d+%(?:(?!7D)[^!])*! FULL (~\d\d:\d\d|IN ~)|5H\W*! \d+%/,
   // The board's row for it, open only: its name, then its status.
   otherLimit80: /! spend \d+%|spend \d+%!|SPEND LIMIT\W*! (NEAR LIMIT|\d+%)/,
 }
@@ -258,7 +259,7 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   // keeps the row's width, since pulse's costs hold its second row there.
   // (Task 9 holds the rebuilt pulse to departures' rule, and to the one
   // order below.)
-  const clipsByDesign = ctx.cols < 60 && (ctx.layout === 'departures' ? amber.length > 0 : ctx.scenario === ALL_AMBER)
+  const clipsByDesign = ctx.cols < 60 && (ctx.layout === 'departures' ? amber.some(r => !OPEN_ONLY.has(r)) : ctx.scenario === ALL_AMBER)
   const width = cellsOf(collapsed as RenderChildren, ctx.surface === 'desktop' ? DESKTOP : TERMINAL)
   const room = ctx.surface === 'terminal' ? ctx.cols - ROW_SLACK : ctx.cols
   if (!clipsByDesign && width > room) fail('width', `${width} columns at ${ctx.cols}`)

@@ -867,30 +867,42 @@ export const BOARD_HEADINGS: BoardText = { item: 'ITEM', status: 'STATUS', time:
 /** The headings' flaps' alt. */
 export const BOARD_HEADINGS_ALT = 'the board\'s columns: item, status, time and remarks'
 
+/** The longest of the rows' texts, plus one for the air after it. */
+const widestOf = (rows: readonly BoardText[], of: (r: BoardText) => string): number => Math.max(0, ...rows.map(r => of(r).length)) + 1
+
 /** The board's columns in characters: ITEM, STATUS and TIME each as wide as
  *  its longest text among `rows`, plus one; REMARKS what is left of `room`. */
 export const boardColumns = (rows: readonly BoardText[], room: number): Readonly<{ item: number; status: number; time: number; remarks: number }> => {
-  const widest = (of: (r: BoardText) => string): number => Math.max(0, ...rows.map(r => of(r).length)) + 1
-  const item = widest(r => r.item)
-  const status = widest(r => r.status)
-  const time = widest(r => r.time)
+  const item = widestOf(rows, r => r.item)
+  const status = widestOf(rows, r => r.status)
+  const time = widestOf(rows, r => r.time)
   return { item, status, time, remarks: Math.max(0, room - item - status - time) }
 }
 
-/** The blank tiles between a board line's four runs. */
-const RUN_GAPS = 3
+/** A board line's runs: TIME none once its words lead REMARKS. */
+export type BoardLine = Readonly<{ item: string; status: string; time: string | undefined; remarks: string }>
+
 /** REMARKS narrower than this, and TIME's words lead them instead. */
 const REMARKS_LEAST = 8
 
-/** The board's lines in `room` tiles: each line's ITEM, STATUS and TIME
- *  padded to their columns and its REMARKS cut to theirs, the blanks between
- *  the runs taken from the room. Where REMARKS would have fewer than 8,
- *  TIME's words lead them and TIME says `-` (spec §5.3). */
-export const boardLines = (rows: readonly BoardText[], room: number): ReadonlyArray<readonly [string, string, string, string]> => {
+/** `text` cut to `n` characters, `…` last, then padded to them. */
+const fitTo = (text: string, n: number): string => padTo(remarksFit(text, n), n)
+
+/** The board's lines in `room` tiles, a blank tile between runs taken from
+ *  it: ITEM, STATUS and TIME padded to their columns, REMARKS cut to theirs.
+ *  Where REMARKS would have fewer than 8, TIME's words lead them and the
+ *  TIME column goes (spec §5.3); past that, STATUS is cut, then ITEM, so no
+ *  line is longer than the room. */
+export const boardLines = (rows: readonly BoardText[], room: number): readonly BoardLine[] => {
+  const whole = boardColumns(rows, room - 3)
+  if (whole.remarks >= REMARKS_LEAST)
+    return rows.map(r => ({ item: padTo(r.item, whole.item), status: padTo(r.status, whole.status), time: padTo(r.time, whole.time), remarks: remarksFit(r.remarks, whole.remarks) }))
   const lead = (r: BoardText): BoardText =>
-    r === BOARD_HEADINGS || r.time === NONE ? r : { ...r, time: NONE, remarks: r.remarks === '' ? r.time : `${r.time} · ${r.remarks}` }
-  const whole = boardColumns(rows, room - RUN_GAPS)
-  const lines = whole.remarks < REMARKS_LEAST ? rows.map(lead) : rows
-  const cols = lines === rows ? whole : boardColumns(lines, room - RUN_GAPS)
-  return lines.map(r => [padTo(r.item, cols.item), padTo(r.status, cols.status), padTo(r.time, cols.time), remarksFit(r.remarks, cols.remarks)] as const)
+    r === BOARD_HEADINGS || r.time === NONE ? r : { ...r, remarks: r.remarks === '' ? r.time : `${r.time} · ${r.remarks}` }
+  const lines = rows.map(lead)
+  const inner = Math.max(0, room - 2)
+  const item = Math.min(widestOf(lines, r => r.item), inner)
+  const status = Math.min(widestOf(lines, r => r.status), inner - item)
+  const remarks = inner - item - status
+  return lines.map(r => ({ item: fitTo(r.item, item), status: fitTo(r.status, status), time: undefined, remarks: remarksFit(r.remarks, remarks) }))
 }

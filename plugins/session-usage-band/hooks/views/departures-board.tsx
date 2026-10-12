@@ -10,7 +10,7 @@ import type { Kit } from '../kit'
 import type { Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import type { Palette } from '../palette'
-import { BOARD_HEADINGS, BOARD_HEADINGS_ALT, boardLines, remarksFit, type BoardKey, type BoardRow } from '../words'
+import { BOARD_HEADINGS, BOARD_HEADINGS_ALT, boardLines, remarksFit, type BoardKey, type BoardLine, type BoardRow } from '../words'
 import { bodyRowsFor, footer } from './frame'
 
 /** Each reading's ITEM ink: its own, as an airline's code has its colour. */
@@ -23,30 +23,29 @@ export const ITEM_INK: Readonly<Record<BoardKey, Exclude<keyof Palette, 'filled'
  *  an amber reading's line stays, as chips' cards leave their alert. */
 const GIVE_WAY: ReadonlyArray<readonly string[]> = [['other'], ['headings'], ['spend'], ['context'], ['header'], ['5h'], ['cache', '7d']]
 
+/** A line's runs in their inks, each it says: ITEM always; STATUS, TIME
+ *  and REMARKS while they hold words. */
+const runsOf = (line: BoardLine | undefined, inks: Readonly<{ item: string; status: string; time: string; remarks: string }>): ReadonlyArray<readonly [string, string]> => [
+  [line?.item ?? '', inks.item],
+  ...(line === undefined || line.status === '' ? [] : [[line.status, inks.status] as const]),
+  ...(line?.time === undefined ? [] : [[line.time, inks.time] as const]),
+  ...(line === undefined || line.remarks === '' ? [] : [[line.remarks, inks.remarks] as const]),
+]
+
 /** A reading's line: its ITEM in its own ink, STATUS amber where the
  *  reading is, TIME, then REMARKS dimmed. */
-const rowLine = (kit: Kit, row: BoardRow, key: string, texts: readonly string[]): RenderElement => {
-  const { Box, palette } = kit
-  const [item = '', status = '', time = '', remarks = ''] = texts
-  const runs: ReadonlyArray<readonly [string, string]> = [
-    [item, palette[ITEM_INK[row.key]]],
-    [status, row.tone === 'amber' ? palette.flapAmber : palette.flapText],
-    [time, palette.flapText],
-    ...(remarks === '' ? [] : [[remarks, palette.flapDim] as const]),
-  ]
-  return (
-    <Box key={key} flexShrink={0}>
-      {flaps(kit, { key: 'flaps', alt: row.alt, runs, bg: palette.flapBg, seam: palette.flapSeam })}
-    </Box>
-  )
+const rowLine = (kit: Kit, row: BoardRow, key: string, line: BoardLine | undefined): RenderElement => {
+  const { palette } = kit
+  const inks = { item: palette[ITEM_INK[row.key]], status: row.tone === 'amber' ? palette.flapAmber : palette.flapText, time: palette.flapText, remarks: palette.flapDim }
+  return flapLine(kit, key, row.alt, runsOf(line, inks))
 }
 
-/** A line of one dim run: the header's facts, or the headings. */
-const dimLine = (kit: Kit, key: string, alt: string, texts: readonly string[]): RenderElement => {
+/** A line of flaps, kept whole on its row. */
+const flapLine = (kit: Kit, key: string, alt: string, runs: ReadonlyArray<readonly [string, string]>): RenderElement => {
   const { Box, palette } = kit
   return (
     <Box key={key} flexShrink={0}>
-      {flaps(kit, { key: 'flaps', alt, runs: texts.map(t => [t, palette.flapDim] as const), bg: palette.flapBg, seam: palette.flapSeam })}
+      {flaps(kit, { key: 'flaps', alt, runs, bg: palette.flapBg, seam: palette.flapSeam })}
     </Box>
   )
 }
@@ -86,15 +85,16 @@ const board = (kit: Kit, read: Readings): RenderElement | null => {
   const room = boardRoom(kit)
   const withHeadings = shown.some(l => l.name === 'headings')
   const rows = shown.flatMap(l => (l.row === undefined ? [] : [l.row]))
-  const texts = boardLines(withHeadings ? [BOARD_HEADINGS, ...rows] : rows, room)
-  const textOf = (row: BoardRow): readonly string[] => texts[(withHeadings ? 1 : 0) + rows.indexOf(row)] ?? []
+  const lines = boardLines(withHeadings ? [BOARD_HEADINGS, ...rows] : rows, room)
+  const lineOf = (row: BoardRow): BoardLine | undefined => lines[(withHeadings ? 1 : 0) + rows.indexOf(row)]
+  const dim = palette.flapDim
   const { header = [], headerAlt = '' } = read.board
   return (
     <Box key="board" flexDirection="column" marginTop={1} paddingX={1} backgroundColor={palette.filled ? palette.boardBg : undefined}>
       {shown.map(l =>
-        l.row !== undefined ? rowLine(kit, l.row, l.key, textOf(l.row))
-        : l.name === 'header' ? dimLine(kit, l.key, headerAlt, [remarksFit(header.join('   '), room)])
-        : dimLine(kit, l.key, BOARD_HEADINGS_ALT, texts[0] ?? []))}
+        l.row !== undefined ? rowLine(kit, l.row, l.key, lineOf(l.row))
+        : l.name === 'header' ? flapLine(kit, l.key, headerAlt, [[remarksFit(header.join('   '), room), dim]])
+        : flapLine(kit, l.key, BOARD_HEADINGS_ALT, runsOf(lines[0], { item: dim, status: dim, time: dim, remarks: dim })))}
     </Box>
   )
 }

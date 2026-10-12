@@ -229,3 +229,14 @@ test("amber: a limit's marked short form names it", () => {
   expect(open('SPEND LIMIT ! 92%')).not.toContain('amber')
   expect(open('SPEND LIMIT  ! NEAR LIMIT  05:00')).not.toContain('amber')
 })
+test('width: an open-only amber leaves the collapsed row calm, so departures is width-checked below 60', () => {
+  const dep = (cols: number, text: string) => failed(view([row(t(text), toggle())]), { layout: 'departures', scenario: 'gatewaySpend', cols })
+  expect(dep(50, 'x'.repeat(60))).toContain('width')
+  expect(dep(50, 'x'.repeat(40))).not.toContain('width')
+})
+test("amber: a calm 5H beside an amber 7D is not the 5h's amber", () => {
+  const said = (text: string) => failed(view([row(t(text), toggle())]), { scenario: 'limit80' })
+  expect(said('5H 26% ↻ 17:50  7D 85% ↻ SAT 13:30 ! NEAR LIMIT')).toContain('amber')
+  expect(said('5H26% ↻ 17:507D85% ! FULL IN ~2H')).toContain('amber')
+  expect(said('5H 82% ↻ 17:50 ! NEAR LIMIT  7D 30%')).not.toContain('amber')
+})

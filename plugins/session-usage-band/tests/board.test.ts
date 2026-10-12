@@ -94,15 +94,28 @@ test("boardLines: each row's four runs padded to their columns, three blank tile
     ({ key: 'cache', item, status, time, remarks, cell: '', cellShort: '', tone: 'calm', alt: '' })
   const rows = [at('CACHE', 'DEPARTS', '17:24', 'IN 38 MIN · RE-WARM ~$0.57 IF MISSED'), at('5H', '26%', 'SAT 13:30', 'ON PACE ~33%')]
   expect(boardLines(rows, 63)).toEqual([
-    ['CACHE ', 'DEPARTS ', '17:24     ', 'IN 38 MIN · RE-WARM ~$0.57 IF MISSED'],
-    ['5H    ', '26%     ', 'SAT 13:30 ', 'ON PACE ~33%'],
+    { item: 'CACHE ', status: 'DEPARTS ', time: '17:24     ', remarks: 'IN 38 MIN · RE-WARM ~$0.57 IF MISSED' },
+    { item: '5H    ', status: '26%     ', time: 'SAT 13:30 ', remarks: 'ON PACE ~33%' },
   ])
-  // REMARKS of fewer than 8 tiles: TIME's words lead them, and TIME is -.
+  // REMARKS of fewer than 8 tiles: TIME's words lead them, and the TIME
+  // column, headings and all, goes.
   const narrow = boardLines([BOARD_HEADINGS, ...rows], 34)
-  expect(narrow[1]?.[2]?.trim()).toBe('-')
-  expect(narrow[1]?.[3]).toMatch(/^17:24 · IN/)
-  expect(narrow[0]?.slice(0, 3).map(s => s.trim())).toEqual(['ITEM', 'STATUS', 'TIME'])
-  for (const line of narrow) expect(line.join(' ').length).toBeLessThanOrEqual(34)
+  expect(narrow.map(l => l.time)).toEqual([undefined, undefined, undefined])
+  expect(narrow[1]?.remarks).toMatch(/^17:24 · IN/)
+  expect(narrow[0]?.remarks).toBe('REMARKS')
+  for (const l of narrow) expect([l.item, l.status, l.remarks].join(' ').length).toBeLessThanOrEqual(34)
+})
+test('boardLines: past folding TIME, a STATUS too long for the room is cut, so no line overflows', () => {
+  const at = (item: string, status: string, time: string, remarks: string): BoardRow =>
+    ({ key: 'context', item, status, time, remarks, cell: '', cellShort: '', tone: 'amber', alt: '' })
+  const rows = [BOARD_HEADINGS, at('CONTEXT', '! COMPACTS IN ~10K', '-', '~24K LEFT · COMPACTS AT 190K')]
+  for (const room of [10, 20, 26, 34]) {
+    for (const l of boardLines(rows, room)) {
+      const runs = [l.item, l.status, ...(l.time === undefined ? [] : [l.time]), l.remarks].filter(r => r !== '')
+      expect(`${room} ${runs.join(' ').length <= room}`).toBe(`${room} true`)
+    }
+  }
+  expect(boardLines(rows, 34)[1]?.status.trim()).toBe('! COMPACTS IN ~10K')
 })
 test("an amber limit's short form keeps its mark: ! and its value; a calm one its value alone", () => {
   expect(row({ fiveHour: limit(82, 3) }, '5h')?.cellShort).toBe('! 82%')

@@ -2,7 +2,7 @@ import type { RenderChildren } from 'claude-code'
 import { test, expect } from 'claude-code/testing'
 import { drawBand } from '../hooks/band'
 import { fixedZone } from '../hooks/format'
-import { ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
+import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK, LIGHT, PLAIN } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { withLimits } from './cases'
@@ -55,7 +55,8 @@ test('an unknown zone: no clock time on the row or the board', () => {
 })
 test('open: the workspace header, ITEM STATUS TIME REMARKS, the rows in order, the footer off the board', () => {
   const open = band({ surface: 'terminal', expanded: true, workspace: WS })
-  const text = words(open)
+  // The board's own words: the collapsed row above it is already in order.
+  const text = words(byKey(open, 'board', 'Box'))
   expect(text).toMatch(/CLAUDE-MOD\s*MAIN\s*CLEAN/)
   expect(text).toMatch(/ITEM\s*STATUS\s*TIME\s*REMARKS/)
   expect(text).toMatch(/CACHE[\s\S]*SPEND[\s\S]*CONTEXT[\s\S]*5H[\s\S]*7D/)
@@ -84,4 +85,46 @@ test('open: as rows run out, the board gives way in the spec order and the foote
     gone = Math.max(gone, first === -1 ? ORDER.length : first)
     expect(present.slice(gone).every(Boolean) || present.every(p => !p)).toBe(true)
   }
+})
+
+/** A reading's group on the collapsed row, as its words read. */
+const groupOf = (row: unknown, key: string) => words(byKey(row, key, 'Box')).trim()
+/** The calm row at each width, widest first: spec §3's scenario, 7D amber at 85%. */
+const NARROWING = Array.from({ length: 121 }, (_, i) => 160 - i)
+
+test("a calm 5H's remark gives way before 5H does: there is a width where it reads 5H 26% alone", () => {
+  const forms = NARROWING.map(columns => groupOf(firstRow(band({ surface: 'terminal', columns })), '5h'))
+  expect(forms.some(f => /↻/.test(f))).toBe(true)
+  expect(forms.some(f => /ON PACE/.test(f) && !/↻/.test(f))).toBe(true)
+  expect(forms).toContain('5H26%')
+})
+test("an amber limit keeps its ↻ while calm pieces give way, until the amber step", () => {
+  let dropping = 0
+  for (const columns of NARROWING) {
+    const row = firstRow(band({ surface: 'terminal', columns }))
+    const five = groupOf(row, '5h')
+    // 5H still drawn: the amber step, which comes after it goes, is not reached.
+    if (five === '') continue
+    if (!/↻/.test(five)) dropping++
+    expect(`${columns} ${groupOf(row, '7d')}`).toMatch(/↻/)
+  }
+  expect(dropping).toBeGreaterThan(0)
+})
+test("every board line fits the board's room: 40, 80 and 200 columns, dark and plain, calm and amber", () => {
+  const NEAR = { tokens: 176_000, window: 200_000, percent: 88, compactAt: 190_000, autoCompactOff: false }
+  const amber = { context: NEAR, cache: { ...snapOf().cache, msLeft: 40_000, ttl: '5m' as const } }
+  for (const surface of ['terminal', 'desktop'] as const)
+    for (const columns of [40, 80, 200])
+      for (const palette of [DARK, PLAIN])
+        for (const over of [{}, amber]) {
+          const open = band({ surface, columns, palette, expanded: true, workspace: WS, otherLimits: OTHER, maxRows: 40, ...over })
+          const board = byKey(open, 'board', 'Box')
+          const lines = (board?.children ?? []) as Node[]
+          expect(lines.length).toBeGreaterThan(0)
+          for (const l of lines) {
+            const cells = cellsOf(l as unknown as RenderChildren, surface === 'desktop' ? DESKTOP : TERMINAL)
+            expect(`${surface} ${columns} ${palette.filled ? 'filled' : 'plain'} ${l.props?.key} ${cells <= columns - ROW_SLACK - 2}`)
+              .toBe(`${surface} ${columns} ${palette.filled ? 'filled' : 'plain'} ${l.props?.key} true`)
+          }
+        }
 })
