@@ -6,7 +6,7 @@ import type { RenderChildren } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
 import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, byKey, firstRow, shown, svgsOf, walk, type Node } from './helpers'
 import type { Ttl } from '../hooks/cache'
-import { DESKTOP, ROW_PX, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
+import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
 import type { BandActions, BandSnapshot, Glyphs, LayoutName } from '../hooks/snapshot'
 import { VIEWS } from '../hooks/views/index'
@@ -55,6 +55,8 @@ export const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
 /** Amber the collapsed part never shows: other limits are drawn only open (spec §2.7). */
 const OPEN_ONLY: ReadonlySet<AmberReason> = new Set(['otherLimit80'])
 
+/** A row's height on the desktop. */
+const ROW_PX = 24
 
 /** Height in lines (terminal) or px (desktop): a Text or Button is a row, an
  *  Svg its height (none on the terminal), a column sums with its gaps, a row

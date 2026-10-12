@@ -2,7 +2,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import { DARK } from '../hooks/palette'
-import { cellsOf, ROW_PX, TERMINAL } from '../hooks/layout'
+import { cellsOf, TERMINAL } from '../hooks/layout'
 import {
   LONG,
   USAGE,
@@ -240,5 +240,4 @@ test('a column Box is as wide as its widest row', () => {
     ],
   }
   expect(cellsOf(col as never, TERMINAL)).toBe(6)
-  expect(ROW_PX).toBe(24)
 })
