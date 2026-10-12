@@ -98,8 +98,8 @@ A stack of full-width bands laid out as a grid: every band's chart at one width,
   1. `otherLimits`;
   2. the Context band;
   3. Limits to 2 rows;
-  4. Limits to one row of words;
-  5. Spend to one row of words;
+  4. Limits to one row, its charts a row tall (or none where it has no readings);
+  5. Spend to one row, its chart a row tall;
   6. the Cache band;
   7. the body, leaving the footer alone.
 - **Terminal:** the same bands as braille beside their words, one or two lines each.
@@ -148,13 +148,15 @@ CACHE DEPARTS 17:24  SPEND $0.24  CONTEXT 8%  5H 26% RESET 17:50  7D 85% RESET S
 | A limit | The value, then `RESET 17:50` (the flap face has no `↻`), then one remark. An amber remark replaces a calm one, and `RESET` stays: `! NEAR LIMIT` (80%), or for 5h, `! FULL ~14:20` (the pace fills; `! FULL IN ~40 MIN` with the zone unknown). | `5H 26%` |
 | A passed reset | `RESET PASSED` | the value |
 
-- **Give-way, calm only, first to last:**
+- **Give-way, calm only, first to last** (readings outrank calm remarks):
   1. 5h's `RESET`;
   2. 7d's `RESET`;
-  3. SPEND;
-  4. CONTEXT;
-  5. 5h's remark;
-  6. the short forms.
+  3. 5h's remark;
+  4. 7d's remark;
+  5. SPEND;
+  6. CONTEXT;
+  7. 5H;
+  8. the short forms.
   - CACHE and 7D never go.
   - Below 60 columns, departures draws chips.
 - **Zone unknown:** every clock time becomes a countdown, `IN 38 MIN` and `RESET IN 1H 04M`, as the earlier spec's §2.12 allows on the board.

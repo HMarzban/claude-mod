@@ -16,11 +16,11 @@ import { beforeLast, fitLine, line, type Keeps } from './parts'
 import type { View } from './view'
 
 /** What gives way as the row narrows, first to last (spec §5.2), calm only:
- *  5h's ↻, 7d's ↻, SPEND, CONTEXT, 5h's remark, then 5H itself, so the
- *  narrowest row is CACHE and 7D alone, then the short forms. An amber
- *  reading keeps its whole cell, ↻ too, until fitLine's amber step, last of
- *  all. CACHE and 7D never go. */
-const ORDER = ['reset5h', 'reset7d', 'spend', 'context', 'remark5h', 'five', 'long'] as const
+ *  readings outrank calm remarks. 5h's RESET, 7d's RESET, 5h's remark, 7d's
+ *  remark, SPEND, CONTEXT, then 5H itself, so the narrowest row is CACHE and
+ *  7D alone, then the short forms. An amber reading keeps its whole cell,
+ *  RESET too, until fitLine's amber step, last of all. CACHE and 7D never go. */
+const ORDER = ['reset5h', 'reset7d', 'remark5h', 'remark7d', 'spend', 'context', 'five', 'long'] as const
 type Piece = (typeof ORDER)[number]
 
 /** A reading as one group of tiles: its ITEM, then its cell. */
@@ -36,13 +36,13 @@ const group = (kit: Kit, row: BoardRow, cell: string): RenderElement => {
 
 /** A row's cell as the squeeze keeps it, chosen among its forms, never cut.
  *  Amber: whole until the amber step, then short. A calm limit: its reset
- *  while its step holds, then its remark (5h's until its own step, 7d's
- *  until the short forms), then its value. Any other: long, then short. */
+ *  while its step holds, then its remark while its own step holds, then its
+ *  value. Any other: long, then short. */
 const cellOf = (row: BoardRow, k: Keeps<Piece>): string => {
   if (row.tone === 'amber') return beforeLast(k) ? row.cell : row.cellShort
   if (row.key !== '5h' && row.key !== '7d') return k.has('long') ? row.cell : row.cellShort
   if (k.has(row.key === '5h' ? 'reset5h' : 'reset7d')) return row.cell
-  return k.has(row.key === '5h' ? 'remark5h' : 'long') ? (row.cellNoReset ?? row.cell) : row.cellShort
+  return k.has(row.key === '5h' ? 'remark5h' : 'remark7d') ? (row.cellNoReset ?? row.cell) : row.cellShort
 }
 
 /** Whether a reading keeps its group at a squeeze: an amber one always; the

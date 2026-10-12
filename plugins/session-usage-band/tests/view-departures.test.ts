@@ -44,11 +44,12 @@ test('at its fewest, 60 columns, cache in its last minute and 7d at 82%: CACHE a
   expect(cellsOf(row as unknown as RenderChildren, TERMINAL)).toBeLessThanOrEqual(60 - ROW_SLACK)
   expect(toggleOf(row)).toBe('▵')
 })
-test('at its fewest, 60 columns, calm with a cold cache: CACHE and 7D only', () => {
+test('at its fewest, 60 columns, calm with a cold cache: CACHE and 7D stay, the row fits, and a reading goes only once the remarks have', () => {
   const row = firstRow(band({ surface: 'terminal', columns: 60, sevenDay: at(41, 67), cache: { ...snapOf().cache, msLeft: 0 } })) as Node
-  expect(['spend', 'context', '5h'].map(k => byKey(row, k, 'Box'))).toEqual([undefined, undefined, undefined])
   // A terminal's flaps set ITEM and cell a gap apart, which the text holds no space for.
   expect(words(row)).toMatch(/CACHE[\s\S]*7D\W*41%/)
+  expect(cellsOf(row as unknown as RenderChildren, TERMINAL)).toBeLessThanOrEqual(60 - ROW_SLACK)
+  if (['spend', 'context', '5h'].some(k => byKey(row, k, 'Box') === undefined)) expect(words(row)).not.toMatch(/ON PACE|FULL|RESET/)
 })
 test('an unknown zone: no clock time on the row or the board', () => {
   for (const expanded of [false, true]) expect(words(band({ surface: 'terminal', zone: undefined, expanded }))).not.toMatch(/\d\d:\d\d/)
@@ -128,25 +129,25 @@ test("every board line fits the board's room: 60, 80 and 200 columns, dark and p
           }
         }
 })
-test('the low case at 100 terminal columns gives SPEND way rightly: with it the row is 98 cells, past the 96 its room holds', async ($, on) => {
+test("the low case at 100 terminal columns: readings outrank remarks, so 5H's remark gives way and SPEND stays", async ($, on) => {
   const low = { scenario: 'calm', appearance: 'dark', layout: 'departures', usage: { ...USAGE, rateLimits: withLimits(3, 10) } } as const
   const drawn = await drawCases($, on, low, [100, 102].map(cols => ({ surface: 'terminal' as const, cols })))
   const rowAt = (cols: number) => firstRow(drawn[caseKey({ surface: 'terminal', cols }, 'shut')]) as Node
   const cells = (row: Node) => cellsOf(row as unknown as RenderChildren, TERMINAL)
-  // At 102 the room is 98: both resets gone, SPEND kept. That row is the
-  // one 100 columns would draw with SPEND, every group and gap counted:
-  // CACHE 19, SPEND 11, CONTEXT 11, 5H 21, 7D 23, six gaps of 2 (the air
-  // before ▵ takes two), and ▵ 1.
-  const withSpend = rowAt(102)
-  expect(byKey(withSpend, 'spend', 'Box')).toBeDefined()
-  expect(words(withSpend)).not.toMatch(/RESET/)
-  expect(['cache', 'spend', 'context', '5h', '7d'].map(k => cells(byKey(withSpend, k, 'Box') as Node))).toEqual([19, 11, 11, 21, 23])
-  expect(cells(withSpend)).toBe(98)
-  expect(cells(withSpend)).toBeGreaterThan(100 - ROW_SLACK)
-  // So at 100 SPEND gives way, and the row is 85 cells.
+  // At 102 the room is 98: both resets gone, both remarks kept, every group
+  // and gap counted: CACHE 19, SPEND 11, CONTEXT 11, 5H 21, 7D 23, six gaps
+  // of 2 (the air before ▵ takes two), and ▵ 1.
+  const remarked = rowAt(102)
+  expect(words(remarked)).not.toMatch(/RESET/)
+  expect(['cache', 'spend', 'context', '5h', '7d'].map(k => cells(byKey(remarked, k, 'Box') as Node))).toEqual([19, 11, 11, 21, 23])
+  expect(cells(remarked)).toBe(98)
+  // At 100, past the 96 its room holds: 5H's remark, ` ON PACE FOR ~8%`,
+  // 16 cells, goes; SPEND and 7D's remark stay, 82 cells.
   const at100 = rowAt(100)
-  expect(byKey(at100, 'spend', 'Box')).toBeUndefined()
-  expect(cells(at100)).toBe(85)
+  expect(['cache', 'spend', 'context', '5h', '7d'].every(k => byKey(at100, k, 'Box') !== undefined)).toBe(true)
+  expect(words(byKey(at100, '5h', 'Box'))).not.toMatch(/ON PACE/)
+  expect(words(byKey(at100, '7d', 'Box'))).toMatch(/ON PACE/)
+  expect(cells(at100)).toBe(82)
 })
 test("below its 60 columns departures draws exactly chips' tree; at 60, the board", () => {
   const NEAR = { tokens: 176_000, window: 200_000, percent: 88, compactAt: 190_000, autoCompactOff: false }
@@ -188,5 +189,16 @@ test("desktop plain: the board's capitals measured as they draw, so a row the me
       const drawn = runs.reduce((n, r) => n + px(r), 0) + 10 * (runs.length - 1)
       expect(`${columns} ${key} ${cellsOf(group as unknown as RenderChildren, DESKTOP) * 10 >= drawn}`).toBe(`${columns} ${key} true`)
     }
+  }
+})
+test('give-way: readings outrank calm remarks; both remarks go before SPEND, and at 94 the low case shows all five', async ($, on) => {
+  const low = { scenario: 'calm', appearance: 'dark', layout: 'departures', usage: { ...USAGE, rateLimits: withLimits(3, 10) } } as const
+  const widths = Array.from({ length: 31 }, (_, i) => 60 + 2 * i)
+  const drawn = await drawCases($, on, low, widths.map(cols => ({ surface: 'desktop' as const, cols })))
+  for (const cols of widths) {
+    const row = firstRow(drawn[caseKey({ surface: 'desktop', cols }, 'shut')]) as Node
+    const has = (k: string) => byKey(row, k, 'Box') !== undefined
+    if (!has('spend')) expect(`${cols} ${words(row)}`).not.toMatch(/ON PACE|FULL/)
+    if (cols === 94) expect(['cache', 'spend', 'context', '5h', '7d'].filter(has)).toEqual(['cache', 'spend', 'context', '5h', '7d'])
   }
 })
