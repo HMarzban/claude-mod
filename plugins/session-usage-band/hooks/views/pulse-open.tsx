@@ -97,8 +97,9 @@ const gridLine = (kit: Kit, grid: StackGrid, key: string, chart: RenderChildren,
   )
 }
 
-/** A chart's rows: on the desktop its own, in text the line it shares. */
-const rowsOf = (kit: Kit, grid: StackGrid, rows: Rows): number => (kit.Svg && grid.chart !== undefined ? rows : 1)
+/** A chart's rows: on the desktop its own, where drawn; in text, or with
+ *  its cell empty, the line it shares with its words. */
+const rowsOf = (kit: Kit, grid: StackGrid, rows: Rows, drawn = true): number => (kit.Svg && grid.chart !== undefined && drawn ? rows : 1)
 
 /** The flat chart a band draws with too little to chart: its baseline, dim. */
 const flat = (kit: Kit, grid: StackGrid, alt: string, rows: Rows): RenderChildren =>
@@ -112,19 +113,19 @@ const limitLine = (kit: Kit, read: Readings, grid: StackGrid, l: LimitView, rows
   const words = fitWords(kit, l.bandWords, room - grid.lead)
   const ink = l.tone === 'amber' ? palette.amberFg : l.key === '5h' ? palette.fiveAccent : palette.weekAccent
   const column = grid.chart
+  // Without readings to chart, no chart: a flat line would read as 0%. Its
+  // cell stays empty, so the grid keeps its columns (spec §4.1: words only).
   let chart: RenderChildren = null
-  if (column !== undefined && l.key === '5h')
-    chart = week.fiveHourWindow.values.length > 1
-      ? sparkline(kit, { key: 'trail', alt: week.windowAlt, values: week.fiveHourWindow.values.slice(-2 * column.cells), nowAt: week.fiveHourWindow.nowAt, color: ink, px: column.px, height: CHART_PX[rows], air: AIR_PX[rows], max: 100 })
-      : flat(kit, grid, l.alt, rows)
-  // The day cells are the desktop's: in text the 7d's chart column is empty.
-  if (column !== undefined && Svg && l.key === '7d') {
+  if (column !== undefined && l.key === '5h' && week.fiveHourWindow.values.length > 1)
+    chart = sparkline(kit, { key: 'trail', alt: week.windowAlt, values: week.fiveHourWindow.values.slice(-2 * column.cells), nowAt: week.fiveHourWindow.nowAt, color: ink, px: column.px, height: CHART_PX[rows], air: AIR_PX[rows], max: 100 })
+  // The day cells are the desktop's: in text the 7d's chart cell is empty.
+  if (column !== undefined && Svg && l.key === '7d' && week.daysDrawn.measured) {
     const days = week.daysDrawn
-    const cellPx = days.measured ? dayCellsFit(column.px, days.values.length, DAY_CELL_PX) : undefined
-    chart = cellPx === undefined ? flat(kit, grid, l.alt, rows)
-      : dayCells(kit, { key: 'days', alt: week.daysAlt, values: days.values, guess: days.guess, today: days.today, color: ink, cellPx, height: DAY_PX[rows], air: AIR_PX[rows], max: 100, px: column.px })
+    const cellPx = dayCellsFit(column.px, days.values.length, DAY_CELL_PX)
+    if (cellPx !== undefined)
+      chart = dayCells(kit, { key: 'days', alt: week.daysAlt, values: days.values, guess: days.guess, today: days.today, color: ink, cellPx, height: DAY_PX[rows], air: AIR_PX[rows], max: 100, px: column.px })
   }
-  return { el: gridLine(kit, grid, l.key, chart, l.bandName, words, l.amber !== undefined), rows: rowsOf(kit, grid, rows) }
+  return { el: gridLine(kit, grid, l.key, chart, l.bandName, words, l.amber !== undefined), rows: rowsOf(kit, grid, rows, chart !== null) }
 }
 
 /** Limits: 5h and 7d side by side, each in half the room, while their
@@ -176,10 +177,12 @@ const bands = (kit: Kit, read: Readings, grid: StackGrid, step: Step, room: numb
   if (step.context !== undefined) {
     const words = fitWords(kit, context.bandWords, left)
     const turns = column === undefined ? 0 : kit.Svg ? hist.context.length : 2 * column.cells
-    const chart = column === undefined ? null
-      : hist.context.length < 2 ? flat(kit, grid, hist.contextTrailAlt, CONTEXT_ROWS)
-      : sparkline(kit, { key: 'trail', alt: hist.contextTrailAlt, values: hist.context.slice(-turns), color: palette.label, px: column.px, height: CHART_PX[CONTEXT_ROWS], air: AIR_PX[CONTEXT_ROWS], headroom: HEADROOM_PX, max: context.compactAt ?? context.window, level: context.compactAt === undefined ? undefined : 1 })
-    drawn.push({ el: gridLine(kit, grid, 'band:context', chart, context.bandName, words, context.amber !== undefined), rows: rowsOf(kit, grid, CONTEXT_ROWS) })
+    // Fewer than two turns: the line flat at its level now, which is known;
+    // not reported, no chart, its cell empty.
+    const values = hist.context.length > 1 ? hist.context.slice(-turns) : context.known ? [context.used, context.used] : []
+    const chart = column === undefined || values.length === 0 ? null
+      : sparkline(kit, { key: 'trail', alt: hist.contextTrailAlt, values, color: palette.label, px: column.px, height: CHART_PX[CONTEXT_ROWS], air: AIR_PX[CONTEXT_ROWS], headroom: HEADROOM_PX, max: context.compactAt ?? context.window, level: context.compactAt === undefined ? undefined : 1 })
+    drawn.push({ el: gridLine(kit, grid, 'band:context', chart, context.bandName, words, context.amber !== undefined), rows: rowsOf(kit, grid, CONTEXT_ROWS, chart !== null) })
   }
   const limits = step.limits === undefined ? undefined : limitsBand(kit, read, grid, step.limits, room)
   if (limits !== undefined) drawn.push(limits)

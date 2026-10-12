@@ -5,7 +5,7 @@
 
 import type { RenderChildren } from 'claude-code'
 import type { Kit } from './kit'
-import { ROW_SLACK } from './layout'
+import { ROW_SLACK, boardCells } from './layout'
 
 type Run = readonly [text: string, ink: string]
 const TILE_PX = 10
@@ -29,6 +29,11 @@ export const boardRoom = (kit: Kit): number => {
   return kit.palette.filled ? columns : Math.max(0, columns - 2 * BOARD_RUNS)
 }
 
+/** The characters the board's header line takes, as wide as a line of
+ *  `runs` runs: in plain, whose runs are bracketed, its one run takes the
+ *  brackets the others would. */
+export const boardHeaderRoom = (kit: Kit, room: number, runs: number): number => (kit.palette.filled ? room : room + 2 * (runs - 1))
+
 /** The px the runs' tiles take: a flaps Svg's width. */
 export const flapsWidth = (runs: readonly Run[]): number => tilesOf(runs).length * (TILE_PX + TILE_GAP) - TILE_GAP
 
@@ -36,8 +41,12 @@ export const flaps = (kit: Kit, o: Readonly<{ key: string; alt: string; runs: re
   const { Svg, Text, Box, palette } = kit
   const { key, alt, runs, bg, seam } = o
   if (!Svg) {
+    // On the desktop, in plain, text set in a proportional face: its
+    // capitals are measured as they draw, so the row is fitted to them.
+    const said = runs.map(([text]) => (palette.filled ? text : `[${text}]`))
+    const width = kit.measure.text < 1 ? Math.ceil(said.reduce((n, t) => n + boardCells(t, kit.measure), 0) + runs.length - 1) : undefined
     return (
-      <Box key={key} flexDirection="row" columnGap={1}>
+      <Box key={key} flexDirection="row" columnGap={1} {...(width === undefined ? {} : { width })}>
         {runs.map(([text, ink], i) =>
           palette.filled
             ? <Text key={String(i)} color={ink} backgroundColor={bg}>{text}</Text>

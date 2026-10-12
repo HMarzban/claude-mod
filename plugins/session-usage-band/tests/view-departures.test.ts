@@ -6,7 +6,7 @@ import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK, LIGHT, PLAIN } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { withLimits } from './cases'
-import { HOUR, USAGE, byKey, fakeEl, firstRow, flapWords, shown, svgsOf, type Node } from './helpers'
+import { HOUR, MIN, USAGE, byKey, fakeEl, firstRow, flapWords, shown, svgsOf, type Node } from './helpers'
 import { NO_ACT, caseKey, drawCases, snapOf, viewSuite, visualRows } from './matrix'
 
 viewSuite('departures')
@@ -164,13 +164,29 @@ test("below its 60 columns departures draws exactly chips' tree; at 60, the boar
           expect(as('departures', 60)).not.toEqual(as('chips', 60))
         }
 })
-test('open: every board line is the same count of tiles, a clean rectangle', () => {
-  for (const surface of ['desktop', 'terminal'] as const)
+test('open: every board line is the same count of tiles, a clean rectangle; in plain on the terminal too, its header with them', () => {
+  for (const [surface, palette] of [['desktop', DARK], ['terminal', DARK], ['terminal', PLAIN]] as const)
     for (const columns of [60, 94, 160]) {
-      const board = byKey(band({ surface, columns, expanded: true, workspace: WS, otherLimits: OTHER, maxRows: 40 }), 'board', 'Box')
+      const board = byKey(band({ surface, palette, columns, expanded: true, workspace: WS, otherLimits: OTHER, maxRows: 40 }), 'board', 'Box')
       const lines = ((board?.children ?? []) as Node[]).filter(l => String(l.props?.key).startsWith('row:'))
       const tiles = lines.map(l => surface === 'desktop' ? Number(svgsOf(l)[0]?.props?.width) : cellsOf(l as unknown as RenderChildren, TERMINAL))
       expect(lines.length).toBeGreaterThan(5)
       expect(`${surface} ${columns} ${new Set(tiles).size}`).toBe(`${surface} ${columns} 1`)
     }
+})
+test("desktop plain: the board's capitals measured as they draw, so a row the measure fits fits", () => {
+  // SF at 15 px, measured in Chrome: a capital 9.9 px, a digit 8.8, a bracket
+  // 5.5, punctuation 7.0, a space 4.2; a column is 10 px, a gap one column.
+  const px = (text: string) => [...text].reduce((n, c) => n + (/[A-Z]/.test(c) ? 9.9 : /\d/.test(c) ? 8.8 : /[[\]]/.test(c) ? 5.5 : c === ' ' ? 4.2 : 7), 0)
+  const pace = { fiveHour: { ...at(50, 3), etaMs: 40 * MIN } }
+  for (const columns of [60, 80, 120]) {
+    const row = firstRow(band({ surface: 'desktop', palette: PLAIN, columns, ...pace })) as Node
+    for (const key of ['cache', 'spend', 'context', '5h', '7d']) {
+      const group = byKey(row, key, 'Box')
+      if (group === undefined) continue
+      const runs = ((byKey(group, 'flaps', 'Box')?.children ?? []) as Node[]).map(n => shown(n))
+      const drawn = runs.reduce((n, r) => n + px(r), 0) + 10 * (runs.length - 1)
+      expect(`${columns} ${key} ${cellsOf(group as unknown as RenderChildren, DESKTOP) * 10 >= drawn}`).toBe(`${columns} ${key} true`)
+    }
+  }
 })

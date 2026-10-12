@@ -5,7 +5,7 @@
 // off the board, stays.
 
 import type { RenderElement } from 'claude-code'
-import { boardRoom, flaps } from '../flaps'
+import { boardHeaderRoom, boardRoom, flaps } from '../flaps'
 import type { Kit } from '../kit'
 import type { Readings } from '../reading'
 import type { BandActions } from '../snapshot'
@@ -93,7 +93,7 @@ const board = (kit: Kit, read: Readings): RenderElement | null => {
     <Box key="board" flexDirection="column" marginTop={1} paddingX={1} backgroundColor={palette.filled ? palette.boardBg : undefined}>
       {shown.map(l =>
         l.row !== undefined ? rowLine(kit, l.row, l.key, lineOf(l.row))
-        : l.name === 'header' ? flapLine(kit, l.key, headerAlt, [[boardHeaderLine(header, room), dim]])
+        : l.name === 'header' ? flapLine(kit, l.key, headerAlt, [[boardHeaderLine(header, boardHeaderRoom(kit, room, runsOf(lines[0], { item: dim, status: dim, time: dim, remarks: dim }).length)), dim]])
         : flapLine(kit, l.key, BOARD_HEADINGS_ALT, runsOf(lines[0], { item: dim, status: dim, time: dim, remarks: dim })))}
     </Box>
   )

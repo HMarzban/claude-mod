@@ -7,6 +7,8 @@ import { test, expect } from 'claude-code/testing'
 import { drawBand } from '../hooks/band'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
+import { sparkline } from '../hooks/charts'
+import { makeKit } from '../hooks/kit'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { EMPTY } from '../hooks/words'
@@ -360,8 +362,10 @@ test('open: a grid, one chart width for every band and every band\'s words at on
       expect(lines.map(l => l.key)).toEqual(['band:cache', 'band:spend', 'band:context', '5h', '7d'])
       expect(`${surface} ${columns} ${[...new Set(lines.map(l => l.wordsAt))].length}`).toBe(`${surface} ${columns} 1`)
       if (surface === 'desktop') {
-        expect(lines.every(l => l.chartPx !== undefined)).toBe(true)
-        expect(`${columns} ${[...new Set(lines.map(l => l.chartPx))].join(',')}`).toBe(`${columns} 240`)
+        // With no samples 5h and 7d have no chart, only its cell.
+        const charted = 'samples' in over ? lines.filter(l => l.key !== '5h' && l.key !== '7d') : lines
+        expect(charted.every(l => l.chartPx !== undefined)).toBe(true)
+        expect(`${columns} ${[...new Set(charted.map(l => l.chartPx))].join(',')}`).toBe(`${columns} 240`)
       }
     }
 })
@@ -374,11 +378,34 @@ test("open: the context band's compaction line sits inside its own chart, with a
   expect(y).toBeGreaterThanOrEqual(shift + 8)
   expect(y).toBeLessThan(Number(chart?.props?.height))
 })
-test('open: a band says its name, then its words, then its note; with no costs Spend keeps a flat chart', () => {
+test('open: a band says its name, then its words, then its note; with no costs Spend keeps a flat chart, Context its level now', () => {
   const none = { history: { costs: [], context: [76_000] } }
   const open = band({ surface: 'desktop', columns: 160, expanded: true, ...LIMITS, ...none })
   const spend = byKey(open, 'band:spend', 'Box')
   expect(shown(spend)).toMatch(new RegExp(`^spend ?\\$3\\.19 ?${EMPTY.costs.replace('.', '\\.')}$`))
   expect(svgsOf(spend).map(s => s.props?.alt)).toEqual([EMPTY.costsAlt])
-  expect(String(svgsOf(byKey(open, 'band:context', 'Box'))[0]?.props?.source)).toMatch(/class="flat"/)
+  expect(String(svgsOf(byKey(open, 'band:context', 'Box'))[0]?.props?.source)).toMatch(/<polyline points="2,([\d.]+) 238,\1"/)
+})
+
+// ---- accuracy round: no chart implies a value it doesn't have ---------------
+
+test('open, too little history: context flat at its level now; 5h and 7d no chart, only its cell; spend its dim baseline', () => {
+  const over = { ...LIMITS, samples: [], history: { costs: [], context: [76_000] } }
+  const open = band({ surface: 'desktop', columns: 160, expanded: true, maxRows: 13, ...over })
+  // Context: its one reading, 76k of the 190k compaction, drawn level there, not at 0.
+  const context = svgsOf(byKey(open, 'band:context', 'Box'))[0]
+  const kit = makeKit(fakeEl, snapOf({ surface: 'desktop', columns: 160 }))
+  const want = svgsOf(sparkline(kit, { key: 'trail', alt: 'a', values: [76_000, 76_000], color: DARK.label, px: 240, height: 40, air: 8, headroom: 8, max: 190_000, level: 1 }))[0]
+  const points = (svg: unknown) => /<polyline points="([^"]+)"/.exec(String((svg as Node | undefined)?.props?.source))?.[1]
+  expect(points(context)).toBe(points(want))
+  const [a, b] = (points(context) ?? '').split(' ').map(p => Number(p.split(',')[1]))
+  expect(a).toBe(b)
+  expect(a).toBeLessThan(40 - 4)
+  // 5h and 7d: no Svg; the words still start at the grid's column.
+  const limits = byKey(open, 'band:limits', 'Box')
+  expect(svgsOf(limits)).toHaveLength(0)
+  const at = linesOf(byKey(open, 'stack', 'Box'), 'desktop')
+  expect(new Set(at.map(l => l.wordsAt)).size).toBe(1)
+  // Spend: no message's cost known, its dim baseline.
+  expect(String(svgsOf(byKey(open, 'band:spend', 'Box'))[0]?.props?.source)).toMatch(/class="flat"/)
 })

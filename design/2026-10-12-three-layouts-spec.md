@@ -82,7 +82,7 @@ cache 38m  ╭╮╭─╮╭╮╭  $0.24 · last $0.03   context ⠤⠴⠶ 8% 
 
 ### 4.2 Open
 
-A stack of full-width bands laid out as a grid: every band's chart at one width, fitted once to the room (up to 240 px, a third of the room, leaving the words 24 columns; in text 12 braille cells), then a name column in a label's ink as wide as the longest name, then the words and any note. A band with too little to chart (no costs, one context reading, no 5h or 7d readings) draws its chart flat, a dim baseline, so the grid keeps its look. The context chart keeps 8 px above its scale, so its compaction line sits inside its own chart, clear of Spend's beats. 5h and 7d sit side by side where both fit beside the grid, else one over the other, each a line of the grid two rows tall.
+A stack of full-width bands laid out as a grid: every band's chart at one width, fitted once to the room (up to 240 px, a third of the room, leaving the words 24 columns; in text 12 braille cells), then a name column in a label's ink as wide as the longest name, then the words and any note. No chart implies a value it doesn't have: with no costs, Spend draws a dim flat baseline (no message's cost is known); with fewer than two context readings, Context draws its line flat at its level now; 5h and 7d with no readings draw no chart, words only, their chart cell left empty so the grid keeps its columns. The context chart keeps 8 px above its scale, so its compaction line sits inside its own chart, clear of Spend's beats. 5h and 7d sit side by side where both fit beside the grid, else one over the other, each a line of the grid two rows tall.
 
 | Band | Rows | Chart | Words |
 | --- | --- | --- | --- |
@@ -108,7 +108,7 @@ A stack of full-width bands laid out as a grid: every band's chart at one width,
 
 ### 5.1 The board
 
-- **Ground.** The board is a dark `Box` on `boardBg` in the dark and light appearances. Plain has no board: it draws groups as `[CACHE]` in theme keys.
+- **Ground.** The board is a dark `Box` on `boardBg` in the dark and light appearances. Plain has no board: it draws groups as `[CACHE]` in theme keys. On the desktop plain's text is proportional, so its capitals and digits are measured a full column each, as they draw.
 - **Flaps.**
   - Desktop: one Svg per reading, at most 20 px tall, holding its ITEM code and its cell as runs of tiles a blank tile apart. Each character sits on its own tile, with a 1 px seam across the tile's middle; a space is a blank tile. The group's width is its character count × the tile's pitch, and the row is fitted by those widths.
   - Terminal: each group is a `Box backgroundColor` run, with a space between groups.
