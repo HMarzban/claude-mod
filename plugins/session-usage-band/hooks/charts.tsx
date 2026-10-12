@@ -21,9 +21,6 @@ const KEEP_STROKE = ' vector-effect="non-scaling-stroke"'
 /** The largest value, 0 for none: the top of a chart's scale. */
 const topOf = (values: ReadonlyArray<number | undefined>): number => Math.max(0, ...values.filter(v => v !== undefined))
 
-/** Text set inside Svg markup, escaped. */
-const svgText = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-
 /** Marks wrapped in an Svg of this size, one unit to a pixel; `attrs` adds
  *  to the root tag. */
 const svgOf = (width: number, height: number, marks: string, attrs = ''): string =>
@@ -49,10 +46,23 @@ export const braille = (values: readonly number[], max: number, floor = 0): stri
   return out
 }
 
-/** A line chart in text: braille against the top of its scale, by default
- *  its largest value, on its floor. It never wraps: a row too narrow cuts it. */
-const brailleText = (kit: Kit, key: string, values: readonly number[], color: string, top = topOf(values)): RenderChildren =>
-  kit.oneLine({ key, color }, braille(values, top, 1))
+/** Text cells, each a glyph and its ink, under one Text keyed `key`:
+ *  neighbouring cells in one ink share a Text. */
+const textRuns = (kit: Kit, key: string, cells: ReadonlyArray<readonly [string, string]>, color?: string): RenderChildren => {
+  const { Text } = kit
+  const runs: Array<{ text: string; ink: string }> = []
+  for (const [text, ink] of cells) {
+    const last = runs.at(-1)
+    if (last?.ink === ink) last.text += text
+    else runs.push({ text, ink })
+  }
+  const children = runs.map((run, i) => (
+    <Text key={`run-${i}`} color={run.ink}>
+      {run.text}
+    </Text>
+  ))
+  return color === undefined ? <Text key={key}>{children}</Text> : <Text key={key} color={color}>{children}</Text>
+}
 
 /** The root of a chart that spans its slot: as wide as the band, so the slot
  *  caps it, its marks drawn to `width` and stretched to the slot. */
@@ -68,7 +78,7 @@ const trackOf = (kit: Kit, width: number, height: number): string =>
 /** The ground a slim bar's notch is knocked out of, either side of it. */
 const SLIM_RING = 1.5
 
-export type MeterOptions = Readonly<{
+type MeterOptions = Readonly<{
   key?: string
   label: string
   frac: number
@@ -78,8 +88,8 @@ export type MeterOptions = Readonly<{
   /** An Svg with no width, capped by its slot: the shared cards' heads and
    *  bodies alone, since spec §2.9 bars it from every collapsed line. */
   stretch?: boolean
-  /** What the fill is: what's used, what's left, or a share its label names. */
-  reads?: 'used' | 'left' | 'share'
+  /** What the fill is: what's used or what's left. */
+  reads?: 'used' | 'left'
   /** A notch across the bar at this fraction, in label ink: a line the fill
    *  is measured against, such as how much of its window has gone. */
   tick?: number
@@ -97,15 +107,13 @@ export type MeterOptions = Readonly<{
 
 /** A bar: `frac` filled toward its cap, the fill ending bare, since the
  *  number beside it says where. `label` names it for a reader, and `reads`
- *  says what the fill is: a share's alt says its percent alone. A stretched
- *  bar has no width of its own: drawn wider than any slot, the slot caps it,
- *  so it spans its card. */
+ *  says what the fill is. A stretched bar has no width of its own: drawn
+ *  wider than any slot, the slot caps it, so it spans its card. */
 export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
   const { Svg, Text, palette, onTone } = kit
   const { key = 'meter', label, frac, tone, accent, size = CHIP_BAR, stretch = false, reads = 'used', tick, projectTo, ground = palette.cardBg, dash = '▒', slim = false } = o
   const fill = onTone(tone, accent)
-  const pct = `${label} ${Math.round(clamp01(frac) * 100)}%`
-  const alt = reads === 'share' ? pct : `${pct} ${reads}`
+  const alt = `${label} ${Math.round(clamp01(frac) * 100)}% ${reads}`
   if (Svg && slim) {
     // Drawn at the slot's estimate, one unit to a pixel there, and stretched to it.
     const width = size.px
@@ -130,17 +138,17 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
     // they round true at the scale it lands on.
     const k = stretch ? 2 : 1
     const width = size.px * k
-    const scaling = stretch ? ' vector-effect="non-scaling-stroke"' : ''
+    const keep = stretch ? KEEP_STROKE : ''
     // A sliver under 6px reads as a dot or nothing: any use shows as a nub.
     // No clipPath: ids are document-wide where Svgs share a page, so a
     // rounded fill draws its own ends.
     const fillWidth = frac > 0 ? Math.max(6 * k, Math.round(clamp01(frac) * width)) : 0
     const tickX = tick === undefined ? undefined : Math.max(0, Math.min(width - 2 * k, tenth(clamp01(tick) * width - k)))
     const marks =
-      `<rect x="${0.5 * k}" y="1.5" width="${width - k}" height="5" rx="${2.5 * k}" ry="2.5" fill="${palette.meterTrack}" stroke="${palette.trackStroke}"${scaling}/>` +
+      `<rect x="${0.5 * k}" y="1.5" width="${width - k}" height="5" rx="${2.5 * k}" ry="2.5" fill="${palette.meterTrack}" stroke="${palette.trackStroke}"${keep}/>` +
       (projectTo === undefined
         ? ''
-        : `<line class="projection" x1="${fillWidth}" y1="4" x2="${Math.round(clamp01(projectTo) * width)}" y2="4" stroke="${fill}" stroke-width="2" ${PROJECTION_DASH}${scaling}/>`) +
+        : `<line class="projection" x1="${fillWidth}" y1="4" x2="${Math.round(clamp01(projectTo) * width)}" y2="4" stroke="${fill}" stroke-width="2" ${PROJECTION_DASH}${keep}/>`) +
       (fillWidth > 0 ? `<rect class="fill" y="1" width="${fillWidth}" height="6" rx="${3 * k}" ry="3" fill="${fill}"/>` : '') +
       // Knocked out of the ground a pixel either side, so it reads over the
       // fill and the track alike.
@@ -174,22 +182,7 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
   const cells = Array.from({ length: size.cells }, (_, i): readonly [string, string] =>
     i === tickAt ? ['│', palette.label] : i < filled ? ['█', fill] : i < ahead ? [dash, fill] : ['░', palette.meterTrack],
   )
-  // Neighbouring cells in one colour share a Text.
-  const runs: Array<{ text: string; color: string }> = []
-  for (const [glyph, color] of cells) {
-    const last = runs.at(-1)
-    if (last?.color === color) last.text += glyph
-    else runs.push({ text: glyph, color })
-  }
-  return (
-    <Text key={key} color={fill}>
-      {runs.map((run, i) => (
-        <Text key={`run-${i}`} color={run.color}>
-          {run.text}
-        </Text>
-      ))}
-    </Text>
-  )
+  return textRuns(kit, key, cells, fill)
 }
 
 // ---- split bar ------------------------------------------------------------
@@ -197,7 +190,7 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
 /** A part of a split bar: its amount, its colour and, in text, its fill. */
 export type SplitPart = Readonly<{ n: number; color: string; mark: string }>
 
-export type SplitBarOptions = Readonly<{
+type SplitBarOptions = Readonly<{
   key?: string
   alt: string
   parts: readonly SplitPart[]
@@ -217,11 +210,11 @@ export const splitBar = (kit: Kit, o: SplitBarOptions): RenderChildren => {
   const { key = 'split', alt, parts, size, slim = false } = o
   const total = parts.reduce((sum, { n }) => sum + n, 0)
   if (total <= 0) return null
+  const shown = parts.filter(({ n }) => n > 0)
   if (Svg && slim) {
     // Drawn at the slot's estimate and stretched to it; the slivers take
     // their 2px from the largest part.
     const width = size.px
-    const shown = parts.filter(({ n }) => n > 0)
     const widths = shown.map(({ n }) => Math.max(SLIVER_PX, (n / total) * width))
     const over = widths.reduce((sum, w) => sum + w, 0) - width
     const largest = widths.indexOf(Math.max(...widths))
@@ -246,7 +239,6 @@ export const splitBar = (kit: Kit, o: SplitBarOptions): RenderChildren => {
     // own rounded ends, as paths, the inner ones square.
     const width = size.px * 2
     const R = 6
-    const shown = parts.filter(({ n }) => n > 0)
     let x = 0
     const segments = shown.map(({ n, color }, i) => {
       const x0 = x
@@ -256,16 +248,14 @@ export const splitBar = (kit: Kit, o: SplitBarOptions): RenderChildren => {
       // Each ends a pixel short of the next, so the ground divides them.
       const x1 = last ? x : Math.max(x0, x - 1)
       const f = (v: number) => v.toFixed(1)
-      if (x1 - x0 < 2 * R || (!first && !last)) {
+      if (x1 - x0 < 2 * R || first === last) {
         return `<rect x="${f(x0)}" y="1" width="${f(x1 - x0)}" height="6"${first && last ? ` rx="${R}" ry="3"` : ''} fill="${color}"/>`
       }
-      if (first && last) return `<rect x="${f(x0)}" y="1" width="${f(x1 - x0)}" height="6" rx="${R}" ry="3" fill="${color}"/>`
       return first
         ? `<path d="M${f(x0 + R)} 1H${f(x1)}V7H${f(x0 + R)}A${R} 3 0 0 1 ${f(x0 + R)} 1Z" fill="${color}"/>`
         : `<path d="M${f(x0)} 1H${f(x1 - R)}A${R} 3 0 0 1 ${f(x1 - R)} 7H${f(x0)}Z" fill="${color}"/>`
     })
-    const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="8" viewBox="0 0 ${width} 8" preserveAspectRatio="none">${segments.join('')}</svg>`
-    return <Svg key={key} source={source} alt={alt} height={8} />
+    return <Svg key={key} source={svgOf(width, 8, segments.join(''), ' preserveAspectRatio="none"')} alt={alt} height={8} />
   }
   let used = 0
   return (
@@ -285,7 +275,7 @@ export const splitBar = (kit: Kit, o: SplitBarOptions): RenderChildren => {
 
 // ---- ring -----------------------------------------------------------------
 
-export type RingOptions = Readonly<{
+type RingOptions = Readonly<{
   key: string
   alt: string
   frac: number
@@ -346,7 +336,7 @@ export const ring = (kit: Kit, o: RingOptions): RenderChildren => {
 
 // ---- sparkline ------------------------------------------------------------
 
-export type SparklineOptions = Readonly<{
+type SparklineOptions = Readonly<{
   key: string
   alt: string
   values: readonly number[]
@@ -358,10 +348,6 @@ export type SparklineOptions = Readonly<{
   max?: number
   /** Where the line is heading, as a fraction of the scale's top, drawn dashed. */
   projectTo?: number
-  /** A level the line is read against, such as where context compacts, as a
-   *  fraction of the scale's top: a solid rule across the chart. Text draws
-   *  no rule; the words beside it name the level. */
-  level?: number
   /** The most cells the text form takes: a longer trail is drawn at the
    *  highest of each run of points, so the whole of it shows in the room. */
   cells?: number
@@ -372,7 +358,7 @@ export type SparklineOptions = Readonly<{
   stretch?: boolean
   /** Rising across the chart, from its lowest point to its highest, under a
    *  1px cap in label ink at the top: where it is headed, as pulse's board
-   *  draws the context. `max` and `level` give way to it. */
+   *  draws the context. `max` gives way to it. */
   rise?: boolean
 }>
 
@@ -391,12 +377,13 @@ const peaksOf = (values: readonly number[], count: number): number[] =>
     ? [...values]
     : Array.from({ length: count }, (_, i) => Math.max(...values.slice(Math.floor((i * values.length) / count), Math.floor(((i + 1) * values.length) / count))))
 
-/** A line over time, ending bare at its newest point. Text draws it in braille. */
+/** A line over time, ending bare at its newest point. Text draws it in
+ *  braille on its floor, on one line that a row too narrow cuts. */
 export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
-  const { Svg, palette } = kit
-  const { key, alt, values, color, px, height, max, projectTo, level, cells, track = false, area = false, stretch = false, rise = false } = o
+  const { Svg, palette, oneLine } = kit
+  const { key, alt, values, color, px, height, max, projectTo, cells, track = false, area = false, stretch = false, rise = false } = o
   const top = max ?? topOf(values)
-  if (!Svg) return brailleText(kit, key, cells === undefined ? values : peaksOf(values, 2 * cells), color, top)
+  if (!Svg) return oneLine({ key, color }, braille(cells === undefined ? values : peaksOf(values, 2 * cells), top, 1))
   const end = px - SPARK_AIR - (projectTo === undefined ? 0 : SPARK_AHEAD)
   const x = (i: number) => (values.length <= 1 ? end : tenth(SPARK_AIR + (i * (end - SPARK_AIR)) / (values.length - 1)))
   const y = (frac: number) => tenth(height - SPARK_AIR - clamp01(frac) * (height - 2 * SPARK_AIR))
@@ -411,7 +398,6 @@ export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   let marks = track ? trackOf(kit, px, height) : ''
   if (area && points.length > 1) marks += `<polygon class="area" points="${points[0]?.[0]},${height} ${line} ${points.at(-1)?.[0]},${height}" fill="${color}" opacity="0.16"/>`
   if (rise) marks += `<line class="cap" x1="0" y1="0.5" x2="${px}" y2="0.5" stroke="${palette.label}" stroke-width="1"${keep}/>`
-  else if (level !== undefined) marks += `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.trackStroke}" stroke-width="1"${keep}/>`
   if (points.length > 1) marks += `<polyline points="${line}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"${keep}/>`
   const newest = points.at(-1)
   if (newest !== undefined && projectTo !== undefined) {
@@ -427,7 +413,7 @@ export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
 
 // ---- bar chart ------------------------------------------------------------
 
-export type BarChartOptions = Readonly<{
+type BarChartOptions = Readonly<{
   key: string
   alt: string
   values: readonly number[]
@@ -460,28 +446,15 @@ export const barsWidth = (count: number): number => count * (BAR_PX + BAR_GAP)
 /** A bar per value, oldest first. Text draws them in braille, two to a cell,
  *  a cell holding a marked bar in the mark's colour. */
 export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
-  const { Svg, Text, palette } = kit
+  const { Svg, palette } = kit
   const { key, alt, values, marked, color, markColor, px, height, max, level, track = false, stretch = false } = o
   const top = max ?? topOf(values)
   if (!Svg) {
-    // Neighbouring cells in one colour share a Text.
-    const runs: Array<{ text: string; color: string }> = []
-    for (let i = 0; i < values.length; i += 2) {
-      const ink = marked[i] === true || marked[i + 1] === true ? markColor : color
-      const cell = braille(values.slice(i, i + 2), top, 1)
-      const last = runs.at(-1)
-      if (last?.color === ink) last.text += cell
-      else runs.push({ text: cell, color: ink })
-    }
-    return (
-      <Text key={key} color={color}>
-        {runs.map((run, i) => (
-          <Text key={`run-${i}`} color={run.color}>
-            {run.text}
-          </Text>
-        ))}
-      </Text>
-    )
+    const cells = Array.from({ length: Math.ceil(values.length / 2) }, (_, c): readonly [string, string] => {
+      const i = 2 * c
+      return [braille(values.slice(i, i + 2), top, 1), marked[i] === true || marked[i + 1] === true ? markColor : color]
+    })
+    return textRuns(kit, key, cells, color)
   }
   const room = height - CAP_ROOM
   const y = (v: number) => height - (top > 0 ? Math.max(1, Math.round(Math.min(1, v / top) * room)) : 1)
@@ -492,8 +465,8 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
     const bar = `<rect class="bar" x="${x}" y="${barTop}" width="${BAR_PX}" height="${height - barTop}" rx="1" fill="${isMarked ? markColor : color}"/>`
     return isMarked ? `${bar}<rect class="cap" x="${x}" y="${barTop - CAP_ROOM}" width="${BAR_PX}" height="${CAP_PX}" rx="1" fill="${markColor}"/>` : bar
   })
-  const rule =
-    level === undefined ? '' : `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1"${stretch ? KEEP_STROKE : ''}/>`
+  const keep = stretch ? KEEP_STROKE : ''
+  const rule = level === undefined ? '' : `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1"${keep}/>`
   const drawn = (track ? trackOf(kit, px, height) : '') + marks.join('') + rule
   return stretch ? (
     <Svg key={key} source={stretchedOf(kit, px, height, drawn)} alt={alt} height={height} />
@@ -504,7 +477,7 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
 
 // ---- day cells ------------------------------------------------------------
 
-export type DayCellsOptions = Readonly<{
+type DayCellsOptions = Readonly<{
   key: string
   alt: string
   /** A value per cell; undefined for one with nothing to show yet. */
@@ -517,7 +490,6 @@ export type DayCellsOptions = Readonly<{
   color: string
   cellPx: number
   height: number
-  labels?: readonly string[]
   /** The top of the scale, by default the largest value: a limit's percent passes 100. */
   max?: number
   /** Spanning its slot, as a card head's lens does, rather than its cells' width. */
@@ -529,9 +501,6 @@ export type DayCellsOptions = Readonly<{
 const DAY_GAP = 3
 /** Room around the cells for today's outline. */
 const DAY_EDGE = 1
-/** What labels add beneath the cells, and their size. */
-const LABEL_ROOM = 11
-const LABEL_PX = 9
 /** Today's dash, finer than a guess's. */
 const TODAY_DASH = 'stroke-dasharray="2 1.6"'
 
@@ -542,7 +511,7 @@ const TODAY_DASH = 'stroke-dasharray="2 1.6"'
  *  Text draws a braille height per cell. */
 export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
   const { Svg, Text, palette } = kit
-  const { key, alt, values, guess = [], today, color, cellPx, height, labels, max, stretch = false, gapPx = DAY_GAP } = o
+  const { key, alt, values, guess = [], today, color, cellPx, height, max, stretch = false, gapPx = DAY_GAP } = o
   const top = max ?? topOf(values)
   const isGuess = (i: number) => guess[i] === true
   const isToday = (i: number) => today !== undefined && i === today
@@ -559,7 +528,7 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
   }
   const step = cellPx + gapPx
   const width = values.length * step - gapPx + 2 * DAY_EDGE
-  const tall = height + 2 * DAY_EDGE + (labels === undefined ? 0 : LABEL_ROOM)
+  const tall = height + 2 * DAY_EDGE
   const keep = stretch ? KEEP_STROKE : ''
   const marks = values.map((v, i) => {
     const x = DAY_EDGE + i * step
@@ -577,12 +546,7 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
         ? [palette.trackStroke, ` ${GUESS_DASH} opacity="0.75"`]
         : [v === undefined ? palette.meterTrack : color, '']
     const edge = `<rect class="edge" x="${x + 0.5}" y="${DAY_EDGE + 0.5}" width="${cellPx - 1}" height="${height - 1}" rx="3" fill="none" stroke="${stroke}"${dash}${keep}/>`
-    const label = labels?.[i]
-    const caption =
-      label === undefined
-        ? ''
-        : `<text x="${x + cellPx / 2}" y="${tall - 1}" text-anchor="middle" font-family="system-ui, sans-serif" font-size="${LABEL_PX}" fill="${isToday(i) ? palette.value : palette.label}">${svgText(label)}</text>`
-    return ground + filled + edge + caption
+    return ground + filled + edge
   })
   return stretch ? (
     <Svg key={key} source={svgOf(width, tall, marks.join(''), ' preserveAspectRatio="none"')} alt={alt} height={tall} />
@@ -593,7 +557,7 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
 
 // ---- slice cells ----------------------------------------------------------
 
-export type SliceCellsOptions = Readonly<{
+type SliceCellsOptions = Readonly<{
   key: string
   alt: string
   row: SliceRow
@@ -624,7 +588,7 @@ const HEIGHTS = '▁▂▃▄▅▆▇█'
  *  measured 0% its empty track as a meter's, a dot where not known, the
  *  notch at the edge of the slice nearest now. */
 export const sliceCells = (kit: Kit, o: SliceCellsOptions): RenderChildren => {
-  const { Svg, Text, palette, glyphs, measure } = kit
+  const { Svg, palette, glyphs, measure } = kit
   const { key, alt, row, color, guess, spent, ground, cellPx, wide, air = false } = o
   const { marks, notch } = row
   if (Svg) {
@@ -678,20 +642,5 @@ export const sliceCells = (kit: Kit, o: SliceCellsOptions): RenderChildren => {
     parts.push([wide ? glyph + glyph : glyph, ink])
   })
   if (edge === marks.length) parts.push(notchMark)
-  // Neighbouring cells in one ink share a Text.
-  const runs: Array<{ text: string; ink: string }> = []
-  for (const [text, ink] of parts) {
-    const last = runs.at(-1)
-    if (last?.ink === ink) last.text += text
-    else runs.push({ text, ink })
-  }
-  return (
-    <Text key={key}>
-      {runs.map((run, i) => (
-        <Text key={`run-${i}`} color={run.ink}>
-          {run.text}
-        </Text>
-      ))}
-    </Text>
-  )
+  return textRuns(kit, key, parts)
 }

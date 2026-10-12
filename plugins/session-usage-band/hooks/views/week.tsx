@@ -9,9 +9,9 @@ import type { Kit } from '../kit'
 import { GIVES_WAY, ROW_SLACK, SHORT_BELOW } from '../layout'
 import type { LimitView, Readings, SliceRow } from '../reading'
 import { WEEK, type Say } from '../words'
-import { cachePill, contextPill, costPill, limitPill, pillRow, tokensPill, type ChipKey } from './chips'
+import { LIMITS, cachePill, contextHover, costPill, limitPill, pillRow, tokensPill, type ChipKey } from './chips'
 import { accentOf, beforeLast, fitLine, layoutCacheSpec, once, resetClause, type Keeps, type PillSpec } from './parts'
-import { defineCardsView, type Lens } from './view'
+import { defineCardsView, type CardOptions } from './view'
 
 /** What gives way as the row narrows, first to last: chips' pieces in
  *  week's order, and week's own; the 7d, then the cost, go last of the calm
@@ -25,7 +25,7 @@ const NO_BARS = GIVES_WAY.length
 
 /** A window's slices in its colour and its tints: the days in a pill, led
  *  by their own air, the hours in a card's head. */
-const cellsOf = (kit: Kit, l: LimitView, row: SliceRow, alt: string, ground: string, wide: boolean): RenderChildren => {
+const windowCells = (kit: Kit, l: LimitView, row: SliceRow, alt: string, ground: string, wide: boolean): RenderChildren => {
   const { palette, onTone } = kit
   const seven = l.key === '7d'
   return sliceCells(kit, {
@@ -48,7 +48,6 @@ type Built = Readonly<{
   chip: Readonly<Record<ChipKey, () => PillSpec | undefined>>
   /** The 7d's day cells on its pill's ground. */
   days: () => RenderChildren
-  contextHover: () => string | undefined
   /** The cache's pill, long and short. */
   cache: Readonly<Record<'long' | 'short', () => PillSpec>>
 }>
@@ -58,16 +57,15 @@ const builtOf = (kit: Kit, read: Readings): Built => {
   const chip = { '7d': once(() => limitPill(kit, read, '7d', NO_BARS, false)), '5h': once(() => limitPill(kit, read, '5h', NO_BARS, false)) }
   /** The cache: chips' pill, its countdown bold, while calm; amber, its reason, with chips' card. */
   const cache = (short: boolean) => (): PillSpec =>
-    read.cache.amber === undefined ? cachePill(kit, read, short, true) : { ...layoutCacheSpec(kit, read, short), hover: cachePill(kit, read, short).hover }
+    read.cache.amber === undefined ? cachePill(kit, read, short, true) : layoutCacheSpec(kit, read, read.cache.amber, short)
   return {
     chip,
     days: once(() => {
       const seven = read.sevenDay
       if (seven === undefined) return null
       const ground = onTone(seven.tone, chip['7d']()?.bg ?? palette.surface, palette.amberBg)
-      return cellsOf(kit, seven, read.week.dayRow, read.week.daysAlt, ground, true)
+      return windowCells(kit, seven, read.week.dayRow, read.week.daysAlt, ground, true)
     }),
-    contextHover: once(() => contextPill(kit, read, NO_BARS).hover),
     cache: { long: once(cache(false)), short: once(cache(true)) },
   }
 }
@@ -79,10 +77,11 @@ const builtOf = (kit: Kit, read: Readings): Built => {
 const limitSpec = (kit: Kit, read: Readings, built: Built, l: LimitView, keeps: Keeps<Piece>): PillSpec | undefined => {
   const { Text, Svg, palette, onTone, icon } = kit
   const seven = l.key === '7d'
-  const chip = built.chip[seven ? '7d' : '5h']()
+  const key: ChipKey = seven ? '7d' : '5h'
+  const chip = built.chip[key]()
   if (chip === undefined || l.passed) return chip
   const amber = l.amber
-  const fg = onTone(l.tone, seven ? palette.weekFg : palette.fiveFg)
+  const fg = onTone(l.tone, LIMITS[key].tint(palette).fg)
   const wk = read.week
   const cells = seven && wk.days.length > 0 && (amber === undefined ? keeps.has('weekCells') : beforeLast(keeps))
   const pace = seven && keeps.has('weekPace') ? wk.fullDay : undefined
@@ -94,7 +93,7 @@ const limitSpec = (kit: Kit, read: Readings, built: Built, l: LimitView, keeps: 
   const before = cells && !Svg ? ' ' : ''
   const named =
     amber === undefined
-      ? [...icon(seven ? 'week' : 'five', onTone(l.tone, accentOf(kit, l))), <Text key="l" color={fg}>{`${l.name}${before}`}</Text>]
+      ? [...icon(LIMITS[key].icon, onTone(l.tone, accentOf(kit, l))), <Text key="l" color={fg}>{`${l.name}${before}`}</Text>]
       : [<Text key="a" color={palette.amberFg}>{`${keeps.amber(amber)}${before}`}</Text>]
   return {
     ...chip,
@@ -121,10 +120,10 @@ const figure = (kit: Kit, say: Say, ink: string): RenderChildren[] => {
 
 /** The context's pill: its fill as the card heads it, `87% full`, short its
  *  figure alone; amber, its reason. Chips' own carries a meter. */
-const contextSpec = (kit: Kit, read: Readings, built: Built, short: boolean, keeps: Keeps<Piece>): PillSpec => {
+const contextSpec = (kit: Kit, read: Readings, short: boolean, keeps: Keeps<Piece>): PillSpec => {
   const { Text, palette, icon } = kit
   const x = read.context
-  const hover = built.contextHover()
+  const hover = contextHover(read)
   if (x.amber !== undefined) return { key: 'ctx', tone: 'amber', body: [<Text key="a" color={palette.amberFg}>{keeps.amber(x.amber)}</Text>], hover }
   return { key: 'ctx', tone: 'calm', body: [...icon('context', palette.label), ...figure(kit, short ? x.cardHead.slice(0, 1) : x.cardHead, palette.value)], hover }
 }
@@ -141,7 +140,7 @@ const weekPills = (kit: Kit, read: Readings, built: Built, keeps: Keeps<Piece>):
     fiveHour === undefined || !keeps.calm('calmFive', fiveHour.tone) ? undefined : limitSpec(kit, read, built, fiveHour, keeps),
     built.cache[cacheShort ? 'short' : 'long'](),
     keeps.has('cost') ? costPill(kit, read) : undefined,
-    context.known && keeps.calm('calmContext', context.tone) ? contextSpec(kit, read, built, short, keeps) : undefined,
+    context.known && keeps.calm('calmContext', context.tone) ? contextSpec(kit, read, short, keeps) : undefined,
     read.cache.measured && keeps.has('tokens') ? tokensPill(kit, read) : undefined,
   ].filter((p): p is PillSpec => p !== undefined)
   return [...pills.filter(p => p.tone === 'amber'), ...pills.filter(p => p.tone !== 'amber')]
@@ -151,7 +150,7 @@ const weekPills = (kit: Kit, read: Readings, built: Built, keeps: Keeps<Piece>):
  *  terminal's slot holds the five cells alone. */
 const hoursLens = (kit: Kit, read: Readings, five: LimitView): RenderChildren => {
   const { Svg, palette, gap, oneLine } = kit
-  const cells = cellsOf(kit, five, read.week.hourRow, read.week.hoursAlt, palette.cardBg, false)
+  const cells = windowCells(kit, five, read.week.hourRow, read.week.hoursAlt, palette.cardBg, false)
   return Svg ? [cells, gap('g-lens'), oneLine({ key: 'by', color: palette.label }, WEEK.byHour)] : oneLine({ key: 'lens' }, cells)
 }
 
@@ -159,7 +158,7 @@ const hoursLens = (kit: Kit, read: Readings, five: LimitView): RenderChildren =>
  *  context's room and compaction in one, each in the longest form its card
  *  holds; the resets and paces the row shows go. A limit the row never
  *  draws heads LIMITS while it needs you. */
-const lens: Lens = (kit, read) => {
+const lens = (kit: Kit, read: Readings): CardOptions => {
   const { fiveHour, week } = read
   const { roomCompacts, roomText } = read.context
   const room = roomCompacts === undefined || roomText === undefined ? undefined : roomCompacts.map(label => [label, roomText] as const)
@@ -172,12 +171,7 @@ const lens: Lens = (kit, read) => {
   }
 }
 
-export const weekView = defineCardsView(
-  'week',
-  { desktop: 1, terminal: 1 },
-  (kit, read, act) => {
-    const built = builtOf(kit, read)
-    return [fitLine(kit, ORDER, kit.columns - ROW_SLACK, keeps => pillRow(kit, read, act, weekPills(kit, read, built, keeps)))]
-  },
-  lens,
-)
+export const weekView = defineCardsView({ desktop: 1, terminal: 1 }, (kit, read, act) => {
+  const built = builtOf(kit, read)
+  return { lines: [fitLine(kit, ORDER, kit.columns - ROW_SLACK, keeps => pillRow(kit, read, act, weekPills(kit, read, built, keeps)))], open: () => lens(kit, read) }
+})

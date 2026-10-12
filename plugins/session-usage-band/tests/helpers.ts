@@ -33,12 +33,15 @@ export const props = (cols: number, isWorking = false, maxRows = DEFAULT_MAX_ROW
   view: {},
 })
 
+export const MIN = 60_000
+export const HOUR = 60 * MIN
+
 export const USAGE: SessionUsage = {
   startedAt: 0,
   context: { tokens: 76_000, window: 200_000, percent: 38 },
   rateLimits: [
-    { kind: 'five_hour', percentUsed: 4, resetsAt: new Date(3 * 3600_000).toISOString() },
-    { kind: 'seven_day', percentUsed: 30, resetsAt: new Date(67 * 3600_000).toISOString() },
+    { kind: 'five_hour', percentUsed: 4, resetsAt: new Date(3 * HOUR).toISOString() },
+    { kind: 'seven_day', percentUsed: 30, resetsAt: new Date(67 * HOUR).toISOString() },
   ],
   cost: { usd: 2.41 },
 }
@@ -71,7 +74,7 @@ export const GIT_MAIN_TREE = `${PROJECT}/.git\n${PROJECT}/.git\n${PROJECT}\n`
 
 /** What git answers: its two outputs, `none` outside a repository, or
  *  `fail` when it can't run at all. */
-export type GitAnswer = { status: string; dirs: string } | 'none' | 'fail'
+type GitAnswer = { status: string; dirs: string } | 'none' | 'fail'
 
 /** How the engine beneath answers, for tests that need it otherwise: what a
  *  compaction returns, why a step stops, a gate that holds a step open, the
@@ -161,7 +164,7 @@ export const toasts: string[] = []
 let nextUsage: ModelUsage | null = null
 
 /** Everything beneath the plugin: the engine's own answers. */
-export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Record<string, unknown>> = {}): void => {
+const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Record<string, unknown>> = {}): void => {
   Object.assign(usage, USAGE_FLAGS, { current: initial })
   toasts.length = 0
   nextUsage = null
@@ -276,7 +279,7 @@ export const resp = (input: number, read: number, write: number, output: number)
   cache_creation_input_tokens: write,
 })
 
-export type Step = (e: TurnStepInput) => HookStream<TurnStepChunk, TurnStepResult>
+type Step = (e: TurnStepInput) => HookStream<TurnStepChunk, TurnStepResult>
 
 export const respond = async (step: Step, u: ModelUsage): Promise<void> => {
   nextUsage = u
@@ -324,6 +327,15 @@ export const walk = (n: unknown, visit: (node: Node) => void): void => {
   for (const k of (n as Node).children ?? []) walk(k, visit)
 }
 
+/** How many nodes a tree holds. */
+export const nodeCount = (tree: unknown): number => {
+  let n = 0
+  walk(tree, () => {
+    n++
+  })
+  return n
+}
+
 /** The first node beneath `tree`, in drawing order, whose key is `key` and,
  *  when `type` is given, whose type is `type`. */
 export const byKey = (tree: unknown, key: string, type?: string): Node | undefined => {
@@ -366,8 +378,6 @@ export const firstRow = (tree: unknown): unknown => ((tree as Node).children ?? 
 export const START = { cwd: '/tmp', surface: 'terminal', isInteractive: true } as const
 /** Pins the 1-hour TTL, so tests don't depend on the assumed one. */
 export const HOUR_1 = { ENABLE_PROMPT_CACHING_1H: '1' }
-export const MIN = 60_000
-export const HOUR = 60 * MIN
 /** Where a mounted test that reads a host's clock starts: never epoch 0,
  *  where a host's zone may have had an offset off the minute. */
 export const MODERN = Date.UTC(2026, 0, 5)
@@ -380,7 +390,7 @@ export const usageAt = (ms: number, u: SessionUsage = USAGE): SessionUsage => ({
 /** The weekday a clock time at `ms`, drawn at `now`, leads with on this host:
  *  '' on the same local day, else `Thu `. The kit's zone is the host's, so it
  *  is read off the host's own calendar, not the band's formatters. */
-export const weekdayLead = (ms: number, now: number): string => {
+const weekdayLead = (ms: number, now: number): string => {
   const day = new Date(ms).toDateString()
   return day === new Date(now).toDateString() ? '' : `${day.slice(0, 3)} `
 }
@@ -501,6 +511,25 @@ export const fact = (tree: unknown, label: string): string | undefined => {
 
 /** A card of the expanded view: cache, spend, context or limits. */
 export const cardOf = (tree: unknown, name: string): Node | undefined => byKey(tree, `card:${name}`, 'Box')
+
+/** A card's head: its title and the layout's lens. */
+export const cardHead = (tree: unknown, name: string): Node | undefined => byKey(cardOf(tree, name), 'head')
+
+/** A card's first body row, past its head, as it reads. */
+export const cardFirstRow = (tree: unknown, name: string): string => shown(((cardOf(tree, name)?.children ?? []) as Node[]).filter(Boolean)[1])
+
+/** The bold Texts beneath a node, as they read. */
+export const boldOf = (n: unknown): string[] => {
+  const out: string[] = []
+  walk(n, k => {
+    if (k.type === 'Text' && k.props?.bold === true) out.push(shown(k))
+  })
+  return out
+}
+
+/** A row's pills by key, in order: its keyed pieces that never shrink. */
+export const pillKeys = (row: unknown): unknown[] =>
+  (((row as Node | undefined)?.children ?? []) as Array<Node | null>).filter(k => k?.props?.flexShrink === 0 && k.props?.key !== undefined).map(k => k?.props?.key)
 
 /** The cache card's rebuild count, 0 when the row is absent. */
 export const rebuilds = (tree: unknown): number => Number(fact(tree, 'unexpected rebuilds') ?? 0)

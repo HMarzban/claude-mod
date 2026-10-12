@@ -4,15 +4,21 @@ import { test, expect } from 'claude-code/testing'
 import { makeKit } from '../hooks/kit'
 import { DARK, PLAIN } from '../hooks/palette'
 import { readingsOf, type Readings } from '../hooks/reading'
-import { accentOf, amberFirst, batteryBar, beforeLast, fitLine, layoutCacheSpec, line, once, pill, words, type Keeps } from '../hooks/views/parts'
+import { accentOf, amberFirst, batteryBar, beforeLast, cacheHover, fitLine, layoutCacheSpec, line, once, pill, words, type Keeps } from '../hooks/views/parts'
 import type { Amber } from '../hooks/words'
-import { byKey, cards, fakeEl, shown, walk, type Node } from './helpers'
+import { byKey, fakeEl, shown, walk, type Node } from './helpers'
 import { snapOf } from './matrix'
 
 const kit = (columns = 120) => makeKit(fakeEl, snapOf({ columns }))
 const A: Amber = { long: '! 47s left · re-warm ~$1.66', short: '! 47s' }
-/** The layouts' cache pill, drawn. */
-const cachePill = (k: ReturnType<typeof kit>, read: Readings, short: boolean) => pill(k, layoutCacheSpec(k, read, short))
+/** A cache with 47s left, amber on its last call. */
+const lastCall = { cache: { ...snapOf().cache, msLeft: 47_000 } }
+const amberOf = (read: Readings): Amber => {
+  if (read.cache.amber === undefined) throw new Error('the cache is calm')
+  return read.cache.amber
+}
+/** The layouts' amber cache pill, drawn. */
+const cachePill = (k: ReturnType<typeof kit>, read: Readings, short: boolean) => pill(k, layoutCacheSpec(k, read, amberOf(read), short))
 const said = (k: ReturnType<typeof kit>, room: number) =>
   shown(fitLine(k, ['extra', 'more'] as const, room, keeps => line(k, 'l', [
     words(k, 'a', [[keeps.amber(A), 'amber']]),
@@ -56,22 +62,23 @@ test("a limit's accent is its window's", () => {
   expect(accentOf(kit(), { key: '7d' })).toBe(DARK.weekAccent)
   expect(accentOf(kit(), { key: 'other' })).toBe(DARK.meterFill)
 })
-test("the layouts' cache pill speaks the readings' words, with no hover", () => {
-  const snap = snapOf({ cache: { ...snapOf().cache, msLeft: 47_000 } })
+test("the layouts' amber cache pill speaks the readings' words, with chips' hover", () => {
+  const snap = snapOf(lastCall)
   const k = makeKit(fakeEl, snap)
-  const long = cachePill(k, readingsOf(snap), false)
+  const read = readingsOf(snap)
+  const long = cachePill(k, read, false)
   expect(shown(long)).toMatch(/^\s*! 47s left · re-warm ~\$1\.66/)
   expect(shown(long)).not.toMatch(/\b0:\d\d/)
-  expect(shown(cachePill(k, readingsOf(snap), true))).toMatch(/! 47s\s*$/)
-  expect(cards(long)).toHaveLength(0)
+  expect(shown(cachePill(k, read, true))).toMatch(/! 47s\s*$/)
+  expect(layoutCacheSpec(k, read, amberOf(read), false).hover).toBe(cacheHover(read))
 })
 test('in the ascii tier the cache pill draws its words in ascii', () => {
-  const snap = snapOf({ cache: { ...snapOf().cache, msLeft: 0 }, glyphs: 'ascii' })
-  expect(shown(cachePill(makeKit(fakeEl, snap), readingsOf(snap), false))).toBe(' cache cold, re-warm ~$1.66 ')
+  const snap = snapOf({ ...lastCall, glyphs: 'ascii' })
+  expect(shown(cachePill(makeKit(fakeEl, snap), readingsOf(snap), false))).toBe(' ! 47s left, re-warm ~$1.66 ')
 })
 test('off the terminal the ascii tier leaves the cache pill unmapped', () => {
-  const snap = snapOf({ surface: 'mobile', cache: { ...snapOf().cache, msLeft: 0 }, glyphs: 'ascii' })
-  expect(shown(cachePill(makeKit(fakeEl, snap), readingsOf(snap), false))).toBe(' cache cold · re-warm ~$1.66 ')
+  const snap = snapOf({ ...lastCall, surface: 'mobile', glyphs: 'ascii' })
+  expect(shown(cachePill(makeKit(fakeEl, snap), readingsOf(snap), false))).toBe(' ! 47s left · re-warm ~$1.66 ')
 })
 test('what needs you comes first, each part in its order; a piece is built once', () => {
   const items = [{ n: 1, amber: undefined }, { n: 2, amber: A }, { n: 3, amber: undefined }, { n: 4, amber: A }]

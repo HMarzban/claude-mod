@@ -2,11 +2,11 @@
 // spoken durations, amber, pace, resets, empty states and alt text.
 
 import { test, expect } from 'claude-code/testing'
-import { fixedZone, fmtClock, fmtDay, fmtDayClock, fmtEtaSpoken, fmtLeft, fmtLeftSpoken, fmtSecondsLeft } from '../hooks/format'
-import { AMBER, EMPTY, altOf, paceText, resetPhrase } from '../hooks/words'
+import { fixedZone, fmtClock, fmtDay, fmtDayClock, fmtEtaSpoken, fmtLeft, fmtLeftSpoken } from '../hooks/format'
+import { AMBER, EMPTY, altOf, paceText } from '../hooks/words'
+import { MIN } from './helpers'
 
 const T = Date.UTC(2026, 9, 9, 13, 40) // a Friday, 13:40 UTC
-const MIN = 60_000
 const UTC = fixedZone(0)
 
 test('clock times are local and 24-hour', () => {
@@ -24,12 +24,11 @@ test("a projection's day is today's clock, else its weekday, a week on the next 
   expect(fmtDay(T + (7 * 24 - 1) * 60 * MIN, UTC, T)).toBe('next Fri')
 })
 test('a countdown is words, never a clock', () => {
-  expect(fmtSecondsLeft(47_000)).toBe('47s left')
-  expect(fmtSecondsLeft(400)).toBe('1s left')
   expect(fmtLeft(60 * MIN)).toBe('1h 00m left')
   expect(fmtLeft(52 * MIN)).toBe('52m left')
   expect(fmtLeft(9.5 * MIN)).toBe('10m left')
   expect(fmtLeft(47_000)).toBe('47s left')
+  expect(fmtLeft(400)).toBe('1s left')
   for (const ms of [60 * MIN, 52 * MIN, 9.5 * MIN, 47_000]) expect(fmtLeft(ms)).not.toMatch(/\d:\d\d/)
 })
 test('a screen reader hears durations spelled out', () => {
@@ -47,11 +46,6 @@ test('the spoken countdown counts the minutes the drawn one shows', () => {
   expect([fmtLeft(11 * MIN - 400), fmtLeftSpoken(11 * MIN - 400)]).toEqual(['11m left', '11 minutes left'])
   expect([fmtLeft(60 * MIN - 400), fmtLeftSpoken(60 * MIN - 400)]).toEqual(['1h 00m left', '1 hour left'])
   expect([fmtLeft(65 * MIN), fmtLeftSpoken(65 * MIN)]).toEqual(['1h 05m left', '1 hour 5 minutes left'])
-})
-test('a reset reads as a duration, never as a clock', () => {
-  expect(resetPhrase({ kind: 'in', text: '3h 00m' }, 'words')).toBe('resets in 3h 00m')
-  expect(resetPhrase({ kind: 'in', text: '3h 00m' }, 'glyph')).toBe('↻ in 3h 00m')
-  expect(resetPhrase({ kind: 'passed' }, 'words')).toBe('reset')
 })
 test('pace speaks a measured rate first, then the average', () => {
   expect(paceText({ etaMs: 40 * MIN, projectedPct: 50 })).toBe('full in ~40m')

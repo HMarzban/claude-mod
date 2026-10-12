@@ -5,12 +5,12 @@ import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import { LONG, START, engine, mountBand, setup, shown, turn, resp, respond } from './helpers'
-import { caseKey, drawCases, type Mount, type ScenarioName } from './matrix'
+import { caseKey, drawCases, ttlOf, type Mount, type ScenarioName } from './matrix'
 import { treeHash } from './golden/hash'
 
 const WIDE: Mount = { surface: 'terminal', cols: 160 }
 const drawn = async ($: Engine, on: On, scenario: ScenarioName) => {
-  const trees = await drawCases($, on, { scenario, appearance: 'dark', ttl: scenario === 'lastMinute' || scenario === 'cold' ? '5m' : '1h' }, [WIDE])
+  const trees = await drawCases($, on, { scenario, appearance: 'dark', ttl: ttlOf(scenario) }, [WIDE])
   return { shut: shown(trees[caseKey(WIDE, 'shut')]), open: shown(trees[caseKey(WIDE, 'open')]) }
 }
 const reaches = (scenario: ScenarioName, shut: RegExp, open?: RegExp, notOpen?: RegExp) =>

@@ -3,10 +3,9 @@
 
 import { test, expect } from 'claude-code/testing'
 import { clipMiddle, clipWords, contextUsed, fmtAgo, fmtCost, fmtCountdown, fmtEstimate, fmtEta, fmtEtaDays, fmtPct, fmtSmallCost, fmtTokens, resetIn } from '../hooks/format'
+import { HOUR, MIN } from './helpers'
 
 const SEC = 1000
-const MIN = 60 * SEC
-const HOUR = 60 * MIN
 const NOW = 1_000_000
 const at = (ms: number): string => new Date(NOW + ms).toISOString()
 

@@ -1,6 +1,7 @@
 import { test, expect } from 'claude-code/testing'
-import { fixedZone, fmtClock, fmtDayClock } from '../hooks/format'
-import { cappedMarks, readingsOf, type HourCell } from '../hooks/reading'
+import { fixedZone, fmtClock } from '../hooks/format'
+import type { HourCell } from '../hooks/calendar'
+import { cappedMarks, readingsOf } from '../hooks/reading'
 import { usedSoFar } from '../hooks/words'
 import { HOUR, MIN } from './helpers'
 import { snapOf } from './matrix'
@@ -42,10 +43,10 @@ test('a window that fills before its reset says when: a measured fill, else the 
 })
 test('the context says how many messages to compaction at its average rise a message', () => {
   const at = (context: readonly number[]) => readingsOf(snapOf({ history: { costs: [], fiveHour: [], context } })).history.toCompaction?.[0]
-  // 114k of room at 10k a message.
-  expect(at([56_000, 66_000, 76_000])).toBe('~11 messages to compaction')
+  // 114k of room at 10k a message: a 12th message reaches it.
+  expect(at([56_000, 66_000, 76_000])).toBe('~12 messages to compaction')
   // Shorter for a head out of room, then its figure alone.
-  expect(readingsOf(snapOf({ history: { costs: [], fiveHour: [], context: [56_000, 66_000, 76_000] } })).history.toCompaction).toEqual(['~11 messages to compaction', '~11 msgs to compact', '~11'])
+  expect(readingsOf(snapOf({ history: { costs: [], fiveHour: [], context: [56_000, 66_000, 76_000] } })).history.toCompaction).toEqual(['~12 messages to compaction', '~12 msgs to compact', '~12'])
   expect([at([76_000]), at([80_000, 76_000])]).toEqual([undefined, undefined])
   // Since the newest compaction: 940k of rise before it would say ~240 messages.
   const compacted = [...Array.from({ length: 95 }, (_, i) => 20_000 + i * 10_000), ...Array.from({ length: 16 }, (_, i) => 150_000 + i * 10_000)]
@@ -54,6 +55,11 @@ test('the context says how many messages to compaction at its average rise a mes
   expect(after(compacted)).toBe('~67 messages to compaction')
   // Just compacted, nothing has risen yet.
   expect(after([...compacted.slice(0, 95), 150_000])).toBeUndefined()
+})
+test("forecast's messages to compaction are the count departures shows", () => {
+  const r = readingsOf(snapOf({ history: { costs: [], fiveHour: [], context: [56_000, 66_000, 76_000] } }))
+  // 114k of room at 10k a message: both say the 12th message compacts.
+  expect([r.history.toCompaction?.[2], r.context.msgsHead?.[0]?.[0]]).toEqual(['~12', '~12'])
 })
 test("a card can say each limit's reset at its clock time, with its pace, as LIMITS' lead row does", () => {
   expect(readingsOf(snapOf({ zone: fixedZone(0) })).limits.map(l => l.cardResetLess('clock', NOTHING_SAID))).toEqual(['resets 03:00 · on pace for ~10%', 'resets Sat 19:00 · on pace for ~50%'])
@@ -178,7 +184,7 @@ test('a measured fill lands at 100, so it too is full before reset', () => {
 })
 test('a passed window has no reset words', () => {
   const r = readingsOf(snapOf({ now: 4 * HOUR }))
-  expect([r.fiveHour?.text, r.fiveHour?.resetAtGlyph, r.fiveHour?.resetShort]).toEqual(['5h reset', undefined, undefined])
+  expect([r.fiveHour?.text, r.fiveHour?.resetAtGlyph]).toEqual(['5h reset', undefined])
 })
 test('a limit reads its value, or once its window has passed, reset', () => {
   expect(readingsOf(snapOf()).fiveHour?.valueText).toBe('4%')

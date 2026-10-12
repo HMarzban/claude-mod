@@ -9,10 +9,10 @@ import { ROW_SLACK } from '../layout'
 import type { LimitKey, LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { BETWEEN_READINGS, type Amber, type Say } from '../words'
-import { cardsView, type Fact } from './cards'
+import type { Fact } from './cards'
 import { toggleButton } from './frame'
 import { AMBER_STEP, ROLE_INK, amberFirst, amberSay, beforeLast, fitLine, type Keeps } from './parts'
-import { rowsOf, type View } from './view'
+import { defineCardsView } from './view'
 
 /** What gives way as the row narrows, first to last: the closest calm
  *  limit's ↻ clock and pace words, the calm readings, the cold cache's long
@@ -162,12 +162,8 @@ const fitted = (
 }
 
 /** Fitted once, so the cards skip what that very row says. */
-export const ledgerView: View = {
-  name: 'ledger',
-  rows: { desktop: 1, terminal: 1 },
-  draw: (kit, read, act) => {
-    const { row, shown, shownByWindow } = fitted(kit, read, act)
-    // Each window says its reset at its clock time, as the sentence does.
-    return cardsView(kit, read, act, [row], { shown, shownByWindow, windowResets: 'clock', compactSplit: true, collapsedRows: rowsOf(ledgerView, kit) })
-  },
-}
+export const ledgerView = defineCardsView({ desktop: 1, terminal: 1 }, (kit, read, act) => {
+  const { row, shown, shownByWindow } = fitted(kit, read, act)
+  // Each window says its reset at its clock time, as the sentence does.
+  return { lines: [row], open: () => ({ shown, shownByWindow, windowResets: 'clock', compactSplit: true }) }
+})

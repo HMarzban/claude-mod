@@ -1,7 +1,7 @@
 // One source for each figure: a pace, a tone, a read price, the context in
 // use. Where the band says a thing twice, it says it the same way.
 
-import { test, expect } from 'claude-code/testing'
+import { test, expect, type Plugin } from 'claude-code/testing'
 import { contextUsed } from '../hooks/format'
 import { DARK } from '../hooks/palette'
 import {
@@ -79,13 +79,32 @@ test('the context in use: tokens, else the percent of the window, else unknown',
   expect(contextUsed({ tokens: undefined, percent: undefined, window: 200_000 })).toBeUndefined()
 })
 
-test('a usage read that fails mid-turn never breaks the turn or the band', async ($, on) => {
+// A band hook that throws before next() is skipped, and what lies beneath
+// draws in its place, as empty as a band that stepped aside. So above the
+// band, this draws its link's outcome in place of the drawing unless it returned.
+const tracer = {
+  name: 'band-tracer',
+  tier: 'prepend',
+  register(on) {
+    on('ui.render', { component: 'AbovePrompt' }, async (_$, e, next) => {
+      const drawn = await next(e)
+      const outcome = next.trace.find(t => t.plugin === 'session-usage-band')?.outcome ?? 'absent'
+      return outcome === 'returned' ? drawn : { type: 'Text', children: [outcome] }
+    })
+  },
+} satisfies Plugin
+
+test('a usage read that fails mid-turn never breaks the turn or the band', { plugins: [tracer] }, async ($, on) => {
   setup(on)
   await $.session.start(START)
   usage.fails = true
   await $.turn.start({ text: 'hi', turnId: 't1' })
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+  // While the read fails, the band steps aside rather than break the prompt.
+  const failing = await mountBand($, 'terminal', 140)
+  expect(shown(await failing.drawn())).toBe('')
+  await failing.unmount()
   usage.fails = false
   const ui = await mountBand($, 'terminal', 140)
   expect(shown(pillOf(await ui.drawn(), 'cache'))).toMatch(/cache 1h 00m/)

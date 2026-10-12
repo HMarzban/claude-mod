@@ -8,7 +8,7 @@ import { drawBand } from '../hooks/band'
 import { fixedZone } from '../hooks/format'
 import { DARK } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { HOUR, MIN, byKey, cardOf, fakeEl, firstRow, pillOf, shown, svgsOf, walk, type Node } from './helpers'
+import { HOUR, MIN, boldOf, byKey, cardFirstRow, cardOf, fakeEl, firstRow, pillKeys, pillOf, shown, svgsOf, walk, type Node } from './helpers'
 import { NO_ACT, snapOf, viewSuite, visualRows } from './matrix'
 
 viewSuite('rings')
@@ -37,11 +37,8 @@ const AMBER_FIVE: Partial<BandSnapshot> = { fiveHour: { percentUsed: 82, resetsA
 const FILLING_FIVE: Partial<BandSnapshot> = { fiveHour: { percentUsed: 60, resetsAt: new Date(NOW + 3 * HOUR).toISOString(), etaMs: HOUR } }
 const LAST_MINUTE: Partial<BandSnapshot> = { cache: { ...snapOf().cache, msLeft: 30_000, reWarmUsd: 0.8 } }
 const NEAR_COMPACTION: Partial<BandSnapshot> = { context: { tokens: 930_000, window: 1_000_000, percent: 93, compactAt: 967_000, autoCompactOff: false } }
-const COLD: Partial<BandSnapshot> = { cache: { ...snapOf().cache, msLeft: 0, reWarmUsd: 0.8, coldAt: NOW - MIN } }
+const COLD: Partial<BandSnapshot> = { cache: { ...snapOf().cache, msLeft: 0, reWarmUsd: 0.8 } }
 
-/** The row's pills by key, as drawn. */
-const pillKeys = (tree: Node): unknown[] =>
-  ((firstRow(tree) as Node).children ?? []).filter(k => (k as Node | null)?.props?.flexShrink === 0 && (k as Node).props?.key !== undefined).map(k => (k as Node).props?.key)
 const pillText = (tree: Node, key: string): string => shown(pillOf(tree, key))
 /** The rings drawn, by their keys: a card's icons are Svgs too. */
 const ringsOf = (tree: unknown): Node[] => svgsOf(tree).filter(n => String(n.props?.key).startsWith('ring:'))
@@ -49,17 +46,10 @@ const ringsOf = (tree: unknown): Node[] => svgsOf(tree).filter(n => String(n.pro
 const ringAlts = (tree: unknown): string[] => ringsOf(tree).map(n => String(n.props?.alt).split(' ')[0] ?? '')
 /** A ring's markup, by its reading's name. */
 const ringOf = (tree: unknown, name: string): string => String(ringsOf(tree).find(n => String(n.props?.alt).startsWith(`${name} `))?.props?.source)
-const boldOf = (tree: unknown): string[] => {
-  const out: string[] = []
-  walk(tree, n => {
-    if (n.type === 'Text' && n.props?.bold === true) out.push(shown(n))
-  })
-  return out
-}
 /** What the row draws, as each pill's key and each keyed piece inside it. */
 const piecesOf = (tree: Node): Set<string> => {
   const out = new Set<string>()
-  for (const key of pillKeys(tree)) {
+  for (const key of pillKeys(firstRow(tree))) {
     out.add(String(key))
     walk(pillOf(tree, String(key)), n => {
       if (n.props?.key !== undefined) out.add(`${String(key)}/${String(n.props.key)}`)
@@ -67,11 +57,9 @@ const piecesOf = (tree: Node): Set<string> => {
   }
   return out
 }
-/** A card's first body row, past its head, as it reads. */
-const firstRowOf = (tree: Node, name: string): string => shown(((cardOf(tree, name)?.children ?? []) as Node[]).filter(Boolean)[1])
 
 test("the row is chips' pills in chips' order: cache, spend, context, 5h, 7d, then the tokens", () => {
-  expect(pillKeys(draw())).toEqual(['cache', 'cost', 'ctx', '5h', '7d', 'tokens'])
+  expect(pillKeys(firstRow(draw()))).toEqual(['cache', 'cost', 'ctx', '5h', '7d', 'tokens'])
 })
 test('at 160 columns the terminal row reads as its board: each ring a glyph to the nearest quarter, its figure, then its label', () => {
   const tree = draw()
@@ -91,7 +79,7 @@ test('the cache pill is a plain pill, its ring the battery: no text battery pain
 })
 test("at 95 columns the desktop keeps a 16 px ring by each meter, none by the spend; the tokens and 7d's reset give way", () => {
   const tree = draw(DESK95)
-  expect(pillKeys(tree)).toEqual(['cache', 'cost', 'ctx', '5h', '7d'])
+  expect(pillKeys(firstRow(tree))).toEqual(['cache', 'cost', 'ctx', '5h', '7d'])
   expect(ringAlts(firstRow(tree))).toEqual(['cache', 'context', '5h', '7d'])
   for (const n of ringsOf(firstRow(tree))) expect([n.props?.width, n.props?.height]).toEqual([16, 16])
   expect(svgsOf(pillOf(tree, 'cost'))).toEqual([])
@@ -220,7 +208,7 @@ test('the terminal lens is each ring as its glyph', () => {
 })
 test("open adds: at 95 columns each card's first row is one the row left out", () => {
   const tree = draw({ ...DESK95, ...OPEN })
-  expect(['cache', 'spend', 'context', 'limits'].map(name => firstRowOf(tree, name))).toEqual([
+  expect(['cache', 'spend', 'context', 'limits'].map(name => cardFirstRow(tree, name))).toEqual([
     're-warm if cold~$0.80',
     'last message$0.10',
     'room left~128k',
@@ -229,10 +217,10 @@ test("open adds: at 95 columns each card's first row is one the row left out", (
 })
 test("where the row says the worst window's reset and pace, LIMITS' first row moves on to the windows", () => {
   const tree = draw(OPEN)
-  expect(firstRowOf(tree, 'limits')).toMatch(/^5h/)
+  expect(cardFirstRow(tree, 'limits')).toMatch(/^5h/)
   expect(shown(cardOf(tree, 'limits'))).not.toMatch(/Sat 13:30|full before reset/)
   // The 5h's reset on the row isn't the worst's: the lead row still says the 7d's.
-  expect(firstRowOf(draw({ ...OPEN, columns: 100 }), 'limits')).toBe('resetsSat 13:30 · full before reset')
+  expect(cardFirstRow(draw({ ...OPEN, columns: 100 }), 'limits')).toBe('resetsSat 13:30 · full before reset')
 })
 test('open, the band keeps within its rows', () => {
   for (const surface of ['terminal', 'desktop'] as const) expect(visualRows(draw({ surface, ...OPEN }), surface)).toBeLessThanOrEqual(13)

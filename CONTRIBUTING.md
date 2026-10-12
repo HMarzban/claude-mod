@@ -65,12 +65,12 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/kit.tsx` | The drawing kit made once per draw: elements, the Svg gate, palette, measure, hover cards, gaps, icons. |
 | `hooks/reading.ts` | `readingsOf`: everything a view reads, built once per draw. Each section's facts, with its words from `words.ts`. |
 | `hooks/words.ts` | The phrasebook: every phrase a layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. |
-| `hooks/views/view.ts` | `View`, `rowsOf`, and `defineCardsView`, which makes a layout from its rows, its collapsed lines and its lens on the shared cards. |
+| `hooks/views/view.ts` | `View`, `rowsOf`, and `defineCardsView(rows, build)`. `build(kit, read, act)` returns `{ lines, open? }`: the collapsed lines, and a thunk for the shared cards' options, called only while open so it can reuse what fitting the lines found. |
 | `hooks/views/index.ts` | `VIEWS`: every layout by name. |
 | `hooks/views/cards.tsx` | `openBody`, the open view every layout shares: chips' four cards and its footer, each card's head with the layout's lens, a headline or first row in the layout's words, and no card repeating what the collapsed lines show. |
 | `hooks/views/frame.tsx` | The toggle every layout ends its row with, and the rows the shared cards get beneath the collapsed lines. |
-| `hooks/views/parts.tsx` | The pieces several layouts draw: pills, the cache's battery, the shared cache pill, and the lines they squeeze to fit and the words they're written in. |
-| `hooks/views/<name>.tsx` | One file per layout: `chips`, `gauges`, `ledger`, `rings`, `pulse`, `tiles`, `week`, `departures`, `forecast`. Chips exports its pill builders and its pill row, for a layout to compose. |
+| `hooks/views/parts.tsx` | The pieces several layouts draw: pills, the cache's battery and hover string, the amber cache pill pulse and week share, and the lines they squeeze to fit and the words they're written in. |
+| `hooks/views/<name>.tsx` | One file per layout: `chips`, `gauges`, `ledger`, `rings`, `pulse`, `tiles`, `week`, `departures`, `forecast`. Chips exports its pill builders, their hover strings, `LIMITS` and its pill row, for a layout to compose. |
 | `hooks/strip.tsx` | The workspace strip: project, branch or worktree, changes, ahead/behind. |
 | `hooks/charts.tsx` | The charts: `meter`, `splitBar`, `ring`, `sparkline`, `barChart`, `dayCells`, `sliceCells`, `braille`. Each is an Svg on the desktop and text elsewhere. |
 | `hooks/glyphs.ts` | The terminal's glyph tier (`CC_BAND_GLYPHS`, a CJK locale) and the ASCII mapping. |

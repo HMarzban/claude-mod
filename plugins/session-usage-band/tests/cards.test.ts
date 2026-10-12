@@ -13,24 +13,13 @@ import { cachePill, chipsPills, chipsView, limitPill, pillRow } from '../hooks/v
 import { defineCardsView } from '../hooks/views/view'
 import { canon } from './golden/hash'
 import { BARE, DARK, PLAIN } from '../hooks/palette'
-import { byKey, cardOf, fact, fakeEl, shown, walk, type Node } from './helpers'
+import { boldOf, byKey, cardFirstRow, cardHead, cardOf, fact, fakeEl, shown, walk, type Node } from './helpers'
 import { NO_ACT, snapOf, visualRows } from './matrix'
 
 const text = (s: string) => ({ type: 'Text', props: {}, children: [s] }) as unknown as RenderElement
 const opened = (o: Partial<OpenOptions> = {}, over: Partial<BandSnapshot> = {}): Node => {
   const snap = snapOf({ expanded: true, maxRows: 40, ...over })
   return { type: 'Box', props: {}, children: openBody(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT, { collapsedRows: 1, ...o }) } as unknown as Node
-}
-/** The first body row of a card, past its head, as it reads. */
-const firstRowOf = (tree: Node, name: string): string => shown(((cardOf(tree, name)?.children ?? []) as Node[]).filter(Boolean)[1])
-const headOf = (tree: Node, name: string) => byKey(cardOf(tree, name), 'head')
-/** The bold Texts of a node, as they read. */
-const boldOf = (n: Node | undefined): string[] => {
-  const out: string[] = []
-  walk(n, k => {
-    if (k.type === 'Text' && k.props?.bold === true) out.push(shown(k))
-  })
-  return out
 }
 
 test("chips' open view is openBody's, with one collapsed row and nothing to skip", () => {
@@ -55,15 +44,15 @@ test('a fact the collapsed lines show is in no card', () => {
 })
 test("with a row each, a card's first row is one the collapsed lines left out", () => {
   const short = { maxRows: 13 }
-  expect(firstRowOf(opened({}, short), 'cache')).toMatch(/^re-warm if cold/)
-  expect(firstRowOf(opened({ shown: ['reWarm'] }, short), 'cache')).toMatch(/^saved by cache/)
-  expect(firstRowOf(opened({ shown: ['room'] }, short), 'context')).toMatch(/^auto-compacts at/)
-  expect(firstRowOf(opened({ shown: ['lastMessage'] }, short), 'spend')).toMatch(/^\S* ?input/)
+  expect(cardFirstRow(opened({}, short), 'cache')).toMatch(/^re-warm if cold/)
+  expect(cardFirstRow(opened({ shown: ['reWarm'] }, short), 'cache')).toMatch(/^saved by cache/)
+  expect(cardFirstRow(opened({ shown: ['room'] }, short), 'context')).toMatch(/^auto-compacts at/)
+  expect(cardFirstRow(opened({ shown: ['lastMessage'] }, short), 'spend')).toMatch(/^\S* ?input/)
 })
 test("a layout's lens sits in its card's head, after the title", () => {
   const tree = opened({ slots: { context: text('LENS') } })
-  expect(shown(headOf(tree, 'context'))).toBe('CONTEXTLENS40% full')
-  expect(shown(headOf(tree, 'cache'))).not.toMatch(/LENS/)
+  expect(shown(cardHead(tree, 'context'))).toBe('CONTEXTLENS40% full')
+  expect(shown(cardHead(tree, 'cache'))).not.toMatch(/LENS/)
 })
 test("a lens that stands for its card's bar takes the bar's place, and only where it is set", () => {
   const firstKeys = (tree: Node) => ['cache', 'context'].map(name => String(((cardOf(tree, name)?.children ?? []) as Node[]).filter(Boolean)[1]?.props?.key))
@@ -77,7 +66,7 @@ test("a lens that stands for its card's bar takes the bar's place, and only wher
 test('a lens too wide for its head gives way before the headline does', () => {
   // The fake elements lay nothing out, so this holds the head's flex: the
   // title and the headline keep their width, the lens takes what is left.
-  const head = headOf(opened({ slots: { context: text('~12 messages to compaction') } }), 'context')
+  const head = cardHead(opened({ slots: { context: text('~12 messages to compaction') } }), 'context')
   const flex = (key: string) => {
     const p = byKey(head, key, 'Box')?.props
     return [p?.flexGrow, p?.flexShrink, p?.minWidth, p?.overflow]
@@ -92,10 +81,10 @@ test('a lens too wide for its head gives way before the headline does', () => {
 test("a lens in its forms gives way whole: the head draws the first that leaves its title and headline whole", () => {
   // Four cards across 160 columns leave each head 37 columns: `CONTEXT`, the headline `40% full`, a column either side of the lens.
   const forms = { slots: { context: { forms: [text('~12 messages to compaction'), text('~12 msgs to compact'), text('~12')] } } }
-  expect(shown(headOf(opened(forms, { columns: 160 }), 'context'))).toBe('CONTEXT~12 msgs to compact40% full')
-  expect(shown(headOf(opened(forms, { columns: 200 }), 'context'))).toBe('CONTEXT~12 messages to compaction40% full')
+  expect(shown(cardHead(opened(forms, { columns: 160 }), 'context'))).toBe('CONTEXT~12 msgs to compact40% full')
+  expect(shown(cardHead(opened(forms, { columns: 200 }), 'context'))).toBe('CONTEXT~12 messages to compaction40% full')
   // Held by none, the last; one that draws nothing leaves the headline alone.
-  expect(shown(headOf(opened({ slots: { context: { forms: [text('x'.repeat(40)), null] } } }, { columns: 160 }), 'context'))).toBe('CONTEXT40% full')
+  expect(shown(cardHead(opened({ slots: { context: { forms: [text('x'.repeat(40)), null] } } }, { columns: 160 }), 'context'))).toBe('CONTEXT40% full')
 })
 test("a lead that says the card's own facts gives way whole: held by no form, the card says them in its own rows", () => {
   const lead = { lead: { context: { forms: [['room left · auto-compacts at 190k', '~114k']], says: ['room', 'compactsAt'] } } } as const
@@ -107,16 +96,16 @@ test("a lead that says the card's own facts gives way whole: held by no form, th
 })
 test("a layout's head replaces a card's headline, bold on its figure alone", () => {
   const tree = opened({ heads: { context: [['~12', 'value'], [' msgs', 'label']], limits: [['5h ', 'label'], ['in 3h 00m', 'value']] } })
-  expect([shown(headOf(tree, 'context')), shown(headOf(tree, 'limits'))]).toEqual(['CONTEXT~12 msgs', 'LIMITS5h in 3h 00m'])
-  expect([boldOf(headOf(tree, 'context')), boldOf(headOf(tree, 'limits'))]).toEqual([['~12'], ['in 3h 00m']])
-  expect(byKey(headOf(tree, 'limits'), 'say0', 'Text')?.props?.color).toBe(DARK.label)
-  expect(shown(headOf(tree, 'cache'))).toBe('CACHE52m left')
+  expect([shown(cardHead(tree, 'context')), shown(cardHead(tree, 'limits'))]).toEqual(['CONTEXT~12 msgs', 'LIMITS5h in 3h 00m'])
+  expect([boldOf(cardHead(tree, 'context')), boldOf(cardHead(tree, 'limits'))]).toEqual([['~12'], ['in 3h 00m']])
+  expect(byKey(cardHead(tree, 'limits'), 'say0', 'Text')?.props?.color).toBe(DARK.label)
+  expect(shown(cardHead(tree, 'cache'))).toBe('CACHE52m left')
 })
 test("a layout's lead is its card's first row, and the card's own facts follow", () => {
   const leads = { lead: { cache: ['goes cold', 'at 16:40'], limits: ['used so far', '5h 4% · 7d 30%'] } } as const
   // At 10 rows each card keeps one row of body: the lead's.
   const short = opened(leads, { maxRows: 10 })
-  expect([firstRowOf(short, 'cache'), firstRowOf(short, 'limits')]).toEqual(['goes coldat 16:40', 'used so far5h 4% · 7d 30%'])
+  expect([cardFirstRow(short, 'cache'), cardFirstRow(short, 'limits')]).toEqual(['goes coldat 16:40', 'used so far5h 4% · 7d 30%'])
   expect([fact(short, 're-warm if cold'), fact(short, '5h')]).toEqual([undefined, undefined])
   const tall = opened(leads)
   expect([fact(tall, 'goes cold'), fact(tall, 're-warm if cold'), fact(tall, '5h')]).toEqual(['at 16:40', '~$1.66', '4%'])
@@ -125,10 +114,10 @@ test("a layout's lead is its card's first row, and the card's own facts follow",
   expect([fact(one, 'room left · auto-compacts at 190k'), fact(one, 'room left'), fact(one, 'auto-compacts at')]).toEqual(['~114k', undefined, undefined])
 })
 test('the cards take only the rows the collapsed lines leave', () => {
-  const lines = (count: number) => () => Array.from({ length: count }, (_, i) => text(`LINE ${i}`))
+  const lines = (count: number) => () => ({ lines: Array.from({ length: count }, (_, i) => text(`LINE ${i}`)) })
   for (const surface of ['terminal', 'desktop'] as const) {
     for (const count of [1, 2]) {
-      const view = defineCardsView('gauges', { desktop: count, terminal: count }, lines(count))
+      const view = defineCardsView({ desktop: count, terminal: count }, lines(count))
       // From 13 rows, where every line of cards keeps a row of body. A
       // desktop card's edge takes a row above and below, which visualRows
       // leaves out, so each line of them adds two.
@@ -149,7 +138,7 @@ test('the cards take only the rows the collapsed lines leave', () => {
   }
 })
 test('short of a row for a fact under each head, the cards give way whole, so the buttons stay in view', () => {
-  const view = defineCardsView('gauges', { desktop: 2, terminal: 2 }, () => [text('LINE 0'), text('LINE 1')])
+  const view = defineCardsView({ desktop: 2, terminal: 2 }, () => ({ lines: [text('LINE 0'), text('LINE 1')] }))
   for (const maxRows of [4, 6, 7]) {
     const snap = snapOf({ expanded: true, maxRows })
     const tree = view.draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT)
@@ -157,7 +146,7 @@ test('short of a row for a fact under each head, the cards give way whole, so th
   }
 })
 test('with the cards given way, a window only they draw still says it needs you, on the row they would start on', () => {
-  const view = defineCardsView('gauges', { desktop: 2, terminal: 2 }, () => [text('LINE 0'), text('LINE 1')])
+  const view = defineCardsView({ desktop: 2, terminal: 2 }, () => ({ lines: [text('LINE 0'), text('LINE 1')] }))
   const spend = { otherLimits: [{ kind: 'spend_limit' as const, percentUsed: 92, resetsAt: undefined }] }
   const draw = (maxRows: number, over = {}) => {
     const snap = snapOf({ expanded: true, maxRows, ...over })
@@ -171,7 +160,7 @@ test('with the cards given way, a window only they draw still says it needs you,
 })
 test('shut, a cards view draws its collapsed lines alone', () => {
   const snap = snapOf()
-  const tree = defineCardsView('gauges', { desktop: 1, terminal: 1 }, () => [text('LINE')]).draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT)
+  const tree = defineCardsView({ desktop: 1, terminal: 1 }, () => ({ lines: [text('LINE')] })).draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT)
   expect(shown(tree)).toBe('LINE')
 })
 test("a layout composes chips' pills: chips' row is its pills in a pill row", () => {
@@ -187,18 +176,18 @@ test("a layout composes chips' pills: chips' row is its pills in a pill row", ()
 })
 test('a card head is bold on its figure alone, its words in label ink', () => {
   const tree = opened()
-  expect(['cache', 'spend', 'context', 'limits'].map(name => boldOf(headOf(tree, name)))).toEqual([['52m'], ['$3.19'], ['40%'], ['30%']])
-  expect(shown(headOf(tree, 'limits'))).toBe('LIMITS7d 30%')
-  const label = byKey(headOf(tree, 'cache'), 'say1', 'Text')
+  expect(['cache', 'spend', 'context', 'limits'].map(name => boldOf(cardHead(tree, name)))).toEqual([['52m'], ['$3.19'], ['40%'], ['30%']])
+  expect(shown(cardHead(tree, 'limits'))).toBe('LIMITS7d 30%')
+  const label = byKey(cardHead(tree, 'cache'), 'say1', 'Text')
   expect([shown(label), label?.props?.color]).toEqual([' left', DARK.label])
 })
 test("LIMITS leads with the worst window's reset and pace, never the collapsed row's value", () => {
   const zoned = { zone: fixedZone(0), maxRows: 13 }
-  expect(firstRowOf(opened({}, zoned), 'limits')).toBe('resetsSat 19:00 · on pace for ~50%')
-  expect(firstRowOf(opened({}, { maxRows: 13 }), 'limits')).toBe('resetsin 2d 19h · on pace for ~50%')
-  expect(firstRowOf(opened({ shown: ['pace'] }, zoned), 'limits')).toBe('resetsSat 19:00')
-  expect(firstRowOf(opened({ shown: ['reset'] }, zoned), 'limits')).toBe('on pace for ~50%')
-  expect(firstRowOf(opened({ shown: ['reset', 'pace'] }, zoned), 'limits')).toMatch(/^5h/)
+  expect(cardFirstRow(opened({}, zoned), 'limits')).toBe('resetsSat 19:00 · on pace for ~50%')
+  expect(cardFirstRow(opened({}, { maxRows: 13 }), 'limits')).toBe('resetsin 2d 19h · on pace for ~50%')
+  expect(cardFirstRow(opened({ shown: ['pace'] }, zoned), 'limits')).toBe('resetsSat 19:00')
+  expect(cardFirstRow(opened({ shown: ['reset'] }, zoned), 'limits')).toBe('on pace for ~50%')
+  expect(cardFirstRow(opened({ shown: ['reset', 'pace'] }, zoned), 'limits')).toMatch(/^5h/)
   // Taller, every window follows; the worst's own reset line isn't said twice.
   const tall = opened({}, { zone: fixedZone(0) })
   expect([fact(tall, '5h'), fact(tall, '7d'), fact(tall, '5h pace'), fact(tall, '7d pace')]).toEqual(['4%', '30%', '5h resets 3h 00m · on pace for ~10%', undefined])
@@ -208,7 +197,7 @@ test("LIMITS leads with the worst window's reset and pace, never the collapsed r
 test("a window's own line leaves out what the collapsed lines say of it, the worst's lead row too", () => {
   const said = (shownByWindow: OpenOptions['shownByWindow']) => {
     const tree = opened({ shownByWindow, windowResets: 'clock' }, { zone: fixedZone(0) })
-    return [fact(tree, '5h pace'), firstRowOf(tree, 'limits')]
+    return [fact(tree, '5h pace'), cardFirstRow(tree, 'limits')]
   }
   expect(said({})).toEqual(['5h resets 03:00 · on pace for ~10%', 'resetsSat 19:00 · on pace for ~50%'])
   expect(said({ '5h': ['reset'] })[0]).toBe('5h on pace for ~10%')

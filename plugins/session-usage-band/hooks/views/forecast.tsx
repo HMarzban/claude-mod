@@ -9,10 +9,10 @@ import { ROW_SLACK } from '../layout'
 import type { LimitKey, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import type { Ahead, Amber } from '../words'
-import { cardsView, type Fact, type OpenOptions, type Slots } from './cards'
-import { cachePill, contextPill, limitPill, pillRow, type ChipKey } from './chips'
-import { AMBER_STEP, ROLE_INK, batteryIcon, beforeLast, fitLine, type Keeps, type PillSpec } from './parts'
-import { rowsOf, type Rows, type View } from './view'
+import type { Fact, Slots } from './cards'
+import { LIMITS, contextHover, limitHover, pillRow, type ChipKey } from './chips'
+import { AMBER_STEP, PERCENT, ROLE_INK, batteryIcon, beforeLast, cacheHover, fitLine, type Keeps, type PillSpec } from './parts'
+import { defineCardsView, type CardOptions } from './view'
 
 /** What gives way as the row narrows, first to last: the limits' tails, how
  *  far off the soonest change is, the cache's price, the calm pills, amber's
@@ -57,8 +57,8 @@ const limitChange = (kit: Kit, read: Readings, key: ChipKey): Change[] => {
   const { palette, onTone, icon } = kit
   const l = key === '5h' ? read.fiveHour : read.sevenDay
   if (l === undefined) return []
-  const [tint, bg, fg, accent] =
-    key === '5h' ? (['five', palette.fiveBg, palette.fiveFg, palette.fiveAccent] as const) : (['week', palette.weekBg, palette.weekFg, palette.weekAccent] as const)
+  const spec = LIMITS[key]
+  const t = spec.tint(palette)
   const [figure, tail] = l.fillAt === undefined ? (['reset', 'pace'] as const) : (['pace', 'reset'] as const)
   // A measured fill's amber says the pace, long and short.
   const amberSays = l.fullIn === undefined ? undefined : 'pace'
@@ -71,9 +71,9 @@ const limitChange = (kit: Kit, read: Readings, key: ChipKey): Change[] => {
       ahead: l.ahead,
       amber: l.amber,
       inMs: l.fillInMs ?? l.resetInMs,
-      mark: icon(tint, onTone(l.tone, accent)),
-      name: { text: l.name, ink: fg },
-      bg,
+      mark: icon(spec.icon, onTone(l.tone, t.accent)),
+      name: { text: l.name, ink: t.fg },
+      bg: t.bg,
       tail: 'limitTails',
       calm: key === '5h' ? 'calmFive' : 'calmSeven',
       amberTail: {
@@ -82,7 +82,7 @@ const limitChange = (kit: Kit, read: Readings, key: ChipKey): Change[] => {
         says: [...(pace ? (['pace'] as const) : []), ...(reset ? (['reset'] as const) : [])],
       },
       says: { figure, tail, amberLong: amberSays, amberShort: amberSays },
-      hover: limitPill(kit, read, key, 0, false)?.hover,
+      hover: limitHover(read, key),
     },
   ]
 }
@@ -107,7 +107,7 @@ const changesOf = (kit: Kit, read: Readings): Change[] => {
       tail: 'price',
       // Cold, its figure is the price; counting down, its tail.
       says: { figure: c.mood === 'cold' ? 'reWarm' : undefined, tail: 'reWarm', amberLong: 'reWarm' },
-      hover: cachePill(kit, read, false).hover,
+      hover: cacheHover(read),
     },
     ...limitChange(kit, read, '5h'),
     ...limitChange(kit, read, '7d'),
@@ -122,7 +122,7 @@ const changesOf = (kit: Kit, read: Readings): Change[] => {
             tail: 'compaction',
             calm: 'compaction',
             says: { figure: 'room', amberLong: x.roomText === undefined ? undefined : 'room' },
-            hover: contextPill(kit, read, 0).hover,
+            hover: contextHover(read),
           } as const,
         ]
       : []),
@@ -218,10 +218,7 @@ const fit = (kit: Kit, read: Readings, act: BandActions) => {
   return { row, drawn }
 }
 
-/** The top of a limit's scale: its percentages run to 100. */
-const PERCENT = 100
-
-/** The week's day cells, 16px tall; in ascii, which has no braille, none. */
+/** The week's day cells; in ascii, which has no braille, none. */
 const weekCells = (kit: Kit, read: Readings): RenderChildren => {
   const { days, daysAlt } = read.week
   if (read.frame.glyphs === 'ascii' || days.length === 0) return null
@@ -243,7 +240,7 @@ const weekCells = (kit: Kit, read: Readings): RenderChildren => {
  *  compaction, and the week's cells with the day it fills, the 7d named
  *  beside another window's headline. Short of room, its words give way
  *  whole, down to the figure alone. Its body skips what the row says. */
-const lens = (kit: Kit, read: Readings, drawn: readonly Drawn[]): Omit<OpenOptions, 'collapsedRows'> => {
+const lens = (kit: Kit, read: Readings, drawn: readonly Drawn[]): CardOptions => {
   const { palette, oneLine, gap } = kit
   const said = (text: string | undefined) => (text === undefined ? undefined : oneLine({ color: palette.label }, text))
   const cells = weekCells(kit, read)
@@ -266,16 +263,9 @@ const lens = (kit: Kit, read: Readings, drawn: readonly Drawn[]): Omit<OpenOptio
   }
 }
 
-const ROWS: Rows = { desktop: 1, terminal: 1 }
-
-/** Drawn as `defineCardsView` draws a layout, but its lens reads the row as
- *  it was squeezed, so the cards skip only what the row kept. Shut, there
- *  are no cards, so the week and the history aren't read. */
-export const forecastView: View = {
-  name: 'forecast',
-  rows: ROWS,
-  draw: (kit, read, act) => {
-    const { row, drawn } = fit(kit, read, act)
-    return cardsView(kit, read, act, [row], { ...(read.frame.expanded ? lens(kit, read, drawn) : {}), collapsedRows: rowsOf({ rows: ROWS }, kit) })
-  },
-}
+/** Its lens reads the row as it was squeezed, so the cards skip only what
+ *  the row kept. */
+export const forecastView = defineCardsView({ desktop: 1, terminal: 1 }, (kit, read, act) => {
+  const { row, drawn } = fit(kit, read, act)
+  return { lines: [row], open: () => lens(kit, read, drawn) }
+})

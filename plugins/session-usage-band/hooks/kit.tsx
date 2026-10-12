@@ -56,14 +56,8 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
    *  piece is measured here where its cards are placed. */
   const asDrawn = (n: RenderChildren): RenderChildren => (glyphs === 'ascii' ? asciiTree(n) : n)
 
-  // A piece and its hover card share a hover scope, so the card can sit
-  // apart from the piece, after every piece in their row: a placed Box paints
-  // over those before it, so inside its own piece the pieces after would
-  // paint over it. The pointer on a showing card keeps it showing, so a card
-  // sits at its piece and covers no more than its text and the rest of any
-  // piece it enters, which was only a cell or two to hover: moving onto a
-  // piece it leaves whole switches cards. Plain has no background to cover
-  // the row with, so no cards and no scopes.
+  // A piece and its card share this hover scope; see hoverCard and
+  // CONTRIBUTING's hover-card rules.
   const scopeOf = (key: string) => `band-${key}`
 
   /** One line of text, cut where its box ends rather than wrapped. The
@@ -102,18 +96,20 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
   const hoverCard = (key: string, text: string, place: CardPlace): RenderChildren => {
     if (!palette.filled) return null
     const capped = snap.surface !== 'desktop'
+    // The columns around the text: its padding, and a text surface's caps.
+    const chrome = capped ? 4 : 2
     // Sized in the glyphs it is drawn in: the ascii tier's are narrower.
     const shown = glyphs === 'ascii' ? asciiText(text) : text
     // A text surface counts a cell a character; the desktop sizes by its font.
-    const cells = capped ? shown.length + 4 : Math.ceil(shown.length * DESKTOP_CARD_TEXT) + 2
+    const cells = (capped ? shown.length : Math.ceil(shown.length * DESKTOP_CARD_TEXT)) + chrome
     const span = cardSpan(place, cells)
-    if (span.width < (capped ? 5 : 3)) return null
+    if (span.width < chrome + 1) return null
     const shell = { position: 'absolute', top: 0, ...span, display: 'none', hover: { display: 'flex', scope: scopeOf(key) } } as const
     const ground = { backgroundColor: palette.tooltipBg, paddingX: 1 }
     // The ascii tier knows its room to the cell, so it makes its own cut, at
     // its last whole word with a `.`, as oneLine clips: the surface's would
     // end in a two-column `…`.
-    const room = span.width - (capped ? 4 : 2)
+    const room = span.width - chrome
     const words =
       glyphs === 'ascii' ? (
         <Text color={palette.tooltipFg}>{clipWords(shown, room)}</Text>

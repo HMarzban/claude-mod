@@ -2,20 +2,16 @@
 // last message cost, when your pace fills the 5-hour limit, and the trails
 // the history views draw: each message's cost, the context, and the 5h reading.
 
-import { FIVE_HOUR_MS } from './format'
+import { FIVE_HOUR_MS, MINUTE_MS, SAME_RESET_MS } from './format'
 
-type Sample = { t: number; pct: number }
-
-const WINDOW_MS = 30 * 60_000
-const MIN_SPAN_MS = 10 * 60_000
+const WINDOW_MS = 30 * MINUTE_MS
+const MIN_SPAN_MS = 10 * MINUTE_MS
 const MIN_RISE = 2
-const STALE_MS = 15 * 60_000
-// resetsAt readings of one window can differ by a few seconds.
-const SAME_RESET_MS = 60_000
+const STALE_MS = 15 * MINUTE_MS
 
 type InsightState = {
   turnStartCost: Map<string, number>
-  samples: Sample[]
+  samples: TrailPoint[]
   resetsAt: string | undefined
 }
 
@@ -73,7 +69,7 @@ export const pushContext = (tokens: number): void => {
  *  whose 30-minute window and restarts are the ETA's evidence. */
 export const noteFiveHourTrail = (now: number, pct: number): void => {
   const last = kept.fiveHour[kept.fiveHour.length - 1]
-  if (last !== undefined && Math.floor(last.at / 60_000) === Math.floor(now / 60_000)) kept.fiveHour.pop()
+  if (last !== undefined && Math.floor(last.at / MINUTE_MS) === Math.floor(now / MINUTE_MS)) kept.fiveHour.pop()
   kept.fiveHour.push({ at: now, pct })
   while ((kept.fiveHour[0]?.at ?? now) < now - FIVE_HOUR_MS) kept.fiveHour.shift()
   capped(kept.fiveHour, FIVE_HOUR_TRAIL)
@@ -118,9 +114,6 @@ export const forgetTurn = (turnId: string): void => {
   state.turnStartCost.delete(turnId)
 }
 
-/** Turns started and not yet ended. */
-export const openTurns = (): number => state.turnStartCost.size
-
 const sameReset = (a: string | undefined, b: string | undefined): boolean => {
   if (a === b) return true
   if (a === undefined || b === undefined) return false
@@ -135,8 +128,8 @@ export const noteFiveHour = (now: number, percentUsed: number, resetsAt: string 
     state.samples = []
   }
   state.resetsAt = resetsAt
-  state.samples.push({ t: now, pct: percentUsed })
-  state.samples = state.samples.filter(s => now - s.t <= WINDOW_MS)
+  state.samples.push({ at: now, pct: percentUsed })
+  state.samples = state.samples.filter(s => now - s.at <= WINDOW_MS)
 }
 
 /** Time until your pace fills the 5-hour window, or null while the
@@ -145,10 +138,10 @@ export const fiveHourEtaMs = (now: number): number | null => {
   const first = state.samples[0]
   const last = state.samples[state.samples.length - 1]
   if (first === undefined || last === undefined || last.pct >= 100) return null
-  const span = last.t - first.t
+  const span = last.at - first.at
   const rise = last.pct - first.pct
-  if (span < MIN_SPAN_MS || rise < MIN_RISE || now - last.t > STALE_MS) return null
-  const tFull = last.t + ((100 - last.pct) * span) / rise
+  if (span < MIN_SPAN_MS || rise < MIN_RISE || now - last.at > STALE_MS) return null
+  const tFull = last.at + ((100 - last.pct) * span) / rise
   if (state.resetsAt !== undefined) {
     const resetAt = Date.parse(state.resetsAt)
     if (!Number.isNaN(resetAt) && tFull >= resetAt) return null
@@ -157,7 +150,7 @@ export const fiveHourEtaMs = (now: number): number | null => {
 }
 
 /** A toast re-arms once its figure falls back below this share. */
-export const TOAST_REARM_BELOW = 0.75
+const TOAST_REARM_BELOW = 0.75
 
 /** Whether a toast speaks, and the level to remember: it speaks once per
  *  threshold crossed (at the highest reached), holds while the figure stays

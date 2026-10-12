@@ -12,7 +12,7 @@ import { CARD_TEXT } from '../hooks/layout'
 import type { Sample } from '../hooks/memory'
 import { DARK } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { DEFAULT_MAX_ROWS, HOUR, HOUR_1, LONG, MIN, MODERN, START, byKey, cardOf, fact, fakeEl, firstRow, mountBand, pillOf, setup, shown, svgsOf, usageAt, walk, type Node } from './helpers'
+import { DEFAULT_MAX_ROWS, HOUR, HOUR_1, LONG, MIN, MODERN, START, boldOf, byKey, cardHead, cardOf, fact, fakeEl, firstRow, mountBand, pillKeys, pillOf, setup, shown, svgsOf, usageAt, walk, type Node } from './helpers'
 import { NO_ACT, caseKey, invariantErrors, snapOf, viewSuite, type Mount } from './matrix'
 
 viewSuite('week')
@@ -35,29 +35,17 @@ const desk = { surface: 'desktop' } as const
 const ascii = { glyphs: 'ascii' } as const
 const open = { expanded: true, maxRows: DEFAULT_MAX_ROWS } as const
 
-/** The row's pills by key, in order. */
-const pillKeys = (tree: Node): unknown[] =>
-  ((firstRow(tree) as Node).children ?? []).filter(k => (k as Node | null)?.props?.flexShrink === 0 && (k as Node).props?.key !== undefined).map(k => (k as Node).props?.key)
-/** The bold Texts beneath a node, as they read. */
-const boldOf = (n: unknown): string[] => {
-  const out: string[] = []
-  walk(n, k => {
-    if (k.type === 'Text' && k.props?.bold === true) out.push(shown(k))
-  })
-  return out
-}
 /** The label of the row's last child's Button: the toggle. */
 const lastButton = (tree: Node): unknown => byKey(((firstRow(tree) as Node).children ?? []).at(-1), 'more', 'Button')?.props?.label
 /** A card's first body row of words, past its head and its bar, as it reads. */
 const firstRowOf = (tree: Node, name: string): string =>
   shown(((cardOf(tree, name)?.children ?? []) as Node[]).filter(k => k !== null && k !== undefined && !['meter', 'split'].includes(String(k.props?.key)))[1])
-const headOf = (tree: Node, name: string) => byKey(cardOf(tree, name), 'head')
 /** The week's day cells on the desktop. */
 const daysSvg = (tree: Node) => svgsOf(firstRow(tree)).find(s => /^weekly limit by day/.test(String(s.props?.alt)))
 
 test('collapsed is one row: 7d with its day cells, 5h, cache, cost, context, the tokens, then ▵', () => {
   const tree = board()
-  expect(pillKeys(tree)).toEqual(['7d', '5h', 'cache', 'cost', 'ctx', 'tokens'])
+  expect(pillKeys(firstRow(tree))).toEqual(['7d', '5h', 'cache', 'cost', 'ctx', 'tokens'])
   expect(shown(pillOf(tree, '7d'))).toBe('7d ▅▅▏▃▃ ╌╌ ╌╌ ╌╌ ╌╌ ╌╌ 66% · full ~Mon │ ↻ Sat 13:30')
   expect(shown(pillOf(tree, '5h'))).toBe('5h 0% │ ↻ 4h 55m')
   expect(shown(pillOf(tree, 'ctx'))).toBe('◔ 40% full')
@@ -91,7 +79,7 @@ test('no bright thumb on any fill, and no outline on today', () => {
 })
 test('one bold per reading, on its figure, the cache countdown too', () => {
   // A text battery's cut may fall inside the figure, so each pill's bold is read whole.
-  const bold = (tree: Node) => pillKeys(tree).map(key => boldOf(pillOf(tree, String(key))).join(''))
+  const bold = (tree: Node) => pillKeys(firstRow(tree)).map(key => boldOf(pillOf(tree, String(key))).join(''))
   expect(bold(board())).toEqual([' 66%', ' 0%', '52m', '$3.19', '40%', ''])
   expect(bold(board(desk))).toEqual([' 66%', ' 0%', '52m', '$3.19', '40%', ''])
   expect(bold(board(ascii))).toEqual([' 66%', ' 0%', '52m', '$3.19', '40%', ''])
@@ -146,10 +134,10 @@ test('it gives way by its ladder as it narrows, each piece before the ones it ne
 test('the desktop row gives the tokens way first, then the 7d reset only where it truly does not fit, as its board draws it', () => {
   // The board's spend, $1,027.
   const at95 = board({ ...desk, columns: 95, costUsd: 1027 })
-  expect(pillKeys(at95)).toEqual(['7d', '5h', 'cache', 'cost', 'ctx'])
+  expect(pillKeys(firstRow(at95))).toEqual(['7d', '5h', 'cache', 'cost', 'ctx'])
   expect([shown(pillOf(at95, '7d')), shown(pillOf(at95, '5h'))]).toEqual(['7d 66% · full ~Mon', '5h 0% · ↻ 4h 55m'])
   const both = board({ ...desk, columns: 105, costUsd: 1027 })
-  expect(pillKeys(both)).toEqual(['7d', '5h', 'cache', 'cost', 'ctx'])
+  expect(pillKeys(firstRow(both))).toEqual(['7d', '5h', 'cache', 'cost', 'ctx'])
   expect(shown(pillOf(both, '7d'))).toBe('7d 66% · full ~Mon · ↻ Sat 13:30')
   // ↻ a glyph in label grey after ` · `, never the clock icon.
   const inks: Array<[string, unknown]> = []
@@ -184,16 +172,16 @@ test('a week not measured yet draws no day as none left, and says it is not know
 
 test('amber leads the row, said with its own `! `', () => {
   const five = board({ fiveHour: { percentUsed: 82, resetsAt: new Date(FIVE_RESET).toISOString(), etaMs: null } })
-  expect(pillKeys(five).slice(0, 2)).toEqual(['5h', '7d'])
+  expect(pillKeys(firstRow(five)).slice(0, 2)).toEqual(['5h', '7d'])
   expect(shown(pillOf(five, '5h'))).toBe('! 5h 82% │ ↻ 4h 55m')
   expect(pillOf(five, '5h')?.props?.backgroundColor).toBe(DARK.amberBg)
   const paced = board({ fiveHour: { percentUsed: 60, resetsAt: new Date(FIVE_RESET).toISOString(), etaMs: 40 * MIN } })
   expect(shown(pillOf(paced, '5h'))).toMatch(/^! 5h full in ~40m/)
   const cache = board({ cache: { ...snapOf().cache, msLeft: 30_000 } })
-  expect(pillKeys(cache)[0]).toBe('cache')
+  expect(pillKeys(firstRow(cache))[0]).toBe('cache')
   expect(shown(pillOf(cache, 'cache'))).toBe(' ! 30s left · re-warm ~$1.66 ')
   const near = board({ context: { tokens: 180_000, window: 200_000, percent: 90, compactAt: 190_000, autoCompactOff: false } })
-  expect(pillKeys(near)[0]).toBe('ctx')
+  expect(pillKeys(firstRow(near))[0]).toBe('ctx')
   expect(shown(pillOf(near, 'ctx'))).toBe('! context 95% · compacts in ~10k')
   // The 7d keeps its cells while amber, its reason in place of its value:
   // at its pace it fills today, at the clock the forecast says.
@@ -203,17 +191,17 @@ test('amber leads the row, said with its own `! `', () => {
 })
 test('no limits reported: no limit pills, and no LIMITS card open', () => {
   const none = { sevenDay: undefined, fiveHour: undefined }
-  expect(pillKeys(board(none))).toEqual(['cache', 'cost', 'ctx', 'tokens'])
+  expect(pillKeys(firstRow(board(none)))).toEqual(['cache', 'cost', 'ctx', 'tokens'])
   expect(cardOf(board({ ...none, ...open }), 'limits')).toBeUndefined()
 })
 
 test("open is chips' four cards: LIMITS' head draws the 5h by the hour, and the other heads keep no lens", () => {
   const tree = board(open)
   // A terminal's lens is the five hours alone: this one measured at 0%, the four after not known yet.
-  expect(shown(headOf(tree, 'limits'))).toBe('LIMITS░····7d 66%')
-  expect([...shown(byKey(headOf(tree, 'limits'), 'slot'))].length).toBeLessThanOrEqual(6)
-  for (const name of ['cache', 'spend', 'context']) expect(byKey(headOf(tree, name), 'slot')).toBeUndefined()
-  const lens = svgsOf(headOf(board({ ...desk, ...open }), 'limits')).find(s => /^5-hour limit by hour/.test(String(s.props?.alt)))
+  expect(shown(cardHead(tree, 'limits'))).toBe('LIMITS░····7d 66%')
+  expect([...shown(byKey(cardHead(tree, 'limits'), 'slot'))].length).toBeLessThanOrEqual(6)
+  for (const name of ['cache', 'spend', 'context']) expect(byKey(cardHead(tree, name), 'slot')).toBeUndefined()
+  const lens = svgsOf(cardHead(board({ ...desk, ...open }), 'limits')).find(s => /^5-hour limit by hour/.test(String(s.props?.alt)))
   expect([lens?.props?.alt, lens?.props?.height]).toEqual(['5-hour limit by hour: 15:09 0%', 16])
   expect(Number(lens?.props?.width)).toBeLessThanOrEqual(62)
   expect(byKey(cardOf(board({ ...desk, ...open }), 'limits'), 'slot')).toBeDefined()
@@ -229,7 +217,7 @@ test('open adds, never repeats: each card leads with what the row left out', () 
   expect([fact(tree, 'resets'), fact(tree, 'room left'), fact(tree, 'auto-compacts at')]).toEqual([undefined, undefined, undefined])
   // Nor the 5h's reset, which its pill counts down.
   expect(byKey(cardOf(tree, 'limits'), 'fact:5h pace')).toBeUndefined()
-  expect(boldOf(headOf(tree, 'limits'))).toEqual(['66%'])
+  expect(boldOf(cardHead(tree, 'limits'))).toEqual(['66%'])
 })
 test("on the desktop a card's first row says the board's whole words where its line holds them", () => {
   // Two cards to a line, as the board draws them at 95 columns; by the
@@ -244,7 +232,7 @@ test("on the desktop a card's first row says the board's whole words where its l
 })
 test('a limit the row never draws heads LIMITS in amber while it needs you', () => {
   const tree = board({ ...open, otherLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: undefined }] })
-  const head = byKey(headOf(tree, 'limits'), 'headline')
+  const head = byKey(cardHead(tree, 'limits'), 'headline')
   expect(shown(head)).toBe('! spend 92%')
   const inks: unknown[] = []
   walk(head, k => {

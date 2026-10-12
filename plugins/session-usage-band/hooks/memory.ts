@@ -9,6 +9,7 @@
 
 import { NO_TOKENS, addTokens, modelName, weightedTokens } from './cache'
 import type { Spend, TokenCounts, Ttl } from './cache'
+import { MINUTE_MS, SEVEN_DAY_MS } from './format'
 import { LAYOUT_NAMES } from './snapshot'
 import type { LayoutName } from './snapshot'
 import { stripTrailingSlashes } from './workspace'
@@ -23,10 +24,10 @@ export const LIMIT_SAMPLES_KEY = 'limitSamples'
 export const MAX_SESSIONS = 50
 
 /** Each session's last main-loop reply, by session id. */
-export type Sessions = Readonly<Record<string, Readonly<{ lastAt: number }>>>
+type Sessions = Readonly<Record<string, Readonly<{ lastAt: number }>>>
 
 /** The base input rate per token, solved from a session's own bill, by model. */
-export type Rates = Readonly<Record<string, number>>
+type Rates = Readonly<Record<string, number>>
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
@@ -65,12 +66,16 @@ export const rememberReply = (sessions: Sessions, id: string, lastAt: number): S
       .slice(0, MAX_SESSIONS),
   )
 
+/** The engine's names for the two limits a sample holds. */
+export const FIVE_HOUR = 'five_hour'
+export const SEVEN_DAY = 'seven_day'
+
 /** Both limits at one moment, with the resets that name their windows (epoch ms). */
 export type Sample = Readonly<{ at: number; fivePct: number; sevenPct: number; fiveResetAt: number; sevenResetAt: number }>
 
-/** A week of 15-minute buckets: 7 × 96. */
-export const MAX_SAMPLES = 672
-const BUCKET_MS = 15 * 60_000
+const BUCKET_MS = 15 * MINUTE_MS
+/** A week of buckets. */
+export const MAX_SAMPLES = SEVEN_DAY_MS / BUCKET_MS
 
 /** The 15-minute bucket `at` falls in. */
 const bucketOf = (at: number): number => Math.floor(at / BUCKET_MS)
@@ -89,17 +94,8 @@ export const mergeSamples = (a: readonly Sample[], b: readonly Sample[]): Sample
   return [...byBucket.values()].sort((x, y) => x.at - y.at).slice(-MAX_SAMPLES)
 }
 
-/** Into the samples held in memory, in place: the last replaced when `s` is in
- *  its bucket, else appended (O(1)); only an out-of-order sample goes through
- *  mergeSamples. Capped. */
-export const addSample = (samples: Sample[], s: Sample): Sample[] => {
-  const last = samples[samples.length - 1]
-  if (last !== undefined && sameBucket(last, s)) samples[samples.length - 1] = s
-  else if (last === undefined || s.at > last.at) samples.push(s)
-  else return mergeSamples(samples, [s])
-  if (samples.length > MAX_SAMPLES) samples.splice(0, samples.length - MAX_SAMPLES)
-  return samples
-}
+/** `samples` with `s` added, as mergeSamples keeps them. */
+export const addSample = (samples: readonly Sample[], s: Sample): Sample[] => mergeSamples(samples, [s])
 
 /** The samples taken by `now`: one dated later, from a clock that ran ahead,
  *  would stay last and open a new bucket every turn. */
@@ -114,8 +110,8 @@ export const asLimitSamples = (v: unknown): Sample[] => (Array.isArray(v) ? merg
 
 /** Both limits now, as one sample; undefined unless each is reported with a readable reset. */
 export const sampleOf = (now: number, limits: ReadonlyArray<Readonly<{ kind: string; percentUsed: number; resetsAt?: string }>>): Sample | undefined => {
-  const five = limits.find(l => l.kind === 'five_hour')
-  const seven = limits.find(l => l.kind === 'seven_day')
+  const five = limits.find(l => l.kind === FIVE_HOUR)
+  const seven = limits.find(l => l.kind === SEVEN_DAY)
   const fiveResetAt = Date.parse(five?.resetsAt ?? '')
   const sevenResetAt = Date.parse(seven?.resetsAt ?? '')
   if (five === undefined || seven === undefined || !Number.isFinite(fiveResetAt) || !Number.isFinite(sevenResetAt)) return undefined
@@ -151,6 +147,9 @@ function* fromEnd(transcript: string, marker: string): Generator<Record<string, 
   }
 }
 
+/** What marks a reply's line. */
+const REPLY_MARKER = '"assistant"'
+
 /** When a transcript line was logged; undefined where it doesn't say. */
 const loggedAt = (entry: Record<string, unknown>): number | undefined => {
   const at = typeof entry.timestamp === 'string' ? Date.parse(entry.timestamp) : NaN
@@ -160,7 +159,7 @@ const loggedAt = (entry: Record<string, unknown>): number | undefined => {
 /** When a transcript's last assistant reply was. Its file time won't do:
  *  Claude Code writes a cost line each time it opens a session. */
 export const lastReplyAt = (transcript: string): number | undefined => {
-  for (const entry of fromEnd(transcript, '"assistant"')) {
+  for (const entry of fromEnd(transcript, REPLY_MARKER)) {
     const at = entry.type === 'assistant' ? loggedAt(entry) : undefined
     if (at !== undefined) return at
   }
@@ -169,7 +168,7 @@ export const lastReplyAt = (transcript: string): number | undefined => {
 
 /** The model the transcript's last reply was billed under, as the API names it. */
 export const lastReplyModel = (transcript: string): string | undefined => {
-  for (const entry of fromEnd(transcript, '"assistant"')) {
+  for (const entry of fromEnd(transcript, REPLY_MARKER)) {
     if (entry.type !== 'assistant' || !isRecord(entry.message)) continue
     const model = entry.message.model
     if (typeof model === 'string' && model !== '') return model
@@ -204,13 +203,16 @@ const replyTokens = (usage: Record<string, unknown>): TokenCounts => ({
 const recordRate = (m: Record<string, unknown>, model: string): number | null => {
   const weighted = weightedTokens(recordTokens(m), model)
   const rate = weighted > 0 ? countOf(m, 'costUSD') / weighted : 0
-  return Number.isFinite(rate) && rate > 0 ? rate : null
+  return rate > 0 ? rate : null
 }
+
+/** What marks a cost record's line, for `grep -F` to find. */
+export const COST_RECORD = '"type":"cost-state"'
 
 /** The base rate per token on `model`, solved from the transcript's last
  *  cost record. */
 export const rateFromTranscript = (transcript: string, model: string): number | null => {
-  for (const entry of fromEnd(transcript, '"cost-state"')) {
+  for (const entry of fromEnd(transcript, COST_RECORD)) {
     if (entry.type !== 'cost-state') continue
     const usage = entry.modelUsage
     const m = isRecord(usage) ? usage[modelName(model)] : undefined
@@ -233,9 +235,6 @@ export const lastWriteTtl = (transcript: string): Ttl | undefined => {
   }
   return undefined
 }
-
-/** What marks a cost record's line, for `grep -F` to find. */
-export const COST_RECORD = '"type":"cost-state"'
 
 /** A line's cost record, parsed; undefined for any other line, or one cut short. */
 const costRecordOf = (line: string): Record<string, unknown> | undefined => {
@@ -282,7 +281,7 @@ export const transcriptSpend = (transcript: string, sessionId: string, before: n
   const counted = new Set<string>()
   for (let i = at + 1; i < lines.length; i++) {
     const line = lines[i] ?? ''
-    if (!line.includes('"assistant"')) continue
+    if (!line.includes(REPLY_MARKER)) continue
     const entry = parsed(line)
     if (entry?.type !== 'assistant' || (loggedAt(entry) ?? -Infinity) >= before) continue
     const message = isRecord(entry.message) ? entry.message : undefined
