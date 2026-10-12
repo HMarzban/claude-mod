@@ -14,7 +14,7 @@ import type { ReadingAmber, Say } from '../words'
 import { limitTint, pillRow, type ChipKey } from './chips'
 import { GLYPH } from '../icons'
 import { accentOf, amberFirst, batteryMark, fitLine, words, type Keeps, type PillSpec } from './parts'
-import { defineCardsView, type Lens } from './view'
+import { defineCardsView, type CardOptions } from './view'
 
 /** What gives way as the row narrows, first to last: the board's tokens,
  *  resets, bar length and calm 7d, then chips' calm context and 5h around
@@ -217,7 +217,7 @@ const tilesRow = (kit: Kit, read: Readings, act: BandActions): RenderElement => 
 }
 
 /** Each card's head: the tile's mark at the card's size, at the head's end. */
-const lens: Lens = (kit, read) => {
+const lens = (kit: Kit, read: Readings): CardOptions => {
   const { Box, palette } = kit
   const { cache: c, context: x, worstLimit: worst } = read
   const slot = (mark: RenderChildren) => (
@@ -235,4 +235,4 @@ const lens: Lens = (kit, read) => {
   }
 }
 
-export const tilesView = defineCardsView('tiles', { desktop: 1, terminal: 1 }, (kit, read, act) => [tilesRow(kit, read, act)], lens)
+export const tilesView = defineCardsView({ desktop: 1, terminal: 1 }, (kit, read, act) => ({ lines: [tilesRow(kit, read, act)], open: () => lens(kit, read) }))

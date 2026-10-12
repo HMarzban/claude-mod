@@ -9,10 +9,10 @@ import { ROW_SLACK } from '../layout'
 import type { LimitKey, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import type { Ahead, Amber } from '../words'
-import { cardsView, type Fact, type OpenOptions, type Slots } from './cards'
+import type { Fact, Slots } from './cards'
 import { cachePill, contextPill, limitPill, pillRow, type ChipKey } from './chips'
 import { AMBER_STEP, ROLE_INK, batteryIcon, beforeLast, fitLine, type Keeps, type PillSpec } from './parts'
-import { rowsOf, type Rows, type View } from './view'
+import { defineCardsView, type CardOptions } from './view'
 
 /** What gives way as the row narrows, first to last: the limits' tails, how
  *  far off the soonest change is, the cache's price, the calm pills, amber's
@@ -243,7 +243,7 @@ const weekCells = (kit: Kit, read: Readings): RenderChildren => {
  *  compaction, and the week's cells with the day it fills, the 7d named
  *  beside another window's headline. Short of room, its words give way
  *  whole, down to the figure alone. Its body skips what the row says. */
-const lens = (kit: Kit, read: Readings, drawn: readonly Drawn[]): Omit<OpenOptions, 'collapsedRows'> => {
+const lens = (kit: Kit, read: Readings, drawn: readonly Drawn[]): CardOptions => {
   const { palette, oneLine, gap } = kit
   const said = (text: string | undefined) => (text === undefined ? undefined : oneLine({ color: palette.label }, text))
   const cells = weekCells(kit, read)
@@ -266,16 +266,9 @@ const lens = (kit: Kit, read: Readings, drawn: readonly Drawn[]): Omit<OpenOptio
   }
 }
 
-const ROWS: Rows = { desktop: 1, terminal: 1 }
-
-/** Drawn as `defineCardsView` draws a layout, but its lens reads the row as
- *  it was squeezed, so the cards skip only what the row kept. Shut, there
- *  are no cards, so the week and the history aren't read. */
-export const forecastView: View = {
-  name: 'forecast',
-  rows: ROWS,
-  draw: (kit, read, act) => {
-    const { row, drawn } = fit(kit, read, act)
-    return cardsView(kit, read, act, [row], { ...(read.frame.expanded ? lens(kit, read, drawn) : {}), collapsedRows: rowsOf({ rows: ROWS }, kit) })
-  },
-}
+/** Its lens reads the row as it was squeezed, so the cards skip only what
+ *  the row kept. */
+export const forecastView = defineCardsView({ desktop: 1, terminal: 1 }, (kit, read, act) => {
+  const { row, drawn } = fit(kit, read, act)
+  return { lines: [row], open: () => lens(kit, read, drawn) }
+})

@@ -261,4 +261,4 @@ export const pillRow = (kit: Kit, read: Readings, act: BandActions, specs: reado
 const chipsRow = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
   squeezeToFit(squeeze => pillRow(kit, read, act, chipsPills(kit, read, squeeze)), GIVES_WAY.length, kit.columns - ROW_SLACK, kit.measure)
 
-export const chipsView = defineCardsView('chips', { desktop: 1, terminal: 1 }, (kit, read, act) => [chipsRow(kit, read, act)])
+export const chipsView = defineCardsView({ desktop: 1, terminal: 1 }, (kit, read, act) => ({ lines: [chipsRow(kit, read, act)] }))

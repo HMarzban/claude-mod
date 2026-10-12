@@ -11,7 +11,7 @@ import type { LimitView, Readings, SliceRow } from '../reading'
 import { WEEK, type Say } from '../words'
 import { cachePill, contextPill, costPill, limitPill, pillRow, tokensPill, type ChipKey } from './chips'
 import { accentOf, beforeLast, fitLine, layoutCacheSpec, once, resetClause, type Keeps, type PillSpec } from './parts'
-import { defineCardsView, type Lens } from './view'
+import { defineCardsView, type CardOptions } from './view'
 
 /** What gives way as the row narrows, first to last: chips' pieces in
  *  week's order, and week's own; the 7d, then the cost, go last of the calm
@@ -159,7 +159,7 @@ const hoursLens = (kit: Kit, read: Readings, five: LimitView): RenderChildren =>
  *  context's room and compaction in one, each in the longest form its card
  *  holds; the resets and paces the row shows go. A limit the row never
  *  draws heads LIMITS while it needs you. */
-const lens: Lens = (kit, read) => {
+const lens = (kit: Kit, read: Readings): CardOptions => {
   const { fiveHour, week } = read
   const { roomCompacts, roomText } = read.context
   const room = roomCompacts === undefined || roomText === undefined ? undefined : roomCompacts.map(label => [label, roomText] as const)
@@ -172,12 +172,7 @@ const lens: Lens = (kit, read) => {
   }
 }
 
-export const weekView = defineCardsView(
-  'week',
-  { desktop: 1, terminal: 1 },
-  (kit, read, act) => {
-    const built = builtOf(kit, read)
-    return [fitLine(kit, ORDER, kit.columns - ROW_SLACK, keeps => pillRow(kit, read, act, weekPills(kit, read, built, keeps)))]
-  },
-  lens,
-)
+export const weekView = defineCardsView({ desktop: 1, terminal: 1 }, (kit, read, act) => {
+  const built = builtOf(kit, read)
+  return { lines: [fitLine(kit, ORDER, kit.columns - ROW_SLACK, keeps => pillRow(kit, read, act, weekPills(kit, read, built, keeps)))], open: () => lens(kit, read) }
+})

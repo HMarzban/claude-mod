@@ -125,10 +125,10 @@ test("a layout's lead is its card's first row, and the card's own facts follow",
   expect([fact(one, 'room left · auto-compacts at 190k'), fact(one, 'room left'), fact(one, 'auto-compacts at')]).toEqual(['~114k', undefined, undefined])
 })
 test('the cards take only the rows the collapsed lines leave', () => {
-  const lines = (count: number) => () => Array.from({ length: count }, (_, i) => text(`LINE ${i}`))
+  const lines = (count: number) => () => ({ lines: Array.from({ length: count }, (_, i) => text(`LINE ${i}`)) })
   for (const surface of ['terminal', 'desktop'] as const) {
     for (const count of [1, 2]) {
-      const view = defineCardsView('gauges', { desktop: count, terminal: count }, lines(count))
+      const view = defineCardsView({ desktop: count, terminal: count }, lines(count))
       // From 13 rows, where every line of cards keeps a row of body. A
       // desktop card's edge takes a row above and below, which visualRows
       // leaves out, so each line of them adds two.
@@ -149,7 +149,7 @@ test('the cards take only the rows the collapsed lines leave', () => {
   }
 })
 test('short of a row for a fact under each head, the cards give way whole, so the buttons stay in view', () => {
-  const view = defineCardsView('gauges', { desktop: 2, terminal: 2 }, () => [text('LINE 0'), text('LINE 1')])
+  const view = defineCardsView({ desktop: 2, terminal: 2 }, () => ({ lines: [text('LINE 0'), text('LINE 1')] }))
   for (const maxRows of [4, 6, 7]) {
     const snap = snapOf({ expanded: true, maxRows })
     const tree = view.draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT)
@@ -157,7 +157,7 @@ test('short of a row for a fact under each head, the cards give way whole, so th
   }
 })
 test('with the cards given way, a window only they draw still says it needs you, on the row they would start on', () => {
-  const view = defineCardsView('gauges', { desktop: 2, terminal: 2 }, () => [text('LINE 0'), text('LINE 1')])
+  const view = defineCardsView({ desktop: 2, terminal: 2 }, () => ({ lines: [text('LINE 0'), text('LINE 1')] }))
   const spend = { otherLimits: [{ kind: 'spend_limit' as const, percentUsed: 92, resetsAt: undefined }] }
   const draw = (maxRows: number, over = {}) => {
     const snap = snapOf({ expanded: true, maxRows, ...over })
@@ -171,7 +171,7 @@ test('with the cards given way, a window only they draw still says it needs you,
 })
 test('shut, a cards view draws its collapsed lines alone', () => {
   const snap = snapOf()
-  const tree = defineCardsView('gauges', { desktop: 1, terminal: 1 }, () => [text('LINE')]).draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT)
+  const tree = defineCardsView({ desktop: 1, terminal: 1 }, () => ({ lines: [text('LINE')] })).draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT)
   expect(shown(tree)).toBe('LINE')
 })
 test("a layout composes chips' pills: chips' row is its pills in a pill row", () => {

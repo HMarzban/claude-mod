@@ -16,10 +16,9 @@ import type { BandActions } from '../snapshot'
 import { EMPTY } from '../words'
 import type { Amber } from '../words'
 import type { Fact } from './cards'
-import { cardsView } from './cards'
 import { cachePill, contextPill, costPill, limitPill, pillRow, type ChipKey } from './chips'
 import { AMBER_STEP, beforeLast, fitLine, layoutCacheSpec, once, type Keeps, type PillSpec } from './parts'
-import { rowsOf, type Lens, type View } from './view'
+import { defineCardsView, type CardOptions } from './view'
 
 /** What gives way as the row narrows, first to last: the charts, then
  *  chips' own steps from the 7d bar on, the last cost outlasting the
@@ -201,7 +200,7 @@ const fitted = (kit: Kit, read: Readings, act: BandActions): Readonly<{ row: Ren
  *  spanning theirs, each in its card's head, and the 5h window's last hour
  *  in its row on LIMITS; the cache runs in minutes, so its head stays bare.
  *  The ascii tier has no braille, so no lens. */
-const lens: Lens = (kit, read) => {
+const lens = (kit: Kit, read: Readings): CardOptions => {
   const { palette: p } = kit
   const { context: x, history: hist, week, fiveHour: five } = read
   if (read.frame.glyphs !== 'unicode') return {}
@@ -244,13 +243,8 @@ const lens: Lens = (kit, read) => {
   }
 }
 
-/** Fitted once, so the cards skip what that very row says. Shut, there are
- *  no cards, so the lens isn't drawn. */
-export const pulseView: View = {
-  name: 'pulse',
-  rows: { desktop: 1, terminal: 1 },
-  draw: (kit, read, act) => {
-    const { row, shown } = fitted(kit, read, act)
-    return cardsView(kit, read, act, [row], { ...(read.frame.expanded ? lens(kit, read, act) : {}), shown, collapsedRows: rowsOf(pulseView, kit) })
-  },
-}
+/** Fitted once, so the cards skip what that very row says. */
+export const pulseView = defineCardsView({ desktop: 1, terminal: 1 }, (kit, read, act) => {
+  const { row, shown } = fitted(kit, read, act)
+  return { lines: [row], open: () => ({ ...lens(kit, read), shown }) }
+})

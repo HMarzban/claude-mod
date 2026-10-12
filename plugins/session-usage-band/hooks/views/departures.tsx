@@ -19,8 +19,7 @@ import type { ChipKey } from './chips'
 import { toggleButton } from './frame'
 import { batteryIcon, beforeLast, line, pill, fitLineKeeps, resetClause, textBattery } from './parts'
 import type { BoldRuns, Keeps } from './parts'
-import { defineCardsView } from './view'
-import type { Lens, Lines } from './view'
+import { defineCardsView, type CardOptions } from './view'
 
 /** What gives way as the row narrows, first to last; amber never does. The
  *  tokens go first, as on chips' row, then the pills' icons, the coin with
@@ -157,16 +156,14 @@ const queueOf = (kit: Kit, read: Readings): Stop[] => {
   return stops.sort((a, b) => rank(a) - rank(b) || (a.inMs ?? Number.MAX_SAFE_INTEGER) - (b.inMs ?? Number.MAX_SAFE_INTEGER))
 }
 
+/** The row as it settled, and the card facts it says, of each window too. */
+type Settled = Readonly<{ row: RenderElement; says: readonly Fact[]; byWindow: Partial<Record<ChipKey, readonly Fact[]>> }>
+
 /** The one row: the queue, `›` between its stops; air, the spend and the
  *  tokens; then the toggle. A calm row carries every pill's icon while it
  *  has room; on the desktop an amber one none. With it,
  *  the card facts the row says at the squeeze it settled on. */
-const settle = (
-  kit: Kit,
-  read: Readings,
-  act: BandActions,
-  queue: readonly Stop[],
-): Readonly<{ row: RenderElement; says: readonly Fact[]; byWindow: Partial<Record<ChipKey, readonly Fact[]>> }> => {
+const settle = (kit: Kit, read: Readings, act: BandActions, queue: readonly Stop[]): Settled => {
   const { Box, Text, Svg, palette } = kit
   // Built once: the squeeze only chooses among them.
   const seps = queue.slice(1).map((_, i) => <Text key={`sep${i}`} color={palette.label}>›</Text>)
@@ -204,8 +201,6 @@ const settle = (
   return { row, says: drawn.flatMap(s => s.says), byWindow: Object.fromEntries(drawn.flatMap(s => (s.window === undefined ? [] : [s.window]))) }
 }
 
-const lines: Lines = (kit, read, act) => [settle(kit, read, act, queueOf(kit, read)).row]
-
 /** A card's places in the queue: each number on a chip's ground, then what goes. */
 const placesOf = (kit: Kit, stops: readonly (readonly [number, Stop])[]): RenderChildren => {
   const { Box, Text, palette } = kit
@@ -227,10 +222,9 @@ const placesOf = (kit: Kit, stops: readonly (readonly [number, Stop])[]): Render
 /** Each card's place in the queue, LIMITS headed by its soonest window
  *  unless another needs you, and no card repeating what the row says at
  *  the squeeze it settled on. */
-const lens: Lens = (kit, read, act) => {
+const openOf = (kit: Kit, read: Readings, queue: readonly Stop[], settled: Settled): CardOptions => {
   const { Text, palette } = kit
   const { context: x, worstLimit: worst } = read
-  const queue = queueOf(kit, read)
   const placed = queue.map((s, i) => [i + 1, s] as const)
   // Short of room, a card's places give way whole, the latest first.
   const places = (card: CardName): SlotForms => {
@@ -242,7 +236,6 @@ const lens: Lens = (kit, read, act) => {
   // Another window is never on the row: an amber one keeps LIMITS'
   // headline, where the cards say it.
   const otherAmber = worst?.key === 'other' && worst.tone === 'amber'
-  const settled = settle(kit, read, act, queue)
   return {
     slots: {
       cache: places('cache'),
@@ -268,4 +261,8 @@ const lens: Lens = (kit, read, act) => {
   }
 }
 
-export const departuresView = defineCardsView('departures', { desktop: 1, terminal: 1 }, lines, lens)
+export const departuresView = defineCardsView({ desktop: 1, terminal: 1 }, (kit, read, act) => {
+  const queue = queueOf(kit, read)
+  const settled = settle(kit, read, act, queue)
+  return { lines: [settled.row], open: () => openOf(kit, read, queue, settled) }
+})
