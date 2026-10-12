@@ -6,6 +6,7 @@ import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import { drawBand } from '../hooks/band'
+import { fixedZone } from '../hooks/format'
 import { DARK, PLAIN } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { HOUR, MIN, byKey, cardOf, fakeEl, firstRow, hostClock, shown, svgAlts, svgsOf, walk, type Node } from './helpers'
@@ -15,7 +16,7 @@ viewSuite('ledger')
 
 /** The band drawn as ledger at 160 columns, the zone's offset known. */
 const drawn = (over: Partial<BandSnapshot> = {}): Node =>
-  drawBand(fakeEl, snapOf({ layout: 'ledger', columns: 160, utcOffsetMin: 0, ...over }), NO_ACT) as unknown as Node
+  drawBand(fakeEl, snapOf({ layout: 'ledger', columns: 160, zone: fixedZone(0), ...over }), NO_ACT) as unknown as Node
 /** The collapsed row as it reads; the toggle is a Button, its label no text. */
 const rowText = (over: Partial<BandSnapshot> = {}): string => shown(firstRow(drawn(over)))
 /** The bold Texts of a node, as they read. */

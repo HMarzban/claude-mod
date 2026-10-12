@@ -23,7 +23,7 @@ import {
   severityMark,
   SOON_MS,
 } from './format'
-import type { ResetIn } from './format'
+import type { ResetIn, Zone } from './format'
 import { warmAverageOf } from './insights'
 import type { CostEntry, TrailPoint, Trails } from './insights'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
@@ -333,7 +333,7 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
   const working = f.mood === 'warm' && !counting
   const left = counting ? fmtLeft(f.coldInMs) : ''
   const leftShort = counting ? fmtLeftShort(f.coldInMs) : ''
-  const off = frame.utcOffsetMin
+  const zone = frame.zone
   const dot = departsDot(frame)
   // Spoken, a price is never marked ~: the alt says "about".
   const price = c.reWarmUsd !== null ? fmtSmallCost(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`
@@ -366,7 +366,7 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
         : f.mood === 'warming' || working
           ? [[joined(say), 'label']]
           : say
-  const coldAtClock = counting && off !== undefined ? fmtClock(frame.now + f.coldInMs, off) : undefined
+  const coldAtClock = counting && zone !== undefined ? fmtClock(frame.now + f.coldInMs, zone) : undefined
   const reWarm = `re-warm ${f.estimate}`
   const ahead: Ahead = counting
     ? coldAtClock !== undefined
@@ -487,7 +487,7 @@ export const spendWords = (f: SpendFacts): SpendWords => {
 
 /** A limit window in words; once it has passed, only that it reset. */
 export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
-  const off = frame.utcOffsetMin
+  const zone = frame.zone
   const live = !f.passed
   const projected = live ? f.projectedPct : undefined
   const fills = projected !== undefined && fillsBeforeReset(projected)
@@ -499,7 +499,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const say: Say = [[`${f.name} `, 'label'], [valueText, 'value']]
   const resetGlyph = f.reset?.kind === 'in' ? resetPhrase(f.reset, 'glyph') : undefined
   const resetAt = f.resetInMs === undefined ? undefined : frame.now + f.resetInMs
-  const resetClock = resetAt !== undefined && off !== undefined ? fmtDayClock(resetAt, off, frame.now) : undefined
+  const resetClock = resetAt !== undefined && zone !== undefined ? fmtDayClock(resetAt, zone, frame.now) : undefined
   // The ascii tier drops `↻`, so a phrase whose object is the glyph says its word.
   const ascii = frame.glyphs === 'ascii'
   const resetMark = ascii ? 'resets' : '↻'
@@ -507,7 +507,9 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const resetIn = f.reset?.kind !== 'in' ? undefined : `in ${f.reset.text}`
   const resetWhen = resetClock ?? resetIn
   const fillInMs = live ? f.fillInMs : undefined
-  const fillAt = fillInMs === undefined ? undefined : off !== undefined ? `~${fmtDay(frame.now + fillInMs, off, frame.now)}` : `in ${fmtEta(fillInMs)}`
+  // A day's window says the fill's day; a shorter one its clock too, as its reset does.
+  const fillDay = f.key === '7d' ? fmtDay : fmtDayClock
+  const fillAt = fillInMs === undefined ? undefined : zone !== undefined ? `~${fillDay(frame.now + fillInMs, zone, frame.now)}` : `in ${fmtEta(fillInMs)}`
   const resetAtGlyph = resetClock === undefined ? resetGlyph : `${resetMark} ${resetClock}`
   const cardResetLess = (form: 'countdown' | 'clock', said: Readonly<{ reset: boolean; pace: boolean }>): string | undefined => {
     if (f.reset?.kind !== 'in') return undefined
@@ -523,7 +525,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     f.reset?.kind !== 'in' || Math.round(f.percentUsed) === 0
       ? undefined
       : fillAt !== undefined && fillInMs !== undefined
-        ? { lead: [...standing, ['full ', 'value']], figure: fillAt, soon: off === undefined ? undefined : `in ${fmtEta(fillInMs)}`, tail: `${resetMark} ${resetClock ?? f.reset.text}` }
+        ? { lead: [...standing, ['full ', 'value']], figure: fillAt, soon: zone === undefined ? undefined : `in ${fmtEta(fillInMs)}`, tail: `${resetMark} ${resetClock ?? f.reset.text}` }
         : {
             lead: [...standing, [`${resetMark} `, 'value']],
             figure: resetClock ?? f.reset.text,
@@ -756,8 +758,13 @@ const byDayOf = (days: readonly DayCell[], marks: readonly SliceMark[]): string[
   return kept.map((_, i) => [...kept.slice(0, kept.length - i), ...tail].join(' · '))
 }
 
-export const weekWords = (w: Week, rows: Readonly<{ days: SliceRow; hours: SliceRow }>): WeekWords => {
-  const fills = rows.days.marks.findIndex(m => m.kind === 'fills')
+/** The week in words; `fill` the 7d's fill, whose own day the week names, as the forecast does. */
+export const weekWords = (
+  w: Week,
+  rows: Readonly<{ days: SliceRow; hours: SliceRow }>,
+  fill: Readonly<{ at: number; zone: Zone; now: number }> | undefined,
+): WeekWords => {
+  const fills = fill !== undefined && rows.days.marks.some(m => m.kind === 'fills')
   return {
     daysAlt: slicesSpoken('weekly limit by day', w.days.map(d => d.name), rows.days.marks),
     measuredAlt: slicesSpoken(
@@ -766,7 +773,7 @@ export const weekWords = (w: Week, rows: Readonly<{ days: SliceRow; hours: Slice
       rows.days.marks.filter(m => m.kind === 'measured'),
     ),
     hoursAlt: slicesSpoken('5-hour limit by hour', w.hours.map(c => c.startClock), rows.hours.marks),
-    fullDay: fills < 0 ? undefined : `full ~${w.days[fills]?.name.slice(0, 3) ?? ''}`,
+    fullDay: fills ? `full ~${fmtDay(fill.at, fill.zone, fill.now)}` : undefined,
     byDay: byDayOf(w.days, rows.days.marks),
   }
 }

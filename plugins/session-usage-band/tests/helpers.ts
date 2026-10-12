@@ -368,6 +368,15 @@ export const START = { cwd: '/tmp', surface: 'terminal', isInteractive: true } a
 export const HOUR_1 = { ENABLE_PROMPT_CACHING_1H: '1' }
 export const MIN = 60_000
 export const HOUR = 60 * MIN
+/** Where a mounted test that reads a host's clock starts: never epoch 0,
+ *  where a host's zone may have had an offset off the minute. */
+export const MODERN = Date.UTC(2026, 0, 5)
+/** `u`, USAGE when not given, with each reset moved on by `ms`: its windows
+ *  as they stand for a clock started there. */
+export const usageAt = (ms: number, u: SessionUsage = USAGE): SessionUsage => ({
+  ...u,
+  rateLimits: u.rateLimits.map(l => (l.resetsAt === undefined ? l : { ...l, resetsAt: new Date(ms + Date.parse(l.resetsAt)).toISOString() })),
+})
 /** The weekday a clock time at `ms`, drawn at `now`, leads with on this host:
  *  '' on the same local day, else `Thu `. The kit's zone is the host's, so it
  *  is read off the host's own calendar, not the band's formatters. */

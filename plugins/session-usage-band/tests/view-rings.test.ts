@@ -5,6 +5,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import { drawBand } from '../hooks/band'
+import { fixedZone } from '../hooks/format'
 import { DARK } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { HOUR, MIN, byKey, cardOf, fakeEl, firstRow, pillOf, shown, svgsOf, walk, type Node } from './helpers'
@@ -20,7 +21,7 @@ const BOARD: Partial<BandSnapshot> = {
   layout: 'rings',
   columns: 160,
   now: NOW,
-  utcOffsetMin: 0,
+  zone: fixedZone(0),
   costUsd: 1027,
   lastTurnUsd: 0.1,
   cache: { ...snapOf().cache, msLeft: 59 * MIN, reWarmUsd: 0.8, tokens: { sent: 100_000_000, back: 20_000_000, cached: 1_980_000_000 } },

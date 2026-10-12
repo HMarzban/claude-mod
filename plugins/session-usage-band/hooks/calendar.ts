@@ -2,7 +2,8 @@
 // the 5-hour one, read off the limit samples, with a guess for the slices
 // ahead. Pure, so the cells can be checked without the store.
 
-import { DAY_MS, fmtClock } from './format'
+import { DAY_MS, dayOf, fmtClock, midnightOf } from './format'
+import type { Zone } from './format'
 import type { Sample } from './memory'
 
 export type DayCell = Readonly<{
@@ -37,7 +38,8 @@ export type HourCell = Readonly<{
   fullMark: boolean
 }>
 
-/** A window as it stands now (epoch ms): its use, where its pace lands, its reset, and a measured fill. */
+/** A window as it stands now (epoch ms): its use, where its pace lands, its
+ *  reset, and when it fills, measured or at the average's pace. */
 export type WindowNow = Readonly<{ percentUsed: number; projectedPct: number | undefined; resetsAt: number | undefined; fullAt?: number }>
 
 export type Week = Readonly<{
@@ -61,20 +63,25 @@ const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
 
 /** How a window is cut: what a sample says of it, and its slices' edges,
  *  oldest first. */
-type Cut = Readonly<{ pct: (s: Sample) => number; reset: (s: Sample) => number; bounds: (resetAt: number, now: number, utcOffsetMin: number) => number[] }>
+type Cut = Readonly<{ pct: (s: Sample) => number; reset: (s: Sample) => number; bounds: (resetAt: number, now: number, zone: Zone) => number[] }>
 
-/** The 7d window at local midnights. A reset off midnight leaves a part day
- *  at each end; the one today isn't in, else the shorter, folds into its
- *  neighbour, so seven days remain and today names itself. */
-const dayBounds = (resetAt: number, now: number, utcOffsetMin: number): number[] => {
+/** The 7d window cut at each local midnight inside it, each found in the
+ *  offset in force there, so a 23- or 25-hour day stays one day. A reset off
+ *  midnight, or a change of offset in the week, leaves a part day at each
+ *  end; the one today isn't in, else the shorter, folds into its neighbour
+ *  until seven days remain, so today names itself. */
+const dayBounds = (resetAt: number, now: number, zone: Zone): number[] => {
   const start = resetAt - 7 * DAY_MS
-  const sinceMidnight = (((resetAt + utcOffsetMin * 60_000) % DAY_MS) + DAY_MS) % DAY_MS
-  if (sinceMidnight === 0) return Array.from({ length: 8 }, (_, i) => start + i * DAY_MS)
-  const lastMidnight = resetAt - sinceMidnight
-  const firstMidnight = lastMidnight - 6 * DAY_MS
-  const midnights = Array.from({ length: 7 }, (_, i) => firstMidnight + i * DAY_MS)
-  const foldFirst = now >= lastMidnight || (now >= firstMidnight && firstMidnight - start <= sinceMidnight)
-  return [start, ...(foldFirst ? midnights.slice(1) : midnights.slice(0, -1)), resetAt]
+  const bounds = [start]
+  for (let day = dayOf(start, zone) + 1; midnightOf(day, zone) < resetAt; day++) bounds.push(midnightOf(day, zone))
+  bounds.push(resetAt)
+  const edge = (i: number): number => bounds[i] ?? resetAt
+  while (bounds.length > 8) {
+    const last = bounds.length - 1
+    const foldFirst = now >= edge(last - 1) || (now >= edge(1) && edge(1) - edge(0) <= edge(last) - edge(last - 1))
+    bounds.splice(foldFirst ? 1 : last - 1, 1)
+  }
+  return bounds
 }
 
 const BY_DAY: Cut = { pct: s => s.sevenPct, reset: s => s.sevenResetAt, bounds: dayBounds }
@@ -99,26 +106,23 @@ const risesOf = (samples: readonly Sample[], cut: Cut, resetAt: number, bounds: 
   })
 }
 
-/** The slice the window fills in: the one holding a measured fill, else the
- *  first ahead where the guesses' running total reaches 100. */
-const fullIndexOf = (w: WindowNow, bounds: readonly number[], current: number, ahead: number): number | undefined => {
-  const at = w.fullAt
-  if (at !== undefined) return bounds.findIndex((from, i) => from <= at && at < (bounds[i + 1] ?? from))
-  const landing = w.projectedPct
-  if (landing === undefined || landing < 100 || landing <= w.percentUsed) return undefined
-  // The share of the slices ahead the guesses take to reach 100: exactly 1 at a landing of 100.
-  const k = Math.ceil(((100 - w.percentUsed) / (landing - w.percentUsed)) * ahead)
-  return k >= 1 ? current + k : undefined
+/** The slice holding the fill, found by its time; a fill at the reset
+ *  itself is the last slice's. */
+const fullIndexOf = (fullAt: number | undefined, bounds: readonly number[]): number | undefined => {
+  if (fullAt === undefined) return undefined
+  const at = Math.min(fullAt, (bounds.at(-1) ?? fullAt) - 1)
+  const i = bounds.findIndex((from, j) => from <= at && at < (bounds[j + 1] ?? from))
+  return i < 0 ? undefined : i
 }
 
 /** A window's slices: measured up to now, guessed ahead. */
-const slicesOf = (samples: readonly Sample[], w: WindowNow | undefined, cut: Cut, now: number, utcOffsetMin: number): Slice[] => {
+const slicesOf = (samples: readonly Sample[], w: WindowNow | undefined, cut: Cut, now: number, zone: Zone): Slice[] => {
   if (w?.resetsAt === undefined || w.resetsAt <= now) return []
-  const bounds = cut.bounds(w.resetsAt, now, utcOffsetMin)
+  const bounds = cut.bounds(w.resetsAt, now, zone)
   const current = bounds.findIndex((from, i) => from <= now && now < (bounds[i + 1] ?? from))
   const ahead = bounds.length - 2 - current
   const step = w.projectedPct === undefined || ahead <= 0 ? undefined : Math.max(0, w.projectedPct - w.percentUsed) / ahead
-  const fullIndex = fullIndexOf(w, bounds, current, ahead)
+  const fullIndex = fullIndexOf(w.fullAt, bounds)
   return risesOf(samples, cut, w.resetsAt, bounds, now).map((rise, i) => {
     const future = i > current
     const guess = future && step !== undefined
@@ -137,24 +141,34 @@ const slicesOf = (samples: readonly Sample[], w: WindowNow | undefined, cut: Cut
   })
 }
 
-/** The week's day and hour cells, named in the local zone (`utcOffsetMin`,
- *  east positive). `samples` are sorted by time, as mergeSamples keeps them. */
-export const weekOf = (o: Readonly<{ samples: readonly Sample[]; seven: WindowNow | undefined; five: WindowNow | undefined; now: number; utcOffsetMin: number }>): Week => {
-  const local = (ms: number): Date => new Date(ms + o.utcOffsetMin * 60_000)
-  const days = slicesOf(o.samples, o.seven, BY_DAY, o.now, o.utcOffsetMin).map(({ start, end, current, ...slice }): DayCell => {
-    // A day with a part day folded in is named by its whole day.
-    const at = local(Math.max(start, end - DAY_MS))
+/** The local day holding most of a slice: a part day folded in never names it. */
+const wholeDayOf = (start: number, end: number, zone: Zone): number => {
+  let best = dayOf(start, zone)
+  let most = 0
+  for (let day = best; day <= dayOf(end - 1, zone); day++) {
+    const held = Math.min(end, midnightOf(day + 1, zone)) - Math.max(start, midnightOf(day, zone))
+    if (held > most) {
+      best = day
+      most = held
+    }
+  }
+  return best
+}
+
+/** The week's day and hour cells, each named in the offset in force at it.
+ *  `samples` are sorted by time, as mergeSamples keeps them. */
+export const weekOf = (o: Readonly<{ samples: readonly Sample[]; seven: WindowNow | undefined; five: WindowNow | undefined; now: number; zone: Zone }>): Week => {
+  const days = slicesOf(o.samples, o.seven, BY_DAY, o.now, o.zone).map(({ start, end, current, ...slice }): DayCell => {
+    // A local day read through the UTC getters.
+    const at = new Date(wholeDayOf(start, end, o.zone) * DAY_MS)
     const name = WEEKDAYS[at.getUTCDay()] ?? ''
     return { ...slice, initial: name.slice(0, 1), name, date: String(at.getUTCDate()), today: current }
   })
-  const hours = slicesOf(o.samples, o.five, BY_HOUR, o.now, o.utcOffsetMin).map(
-    ({ start, end: _end, current, ...slice }): HourCell => ({
-      ...slice,
-      label: String(local(start).getUTCHours()).padStart(2, '0'),
-      startClock: fmtClock(start, o.utcOffsetMin),
-      now: current,
-    }),
-  )
+  // An hour each in absolute time, so a fall back names its hour twice and a spring forward skips one.
+  const hours = slicesOf(o.samples, o.five, BY_HOUR, o.now, o.zone).map(({ start, end: _end, current, ...slice }): HourCell => {
+    const startClock = fmtClock(start, o.zone)
+    return { ...slice, label: startClock.slice(0, 2), startClock, now: current }
+  })
   const busiest = days.filter(isKnown).filter(d => Math.round(d.pct) > 0).reduce<Known<DayCell> | undefined>((top, d) => (top === undefined || d.pct > top.pct ? d : top), undefined)
   return { days, hours, busiest: busiest?.name.slice(0, 3) }
 }

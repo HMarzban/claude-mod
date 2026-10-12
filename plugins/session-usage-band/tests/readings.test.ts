@@ -1,5 +1,5 @@
 import { test, expect } from 'claude-code/testing'
-import { fmtClock, fmtDayClock } from '../hooks/format'
+import { fixedZone, fmtClock, fmtDayClock } from '../hooks/format'
 import { cappedMarks, readingsOf, type HourCell } from '../hooks/reading'
 import { usedSoFar } from '../hooks/words'
 import { HOUR, MIN } from './helpers'
@@ -21,22 +21,22 @@ test("a card says each limit's reset with its pace", () => {
   expect(readingsOf(snapOf()).limits.map(l => l.cardResetLess('countdown', NOTHING_SAID))).toEqual(['resets 3h 00m · on pace for ~10%', 'resets 2d 19h · on pace for ~50%'])
 })
 test('a card says when a limit resets: its clock once the offset is known, else how long until; nothing once passed', () => {
-  expect(readingsOf(snapOf({ utcOffsetMin: 0 })).limits.map(l => l.resetWhen)).toEqual(['03:00', 'Sat 19:00'])
+  expect(readingsOf(snapOf({ zone: fixedZone(0) })).limits.map(l => l.resetWhen)).toEqual(['03:00', 'Sat 19:00'])
   expect(readingsOf(snapOf()).limits.map(l => l.resetWhen)).toEqual(['in 3h 00m', 'in 2d 19h'])
   expect(readingsOf(snapOf({ now: 4 * HOUR })).fiveHour?.resetWhen).toBeUndefined()
 })
 test('a window that fills before its reset says when: a measured fill, else the average pace\'s, its day past today', () => {
   // 7d at 66% with 30h of 168 gone fills in another 30h × 34/66, 15h 27m:
   // from Sunday 20:00, Monday; from Sunday midnight, that day at 15:27.
-  const sevenFrom = (now: number) => readingsOf(snapOf({ utcOffsetMin: 0, now, sevenDay: { percentUsed: 66, resetsAt: new Date(now + 138 * HOUR).toISOString() } })).sevenDay
+  const sevenFrom = (now: number) => readingsOf(snapOf({ zone: fixedZone(0), now, sevenDay: { percentUsed: 66, resetsAt: new Date(now + 138 * HOUR).toISOString() } })).sevenDay
   const seven = sevenFrom(3 * 24 * HOUR + 20 * HOUR)
   expect(Math.abs((seven?.fillInMs ?? 0) - (30 * HOUR * 34) / 66)).toBeLessThan(1e-3)
   expect([seven?.fillAt, seven?.fillText, seven?.fillNamed, seven?.fillNamedShort, seven?.ahead?.figure]).toEqual(['~Mon', 'full ~Mon', '7d full ~Mon', '7d ~Mon', '~Mon'])
   expect(sevenFrom(3 * 24 * HOUR)?.fillAt).toBe('~15:27')
   expect(readingsOf(snapOf({ sevenDay: { percentUsed: 66, resetsAt: new Date(138 * HOUR).toISOString() } })).sevenDay?.fillAt).toBe('in ~15h 30m')
   // Measured, the 5h's own fill; landing short, none, and its next change is its reset.
-  expect(readingsOf(snapOf({ utcOffsetMin: 0, fiveHour: { percentUsed: 40, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 40 * MIN } })).fiveHour?.fillAt).toBe('~00:40')
-  const calm = readingsOf(snapOf({ utcOffsetMin: 0 })).fiveHour
+  expect(readingsOf(snapOf({ zone: fixedZone(0), fiveHour: { percentUsed: 40, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 40 * MIN } })).fiveHour?.fillAt).toBe('~00:40')
+  const calm = readingsOf(snapOf({ zone: fixedZone(0) })).fiveHour
   expect([calm?.fillInMs, calm?.ahead?.figure, calm?.ahead?.soon, calm?.ahead?.tail]).toEqual([undefined, '03:00', 'in 3h 00m', 'on pace for ~10%'])
   expect(readingsOf(snapOf({ fiveHour: { percentUsed: 0, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } })).fiveHour?.ahead).toBeUndefined()
 })
@@ -56,7 +56,7 @@ test('the context says how many messages to compaction at its average rise a mes
   expect(after([...compacted.slice(0, 95), 150_000])).toBeUndefined()
 })
 test("a card can say each limit's reset at its clock time, with its pace, as LIMITS' lead row does", () => {
-  expect(readingsOf(snapOf({ utcOffsetMin: 0 })).limits.map(l => l.cardResetLess('clock', NOTHING_SAID))).toEqual(['resets 03:00 · on pace for ~10%', 'resets Sat 19:00 · on pace for ~50%'])
+  expect(readingsOf(snapOf({ zone: fixedZone(0) })).limits.map(l => l.cardResetLess('clock', NOTHING_SAID))).toEqual(['resets 03:00 · on pace for ~10%', 'resets Sat 19:00 · on pace for ~50%'])
   expect(readingsOf(snapOf()).fiveHour?.cardResetLess('clock', NOTHING_SAID)).toBe('resets in 3h 00m · on pace for ~10%')
   expect(readingsOf(snapOf({ now: 4 * HOUR })).fiveHour?.cardResetLess('clock', NOTHING_SAID)).toBeUndefined()
 })
@@ -127,7 +127,7 @@ test('working, an expiring cache still counts down', () => {
   expect(c.amber).toBeDefined()
 })
 test('cold is a price', () => {
-  const c = readingsOf(snapOf({ cache: cacheAt(0), utcOffsetMin: 0 })).cache
+  const c = readingsOf(snapOf({ cache: cacheAt(0), zone: fixedZone(0) })).cache
   expect([c.text, c.textShort]).toEqual(['cache cold · re-warm ~$1.66', 'cold ~$1.66'])
   expect(c.alt).toBe('cache cold, re-warm about $1.66')
 })
@@ -145,9 +145,9 @@ test('the countdown never looks like a clock', () => {
 test('clock times appear only when the offset is known', () => {
   expect(readingsOf(snapOf()).cache.coldAtText).toBeUndefined()
   const now = Date.UTC(2026, 9, 9, 13, 40)
-  const r = readingsOf(snapOf({ now, utcOffsetMin: 0, fiveHour: { percentUsed: 4, resetsAt: new Date(now + 3 * HOUR).toISOString(), etaMs: null } }))
-  expect(r.cache.coldAtText).toBe(`cold at ${fmtClock(now + 52 * MIN, 0)}`)
-  expect(r.fiveHour?.resetClock).toBe(fmtClock(now + 3 * HOUR, 0))
+  const r = readingsOf(snapOf({ now, zone: fixedZone(0), fiveHour: { percentUsed: 4, resetsAt: new Date(now + 3 * HOUR).toISOString(), etaMs: null } }))
+  expect(r.cache.coldAtText).toBe(`cold at ${fmtClock(now + 52 * MIN, fixedZone(0))}`)
+  expect(r.fiveHour?.resetClock).toBe(fmtClock(now + 3 * HOUR, fixedZone(0)))
 })
 test('limits speak in words, amber with one "! "', () => {
   const r = readingsOf(snapOf({ fiveHour: { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }))
@@ -161,7 +161,7 @@ test('limits speak in words, amber with one "! "', () => {
 })
 test('a measured fill is an estimate, with ~', () => {
   const now = Date.UTC(2026, 9, 9, 13, 40)
-  const r = readingsOf(snapOf({ now, utcOffsetMin: 0, fiveHour: { percentUsed: 84, resetsAt: new Date(now + 70 * MIN).toISOString(), etaMs: 40 * MIN } }))
+  const r = readingsOf(snapOf({ now, zone: fixedZone(0), fiveHour: { percentUsed: 84, resetsAt: new Date(now + 70 * MIN).toISOString(), etaMs: 40 * MIN } }))
   expect(r.fiveHour?.fullIn).toBe('~40m')
   expect([r.fiveHour?.amber?.long, r.fiveHour?.amber?.short, r.fiveHour?.amber?.beside]).toEqual(['! 5h full in ~40m', '! 5h ~40m', '! 5h ~40m'])
   expect(r.fiveHour?.alt).toBe('5h limit 84 percent used, needs attention, full in about 40 minutes')
@@ -250,7 +250,7 @@ test('the week names its cells in words, for a reader', () => {
   const now = 77 * HOUR
   const T = (hours: number, seven: number, five = 0) => ({ at: hours * HOUR, fivePct: five, sevenPct: seven, fiveResetAt: 80 * HOUR, sevenResetAt: 168 * HOUR })
   const wk = readingsOf(snapOf({
-    now, utcOffsetMin: 0,
+    now, zone: fixedZone(0),
     samples: [T(0, 0), T(15, 6), T(39, 15), T(63, 26), T(75.5, 28, 4), T(76.5, 29, 12), T(77, 30, 12)],
     sevenDay: { percentUsed: 30, resetsAt: new Date(168 * HOUR).toISOString() },
     fiveHour: { percentUsed: 12, resetsAt: new Date(80 * HOUR).toISOString(), etaMs: null },
@@ -275,7 +275,7 @@ const SAT_RESET = Date.UTC(2026, 9, 17, 13, 30)
 const FIVE_RESET = SUN + (4 * 60 + 55) * MIN
 const boardSample = (at: number, sevenPct: number) => ({ at, fivePct: 0, sevenPct, fiveResetAt: FIVE_RESET, sevenResetAt: SAT_RESET })
 const boardWeek = (percentUsed = 66) => readingsOf(snapOf({
-  now: SUN, utcOffsetMin: 0,
+  now: SUN, zone: fixedZone(0),
   samples: [boardSample(SAT_RESET - 168 * HOUR, 0), boardSample(SUN - MIN, percentUsed)],
   sevenDay: { percentUsed, resetsAt: new Date(SAT_RESET).toISOString() },
   fiveHour: { percentUsed: 0, resetsAt: new Date(FIVE_RESET).toISOString(), etaMs: null },
@@ -320,7 +320,7 @@ test("a week that won't fill says today's rise and the guess for the days ahead"
   const now = 77 * HOUR
   const T = (hours: number, seven: number) => ({ at: hours * HOUR, fivePct: 0, sevenPct: seven, fiveResetAt: 80 * HOUR, sevenResetAt: 168 * HOUR })
   const wk = readingsOf(snapOf({
-    now, utcOffsetMin: 0, samples: [T(0, 0), T(15, 6), T(39, 15), T(63, 26), T(75.5, 28), T(77, 30)],
+    now, zone: fixedZone(0), samples: [T(0, 0), T(15, 6), T(39, 15), T(63, 26), T(75.5, 28), T(77, 30)],
     sevenDay: { percentUsed: 30, resetsAt: new Date(168 * HOUR).toISOString() },
   })).week
   expect(wk.fullDay).toBeUndefined()

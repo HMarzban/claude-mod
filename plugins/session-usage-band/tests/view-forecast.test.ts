@@ -4,6 +4,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import { drawBand } from '../hooks/band'
+import { fixedZone } from '../hooks/format'
 import { makeKit } from '../hooks/kit'
 import { DARK } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
@@ -28,7 +29,7 @@ const board = (over: Partial<BandSnapshot> = {}): BandSnapshot => {
     layout: 'forecast',
     columns: 160,
     now: NOW,
-    utcOffsetMin: 0,
+    zone: fixedZone(0),
     cache: { ...base.cache, msLeft: 59 * MIN, reWarmUsd: 0.8, savedUsd: 1350 },
     costUsd: 1027,
     lastTurnUsd: 0.1,
@@ -101,12 +102,12 @@ test("'in' is said once, on the soonest change", () => {
   ])
 })
 test('with the offset unknown, each time reads as a duration', () => {
-  expect(pillsOf(rowOf(board({ utcOffsetMin: undefined })))).toEqual([
+  expect(pillsOf(rowOf(board({ zone: undefined })))).toEqual([
     ['cache', '◷ cold in 59m · re-warm ~$0.80'],
     ['7d', '7d 66% · full in ~13h 15m · ↻ 5d 22h'],
     ['ctx', '◔ compacts in ~128k'],
   ])
-  const moved = { utcOffsetMin: undefined, fiveHour: { percentUsed: 4, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: null } }
+  const moved = { zone: undefined, fiveHour: { percentUsed: 4, resetsAt: later(4 * HOUR + 55 * MIN), etaMs: null } }
   expect(pillsOf(rowOf(board(moved))).find(([key]) => key === '5h')?.[1]).toBe('5h 4% · ↻ 4h 55m')
 })
 test('a cold cache leads with its price, short once the row is tight', () => {

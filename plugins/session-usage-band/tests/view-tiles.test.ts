@@ -10,7 +10,7 @@ import { DESKTOP, TERMINAL, cellsOf } from '../hooks/layout'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { tilesView } from '../hooks/views/tiles'
-import { DAY_MS } from '../hooks/format'
+import { DAY_MS, fixedZone } from '../hooks/format'
 import { HOUR, MIN, byKey, cardOf, fakeEl, firstRow, shown, svgsOf, walk, type Node } from './helpers'
 import { NO_ACT, snapOf, viewSuite, visualRows } from './matrix'
 
@@ -20,7 +20,7 @@ viewSuite('tiles')
  *  and 7d at 66% with 15% of its week gone, 2.1B tokens. */
 const BOARD: Partial<BandSnapshot> = {
   columns: 200,
-  utcOffsetMin: 0,
+  zone: fixedZone(0),
   costUsd: 1027,
   lastTurnUsd: 0.1,
   context: { tokens: 165_300, window: 200_000, percent: 83, compactAt: 190_000, autoCompactOff: false },
