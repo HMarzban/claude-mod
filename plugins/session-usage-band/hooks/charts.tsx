@@ -21,9 +21,6 @@ const KEEP_STROKE = ' vector-effect="non-scaling-stroke"'
 /** The largest value, 0 for none: the top of a chart's scale. */
 const topOf = (values: ReadonlyArray<number | undefined>): number => Math.max(0, ...values.filter(v => v !== undefined))
 
-/** Text set inside Svg markup, escaped. */
-const svgText = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-
 /** Marks wrapped in an Svg of this size, one unit to a pixel; `attrs` adds
  *  to the root tag. */
 const svgOf = (width: number, height: number, marks: string, attrs = ''): string =>
@@ -78,8 +75,8 @@ export type MeterOptions = Readonly<{
   /** An Svg with no width, capped by its slot: the shared cards' heads and
    *  bodies alone, since spec §2.9 bars it from every collapsed line. */
   stretch?: boolean
-  /** What the fill is: what's used, what's left, or a share its label names. */
-  reads?: 'used' | 'left' | 'share'
+  /** What the fill is: what's used or what's left. */
+  reads?: 'used' | 'left'
   /** A notch across the bar at this fraction, in label ink: a line the fill
    *  is measured against, such as how much of its window has gone. */
   tick?: number
@@ -97,15 +94,14 @@ export type MeterOptions = Readonly<{
 
 /** A bar: `frac` filled toward its cap, the fill ending bare, since the
  *  number beside it says where. `label` names it for a reader, and `reads`
- *  says what the fill is: a share's alt says its percent alone. A stretched
+ *  says what the fill is. A stretched
  *  bar has no width of its own: drawn wider than any slot, the slot caps it,
  *  so it spans its card. */
 export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
   const { Svg, Text, palette, onTone } = kit
   const { key = 'meter', label, frac, tone, accent, size = CHIP_BAR, stretch = false, reads = 'used', tick, projectTo, ground = palette.cardBg, dash = '▒', slim = false } = o
   const fill = onTone(tone, accent)
-  const pct = `${label} ${Math.round(clamp01(frac) * 100)}%`
-  const alt = reads === 'share' ? pct : `${pct} ${reads}`
+  const alt = `${label} ${Math.round(clamp01(frac) * 100)}% ${reads}`
   if (Svg && slim) {
     // Drawn at the slot's estimate, one unit to a pixel there, and stretched to it.
     const width = size.px
@@ -358,10 +354,6 @@ export type SparklineOptions = Readonly<{
   max?: number
   /** Where the line is heading, as a fraction of the scale's top, drawn dashed. */
   projectTo?: number
-  /** A level the line is read against, such as where context compacts, as a
-   *  fraction of the scale's top: a solid rule across the chart. Text draws
-   *  no rule; the words beside it name the level. */
-  level?: number
   /** The most cells the text form takes: a longer trail is drawn at the
    *  highest of each run of points, so the whole of it shows in the room. */
   cells?: number
@@ -372,7 +364,7 @@ export type SparklineOptions = Readonly<{
   stretch?: boolean
   /** Rising across the chart, from its lowest point to its highest, under a
    *  1px cap in label ink at the top: where it is headed, as pulse's board
-   *  draws the context. `max` and `level` give way to it. */
+   *  draws the context. `max` gives way to it. */
   rise?: boolean
 }>
 
@@ -394,7 +386,7 @@ const peaksOf = (values: readonly number[], count: number): number[] =>
 /** A line over time, ending bare at its newest point. Text draws it in braille. */
 export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   const { Svg, palette } = kit
-  const { key, alt, values, color, px, height, max, projectTo, level, cells, track = false, area = false, stretch = false, rise = false } = o
+  const { key, alt, values, color, px, height, max, projectTo, cells, track = false, area = false, stretch = false, rise = false } = o
   const top = max ?? topOf(values)
   if (!Svg) return brailleText(kit, key, cells === undefined ? values : peaksOf(values, 2 * cells), color, top)
   const end = px - SPARK_AIR - (projectTo === undefined ? 0 : SPARK_AHEAD)
@@ -411,7 +403,6 @@ export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   let marks = track ? trackOf(kit, px, height) : ''
   if (area && points.length > 1) marks += `<polygon class="area" points="${points[0]?.[0]},${height} ${line} ${points.at(-1)?.[0]},${height}" fill="${color}" opacity="0.16"/>`
   if (rise) marks += `<line class="cap" x1="0" y1="0.5" x2="${px}" y2="0.5" stroke="${palette.label}" stroke-width="1"${keep}/>`
-  else if (level !== undefined) marks += `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.trackStroke}" stroke-width="1"${keep}/>`
   if (points.length > 1) marks += `<polyline points="${line}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"${keep}/>`
   const newest = points.at(-1)
   if (newest !== undefined && projectTo !== undefined) {
@@ -517,7 +508,6 @@ export type DayCellsOptions = Readonly<{
   color: string
   cellPx: number
   height: number
-  labels?: readonly string[]
   /** The top of the scale, by default the largest value: a limit's percent passes 100. */
   max?: number
   /** Spanning its slot, as a card head's lens does, rather than its cells' width. */
@@ -529,9 +519,6 @@ export type DayCellsOptions = Readonly<{
 const DAY_GAP = 3
 /** Room around the cells for today's outline. */
 const DAY_EDGE = 1
-/** What labels add beneath the cells, and their size. */
-const LABEL_ROOM = 11
-const LABEL_PX = 9
 /** Today's dash, finer than a guess's. */
 const TODAY_DASH = 'stroke-dasharray="2 1.6"'
 
@@ -542,7 +529,7 @@ const TODAY_DASH = 'stroke-dasharray="2 1.6"'
  *  Text draws a braille height per cell. */
 export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
   const { Svg, Text, palette } = kit
-  const { key, alt, values, guess = [], today, color, cellPx, height, labels, max, stretch = false, gapPx = DAY_GAP } = o
+  const { key, alt, values, guess = [], today, color, cellPx, height, max, stretch = false, gapPx = DAY_GAP } = o
   const top = max ?? topOf(values)
   const isGuess = (i: number) => guess[i] === true
   const isToday = (i: number) => today !== undefined && i === today
@@ -559,7 +546,7 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
   }
   const step = cellPx + gapPx
   const width = values.length * step - gapPx + 2 * DAY_EDGE
-  const tall = height + 2 * DAY_EDGE + (labels === undefined ? 0 : LABEL_ROOM)
+  const tall = height + 2 * DAY_EDGE
   const keep = stretch ? KEEP_STROKE : ''
   const marks = values.map((v, i) => {
     const x = DAY_EDGE + i * step
@@ -577,12 +564,7 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
         ? [palette.trackStroke, ` ${GUESS_DASH} opacity="0.75"`]
         : [v === undefined ? palette.meterTrack : color, '']
     const edge = `<rect class="edge" x="${x + 0.5}" y="${DAY_EDGE + 0.5}" width="${cellPx - 1}" height="${height - 1}" rx="3" fill="none" stroke="${stroke}"${dash}${keep}/>`
-    const label = labels?.[i]
-    const caption =
-      label === undefined
-        ? ''
-        : `<text x="${x + cellPx / 2}" y="${tall - 1}" text-anchor="middle" font-family="system-ui, sans-serif" font-size="${LABEL_PX}" fill="${isToday(i) ? palette.value : palette.label}">${svgText(label)}</text>`
-    return ground + filled + edge + caption
+    return ground + filled + edge
   })
   return stretch ? (
     <Svg key={key} source={svgOf(width, tall, marks.join(''), ' preserveAspectRatio="none"')} alt={alt} height={tall} />

@@ -22,9 +22,8 @@ const svg = (el: unknown) => el as Node & { props: { alt: string; width: number;
 for (const [name, el] of [
   ['ring', ring(desk, { key: 'r', alt: '7d limit 66 percent used', frac: 0.66, color: '#a99cf0', px: 16, notch: 0.4, projectTo: 1 })],
   ['sparkline', sparkline(desk, { key: 's', alt: '5h usage over the last hour', values: [1, 2, 3], color: '#7fcf8a', px: 90, height: 36, projectTo: 1 })],
-  ['sparkline with a level', sparkline(desk, { key: 's', alt: 'context over the conversation', values: [50, 120], color: '#b8b8c2', px: 90, height: 36, max: 200, level: 0.95 })],
   ['barChart', barChart(desk, { key: 'b', alt: 'cost of the last 3 messages', values: [1, 2, 9], marked: [false, false, true], color: '#888888', markColor: '#eeeeee', px: 18, height: 36 })],
-  ['dayCells', dayCells(desk, { key: 'd', alt: 'weekly limit by day', values: [6, 9, 11, 4, 7, 7, 7], guess: [false, false, false, false, true, true, true], today: 3, color: '#a99cf0', cellPx: 16, height: 16, labels: ['T', 'W', 'T', 'F', 'S', 'S', 'M'] })],
+  ['dayCells', dayCells(desk, { key: 'd', alt: 'weekly limit by day', values: [6, 9, 11, 4, 7, 7, 7], guess: [false, false, false, false, true, true, true], today: 3, color: '#a99cf0', cellPx: 16, height: 16 })],
   ['sliceCells', sliceCells(desk, { key: 'd', alt: 'weekly limit by day', row: { marks: [{ kind: 'measured', pct: 66 }, { kind: 'fills', pct: 34 }, { kind: 'spent', pct: 0 }], notch: 0.6 }, color: '#a99cf0', guess: '#8a80d0', spent: '#7a70c0', ground: '#2a2540', cellPx: 14, wide: true })],
   ['meter with a tick and a projection', meter(desk, { key: 'm', label: '5h', frac: 0.04, tone: 'calm', accent: '#7fcf8a', tick: 0.4, projectTo: 0.1 })],
 ] as const) {
@@ -70,9 +69,6 @@ test("the meter's tick is a notch in label ink, knocked out in the ground its ba
   expect(/<rect class="tick"[^>]*>/.exec(source)?.[0]).toMatch(new RegExp(`fill="${p.label}"`))
   const cells = meter(term, { label: '7d', frac: 0.5, tone: 'calm', accent: '#a99cf0', size: { px: 80, cells: 10 }, tick: 0.2 }) as Node
   expect(byKey(cells, 'run-1', 'Text')?.props?.color).toBe(p.label)
-})
-test('a meter of a share says its percent alone, neither used nor left', () => {
-  expect(svg(meter(desk, { label: 'hit rate', frac: 0.96, tone: 'calm', accent: '#7fcf8a', reads: 'share' })).props.alt).toBe('hit rate 96%')
 })
 test('a guessed day cell is dashed', () => {
   expect(svg(dayCells(desk, { key: 'd', alt: 'week', values: [6, 7], guess: [false, true], today: 0, color: '#a99cf0', cellPx: 16, height: 16 })).props.source).toMatch(/stroke-dasharray/)
@@ -185,16 +181,6 @@ test("a bar chart's max clips a taller bar to the top, a marked one capped; its 
   expect([...source.matchAll(/<rect class="bar" [^>]*height="(\d+)"/g)].map(m => Number(m[1]))).toEqual([4, 13])
   expect(source).toMatch(/<rect class="cap" [^>]*y="0"/)
   expect(source).toMatch(/<line class="level" [^>]*y1="12"/)
-})
-test("a sparkline's level is a solid rule across it, beneath the line, on its scale", () => {
-  const source = svg(sparkline(desk, { key: 's', alt: 'context', values: [50, 120], color: '#b8b8c2', px: 90, height: 36, max: 200, level: 0.95 })).props.source
-  const rule = /<line class="level"[^>]*>/.exec(source)?.[0] ?? ''
-  // 0.95 of the scale's top: 2 px of air, then 0.95 of the 32 px between.
-  expect([/ x1="([^"]+)"/.exec(rule)?.[1], / x2="([^"]+)"/.exec(rule)?.[1], / y1="([^"]+)"/.exec(rule)?.[1], / y2="([^"]+)"/.exec(rule)?.[1]]).toEqual(['0', '90', '3.6', '3.6'])
-  expect(rule).toMatch(new RegExp(`stroke="${snapOf().palette.trackStroke}"`))
-  expect(rule).not.toMatch(/stroke-dasharray/)
-  expect(source.indexOf('class="level"')).toBeLessThan(source.indexOf('<polyline'))
-  expect(textOf(sparkline(term, { key: 's', alt: 'context', values: [50, 120], color: '#b8b8c2', px: 90, height: 36, max: 200, level: 0.95 }))).toBe(braille([50, 120], 200))
 })
 test("in text, day cells are a braille height each, a guess is a dot, and today is in brackets", () => {
   const cells = dayCells(term, { key: 'd', alt: 'week', values: [4, 2, undefined, 4], guess: [false, false, false, true], today: 1, color: '#a99cf0', cellPx: 16, height: 16 })
