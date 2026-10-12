@@ -18,6 +18,3 @@ test("a zone whose offset can't be read is none, so the band counts down", () =>
 test('the zone reaches the readings', () => {
   expect(readingsOf(snapOf({ zone: fixedZone(210) })).frame.zone?.(T)).toBe(210)
 })
-test("the kit's zone, for the ledger", () => {
-  console.log(`ZONE offset=${hostZone(T)}`)
-})

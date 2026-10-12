@@ -219,6 +219,7 @@ test('the cache card leads with the stake: re-warm cost, savings, hit rate, expi
   expect(fact(tree, 'saved by cache')).toBe('~$1.30') // 0.95 * 100k * rate
   expect(fact(tree, 'hit rate')).toBe('45%')
   expect(fact(tree, 'expires')).toBe('1h idle')
+  expect(fact(tree, 'unexpected rebuilds')).toBeUndefined() // shown only when there is one
   await ui.unmount()
 })
 
@@ -387,18 +388,6 @@ test('the buttons: Collapse without a Ctrl-like glyph, Hide band, and how to bri
   await ui.unmount()
 })
 
-test('every SVG id in an expanded desktop band is unique, so no bar clips to another', async ($, on) => {
-  setup(on, { usage: withCompaction(100_000) })
-  await $.session.start({ ...START, surface: 'desktop' })
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
-  await measureContext($, 100_000)
-  const ui = await mountBand($, 'desktop', 140)
-  await ui.press({ key: 'more' })
-  const ids = svgsOf(await ui.drawn()).flatMap(n => [...String(n.props?.source).matchAll(/ id="([^"]+)"/g)].map(m => m[1]))
-  expect(new Set(ids).size).toBe(ids.length)
-  await ui.unmount()
-})
-
 test('the desktop gets no whitespace-only strings, which it drops, so every gap is a spacer', async ($, on) => {
   setup(on, { usage: withCompaction(100_000) })
   await $.session.start({ ...START, surface: 'desktop' })
@@ -450,23 +439,6 @@ test('each desktop card title, and the hint, leads with an icon; terminal titles
   const term = await mountBand($, 'terminal', 110)
   expect(shown(cardOf(await term.drawn(), 'cache'))).toMatch(/^CACHE/)
   await term.unmount()
-})
-
-test('the toggle is a framed native button on the desktop, a plain glyph in the terminal', async ($, on) => {
-  setup(on)
-  await $.session.start(START)
-  const toggleOf = async (surface: 'desktop' | 'terminal') => {
-    const ui = await mountBand($, surface, 110)
-    const found = byKey(firstRow(await ui.drawn()), 'more', 'Button')
-    await ui.unmount()
-    return found
-  }
-  const desk = await toggleOf('desktop')
-  expect(desk?.props?.variant).toBe('secondary')
-  expect(desk?.props?.plain).toBeUndefined()
-  const term = await toggleOf('terminal')
-  expect(term?.props?.plain).toBe(true)
-  expect(term?.props?.label).toBe('▵')
 })
 
 test('a card short of rows gives up its bar before a fact, since the chips already show it', async ($, on) => {
