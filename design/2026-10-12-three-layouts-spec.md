@@ -58,10 +58,10 @@ cache 38m  ╭╮╭─╮╭╮╭  $0.24 · last $0.03   context ⠤⠴⠶ 8% 
 
 | Piece | Desktop (svg) | Terminal |
 | --- | --- | --- |
-| **Cache** | A 12 px heartbeat mark, then the words.<br>• Warm: a still `warm` dot.<br>• Last call (`cache.lastCall`): an amber dot that beats.<br>• Cold: a flat grey line.<br>• Working: a still dot and no countdown.<br>The words are the existing cache phrases (`38m left`, `! 47s left · re-warm ~$1.66`, `cold · re-warm ~$0.57`). | The words |
+| **Cache** | A 12 px heartbeat mark, then the words. One state per `cache.mood`:<br>• Warm: a still dot in `warm`.<br>• Expiring (`cache.tone === 'amber'`, the last minute): an amber dot that beats.<br>• Cold: a flat grey line.<br>• Unmeasured and warming: a hollow dot.<br>Two flags change the words, not the dot: recalled (not measured) puts `~` on the time, and working drops the countdown.<br>The words are the existing cache phrases (`38m left`, `! 47s left · re-warm ~$1.66`, `cold · re-warm ~$0.57`). | The words |
 | **Spend** | `barChart` drawn as beats: the last 14 messages, each spike's height its cost, a re-warm capped flat. Then `$0.24 · last $0.03`. | A braille trace beside the words |
 | **Context** | `sparkline` of `history.context`, the last 40 turns, scaled to the window. Then `context 8%`. | A braille trail beside the words |
-| **5h** | `sparkline` over the window from its start to its reset, from `week.hourRow`: measured solid, the projection dashed, now marked. Then `5h 26%`. | A braille trail beside the words |
+| **5h** | `sparkline` over the window from its start to its reset. Its points are built in `reading.ts` (`history.fiveHourWindow`) from `week.hourRow`'s cells, so the view only draws them: measured solid, the projection dashed, now marked. Then `5h 26%`. | A braille trail beside the words |
 | **7d** | `dayCells` for the seven days: measured solid, guessed dashed, today outlined. Then `! 7d 85%`. | The words |
 
 - **Heartbeat.** Only an amber cache moves. The Svg's source changes only when the cache's mood changes, never per tick, so its frame isn't reloaded each second. Motion ships only if the spike (§8, step 1) shows that the frame survives redraws and that `prefers-reduced-motion` reaches it. Otherwise the mark is still, and its ink and words carry the state. If the spike has no answer by the time pulse is built, the mark ships still.
@@ -110,7 +110,7 @@ A stack of full-width bands, each with its chart on the left and its words on th
   - Desktop: one Svg per flap group, at most 20 px tall. Each character sits on its own tile, with a 1 px seam across the tile's middle. The group's width is its character count × the tile's pitch, and the row is fitted by those widths.
   - Terminal: each group is a `Box backgroundColor` run, with a space between groups.
 - **Alt text.** Each group's alt is a sentence from `reading.ts`, in words, for example "Cache goes cold at 17:24, in 38 minutes". It never uses the capitals or `↻`.
-- **Tokens** (new; DARK and LIGHT get the same values, PLAIN maps them to theme keys):
+- **Tokens** (new). The board is dark in both palettes, so DARK and LIGHT hold the same hex values, DARK's own, not aliases of their palette's accents. PLAIN maps them to theme keys. `design.test.ts` checks every item ink, `flapText`, `flapDim` and `flapAmber` at 4.5:1 on `flapBg`, and `flapSeam` at 3:1, in every palette.
 
   | Token | For |
   | --- | --- |
@@ -120,8 +120,8 @@ A stack of full-width bands, each with its chart on the left and its words on th
   | `flapItemCache` | CACHE, a warm green |
   | `flapItemSpend` | SPEND, gold |
   | `flapItemContext` | CONTEXT, a cool grey-blue |
-  | `flapItem5h` | 5H, the 5h accent |
-  | `flapItem7d` | 7D, the 7d accent |
+  | `flapItem5h` | 5H, DARK's 5h accent |
+  | `flapItem7d` | 7D, DARK's 7d accent |
   | `flapText` | Statuses and times |
   | `flapDim` | Remarks |
   | `flapAmber` | Amber words. Nothing is red. |
@@ -129,18 +129,20 @@ A stack of full-width bands, each with its chart on the left and its words on th
 ### 5.2 Collapsed
 
 ```
-CACHE DEPARTS 17:24  SPEND $0.24  CONTEXT 8%  5H 26% ↻ 17:50  7D 85% ! NEAR LIMIT  ▵
+CACHE DEPARTS 17:24  SPEND $0.24  CONTEXT 8%  5H 26% ↻ 17:50  7D 85% ↻ SAT 13:30 ! NEAR LIMIT  ▵
 ```
 
 | Reading | Long form | Short form (give-way) |
 | --- | --- | --- |
 | Cache, warm | `DEPARTS 17:24` | `17:24` |
-| Cache, last call (`cache.lastCall`) | `LAST CALL 47S` (amber) | `! 47S` |
+| Cache, last call, calm (`cache.lastCall` and `tone === 'calm'`) | `LAST CALL 17:24`, in `flapText` | `17:24` |
+| Cache, last minute (`tone === 'amber'`) | `LAST CALL 47S`, in amber | `! 47S` |
+| Cache, recalled (not measured) | `DEPARTS ~17:24` | `~17:24` |
 | Cache, cold | `DEPARTED 17:24 · RE-WARM ~$0.57`, or `DEPARTED · RE-WARM ~$0.57` with no known time | `RE-WARM ~$0.57` |
 | Cache, working | `BOARDING` | `BOARDING` |
 | Cache, unmeasured or warming | `CHECK-IN` | `CHECK-IN` |
 | Context, amber | `! COMPACTS IN ~12K` | `! CONTEXT 93%` |
-| A limit | value, then `↻ 17:50`. An amber remark replaces a calm one: `! NEAR LIMIT` (80%), or for 5h, `! FULL ~14:20` (the pace fills). | `5H 26%` |
+| A limit | The value, then `↻ 17:50`, then one remark. An amber remark replaces a calm one, and `↻` stays: `! NEAR LIMIT` (80%), or for 5h, `! FULL ~14:20` (the pace fills). | `5H 26%` |
 | A passed reset | `↻ PASSED` | the value |
 
 - **Give-way, calm only, first to last:**
@@ -193,20 +195,22 @@ These are unchanged: register → snapshot → reading (facts and words) → vie
 
 ### 6.2 Changes
 
-- **`snapshot.ts`:** `LAYOUT_NAMES = ['chips', 'pulse', 'departures']`, plus `REMOVED_LAYOUTS = ['gauges', 'ledger', 'rings', 'tiles', 'week', 'forecast']` for the command's replies (§7).
+- **`snapshot.ts`:** `LAYOUT_NAMES = ['chips', 'pulse', 'departures']`.
+- **`memory.ts`:** `REMOVED_LAYOUTS = ['gauges', 'ledger', 'rings', 'tiles', 'week', 'forecast']`, beside `asLayoutName`, for the command's replies (§7).
 - **`cache.ts` → snapshot → `reading.ts`:** `cache.coldAt`, from the existing `measuredColdAt`; `undefined` where it isn't known. It is a reading fact, not stored.
 - **`words.ts`:**
   - Pulse's average: `avg ~$0.02`.
   - The board's statuses, short forms, remarks and alt sentences: §5.2 and §5.3's words, and `CHECK-IN`.
   - `stripWords(read)`, moved out of `drawStrip`, so departures draws the same facts in flaps.
   - The existing `fillText`, `history.*` and `week.*` words are kept and reused.
+- **`reading.ts`:** `history.fiveHourWindow`, the 5h window's points from start to reset with a now index, derived from `week.hourRow`.
 - **`frame.tsx`:** gains `footer(kit, read, act, strip)`: Collapse, Hide band, the hint and the strip's place, moved verbatim out of `cards.tsx`'s `openBody`. Chips' golden hashes prove the move.
 - **`cards.tsx`:** becomes chips' alone. `chipsView` calls `cardsView` directly. These go: `defineCardsView`; every `OpenOptions` field but `collapsedRows` (`slots`, `slotsReplaceBars`, `heads`, `lead`, `limitMarks`, `shown`, `shownByWindow`, `windowResets`, `clockless`, `compactSplit`, `reWarmLabel`); and the code only they reach (`Fact`, `WindowFact`, `SlotForms`, `leadOf`, `saidOf`, the compact split, and the `'clock'` form of the reset).
 - **Fix before reuse.** The review screenshots show two primitives drawn wrong:
   - `barChart` drew a flat sliver in the open SPEND card (screenshot 5);
   - `dayCells`' now-notch sits off its cell (screenshots 7 and 9).
 
-  Each gets a failing test built from that screenshot's state, then the fix.
+  First find the root cause: is it the Svg's geometry, or how the real desktop sizes it (a `width` set and the height left to the markup)? Then write a failing test that targets that cause, then the fix.
 - **Removed:** the six view files and their `tests/view-*.test.ts`.
 - **The dead-export sweep** runs after pulse and departures are built (§8, step 4), by usage, never from a list. Expected to go:
   - `ring`, `sliceCells`, `meter`'s `tick`, `projectTo` and `slim` options;
@@ -241,19 +245,19 @@ These are unchanged: register → snapshot → reading (facts and words) → vie
    - desktop words read from a flap Svg's `<text>` runs, so its checks see them;
    - two invariants: the one order, and no import from `cards.tsx` (outside chips).
 4. **Sweep** dead exports by usage (§6.2). Then the full suite, `tsc`, `claude plugin validate` and `tools/views-gate.sh`.
-5. **Sign off by screenshot.** Render with `tools/demos` and read every PNG. The cases are three layouts × two surfaces × collapsed and open:
+5. **Sign off by screenshot.** First, render one state you reported (pulse's SPEND sliver, or a misplaced day-cell notch) through `tools/demos` and compare it with your screenshot. If the demo doesn't reproduce the bug, the demo can't gate. Then your desktop screenshots of the same cases are the final gate, and I'll ask you for them. Render with `tools/demos` and read every PNG. The cases are three layouts × two surfaces × collapsed and open:
 
    | Case | State | Pass when |
    | --- | --- | --- |
    | Low | Fresh cache, context 2%, 5h 3%, 7d 10% | No amber, and every indicator matches its value |
    | High | 5h 70%, 7d 78%: just under the amber line | Still no amber |
-   | Near the limits | Cache last call, context near compaction, 5h fills before reset, 7d 85% | Amber on exactly those four, each with words |
+   | Near the limits | Cache in its last minute, context near compaction, 5h fills before reset, 7d 85% | Amber on exactly those four, each with words |
    | Empty | No costs, no limits, no workspace | The empty phrases. No NaN and no empty cell. |
-   | Edges | Cold, working, a re-warm in the trace, a passed reset, compaction off, limits with no samples, `otherLimits` present | Each state drawn, per §4 and §5 |
+   | Edges | Every cache mood (unmeasured, warming, warm, expiring, cold), recalled, working, a re-warm in the trace, a passed reset, unknown context, compaction off, limits with no samples, `otherLimits` present | Each state drawn, per §4 and §5 |
 
    - In every case, the order is Cache, Spend, Context, 5h, 7d, and no row wraps.
    - Low and Near the limits are also shot in light and plain, so the dark board is seen on a light UI, at widths 40, 80 and 200.
-   - **Distinctness gate:** shown the three collapsed PNGs without labels, someone can name each one.
+   - **Distinctness gate**, which is your call: shown the three collapsed PNGs without labels, can you name each one?
 6. **Docs and release:**
    - the plugin README's layout table, image and alt text, minus its week and forecast paragraphs;
    - the root README's count;
