@@ -20,7 +20,8 @@ import { bodyRowsFor } from './frame'
 import { ROLE_INK, accentOf } from './parts'
 
 /** The cards, in the order they are drawn. */
-export type CardName = 'cache' | 'spend' | 'context' | 'limits'
+const CARD_NAMES = ['cache', 'spend', 'context', 'limits'] as const
+export type CardName = (typeof CARD_NAMES)[number]
 
 /** Each body row a card may draw, by what it says. */
 export type Fact =
@@ -126,7 +127,6 @@ export const tokenPartsOf = (kit: Kit, read: Readings): ReadonlyArray<readonly [
 export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOptions): RenderChildren[] => {
   const { Box, Button, Text, Svg, palette, measure, columns, onTone, oneLine, icon } = kit
   const { cache, spend, context } = read
-  const shown = new Set(o.shown)
 
   /** A label and its value at either end of a line, unless the collapsed
    *  lines show it; `swatch` keys a legend in its part's colour and fill. A
@@ -167,12 +167,8 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
   const edge = bordered ? 2 : 0
   const minCard = Math.ceil(CARD_TEXT * measure.text) + 2 + edge
   // The cards present, which the grid lays out.
-  const present: readonly CardName[] = [
-    'cache',
-    'spend',
-    ...(context.known ? (['context'] as const) : []),
-    ...(read.limits.length > 0 ? (['limits'] as const) : []),
-  ]
+  const drawn: Readonly<Record<CardName, boolean>> = { cache: true, spend: true, context: context.known, limits: read.limits.length > 0 }
+  const present = CARD_NAMES.filter(name => drawn[name])
   const cardCount = present.length
   const fits = (n: number) => n * minCard + (n - 1) <= columns
   const perLine = [cardCount, Math.ceil(cardCount / 2)].find(fits) ?? 1
@@ -236,26 +232,23 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     )
   }
   /** A lead's row: the first form whose label and value fit the card's line,
-   *  else its shortest; a fact lead's, else none, its facts then the card's. */
-  const leadOf = (lead: Leads | FactLead | undefined): RenderChildren => {
-    if (lead === undefined) return null
+   *  else its shortest; a fact lead's, else none, its facts then the card's.
+   *  With it, the facts that drawn row says. */
+  const leadOf = (lead: Leads | FactLead | undefined): Readonly<{ row: RenderChildren; says: readonly Fact[] }> => {
+    if (lead === undefined) return { row: null, says: [] }
     const forms = 'says' in lead ? lead.forms : isLead(lead) ? [lead] : lead
     const rows = forms.map(form => factRow(undefined, ...form))
     const fitting = rows.find(row => cellsOf(row, measure) <= inner)
-    if ('says' in lead) {
-      // Drawn, it says its facts, so no row of the card's repeats them.
-      if (fitting !== undefined) for (const fact of lead.says) shown.add(fact)
-      return fitting ?? null
-    }
-    return fitting ?? rows.at(-1) ?? null
+    if ('says' in lead) return { row: fitting ?? null, says: fitting === undefined ? [] : lead.says }
+    return { row: fitting ?? rows.at(-1) ?? null, says: [] }
   }
-  const leads: Readonly<Partial<Record<CardName, RenderChildren>>> = Object.fromEntries(
-    (['cache', 'spend', 'context', 'limits'] as const).map(name => [name, leadOf(o.lead?.[name])]),
-  )
+  const leads: Readonly<Partial<Record<CardName, ReturnType<typeof leadOf>>>> = Object.fromEntries(CARD_NAMES.map(name => [name, leadOf(o.lead?.[name])]))
+  // What the collapsed lines show and the drawn leads say: no card row repeats it.
+  const shown = new Set<Fact>([...(o.shown ?? []), ...CARD_NAMES.flatMap(name => leads[name]?.says ?? [])])
   /** A card: its title, the layout's lens and its headline on one line, then
    *  its bar, the layout's lead and its body. */
   const card = (name: CardName, title: string, head: Readonly<{ say: Say; tone?: Tone }>, bar: RenderChildren, body: RenderChildren[]) => {
-    const lead = leads[name] ?? null
+    const lead = leads[name]?.row ?? null
     const say = headline(o.heads?.[name] ?? head.say, head.tone ?? 'calm')
     const titled = (
       <Box key="title" flexDirection="row" flexShrink={0}>
@@ -422,7 +415,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     const lead = leadRow()
     const rows = read.limits.map(limitRows)
     const lines = rows.flat().filter(part => part !== null)
-    const room = bodyRows - (lead === null ? 0 : 1) - (leads.limits === null || leads.limits === undefined ? 0 : 1)
+    const room = bodyRows - (lead === null ? 0 : 1) - ((leads.limits?.row ?? null) === null ? 0 : 1)
     if (lines.length <= room) return [lead, ...lines]
     const bars = rows.map(([bar]) => bar)
     const worstAt = lead === null ? read.limits.findIndex(w => w === worst) : -1
