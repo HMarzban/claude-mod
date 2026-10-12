@@ -10,7 +10,7 @@ import type { Sample } from '../hooks/memory'
 import { DARK } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { EMPTY } from '../hooks/words'
-import { CLEAR, HOUR, LONG, MIN, START, byKey, cardOf, fakeEl, firstRow, mountBand, pacing, resp, respond, setup, shown, svgAlts, svgRect, svgsOf, usage, walk, type Node } from './helpers'
+import { CLEAR, HOUR, LONG, MIN, START, boldOf, byKey, cardFirstRow, cardOf, fakeEl, firstRow, mountBand, pacing, pillKeys, resp, respond, setup, shown, svgAlts, svgRect, svgsOf, usage, type Node } from './helpers'
 import { NO_ACT, snapOf, viewSuite, visualRows } from './matrix'
 
 viewSuite('pulse')
@@ -28,22 +28,10 @@ const SAMPLES: Sample[] = [-30 * HOUR, -HOUR].map((at, i) => ({ at, fivePct: 4, 
 const band = (over: Partial<BandSnapshot> = {}): Node =>
   drawBand(fakeEl, snapOf({ layout: 'pulse', columns: 160, maxRows: 40, history: HISTORY, samples: SAMPLES, ...over }), NO_ACT) as unknown as Node
 const rowOf = (over: Partial<BandSnapshot> = {}): Node => firstRow(band(over)) as Node
-/** The row's pills, by key, in order. */
-const pillKeys = (row: Node): unknown[] => (row.children ?? []).filter(k => (k as Node | null)?.props?.flexShrink === 0 && (k as Node).props?.key !== undefined).map(k => (k as Node).props?.key)
 const pillOf = (row: Node, key: string): Node | undefined => byKey(row, key, 'Box')
-/** The bold Texts of a node, as they read. */
-const boldOf = (n: Node | undefined): string[] => {
-  const out: string[] = []
-  walk(n, k => {
-    if (k.type === 'Text' && k.props?.bold === true) out.push(shown(k))
-  })
-  return out
-}
 const BRAILLE = /[⠀-⣿]+/
 /** The Svgs that chart a reading: the bars, a trail, a meter, the day cells. */
 const chartsOf = (n: unknown): Node[] => svgsOf(n).filter(s => /^(cost of|5h usage|context|7d|weekly)/.test(String(s.props?.alt)) && !/^context$/.test(String(s.props?.alt)))
-/** Each card's first row past its head, as it reads. */
-const firstRowOf = (tree: Node, name: string): string => shown(((cardOf(tree, name)?.children ?? []) as Node[]).filter(Boolean)[1])
 
 test("collapsed is one row of chips' pills: cache, the cost with its bars, context, 5h on its trail, 7d on its bar, then ▵", () => {
   for (const surface of ['terminal', 'desktop'] as const) {
@@ -216,7 +204,7 @@ test("open on the desktop, LIMITS' measured days span its slot, 4px apart and 3p
 test('no card opens on a row the collapsed one shows', () => {
   for (const surface of ['terminal', 'desktop'] as const) {
     const open = band({ surface, expanded: true, maxRows: 13, columns: 120, zone: fixedZone(0) })
-    expect(['cache', 'spend', 'context', 'limits'].map(name => firstRowOf(open, name))).toEqual([
+    expect(['cache', 'spend', 'context', 'limits'].map(name => cardFirstRow(open, name))).toEqual([
       're-warm if cold~$1.66',
       expect.stringMatching(/input18k$/),
       'room left~114k',
@@ -261,7 +249,7 @@ test("LIMITS' 5h row draws its last hour on a track in the meter's place; 7d kee
 })
 test("amber, LIMITS' lead row leaves the pace the row's pill says", () => {
   const pace = { fiveHour: { percentUsed: 50, resetsAt: new Date(4 * HOUR).toISOString(), etaMs: 40 * MIN } }
-  for (const columns of [160, 40]) expect(firstRowOf(band({ columns, expanded: true, ...pace }), 'limits')).toBe('resetsin 4h 00m')
+  for (const columns of [160, 40]) expect(cardFirstRow(band({ columns, expanded: true, ...pace }), 'limits')).toBe('resetsin 4h 00m')
 })
 test('in ascii the charts give way to the numbers, shut and open', () => {
   for (const expanded of [false, true]) {

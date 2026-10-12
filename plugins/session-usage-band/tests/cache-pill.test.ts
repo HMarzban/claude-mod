@@ -8,6 +8,7 @@ import {
   FRESH,
   START,
   MIN,
+  HOUR,
   resp,
   respond,
   textOf,
@@ -46,7 +47,7 @@ test('the countdown is still while warm, then names the stakes in its last minut
   await clock.advance(15_000)
   expect(await ui.find({ type: 'Text', text: /cache 59m/ })).toBeDefined()
 
-  await clock.advance(60 * 60_000 - 45_000) // 30s left
+  await clock.advance(HOUR - 45_000) // 30s left
   const soon = await ui.find({ type: 'Text', text: /0:30 left · re-warm ~\$/ })
   expect(soon).toBeDefined()
   expect(soon?.props?.color).toBe(DARK.amberFg)
@@ -60,7 +61,7 @@ test('a cold cache is neutral, never amber or red', LONG, async ($, on) => {
   const clock = setup(on, { env: { CLAUDE_CODE_PROMPT_CACHE_TTL: '5m' } })
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(2_000, 0, 180_000, 5_000))
-  await clock.advance(10 * 60_000)
+  await clock.advance(10 * MIN)
 
   const ui = await mountBand($, 'terminal', 110)
   const cold = await ui.find({ type: 'Text', text: /cache cold/ })
@@ -79,7 +80,7 @@ test("while a turn runs, 'cache warm' replaces the calm countdown", LONG, async 
   expect(await ui.find({ type: 'Text', text: /◷ cache warm\s*$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /cache 1h/ })).toBeUndefined()
 
-  await clock.advance(60 * 60_000 - 30_000) // a tool call outlasting the TTL
+  await clock.advance(HOUR - 30_000) // a tool call outlasting the TTL
   expect(await ui.find({ type: 'Text', text: /0:30 left/ })).toBeDefined()
   await ui.unmount()
 })
@@ -91,7 +92,7 @@ test('the re-warm estimate appears only where it is actionable', LONG, async ($,
 
   const ui = await mountBand($, 'terminal', 110)
   expect(await ui.find({ type: 'Text', text: /~\$/ })).toBeUndefined()
-  await clock.advance(60 * 60_000 - 40_000)
+  await clock.advance(HOUR - 40_000)
   expect(await ui.find({ type: 'Text', text: /re-warm ~\$/ })).toBeDefined()
   await clock.advance(60_000)
   expect(await ui.find({ type: 'Text', text: /cache cold .*~\$/ })).toBeDefined()
@@ -102,7 +103,7 @@ test('a narrow band shortens the wording but keeps the money', LONG, async ($, o
   const clock = setup(on)
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
-  await clock.advance(60 * 60_000 - 40_000)
+  await clock.advance(HOUR - 40_000)
 
   const ui = await mountBand($, 'terminal', 64)
   const pill = await ui.find({ type: 'Text', text: /~\$/ })
@@ -115,7 +116,7 @@ test('with nothing billed yet the cold pill names the tokens instead', LONG, asy
   const clock = setup(on, { usage: { ...USAGE, cost: { usd: 0 } } })
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
-  await clock.advance(61 * 60_000)
+  await clock.advance(61 * MIN)
 
   const ui = await mountBand($, 'terminal', 110)
   expect(await ui.find({ type: 'Text', text: /cache cold · next message 112k tokens/ })).toBeDefined()

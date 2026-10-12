@@ -11,7 +11,7 @@ import { DARK } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { gaugesView } from '../hooks/views/gauges'
-import { HOUR, MIN, byKey, cardOf, fakeEl, firstRow, shown, svgRect, svgsOf, walk, type Node } from './helpers'
+import { HOUR, MIN, boldOf, byKey, cardFirstRow, cardOf, fakeEl, firstRow, shown, svgRect, svgsOf, walk, type Node } from './helpers'
 import { NO_ACT, snapOf, viewSuite } from './matrix'
 
 viewSuite('gauges')
@@ -26,17 +26,8 @@ const pillText = (over: Partial<BandSnapshot>, key: string): string => shown(byK
 /** The grid's columns, top to bottom: each piece's key, the toggle's `more`. */
 const columnsOf = (row: Node): unknown[][] =>
   ((row.children ?? []) as Node[]).map(col => ((col.children ?? []) as Node[]).filter(Boolean).map(k => k.props?.key ?? byKey(k, 'more', 'Button')?.props?.key))
-const boldOf = (n: unknown): string[] => {
-  const out: string[] = []
-  walk(n, k => {
-    if (k.type === 'Text' && k.props?.bold === true) out.push(shown(k))
-  })
-  return out
-}
 /** A card's body rows, past its head. */
 const bodyOf = (tree: Node, name: string): Node[] => ((cardOf(tree, name)?.children ?? []) as Node[]).filter(Boolean).slice(1)
-/** A card's first body row, past its head, as it reads. */
-const firstRowOf = (tree: Node, name: string): string => shown(bodyOf(tree, name)[0])
 /** Whether a row draws a bar: an Svg, or a run of a bar's glyphs. */
 const isBar = (row: Node | undefined): boolean => svgsOf(row).length > 0 || /[█▓▒░│]{4}/.test(shown(row))
 const desktop = (over: Partial<BandSnapshot> = {}): Partial<BandSnapshot> => ({ surface: 'desktop', columns: 95, ...over })
@@ -221,7 +212,7 @@ test("open on the desktop, LIMITS' lens is a 4px bar: the fill in its accent, it
 })
 test('open on the desktop at 95 columns and 13 rows, each card says one new thing, and the buttons stay', () => {
   const open = draw(desktop({ expanded: true, maxRows: 13 }))
-  expect(['cache', 'spend', 'context', 'limits'].map(name => firstRowOf(open, name))).toEqual([
+  expect(['cache', 'spend', 'context', 'limits'].map(name => cardFirstRow(open, name))).toEqual([
     'saved by cache~$11.40',
     'last message$0.21',
     'auto-compacts at190k',
@@ -233,7 +224,7 @@ test("open, LIMITS leads with the headline window's reset, as its board does, un
   for (const over of [{}, desktop()]) {
     const open = draw({ ...BOARD, ...over, expanded: true, maxRows: 13 })
     expect(shown(byKey(byKey(cardOf(open, 'limits'), 'head', 'Box'), 'headline', 'Box'))).toBe('7d 66%')
-    expect(firstRowOf(open, 'limits')).toMatch(/^resets\w{3} \d\d:\d\d$/)
+    expect(cardFirstRow(open, 'limits')).toMatch(/^resets\w{3} \d\d:\d\d$/)
   }
 })
 test('open, no card repeats what the row kept: at 160 terminal columns the row draws both windows whole, so LIMITS says only the lead row', () => {
@@ -246,7 +237,7 @@ test('open, no card repeats what the row kept: at 160 terminal columns the row d
   const passed = { sevenDay: { percentUsed: 40, resetsAt: new Date(-HOUR).toISOString() } }
   expect(bodyOf(draw({ ...passed, expanded: true, maxRows: 20 }), 'limits').map(shown)).toEqual(['resets03:00'])
   // Narrow, the row lost the re-warm price, so the cache card leads with it.
-  expect(firstRowOf(draw({ expanded: true, maxRows: 16, columns: 60 }), 'cache')).toMatch(/^re-warm if cold/)
+  expect(cardFirstRow(draw({ expanded: true, maxRows: 16, columns: 60 }), 'cache')).toMatch(/^re-warm if cold/)
 })
 test("open, a card's lens is its bar: its body leads with a fact, never the bar again", () => {
   for (const over of [{ maxRows: 13 }, desktop({ maxRows: 20 })]) {
@@ -264,7 +255,7 @@ test('open with an amber spend limit, LIMITS leads its headline with "! " in amb
   const head = byKey(byKey(cardOf(open, 'limits'), 'head', 'Box'), 'headline', 'Box')
   expect(shown(head)).toBe('! spend 92%')
   expect(byKey(head, 'say0', 'Text')?.props?.color).toBe(DARK.amberFg)
-  expect(firstRowOf(open, 'limits')).toBe('resets05:00')
+  expect(cardFirstRow(open, 'limits')).toBe('resets05:00')
 })
 test('a passed window says `reset` in label ink, not bold: it is no figure', () => {
   const passed = rowOf({ sevenDay: { percentUsed: 40, resetsAt: new Date(-HOUR).toISOString() } })

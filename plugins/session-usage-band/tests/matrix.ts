@@ -4,7 +4,7 @@
 
 import type { RenderChildren } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
-import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, byKey, firstRow, shown, svgsOf, walk, type Node } from './helpers'
+import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, firstRow, shown, walk, type Node } from './helpers'
 import type { Ttl } from '../hooks/cache'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'

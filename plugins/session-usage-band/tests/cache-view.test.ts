@@ -3,8 +3,8 @@
 
 import { test, expect } from 'claude-code/testing'
 import { cacheView, noteLoad, notePriceModel, noteRecall, recordResponse, resetCache, resetConversation } from '../hooks/cache'
+import { MIN } from './helpers'
 
-const MIN = 60_000
 const RATE = 0.00001
 
 test('recalled, the cache counts down from the last reply and prices the whole context', () => {

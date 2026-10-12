@@ -5,9 +5,8 @@ import type { Engine } from 'claude-code/testing'
 import { MAX_SAMPLES } from '../hooks/memory'
 import type { Sample } from '../hooks/memory'
 import { LAYOUT_NAMES } from '../hooks/snapshot'
-import { CLEAR, LONG, MIN, START, engine, mountBand, resp, respond, setup, shown, svgAlts, turn, usage, walk } from './helpers'
+import { CLEAR, HOUR, LONG, MIN, START, engine, mountBand, resp, respond, setup, shown, svgAlts, turn, usage, walk } from './helpers'
 
-const HOUR = 60 * MIN
 const run = ($: Engine, args: string) =>
   $.command.run({ command: 'usage-band', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 110 } })
 const nodes = (tree: unknown): number => { let n = 0; walk(tree, () => { n++ }); return n }

@@ -6,12 +6,12 @@ import {
   LONG,
   USAGE,
   SUMMARY,
+  COMPACTED_TO,
   START,
   MIN,
   resp,
   respond,
   inAgent,
-  textOf,
   pillOf,
   shown,
   rebuilds,
@@ -26,7 +26,7 @@ test('an assumed hour is corrected to 5m when a gap past 5m rebuilt the cache', 
   const clock = setup(on, { env: {} })
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
-  await clock.advance(12 * 60_000)
+  await clock.advance(12 * MIN)
   await respond(e => $.turn.step(e), resp(82_500, 0, 82_500, 300))
 
   const ui = await mountBand($, 'terminal', 110)
@@ -69,9 +69,9 @@ test("a subagent's steps leave the main countdown and window alone", LONG, async
   const clock = setup(on, { usage: { ...USAGE, cost: { usd: 0 } } }) // no ledger: the pill names the window in tokens
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(2_000, 0, 150_000, 1_000))
-  await clock.advance(50 * 60_000)
+  await clock.advance(50 * MIN)
   await respond(inAgent(e => $.turn.step(e)), resp(500, 0, 12_000, 800))
-  await clock.advance(9 * 60_000 + 30_000)
+  await clock.advance(9 * MIN + 30_000)
 
   const ui = await mountBand($, 'terminal', 110)
   expect(await ui.find({ type: 'Text', text: /0:30 left · re-warm 153k tokens/ })).toBeDefined()
@@ -85,7 +85,7 @@ test("a subagent's tokens still count toward the rate the re-warm is solved from
   await $.session.start(START)
   await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
   await respond(inAgent(e => $.turn.step(e)), resp(3_000, 20_000, 10_000, 4_000))
-  await clock.advance(61 * 60_000)
+  await clock.advance(61 * MIN)
 
   // reads at Opus 5.5's 0.05×: weighted = 13k + 1.25*110k + 0.05*20k + 5*6k = 181.5k;
   // 1.25*112k*2.41/181.5k = 1.86 (without the subagent's tokens it would be 2.33)
@@ -100,7 +100,7 @@ test("the re-warm estimate is solved from every response's tokens", LONG, async 
   await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
   await respond(e => $.turn.step(e), resp(4_000, 100_000, 6_000, 3_000))
   await respond(e => $.turn.step(e), resp(1_000, 110_000, 2_000, 1_000))
-  await clock.advance(61 * 60_000)
+  await clock.advance(61 * MIN)
 
   // reads at Opus 5.5's 0.05×: weighted = 15k + 1.25*108k + 0.05*210k + 5*6k = 190.5k;
   // 1.25*114k*2.41/190.5k = 1.80
@@ -171,7 +171,7 @@ const rebuildsAfterCompaction = async (
 
 test('a compaction result that carries an empty skip is still a compaction', async ($, on) => {
   setup(on)
-  engine.compact = { messages: SUMMARY, tokensAfter: 20_000, skip: undefined }
+  engine.compact = { messages: SUMMARY, tokensAfter: COMPACTED_TO, skip: undefined }
   expect(await rebuildsAfterCompaction($)).toBe(0)
 })
 

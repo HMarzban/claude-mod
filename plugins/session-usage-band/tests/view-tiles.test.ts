@@ -11,7 +11,7 @@ import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { tilesView } from '../hooks/views/tiles'
 import { DAY_MS, fixedZone } from '../hooks/format'
-import { HOUR, MIN, byKey, cardOf, fakeEl, firstRow, shown, svgsOf, walk, type Node } from './helpers'
+import { HOUR, MIN, boldOf, byKey, cardOf, fakeEl, firstRow, shown, svgsOf, walk, type Node } from './helpers'
 import { NO_ACT, snapOf, viewSuite, visualRows } from './matrix'
 
 viewSuite('tiles')
@@ -45,13 +45,6 @@ const tile = (row: Node, key: string): Node | undefined => tilesOf(row).find(t =
 const LIMIT_82: Partial<BandSnapshot> = { fiveHour: { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }
 const PACING: Partial<BandSnapshot> = { fiveHour: { percentUsed: 40, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: HOUR } }
 const LAST_MINUTE: Partial<BandSnapshot> = { cache: { ...snapAt().cache, msLeft: 30_000 } }
-const boldOf = (n: unknown): string[] => {
-  const out: string[] = []
-  walk(n, k => {
-    if (k.type === 'Text' && k.props?.bold === true) out.push(shown(k))
-  })
-  return out
-}
 
 test('the row runs cache, spend, context, 5h and 7d, then the tokens', () => {
   expect(keysOf(rowOf())).toEqual(['cache', 'cost', 'ctx', '5h', '7d', 'tokens'])
