@@ -435,7 +435,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
   let board: Board | undefined
   const cacheRead = { ...cache, ...cacheWords(cache, c, frame) }
   const spendRead = { ...spend, ...spendSaid }
-  const contextRead = { ...context, ...contextWords(context, frame) }
+  const contextRead = { ...context, ...contextWords(context) }
   return {
     frame,
     cache: cacheRead,

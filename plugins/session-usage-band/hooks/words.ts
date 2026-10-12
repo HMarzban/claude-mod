@@ -14,7 +14,6 @@ import {
   fmtDayClock,
   fmtEstimate,
   fmtEta,
-  fmtEtaDays,
   fmtEtaSpoken,
   fmtLeft,
   fmtLeftShort,
@@ -28,7 +27,6 @@ import {
   plural,
   secondsLeft,
   severityMark,
-  SOON_MS,
   WARN_AT,
 } from './format'
 import type { Zone } from './format'
@@ -59,16 +57,6 @@ export type Ahead = Readonly<{ lead: Say; figure: string; soon?: string; tail?: 
 /** A value not known yet: unknown, never 0. */
 const UNKNOWN = '–'
 
-/** A reading as departures' row says it: its words, then its figure, bold
- *  alone, then the words after it. */
-export type Countdown = Readonly<{ words: string; figure: string; after: string }>
-/** A countdown's long words, and its short ones for a row out of room. */
-export type Departure = Readonly<{ long: Countdown; short: Countdown }>
-const departs = (words: string, figure: string, after = ''): Countdown => ({ words, figure, after })
-const alike = (said: Countdown): Departure => ({ long: said, short: said })
-/** What parts a countdown's words: ` · `, and in the ascii tier ` - `, as
- *  departures' board draws it, not the comma `asciiText` makes. */
-const departsDot = (frame: Frame): string => (frame.glyphs === 'ascii' ? ' - ' : ' · ')
 
 
 /** What leads an amber reading: its mark, then its words. */
@@ -172,9 +160,6 @@ export type CacheWords = Readonly<{
   idleText: string | undefined
   /** The cache card's headline: its countdown, `59m left`, else its mood. */
   cardHead: Say
-  /** Departures' CACHE headline: its countdown as its pill says it, `6m
-   *  left`, `M:SS` only in its last minute; else as `cardHead`. */
-  departureHead: Say
   /** A gauge's reading beside its bar: `52m left`, bold on its figure, else
    *  its mood; short, its figure alone, `52m`. */
   gaugeSay: Say
@@ -183,12 +168,6 @@ export type CacheWords = Readonly<{
   gaugeMore: string | undefined
   /** The cache card's line while there is nothing to count. */
   cardNote: string | undefined
-  /** Departures' countdown: `cache 52m`, `cache warm`, its mood no figure;
-   *  cold, `cache cold · re-warm ~$1.66`, then `cold ~$1.66`; its last call,
-   *  `! last call · cache 6m · re-warm ~$1.66`, then without the price. */
-  departure: Departure
-  /** What the cache's place in departures' queue is for: `goes cold`, once cold `went cold`. */
-  departureLens: string
   alt: string
 }>
 
@@ -201,10 +180,6 @@ export type ContextWords = Readonly<{
   sayShort: Say
   /** `! context 93% · compacts in ~14k` / `! ctx 93%`; compaction off, `! context 85%`. */
   amber: ReadingAmber | undefined
-  /** Departures' countdown: `compacts ~12 msgs`, or with no pace yet
-   *  `compacts in ~114k`; amber, `! context 93% · compacts in ~14k`, then
-   *  `! ctx 93%`. None while calm with no compaction to count to. */
-  departure: Departure | undefined
   /** `~12 msgs`, while the pace is known: departures' CONTEXT headline. */
   msgsHead: Say | undefined
   /** Room and compaction as one row, `room left · auto-compacts at 190k`,
@@ -304,17 +279,6 @@ export type LimitWords = Readonly<{
   amber: ReadingAmber | undefined
   /** An amber window as a card's headline, led by its mark, `! spend 92%`. */
   amberHead: Say | undefined
-  /** Departures' countdown: `5h resets 3h 00m`, or filling before then,
-   *  `7d full ~1d`; amber, `! 5h 82%` or `! 5h full ~40m`, then `! 5h ~40m`;
-   *  its last call, `! last call · 5h full ~5m`, then `! last call · 5h ~5m`;
-   *  once passed, `5h reset`. */
-  departure: Departure
-  /** The reset after a countdown that isn't it, `2d 2h`, said after `↻`. */
-  departureReset: string | undefined
-  /** What its place in departures' queue is for: `5h resets`, `7d fills`, `5h reset`. */
-  departureLens: string
-  /** Departures' LIMITS headline: `5h in 3h 00m`, `7d full ~1d`; none once passed. */
-  departureHead: Say | undefined
   alt: string
 }>
 
@@ -328,7 +292,6 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
   const left = counting ? fmtLeft(f.coldInMs) : ''
   const leftShort = counting ? fmtLeftShort(f.coldInMs) : ''
   const zone = frame.zone
-  const dot = departsDot(frame)
   // Spoken, a price is never marked ~: the alt says "about".
   const price = c.reWarmUsd !== null ? fmtSmallCost(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`
   // The card counts down as chips' row always has: `1h 05m`, `0:47`.
@@ -382,19 +345,11 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     rebuildsText: c.misses > 0 ? String(c.misses) : undefined,
     idleText: c.recalled && c.idleMs !== null ? fmtAgo(c.idleMs) : undefined,
     cardHead,
-    departureHead: counting ? [[f.coldInMs < SOON_MS ? fmtCountdown(f.coldInMs) : leftShort, 'value'], [' left', 'label']] : cardHead,
     gaugeSay: counting ? [[leftShort, 'value'], [' left', 'label']] : [[value, 'value']],
     gaugeShort: [[counting ? leftShort : value, 'value']],
     gaugeMore: counting || f.mood === 'cold' ? reWarm : undefined,
     cardNote:
       f.mood === 'unmeasured' ? "Countdown starts with Claude's next reply." : f.mood === 'warming' ? 'First message builds the cache.' : undefined,
-    departure:
-      f.mood === 'cold'
-        ? { long: departs(`cache cold${dot}re-warm `, f.estimate), short: departs('cold ', f.estimate) }
-        : f.lastCall
-          ? { long: departs(`! last call${dot}cache `, leftShort, `${dot}re-warm ${f.estimate}`), short: departs(`! last call${dot}cache `, leftShort) }
-          : alike(counting ? departs('cache ', leftShort) : departs(`cache ${value}`, '')),
-    departureLens: f.mood === 'cold' ? 'went cold' : 'goes cold',
     alt:
       f.mood === 'unmeasured'
         ? 'cache not measured yet'
@@ -467,7 +422,7 @@ export const cacheCopy = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame)
 
 /** The context in words, measured toward compaction when it is on; unknown
  *  while the engine reports none, never 0%. */
-export const contextWords = (f: ContextFacts, frame: Frame): ContextWords => {
+export const contextWords = (f: ContextFacts): ContextWords => {
   const value = f.known ? f.pct : UNKNOWN
   const towardText = f.compactAt !== undefined ? 'toward compaction' : 'of the window'
   const roomText = !f.known || f.toCompact === undefined ? undefined : `~${fmtTokens(f.toCompact)}`
@@ -498,12 +453,6 @@ export const contextWords = (f: ContextFacts, frame: Frame): ContextWords => {
     gaugeSay: f.known ? [[f.pct, 'value'], [' full', 'label']] : [[EMPTY.context, 'label']],
     gaugeShort: f.known ? [[f.pct, 'value']] : [[UNKNOWN, 'label']],
     gaugeMore: roomText === undefined ? undefined : f.nearCompact ? `compacts in ${roomText}` : `${roomText} left`,
-    departure:
-      amber !== undefined
-        ? { long: departs('! context ', f.pct, roomText === undefined ? '' : `${departsDot(frame)}compacts in ${roomText}`), short: departs('! ctx ', f.pct) }
-        : roomText === undefined
-          ? undefined
-          : alike(msgs === undefined ? departs('compacts in ', roomText) : departs('compacts ', msgs, msgsUnit)),
     msgsHead: msgs === undefined ? undefined : [[msgs, 'value'], [msgsUnit, 'label']],
     roomLead: amber !== undefined || msgs === undefined || roomText === undefined || roomCompacts === undefined ? undefined : [roomCompacts[0], roomText],
     alt: f.known
@@ -580,8 +529,6 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
             soon: resetClock === undefined ? undefined : resetIn,
             tail: pace === '' ? undefined : pace,
           }
-  const fillsIn = f.fullInMs === undefined ? undefined : fmtEtaDays(f.fullInMs)
-  const mark = f.lastCall ? `! last call${departsDot(frame)}` : f.tone === 'amber' ? '! ' : ''
   return {
     valueText,
     valueMarked: `${f.value}${severityMark(f.frac)}`,
@@ -604,22 +551,6 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     fullIn,
     amber: f.tone !== 'amber' ? undefined : fullIn !== undefined ? AMBER.limitPace(f.name, fullIn) : AMBER.limit(f.name, f.percentUsed),
     amberHead: f.tone !== 'amber' ? undefined : [[AMBER_LEAD, 'amber'], [`${f.name} `, 'label'], [valueText, 'value']],
-    departure: f.passed
-      ? alike(departs(`${f.name} reset`, ''))
-      : fillsIn !== undefined
-        ? { long: departs(`${mark}${f.name} full `, fillsIn), short: departs(`${mark}${f.name} `, fillsIn) }
-        : f.tone === 'amber' || span === undefined
-          ? alike(departs(`${mark}${f.name} `, f.value))
-          : alike(departs(`${f.name} resets `, span)),
-    departureReset: fillsIn !== undefined || f.tone === 'amber' ? span : undefined,
-    departureLens: `${f.name} ${f.passed ? 'reset' : fillsIn !== undefined ? 'fills' : 'resets'}`,
-    departureHead: f.passed
-      ? undefined
-      : fillsIn !== undefined
-        ? [[`${f.name} full `, 'label'], [fillsIn, 'value']]
-        : span === undefined
-          ? undefined
-          : [[`${f.name} in `, 'label'], [span, 'value']],
     alt: altOf(
       `${f.name} limit`,
       live ? `${Math.round(f.percentUsed)} percent used` : 'reset',
@@ -631,28 +562,6 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
           : landing,
     ),
   }
-}
-
-/** Departures' words beside each reading's own: SPEND's lens, the one card
- *  with no countdown, CONTEXT's, the tokens' unit in the ascii tier, which
- *  drops `Σ`, and CACHE's re-warm row while warm. */
-export const DEPARTURES = { noClock: 'no clock', compacts: 'compacts', tokensUnit: ' tok', reWarm: 're-warm when cold' } as const
-
-/** Departures' LIMITS first row, what the row's windows have used: `used so
- *  far`, `5h 4% · 7d 30%`, each window named in its accent; none without a
- *  window. */
-export const usedSoFar = (limits: readonly LimitView[]): readonly [string, Say] | undefined => {
-  const windows = limits.filter(l => l.key !== 'other')
-  return windows.length === 0
-    ? undefined
-    : [
-        'used so far',
-        windows.flatMap((l, i): Say => [
-          ...(i === 0 ? [] : [[' · ', 'label'] as const]),
-          [`${l.name} `, l.key === '5h' ? 'accent5' : 'accent7'],
-          [l.valueText, 'value'],
-        ]),
-      ]
 }
 
 /** What the history says: the costs' numbers, and each trail's trend for a reader. */
@@ -836,7 +745,12 @@ export type BoardRow = Readonly<{
   tone: Tone
   alt: string         // in words, never capitals or ↻: the reading's existing alt
 }>
-export type Board = Readonly<{ header: readonly string[] | undefined; rows: readonly BoardRow[] }>
+export type Board = Readonly<{
+  header: readonly string[] | undefined
+  /** The header's facts in words, for its flaps' alt. */
+  headerAlt: string | undefined
+  rows: readonly BoardRow[]
+}>
 export type BoardFacts = Readonly<{
   frame: Frame
   cache: CacheFacts & CacheWords
@@ -902,9 +816,10 @@ const limitBoard = (r: BoardFacts, l: LimitFacts & LimitWords): BoardRow => {
   const calm = l.fillText ?? l.pace
   const tail = (amber ?? calm) === '' ? '' : ` ${amber ?? calm}`
   return {
-    key: l.key, item: l.key === 'other' ? l.name : l.key, status: amber ?? l.valueText, time,
+    // An other limit names itself a limit: `spend` alone would read as the session's SPEND.
+    key: l.key, item: l.key !== 'other' ? l.key : /\blimit$/.test(l.name) ? l.name : `${l.name} limit`, status: amber ?? l.valueText, time,
     remarks: amber === undefined ? calm : [l.valueText, calm].filter(Boolean).join(' · '),
-    cell: `${l.valueText}${time === NONE ? '' : ` ↻ ${time}`}${tail}`, cellShort: l.valueText, cellNoReset: `${l.valueText}${tail}`,
+    cell: `${l.valueText}${time === NONE ? '' : ` ↻ ${time}`}${tail}`, cellShort: amber === undefined ? l.valueText : `! ${l.valueText}`, cellNoReset: `${l.valueText}${tail}`,
     tone: l.tone, alt: l.alt,
   }
 }
@@ -921,6 +836,7 @@ export const boardWords = (r: BoardFacts): Board => {
   const of = (key: LimitKey) => r.limits.filter(l => l.key === key).map(l => limitBoard(r, l))
   return {
     header: r.workspace === undefined ? undefined : stripWords(r.workspace).map(w => w.toUpperCase()),
+    headerAlt: r.workspace === undefined ? undefined : `workspace ${stripWords(r.workspace).join(', ')}`,
     rows: [cacheBoard(r), spendBoard(r), contextBoard(r), ...of('5h'), ...of('7d'), ...of('other')].map(upRow),
   }
 }
@@ -932,12 +848,38 @@ export const remarksFit = (remarks: string, tiles: number): string =>
 /** `text` padded with spaces to `n` characters; longer text is left whole. */
 export const padTo = (text: string, n: number): string => (text.length >= n ? text : text + ' '.repeat(n - text.length))
 
+/** What a board line says in its four columns. */
+type BoardText = Pick<BoardRow, 'item' | 'status' | 'time' | 'remarks'>
+
+/** The board's column headings, a line of their own. */
+export const BOARD_HEADINGS: BoardText = { item: 'ITEM', status: 'STATUS', time: 'TIME', remarks: 'REMARKS' }
+/** The headings' flaps' alt. */
+export const BOARD_HEADINGS_ALT = 'the board\'s columns: item, status, time and remarks'
+
 /** The board's columns in characters: ITEM, STATUS and TIME each as wide as
  *  its longest text among `rows`, plus one; REMARKS what is left of `room`. */
-export const boardColumns = (rows: readonly BoardRow[], room: number): Readonly<{ item: number; status: number; time: number; remarks: number }> => {
-  const widest = (of: (r: BoardRow) => string): number => Math.max(0, ...rows.map(r => of(r).length)) + 1
+export const boardColumns = (rows: readonly BoardText[], room: number): Readonly<{ item: number; status: number; time: number; remarks: number }> => {
+  const widest = (of: (r: BoardText) => string): number => Math.max(0, ...rows.map(r => of(r).length)) + 1
   const item = widest(r => r.item)
   const status = widest(r => r.status)
   const time = widest(r => r.time)
   return { item, status, time, remarks: Math.max(0, room - item - status - time) }
+}
+
+/** The blank tiles between a board line's four runs. */
+const RUN_GAPS = 3
+/** REMARKS narrower than this, and TIME's words lead them instead. */
+const REMARKS_LEAST = 8
+
+/** The board's lines in `room` tiles: each line's ITEM, STATUS and TIME
+ *  padded to their columns and its REMARKS cut to theirs, the blanks between
+ *  the runs taken from the room. Where REMARKS would have fewer than 8,
+ *  TIME's words lead them and TIME says `-` (spec §5.3). */
+export const boardLines = (rows: readonly BoardText[], room: number): ReadonlyArray<readonly [string, string, string, string]> => {
+  const lead = (r: BoardText): BoardText =>
+    r === BOARD_HEADINGS || r.time === NONE ? r : { ...r, time: NONE, remarks: r.remarks === '' ? r.time : `${r.time} · ${r.remarks}` }
+  const whole = boardColumns(rows, room - RUN_GAPS)
+  const lines = whole.remarks < REMARKS_LEAST ? rows.map(lead) : rows
+  const cols = lines === rows ? whole : boardColumns(lines, room - RUN_GAPS)
+  return lines.map(r => [padTo(r.item, cols.item), padTo(r.status, cols.status), padTo(r.time, cols.time), remarksFit(r.remarks, cols.remarks)] as const)
 }

@@ -1,7 +1,7 @@
 import { test, expect } from 'claude-code/testing'
 import { fixedZone } from '../hooks/format'
 import { readingsOf } from '../hooks/reading'
-import { boardColumns, padTo, remarksFit, type BoardRow } from '../hooks/words'
+import { BOARD_HEADINGS, boardColumns, boardLines, padTo, remarksFit, type BoardRow } from '../hooks/words'
 import { HOUR, MIN } from './helpers'
 import { snapOf } from './matrix'
 
@@ -88,4 +88,29 @@ test('boardColumns: ITEM, STATUS and TIME as wide as their longest text plus one
   const at = (item: string, status: string, time: string): BoardRow =>
     ({ key: 'cache', item, status, time, remarks: '', cell: '', cellShort: '', tone: 'calm', alt: '' })
   expect(boardColumns([at('CACHE', 'DEPARTS', '17:24'), at('5H', '26%', 'SAT 13:30')], 60)).toEqual({ item: 6, status: 8, time: 10, remarks: 36 })
+})
+test("boardLines: each row's four runs padded to their columns, three blank tiles between them taken from the room", () => {
+  const at = (item: string, status: string, time: string, remarks: string): BoardRow =>
+    ({ key: 'cache', item, status, time, remarks, cell: '', cellShort: '', tone: 'calm', alt: '' })
+  const rows = [at('CACHE', 'DEPARTS', '17:24', 'IN 38 MIN · RE-WARM ~$0.57 IF MISSED'), at('5H', '26%', 'SAT 13:30', 'ON PACE ~33%')]
+  expect(boardLines(rows, 63)).toEqual([
+    ['CACHE ', 'DEPARTS ', '17:24     ', 'IN 38 MIN · RE-WARM ~$0.57 IF MISSED'],
+    ['5H    ', '26%     ', 'SAT 13:30 ', 'ON PACE ~33%'],
+  ])
+  // REMARKS of fewer than 8 tiles: TIME's words lead them, and TIME is -.
+  const narrow = boardLines([BOARD_HEADINGS, ...rows], 34)
+  expect(narrow[1]?.[2]?.trim()).toBe('-')
+  expect(narrow[1]?.[3]).toMatch(/^17:24 · IN/)
+  expect(narrow[0]?.slice(0, 3).map(s => s.trim())).toEqual(['ITEM', 'STATUS', 'TIME'])
+  for (const line of narrow) expect(line.join(' ').length).toBeLessThanOrEqual(34)
+})
+test("an amber limit's short form keeps its mark: ! and its value; a calm one its value alone", () => {
+  expect(row({ fiveHour: limit(82, 3) }, '5h')?.cellShort).toBe('! 82%')
+  expect(row({ sevenDay: limit(85, 67) }, '7d')?.cellShort).toBe('! 85%')
+  expect(row({ sevenDay: limit(41, 67) }, '7d')?.cellShort).toBe('41%')
+})
+test("an other limit's ITEM names it a limit, so it never reads as the session's SPEND", () => {
+  const others = (kind: string) => board({ otherLimits: [{ kind, percentUsed: 40, resetsAt: new Date(5 * HOUR).toISOString() }] }).rows.filter(r => r.key === 'other').map(r => r.item)
+  expect(others('spend_limit')).toEqual(['SPEND LIMIT'])
+  expect(others('credit_limit')).toEqual(['CREDIT LIMIT'])
 })

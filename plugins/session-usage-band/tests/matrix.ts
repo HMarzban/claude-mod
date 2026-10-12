@@ -4,7 +4,7 @@
 
 import type { RenderChildren } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
-import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, firstRow, flapWords, shown, walk, type Node } from './helpers'
+import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, USAGE, firstRow, flapWords, shown, walk, type Node } from './helpers'
 import type { Ttl } from '../hooks/cache'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
@@ -12,7 +12,7 @@ import type { BandActions, BandSnapshot, Glyphs, LayoutName } from '../hooks/sna
 import { VIEWS } from '../hooks/views/index'
 import { SPLIT_LABELS } from '../hooks/words'
 import { rowsOf } from '../hooks/views/view'
-import { SCENARIOS, SCENARIO_NAMES, caseKey, drawCases, type AmberReason, type Appearance, type CaseOptions, type Mount, type ScenarioName, type Surface } from './cases'
+import { SCENARIOS, SCENARIO_NAMES, caseKey, drawCases, type AmberReason, type Appearance, type CaseOptions, type Mount, type Scenario, type ScenarioName, type Surface } from './cases'
 
 export * from './cases'
 
@@ -51,10 +51,11 @@ const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
   cacheLastMinute: /! \d+s( left)?|! last call|! cooling( ·|,) \d+s left|! cache\W*\d+s|\d+s ?! cache|CACHE\W*(LAST CALL \d+S|! \d+S)/,
   nearCompaction: /! context\W*\d+%|! ctx\W*\d+%|\d+% ?! context|CONTEXT\W*! (COMPACTS IN ~\d+K|CONTEXT \d+%)/,
   contextNoCompaction: /! context\W*\d+%|! ctx\W*\d+%|\d+% ?! context|CONTEXT\W*! CONTEXT \d+%/,
-  limit80: /! (last call [·-] )?5h|5H\W*\d+%[^!]*! (NEAR LIMIT|FULL ~\d\d:\d\d|FULL IN ~)/,
-  fiveHourAhead: /! (last call [·-] )?5h|5H\W*\d+%[^!]*! FULL (~\d\d:\d\d|IN ~)/,
+  // The board's short form keeps the mark and the value: `5H ! 82%`.
+  limit80: /! (last call [·-] )?5h|5H\W*\d+%[^!]*! (NEAR LIMIT|FULL ~\d\d:\d\d|FULL IN ~)|5H\W*! \d+%/,
+  fiveHourAhead: /! (last call [·-] )?5h|5H\W*\d+%[^!]*! FULL (~\d\d:\d\d|IN ~)|5H\W*! \d+%/,
   // The board's row for it, open only: its name, then its status.
-  otherLimit80: /! spend \d+%|spend \d+%!|SPEND\W*! NEAR LIMIT/,
+  otherLimit80: /! spend \d+%|spend \d+%!|SPEND LIMIT\W*! (NEAR LIMIT|\d+%)/,
 }
 /** Amber the collapsed part never shows: other limits are drawn only open (spec §2.7). */
 const OPEN_ONLY: ReadonlySet<AmberReason> = new Set(['otherLimit80'])
@@ -207,6 +208,16 @@ export const orderErrors = (row: unknown, o: Readonly<{ has7d: boolean }>): stri
   return errors
 }
 
+/** What a flap's alt never says: the board's capitals, or `↻`. */
+const BOARD_SAID = /↻|\b[A-Z]{2,}\b/
+/** Scenarios whose drive measures limits of its own, without a 7d. */
+const DRIVEN_WITHOUT_SEVEN_DAY: ReadonlySet<ScenarioName> = new Set(['fiveHourAhead'])
+/** Whether a scenario reports a 7d window, which the collapsed row then always shows. */
+const hasSevenDay = (scenario: ScenarioName): boolean => {
+  const s: Scenario = SCENARIOS[scenario]
+  return !DRIVEN_WITHOUT_SEVEN_DAY.has(scenario) && (s.usage ?? USAGE).rateLimits.some(l => l.kind === 'seven_day')
+}
+
 /** Each failed check as `<check>: <why>`; none when the tree keeps the spec
  *  §2 contract: the checks spec §7 lists, §9's node budget and §2.6's open height. */
 export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => {
@@ -229,15 +240,30 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
     if (n.type === 'Button' && n.props?.label === mark) toggles++
   })
   if (toggles !== 1) fail('toggle', `${toggles} ${mark} in the collapsed part`)
+  // Departures pins ▵ at the row's end, where a clipped row still shows it.
+  if (ctx.layout === 'departures') {
+    let last: Node | undefined
+    walk(collapsed, n => {
+      if (n.type === 'Text' || n.type === 'Button' || n.type === 'Svg') last = n
+    })
+    if (last?.type !== 'Button' || last.props?.label !== mark) fail('toggle', `${mark} is not the row's last piece`)
+  }
 
-  // All-amber below 60 columns clips by design, ▵ pinned at the end; a
-  // single amber reading still fits. On the terminal it fits the row less
-  // its slack, as each line is squeezed to; the desktop's estimate keeps the
-  // row's width, since pulse's costs hold its second row there.
-  const clipsByDesign = ctx.cols < 60 && ctx.scenario === ALL_AMBER
+  // Below 60 columns an amber reading's words may not fit beside the rest:
+  // calm pieces go first, then amber turns short, and past that the row
+  // clips, ▵ pinned at its end (the old spec's §2.6). For chips and pulse
+  // that is all-amber, which lastMinute stands for; for departures any amber
+  // scenario, a calm one fitting at every width. On the terminal it fits the
+  // row less its slack, as each line is squeezed to; the desktop's estimate
+  // keeps the row's width, since pulse's costs hold its second row there.
+  // (Task 9 holds the rebuilt pulse to departures' rule, and to the one
+  // order below.)
+  const clipsByDesign = ctx.cols < 60 && (ctx.layout === 'departures' ? amber.length > 0 : ctx.scenario === ALL_AMBER)
   const width = cellsOf(collapsed as RenderChildren, ctx.surface === 'desktop' ? DESKTOP : TERMINAL)
   const room = ctx.surface === 'terminal' ? ctx.cols - ROW_SLACK : ctx.cols
   if (!clipsByDesign && width > room) fail('width', `${width} columns at ${ctx.cols}`)
+
+  if (ctx.layout === 'departures') for (const e of orderErrors(collapsed, { has7d: hasSevenDay(ctx.scenario) })) errors.push(e)
 
   let nodes = 0
   const svgs: Node[] = []
@@ -260,6 +286,8 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
       fail('svgProps', 'an Svg with an id, a gradient, a pattern or a clipPath')
     if (typeof alt === 'string' && NOTHING.test(alt)) fail('empty', `an alt reads "${alt}"`)
     if (typeof alt === 'string' && MISSTATED.test(alt)) fail('alt', `an alt reads "${alt}"`)
+    // A flap's alt says its reading in words, never the board's capitals or ↻.
+    if (ctx.layout === 'departures' && typeof alt === 'string' && BOARD_SAID.test(alt.replace(/5h|7d/g, ''))) fail('alt', `an alt reads "${alt}"`)
   }
 
   // A desktop board's words are its flaps' tiles, which no Text holds.
