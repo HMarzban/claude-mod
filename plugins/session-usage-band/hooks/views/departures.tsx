@@ -218,7 +218,7 @@ const placesOf = (kit: Kit, stops: readonly (readonly [number, Stop])[]): Render
 /** Each card's place in the queue, LIMITS headed by its soonest window
  *  unless another needs you, and no card repeating what the row says at
  *  the squeeze it settled on. */
-const openOf = (kit: Kit, read: Readings, queue: readonly Stop[], settled: Settled): CardOptions => {
+const lens = (kit: Kit, read: Readings, queue: readonly Stop[], settled: Settled): CardOptions => {
   const { Text, palette } = kit
   const { context: x, worstLimit: worst } = read
   const placed = queue.map((s, i) => [i + 1, s] as const)
@@ -260,5 +260,5 @@ const openOf = (kit: Kit, read: Readings, queue: readonly Stop[], settled: Settl
 export const departuresView = defineCardsView({ desktop: 1, terminal: 1 }, (kit, read, act) => {
   const queue = queueOf(kit, read)
   const settled = settle(kit, read, act, queue)
-  return { lines: [settled.row], open: () => openOf(kit, read, queue, settled) }
+  return { lines: [settled.row], open: () => lens(kit, read, queue, settled) }
 })
