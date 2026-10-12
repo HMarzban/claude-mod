@@ -1,5 +1,5 @@
 import { test, expect } from 'claude-code/testing'
-import { barChart, barsWidth, braille, dayCells, meter, ring, sliceCells, sparkline } from '../hooks/charts'
+import { barChart, barsWidth, braille, dayCells, heartbeat, meter, ring, sliceCells, sparkline } from '../hooks/charts'
 import { makeKit } from '../hooks/kit'
 import { METER_CELLS } from '../hooks/layout'
 import { drawBand } from '../hooks/band'
@@ -260,4 +260,38 @@ test('a slice not known yet is never drawn as none left, and a measured 0% rises
   expect(source).not.toContain('stroke-dasharray')
   expect(source.match(new RegExp(`fill="none" stroke="${desk.palette.trackStroke}"`, 'g'))).toHaveLength(2)
   expect(source.match(/fill-opacity="0.35"/g)).toHaveLength(1)
+})
+
+const deskKit = () => makeKit(fakeEl, snapOf({ surface: 'desktop' }))
+test('beats: one path; no NaN with one value, all re-warms, or all zero', () => {
+  for (const [values, marked] of [[[0.2], [false]], [[0.8, 0.9], [true, true]], [[0, 0], [false, false]]] as const) {
+    const src = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values, marked, color: '#fff', markColor: '#fff', px: 84, height: 20, shape: 'beats' }))[0]?.props?.source)
+    expect(src).toMatch(/<path class="beats"/)
+    expect(src).not.toMatch(/NaN|Infinity/)
+  }
+})
+test('beats: a re-warm is capped flat, a warm beat peaks to a point', () => {
+  const tops = (marked: boolean) => {
+    const d = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values: [0.5], marked: [marked], color: '#fff', markColor: '#fff', px: 20, height: 20, max: 1, shape: 'beats' }))[0]?.props?.source).match(/ d="([^"]+)"/)?.[1] ?? ''
+    const ys = [...d.matchAll(/L([\d.]+),([\d.]+)/g)].map(m => Number(m[2]))
+    return ys.filter(y => y === Math.min(...ys)).length
+  }
+  expect(tops(true)).toBe(2)
+  expect(tops(false)).toBe(1)
+})
+test('sparkline: nowAt draws a now rule and the points after it dashed; level, a dashed rule', () => {
+  const src = String(svgsOf(sparkline(deskKit(), { key: 's', alt: 'a', values: [1, 2, 3, 4, 5], color: '#fff', px: 60, height: 16, max: 10, nowAt: 2, level: 0.8 }))[0]?.props?.source)
+  expect(src).toMatch(/class="now"/)
+  expect(src).toMatch(/class="ahead"[^>]*stroke-dasharray/)
+  expect(src).toMatch(/class="level"[^>]*stroke-dasharray/)
+})
+test('heartbeat per state; the beat ships still: no animation, never interactive', () => {
+  const of = (state: 'still' | 'beat' | 'flat' | 'hollow') => svgsOf(heartbeat(deskKit(), { key: 'h', alt: 'cache warm', state, color: '#F5B14C' }))[0]
+  expect(String(of('flat')?.props?.source)).toMatch(/<line/)
+  expect(String(of('hollow')?.props?.source)).toMatch(/fill="none"/)
+  expect(String(of('still')?.props?.source)).not.toMatch(/animation|<style/)
+  expect(of('beat')?.props?.isInteractive).toBeUndefined()
+  expect(String(of('beat')?.props?.source)).not.toMatch(/animation|<style/)
+  expect(String(of('beat')?.props?.source)).toMatch(/fill="#F5B14C"/)
+  expect(heartbeat(makeKit(fakeEl, snapOf({ surface: 'terminal' })), { key: 'h', alt: 'a', state: 'beat', color: '#fff' })).toBeNull()
 })

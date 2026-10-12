@@ -360,6 +360,11 @@ type SparklineOptions = Readonly<{
    *  1px cap in label ink at the top: where it is headed, as pulse's board
    *  draws the context. `max` gives way to it. */
   rise?: boolean
+  /** Now's index: the points after it are drawn dashed, as a projection, and
+   *  a rule in label ink marks now. It excludes `projectTo`. */
+  nowAt?: number
+  /** A line to read against, as a fraction of the scale's top, such as compaction. */
+  level?: number
 }>
 
 /** The air a line keeps from the chart's edges. */
@@ -381,7 +386,7 @@ const peaksOf = (values: readonly number[], count: number): number[] =>
  *  braille on its floor, on one line that a row too narrow cuts. */
 export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   const { Svg, palette, oneLine } = kit
-  const { key, alt, values, color, px, height, max, projectTo, cells, track = false, area = false, stretch = false, rise = false } = o
+  const { key, alt, values, color, px, height, max, projectTo, cells, track = false, area = false, stretch = false, rise = false, nowAt, level } = o
   const top = max ?? topOf(values)
   if (!Svg) return oneLine({ key, color }, braille(cells === undefined ? values : peaksOf(values, 2 * cells), top, 1))
   const end = px - SPARK_AIR - (projectTo === undefined ? 0 : SPARK_AHEAD)
@@ -398,7 +403,15 @@ export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   let marks = track ? trackOf(kit, px, height) : ''
   if (area && points.length > 1) marks += `<polygon class="area" points="${points[0]?.[0]},${height} ${line} ${points.at(-1)?.[0]},${height}" fill="${color}" opacity="0.16"/>`
   if (rise) marks += `<line class="cap" x1="0" y1="0.5" x2="${px}" y2="0.5" stroke="${palette.label}" stroke-width="1"${keep}/>`
-  if (points.length > 1) marks += `<polyline points="${line}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"${keep}/>`
+  // Solid up to now; from now on, dashed.
+  const solid = nowAt === undefined ? points : points.slice(0, nowAt + 1)
+  if (solid.length > 1) marks += `<polyline points="${solid.map(p => p.join(',')).join(' ')}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"${keep}/>`
+  if (nowAt !== undefined) {
+    const ahead = points.slice(nowAt)
+    if (ahead.length > 1) marks += `<polyline class="ahead" points="${ahead.map(p => p.join(',')).join(' ')}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" ${PROJECTION_DASH}${keep}/>`
+    marks += `<line class="now" x1="${x(nowAt)}" y1="0" x2="${x(nowAt)}" y2="${height}" stroke="${palette.label}" stroke-width="1"${keep}/>`
+  }
+  if (level !== undefined) marks += `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1" ${PROJECTION_DASH}${keep}/>`
   const newest = points.at(-1)
   if (newest !== undefined && projectTo !== undefined) {
     const [nx, ny] = newest
@@ -432,6 +445,9 @@ type BarChartOptions = Readonly<{
   track?: boolean
   /** Spanning its slot, as a card head's lens does, rather than `px` wide. */
   stretch?: boolean
+  /** Bars, one to a value, or beats: one ECG path, a marked value capped flat
+   *  across its peak. The text form is the same either way. */
+  shape?: 'bars' | 'beats'
 }>
 
 const BAR_PX = 4
@@ -447,7 +463,7 @@ export const barsWidth = (count: number): number => count * (BAR_PX + BAR_GAP)
  *  a cell holding a marked bar in the mark's colour. */
 export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
   const { Svg, palette } = kit
-  const { key, alt, values, marked, color, markColor, px, height, max, level, track = false, stretch = false } = o
+  const { key, alt, values, marked, color, markColor, px, height, max, level, track = false, stretch = false, shape = 'bars' } = o
   const top = max ?? topOf(values)
   if (!Svg) {
     const cells = Array.from({ length: Math.ceil(values.length / 2) }, (_, c): readonly [string, string] => {
@@ -458,6 +474,21 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
   }
   const room = height - CAP_ROOM
   const y = (v: number) => height - (top > 0 ? Math.max(1, Math.round(Math.min(1, v / top) * room)) : 1)
+  if (shape === 'beats') {
+    const step = px / Math.max(1, values.length)
+    const base = height - 4
+    const d = values.map((v, i) => {
+      const x0 = tenth(i * step), peak = tenth(x0 + step * 0.45), dip = tenth(x0 + step * 0.6), x1 = tenth(x0 + step)
+      const capped = marked[i] === true
+      const at = capped ? CAP_ROOM : y(v)
+      // A re-warm is capped flat across its peak: its shape says what it is.
+      const peaks = capped ? `L${tenth(peak - 1.5)},${at}L${tenth(peak + 1.5)},${at}` : `L${peak},${at}`
+      return `${i === 0 ? 'M' : 'L'}${x0},${base}${peaks}L${dip},${Math.min(height - 1, base + 3)}L${x1},${base}`
+    }).join('')
+    const rule = level === undefined ? '' : `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1"/>`
+    const beats = `<path class="beats" d="${d}" fill="none" stroke="${color}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>`
+    return <Svg key={key} source={svgOf(px, height, rule + beats)} alt={alt} width={px} height={height} />
+  }
   const marks = values.map((v, i) => {
     const x = barsWidth(i)
     const barTop = y(v)
@@ -473,6 +504,22 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
   ) : (
     <Svg key={key} source={svgOf(px, height, drawn)} alt={alt} width={px} height={height} />
   )
+}
+
+// ---- heartbeat ------------------------------------------------------------
+
+/** The cache's heartbeat, 12px: a dot while warm or in its last minute, a
+ *  flat line when cold, hollow before it's measured. It stays still: its
+ *  source changes only with its state, so its frame never reloads per tick. */
+export const heartbeat = (kit: Kit, o: Readonly<{ key: string; alt: string; state: 'still' | 'beat' | 'flat' | 'hollow'; color: string }>): RenderChildren => {
+  const { Svg, palette } = kit
+  if (!Svg) return null
+  const { key, alt, state, color } = o
+  const body =
+    state === 'flat' ? `<line x1="0" y1="6" x2="12" y2="6" stroke="${palette.label}" stroke-width="1.4" stroke-linecap="round"/>`
+    : state === 'hollow' ? `<circle cx="6" cy="6" r="3.5" fill="none" stroke="${color}" stroke-width="1.2"/>`
+    : `<circle cx="6" cy="6" r="3.5" fill="${color}"/>`
+  return <Svg key={key} source={svgOf(12, 12, body)} alt={alt} width={12} height={12} />
 }
 
 // ---- day cells ------------------------------------------------------------
