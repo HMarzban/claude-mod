@@ -29,6 +29,8 @@ const LORD_HOWE = stepped(660, ['2026-04-04T15:00Z', 630], ['2026-10-03T15:30Z',
 // Midnight itself skipped: Santiago-like to the west, Beirut-like to the east.
 const SANTIAGO = stepped(-240, ['2026-09-06T04:00Z', -180])
 const BEIRUT = stepped(120, ['2026-03-28T22:00Z', 180])
+// Midnight itself twice: Amman's fall back of 2021, 01:00 to 00:00.
+const AMMAN = stepped(180, ['2021-10-28T22:00Z', 120])
 
 /** The readings at `now` in `zone`, with the 5h and 7d resetting at the instants given. */
 const readAt = (now: string, zone: Zone, over: Partial<BandSnapshot> & { fiveAt?: string; sevenAt?: string; five?: number; seven?: number; etaMs?: number | null } = {}) => {
@@ -150,8 +152,11 @@ test('a week spring forward holds nine slices, folds to seven, and keeps each da
   // Sun 14 01:00 EST, before the change, and Wed 17 noon EDT, after it.
   const early = weekAt('2027-03-14T06:00Z')
   const later = weekAt('2027-03-17T16:00Z')
-  for (const wk of [early, later]) expect(wk.days.map(d => `${d.initial}${d.date}`)).toEqual(['S14', 'M15', 'T16', 'W17', 'T18', 'F19', 'S20'])
-  expect(early.days.filter(d => d.today).map(d => d.name)).toEqual(['Sunday'])
+  // And inside each end's half hour: Sat 13 23:45 EST and Sun 21 00:15 EDT.
+  const first = weekAt('2027-03-14T04:45Z')
+  const last = weekAt('2027-03-21T04:15Z')
+  for (const wk of [early, later, first, last]) expect(wk.days.map(d => `${d.initial}${d.date}`)).toEqual(['S14', 'M15', 'T16', 'W17', 'T18', 'F19', 'S20'])
+  expect([early, first, last].map(wk => wk.days.filter(d => d.today).map(d => d.name))).toEqual([['Sunday'], ['Sunday'], ['Saturday']])
   expect(cellsOf(later).slice(0, 3)).toEqual(['S14 5%', 'M15 7%', 'T16 8%'])
   expect(later.busiest).toBe('Tue')
 })
@@ -167,6 +172,12 @@ test('a day whose midnight is skipped starts where the gap ends, to the west and
     const day = dayOf(at('2026-11-01T12:00Z'), zone)
     expect([dayOf(midnightOf(day, zone), zone), dayOf(midnightOf(day, zone) - 1, zone)]).toEqual([day, day - 1])
   }
+})
+test('a day whose midnight comes twice starts at the first', () => {
+  const day = dayOf(at('2021-10-29T10:00Z'), AMMAN)
+  const midnight = midnightOf(day, AMMAN)
+  expect(new Date(midnight).toISOString()).toBe('2021-10-28T21:00:00.000Z')
+  expect([dayOf(midnight, AMMAN), dayOf(midnight - 1, AMMAN)]).toEqual([day, day - 1])
 })
 
 // ---- the week's words and the reset beside them ---------------------------------

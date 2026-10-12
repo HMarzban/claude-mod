@@ -67,19 +67,26 @@ type Cut = Readonly<{ pct: (s: Sample) => number; reset: (s: Sample) => number; 
 
 /** The 7d window cut at each local midnight inside it, each found in the
  *  offset in force there, so a 23- or 25-hour day stays one day. A reset off
- *  midnight, or a change of offset in the week, leaves a part day at each
- *  end; the one today isn't in, else the shorter, folds into its neighbour
- *  until seven days remain, so today names itself. */
+ *  midnight, or a change of offset in the week, leaves a part day at one end
+ *  or both; the one today isn't in, else the shorter, folds into its
+ *  neighbour until seven days remain, so today names itself unless its own
+ *  part is the last left to fold. Each part folds once, so two whole days
+ *  never share a cell. */
 const dayBounds = (resetAt: number, now: number, zone: Zone): number[] => {
   const start = resetAt - 7 * DAY_MS
   const bounds = [start]
   for (let day = dayOf(start, zone) + 1; midnightOf(day, zone) < resetAt; day++) bounds.push(midnightOf(day, zone))
   bounds.push(resetAt)
   const edge = (i: number): number => bounds[i] ?? resetAt
+  const isMidnight = (t: number): boolean => midnightOf(dayOf(t, zone), zone) === t
+  let firstPart = !isMidnight(start)
+  let lastPart = !isMidnight(resetAt)
   while (bounds.length > 8) {
     const last = bounds.length - 1
-    const foldFirst = now >= edge(last - 1) || (now >= edge(1) && edge(1) - edge(0) <= edge(last) - edge(last - 1))
+    const foldFirst = firstPart && (!lastPart || now >= edge(last - 1) || (now >= edge(1) && edge(1) - edge(0) <= edge(last) - edge(last - 1)))
     bounds.splice(foldFirst ? 1 : last - 1, 1)
+    if (foldFirst) firstPart = false
+    else lastPart = false
   }
   return bounds
 }

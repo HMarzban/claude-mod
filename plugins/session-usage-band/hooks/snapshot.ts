@@ -89,7 +89,7 @@ export type BandSnapshot = Readonly<{
   /** The glyph tier, resolved once per session. */
   glyphs: Glyphs
   /** The local zone, its offset read at each instant drawn; undefined when
-   *  it can't be read, and the band counts down instead. */
+   *  the clock gives no offset, and the band counts down instead. */
   zone: Zone | undefined
 }>
 

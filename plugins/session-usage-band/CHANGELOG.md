@@ -15,8 +15,8 @@ version may change how the band reads.
   idle band picks up a change within a minute, with no reply needed.
 - In the week layout, on a week with a change of clocks, a day's rise
   could land in the day beside it and name the wrong busiest day. A 23- or
-  25-hour day is now one day, and each day's rise stays put on every
-  redraw. The 5-hour cells on that night name the hour twice, or skip one,
+  25-hour day is now one day, two days never share a cell, and each day's
+  rise stays put on every redraw. The 5-hour cells on that night name the hour twice, or skip one,
   as the clock does.
 - Week named a different fill day than the band's own projection: never
   today, and from its own guess. It now names the forecast's fill, today

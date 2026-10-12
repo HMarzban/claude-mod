@@ -218,10 +218,10 @@ Week, forecast and the Limits card every layout opens name clock times in
 your local zone; departures counts down instead. Each time is read with
 the zone's offset in force at it, so a reset past a daylight-saving change
 says the clock that will show then, and the band follows a change of
-clocks within a minute, with no reply needed. Where the zone can't be read,
-week names its days and hours in UTC, and its reset, like every time on
-forecast and the Limits card, says how long until it comes rather than
-when (`in 52m`, not `14:32`).
+clocks within a minute, with no reply needed. Where the clock gives no
+offset, week names its days and hours in UTC, and its reset, like every
+time on forecast and the Limits card, says how long until it comes rather
+than when (`in 52m`, not `14:32`).
 
 ## The cache countdown
 

@@ -148,8 +148,17 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
 /** A zone: its offset from UTC at an instant, east-positive minutes. Read
  *  per instant, so a reset past a daylight-saving change says its own clock. */
 export type Zone = (ms: number) => number
-/** This machine's zone, as its clock reports each instant (`0 -` keeps a UTC offset +0). */
-export const hostZone: Zone = ms => 0 - new Date(ms).getTimezoneOffset()
+/** A zone from a clock's minutes behind UTC at each instant, as
+ *  getTimezoneOffset reports them (`0 -` keeps a UTC offset +0). */
+export const zoneOf =
+  (behind: (ms: number) => number): Zone =>
+  ms =>
+    0 - behind(ms)
+/** This machine's zone, as its clock reports each instant. */
+export const hostZone: Zone = zoneOf(ms => new Date(ms).getTimezoneOffset())
+/** `zone`, or undefined where its offset at `now` can't be read, so the band
+ *  counts down instead. */
+export const readableZone = (zone: Zone, now: number): Zone | undefined => (Number.isFinite(zone(now)) ? zone : undefined)
 /** A zone whose offset never changes. */
 export const fixedZone =
   (min: number): Zone =>
@@ -169,14 +178,15 @@ export const fmtClock = (ms: number, zone: Zone): string => hhmm(wallTime(ms, zo
 /** The local day `ms` falls on, counted from the epoch. */
 export const dayOf = (ms: number, zone: Zone): number => Math.floor(wallTime(ms, zone) / DAY_MS)
 
-/** The first instant of local day `day`: the earlier of two passes at the
- *  offset in force there that lands on the day. Where midnight falls in a
- *  spring-forward gap, one lands in the day before, and the day starts at
- *  the gap's end. */
+/** The first instant of local day `day`: the earliest of three passes that
+ *  lands on the day, at the offset in force there and an hour before. Where
+ *  midnight falls in a spring-forward gap, one lands in the day before, and
+ *  the day starts at the gap's end; where it comes twice, at a fall back to
+ *  00:00, the hour before finds the first. */
 export const midnightOf = (day: number, zone: Zone): number => {
-  const first = day * DAY_MS - zone(day * DAY_MS) * 60_000
-  const second = day * DAY_MS - zone(first) * 60_000
-  const landed = [first, second].filter(t => dayOf(t, zone) === day)
+  const at = (offsetAt: number): number => day * DAY_MS - zone(offsetAt) * 60_000
+  const first = at(day * DAY_MS)
+  const landed = [first, at(first), at(first - 3600_000)].filter(t => dayOf(t, zone) === day)
   return landed.length === 0 ? first : Math.min(...landed)
 }
 

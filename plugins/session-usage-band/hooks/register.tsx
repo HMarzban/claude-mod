@@ -31,7 +31,7 @@ import {
   takeRebuilt,
 } from './cache'
 import type { ResumedCache, Spend, Ttl } from './cache'
-import { COMPACT_NEAR, SEVERE_AT, WARN_AT, clipMiddle, contextUsed, fmtCountdown, fmtEta, fmtTokens, hostZone } from './format'
+import { COMPACT_NEAR, SEVERE_AT, WARN_AT, clipMiddle, contextUsed, fmtCountdown, fmtEta, fmtTokens, hostZone, readableZone } from './format'
 import { resolveGlyphs } from './glyphs'
 import {
   fiveHourEtaMs,
@@ -724,7 +724,7 @@ export const register: Register = on => {
         workspace: band.workspace,
         // Read at each instant drawn, so a daylight-saving change shows by
         // the next minute's repaint, with no reply needed.
-        zone: hostZone,
+        zone: readableZone(hostZone, now),
         otherLimits: usage.rateLimits
           .filter(l => l.kind !== FIVE_HOUR && l.kind !== SEVEN_DAY)
           .map(l => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: l.resetsAt })),
