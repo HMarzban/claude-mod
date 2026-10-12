@@ -222,8 +222,8 @@ type WeekReading = Week &
     /** The 7d's days as day cells draw them, from `dayRow`'s capped marks,
      *  so the guesses never pass what is left: each value (undefined where
      *  unknown), whether it is a guess, and today's index. The day that fills
-     *  the limit is a guess of what is left, or today, its rise so far,
-     *  measured. `measured` while any day is. */
+     *  the limit is a guess of what is left, or today, once a reading falls
+     *  inside it, its rise so far, measured. `measured` while any day is. */
     daysDrawn: Readonly<{ values: ReadonlyArray<number | undefined>; guess: readonly boolean[]; today: number | undefined; measured: boolean }>
   }>
 
@@ -415,8 +415,10 @@ const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour
   let climb = 0
   const values = hourRow.marks.some(m => m.kind === 'measured') ? hourRow.marks.map(m => (climb += m.pct)) : []
   const fiveHourWindow = { values, nowAt: windowNowAt(hourRow.notch, values.length) }
-  // Today's fill is its rise so far, measured; another day's, the guess of what is left.
-  const measuredFill = (i: number) => week.days[i]?.guess === false
+  // Today's fill is its rise so far, measured; another day's, or today's
+  // with no reading inside it yet, the guess of what is left, as the alt
+  // says it: never a measured 0.
+  const measuredFill = (i: number) => week.days[i]?.guess === false && week.days[i]?.pct !== undefined
   const dayValues = dayRow.marks.map((m, i) => (m.kind === 'unknown' ? undefined : m.kind === 'fills' && measuredFill(i) ? (week.days[i]?.pct ?? 0) : m.pct))
   const guess = dayRow.marks.map((m, i) => m.kind === 'guess' || m.kind === 'spent' || (m.kind === 'fills' && !measuredFill(i)))
   const daysDrawn = { values: dayValues, guess, today: today < 0 ? undefined : today, measured: dayValues.some((v, i) => v !== undefined && !guess[i]) }

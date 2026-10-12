@@ -140,7 +140,10 @@ const bands = (kit: Kit, read: Readings, step: Step, room: number): Drawn[] => {
   if (step.cache !== undefined) {
     const words = fitWords(kit, cache.bandWords, room)
     const px = charts ? chartFit(kit, room, words, DRAIN_PX, 2) : undefined
-    const chart = px === undefined ? null : sparkline(kit, { key: 'drain', alt: cache.heartAlt, values: [1, cache.charge], color: cache.tone === 'amber' ? palette.amberFg : palette.warm, px, height: 16, max: 1 })
+    // Inked by its mood: amber in its last minute, warm green while warm, a
+    // label's ink cold, unmeasured or warming.
+    const ink = cache.tone === 'amber' ? palette.amberFg : cache.mood === 'warm' ? palette.warm : palette.label
+    const chart = px === undefined ? null : sparkline(kit, { key: 'drain', alt: cache.heartAlt, values: [1, cache.charge], color: ink, px, height: 16, max: 1 })
     drawn.push({ el: band(kit, 'band:cache', chart, words, cache.amber !== undefined), rows: 1 })
   }
   if (step.spend !== undefined) {

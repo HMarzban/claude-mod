@@ -268,3 +268,42 @@ test("7d at 85% on a fast pace: the guessed days, drawn, never pass what is left
     }
   }
 })
+
+// ---- sign-off fixes -------------------------------------------------------
+
+test("open: the cache's drain is inked by its mood: warm green only while warm", () => {
+  const moods: ReadonlyArray<readonly [string, BandSnapshot['cache'], string]> = [
+    ['warm', snapOf().cache, DARK.warm],
+    ['expiring', EXPIRING, DARK.amberFg],
+    ['cold', { ...snapOf().cache, msLeft: 0 }, DARK.label],
+    ['unmeasured', { ...snapOf().cache, requests: 0, recalled: false, fresh: false }, DARK.label],
+    ['warming', { ...snapOf().cache, requests: 0, recalled: false, fresh: true }, DARK.label],
+  ]
+  for (const [mood, cache, ink] of moods) {
+    expect(readingsOf(snapOf({ cache })).cache.mood).toBe(mood)
+    const drain = svgsOf(byKey(band({ surface: 'desktop', expanded: true, cache }), 'band:cache', 'Box'))[0]
+    expect(`${mood} ${/<polyline[^>]* stroke="([^"]+)"/.exec(String(drain?.props?.source))?.[1]}`).toBe(`${mood} ${ink}`)
+  }
+})
+test("today's fill, with no reading inside today yet, draws as the alt says it: a guess of what is left, else the 7d in words", () => {
+  const at = (m: number, sevenPct: number) => ({ at: m * MIN, fivePct: 0, sevenPct, fiveResetAt: 3 * HOUR, sevenResetAt: 67 * HOUR })
+  const late = [at(-120, 70), at(-90, 74), at(-60, 78), at(-30, 82), at(-5, 85)]
+  const unzoned = (samples: ReturnType<typeof at>[], expanded: boolean) =>
+    band({ surface: 'desktop', zone: undefined, expanded, fiveHour: LIMITS.fiveHour, sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() }, samples })
+  const cellsOf7d = (tree: Node) => svgsOf(tree).filter(s => /^weekly limit by day/.test(String(s.props?.alt)))
+  // No day measured: no cells, shut or open, and the 7d's words stay.
+  for (const expanded of [false, true]) {
+    expect(cellsOf7d(unzoned(late, expanded))).toHaveLength(0)
+    expect(shown(firstRow(unzoned(late, expanded)))).toMatch(/7d 85%/)
+  }
+  // Wednesday measured: today's cell is a guess filling about 15 of its 100.
+  for (const expanded of [false, true]) {
+    const [cells] = cellsOf7d(unzoned([at(-30 * 60, 60), ...late], expanded))
+    const source = String(cells?.props?.source)
+    expect(cells?.props?.alt).toMatch(/Thursday about 15% and fills it/)
+    const inner = Number(/<rect class="edge"[^>]* height="([\d.]+)"/.exec(source)?.[1]) - 1
+    const guesses = [...source.matchAll(/<rect class="guess"[^>]* height="([\d.]+)"/g)].map(([, h]) => (Number(h) / inner) * 100)
+    expect(guesses).toHaveLength(1)
+    expect(Math.abs((guesses[0] ?? 0) - 15)).toBeLessThan(2)
+  }
+})

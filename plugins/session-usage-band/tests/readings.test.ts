@@ -388,3 +388,21 @@ test("the 7d's days as drawn: capped, so the guesses never pass what is left; to
   expect(d.today).toBe(week.days.findIndex(day => day.today))
   expect(d.measured).toBe(true)
 })
+test("today's fill with no reading inside today yet is a guess of what is left, as its alt says, never a measured 0", () => {
+  // The sign-off's unknown zone: now is midnight UTC, so every sample falls
+  // before today, and no day before it has a reading at its start.
+  const at = (m: number, sevenPct: number) => ({ at: m * MIN, fivePct: 0, sevenPct, fiveResetAt: 3 * HOUR, sevenResetAt: 67 * HOUR })
+  const weekOf = (samples: ReturnType<typeof at>[]) =>
+    readingsOf(snapOf({ zone: undefined, sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() }, samples })).week
+  const late = [at(-120, 70), at(-90, 74), at(-60, 78), at(-30, 82), at(-5, 85)]
+  for (const week of [weekOf(late), weekOf([at(-30 * 60, 60), ...late])]) {
+    const today = week.daysDrawn.today ?? -1
+    expect(week.dayRow.marks[today]).toEqual({ kind: 'fills', pct: 15 })
+    expect(week.daysAlt).toMatch(/Thursday about 15% and fills it/)
+    expect([week.daysDrawn.values[today], week.daysDrawn.guess[today]]).toEqual([15, true])
+  }
+  // No day measured: the cells aren't drawn, the 7d is words (spec §4.1).
+  expect(weekOf(late).daysDrawn.measured).toBe(false)
+  // Wednesday measured from a reading before its start: the cells are drawn.
+  expect(weekOf([at(-30 * 60, 60), ...late]).daysDrawn.measured).toBe(true)
+})
