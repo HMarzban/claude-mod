@@ -136,14 +136,16 @@ export const clipWords = (text: string, room: number): string => {
 /** How long ago, coarsely: `2d 4h`, `3h 05m`, `12m`; under a minute is `now`. */
 export const fmtAgo = (ms: number): string => (ms < 60_000 ? 'now' : fmtSpan(ms))
 
-/** A day. */
-export const DAY_MS = 24 * 3600_000
+export const HOUR_MS = 3600_000
+export const DAY_MS = 24 * HOUR_MS
 /** The 5-hour limit's window. */
-export const FIVE_HOUR_MS = 5 * 3600_000
+export const FIVE_HOUR_MS = 5 * HOUR_MS
 /** The weekly limit's window. */
 export const SEVEN_DAY_MS = 7 * DAY_MS
+// resetsAt readings of one window can differ by a few seconds.
+export const SAME_RESET_MS = 60_000
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
+export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const
 
 /** A zone: its offset from UTC at an instant, east-positive minutes. Read
  *  per instant, so a reset past a daylight-saving change says its own clock. */
@@ -186,7 +188,7 @@ export const dayOf = (ms: number, zone: Zone): number => Math.floor(wallTime(ms,
 export const midnightOf = (day: number, zone: Zone): number => {
   const at = (offsetAt: number): number => day * DAY_MS - zone(offsetAt) * 60_000
   const first = at(day * DAY_MS)
-  const landed = [first, at(first), at(first - 3600_000)].filter(t => dayOf(t, zone) === day)
+  const landed = [first, at(first), at(first - HOUR_MS)].filter(t => dayOf(t, zone) === day)
   return landed.length === 0 ? first : Math.min(...landed)
 }
 
@@ -196,7 +198,7 @@ const isToday = (ms: number, zone: Zone, now: number): boolean => dayOf(ms, zone
 /** The weekday `ms` falls on, `Sat`; a week or more on `next Sat`, so it
  *  never reads as today's. */
 const weekdayOf = (ms: number, zone: Zone, now: number): string => {
-  const day = DAYS[new Date(wallTime(ms, zone)).getUTCDay()] ?? ''
+  const day = WEEKDAYS[new Date(wallTime(ms, zone)).getUTCDay()]?.slice(0, 3) ?? ''
   return dayOf(ms, zone) - dayOf(now, zone) >= 7 ? `next ${day}` : day
 }
 

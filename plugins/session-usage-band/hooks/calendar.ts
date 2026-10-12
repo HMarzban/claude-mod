@@ -2,7 +2,7 @@
 // the 5-hour one, read off the limit samples, with a guess for the slices
 // ahead. Pure, so the cells can be checked without the store.
 
-import { DAY_MS, dayOf, fmtClock, midnightOf } from './format'
+import { DAY_MS, HOUR_MS, SAME_RESET_MS, WEEKDAYS, dayOf, fmtClock, midnightOf } from './format'
 import type { Zone } from './format'
 import type { Sample } from './memory'
 
@@ -54,12 +54,6 @@ export type Week = Readonly<{
 type Known<C> = C & Readonly<{ pct: number }>
 /** A cell measured: neither a guess nor unknown. */
 export const isKnown = <C extends DayCell | HourCell>(c: C): c is Known<C> => !c.guess && c.pct !== undefined
-
-const HOUR_MS = 3600_000
-// resetsAt readings of one window can differ by a few seconds.
-const SAME_RESET_MS = 60_000
-
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const
 
 /** How a window is cut: what a sample says of it, and its slices' edges,
  *  oldest first. */

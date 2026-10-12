@@ -2,7 +2,7 @@
 // last message cost, when your pace fills the 5-hour limit, and the trails
 // the history views draw: each message's cost, the context, and the 5h reading.
 
-import { FIVE_HOUR_MS } from './format'
+import { FIVE_HOUR_MS, SAME_RESET_MS } from './format'
 
 type Sample = { t: number; pct: number }
 
@@ -10,8 +10,6 @@ const WINDOW_MS = 30 * 60_000
 const MIN_SPAN_MS = 10 * 60_000
 const MIN_RISE = 2
 const STALE_MS = 15 * 60_000
-// resetsAt readings of one window can differ by a few seconds.
-const SAME_RESET_MS = 60_000
 
 type InsightState = {
   turnStartCost: Map<string, number>

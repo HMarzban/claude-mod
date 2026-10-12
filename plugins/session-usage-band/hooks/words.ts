@@ -20,6 +20,7 @@ import {
   fmtPct,
   fmtSmallCost,
   fmtTokens,
+  HOUR_MS,
   severityMark,
   SOON_MS,
 } from './format'
@@ -636,7 +637,7 @@ const TREND_FACTOR = 1.5
 const TRAIL_RISE = 2
 
 /** The points of a trail from the last hour before `now`. */
-export const lastHourOf = (trail: readonly TrailPoint[], now: number): TrailPoint[] => trail.filter(p => p.at >= now - 3600_000)
+export const lastHourOf = (trail: readonly TrailPoint[], now: number): TrailPoint[] => trail.filter(p => p.at >= now - HOUR_MS)
 
 /** A 5h trail's trend: rising once it has climbed `TRAIL_RISE` points. */
 const riseOf = (points: readonly TrailPoint[]): 'rising' | 'steady' =>
