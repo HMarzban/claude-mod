@@ -41,8 +41,7 @@ export const fmtCost = (usd: number): string => (usd >= WHOLE_FROM ? `$${wholeDo
 export const fmtSmallCost = (usd: number): string => (usd < 0.01 ? '<$0.01' : fmtCost(usd))
 
 /** An estimate is always marked as one. */
-export const fmtEstimate = (usd: number): string =>
-  usd < 0.01 ? '~<$0.01' : usd >= WHOLE_FROM ? `~$${wholeDollars(usd)}` : `~$${usd.toFixed(2)}`
+export const fmtEstimate = (usd: number): string => `~${fmtSmallCost(usd)}`
 
 /** The countdowns' seconds, drawn and spoken alike. */
 const wholeSeconds = (ms: number): number => Math.max(0, Math.round(ms / 1000))
@@ -63,7 +62,6 @@ export const fmtCountdown = (ms: number): string => {
 /** How far off a reset is: the time left, or that it has already passed. */
 export type ResetIn = { kind: 'in'; text: string } | { kind: 'passed' }
 
-/** When `iso` comes, from `now`; undefined without a readable time. */
 /** A span coarsely, to the minute: `2d 4h`, `3h 05m`, `12m`, `<1m`. */
 const fmtSpan = (ms: number): string => {
   const mins = Math.floor(Math.max(0, ms) / 60_000)
@@ -74,6 +72,7 @@ const fmtSpan = (ms: number): string => {
   return mins > 0 ? `${mins}m` : '<1m'
 }
 
+/** When `iso` comes, from `now`; undefined without a readable time. */
 export const resetIn = (iso: string | undefined, now: number): ResetIn | undefined => {
   if (!iso) return undefined
   const at = Date.parse(iso)
