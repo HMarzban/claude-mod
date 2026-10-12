@@ -197,11 +197,16 @@ const bands = (kit: Kit, read: Readings, grid: StackGrid, step: Step, room: numb
   return drawn
 }
 
+/** Amber bands in the give-way's order (spec §4.2): when the body can't
+ *  hold them all, the first goes first. */
+const AMBER_SHED: readonly Band[] = ['other', 'context', 'limits', 'cache']
+
 /** The first step whose bands, as drawn, fit `rows`, every amber band kept
  *  at every step (spec §2.1: an amber reading never gives way): Cache in
  *  its last minute, Context near compaction, Limits with 5h or 7d amber, at
  *  least as words, and Other. A band the step keeps keeps the step's size.
- *  None when not even that fits. */
+ *  Where the body can't hold every amber band, they give way in the
+ *  give-way's own order, so the stack is empty only when nothing fits. */
 const fitted = (kit: Kit, read: Readings, rows: number, room: number): Drawn[] => {
   const { cache, context, history: hist, fiveHour, sevenDay } = read
   const amber: Step = {
@@ -212,10 +217,13 @@ const fitted = (kit: Kit, read: Readings, rows: number, room: number): Drawn[] =
   }
   const names = [cache.bandName, hist.spendBandName, context.bandName, ...[fiveHour, sevenDay].flatMap(l => (l === undefined ? [] : [l.bandName]))]
   const grid = stackGrid(kit, room, names, read.frame.glyphs === 'unicode')
-  for (const step of STEPS) {
-    const drawn = bands(kit, read, grid, { ...amber, ...step }, room)
-    if (drawn.reduce((n, d) => n + d.rows, 0) <= rows) return drawn
-  }
+  // Every amber band kept, then one fewer at a time, then none.
+  const kept = AMBER_SHED.map((_, i) => Object.fromEntries(Object.entries(amber).filter(([band]) => !AMBER_SHED.slice(0, i).includes(band as Band))) as Step)
+  for (const keep of [...kept, {}])
+    for (const step of STEPS) {
+      const drawn = bands(kit, read, grid, { ...keep, ...step }, room)
+      if (drawn.reduce((n, d) => n + d.rows, 0) <= rows) return drawn
+    }
   return []
 }
 

@@ -236,6 +236,21 @@ test('open, an amber band never gives way: near compaction Context stays, an exp
   expect(byKey(band({ surface: 'desktop', expanded: true, maxRows: 8, ...LIMITS }), 'band:context', 'Box')).toBeUndefined()
   expect(byKey(band({ surface: 'desktop', expanded: true, maxRows: 8, ...LIMITS, context: NEAR }), 'band:context', 'Box')).toBeDefined()
 })
+test('open, more amber than the body holds: the amber bands give way in the spec order, never the whole stack', () => {
+  const AMBER_7D = { ...LIMITS, sevenDay: { ...LIMITS.sevenDay, percentUsed: 85 } }
+  const cases = [
+    ['desktop', { ...LIMITS, cache: EXPIRING, context: NEAR }],
+    ['terminal', { ...AMBER_7D, cache: EXPIRING, context: NEAR }],
+    ['desktop', { ...AMBER_7D, cache: EXPIRING, context: NEAR }],
+  ] as const
+  for (const [surface, over] of cases)
+    for (const maxRows of [5, 6]) {
+      const open = band({ surface, expanded: true, maxRows, ...over })
+      // Amber is shed in the give-way's order, Context before the cache: the cache, last, stays.
+      expect(`${surface} ${maxRows} ${byKey(open, 'band:cache', 'Box') !== undefined}`).toBe(`${surface} ${maxRows} true`)
+      expect(visualRows(open, surface)).toBeLessThanOrEqual(maxRows)
+    }
+})
 test('open, no limits: in a body of 6 Context stays, since Limits draws nothing', () => {
   const open = band({ surface: 'desktop', expanded: true, maxRows: 10, fiveHour: undefined, sevenDay: undefined })
   expect(byKey(open, 'band:limits', 'Box')).toBeUndefined()
@@ -252,6 +267,8 @@ test('open: while a band is left out, the body leaves at most one row unused', (
     { fiveHour: undefined, sevenDay: undefined },
     { ...LIMITS, history: { costs: [], context: [76_000] } },
     { ...LIMITS, samples: [] },
+    // More than one band amber: none gives way while the rows hold them.
+    { ...LIMITS, cache: EXPIRING, context: NEAR },
   ]
   for (const surface of ['desktop', 'terminal'] as const)
     for (const [f, over] of fixtures.entries()) {
