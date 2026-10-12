@@ -2,7 +2,7 @@
 
 v2.1 · 2026-10-12 · supersedes `2026-10-09-band-layouts-spec.md` §1, §4.2's list reply, §6 and §7's per-view parts. That spec's §2 (UX contract), §3 (glyph tiers) and §5 (data) still hold, with the amendments in §2 below.
 
-Status: Draft, reviewed (staff engineering, PM, head of engineering).
+Status: Implemented in 0.14.0.
 
 ## 1. Scope
 
@@ -74,7 +74,8 @@ cache 38m  ╭╮╭─╮╭╮╭  $0.24 · last $0.03   context ⠤⠴⠶ 8% 
   4. the 5h trail;
   5. the 7d cells;
   6. the trace.
-  - Every reading's words remain. At its narrowest the terminal row is text alone, and that is accepted.
+  7. then whole readings, spend, context and 5h, so that at 40 columns the row is the cache and the 7d; then their short forms.
+  - Cache and 7d never give way. At its narrowest the terminal row is text alone, and that is accepted.
 - **Empty states:**
   - No costs yet: while the total is $0 or unknown, the trace drawn flat, a dim line in a label's ink (braille's floor in text), then the total and `no costs yet`; the trace and its word give way together, since a flat trace alone would read as $0 a message. With a known total and no message's cost (a resumed conversation), the total alone, no trace. Open, the Spend band draws its chart flat and says `Costs show after Claude's next reply.` after its words.
   - No 5h or 7d samples: that reading is words only.
@@ -169,7 +170,7 @@ CACHE DEPARTS 17:24  SPEND $0.24  CONTEXT 8%  5H 26% RESET 17:50  7D 85% RESET S
  CACHE    DEPARTS       17:24       IN 38 MIN · RE-WARM ~$0.57 IF MISSED
  SPEND    $0.24         -           LAST $0.03
  CONTEXT  8% USED       -           ~893K LEFT · COMPACTS AT 967K
- 5H       26%           17:50       ON PACE ~33%
+ 5H       26%           17:50       ON PACE FOR ~33%
  7D       ! NEAR LIMIT  SAT 13:30   85% · FULL ~TUE
                                        [Collapse c]  [Hide band h]
 ```

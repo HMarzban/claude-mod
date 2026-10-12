@@ -458,7 +458,7 @@
   </nav>
 
   <header class="hero">
-    <a class="eyebrow" href="#layouts"><b>New</b>Nine layouts to choose from <span class="arr">→</span></a>
+    <a class="eyebrow" href="#layouts"><b>New</b>Three layouts to choose from <span class="arr">→</span></a>
     <h1>Know what your next Claude Code message <span class="em uline">costs.<svg viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M3 13 C 45 4, 90 18, 135 9 S 185 8, 197 6"/></svg></span></h1>
     <p class="lede">Step away for lunch and Claude Code's cache goes cold. Your next message then pays to rewrite the whole conversation: <b class="mark" id="lede-mark">25× what re-reading it costs</b> on Opus 5.5. This band shows the countdown and the price, right above the prompt.</p>
     <div class="cta">
@@ -553,19 +553,13 @@
 
   <section id="layouts" class="reveal">
     <span class="badge"><svg class="i"><use href="#i-layers"/></svg></span>
-    <h2>The same readings, in <span class="em">nine</span> shapes.</h2>
-    <p class="sub">Chips is the default. <code>/usage-band layout &lt;name&gt;</code> draws another, and every session draws it from then on; <code>/usage-band layout</code> alone lists them. Each asks one question of the same readings, in chips' language, and opens with ▵ into the same four cards.</p>
+    <h2>The same readings, in <span class="em">three</span> shapes.</h2>
+    <p class="sub">Chips is the default. <code>/usage-band layout &lt;name&gt;</code> draws another, and every session draws it from then on; <code>/usage-band layout</code> alone lists them. Each asks one question of the same readings. Chips opens with ▵ into four cards; pulse and departures open into their own views.</p>
     <div class="lay" id="lay">
       <div class="laypick" role="group" aria-label="Layout">
         <button type="button" data-layout="chips" aria-pressed="true">chips</button>
-        <button type="button" data-layout="gauges" aria-pressed="false">gauges</button>
-        <button type="button" data-layout="ledger" aria-pressed="false">ledger</button>
-        <button type="button" data-layout="rings" aria-pressed="false">rings</button>
         <button type="button" data-layout="pulse" aria-pressed="false">pulse</button>
-        <button type="button" data-layout="tiles" aria-pressed="false">tiles</button>
-        <button type="button" data-layout="week" aria-pressed="false">week</button>
         <button type="button" data-layout="departures" aria-pressed="false">departures</button>
-        <button type="button" data-layout="forecast" aria-pressed="false">forecast</button>
       </div>
       <div class="stagebox">
         <div class="scroller" id="lscroller"><div id="lfitbox"><div class="fit" id="lfit"><div id="layhost"></div><div class="prompt">Type / for commands</div></div></div></div>
@@ -585,10 +579,10 @@
           <div class="seg"><button type="button" id="layopen">Open ▵</button></div>
         </div>
       </div>
-      <p class="livebar">The band's own drawings on the desktop, from one session sixteen replies in. Below 40 columns every layout draws chips.</p>
+      <p class="livebar">The band's own drawings on the desktop, from one session sixteen replies in. Below 40 columns every layout draws chips, and departures does below 60.</p>
     </div>
-    <noscript><ul style="margin:24px 0 0 20px;color:var(--text-2)"><li><code>chips</code> Is my cache warm, what is this costing, am I near a limit? The row of chips, with four cards behind ▵. The default.</li><li><code>gauges</code> How much room is left on each meter, and is it filling faster than the clock? Four bars on one scale in a 2×2 grid, each limit notched where its window's time has gone, then the cost.</li><li><code>ledger</code> What does the band say, in plain words? One sentence, each reading bold on its figure, <code>│</code> between readings, what needs you first.</li><li><code>rings</code> How full is each one? Chips' pills, each led by a small ring: the cache drains, the context and the limits fill. The terminal draws each ring as a glyph.</li><li><code>pulse</code> Is my spending speeding up? Chips' pills with each message's cost and the last hour of the 5-hour limit drawn inside them.</li><li><code>tiles</code> How does everything compare? One row of equal tiles, each its figure and its label, with a bar or the cache's battery where there's a cap.</li><li><code>week</code> How does my week look? Seven day cells in the weekly limit's pill, solid where measured, dashed where guessed; open, the 5-hour limit by the hour.</li><li><code>departures</code> How long until each thing goes? Every reading as a countdown in chips' pills, soonest first; under 10 minutes from cold or full, the cache's or a limit's is its <code>! last call</code>.</li><li><code>forecast</code> What changes next, and at what clock time? Each reading's next change as a chip, its time the figure, soonest first.</li></ul><img src="band-layouts-light.png" alt="The nine layouts, one panel each, drawn calm and then in the cache's last minute: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" style="display:block;width:100%;height:auto;margin-top:24px"></noscript>
-    <details class="how gallery"><summary><svg class="i"><use href="#i-grid"/></svg>All nine at once</summary><img id="laygallery" src="band-layouts-light.png" alt="The nine layouts, one panel each, drawn calm and then in the cache's last minute: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" loading="lazy"></details>
+    <noscript><ul style="margin:24px 0 0 20px;color:var(--text-2)"><li><code>chips</code> Is my cache warm, what is this costing, am I near a limit? The row of chips, with four cards behind ▵. The default.</li><li><code>pulse</code> Is my cost per message rising, and will a limit fill before it resets? The session's trace: a heartbeat for the cache, each message a beat, the context and the 5-hour window over time, the week by day. Open, a grid of chart bands.</li><li><code>departures</code> When does the cache go cold, and when does each limit reset or fill? A split-flap board: each reading a line of flaps, with its status, its time and a remark. Open, ITEM, STATUS, TIME and REMARKS. Below 60 columns it draws chips.</li></ul><img src="band-layouts-light.png" alt="The three layouts, one panel each, drawn calm and then in the cache's last minute: chips, pulse and departures" style="display:block;width:100%;height:auto;margin-top:24px"></noscript>
+    <details class="how gallery"><summary><svg class="i"><use href="#i-grid"/></svg>All three at once</summary><img id="laygallery" src="band-layouts-light.png" alt="The three layouts, one panel each, drawn calm and then in the cache's last minute: chips, pulse and departures" loading="lazy"></details>
   </section>
 
   <section id="how" class="reveal">
@@ -666,38 +660,14 @@
 <template id="t-layout-chipsOpen">{{layout-chipsOpen}}</template>
 <template id="t-layout-chips-amber">{{layout-chips-amber}}</template>
 <template id="t-layout-chips-amberOpen">{{layout-chips-amberOpen}}</template>
-<template id="t-layout-gauges">{{layout-gauges}}</template>
-<template id="t-layout-gaugesOpen">{{layout-gaugesOpen}}</template>
-<template id="t-layout-gauges-amber">{{layout-gauges-amber}}</template>
-<template id="t-layout-gauges-amberOpen">{{layout-gauges-amberOpen}}</template>
-<template id="t-layout-ledger">{{layout-ledger}}</template>
-<template id="t-layout-ledgerOpen">{{layout-ledgerOpen}}</template>
-<template id="t-layout-ledger-amber">{{layout-ledger-amber}}</template>
-<template id="t-layout-ledger-amberOpen">{{layout-ledger-amberOpen}}</template>
-<template id="t-layout-rings">{{layout-rings}}</template>
-<template id="t-layout-ringsOpen">{{layout-ringsOpen}}</template>
-<template id="t-layout-rings-amber">{{layout-rings-amber}}</template>
-<template id="t-layout-rings-amberOpen">{{layout-rings-amberOpen}}</template>
 <template id="t-layout-pulse">{{layout-pulse}}</template>
 <template id="t-layout-pulseOpen">{{layout-pulseOpen}}</template>
 <template id="t-layout-pulse-amber">{{layout-pulse-amber}}</template>
 <template id="t-layout-pulse-amberOpen">{{layout-pulse-amberOpen}}</template>
-<template id="t-layout-tiles">{{layout-tiles}}</template>
-<template id="t-layout-tilesOpen">{{layout-tilesOpen}}</template>
-<template id="t-layout-tiles-amber">{{layout-tiles-amber}}</template>
-<template id="t-layout-tiles-amberOpen">{{layout-tiles-amberOpen}}</template>
-<template id="t-layout-week">{{layout-week}}</template>
-<template id="t-layout-weekOpen">{{layout-weekOpen}}</template>
-<template id="t-layout-week-amber">{{layout-week-amber}}</template>
-<template id="t-layout-week-amberOpen">{{layout-week-amberOpen}}</template>
 <template id="t-layout-departures">{{layout-departures}}</template>
 <template id="t-layout-departuresOpen">{{layout-departuresOpen}}</template>
 <template id="t-layout-departures-amber">{{layout-departures-amber}}</template>
 <template id="t-layout-departures-amberOpen">{{layout-departures-amberOpen}}</template>
-<template id="t-layout-forecast">{{layout-forecast}}</template>
-<template id="t-layout-forecastOpen">{{layout-forecastOpen}}</template>
-<template id="t-layout-forecast-amber">{{layout-forecast-amber}}</template>
-<template id="t-layout-forecast-amberOpen">{{layout-forecast-amberOpen}}</template>
 
 <script>
 (() => {
@@ -866,14 +836,8 @@
   const lscale = () => fitBand($('#lscroller'), $('#lfitbox'), lfit, $('#lswipe'))
   const LAYOUTS = {
     chips: ['Is my cache warm, what is this costing, am I near a limit? The row of chips, with four cards behind ▵. The default.', 1, 1],
-    gauges: ['How much room is left on each meter, and is it filling faster than the clock? Four bars on one scale in a 2×2 grid, each limit notched where its window\'s time has gone, then the cost.', 2, 2],
-    ledger: ['What does the band say, in plain words? One sentence, each reading bold on its figure, <code>│</code> between readings, what needs you first.', 1, 1],
-    rings: ['How full is each one? Chips\' pills, each led by a small ring: the cache drains, the context and the limits fill. The terminal draws each ring as a glyph.', 1, 1],
-    pulse: ['Is my spending speeding up? Chips\' pills with each message\'s cost and the last hour of the 5-hour limit drawn inside them.', 1, 1],
-    tiles: ['How does everything compare? One row of equal tiles, each its figure and its label, with a bar or the cache\'s battery where there\'s a cap.', 1, 1],
-    week: ['How does my week look? Seven day cells in the weekly limit\'s pill, solid where measured, dashed where guessed; open, the 5-hour limit by the hour.', 1, 1],
-    departures: ['How long until each thing goes? Every reading as a countdown in chips\' pills, soonest first; under 10 minutes from cold or full, the cache\'s or a limit\'s is its <code>! last call</code>.', 1, 1],
-    forecast: ['What changes next, and at what clock time? Each reading\'s next change as a chip, its time the figure, soonest first.', 1, 1],
+    pulse: ['Is my cost per message rising, and will a limit fill before it resets? The session\'s trace: a heartbeat for the cache, each message a beat, the context and the 5-hour window over time, the week by day. Open, a grid of chart bands.', 1, 1],
+    departures: ['When does the cache go cold, and when does each limit reset or fill? A split-flap board: each reading a line of flaps, with its status, its time and a remark. Open, ITEM, STATUS, TIME and REMARKS. Below 60 columns it draws chips.', 1, 1],
   }
   const rows = n => n + (n === 1 ? ' row' : ' rows')
   const L = { name: 'chips', amber: false, open: false, hidden: false }

@@ -64,17 +64,20 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/band.tsx` | `drawBand(elements, snapshot, actions)`: a pure function from a snapshot to a tree. It builds the kit and the readings, draws the chosen layout, and falls back to chips. |
 | `hooks/kit.tsx` | The drawing kit made once per draw: elements, the Svg gate, palette, measure, hover cards, gaps, icons. |
 | `hooks/reading.ts` | `readingsOf`: everything a view reads, built once per draw. Each section's facts, with its words from `words.ts`. |
-| `hooks/words.ts` | The phrasebook: every phrase a layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. |
+| `hooks/words.ts` | The phrasebook: every phrase a layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. It holds the departures board's words too: statuses, short forms, remarks, alt sentences and `stripWords`. |
 | `hooks/views/view.ts` | `View` (the rows it declares and `draw`) and `rowsOf`. |
 | `hooks/views/index.ts` | `VIEWS`: every layout by name. |
-| `hooks/views/cards.tsx` | `cardsView` and `openBody`, chips' open view: its four cards and its footer. |
-| `hooks/views/frame.tsx` | The toggle every layout ends its row with, and the rows the shared cards get beneath the collapsed lines. |
-| `hooks/views/parts.tsx` | The pieces several layouts draw: pills, the cache's battery and hover string, the amber cache pill pulse and week share, and the lines they squeeze to fit and the words they're written in. |
-| `hooks/views/<name>.tsx` | One file per layout: `chips`, `gauges`, `ledger`, `rings`, `pulse`, `tiles`, `week`, `departures`, `forecast`. Chips exports its pill builders, their hover strings, `LIMITS` and its pill row, for a layout to compose. |
+| `hooks/views/cards.tsx` | `cardsView`, chips' open view: its four cards. Chips' alone; pulse and departures import nothing from it. |
+| `hooks/views/frame.tsx` | What all three layouts share: the toggle, `bodyRowsFor` and the `footer` (Collapse, Hide band, the hint and the strip's place). |
+| `hooks/views/parts.tsx` | The pieces layouts draw: chips' pills, the cache's battery and hover string, and the lines a layout squeezes to fit (`line`, `fitLine`) and the words they're written in. |
+| `hooks/views/<name>.tsx` | One file per layout: `chips`, `pulse` and `departures`. Chips exports its pill builders, their hover strings, `LIMITS` and its pill row. |
+| `hooks/views/pulse-open.tsx` | Pulse's open view: the grid of chart bands. |
+| `hooks/views/departures-board.tsx` | Departures' board: the ground, the header row, the rows and their give-way. |
+| `hooks/flaps.tsx` | The split-flap tiles departures draws: one Svg per reading on the desktop, a coloured run of text in the terminal. |
 | `hooks/strip.tsx` | The workspace strip: project, branch or worktree, changes, ahead/behind. |
-| `hooks/charts.tsx` | The charts: `meter`, `splitBar`, `ring`, `sparkline`, `barChart`, `dayCells`, `sliceCells`, `braille`. Each is an Svg on the desktop and text elsewhere. |
+| `hooks/charts.tsx` | The charts: `meter`, `splitBar`, `sparkline`, `barChart`, `dayCells`, `heartbeat`, `braille`. Each is an Svg on the desktop and text elsewhere. |
 | `hooks/glyphs.ts` | The terminal's glyph tier (`CC_BAND_GLYPHS`, a CJK locale) and the ASCII mapping. |
-| `hooks/calendar.ts` | Week's day and hour cells, read off the limit samples. |
+| `hooks/calendar.ts` | The day and hour cells pulse draws, read off the limit samples. |
 | `hooks/layout.ts` | Give-way orders, sizes, and how many columns a drawn tree takes. |
 | `hooks/icons.ts` | The icons' SVG bodies, glyphs and names. |
 | `hooks/cache.ts` | The prompt-cache model: TTL, misses, recall, a resume, re-warm and savings estimates, and the cache's view for the band. |
