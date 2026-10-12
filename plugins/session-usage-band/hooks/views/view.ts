@@ -8,7 +8,7 @@ import type { Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { cardsView, type OpenOptions } from './cards'
 
-export type Rows = Readonly<{ desktop: number; terminal: number }>
+type Rows = Readonly<{ desktop: number; terminal: number }>
 export type View = Readonly<{ rows: Rows; draw: (kit: Kit, read: Readings, act: BandActions) => RenderElement }>
 /** What a view brings to the shared cards: its mark in each card's head, a
  *  card's headline and first row in its own words, and the facts its
@@ -26,14 +26,11 @@ export const rowsOf = (view: Readonly<{ rows: Rows }>, kit: Readonly<{ Svg?: unk
 
 /** A layout in the shared language: its collapsed lines on the band's
  *  ground, and chips' cards and footer beneath when open. */
-export const defineCardsView = (rows: Rows, build: Build): View => {
-  const view: View = {
-    rows,
-    draw: (kit, read, act) => {
-      const { lines, open } = build(kit, read, act)
-      const collapsedRows = rowsOf(view, kit)
-      return cardsView(kit, read, act, lines, read.frame.expanded && open !== undefined ? { ...open(), collapsedRows } : { collapsedRows })
-    },
-  }
-  return view
-}
+export const defineCardsView = (rows: Rows, build: Build): View => ({
+  rows,
+  draw: (kit, read, act) => {
+    const { lines, open } = build(kit, read, act)
+    const collapsedRows = rowsOf({ rows }, kit)
+    return cardsView(kit, read, act, lines, read.frame.expanded && open !== undefined ? { ...open(), collapsedRows } : { collapsedRows })
+  },
+})
