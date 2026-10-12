@@ -1,215 +1,265 @@
 # Three layouts: design spec
 
-v1 · 2026-10-12 · replaces §1, §4.2's list, §6 and §7's per-view parts of `2026-10-09-band-layouts-spec.md`.
+v2 · 2026-10-12 · supersedes `2026-10-09-band-layouts-spec.md` §1, §4.2's list reply, §6 and §7's per-view parts. That spec's §2 (UX contract), §3 (glyph tiers) and §5 (data) still hold, with the amendments in §2 below.
 
-Status: Draft, for review.
+Status: Draft, reviewed (staff engineering, PM, head of engineering).
 
-## 1. Why
+## 1. Scope
 
-There are nine layouts, and eight of them look about 90% the same. The cause is structural, not cosmetic:
+Every layout except chips opens into chips' cards (`defineCardsView` → `cardsView`), and draws its collapsed row with chips' pill, battery and meter parts. That is why they look alike. We keep three layouts, and each one owns what it draws.
 
-- **Open.** Every layout except chips is built by `defineCardsView` (`views/view.ts`), so it opens into chips' own four cards (`views/cards.tsx`). A layout only changes those cards' lenses, headlines and first rows.
-- **Collapsed.** The same eight draw chips' pill, battery and meter parts on the same ground, in chips' tints.
+| Name | Answers | Desktop rows | Terminal rows |
+| --- | --- | --- | --- |
+| `chips` | Is anything wrong right now? | 1 | 1 |
+| `pulse` | Is my cost per message rising, and will a limit fill before it resets? | 1 | 1 |
+| `departures` | When does the cache go cold, and when does each limit reset or fill? | 1 | 1 |
 
-Patching each layout would leave both causes in place. So we keep three layouts, and each one owns everything it draws, collapsed and open:
+- **Removed:** `gauges`, `ledger`, `rings`, `tiles`, `week` and `forecast`.
+- **Chips** is unchanged, and its golden hashes must pass byte for byte.
+- **No new stored data.** Every series already exists. New reading facts are listed in §6.2.
+- **Non-goals:** a picker, user-defined layouts, and animation beyond §4.1's heartbeat.
 
-| Name | Identity | Answers | Desktop rows | Terminal rows |
-| --- | --- | --- | --- | --- |
-| `chips` | Pills you can read at a glance; four cards behind ▿. The default. | Is anything wrong right now? | 1 | 1 |
-| `pulse` | A chart over time: an ECG-style trace of the session | Which way is it going, and how fast? | 1 | 1 |
-| `departures` | A split-flap board, monospace and in capitals | When does each thing happen? | 1 | 1 |
+## 2. Rules
 
-`gauges`, `ledger`, `rings`, `tiles`, `week` and `forecast` are removed. Their best ideas move into the layouts we keep:
+1. **One order.** Pulse and departures draw **Cache, Spend, Context, 5h, 7d**, then `otherLimits` when open.
+   - Amber never moves a reading.
+   - Give-way drops calm pieces and never reorders the ones that remain.
+   - Cache and 7d never give way. Each may fall back to its short form.
+   - Chips keeps its own rules: it already leads with the cache and ends with 7d.
+2. **Separate looks, shared frame.**
+   - Pulse and departures import nothing from `views/cards.tsx`. They import nothing that draws from chips either: no `pill`, no battery, no chips' tints.
+   - All three share `views/frame.tsx`: the toggle, `bodyRowsFor`, and `footer` (§6.2).
+3. **Amendments to the old §2:**
+   - §2.9 (Svg text uses `system-ui`): departures' flaps use `ui-monospace, monospace`.
+   - §2.10 (non-chips draw on `cardBg`): departures draws its board on `boardBg`, in every appearance but plain. Its tokens are tested at 4.5:1 for text and 3:1 for marks. The toggle and the footer stay off the board.
+   - §2.1 (quiet when fine): motion counts as loud. Only an amber reading moves (§4.1).
 
-- week's day cells and gauges' pace tick go into pulse;
-- forecast's clock times go into departures' TIME column.
+## 3. One scenario for every sketch
 
-**Non-goals:**
-- any change to what chips draws;
-- new readings or new stored data (every history pulse needs already exists: `costTrail`, `contextTrail`, `fiveHourTrail`, `limitSamples`);
-- user-defined layouts;
-- a picker.
+Every sketch below draws the same moment, which is also the state the review screenshots were taken in. The toggle reads ▵ because the band is collapsed.
 
-## 2. Rules every layout keeps
-
-The UX contract in the earlier spec, §2, still holds: quiet when fine, amber always has words, `~` on estimates, formatting in `format.ts` and `reading.ts`, never wraps, svg on the desktop only, contrast on a ground we own, and alt text. This spec adds two rules:
-
-1. **One order.** Every layout draws its readings in this order, collapsed and open: **Cache, Spend, Context, 5h, 7d**, then `otherLimits` when open.
-   - Amber never moves a reading. It changes the reading's colour and words in place.
-   - Give-way drops calm pieces. It never reorders the ones that remain.
-   - Cache and 7d never give way. 7d may fall back to its short text form.
-2. **No shared look.** Pulse and departures import nothing from `views/cards.tsx`, and nothing of chips' that draws (`pill`, `batteryIcon`, `textBattery`, chips' tints). They share only the frame: the toggle, the buttons row, `bodyRowsFor`, and the workspace strip's facts, which each draws in its own style.
-
-## 3. chips
-
-Unchanged. Its golden hashes (`tests/golden/chips.ts`) must still pass, byte for byte. `cards.tsx` loses every option that only the removed layouts used (§6.2), and none of them changes chips' output.
+| Reading | State |
+| --- | --- |
+| Cache | Warm, 38m left, cold at 17:24, re-warm ~$0.57 |
+| Spend | $0.24, last message $0.03 |
+| Context | 8% used, ~893k left, compacts at 967k |
+| 5h | 26%, resets 17:50, on pace for ~33% |
+| 7d | 85% (amber), resets Sat 13:30, full ~Tue |
 
 ## 4. pulse
 
-**Purpose:** show the session as a vital sign. Each message is a beat, and the beats over time show whether spending is speeding up, whether the 5h window will fill, and how the week went.
-
-### 4.1 Collapsed: one row
+### 4.1 Collapsed
 
 ```
-◉ cache 41m  ─╮╭─╮╭──╮╭─  $0.24 · last $0.03   ctx ▁▁▁ 8%   5h ⟋- - 26%   7d ▮▮▮▯▯▯▯ 41%  ▿
+cache 38m  ╭╮╭─╮╭╮╭  $0.24 · last $0.03   context ⠤⠴⠶ 8%   5h ⣀⣠⣤⡠⠄ 26%   ▮▮▮▮▯▯▯ ! 7d 85%  ▵
 ```
 
-(That sketch's glyphs stand for svg marks, not characters the band draws.)
+(The sketch's glyphs stand for svg marks on the desktop.)
 
 | Piece | Desktop (svg) | Terminal |
 | --- | --- | --- |
-| **Cache** | A 12 px heartbeat dot, then `cache 41m`. Warm: `warm` ink, one slow beat. Last minute: amber, beating faster, with `! 47s left · re-warm ~$1.66`. Cold: a flat grey line in place of the dot, then `cold · re-warm ~$0.57`. Working: steady dot, no countdown. | `cache 41m` |
-| **Spend** | The trace: the last 14 messages as ECG beats, each spike's height its cost on a scale of `max(2 × warmAvg, largest warm cost)`. A re-warm's spike is capped flat at the top, so its shape says what it is without colour. Then `$0.24 · last $0.03`. | A braille trace, 2 messages per cell, then the numbers |
-| **Context** | A 36 px level line: the fill as a filled run under a tick at the compaction point. Then `ctx 8%`. | `ctx 8%` |
-| **5h** | A 48 px trail of the last hour, with a dashed projection to the reset at the current pace. Then `5h 26%`, or `! 5h full in ~40m`. | braille trail, then `5h 26%` |
-| **7d** | Seven 4 px day columns, height-filled: measured solid, guessed dashed, today outlined. Then `7d 85%`. | `7d 85%` |
+| **Cache** | A 12 px heartbeat mark, then the words.<br>• Warm: a still `warm` dot.<br>• Last call (`cache.lastCall`): an amber dot that beats.<br>• Cold: a flat grey line.<br>• Working: a still dot and no countdown.<br>The words are the existing cache phrases (`38m left`, `! 47s left · re-warm ~$1.66`, `cold · re-warm ~$0.57`). | The words |
+| **Spend** | `barChart` drawn as beats: the last 14 messages, each spike's height its cost, a re-warm capped flat. Then `$0.24 · last $0.03`. | A braille trace beside the words |
+| **Context** | `sparkline` of `history.context`, the last 40 turns, scaled to the window. Then `context 8%`. | A braille trail beside the words |
+| **5h** | `sparkline` over the window from its start to its reset, from `week.hourRow`: measured solid, the projection dashed, now marked. Then `5h 26%`. | A braille trail beside the words |
+| **7d** | `dayCells` for the seven days: measured solid, guessed dashed, today outlined. Then `! 7d 85%`. | The words |
 
-- **Animation.** Only the heartbeat dot moves, and its rate means something: slow while warm, fast in the last minute, none when cold. It ships only if the spike (§7, step 1) shows that the svg frame survives the band's redraws and that `prefers-reduced-motion` can be honoured. If either fails, the dot is static, and its size and ink carry the same states.
+- **Heartbeat.** Only an amber cache moves. The Svg's source changes only when the cache's mood changes, never per tick, so its frame isn't reloaded each second. Motion ships only if the spike (§8, step 1) shows that the frame survives redraws and that `prefers-reduced-motion` reaches it. Otherwise the mark is still, and its ink and words carry the state. If the spike has no answer by the time pulse is built, the mark ships still.
 - **Give-way, calm pieces only, first to last:**
   1. `· last $0.03`;
-  2. context's level line;
+  2. the context trail;
   3. the trace from 14 beats to 8;
-  4. the 5h trail becomes text;
-  5. the 7d columns become text;
-  6. the trace becomes text.
-  - The words of the cache, the cost, 5h and 7d always stay.
-- **Empty:** with no costs yet, the trace is a flat line and the row reads `costs show after Claude's next reply`, the existing phrase. With no limits, 5h and 7d are left out.
+  4. the 5h trail;
+  5. the 7d cells;
+  6. the trace.
+  - Every reading's words remain. At its narrowest the terminal row is text alone, and that is accepted.
+- **Empty states:**
+  - No costs yet: `Costs show after Claude's next reply.` in place of the trace.
+  - No 5h or 7d samples: that reading is words only.
+  - No limits: 5h and 7d are left out.
 
-### 4.2 Open: a stack of charts, no cards
+### 4.2 Open
 
-Top to bottom, in the one order. Each band is the full width, with the chart on the left and its numbers on the right:
+A stack of full-width bands, each with its chart on the left and its words on the right:
 
-| Band | Desktop rows | Draws | Numbers beside it |
+| Band | Rows | Chart | Words |
 | --- | --- | --- | --- |
-| Cache vitals | 1 | The heartbeat and the TTL as a draining line | `41m left · re-warm ~$0.57 · hit rate 96% · saved $1.20` |
-| Spend | 3 | The last 24 messages as beats, with a dotted average line; re-warms capped and labelled `re-warm` | `$0.24 total · last $0.03 · avg ~$0.02 · 29k in · 4k out` |
-| Context | 2 | The context used over the conversation, as a line under a dashed compaction ceiling | `8% · ~893k left · compacts at 967k` |
-| Limits | 3 | Two charts side by side. On the left, the 5h window from its start to its reset, with now marked and a dashed projection. On the right, the 7d window as seven day columns, measured solid and guessed dashed, with today outlined. | `5h 26% · on pace for ~33% · ↻ 17:50` and `7d 85% · full ~Tue · ↻ Sat 13:30` |
+| Cache | 1 | The time left as a draining line | `38m left · cold at 17:24 · re-warm ~$0.57` |
+| Spend | 2 | The last 24 messages as beats, with a dotted average line and re-warms labelled | `$0.24 · last $0.03 · avg ~$0.02` |
+| Context | 2 | The last 40 turns under a dashed compaction line | `8% · ~893k left · compacts at 967k` |
+| Limits | 3 | 5h on the left: start to reset, now marked, projection dashed. 7d on the right: the day cells. | `5h 26% · on pace for ~33% · ↻ 17:50`<br>`! 7d 85% · full ~Tue · ↻ Sat 13:30` |
 
-- `otherLimits`, when there are any, follow as one text line.
-- The footer is the workspace strip and the buttons, as today.
-- **Fitting `maxRows`:** at 13 rows everything fits (1 collapsed + 9 body + 3 frame). Short of rows, the bands give way in this order:
-  1. the Context band;
-  2. Spend drops to 2 rows;
-  3. Limits drops to 2 rows;
-  4. each chart becomes its numbers alone.
-- **Terminal:** the same bands as braille charts beside their numbers, one or two lines each.
+- `otherLimits` follow as one line of words, and that line counts in the body.
+- **Rows at `maxRows` 13:** 1 collapsed + 9 body (8 for the bands and 1 for `otherLimits`) + 3 frame. The strip sits in the footer row.
+- **Give-way:**
+  1. `otherLimits`;
+  2. the Context band;
+  3. Limits to 2 rows;
+  4. Limits to one row of words;
+  5. Spend to one row of words;
+  6. the Cache band;
+  7. the body, leaving the footer alone.
+- **Terminal:** the same bands as braille beside their words, one or two lines each.
 
 ## 5. departures
 
-**Purpose:** a real split-flap departures board. Every reading is a line on the board: what it is, its status, when, and a remark. This is the board the earlier spec's §6 described; the shipped version drifted into a row of chips-style pills with `›`.
+### 5.1 The board
 
-### 5.1 The board's look
-
-- **Ground.** The board is always dark, in the dark and light appearances alike, because a departures board is a physical object. It draws on its own `boardBg` with dark flap tiles.
-- **Flaps.** On the desktop, the flaps are svg: each character sits on its own tile, in a monospace face, with a 1 px seam across the middle of the tile. That seam is what says "split-flap". The terminal draws each flap group as a `Box backgroundColor` run, with a space between groups.
-- **Colours.** Each reading gets an ITEM code in its own ink, the way an airline's code has its colour on a real board. All of these are new palette tokens, contrast-tested at 4.5:1 on `flapBg`:
+- **Ground.** The board is a dark `Box` on `boardBg` in the dark and light appearances. Plain has no board: it draws groups as `[CACHE]` in theme keys.
+- **Flaps.**
+  - Desktop: one Svg per flap group, at most 20 px tall. Each character sits on its own tile, with a 1 px seam across the tile's middle. The group's width is its character count × the tile's pitch, and the row is fitted by those widths.
+  - Terminal: each group is a `Box backgroundColor` run, with a space between groups.
+- **Alt text.** Each group's alt is a sentence from `reading.ts`, in words, for example "Cache goes cold at 17:24, in 38 minutes". It never uses the capitals or `↻`.
+- **Tokens** (new; DARK and LIGHT get the same values, PLAIN maps them to theme keys):
 
   | Token | For |
   | --- | --- |
-  | `flapItemCache` | CACHE: the warm green |
-  | `flapItemSpend` | SPEND: the coin gold |
-  | `flapItemContext` | CTX: a cool grey-blue |
-  | `flapItem5h` | 5H: the 5h accent |
-  | `flapItem7d` | 7D: the 7d accent |
-  | `flapText` | Statuses and times: the board's off-white |
+  | `boardBg` | The board's ground |
+  | `flapBg` | A flap tile |
+  | `flapSeam` | The tile's split line |
+  | `flapItemCache` | CACHE, a warm green |
+  | `flapItemSpend` | SPEND, gold |
+  | `flapItemContext` | CONTEXT, a cool grey-blue |
+  | `flapItem5h` | 5H, the 5h accent |
+  | `flapItem7d` | 7D, the 7d accent |
+  | `flapText` | Statuses and times |
   | `flapDim` | Remarks |
-  | `flapAmber` | Amber words. Amber is the only status colour, as everywhere: nothing is red. |
+  | `flapAmber` | Amber words. Nothing is red. |
 
-- **Plain appearance.** No svg and no board ground. Flap groups are drawn as `[CACHE]` in theme keys.
-
-### 5.2 Collapsed: one row, fixed order
+### 5.2 Collapsed
 
 ```
-CACHE DEPARTS 17:24 IN 38 MIN  SPEND $0.24  CTX 8%  5H 26% ↻ 17:50  7D 41% ↻ SAT 13:30  ▿
+CACHE DEPARTS 17:24  SPEND $0.24  CONTEXT 8%  5H 26% ↻ 17:50  7D 85% ! NEAR LIMIT  ▵
 ```
 
-- **Cache statuses** (the existing `DEPARTURES` words):
-  - `DEPARTS hh:mm · IN 38 MIN`;
-  - `LAST CALL · 47S · RE-WARM ~$1.66`, in amber;
-  - `DEPARTED hh:mm · RE-WARM ~$0.57`;
-  - `BOARDING`, with no time, while Claude is working.
-- **Limits:** the value, then `↻ hh:mm` (or `↻ SAT 13:30`), then one remark:
-  - `FULL ~TUE` when the projection fills before the reset;
-  - `! NEAR LIMIT` at 80%;
-  - `! FULL ~14:20` when the 5h pace fills.
-  - An amber remark takes the place of a calm one; open, the calm one moves to REMARKS.
-- **Give-way, calm pieces only, first to last:**
-  1. `IN 38 MIN`;
-  2. 5h's `↻`;
-  3. 7d's `↻`;
-  4. SPEND;
-  5. CTX;
-  6. 5h's remark;
-  7. 5H becomes `5H 26%`.
-  - CACHE and 7D never go.
+| Reading | Long form | Short form (give-way) |
+| --- | --- | --- |
+| Cache, warm | `DEPARTS 17:24` | `17:24` |
+| Cache, last call (`cache.lastCall`) | `LAST CALL 47S` (amber) | `! 47S` |
+| Cache, cold | `DEPARTED 17:24 · RE-WARM ~$0.57`, or `DEPARTED · RE-WARM ~$0.57` with no known time | `RE-WARM ~$0.57` |
+| Cache, working | `BOARDING` | `BOARDING` |
+| Cache, unmeasured or warming | `CHECK-IN` | `CHECK-IN` |
+| Context, amber | `! COMPACTS IN ~12K` | `! CONTEXT 93%` |
+| A limit | value, then `↻ 17:50`. An amber remark replaces a calm one: `! NEAR LIMIT` (80%), or for 5h, `! FULL ~14:20` (the pace fills). | `5H 26%` |
+| A passed reset | `↻ PASSED` | the value |
 
-### 5.3 Open: the board
+- **Give-way, calm only, first to last:**
+  1. 5h's `↻`;
+  2. 7d's `↻`;
+  3. SPEND;
+  4. CONTEXT;
+  5. 5h's remark;
+  6. the short forms.
+  - CACHE and 7D never go. At 40 columns the row is `CACHE 17:24  7D 85%  ▵`.
+- **Zone unknown:** every clock time becomes a countdown, `IN 38 MIN` and `↻ IN 1H 04M`, as the earlier spec's §2.12 allows on the board.
+
+### 5.3 Open
 
 ```
- CLAUDE-MOD   MAIN   CLEAN                                    17:12
- ITEM   STATUS       TIME        REMARKS
- CACHE  DEPARTS      17:24       IN 38 MIN · RE-WARM ~$0.57 IF MISSED
- SPEND  $0.24        —           LAST $0.03 · 29K IN · 4K OUT
- CTX    8% FULL      —           ~893K LEFT · COMPACTS AT 967K
- 5H     26%          17:50       ON PACE ~33%
- 7D     ! NEAR LIMIT SAT 13:30   85% · FULL ~TUE
-                                          [Collapse c]  [Hide band h]
+ CLAUDE-MOD   MAIN   CLEAN
+ ITEM     STATUS        TIME        REMARKS
+ CACHE    DEPARTS       17:24       IN 38 MIN · RE-WARM ~$0.57 IF MISSED
+ SPEND    $0.24         -           LAST $0.03
+ CONTEXT  8% USED       -           ~893K LEFT · COMPACTS AT 967K
+ 5H       26%           17:50       ON PACE ~33%
+ 7D       ! NEAR LIMIT  SAT 13:30   85% · FULL ~TUE
+                                       [Collapse c]  [Hide band h]
 ```
 
-- The header row is the workspace strip in flaps: folder, branch and status on the left, the time now on the right. It replaces the strip; nothing is drawn twice.
-- Rows are in the one order, and `otherLimits` come after 7D.
-- REMARKS truncates first. Where TIME and REMARKS can't both fit, TIME's words move to the front of REMARKS, as in the earlier spec.
-- **Fitting `maxRows`:** at 13 rows, 1 collapsed + 8 board rows + 2 frame rows fit. Short of rows, `otherLimits` go first, then the column-header row, then SPEND's remarks.
-- **Terminal:** the same board in text, which is the layout's natural form.
+- **Header row.** The workspace strip's facts drawn as flaps (§6.2's `stripWords`), not as a second strip. With no workspace, the header row is left out.
+- **Rows.** The one order, with `otherLimits` after 7D. TIME's placeholder is `-`. REMARKS truncates first. Where TIME and REMARKS can't both fit, TIME's words lead REMARKS.
+- **Rows at `maxRows` 13:** 1 collapsed + 9 body (the header row, the column headings, five rows, two `otherLimits`) + 3 frame.
+- **Give-way:**
+  1. `otherLimits`;
+  2. the column headings;
+  3. SPEND;
+  4. CONTEXT;
+  5. the header row;
+  6. 5H;
+  7. the body, leaving the footer alone.
+- **Terminal:** the same board in text.
 
-## 6. What changes in the code
+## 6. Code
 
-### 6.1 Removed
+### 6.1 Layers
 
-- `views/{gauges,ledger,rings,tiles,week,forecast}.tsx` and their `tests/view-*.test.ts`.
-- `LAYOUT_NAMES` becomes `['chips', 'pulse', 'departures']`. `VIEWS` follows, and so does the command's list reply.
-- Chart helpers that no kept view uses (expected: `ring`, `sliceCells`, and the `meter` tick and projection options), and the `words.ts` and `reading.ts` exports that only the removed views read. A test confirms that chips' output does not change.
-- **A stored removed name:** `asLayoutName` returns `undefined`, so the band draws chips. `/usage-band layout` lists the three. No toast.
+These are unchanged: register → snapshot → reading (facts and words) → views (drawing only), and `tools/views-gate.sh` still holds. Svg geometry needs `Math.round`, which the gate bans in views, so geometry lives outside `views/`:
 
-### 6.2 Changed
+| Piece | Lives in |
+| --- | --- |
+| `heartbeat`; the beat shape for `barChart`; a time domain and a now mark for `sparkline` | `hooks/charts.tsx` (extensions of existing primitives, not new ones) |
+| `flaps`, the split-flap tiles | `hooks/flaps.tsx`, new |
+| The board and pulse's open stack | `views/departures.tsx` and `views/pulse.tsx`, plus `views/pulse-open.tsx` if a file passes about 300 lines |
 
-- `cards.tsx` becomes chips' alone. Every `OpenOptions` field except `collapsedRows` goes (`slots`, `heads`, `lead`, `limitMarks`, `shown`, `shownByWindow`, `windowResets`, `clockless`, `compactSplit`, `reWarmLabel`), and so does `defineCardsView`.
-- `views/view.ts` keeps `View` and `rowsOf`.
-- `views/pulse.tsx` and `views/departures.tsx` are rewritten. Each has its own open view, with a sibling file if it grows past about 300 lines: `views/pulse-open.tsx` and `views/departures-board.tsx`.
-- `charts.tsx` gains:
-  - `trace`: ECG beats;
-  - `levelLine`;
-  - `trail`, drawn with a projection;
-  - `dayColumns`;
-  - `heartbeat`;
-  - `flaps`: the split-flap tiles.
+### 6.2 Changes
 
-  Each one is svg on the desktop and braille or text elsewhere, and each takes `alt` and `width`.
-- `palette.ts` gains the board tokens (§5.1) in DARK and LIGHT (the board is dark in both) and PLAIN.
+- **`snapshot.ts`:** `LAYOUT_NAMES = ['chips', 'pulse', 'departures']`, plus `REMOVED_LAYOUTS = ['gauges', 'ledger', 'rings', 'tiles', 'week', 'forecast']` for the command's replies (§7).
+- **`cache.ts` → snapshot → `reading.ts`:** `cache.coldAt`, from the existing `measuredColdAt`; `undefined` where it isn't known. It is a reading fact, not stored.
+- **`words.ts`:**
+  - Pulse's average: `avg ~$0.02`.
+  - The board's statuses, short forms, remarks and alt sentences: §5.2 and §5.3's words, and `CHECK-IN`.
+  - `stripWords(read)`, moved out of `drawStrip`, so departures draws the same facts in flaps.
+  - The existing `fillText`, `history.*` and `week.*` words are kept and reused.
+- **`frame.tsx`:** gains `footer(kit, read, act, strip)`: Collapse, Hide band, the hint and the strip's place, moved verbatim out of `cards.tsx`'s `openBody`. Chips' golden hashes prove the move.
+- **`cards.tsx`:** becomes chips' alone. `chipsView` calls `cardsView` directly. These go: `defineCardsView`; every `OpenOptions` field but `collapsedRows` (`slots`, `slotsReplaceBars`, `heads`, `lead`, `limitMarks`, `shown`, `shownByWindow`, `windowResets`, `clockless`, `compactSplit`, `reWarmLabel`); and the code only they reach (`Fact`, `WindowFact`, `SlotForms`, `leadOf`, `saidOf`, the compact split, and the `'clock'` form of the reset).
+- **Fix before reuse.** The review screenshots show two primitives drawn wrong:
+  - `barChart` drew a flat sliver in the open SPEND card (screenshot 5);
+  - `dayCells`' now-notch sits off its cell (screenshots 7 and 9).
 
-### 6.3 Docs and release
+  Each gets a failing test built from that screenshot's state, then the fix.
+- **Removed:** the six view files and their `tests/view-*.test.ts`.
+- **The dead-export sweep** runs after pulse and departures are built (§8, step 4), by usage, never from a list. Expected to go:
+  - `ring`, `sliceCells`, `meter`'s `tick`, `projectTo` and `slim` options;
+  - parts' `battery*` variants, `layoutCacheSpec`, `amberSay`, `amberFirst`, `once`, `PERCENT`, `AMBER_STEP`;
+  - layout's `fitSqueeze`;
+  - palette's `week*` and `five*` guess and spent tokens;
+  - words' gauge, sentence, week and forecast phrases.
 
-- README's layout list, CONTRIBUTING's module table, `docs/index.html`'s layout picker and its noscript list, `band-layouts-{dark,light}.png` (rebuilt with `tools/demos`), and the old spec's status line, which points here.
-- CHANGELOG, then 0.14.0.
+  Chips' golden hashes must hold after the sweep.
 
-## 7. Order of work and how it is checked
+## 7. Command and migration
 
-1. **Spike the heartbeat.** One svg with `isInteractive` and a CSS animation, drawn in the band. Check three things:
-   - Does the beat restart on each redraw?
-   - Does `<style>` survive the scrub?
-   - Does `prefers-reduced-motion` reach the frame?
+- **Stored values.** A stored removed name stays in the store. `asLayoutName` already returns `undefined` for it, so the band draws chips. No code migrates it.
+- **Replies:**
 
-   The result decides §4.1's animation. It needs a desktop screenshot from you, because the demo renderer draws svg as a still image.
-2. **Remove** the six layouts and the lens options; prove chips' golden output unchanged.
-3. **Build departures,** then **pulse.** Each one runs `viewSuite`: every scenario, both surfaces, the light, plain and `ascii` tiers, widths 40 to 200, and open at `maxRows` 4, 8, 13 and 40. Two new invariants join them:
-   - the one order;
-   - that pulse and departures import nothing from `cards.tsx`.
-4. **Check by eye.** Render each layout with `tools/demos` for these cases, on the desktop and in the terminal, collapsed and open, and read every PNG before calling it done:
-   - low usage (cache fresh, 2% context, 5h 3%, 7d 10%);
-   - high usage (5h 70%, 7d 78%);
-   - near the limits (cache in its last minute, context near compaction, 5h fills before reset, 7d 85%);
-   - empty (no costs, no limits, no workspace).
+  | Input | Reply |
+  | --- | --- |
+  | `/usage-band layout` | `Usage band layout: chips. Choose one: chips (at a glance), pulse (trends), departures (times).` |
+  | `/usage-band layout`, with a removed name stored | `Usage band layout: chips (week was removed in 0.14.0). Choose one: …` |
+  | `/usage-band layout week` | `week was removed in 0.14.0. Choose one: …` Nothing changes. |
 
-   The current layouts passed their tests with the ticks and rings misplaced, so the screenshots are part of the gate.
-5. **Docs, CHANGELOG, 0.14.0,** then merge and release.
+## 8. Order of work and sign-off
+
+1. **Spike the heartbeat** in a scratch mod: an interactive Svg with a CSS animation under `@media (prefers-reduced-motion: reduce)`. Check:
+   - whether `<style>` survives;
+   - whether the frame keeps its animation across the band's redraws.
+
+   It needs one desktop screenshot or recording from you. The result decides §4.1.
+2. **Frame and cards.** Move `footer` into `frame.tsx`, and strip `cards.tsx` to chips'. Chips' golden hashes must pass.
+3. **Remove** the six views and their tests. **Fix** `barChart` and `dayCells` with their failing tests first. **Build** departures, then pulse, each under `viewSuite`. The matrix gains:
+   - the board's forms: `LAST CALL`, `! NEAR LIMIT`, `! FULL ~hh:mm`, `! COMPACTS IN ~nK`, and `CONTEXT` as context's name;
+   - desktop words read from a flap Svg's `<text>` runs, so its checks see them;
+   - two invariants: the one order, and no import from `cards.tsx` (outside chips).
+4. **Sweep** dead exports by usage (§6.2). Then the full suite, `tsc`, `claude plugin validate` and `tools/views-gate.sh`.
+5. **Sign off by screenshot.** Render with `tools/demos` and read every PNG. The cases are three layouts × two surfaces × collapsed and open:
+
+   | Case | State | Pass when |
+   | --- | --- | --- |
+   | Low | Fresh cache, context 2%, 5h 3%, 7d 10% | No amber, and every indicator matches its value |
+   | High | 5h 70%, 7d 78%: just under the amber line | Still no amber |
+   | Near the limits | Cache last call, context near compaction, 5h fills before reset, 7d 85% | Amber on exactly those four, each with words |
+   | Empty | No costs, no limits, no workspace | The empty phrases. No NaN and no empty cell. |
+   | Edges | Cold, working, a re-warm in the trace, a passed reset, compaction off, limits with no samples, `otherLimits` present | Each state drawn, per §4 and §5 |
+
+   - In every case, the order is Cache, Spend, Context, 5h, 7d, and no row wraps.
+   - Low and Near the limits are also shot in light and plain, so the dark board is seen on a light UI, at widths 40, 80 and 200.
+   - **Distinctness gate:** shown the three collapsed PNGs without labels, someone can name each one.
+6. **Docs and release:**
+   - the plugin README's layout table, image and alt text, minus its week and forecast paragraphs;
+   - the root README's count;
+   - CONTRIBUTING: its module table, and the "a new layout is made with `defineCardsView`" rule, which becomes "owns its view, and shares only `frame.tsx`";
+   - `tools/demos/site/template.html`, which generates `docs/index.html`;
+   - `tools/demos/stills.py` and `capture/desktop.test.ts`;
+   - the old spec's status line, which points here;
+   - CHANGELOG 0.14.0 → *Removed:* "Six layouts: gauges, ledger, rings, tiles, week and forecast. A saved one draws chips, and `/usage-band layout` says so. Week's day cells now live in pulse, and forecast's clock times in departures." *Changed:* "Pulse and departures are rebuilt, and each has its own open view."
+   - Then merge, tag and release.
