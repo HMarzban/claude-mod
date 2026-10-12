@@ -141,8 +141,8 @@ fill?).
 
 In every layout a reading turns amber when it needs you: the cache's last
 minute, context near auto-compaction, a limit at 80% or a 5-hour pace that
-would run out before the reset. Nothing is ever red. On the desktop, hover
-any chip for a one-line explanation, in the chips layout.
+would run out before the reset. Nothing is ever red. In chips on the
+desktop, hover any chip for a one-line explanation.
 
 Resume or fork a session (`claude --resume`, `/resume`, or a past session
 in the desktop app) and the band picks up its cache and spend where they
@@ -150,7 +150,7 @@ were ([how it reads them](plugins/session-usage-band/README.md#reopening-an-old-
 
 Press `▵` to open every fact, under a line that says where you are: the
 project, its git branch or worktree, uncommitted changes and ahead/behind.
-Every layout opens the same four labelled cards.
+Chips opens into four labelled cards. Pulse opens into a grid of chart bands, and departures into an ITEM, STATUS, TIME and REMARKS board.
 
 ![The band expanded on the desktop: chips for the cache, cost, context and the 5h and 7d limits, then the Cache, Spend, Context and Limits cards, the project path and branch, and the Collapse and Hide band buttons](docs/band-expanded.png)
 

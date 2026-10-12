@@ -147,13 +147,14 @@ Chips is one of three layouts. Each asks one question of the same
 readings. Chips, the default, opens with `▵` into four cards, Cache,
 Spend, Context and Limits; pulse and departures open into views of their
 own. All three draw one row collapsed, end it with the same `▵`, and open
-over the workspace line and the same `Collapse` and `Hide band` buttons.
+with the same `Collapse` and `Hide band` buttons.
 Every layout turns amber at the same moments, by the same rules, but for
 departures' last call, ten minutes before an hour's cache goes cold or a
 limit fills. Pulse and departures draw their readings in one order:
 cache, spend, context, 5h, 7d. On the desktop, chips explains
-each pill on hover with its own cards; the workspace line has them in
-every layout.
+each pill on hover with its own cards. Chips and pulse keep the workspace
+line, with its hover cards; departures shows the same facts as a header
+row of flaps.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-layouts-dark.png">
@@ -179,8 +180,11 @@ layout lasts until Claude's next reply. Below 40 columns every layout
 draws chips, and departures does below 60. A layout from an earlier
 version that was removed (`gauges`, `ledger`, `rings`, `tiles`, `week` and
 `forecast`, gone in 0.14.0) draws chips, and `/usage-band layout` says so.
-Its day cells now live in pulse and its clock times in departures. On the desktop with `CC_BAND_APPEARANCE=plain` there are no
-SVG charts, so a layout draws as text and takes its terminal rows.
+Week's day cells now live in pulse, and forecast's clock times in
+departures.
+
+On the desktop with `CC_BAND_APPEARANCE=plain` there are no SVG charts,
+so a layout draws as text and takes its terminal rows.
 
 Pulse draws its charts in braille in the terminal, always beside their
 numbers. Its day cells for the week come from the 5h and 7d readings the
