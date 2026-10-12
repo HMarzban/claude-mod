@@ -3,13 +3,11 @@
 // shared cards behind ▵, which never repeat what the sentence says.
 
 import { test, expect } from 'claude-code/testing'
-import type { Engine } from 'claude-code/testing'
-import type { On } from 'claude-code'
 import { drawBand } from '../hooks/band'
 import { fixedZone } from '../hooks/format'
 import { DARK, PLAIN } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { HOUR, MIN, MODERN, byKey, cardOf, fakeEl, firstRow, hostClock, shown, svgAlts, svgsOf, walk, type Node } from './helpers'
+import { HOUR, MIN, MODERN, boldOf, byKey, cardFirstRow, cardOf, fakeEl, firstRow, hostClock, shown, svgAlts, svgsOf, walk, type Node } from './helpers'
 import { NO_ACT, caseKey, drawCases, snapOf, viewSuite, visualRows, type Mount } from './matrix'
 
 viewSuite('ledger')
@@ -19,16 +17,6 @@ const drawn = (over: Partial<BandSnapshot> = {}): Node =>
   drawBand(fakeEl, snapOf({ layout: 'ledger', columns: 160, zone: fixedZone(0), ...over }), NO_ACT) as unknown as Node
 /** The collapsed row as it reads; the toggle is a Button, its label no text. */
 const rowText = (over: Partial<BandSnapshot> = {}): string => shown(firstRow(drawn(over)))
-/** The bold Texts of a node, as they read. */
-const boldOf = (n: unknown): string[] => {
-  const out: string[] = []
-  walk(n, k => {
-    if (k.type === 'Text' && k.props?.bold === true) out.push(shown(k))
-  })
-  return out
-}
-/** A card's first body row, past its head, as it reads. */
-const firstRowOf = (tree: Node, name: string): string => shown(((cardOf(tree, name)?.children ?? []) as Node[]).filter(Boolean)[1])
 /** Open at 120 columns and 13 rows: two cards to a line, three rows of body each. */
 const opened = (over: Partial<BandSnapshot> = {}): Node => drawn({ expanded: true, columns: 120, maxRows: 13, ...over })
 
@@ -151,22 +139,22 @@ test('open, no fill ends in a thumb', () => {
   for (const source of sources) expect(source).not.toMatch(/class="thumb"/)
 })
 test("open, LIMITS skips the closest limit's pace and reset the sentence says", () => {
-  expect(firstRowOf(opened(), 'limits')).toMatch(/^5h/)
+  expect(cardFirstRow(opened(), 'limits')).toMatch(/^5h/)
   // At 80 columns the sentence gives both up, so the card says them.
-  expect(firstRowOf(opened({ columns: 80 }), 'limits')).toBe('resetsSat 19:00 · on pace for ~50%')
+  expect(cardFirstRow(opened({ columns: 80 }), 'limits')).toBe('resetsSat 19:00 · on pace for ~50%')
   // A filling limit's warning says its pace, and its reset while the row
   // has room; out of room, its reset is the card's.
-  expect(firstRowOf(opened({ fiveHour: FIVE_FILLING }), 'limits')).toMatch(/^5h/)
+  expect(cardFirstRow(opened({ fiveHour: FIVE_FILLING }), 'limits')).toMatch(/^5h/)
   expect(shown(cardOf(opened({ fiveHour: FIVE_FILLING, columns: 40, maxRows: 40 }), 'limits'))).toContain('resets03:00')
 })
 test('open, the other cards each lead with what the sentence left out', () => {
   const calm = opened()
-  expect([firstRowOf(calm, 'cache'), firstRowOf(calm, 'spend'), firstRowOf(calm, 'context')]).toEqual(['re-warm if cold~$1.66', 'last message$0.21', 'room left~114k'])
+  expect([cardFirstRow(calm, 'cache'), cardFirstRow(calm, 'spend'), cardFirstRow(calm, 'context')]).toEqual(['re-warm if cold~$1.66', 'last message$0.21', 'room left~114k'])
   // A price the sentence says, cold or in the last minute, is not said twice.
-  expect(firstRowOf(opened({ cache: COLD }), 'cache')).toMatch(/^saved by cache/)
-  expect(firstRowOf(opened({ cache: LAST_MINUTE }), 'cache')).toMatch(/^saved by cache/)
+  expect(cardFirstRow(opened({ cache: COLD }), 'cache')).toMatch(/^saved by cache/)
+  expect(cardFirstRow(opened({ cache: LAST_MINUTE }), 'cache')).toMatch(/^saved by cache/)
   // Nor the room an amber context names.
-  expect(firstRowOf(opened({ context: NEAR_COMPACTION }), 'context')).toMatch(/^auto-compacts at/)
+  expect(cardFirstRow(opened({ context: NEAR_COMPACTION }), 'context')).toMatch(/^auto-compacts at/)
 })
 test("open at the board's own height, each card's two rows are the board's, none repeating its headline", () => {
   const tree = drawn({

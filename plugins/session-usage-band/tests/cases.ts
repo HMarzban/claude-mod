@@ -99,7 +99,7 @@ export type ScenarioName = keyof typeof SCENARIOS
 export const SCENARIO_NAMES = Object.keys(SCENARIOS) as ScenarioName[]
 
 export type Mount = Readonly<{ surface: Surface; cols: number; maxRows?: number }>
-export type State = 'shut' | 'open'
+type State = 'shut' | 'open'
 export type CaseOptions = Readonly<{
   scenario: ScenarioName
   appearance: Appearance
@@ -112,8 +112,6 @@ export type CaseOptions = Readonly<{
    *  MODERN, for a case that reads the host's clock. */
   now?: number
 }>
-/** A case's cache lifetime, for the view tests that pick one. */
-export type { Ttl }
 
 /** Where a drawn case was mounted, and whether it was open. */
 export const caseKey = (m: Mount, state: State): string => `${m.surface}|${m.cols}|${m.maxRows ?? DEFAULT_MAX_ROWS}|${state}`

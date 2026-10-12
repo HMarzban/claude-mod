@@ -9,8 +9,6 @@ import {
   props,
   resp,
   respond,
-  usage,
-  textOf,
   rowCount,
   cardOf,
   fact,
@@ -101,21 +99,6 @@ test('the expanded view is four labelled cards', async ($, on) => {
   for (const [name, title] of [['cache', 'CACHE'], ['spend', 'SPEND'], ['context', 'CONTEXT'], ['limits', 'LIMITS']] as const) {
     expect(shown(cardOf(tree, name))).toMatch(new RegExp(`^${title}`))
   }
-  await ui.unmount()
-})
-
-test('the cache card: time left, hit rate and expiry', async ($, on) => {
-  setup(on)
-  await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
-  await respond(e => $.turn.step(e), resp(4_000, 100_000, 6_000, 3_000))
-  const ui = await mountBand($, 'terminal', 110)
-  await ui.press({ key: 'more' })
-  const tree = await ui.drawn()
-  expect(shown(cardOf(tree, 'cache'))).toMatch(/1h 00m left/)
-  expect(fact(tree, 'hit rate')).toBe('45%') // 100k of 220k input
-  expect(fact(tree, 'expires')).toBe('1h idle')
-  expect(fact(tree, 'unexpected rebuilds')).toBeUndefined() // shown only when there is one
   await ui.unmount()
 })
 

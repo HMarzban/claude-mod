@@ -4,9 +4,9 @@
 
 import type { RenderChildren } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
-import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, byKey, firstRow, shown, svgsOf, walk, type Node } from './helpers'
+import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, firstRow, shown, walk, type Node } from './helpers'
 import type { Ttl } from '../hooks/cache'
-import { DESKTOP, ROW_PX, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
+import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
 import type { BandActions, BandSnapshot, Glyphs, LayoutName } from '../hooks/snapshot'
 import { VIEWS } from '../hooks/views/index'
@@ -17,7 +17,7 @@ import { SCENARIOS, SCENARIO_NAMES, caseKey, drawCases, type AmberReason, type A
 export * from './cases'
 
 /** Spec §7's all-amber: no scenario raises every reason at once, so the
- *  last minute stands for it, as the ledger rules. */
+ *  last minute stands for it. */
 const ALL_AMBER = 'lastMinute' satisfies ScenarioName
 
 /** A snapshot for pure tests: a calm session at 120 columns, 52 minutes of
@@ -26,7 +26,7 @@ export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({
   surface: 'terminal', columns: 120, maxRows: 13, isWorking: false, expanded: false, palette: DARK, now: 0,
   cache: {
     requests: 1, msLeft: 52 * MIN, ttl: '1h', ttlPinned: true, window: 155_000, hitRatio: 0.96, misses: 0, reWarmUsd: 1.66,
-    savedUsd: 11.4, readShare: 0.05, fresh: true, recalled: false, idleMs: null, coldAt: null, recovered: false, tokens: { sent: 18_000, back: 9_000, cached: 198_000 },
+    savedUsd: 11.4, readShare: 0.05, fresh: true, recalled: false, idleMs: null, recovered: false, tokens: { sent: 18_000, back: 9_000, cached: 198_000 },
   },
   costUsd: 3.19, lastTurnUsd: 0.21, history: { costs: [], context: [], fiveHour: [] },
   context: { tokens: 76_000, window: 200_000, percent: 38, compactAt: 190_000, autoCompactOff: false },
@@ -42,7 +42,7 @@ export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide
 /** Every layout's words for each amber trigger. ` · ` reads `, ` in the ascii
  *  tier, and ` - ` in departures'. An other limit, open only, is the shared
  *  cards' LIMITS headline, marked as chips marks it: `spend 92%!`. */
-export const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
+const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
   // Gauges' mark leads its gauge, its bar between the name and the figure;
   // tiles' figure comes first, its reason beside it: `30s! cache`, `98%! context`.
   cacheLastMinute: /! \d+s( left)?|! last call|! cooling( ·|,) \d+s left|! cache\W*\d+s|\d+s ?! cache/,
@@ -55,6 +55,8 @@ export const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
 /** Amber the collapsed part never shows: other limits are drawn only open (spec §2.7). */
 const OPEN_ONLY: ReadonlySet<AmberReason> = new Set(['otherLimit80'])
 
+/** A row's height on the desktop. */
+const ROW_PX = 24
 
 /** Height in lines (terminal) or px (desktop): a Text or Button is a row, an
  *  Svg its height (none on the terminal), a column sums with its gaps, a row
@@ -79,6 +81,9 @@ const heightOf = (n: unknown, px: boolean): number => {
  *  over ROW_PX, to the nearest row. */
 export const visualRows = (tree: unknown, surface: Surface): number =>
   surface === 'desktop' ? Math.round(heightOf(tree, true) / ROW_PX) : heightOf(tree, false)
+
+/** The most nodes a band may draw, shut and open (spec §9). */
+export const NODE_BUDGET = { shut: 400, open: 1500 } as const
 
 export type InvariantContext = Readonly<{
   layout: LayoutName
@@ -258,7 +263,7 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   const body = (tree.children ?? []).slice(1).map(shown).join('')
   if (ctx.expanded && /(?<!context\W*)not reported|(?<!limits\W*)none reported/i.test(body)) fail('emptyState', 'an empty state without its section\'s name')
 
-  if (nodes > (ctx.expanded ? 1500 : 400)) fail('size', `${nodes} nodes`)
+  if (nodes > NODE_BUDGET[ctx.expanded ? 'open' : 'shut']) fail('size', `${nodes} nodes`)
   if (ctx.expanded) {
     const tall = visualRows(tree, ctx.surface)
     const most = Math.max(ctx.maxRows, cardsFloor(tree, declared, ctx.surface) ?? 0)
@@ -267,13 +272,7 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   return errors
 }
 
-
-/** Fails the test with every broken check named. */
-export const expectInvariants = (tree: Node, ctx: InvariantContext): void => {
-  expect(invariantErrors(tree, ctx)).toEqual([])
-}
-
-export type SuiteCase = Readonly<{ name: string; options: CaseOptions; mounts: readonly Mount[] }>
+type SuiteCase = Readonly<{ name: string; options: CaseOptions; mounts: readonly Mount[] }>
 
 const SUITE_WIDTHS = [40, 41, 50, 60, 67, 68, 80, 95, 120, 160, 200] as const
 /** A mount on each surface, at the same width and height. */
@@ -283,8 +282,8 @@ const bothSurfaces = (cols: number, maxRows?: number): Mount[] => [{ surface: 't
  *  in the footer. At two, each section title keeps a fact under it. */
 const rowsForBody = (layout: LayoutName, surface: Surface, bodyRows: number): number => VIEWS[layout].rows[surface] + 3 + bodyRows
 /** The long walks take the 5-minute cache, a twelfth of the hour's ticks. Golden keeps the hour. */
-export const LONG_WALKS: ReadonlySet<ScenarioName> = new Set(['lastMinute', 'cold', 'coldLimit80'])
-const ttlOf = (scenario: ScenarioName): Ttl => (LONG_WALKS.has(scenario) ? '5m' : '1h')
+const LONG_WALKS: ReadonlySet<ScenarioName> = new Set(['lastMinute', 'cold', 'coldLimit80'])
+export const ttlOf = (scenario: ScenarioName): Ttl => (LONG_WALKS.has(scenario) ? '5m' : '1h')
 
 /** The suite's 38 cases, one setup each: every scenario at 120 columns; calm
  *  and the last minute in light, plain and the ascii tier, and at every

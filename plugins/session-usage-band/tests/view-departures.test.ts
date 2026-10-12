@@ -10,7 +10,7 @@ import { asciiTree } from '../hooks/glyphs'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { HOUR, LONG, MIN, byKey, cardOf, fact, fakeEl, firstRow, shown, walk, type Node } from './helpers'
+import { HOUR, LONG, MIN, byKey, cardFirstRow, cardHead, cardOf, fact, fakeEl, firstRow, shown, walk, type Node } from './helpers'
 import { NO_ACT, caseKey, drawCases, snapOf, viewSuite, visualRows, type Mount } from './matrix'
 
 viewSuite('departures')
@@ -31,7 +31,7 @@ const piecesOf = (row: Node): string[] =>
 /** The row's pills by key. */
 const keysOf = (row: Node): string[] => piecesOf(row).map(p => p.split(' ')[0] ?? '')
 /** Each pill's bold text, joined: its figure. */
-const boldOf = (row: Node): Record<string, string> => {
+const boldByPiece = (row: Node): Record<string, string> => {
   const out: Record<string, string> = {}
   for (const piece of (row.children ?? []) as Node[]) {
     const pill = (piece?.children ?? [])[0] as Node | undefined
@@ -69,14 +69,14 @@ test('compaction counts the messages left at the trail\'s pace, after the clocks
 })
 for (const surface of ['terminal', 'desktop'] as const)
   test(`on the ${surface}, each pill is bold on its figure alone`, () => {
-    expect(boldOf(rowOf({ surface, ...TRAIL, ...SEVEN_FILLS }))).toEqual({ cache: '52m', '5h': '3h 00m', '7d': '~1d', ctx: '~18', cost: '$3.19' })
+    expect(boldByPiece(rowOf({ surface, ...TRAIL, ...SEVEN_FILLS }))).toEqual({ cache: '52m', '5h': '3h 00m', '7d': '~1d', ctx: '~18', cost: '$3.19' })
   })
 test('under 10 minutes the cache is its last call: amber, first, with its price', () => {
   const soon = { fiveHour: { percentUsed: 4, resetsAt: new Date(4 * MIN).toISOString(), etaMs: null } }
   for (const surface of ['terminal', 'desktop'] as const) {
     const row = rowOf({ surface, ...soon, cache: { ...snapOf().cache, msLeft: 6 * MIN } })
     expect(piecesOf(row)[0]).toMatch(/^cache (◷ )?! last call · cache 6m · re-warm ~\$1\.66$/)
-    expect(boldOf(row).cache).toBe('6m')
+    expect(boldByPiece(row).cache).toBe('6m')
   }
   expect(byKey(rowOf({ surface: 'desktop', cache: { ...snapOf().cache, msLeft: 6 * MIN } }), 'cache', 'Box')?.props?.backgroundColor).toBe(DARK.amberBg)
   // At 10 minutes it still counts calm.
@@ -105,7 +105,7 @@ test('a full window says its percent and its reset, never a fill to come', () =>
     const over: Over = { fiveHour: { percentUsed: 100, resetsAt: new Date(2 * HOUR).toISOString(), etaMs } }
     expect(piecesOf(rowOf(over))[0]).toBe('5h ! 5h 100% │ ↻ 2h 00m')
     const tree = draw({ expanded: true, maxRows: 40, columns: 200, ...over })
-    expect(headOf(tree, 'limits')).toBe('LIMITS15h resets37d resets5h in 2h 00m')
+    expect(shown(cardHead(tree, 'limits'))).toBe('LIMITS15h resets37d resets5h in 2h 00m')
     expect(shown(cardOf(tree, 'limits'))).not.toMatch(/full (in|before)/)
   }
 })
@@ -127,7 +127,7 @@ test('context near compaction is amber and leads with its reason', () => {
 test('a cold cache has gone: it leads with its re-warm, its figure the price', () => {
   const row = rowOf({ cache: { ...snapOf().cache, msLeft: 0 } })
   expect(piecesOf(row)[0]).toBe('cache ◷ cache cold · re-warm ~$1.66')
-  expect(boldOf(row).cache).toBe('~$1.66')
+  expect(boldByPiece(row).cache).toBe('~$1.66')
 })
 test('no fill on the band ends in a thumb or a notch', () => {
   for (const tree of [draw({ surface: 'desktop' }), draw({ surface: 'desktop', expanded: true })])
@@ -217,7 +217,7 @@ test("the 7d's reset after its fill: on the desktop ` · ↻ 5d 22h` in label gr
     if (n.type === 'Text' && ['d', 'i-reset', 'r'].includes(String(n.props?.key))) after.push([shown(n), n.props?.color])
   })
   expect(after).toEqual([[' · ', DARK.label], ['↻ ', DARK.label], ['5d 22h', DARK.label]])
-  expect(boldOf(rowOf({ ...BOARD, columns: 160 }))['7d']).toBe('~1d')
+  expect(boldByPiece(rowOf({ ...BOARD, columns: 160 }))['7d']).toBe('~1d')
   expect(shown(seven({ surface: 'terminal' }))).toBe('7d full ~1d │ ↻ 5d 22h')
   expect(shown(asciiTree(seven({ surface: 'terminal', glyphs: 'ascii' })))).toBe('7d full ~1d | 5d 22h')
 })
@@ -255,14 +255,10 @@ test('at 40 columns an amber reading holds out, in its short words', () => {
 
 // ---- open: the shared cards ------------------------------------------------
 
-const headOf = (tree: Node, name: string): string => shown(byKey(cardOf(tree, name), 'head'))
-/** A card's first body row, past its head, as it reads. */
-const firstRowOf = (tree: Node, name: string): string => shown(((cardOf(tree, name)?.children ?? []) as Node[]).filter(Boolean)[1])
-
 test("open, the four cards in chips' order, each head led by its place in the queue", () => {
   const tree = draw({ expanded: true, columns: 200, ...TRAIL })
   expect(((byKey(tree, 'cards:0', 'Box')?.children ?? []) as Node[]).map(c => c.props?.key)).toEqual(['card:cache', 'card:spend', 'card:context', 'card:limits'])
-  expect(['cache', 'spend', 'context', 'limits'].map(name => headOf(tree, name))).toEqual([
+  expect(['cache', 'spend', 'context', 'limits'].map(name => shown(cardHead(tree, name)))).toEqual([
     'CACHE1goes cold52m left',
     'SPENDno clock$3.19',
     'CONTEXT4compacts~18 msgs',
@@ -273,14 +269,14 @@ test("open, each card's first row is one the row left out", () => {
   // Six rows leave each card one row of body, which a fact takes over its bar.
   const tree = draw({ expanded: true, maxRows: 6, ...TRAIL })
   const row = shown(firstRow(tree))
-  const firsts = ['cache', 'spend', 'context', 'limits'].map(name => firstRowOf(tree, name))
+  const firsts = ['cache', 'spend', 'context', 'limits'].map(name => cardFirstRow(tree, name))
   // Four across, room and compaction can't share a line whole, so each takes its own.
   expect(firsts).toEqual(['re-warm when cold~$1.66', 'last message$0.21', 'room left~114k', 'used so far5h 4% · 7d 30%'])
   for (const value of ['~$1.66', '$0.21', '~114k', '4% · 7d 30%']) expect(row).not.toContain(value)
   // Without a trail the row says the room, so the card leads with where it compacts.
-  expect(firstRowOf(draw({ expanded: true, maxRows: 6 }), 'context')).toBe('auto-compacts at190k')
+  expect(cardFirstRow(draw({ expanded: true, maxRows: 6 }), 'context')).toBe('auto-compacts at190k')
   // Cold, the row says the re-warm, so the card says what it saved.
-  expect(firstRowOf(draw({ expanded: true, maxRows: 6, cache: { ...snapOf().cache, msLeft: 0 } }), 'cache')).toBe('saved by cache~$11.40')
+  expect(cardFirstRow(draw({ expanded: true, maxRows: 6, cache: { ...snapOf().cache, msLeft: 0 } }), 'cache')).toBe('saved by cache~$11.40')
 })
 test("LIMITS' used-so-far row names each window in its accent, its figures in value ink", () => {
   const lead = ((cardOf(draw({ expanded: true, maxRows: 6 }), 'limits')?.children ?? []) as Node[]).filter(Boolean)[1]
@@ -291,7 +287,7 @@ test("LIMITS' used-so-far row names each window in its accent, its figures in va
   expect(inks).toEqual([['5h ', DARK.fiveText], ['4%', DARK.cardValue], [' · ', DARK.label], ['7d ', DARK.weekAccent], ['30%', DARK.cardValue]])
 })
 test("open, CACHE counts down as its pill does: '6m left' on its last call, m:ss only in its last minute", () => {
-  const head = (msLeft: number) => headOf(draw({ expanded: true, cache: { ...snapOf().cache, msLeft } }), 'cache')
+  const head = (msLeft: number) => shown(cardHead(draw({ expanded: true, cache: { ...snapOf().cache, msLeft } }), 'cache'))
   expect(head(6 * MIN)).toBe('CACHE1goes cold6m left')
   expect(head(30_000)).toBe('CACHE1goes cold0:30 left')
   expect(head(52 * MIN)).toBe('CACHE1goes cold52m left')
@@ -308,15 +304,15 @@ for (const surface of ['terminal', 'desktop'] as const)
   })
 test('open, LIMITS heads with the 5h counting down, as its pill does, never its clock', () => {
   const tree = draw({ expanded: true, maxRows: 40, columns: 200, zone: fixedZone(0) })
-  expect(headOf(tree, 'limits')).toBe('LIMITS25h resets37d resets5h in 3h 00m')
+  expect(shown(cardHead(tree, 'limits'))).toBe('LIMITS25h resets37d resets5h in 3h 00m')
   expect(shown(cardOf(tree, 'limits'))).not.toMatch(/resets 03:00/)
 })
 for (const surface of ['terminal', 'desktop'] as const)
   test(`open four across on the ${surface}, a head's places give way whole, the latest first, and its figure stays`, () => {
     const tree = draw({ ...BOARD, surface, expanded: true, maxRows: 40 })
     // No orphan numeral, no clipped word: `3 7d fills` goes with its 3.
-    expect(headOf(tree, 'limits')).toBe('LIMITS25h resets5h in 4h 55m')
-    expect(headOf(draw({ ...BOARD, surface, columns: 200, expanded: true, maxRows: 40 }), 'limits')).toBe('LIMITS25h resets37d fills5h in 4h 55m')
+    expect(shown(cardHead(tree, 'limits'))).toBe('LIMITS25h resets5h in 4h 55m')
+    expect(shown(cardHead(draw({ ...BOARD, surface, columns: 200, expanded: true, maxRows: 40 }), 'limits'))).toBe('LIMITS25h resets37d fills5h in 4h 55m')
     // In a terminal room and compaction can't share the line whole, so
     // compaction takes its own, `~128k` whole; the desktop's measure holds both.
     const room = [fact(tree, 'room left'), fact(tree, 'auto-compacts at'), fact(tree, 'room left · auto-compacts at 967k')]
@@ -324,10 +320,10 @@ for (const surface of ['terminal', 'desktop'] as const)
   })
 test('open, an amber limit the row never shows keeps the LIMITS headline', () => {
   const tree = draw({ expanded: true, columns: 200, otherLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }] })
-  expect(headOf(tree, 'limits')).toBe('LIMITS25h resets37d resetsspend 92%!')
+  expect(shown(cardHead(tree, 'limits'))).toBe('LIMITS25h resets37d resetsspend 92%!')
 })
 test('open, LIMITS heads with the soonest window, a fill by when it fills', () => {
-  expect(headOf(draw({ expanded: true, fiveHour: undefined, ...SEVEN_FILLS }), 'limits')).toBe('LIMITS27d fills7d full ~1d')
+  expect(shown(cardHead(draw({ expanded: true, fiveHour: undefined, ...SEVEN_FILLS }), 'limits'))).toBe('LIMITS27d fills7d full ~1d')
 })
 for (const surface of ['terminal', 'desktop'] as const)
   test(`open on the ${surface}, each fact the squeezed row leaves out is on its card, and only then`, () => {

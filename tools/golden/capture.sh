@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
-# Capture chips' golden trees from the band as its board draws it in 0.13:
-# 846e17d, chips' open view as the cards every layout shares (e35d16a), with
-# $1,027 and 2.1B, the cards' heads bold on their figure alone, LIMITS led by
-# the worst window's reset and pace, and no thumb on any fill. It came
-# before them, from 09a9e6c: the band before the layouts work, with the
-# 0.11.13 hover fix and the 0.12.1 fixes.
-# Refuses to run on any other hooks. Writes tests/golden/chips.ts.
+# Writes chips' golden trees to tests/golden/chips.ts; runs only on the hooks at its pin.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/../.." && pwd)"
 PLUGIN="$ROOT/plugins/session-usage-band"; OUT="$HERE/out"; mkdir -p "$OUT"

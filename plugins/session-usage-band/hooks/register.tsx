@@ -2,7 +2,7 @@
 // into the pure modules, and ui.render hands drawBand a snapshot of them.
 
 import { atom, read, update } from 'claude-code'
-import type { ClassicEventOf, EngineInterface, Register, Timer } from 'claude-code'
+import type { ClassicEventOf, EngineInterface, ProcessRunResult, Register, SessionRateLimit, Timer } from 'claude-code'
 import { drawBand } from './band'
 import {
   cache,
@@ -52,11 +52,13 @@ import { DARK, resolvePalette } from './palette'
 import type { Palette } from './palette'
 import {
   COST_RECORD,
+  FIVE_HOUR,
   LAYOUT_KEY,
   LIMIT_SAMPLES_KEY,
   RATES_KEY,
   READ_LIMIT,
   SESSIONS_KEY,
+  SEVEN_DAY,
   addSample,
   asLayoutName,
   asLimitSamples,
@@ -77,15 +79,14 @@ import {
 } from './memory'
 import type { Sample } from './memory'
 import { DEFAULT_LAYOUT, LAYOUT_NAMES } from './snapshot'
-import type { Glyphs, LayoutName } from './snapshot'
+import type { Glyphs, LayoutName, LimitReading } from './snapshot'
 import { GIT_DIRS_ARGV, GIT_STATUS_ARGV, homeRelative, parseGitState, splitPath } from './workspace'
 import type { Workspace } from './workspace'
 
 const isHidden = atom({ plugin: 'session-usage-band', key: 'isHidden' } as const, false)
 const isExpanded = atom({ plugin: 'session-usage-band', key: 'isExpanded' } as const, false)
 
-const FIVE_HOUR = 'five_hour'
-const SEVEN_DAY = 'seven_day'
+const CONTEXT_WARN = 'context'
 
 /** How much of a transcript's end to read: room for a long last reply. */
 const TAIL_BYTES = 1024 * 1024
@@ -93,6 +94,10 @@ const TAIL_BYTES = 1024 * 1024
 /** Long enough for a large repository's status or a transcript's tail,
  *  short enough that a hung command never holds a read open for long. */
 const PROCESS_TIMEOUT_MS = 3000
+
+/** Runs `argv`, in `cwd` when given; undefined where it can't run or times out. */
+const runProcess = ($: EngineInterface, argv: readonly string[], cwd?: string): Promise<ProcessRunResult | undefined> =>
+  $.process.run(argv, { cwd, timeoutMs: PROCESS_TIMEOUT_MS }).catch(() => undefined)
 
 /** What /usage-band answers. */
 const REPLY = {
@@ -189,17 +194,8 @@ const readWhole = async ($: EngineInterface, path: string): Promise<string | und
  *  megabyte by `tail`, whatever its size; failing that, the whole file if it
  *  is small enough to read. */
 const transcriptEnd = async ($: EngineInterface, path: string): Promise<string | undefined> => {
-  const tail = await $.process
-    .run(['tail', '-c', String(TAIL_BYTES), path], { timeoutMs: PROCESS_TIMEOUT_MS })
-    .catch(() => undefined)
+  const tail = await runProcess($, ['tail', '-c', String(TAIL_BYTES), path])
   return tail?.exitCode === 0 ? tail.stdout : readWhole($, path)
-}
-
-/** The end of `sessionId`'s transcript (at `given`, when the engine names
- *  it); undefined where there is none to read. */
-const endOf = async ($: EngineInterface, sessionId: string, given: string | undefined): Promise<string | undefined> => {
-  const file = await transcriptFile($, sessionId, given)
-  return file === undefined ? undefined : transcriptEnd($, file)
 }
 
 /** What `sessionId`'s conversation spent before this process resumed it at
@@ -208,10 +204,9 @@ const endOf = async ($: EngineInterface, sessionId: string, given: string | unde
  *  Where grep can't run, a transcript small enough to read is read whole.
  *  Undefined with no record, or no way to read one. */
 const spendBefore = async ($: EngineInterface, path: string, sessionId: string, before: number): Promise<Spend | undefined> => {
-  const run = (argv: readonly string[]) => $.process.run(argv, { timeoutMs: PROCESS_TIMEOUT_MS }).catch(() => undefined)
   // `-a`: a line cut mid-character would otherwise make the file binary to
   // grep, which then prints no lines and still exits 0.
-  const found = await run(['grep', '-a', '-b', '-F', COST_RECORD, path])
+  const found = await runProcess($, ['grep', '-a', '-b', '-F', COST_RECORD, path])
   // grep exits 1 when nothing matches, 2 when it fails.
   if (found?.exitCode === 1) return undefined
   if (found?.exitCode !== 0) {
@@ -220,7 +215,7 @@ const spendBefore = async ($: EngineInterface, path: string, sessionId: string, 
   }
   const record = found.isStdoutTruncated ? undefined : sessionCostRecord(found.stdout, sessionId)
   if (record === undefined) return undefined
-  const rest = await run(['tail', '-c', `+${record.offset + 1}`, path])
+  const rest = await runProcess($, ['tail', '-c', `+${record.offset + 1}`, path])
   // Replies past what one read holds are left out rather than half-read; the record still counts.
   const tail = rest?.exitCode === 0 && !rest.isStdoutTruncated ? rest.stdout : ''
   // The record is grep's own line and the replies follow its end, so a grep
@@ -353,11 +348,10 @@ const readWorkspace = async ($: EngineInterface): Promise<void> => {
   try {
     const root = await $.session.root()
     const home = await $.env.get('HOME')
-    const run = (argv: readonly string[]): Promise<string | undefined> =>
-      $.process.run(argv, { cwd: root, timeoutMs: PROCESS_TIMEOUT_MS }).then(
-        r => (r.exitCode === 0 ? r.stdout : undefined),
-        () => undefined,
-      )
+    const run = async (argv: readonly string[]): Promise<string | undefined> => {
+      const r = await runProcess($, argv, root)
+      return r?.exitCode === 0 ? r.stdout : undefined
+    }
     const [status, dirs, repo] = await Promise.all([
       run(GIT_STATUS_ARGV),
       run(GIT_DIRS_ARGV),
@@ -480,7 +474,7 @@ export const register: Register = on => {
     // unless the engine said when it was.
     if (id !== undefined && !cache.knownFresh && cache.resumedCache === undefined) {
       const path = band.resume?.path
-      noteRecalled(await recallLastReply($, id, () => endOf($, id, path)))
+      noteRecalled(await recallLastReply($, id, () => transcriptFile($, id, path).then(f => (f === undefined ? undefined : transcriptEnd($, f)))))
     }
 
     band.palette = resolvePalette((await $.env.get('CC_BAND_APPEARANCE'))?.toLowerCase(), await $.env.get('NO_COLOR'))
@@ -535,7 +529,7 @@ export const register: Register = on => {
     // The context warning is this conversation's; the 5-hour one is the
     // account's, and /clear changes nothing about it.
     resetConversationInsights()
-    band.warned.delete('context')
+    band.warned.delete(CONTEXT_WARN)
     band.lastPaintKey = ''
     // A resume may be another project.
     void readWorkspace($)
@@ -645,10 +639,10 @@ export const register: Register = on => {
     if (used !== undefined) {
       const at = band.compactAt
       if (at !== undefined) {
-        note('context', used / at, [COMPACT_NEAR], () => `Auto-compaction in ~${fmtTokens(Math.max(0, at - used))} tokens.`)
+        note(CONTEXT_WARN, used / at, [COMPACT_NEAR], () => `Auto-compaction in ~${fmtTokens(Math.max(0, at - used))} tokens.`)
       } else {
         const off = band.autoCompactOff
-        note('context', used / e.context.window, [WARN_AT, SEVERE_AT], pct =>
+        note(CONTEXT_WARN, used / e.context.window, [WARN_AT, SEVERE_AT], pct =>
           off
             ? `Context is ${pct}% full and auto-compaction is off, so the conversation will run out of room.`
             : `Context is ${pct}% full.`,
@@ -688,12 +682,14 @@ export const register: Register = on => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || (await read($, isHidden))) return next(e)
 
-    const usage = await $.session.usage()
+    const usage = await $.session.usage().catch(() => undefined)
+    if (usage === undefined) return next(e)
     const now = await $.clock.now()
     const five = usage.rateLimits.find(l => l.kind === FIVE_HOUR)
     const seven = usage.rateLimits.find(l => l.kind === SEVEN_DAY)
     if (usage.cost !== undefined) noteLedger(usage.cost.usd)
     const contextTokens = contextUsed(usage.context) ?? 0
+    const limitOf = (l: SessionRateLimit): LimitReading => ({ percentUsed: l.percentUsed, resetsAt: l.resetsAt })
 
     return drawBand(
       $.ui.resolve(e),
@@ -718,8 +714,8 @@ export const register: Register = on => {
           compactAt: band.compactAt,
           autoCompactOff: band.autoCompactOff,
         },
-        fiveHour: five ? { percentUsed: five.percentUsed, resetsAt: five.resetsAt, etaMs: fiveHourEtaMs(now) } : undefined,
-        sevenDay: seven ? { percentUsed: seven.percentUsed, resetsAt: seven.resetsAt } : undefined,
+        fiveHour: five ? { ...limitOf(five), etaMs: fiveHourEtaMs(now) } : undefined,
+        sevenDay: seven ? limitOf(seven) : undefined,
         samples: band.samples,
         workspace: band.workspace,
         // Read at each instant drawn, so a daylight-saving change shows by
@@ -727,7 +723,7 @@ export const register: Register = on => {
         zone: readableZone(hostZone, now),
         otherLimits: usage.rateLimits
           .filter(l => l.kind !== FIVE_HOUR && l.kind !== SEVEN_DAY)
-          .map(l => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: l.resetsAt })),
+          .map(l => ({ kind: l.kind, ...limitOf(l) })),
       },
       {
         toggleExpanded: async () => {

@@ -44,11 +44,8 @@ type CacheState = {
   ttlSeen: Ttl | undefined
   /** Main-loop requests this conversation. */
   requests: number
-  // Every token since the conversation began, subagents included.
-  read: number
-  written: number
-  uncached: number
-  output: number
+  /** Every token since the conversation began, subagents included. */
+  tokens: TokenCounts
   /** Requests that missed a cache that should have been warm. */
   misses: number
   /** When the last main-loop request was sent. */
@@ -97,10 +94,7 @@ const INITIAL: Readonly<CacheState> = {
   ttlPinned: false,
   ttlSeen: undefined,
   requests: 0,
-  read: 0,
-  written: 0,
-  uncached: 0,
-  output: 0,
+  tokens: NO_TOKENS,
   misses: 0,
   lastAt: 0,
   window: 0,
@@ -203,7 +197,7 @@ export const spentUsd = (ledgerNow: number | undefined): number => {
 
 /** Every token since the conversation began: a resumed one's earlier tokens
  *  with this process's. */
-const allTokens = (): TokenCounts => (state.prior === undefined ? state : addTokens(state, state.prior.tokens))
+const allTokens = (): TokenCounts => (state.prior === undefined ? state.tokens : addTokens(state.tokens, state.prior.tokens))
 
 /** The TTL the environment pins, if it pins one. */
 export const resolveTtl = (env: {
@@ -258,16 +252,13 @@ export const recordResponse = (
   // The session's bill includes every subagent, so their tokens count toward
   // the totals the rate is solved from. Their prefixes are their own, though:
   // they say nothing about the main conversation's cache or its countdown.
-  state.read += hit
-  state.written += written
-  state.uncached += fresh
-  state.output += usage.output_tokens
+  state.tokens = addTokens(state.tokens, { uncached: fresh, written, read: hit, output: usage.output_tokens })
   if (!isMain) return
 
   // Read as cold already: a resume the engine called expired, or a recalled
   // reply past its TTL.
   const coldBefore = isRecalled() && msLeft(sentAt) === 0
-  const missesBefore = state.misses
+  let missed = false
   const prefix = state.cached
   const gap = state.requests > 0 ? sentAt - state.lastAt : 0
   // Another model has its own cache: reading nothing after a switch is no miss.
@@ -281,6 +272,7 @@ export const recordResponse = (
         state.ttl = '5m'
       } else {
         state.misses += 1
+        missed = true
       }
     }
   }
@@ -288,7 +280,6 @@ export const recordResponse = (
   // A rebuild of a cache that existed: its time ran out, it missed, a
   // compaction rebuilt it, or the model changed. The first build is warming,
   // unless the cache it rebuilt was already read as cold.
-  const missed = state.misses > missesBefore
   if (coldBefore || (state.requests > 0 && (gap > TTL_MS[state.ttl] || missed || state.rebuilding || switched))) state.lastRebuilt = true
 
   state.requests += 1
@@ -333,7 +324,7 @@ const DEFAULT_READ_MULT = 0.1
 export const modelName = (model: string): string => model.replace(/\[[^\]]*\]$/, '')
 
 /** What a cache read costs against base input on `model`. */
-export const readMultiplier = (model: string | undefined): number =>
+const readMultiplier = (model: string | undefined): number =>
   (model === undefined ? undefined : READ_MULT_BY_MODEL[modelName(model)]) ?? DEFAULT_READ_MULT
 
 export const notePriceModel = (model: string | undefined): void => {
@@ -350,7 +341,7 @@ export const pricedModel = (): string | undefined =>
   state.billedModel ?? (state.priceModel === undefined ? undefined : modelName(state.priceModel))
 
 /** A cache read's price against input, on the model in force. */
-export const readShare = (): number => readMultiplier(pricedModel())
+const readShare = (): number => readMultiplier(pricedModel())
 
 /** Tokens weighted by their price against base input on `model`: the one
  *  unknown left is the base rate itself. */
@@ -360,45 +351,22 @@ export const weightedTokens = (t: TokenCounts, model: string | undefined): numbe
 /** The base rate per token, in dollars.
  *
  *  No pricing table is available to a mod, so the rate is solved from the
- *  session's own bill, which leaves one unknown:
+ *  session's own bill since its baseline, which leaves one unknown:
  *
- *    cost = r * (uncached + 1.25*written + read multiplier*read + 5*output)
+ *    cost - costBase = r * weightedTokens(tokens)
  *
  *  It self-calibrates to whatever model and plan are in force, and it is an
  *  estimate on top of an estimate (the session cost is itself computed at list
  *  price), so what it prices is always shown with a "~". Call noteLedger first. */
 export const ratePerToken = (sessionCost: number | undefined): number | null => {
-  if (!sessionCost || sessionCost <= 0) return null
-  const weighted = weightedTokens(state, pricedModel())
-  if (weighted <= 0) return null
+  if (sessionCost === undefined) return null
+  const weighted = weightedTokens(state.tokens, pricedModel())
   const billed = sessionCost - state.costBase
-  if (billed <= 0) return null
-  const rate = billed / weighted
-  return Number.isFinite(rate) && rate > 0 ? rate : null
+  return weighted > 0 && billed > 0 ? billed / weighted : null
 }
 
 /** What writing `tokens` to the cache costs at a base `rate` per token. */
-export const reWarmAt = (rate: number, tokens: number): number => rate * WRITE_MULT * tokens
-
-/** What a cold cache would cost to rebuild: a cache write of the whole window. */
-export const reWarmUsd = (sessionCost: number | undefined): number | null => {
-  const rate = ratePerToken(sessionCost)
-  return rate === null ? null : reWarmAt(rate, state.window)
-}
-
-/** What reading from the cache saved against paying full input price for
- *  the same tokens: the rest of the base rate on every cache read. */
-export const savedUsd = (sessionCost: number | undefined): number | null => {
-  const rate = ratePerToken(sessionCost)
-  const { read } = allTokens()
-  return rate === null || read <= 0 ? null : rate * (1 - readShare()) * read
-}
-
-export const hitRatio = (): number | null => {
-  const { read, written, uncached } = allTokens()
-  const total = read + written + uncached
-  return total > 0 ? read / total : null
-}
+const reWarmAt = (rate: number, tokens: number): number => rate * WRITE_MULT * tokens
 
 /** When a measured cache goes or went cold: a lifetime after the last reply
  *  this band saw; none before one. */
@@ -408,11 +376,13 @@ const measuredColdAt = (): number | null => (state.requests > 0 ? state.lastAt +
  *  it recalls, none if the engine called it expired; a full lifetime before
  *  either. */
 export const msLeft = (now: number): number => {
-  if (isRecalled() && state.resumedCache?.expired === true) return 0
+  const measured = measuredColdAt()
+  if (measured !== null) return Math.max(0, measured - now)
   const ttlMs = TTL_MS[effectiveTtl()]
   const recalled = isRecalled() ? recalledAt() : undefined
-  const coldAt = measuredColdAt() ?? (recalled === undefined ? null : recalled + ttlMs)
-  return coldAt === null ? ttlMs : Math.max(0, coldAt - now)
+  if (recalled === undefined) return ttlMs
+  if (state.resumedCache?.expired === true) return 0
+  return Math.max(0, recalled + ttlMs - now)
 }
 
 /** The cache as the band shows it, at `now`: measured once a reply has been
@@ -421,10 +391,13 @@ export const msLeft = (now: number): number => {
 export const cacheView = (now: number, sessionCost: number | undefined, contextTokens: number): CacheView => {
   const recalled = isRecalled()
   const lastAt = recalledAt()
-  const rate = state.recall?.rate ?? null
+  const recallRate = state.recall?.rate ?? null
   // A resume's price is the engine's own; else it is solved from the rate recalled.
-  const recalledPrice = state.resumedCache?.reWarmUsd ?? (rate === null ? null : reWarmAt(rate, contextTokens))
+  const recalledPrice = state.resumedCache?.reWarmUsd ?? (recallRate === null ? null : reWarmAt(recallRate, contextTokens))
+  const rate = ratePerToken(sessionCost)
   const tokens = allTokens()
+  const input = tokens.read + tokens.written + tokens.uncached
+  const share = readShare()
   return {
     requests: state.requests,
     msLeft: msLeft(now),
@@ -432,14 +405,15 @@ export const cacheView = (now: number, sessionCost: number | undefined, contextT
     // Known, not assumed: pinned, or seen on the transcript's last cache write.
     ttlPinned: state.ttlPinned || state.ttlSeen !== undefined,
     window: recalled ? contextTokens : state.window,
-    hitRatio: hitRatio(),
+    hitRatio: input > 0 ? tokens.read / input : null,
     misses: state.misses,
-    reWarmUsd: recalled ? recalledPrice : reWarmUsd(sessionCost),
+    // A measured cold cache rebuilds with a cache write of the whole window.
+    reWarmUsd: recalled ? recalledPrice : rate === null ? null : reWarmAt(rate, state.window),
     recalled,
     idleMs: recalled && lastAt !== undefined ? now - lastAt : null,
-    coldAt: measuredColdAt(),
-    savedUsd: savedUsd(sessionCost),
-    readShare: readShare(),
+    // Every cache read saved the rest of the base rate against full input price.
+    savedUsd: rate === null || tokens.read <= 0 ? null : rate * (1 - share) * tokens.read,
+    readShare: share,
     fresh: state.knownFresh,
     recovered: state.prior !== undefined,
     tokens: { sent: tokens.uncached + tokens.written, back: tokens.output, cached: tokens.read },

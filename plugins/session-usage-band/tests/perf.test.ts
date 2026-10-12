@@ -3,10 +3,9 @@
 import type { On } from 'claude-code'
 import { test, expect, type Engine } from 'claude-code/testing'
 import { LAYOUT_NAMES, type LayoutName } from '../hooks/snapshot'
-import { LONG, engine, mountBand, walk } from './helpers'
-import { caseKey, drawCases, type Mount } from './matrix'
+import { LONG, engine, mountBand, nodeCount } from './helpers'
+import { NODE_BUDGET, caseKey, drawCases, ttlOf, type Mount } from './matrix'
 
-const nodes = (tree: unknown): number => { let n = 0; walk(tree, () => { n++ }); return n }
 /** What timing needs of a mounted band, on either surface. */
 type Drawn = Readonly<{ redraw: () => Promise<void>; drawn: () => Promise<unknown> }>
 const medianOf = async (ui: Drawn): Promise<number> => {
@@ -15,19 +14,18 @@ const medianOf = async (ui: Drawn): Promise<number> => {
   for (let i = 0; i < 200; i++) { const a = performance.now(); await ui.redraw(); await ui.drawn(); t.push(performance.now() - a) }
   return t.sort((x, y) => x - y)[100] ?? 0
 }
-const SCENARIOS = ['calm', 'lastMinute'] as const
-type Scenario = (typeof SCENARIOS)[number]
+const TIMED = ['calm', 'lastMinute'] as const
+type TimedScenario = (typeof TIMED)[number]
 /** `layout` drawn in `scenario` on both surfaces, shut and open, held to its
  *  node budgets and to no store write while drawing: each case's median, by
  *  `scenario|surface|cols|state`. */
-const timed = async ($: Engine, on: On, layout: LayoutName, scenario: Scenario): Promise<Record<string, number>> => {
+const timed = async ($: Engine, on: On, layout: LayoutName, scenario: TimedScenario): Promise<Record<string, number>> => {
   const cols = scenario === 'calm' ? 200 : 60
   const mounts: Mount[] = [{ surface: 'terminal', cols }, { surface: 'desktop', cols }]
-  const trees = await drawCases($, on, { layout, scenario, appearance: 'dark', ttl: scenario === 'lastMinute' ? '5m' : '1h' }, mounts)
+  const trees = await drawCases($, on, { layout, scenario, appearance: 'dark', ttl: ttlOf(scenario) }, mounts)
   const medians: Record<string, number> = {}
   for (const m of mounts) {
-    expect(nodes(trees[caseKey(m, 'shut')])).toBeLessThanOrEqual(400)
-    expect(nodes(trees[caseKey(m, 'open')])).toBeLessThanOrEqual(1500)
+    for (const state of ['shut', 'open'] as const) expect(nodeCount(trees[caseKey(m, state)])).toBeLessThanOrEqual(NODE_BUDGET[state])
     const ui = await mountBand($, m.surface, m.cols)
     for (const state of ['shut', 'open'] as const) {
       if (state === 'open') await ui.press({ key: 'more' })
@@ -47,7 +45,7 @@ const MEDIANS: Partial<Record<LayoutName, Record<string, number>>> = {}
 // untimed, before any is timed.
 for (const layout of LAYOUT_NAMES) test(`perf: warm-up, ${layout}`, LONG, async ($, on) => { await timed($, on, layout, 'calm') })
 
-for (const scenario of SCENARIOS) for (const layout of LAYOUT_NAMES) {
+for (const scenario of TIMED) for (const layout of LAYOUT_NAMES) {
   test(`perf: ${layout}, ${scenario}`, LONG, async ($, on) => {
     const medians = await timed($, on, layout, scenario)
     for (const [key, ms] of Object.entries(medians)) console.log(`PERF ${layout} ${key} median=${ms.toFixed(3)}ms`)

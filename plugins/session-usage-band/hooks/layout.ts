@@ -53,14 +53,12 @@ export const stripKeeps = keepsIn<(typeof STRIP_GIVES_WAY)[number]>(STRIP_GIVES_
 /** Below this, the cache and context wording turns short whatever the squeeze. */
 export const SHORT_BELOW = 68
 export const METER_CELLS = 6
-export const METER_PX = 44
-/** A row's height on the desktop, for counting how many rows a layout takes. */
-export const ROW_PX = 24
+const METER_PX = 44
 /** The longest line a card holds unwrapped, in characters: LIMITS' lead
  *  row, `resets  Mon 08:40 · full before reset`, its label two columns apart. */
 export const CARD_TEXT = 37
 /** Columns a framed Button's padding and edges take beyond its label. */
-export const BUTTON_CHROME = 3
+const BUTTON_CHROME = 3
 /** Columns a Button's hotkey mark takes beside its label. */
 export const HOTKEY_MARK = 2
 /** Room the band keeps free, so a row measured a little short never wraps. */
@@ -73,7 +71,7 @@ export const CHIP_BAR: BarSize = { px: METER_PX, cells: METER_CELLS }
 /** How a surface lays text out against its bodyColumns: the terminal one cell
  *  a character; the desktop's proportional font runs about three quarters of
  *  a column, at roughly 10px a column. */
-export type Measure = Readonly<{ text: number; pxPerCell: number }>
+type Measure = Readonly<{ text: number; pxPerCell: number }>
 export const TERMINAL: Measure = { text: 1, pxPerCell: 8 }
 export const DESKTOP: Measure = { text: 0.75, pxPerCell: 10 }
 /** Columns a desktop hover card's text takes a character: about 0.8, as
