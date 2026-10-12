@@ -16,10 +16,9 @@ import type { BandActions } from '../snapshot'
 import { EMPTY } from '../words'
 import type { Amber } from '../words'
 import type { Fact } from './cards'
-import { cardsView } from './cards'
-import { cachePill, contextPill, costPill, limitPill, pillRow, type ChipKey } from './chips'
-import { AMBER_STEP, beforeLast, fitLine, layoutCacheSpec, once, type Keeps, type PillSpec } from './parts'
-import { rowsOf, type Lens, type View } from './view'
+import { LIMITS, cachePill, contextHover, contextPill, costPill, limitPill, pillRow, type ChipKey } from './chips'
+import { AMBER_STEP, PERCENT, beforeLast, fitLine, layoutCacheSpec, once, type Keeps, type PillSpec } from './parts'
+import { defineCardsView, type CardOptions } from './view'
 
 /** What gives way as the row narrows, first to last: the charts, then
  *  chips' own steps from the 7d bar on, the last cost outlasting the
@@ -45,8 +44,6 @@ const LENS_CELLS = 12
 /** A measured day's cell on the desktop before it spans its slot, and the air between. */
 const DAY_PX = 12
 const DAY_GAP_PX = 4
-/** The top of a limit's scale: its percentages run to 100. */
-const PERCENT = 100
 /** The cost charts' top: three times the warm average, so a warm message
  *  stands a third of the way up and a re-warm stands clipped at the top. */
 const COST_SCALE = 3
@@ -101,7 +98,7 @@ const fiveHourTrail = (kit: Kit, f: LimitView, hist: HistoryReading, size: BarSi
 /** An amber reading as its chip: its reason whole, led by `! ` and long
  *  until the amber step, then its chart; on the desktop its icon, in amber,
  *  ahead of it. */
-const amberSpec = (kit: Kit, chip: PillSpec, icon: Icon, amber: Amber, keeps: Keeps<Step>, chart: RenderChildren = null): PillSpec => {
+const amberSpec = (kit: Kit, chip: Pick<PillSpec, 'key' | 'bg' | 'hover'>, icon: Icon, amber: Amber, keeps: Keeps<Step>, chart: RenderChildren = null): PillSpec => {
   const { Svg, Text, palette, gap } = kit
   return {
     ...chip,
@@ -117,10 +114,8 @@ const amberSpec = (kit: Kit, chip: PillSpec, icon: Icon, amber: Amber, keeps: Ke
 }
 
 /** The cache: chips' pill; amber, its reason, long until its words go short. */
-const cacheSpec = (kit: Kit, read: Readings, keeps: Keeps<Step>, short: boolean): PillSpec => {
-  const chip = cachePill(kit, read, short)
-  return read.cache.amber === undefined ? chip : { ...layoutCacheSpec(kit, read, !beforeLast(keeps)), hover: chip.hover }
-}
+const cacheSpec = (kit: Kit, read: Readings, keeps: Keeps<Step>, short: boolean): PillSpec =>
+  read.cache.amber === undefined ? cachePill(kit, read, short) : layoutCacheSpec(kit, read, read.cache.amber, !beforeLast(keeps))
 
 /** The total, the newest costs' bars beside it and the last one's after, as
  *  the row keeps them; with no cost yet, the band's words for that. */
@@ -144,14 +139,14 @@ const costSpec = (kit: Kit, read: Readings, keeps: Keeps<Step>, bars: RenderChil
 const contextSpec = (kit: Kit, read: Readings, keeps: Keeps<Step>, short: boolean): PillSpec | undefined => {
   const x = read.context
   if (!x.known) return undefined
-  if (x.amber !== undefined) return amberSpec(kit, contextPill(kit, read, 0), 'context', x.amber, keeps)
+  if (x.amber !== undefined) return amberSpec(kit, { key: 'ctx', hover: contextHover(read) }, 'context', x.amber, keeps)
   return keeps.has('calmContext') ? contextPill(kit, read, past(short ? 'shortWording' : 'contextMeter')) : undefined
 }
 
-/** Each limit's icon, the step its calm pill gives way at, and its mark's. */
-const LIMIT_STEPS: Readonly<Record<ChipKey, Readonly<{ icon: Icon; calm: Step; mark: Step }>>> = {
-  '5h': { icon: 'five', calm: 'calmFive', mark: 'trailChart' },
-  '7d': { icon: 'week', calm: 'calmWeek', mark: 'weekBar' },
+/** The step each limit's calm pill gives way at, and its mark's. */
+const LIMIT_STEPS: Readonly<Record<ChipKey, Readonly<{ calm: Step; mark: Step }>>> = {
+  '5h': { calm: 'calmFive', mark: 'trailChart' },
+  '7d': { calm: 'calmWeek', mark: 'weekBar' },
 }
 
 /** A limit: chips' chip with `mark` in its bar's place, the bar itself when
@@ -161,7 +156,7 @@ const limitSpec = (kit: Kit, read: Readings, keeps: Keeps<Step>, short: boolean,
   const steps = LIMIT_STEPS[key]
   const chip = limitPill(kit, read, key, past(keeps.has(steps.mark) ? 'fiveReset' : 'limitBars'), short, mark ?? undefined)
   if (chip === undefined || w?.amber === undefined) return keeps.has(steps.calm) ? chip : undefined
-  return amberSpec(kit, chip, steps.icon, w.amber, keeps, keeps.has('amberChart') ? mark : null)
+  return amberSpec(kit, chip, LIMITS[key].icon, w.amber, keeps, keeps.has('amberChart') ? mark : null)
 }
 
 /** Pulse's one row, fitted to its width: amber first, then the cache, the
@@ -201,7 +196,7 @@ const fitted = (kit: Kit, read: Readings, act: BandActions): Readonly<{ row: Ren
  *  spanning theirs, each in its card's head, and the 5h window's last hour
  *  in its row on LIMITS; the cache runs in minutes, so its head stays bare.
  *  The ascii tier has no braille, so no lens. */
-const lens: Lens = (kit, read) => {
+const lens = (kit: Kit, read: Readings): CardOptions => {
   const { palette: p } = kit
   const { context: x, history: hist, week, fiveHour: five } = read
   if (read.frame.glyphs !== 'unicode') return {}
@@ -244,13 +239,8 @@ const lens: Lens = (kit, read) => {
   }
 }
 
-/** Fitted once, so the cards skip what that very row says. Shut, there are
- *  no cards, so the lens isn't drawn. */
-export const pulseView: View = {
-  name: 'pulse',
-  rows: { desktop: 1, terminal: 1 },
-  draw: (kit, read, act) => {
-    const { row, shown } = fitted(kit, read, act)
-    return cardsView(kit, read, act, [row], { ...(read.frame.expanded ? lens(kit, read, act) : {}), shown, collapsedRows: rowsOf(pulseView, kit) })
-  },
-}
+/** Fitted once, so the cards skip what that very row says. */
+export const pulseView = defineCardsView({ desktop: 1, terminal: 1 }, (kit, read, act) => {
+  const { row, shown } = fitted(kit, read, act)
+  return { lines: [row], open: () => ({ ...lens(kit, read), shown }) }
+})

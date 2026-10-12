@@ -1,7 +1,7 @@
 // The pieces several views draw: the pill a chip sits in; the cache's
 // battery, an icon on the desktop and the pill itself in a terminal; the
-// cache pill pulse and week share; and the lines every layout squeezes to
-// fit, with the words they're written in.
+// amber cache pill pulse and week share; and the lines every layout
+// squeezes to fit, with the words they're written in.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { meter } from '../charts'
@@ -120,15 +120,17 @@ export const batteryBar = (kit: Kit, charge: number, tone: Tone, alt: string, si
 }
 
 /** Text in runs, each bold or not: a figure among its words. */
-export type BoldRuns = ReadonlyArray<readonly [text: string, bold: boolean]>
+type BoldRuns = ReadonlyArray<readonly [text: string, bold: boolean]>
 
 /** On a text surface the battery is the pill itself: its charge painted as
- *  the background of the leading characters, draining right to left. `text`
- *  arrives in the glyphs it is drawn in, so the cut falls where it shows; in
- *  runs, a bold one stays bold either side of the cut. */
+ *  the background of the leading characters, draining right to left. In the
+ *  ascii tier `text` is mapped before the cut, so a dropped glyph neither
+ *  leaves a gap at the cut nor takes its cells from the charge; in runs, a
+ *  bold one stays bold either side of the cut. */
 export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string | BoldRuns): RenderChildren[] => {
-  const { Text, palette, onTone } = kit
-  const runs: BoldRuns = typeof text === 'string' ? [[text, false]] : text
+  const { Text, palette, onTone, glyphs } = kit
+  const given: BoldRuns = typeof text === 'string' ? [[text, false]] : text
+  const runs: BoldRuns = glyphs === 'ascii' ? given.map(([run, bold]) => [asciiText(run), bold]) : given
   const pad = { ch: ' ', bold: false }
   const chars = [pad, ...runs.flatMap(([run, bold]) => [...run].map(ch => ({ ch, bold }))), pad]
   const cut = Math.round(clamp01(charge) * chars.length)
@@ -154,20 +156,19 @@ export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string |
   ]
 }
 
-/** The cache as a pill for pulse and week: chips' battery and ground, the
- *  readings' words, and no hover card; amber, its reason. */
-export const layoutCacheSpec = (kit: Kit, read: Readings, short: boolean): PillSpec => {
+/** An amber cache as a pill for pulse and week: chips' battery, ground and
+ *  hover card, and its reason, long or short. */
+export const layoutCacheSpec = (kit: Kit, read: Readings, amber: Amber, short: boolean): PillSpec => {
   const { Text, Svg, palette, onTone } = kit
   const c = read.cache
-  const text = c.amber !== undefined ? (short ? c.amber.short : c.amber.long) : short ? c.textShort : c.text
+  const text = short ? amber.short : amber.long
   const fg = onTone(c.tone, palette.value)
-  // The ascii text is mapped before the battery's cut, as chips maps its own on a terminal.
   const body = Svg
     ? [batteryIcon(kit, c.charge, c.tone, c.alt), <Text key="c" color={fg}>{` ${text}`}</Text>]
     : palette.filled
-      ? textBattery(kit, c.charge, c.tone, read.frame.glyphs === 'ascii' ? asciiText(text) : text)
+      ? textBattery(kit, c.charge, c.tone, text)
       : [<Text key="c" color={fg}>{text}</Text>]
-  return { key: 'cache', tone: c.tone, body, paintsOwnBg: !Svg && palette.filled }
+  return { key: 'cache', tone: c.tone, body, hover: read.chips.reading.copy.hover, paintsOwnBg: !Svg && palette.filled }
 }
 
 // ---- what every layout squeezes its lines with ----------------------------
@@ -284,6 +285,9 @@ export const resetClause = (kit: Kit, ink: string, when: string, separator = ' â
     </Text>,
   ]
 }
+
+/** The top of a limit's scale: its percentages run to 100. */
+export const PERCENT = 100
 
 /** A limit's accent: its window's, or the meter's for any other. */
 export const accentOf = (kit: Kit, limit: Readonly<{ key: LimitKey }>): string =>

@@ -15,12 +15,11 @@ import { EMPTY } from '../hooks/words'
 import { byKey, fakeEl, shown, walk } from './helpers'
 import { NO_ACT, snapOf } from './matrix'
 
-const marker: View = { name: 'ledger', rows: { desktop: 1, terminal: 1 }, draw: () => ({ type: 'Text', props: {}, children: ['LEDGER'] }) as unknown as RenderElement }
+const marker: View = { rows: { desktop: 1, terminal: 1 }, draw: () => ({ type: 'Text', props: {}, children: ['LEDGER'] }) as unknown as RenderElement }
 const boom: View = { ...marker, draw: () => { throw new Error('boom') } }
 
-test('every layout name has a view of that name', () => {
+test('every layout name has a view', () => {
   expect(Object.keys(VIEWS).sort()).toEqual([...LAYOUT_NAMES].sort())
-  for (const name of LAYOUT_NAMES) expect(VIEWS[name].name).toBe(name)
 })
 test('the rows a view declares follow where Svg draws', () => {
   const rows = { rows: { desktop: 2, terminal: 1 } }

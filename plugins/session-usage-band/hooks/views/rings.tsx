@@ -5,19 +5,18 @@
 // terminal draws each ring as a glyph. Open, the shared cards, each card's
 // own ring in its head.
 
-import type { RenderChildren, RenderElement } from 'claude-code'
+import type { RenderChildren } from 'claude-code'
 import { ring } from '../charts'
 import type { Kit } from '../kit'
 import { GIVES_WAY, ROW_SLACK, keeps, fitSqueeze } from '../layout'
 import type { CacheReading, ContextReading, LimitView, Readings, Tone } from '../reading'
-import type { BandActions } from '../snapshot'
 import { PILL_LABELS } from '../words'
 import type { ReadingAmber, PillLabel, Say } from '../words'
 import type { Fact, Slots } from './cards'
-import { chipsPills, pillRow, shortAt } from './chips'
+import { LIMITS, chipsPills, pillRow, shortAt, type ChipKey } from './chips'
 import { ROLE_INK, accentOf, resetClause } from './parts'
 import type { PillSpec } from './parts'
-import { defineCardsView, type Lens } from './view'
+import { defineCardsView } from './view'
 
 /** Every ring, in a pill and in a card's head, at most a lens slot's 16 px. */
 const RING_PX = 16
@@ -103,13 +102,14 @@ const ringsPills = (kit: Kit, read: Readings, squeeze: number): PillSpec[] => {
       case 'tokens':
         return [figure(read.spend.tokensText, palette.value), label(PILL_LABELS.tokens)]
     }
-    const l = spec.key === '5h' ? read.fiveHour : read.sevenDay
+    const key: ChipKey = spec.key === '5h' ? '5h' : '7d'
+    const l = key === '5h' ? read.fiveHour : read.sevenDay
     if (l === undefined) return spec.body
     // As the board draws it: the figure in value ink, then the window's name
     // in its accent, `0% 5h`; a passed window's words in its tint's ink.
     const name = l.key === '5h' ? palette.fiveText : palette.weekText
     const mark = l.amber === undefined && keeps(squeeze, 'limitBars') ? limitRing(kit, l, place) : null
-    if (l.passed) return [mark, <Text key="l" color={l.key === '5h' ? palette.fiveFg : palette.weekFg}>{l.text}</Text>]
+    if (l.passed) return [mark, <Text key="l" color={LIMITS[key].tint(palette).fg}>{l.text}</Text>]
     const { pace, reset } = limitTail(l, squeeze)
     // The pace and the reset are qualifiers, in label ink.
     const ink = onTone(l.tone, palette.label)
@@ -123,23 +123,6 @@ const ringsPills = (kit: Kit, read: Readings, squeeze: number): PillSpec[] => {
   // Chips' terminal cache is a battery painting its own ground; rings' is a pill, its ring the battery.
   return chipsPills(kit, read, squeeze).map(spec => ({ ...spec, body: bodyOf(spec), paintsOwnBg: false }))
 }
-
-type Fitted = Readonly<{ row: RenderElement; squeeze: number; pills: readonly PillSpec[] }>
-
-/** Rings' row squeezed until it fits, as chips' is, with the squeeze and the pills it fits at. */
-const fit = (kit: Kit, read: Readings, act: BandActions): Fitted => {
-  // The last pills built are those of the row that fits.
-  let pills: readonly PillSpec[] = []
-  const { line, squeeze } = fitSqueeze(s => pillRow(kit, read, act, (pills = ringsPills(kit, read, s))), GIVES_WAY.length, kit.columns - ROW_SLACK, kit.measure)
-  return { row: line, squeeze, pills }
-}
-
-/** Each draw's row as fitted, so the lens reads its squeeze rather than fit
- *  the row again: a draw's readings are its own. */
-const FITTED = new WeakMap<Readings, Fitted>()
-
-/** Actions set what a press does, never a width: a lens drawn without its row fits it without them. */
-const MEASURING: BandActions = { toggleExpanded: async () => undefined, hide: async () => undefined }
 
 /** What the row says at a squeeze that a card would: the worst window's reset
  *  and pace, an amber cache's price, an amber context's room. */
@@ -175,19 +158,11 @@ const slotsOf = (kit: Kit, read: Readings): Slots => {
   }
 }
 
-/** Open, each card's ring and what the row already says; shut, no card is
- *  drawn, so the row isn't fitted twice. */
-const lens: Lens = (kit, read) => {
-  if (!read.frame.expanded) return {}
-  const { squeeze, pills } = FITTED.get(read) ?? fit(kit, read, MEASURING)
-  return { slots: slotsOf(kit, read), shown: shownAt(kit, read, squeeze, pills) }
-}
-
-/** The row, fitted once a draw: the lens, drawn after it, reads its fit. */
-const rows = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
-  const fitted = fit(kit, read, act)
-  FITTED.set(read, fitted)
-  return [fitted.row]
-}
-
-export const ringsView = defineCardsView('rings', { desktop: 1, terminal: 1 }, rows, lens)
+/** Rings' row squeezed until it fits, as chips' is; open, each card's ring
+ *  and what the row already says at the squeeze it fits at. */
+export const ringsView = defineCardsView({ desktop: 1, terminal: 1 }, (kit, read, act) => {
+  // The last pills built are those of the row that fits.
+  let pills: readonly PillSpec[] = []
+  const { line, squeeze } = fitSqueeze(s => pillRow(kit, read, act, (pills = ringsPills(kit, read, s))), GIVES_WAY.length, kit.columns - ROW_SLACK, kit.measure)
+  return { lines: [line], open: () => ({ slots: slotsOf(kit, read), shown: shownAt(kit, read, squeeze, pills) }) }
+})

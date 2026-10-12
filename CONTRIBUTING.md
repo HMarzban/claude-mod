@@ -65,7 +65,7 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/kit.tsx` | The drawing kit made once per draw: elements, the Svg gate, palette, measure, hover cards, gaps, icons. |
 | `hooks/reading.ts` | `readingsOf`: everything a view reads, built once per draw. Each section's facts, with its words from `words.ts`. |
 | `hooks/words.ts` | The phrasebook: every phrase a layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. |
-| `hooks/views/view.ts` | `View`, `rowsOf`, and `defineCardsView`, which makes a layout from its rows, its collapsed lines and its lens on the shared cards. |
+| `hooks/views/view.ts` | `View`, `rowsOf`, and `defineCardsView(rows, build)`, which makes a layout from its rows and one build per draw: `(kit, read, act) => { lines, open? }`, its collapsed lines and, asked for only while open, its options for the shared cards, which may read what fitting the lines found. |
 | `hooks/views/index.ts` | `VIEWS`: every layout by name. |
 | `hooks/views/cards.tsx` | `openBody`, the open view every layout shares: chips' four cards and its footer, each card's head with the layout's lens, a headline or first row in the layout's words, and no card repeating what the collapsed lines show. |
 | `hooks/views/frame.tsx` | The toggle every layout ends its row with, and the rows the shared cards get beneath the collapsed lines. |

@@ -13,11 +13,11 @@ import type { BarSize } from '../layout'
 import type { LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { AMBER_LEAD, type Say } from '../words'
-import { cardsView, tokenPartsOf, type Fact, type Slots } from './cards'
+import { SPLIT_ALT, tokenPartsOf, type Fact, type Slots } from './cards'
 import { LIMITS, costPill, type ChipKey } from './chips'
 import { toggleButton } from './frame'
 import { accentOf, batteryBar, batterySlot, beforeLast, fitLineKeeps, pill, type Keeps } from './parts'
-import { rowsOf, type Rows, type View } from './view'
+import { defineCardsView } from './view'
 
 /** What the grid gives up as it narrows, first to last: the paces, gauges'
  *  question, outlast the bars' full length. An amber gauge holds its reason
@@ -232,13 +232,13 @@ const slots = (kit: Kit, read: Readings): Slots => {
   const { Svg, palette } = kit
   const { cache, context } = read
   const worst = read.worstLimit
-  const split = tokenPartsOf(kit, read).map(([, part]) => part)
+  const split = tokenPartsOf(kit, read)
   const greys = [palette.meterFill, palette.label, palette.value]
   return {
     cache: cache.known ? (Svg ? batterySlot : batteryBar)(kit, cache.charge, cache.tone, cache.alt, SLOT_BAR) : undefined,
     spend: cache.measured
       ? splitBar(kit, {
-          alt: 'token split: input, output, cache reads',
+          alt: SPLIT_ALT,
           parts: Svg ? split.map((part, i) => ({ ...part, color: greys[i] ?? part.color })) : split,
           size: SLOT_BAR,
           slim: true,
@@ -262,23 +262,13 @@ const slots = (kit: Kit, read: Readings): Slots => {
   }
 }
 
-const ROWS: Rows = { desktop: 2, terminal: 2 }
-
-/** Drawn as `defineCardsView` draws a layout, but its lens reads the squeezed
- *  grid: the cards skip only what the row kept. */
-export const gaugesView: View = {
-  name: 'gauges',
-  rows: ROWS,
-  draw: (kit, read, act) => {
-    const { grid, shown } = collapsed(kit, read, act)
-    // An amber window's headline is led by its mark, as its gauge is.
-    const amberHead = read.worstLimit?.amberHead
-    return cardsView(kit, read, act, [grid], {
-      collapsedRows: rowsOf({ rows: ROWS }, kit),
-      slots: slots(kit, read),
-      slotsReplaceBars: true,
-      heads: amberHead === undefined ? {} : { limits: amberHead },
-      shown,
-    })
-  },
-}
+/** Its cards skip only what the squeezed grid kept. */
+export const gaugesView = defineCardsView({ desktop: 2, terminal: 2 }, (kit, read, act) => {
+  const { grid, shown } = collapsed(kit, read, act)
+  // An amber window's headline is led by its mark, as its gauge is.
+  const amberHead = read.worstLimit?.amberHead
+  return {
+    lines: [grid],
+    open: () => ({ slots: slots(kit, read), slotsReplaceBars: true, heads: amberHead === undefined ? {} : { limits: amberHead }, shown }),
+  }
+})

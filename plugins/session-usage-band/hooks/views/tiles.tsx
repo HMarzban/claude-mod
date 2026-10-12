@@ -11,10 +11,10 @@ import type { BarSize } from '../layout'
 import type { CacheReading, ContextReading, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import type { ReadingAmber, Say } from '../words'
-import { limitTint, pillRow, type ChipKey } from './chips'
+import { LIMITS, pillRow, type ChipKey } from './chips'
 import { GLYPH } from '../icons'
 import { accentOf, amberFirst, batteryMark, fitLine, words, type Keeps, type PillSpec } from './parts'
-import { defineCardsView, type Lens } from './view'
+import { defineCardsView, type CardOptions } from './view'
 
 /** What gives way as the row narrows, first to last: the board's tokens,
  *  resets, bar length and calm 7d, then chips' calm context and 5h around
@@ -24,15 +24,11 @@ import { defineCardsView, type Lens } from './view'
 const ORDER = ['tokens', 'resetGlyph', 'resets', 'barLength', 'calmSeven', 'calmContext', 'marks', 'calmFive', 'evenWidths', 'calmCost', 'labels'] as const
 type Piece = (typeof ORDER)[number]
 
+const SHORT_MARK: BarSize = { px: 24, cells: 4 }
 /** A tile's mark at its lengths, longest first, a cell shorter each: the
  *  row takes the longest it holds before a word gives way, and the shortest
  *  once the bar length has. A card head's mark. */
-const MARKS: readonly BarSize[] = [
-  { px: 40, cells: 6 },
-  { px: 32, cells: 5 },
-  { px: 24, cells: 4 },
-]
-const SHORT_MARK: BarSize = { px: 24, cells: 4 }
+const MARKS: readonly [BarSize, ...BarSize[]] = [{ px: 40, cells: 6 }, { px: 32, cells: 5 }, SHORT_MARK]
 const SLOT: BarSize = { px: 64, cells: 6 }
 
 /** A tile, built once: the squeeze picks its label, its mark's size, and
@@ -99,7 +95,7 @@ const limitMark = (kit: Kit, l: LimitView, size: BarSize, ground: string): Rende
  *  clock time. On the desktop ↻ goes first, then the reset whole. */
 const limitTile = (kit: Kit, l: LimitView, key: ChipKey): Tile => {
   const { Svg, palette, onTone } = kit
-  const bg = limitTint(palette, key).bg
+  const { bg } = LIMITS[key].tint(palette)
   const name = nameOf(l.amber, [l.name, key === '5h' ? 'accent5' : 'accent7'])
   const named = words(kit, 'label', [name])
   const when = l.resetSaid
@@ -205,19 +201,20 @@ const tilesRow = (kit: Kit, read: Readings, act: BandActions): RenderElement => 
     }
     // A cell shorter at a time before a word gives way; held by none, the
     // longest, so the squeeze moves on.
-    const sizes = keeps.has('barLength') ? MARKS : [SHORT_MARK]
-    let first: RenderElement | undefined
-    for (const size of sizes) {
+    const sizes: readonly [BarSize, ...BarSize[]] = keeps.has('barLength') ? MARKS : [SHORT_MARK]
+    const [longest, ...shorter] = sizes
+    const first = rowAt(longest)
+    if (cellsOf(first, measure) <= room) return first
+    for (const size of shorter) {
       const row = rowAt(size)
       if (cellsOf(row, measure) <= room) return row
-      first ??= row
     }
-    return first ?? rowAt(SHORT_MARK)
+    return first
   })
 }
 
 /** Each card's head: the tile's mark at the card's size, at the head's end. */
-const lens: Lens = (kit, read) => {
+const lens = (kit: Kit, read: Readings): CardOptions => {
   const { Box, palette } = kit
   const { cache: c, context: x, worstLimit: worst } = read
   const slot = (mark: RenderChildren) => (
@@ -235,4 +232,4 @@ const lens: Lens = (kit, read) => {
   }
 }
 
-export const tilesView = defineCardsView('tiles', { desktop: 1, terminal: 1 }, (kit, read, act) => [tilesRow(kit, read, act)], lens)
+export const tilesView = defineCardsView({ desktop: 1, terminal: 1 }, (kit, read, act) => ({ lines: [tilesRow(kit, read, act)], open: () => lens(kit, read) }))

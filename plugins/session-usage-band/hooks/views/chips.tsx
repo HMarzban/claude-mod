@@ -1,13 +1,12 @@
-// Chips, the band as it has always been: a row of pills, and the shared
-// cards beneath it when open. Its pill builders and its row are exported, so
-// a layout composes chips' pills, tints and icons rather than drawing its
-// own; they draw from the snapshot itself (`read.chips.raw`), as they did in
-// band.tsx.
+// Chips: a row of pills, and the shared cards beneath it when open. Its pill
+// builders, their hover strings, LIMITS and its row are exported, so a layout
+// composes chips' pills, tints and icons rather than drawing its own. They
+// draw from the readings' words; only the context's pill and hover read
+// raw facts (`read.chips.raw`).
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { meter } from '../charts'
-import { fmtCost, fmtEta, fmtSmallCost, fmtTokens, severityMark } from '../format'
-import { asciiText } from '../glyphs'
+import { fmtTokens, severityMark } from '../format'
 import type { Icon } from '../icons'
 import type { Kit } from '../kit'
 import { GIVES_WAY, ROW_SLACK, SHORT_BELOW, cellsOf, keeps, spansOf, squeezeToFit } from '../layout'
@@ -15,10 +14,9 @@ import type { Piece } from '../layout'
 import type { Palette } from '../palette'
 import type { LimitKey, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
-import { paceText } from '../words'
 import { toggleButton } from './frame'
 import { batteryIcon, pill, resetClause, textBattery } from './parts'
-import type { BoldRuns, PillSpec } from './parts'
+import type { PillSpec } from './parts'
 import { defineCardsView } from './view'
 
 // ---- limits ---------------------------------------------------------------
@@ -55,14 +53,14 @@ export const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
   },
 }
 
-/** A limit chip's tint: its ground, its ink and its accent. */
-export const limitTint = (p: Readonly<Palette>, key: ChipKey): Tint => LIMITS[key].tint(p)
-
 // ---- the pills --------------------------------------------------------------
 
 /** Whether the row says the cache and context short at `squeeze`: always
  *  below `SHORT_BELOW` columns. */
 export const shortAt = (kit: Kit, squeeze: number): boolean => kit.columns < SHORT_BELOW || !keeps(squeeze, 'shortWording')
+
+/** The cache pill's hover card: what its mood means now. */
+export const cacheHover = (read: Readings): string => read.chips.reading.copy.hover
 
 /** The cache pill: a draining battery and its countdown, or its mood. A
  *  layout that bolds each reading's figure asks for the countdown `bold`;
@@ -89,17 +87,14 @@ export const cachePill = (kit: Kit, read: Readings, short: boolean, bold = false
   if (Svg) {
     // A normal rounded pill led by a draining battery icon; the text-surface
     // battery would paint a square-cornered block here.
-    return { key: 'cache', tone, body: [batteryIcon(kit, charge, tone, copy.alt), ...words('c', ` ${text}`)], hover: copy.hover }
+    return { key: 'cache', tone, body: [batteryIcon(kit, charge, tone, copy.alt), ...words('c', ` ${text}`)], hover: cacheHover(read) }
   }
-  // The ascii label is mapped before the battery's cut, so a dropped glyph
-  // neither leaves a gap at the cut nor takes its cells from the charge.
   if (palette.filled) {
-    const runs: BoldRuns = [[`◷ ${text.slice(0, text.length - figure.length)}`, false], [figure, true]]
     return {
       key: 'cache',
       tone,
-      body: textBattery(kit, charge, tone, read.frame.glyphs === 'ascii' ? runs.map(([run, bold]) => [asciiText(run), bold]) : runs),
-      hover: copy.hover,
+      body: textBattery(kit, charge, tone, [[`◷ ${text.slice(0, text.length - figure.length)}`, false], [figure, true]]),
+      hover: cacheHover(read),
       paintsOwnBg: true,
     }
   }
@@ -108,22 +103,19 @@ export const cachePill = (kit: Kit, read: Readings, short: boolean, bold = false
     key: 'cache',
     tone,
     body: [tone === 'amber' ? null : <Text key="dot" color={dot}>{'● '}</Text>, ...words('c', tone === 'amber' ? `◷ ${text}` : text)],
-    hover: copy.hover,
+    hover: cacheHover(read),
   }
 }
 
 /** The session's cost; its card names the last message's. */
 export const costPill = (kit: Kit, read: Readings): PillSpec => {
   const { Text, palette, icon } = kit
-  const snap = read.chips.raw
+  const { totalText, lastText } = read.spend
   return {
     key: 'cost',
     tone: 'calm',
-    body: [...icon('cost', palette.coin), <Text key="v" color={palette.value} bold>{fmtCost(snap.costUsd)}</Text>],
-    hover:
-      snap.lastTurnUsd === null
-        ? `${fmtCost(snap.costUsd)} so far this session`
-        : `${fmtSmallCost(snap.lastTurnUsd)} spent during your last message, subagents included`,
+    body: [...icon('cost', palette.coin), <Text key="v" color={palette.value} bold>{totalText}</Text>],
+    hover: lastText === undefined ? `${totalText} so far this session` : `${lastText} spent during your last message, subagents included`,
   }
 }
 
@@ -133,9 +125,18 @@ export const tokensPill = (kit: Kit, read: Readings): PillSpec => {
   return {
     key: 'tokens',
     tone: 'calm',
-    body: [...icon('tokens', palette.label), <Text key="v" color={palette.value}>{fmtTokens(read.spend.total)}</Text>],
+    body: [...icon('tokens', palette.label), <Text key="v" color={palette.value}>{read.spend.tokensText}</Text>],
     hover: read.chips.reading.tokenBreakdown,
   }
+}
+
+/** The context pill's hover card: how much of the window is used, and where it compacts. */
+export const contextHover = (read: Readings): string => {
+  const ctx = read.chips.raw.context
+  const { pct, toCompact } = read.context
+  return ctx.compactAt === undefined || toCompact === undefined
+    ? `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.window)} (${pct}); older turns get summarized near full`
+    : `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.compactAt)} (${pct}); auto-compacts in ~${fmtTokens(toCompact)}`
 }
 
 /** The context's fill on a meter, counting down to compaction once near it. */
@@ -163,11 +164,20 @@ export const contextPill = (kit: Kit, read: Readings, squeeze: number): PillSpec
         {`${amount}${mark}${countdown}`}
       </Text>,
     ],
-    hover:
-      ctx.compactAt === undefined || toCompact === undefined
-        ? `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.window)} (${pct}); older turns get summarized near full`
-        : `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.compactAt)} (${pct}); auto-compacts in ~${fmtTokens(toCompact)}`,
+    hover: contextHover(read),
   }
+}
+
+/** A limit chip's hover card: once passed, that it has reset; else its
+ *  reset first, the fact the chip had, so a short row's cut only takes the
+ *  description. Undefined while the engine reports no such window. */
+export const limitHover = (read: Readings, key: ChipKey): string | undefined => {
+  const w = key === '5h' ? read.fiveHour : read.sevenDay
+  if (w === undefined) return undefined
+  const { title } = LIMITS[key]
+  const r = w.reset
+  if (r?.kind === 'passed') return `${title} has reset; it updates after your next message`
+  return r === undefined ? `Your ${title.toLowerCase()}, across all your Claude use` : `Resets in ${r.text}; ${title.toLowerCase()}, all your Claude use`
 }
 
 /** A limit chip: its usage on a bar and the reset; a pace that fills it
@@ -187,10 +197,10 @@ export const limitPill = (kit: Kit, read: Readings, key: ChipKey, squeeze: numbe
       tone: 'calm',
       bg: tint.bg,
       body: [...icon(spec.icon, tint.accent), <Text key="l" color={tint.fg}>{`${key} reset`}</Text>],
-      hover: `${spec.title} has reset; it updates after your next message`,
+      hover: limitHover(read, key),
     }
   }
-  const pace = w.etaMs === null ? '' : short ? ` ${fmtEta(w.etaMs)}` : ` ${paceText(w)}`
+  const pace = w.fullIn === undefined ? '' : ` ${short ? w.fullIn : w.pace}`
   const fg = onTone(tone, tint.fg)
   const accent = onTone(tone, tint.accent)
   const bar = keeps(squeeze, 'limitBars') ? [gap('g-bar'), mark ?? meter(kit, { label: key, frac, tone, accent: tint.accent })] : []
@@ -213,12 +223,7 @@ export const limitPill = (kit: Kit, read: Readings, key: ChipKey, squeeze: numbe
       pace === '' ? null : <Text key="p" color={fg}>{pace}</Text>,
       ...reset,
     ],
-    // The card covers its chip, so it leads with the fact the chip had,
-    // and a short row's cut only takes the description.
-    hover:
-      r === undefined
-        ? `Your ${spec.title.toLowerCase()}, across all your Claude use`
-        : `Resets in ${r.text}; ${spec.title.toLowerCase()}, all your Claude use`,
+    hover: limitHover(read, key),
   }
 }
 
@@ -261,4 +266,4 @@ export const pillRow = (kit: Kit, read: Readings, act: BandActions, specs: reado
 const chipsRow = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
   squeezeToFit(squeeze => pillRow(kit, read, act, chipsPills(kit, read, squeeze)), GIVES_WAY.length, kit.columns - ROW_SLACK, kit.measure)
 
-export const chipsView = defineCardsView('chips', { desktop: 1, terminal: 1 }, (kit, read, act) => [chipsRow(kit, read, act)])
+export const chipsView = defineCardsView({ desktop: 1, terminal: 1 }, (kit, read, act) => ({ lines: [chipsRow(kit, read, act)] }))
