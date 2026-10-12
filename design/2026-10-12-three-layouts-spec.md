@@ -76,7 +76,7 @@ cache 38m  ╭╮╭─╮╭╮╭  $0.24 · last $0.03   context ⠤⠴⠶ 8% 
   6. the trace.
   - Every reading's words remain. At its narrowest the terminal row is text alone, and that is accepted.
 - **Empty states:**
-  - No costs yet: the trace drawn flat, a dim line in a label's ink (braille's floor in text), then the total, and `no costs yet` only while the total is $0 (a resumed conversation's total says there were costs). Open, the Spend band draws its chart flat and says `Costs show after Claude's next reply.` after its words.
+  - No costs yet: while the total is $0 or unknown, the trace drawn flat, a dim line in a label's ink (braille's floor in text), then the total and `no costs yet`; the trace and its word give way together, since a flat trace alone would read as $0 a message. With a known total and no message's cost (a resumed conversation), the total alone, no trace. Open, the Spend band draws its chart flat and says `Costs show after Claude's next reply.` after its words.
   - No 5h or 7d samples: that reading is words only.
   - No limits: 5h and 7d are left out.
 

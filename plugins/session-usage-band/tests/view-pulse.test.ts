@@ -72,17 +72,24 @@ test('working shows no countdown', async ($, on) => {
   const working = await drawCases($, on, { scenario: 'working', appearance: 'dark', layout: 'pulse' }, [{ surface: 'terminal', cols: 160 }])
   expect(shown(firstRow(Object.values(working)[0]))).not.toMatch(/\d+m left|\d+s left/)
 })
-test("no costs yet: a flat trace in the beats' place, then the total; `no costs yet` only while the total is $0", () => {
+test("no costs yet: the flat trace only beside `no costs yet`, while the total is $0; a known total alone, no trace", () => {
   const none = { history: { costs: [], context: [] } }
   for (const surface of ['desktop', 'terminal'] as const) {
     // A resumed conversation: its total known, no message's cost recorded.
-    const resumed = rowOf({ surface, ...none })
-    expect(shown(resumed)).not.toContain(EMPTY.costs)
-    expect(shown(byKey(resumed, 'spend', 'Box'))).toMatch(surface === 'desktop' ? /^\$3\.19$/ : /^⣀{7} ?\$3\.19$/)
+    const resumed = byKey(rowOf({ surface, ...none }), 'spend', 'Box')
+    expect(shown(resumed)).toBe('$3.19')
+    expect(svgsOf(resumed)).toHaveLength(0)
     const fresh = rowOf({ surface, ...none, costUsd: 0 })
     expect(shown(byKey(fresh, 'spend', 'Box'))).toMatch(surface === 'desktop' ? /^\$0\.00 · no costs yet$/ : /^⣀{7} ?\$0\.00 · no costs yet$/)
+    // As the row narrows, no step leaves the trace without its word.
+    for (let columns = 160; columns >= 40; columns--) {
+      const spend = byKey(rowOf({ surface, columns, ...none, costUsd: 0 }), 'spend', 'Box')
+      if (spend === undefined) continue
+      const traced = surface === 'desktop' ? svgsOf(spend).length > 0 : /⣀/.test(shown(spend))
+      expect(`${surface} ${columns} ${traced && !shown(spend).includes(EMPTY.costsShort) ? 'bare' : 'ok'}`).toBe(`${surface} ${columns} ok`)
+    }
   }
-  const flat = svgsOf(byKey(rowOf({ surface: 'desktop', ...none }), 'spend', 'Box'))
+  const flat = svgsOf(byKey(rowOf({ surface: 'desktop', ...none, costUsd: 0 }), 'spend', 'Box'))
   expect(flat.map(s => s.props?.alt)).toEqual([EMPTY.costsAlt])
   expect(String(flat[0]?.props?.source)).toMatch(new RegExp(`<line class="flat"[^>]* stroke="${DARK.label}"`))
   expect(shown(byKey(band({ surface: 'desktop', expanded: true, ...none }), 'band:spend', 'Box'))).toContain(EMPTY.costs)
