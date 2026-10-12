@@ -51,6 +51,24 @@ export const braille = (values: readonly number[], max: number, floor = 0): stri
 const brailleText = (kit: Kit, key: string, values: readonly number[], color: string, top = topOf(values)): RenderChildren =>
   kit.oneLine({ key, color }, braille(values, top, 1))
 
+/** Text cells, each a glyph and its ink, under one Text keyed `key`:
+ *  neighbouring cells in one ink share a Text. */
+const textRuns = (kit: Kit, key: string, cells: ReadonlyArray<readonly [string, string]>, color?: string): RenderChildren => {
+  const { Text } = kit
+  const runs: Array<{ text: string; ink: string }> = []
+  for (const [text, ink] of cells) {
+    const last = runs.at(-1)
+    if (last?.ink === ink) last.text += text
+    else runs.push({ text, ink })
+  }
+  const children = runs.map((run, i) => (
+    <Text key={`run-${i}`} color={run.ink}>
+      {run.text}
+    </Text>
+  ))
+  return color === undefined ? <Text key={key}>{children}</Text> : <Text key={key} color={color}>{children}</Text>
+}
+
 /** The root of a chart that spans its slot: as wide as the band, so the slot
  *  caps it, its marks drawn to `width` and stretched to the slot. */
 const stretchedOf = (kit: Kit, width: number, height: number, marks: string): string =>
@@ -170,22 +188,7 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
   const cells = Array.from({ length: size.cells }, (_, i): readonly [string, string] =>
     i === tickAt ? ['│', palette.label] : i < filled ? ['█', fill] : i < ahead ? [dash, fill] : ['░', palette.meterTrack],
   )
-  // Neighbouring cells in one colour share a Text.
-  const runs: Array<{ text: string; color: string }> = []
-  for (const [glyph, color] of cells) {
-    const last = runs.at(-1)
-    if (last?.color === color) last.text += glyph
-    else runs.push({ text: glyph, color })
-  }
-  return (
-    <Text key={key} color={fill}>
-      {runs.map((run, i) => (
-        <Text key={`run-${i}`} color={run.color}>
-          {run.text}
-        </Text>
-      ))}
-    </Text>
-  )
+  return textRuns(kit, key, cells, fill)
 }
 
 // ---- split bar ------------------------------------------------------------
@@ -448,28 +451,15 @@ export const barsWidth = (count: number): number => count * (BAR_PX + BAR_GAP)
 /** A bar per value, oldest first. Text draws them in braille, two to a cell,
  *  a cell holding a marked bar in the mark's colour. */
 export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
-  const { Svg, Text, palette } = kit
+  const { Svg, palette } = kit
   const { key, alt, values, marked, color, markColor, px, height, max, level, track = false, stretch = false } = o
   const top = max ?? topOf(values)
   if (!Svg) {
-    // Neighbouring cells in one colour share a Text.
-    const runs: Array<{ text: string; color: string }> = []
-    for (let i = 0; i < values.length; i += 2) {
-      const ink = marked[i] === true || marked[i + 1] === true ? markColor : color
-      const cell = braille(values.slice(i, i + 2), top, 1)
-      const last = runs.at(-1)
-      if (last?.color === ink) last.text += cell
-      else runs.push({ text: cell, color: ink })
-    }
-    return (
-      <Text key={key} color={color}>
-        {runs.map((run, i) => (
-          <Text key={`run-${i}`} color={run.color}>
-            {run.text}
-          </Text>
-        ))}
-      </Text>
-    )
+    const cells = Array.from({ length: Math.ceil(values.length / 2) }, (_, c): readonly [string, string] => {
+      const i = 2 * c
+      return [braille(values.slice(i, i + 2), top, 1), marked[i] === true || marked[i + 1] === true ? markColor : color]
+    })
+    return textRuns(kit, key, cells, color)
   }
   const room = height - CAP_ROOM
   const y = (v: number) => height - (top > 0 ? Math.max(1, Math.round(Math.min(1, v / top) * room)) : 1)
@@ -603,7 +593,7 @@ const HEIGHTS = '▁▂▃▄▅▆▇█'
  *  measured 0% its empty track as a meter's, a dot where not known, the
  *  notch at the edge of the slice nearest now. */
 export const sliceCells = (kit: Kit, o: SliceCellsOptions): RenderChildren => {
-  const { Svg, Text, palette, glyphs, measure } = kit
+  const { Svg, palette, glyphs, measure } = kit
   const { key, alt, row, color, guess, spent, ground, cellPx, wide, air = false } = o
   const { marks, notch } = row
   if (Svg) {
@@ -657,20 +647,5 @@ export const sliceCells = (kit: Kit, o: SliceCellsOptions): RenderChildren => {
     parts.push([wide ? glyph + glyph : glyph, ink])
   })
   if (edge === marks.length) parts.push(notchMark)
-  // Neighbouring cells in one ink share a Text.
-  const runs: Array<{ text: string; ink: string }> = []
-  for (const [text, ink] of parts) {
-    const last = runs.at(-1)
-    if (last?.ink === ink) last.text += text
-    else runs.push({ text, ink })
-  }
-  return (
-    <Text key={key}>
-      {runs.map((run, i) => (
-        <Text key={`run-${i}`} color={run.ink}>
-          {run.text}
-        </Text>
-      ))}
-    </Text>
-  )
+  return textRuns(kit, key, parts)
 }
