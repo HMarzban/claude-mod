@@ -225,7 +225,7 @@ export const fmtLeftShort = (ms: number): string =>
 /** A countdown in words: `1h 00m left`, `52m left`, `10m left`, `47s left`. */
 export const fmtLeft = (ms: number): string => `${fmtLeftShort(ms)} left`
 
-const plural = (n: number, unit: string): string => `${n} ${unit}${n === 1 ? '' : 's'}`
+export const plural = (n: number, unit: string): string => `${n} ${unit}${n === 1 ? '' : 's'}`
 
 /** Whole minutes spelled out: `40 minutes`, `1 hour`, `1 hour 5 minutes`. */
 const spokenMinutes = (mins: number): string => {
