@@ -1,4 +1,4 @@
-// Chips: a row of pills, and the shared cards beneath it when open. Its pill
+// Chips: a row of pills, and its four cards beneath it when open. Its pill
 // builders, their hover strings, LIMITS and its row are exported, so a layout
 // composes chips' pills, tints and icons rather than drawing its own. They
 // draw from the readings' words; only the context's pill and hover read

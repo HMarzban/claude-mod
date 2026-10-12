@@ -45,8 +45,6 @@ export type Palette = {
   /** The 7-day accent as words, on the card and on its own tint, as
    *  fiveText is the 5-hour's. */
   weekText: string
-  /** Week's text cells in each window's tint: a guess dim, none left
-   *  dimmer, both apart from label grey, which is the notch's. */
   /** The departures board: the case behind the tiles, dark in dark and
    *  light alike (plain draws none). */
   boardBg: string

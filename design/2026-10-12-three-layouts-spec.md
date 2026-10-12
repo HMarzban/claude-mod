@@ -88,7 +88,7 @@ A stack of full-width bands laid out as a grid: every band's chart at one width,
 | Band | Rows | Chart | Words |
 | --- | --- | --- | --- |
 | Cache | 1 | The time left as a draining line | `38m left · cold at 17:24 · re-warm ~$0.57` |
-| Spend | 2 | The last 24 messages as beats, with a dotted average line and re-warms labelled | `$0.24 · last $0.03 · avg ~$0.02` |
+| Spend | 2 | The last 24 messages as beats, with a dotted average line and re-warms capped flat | `$0.24 · last $0.03 · avg ~$0.02` |
 | Context | 2 | The last 40 turns under a dashed compaction line | `8% · ~893k left · compacts at 967k` |
 | Limits | 3 | 5h on the left: start to reset, now marked, projection dashed. 7d on the right: the day cells. | `5h 26% · on pace for ~33% · ↻ 17:50`<br>`! 7d 85% · full ~Tue · ↻ Sat 13:30` |
 

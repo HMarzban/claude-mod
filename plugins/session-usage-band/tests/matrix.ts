@@ -40,22 +40,21 @@ export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({
 /** Actions for a draw outside a mount: one function each, so props compare equal. */
 export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide: async () => undefined }
 
-/** Every layout's words for each amber trigger. ` · ` reads `, ` in the ascii
- *  tier, and ` - ` in departures'. An other limit, open only, is the shared
- *  cards' LIMITS headline, marked as chips marks it: `spend 92%!`.
+/** Every live layout's words for each amber trigger, and no others. An other
+ *  limit, open only, is chips' LIMITS card's headline, marked as chips marks
+ *  it: `spend 92%!`.
  *  Departures' board says each in its capitals, its item then its cell:
  *  `\W*` between them, since a terminal's flaps set their runs a gap apart,
  *  which the text does not hold, and plain brackets each run. */
 const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
-  // Gauges' mark leads its gauge, its bar between the name and the figure;
-  // tiles' figure comes first, its reason beside it: `30s! cache`, `98%! context`.
-  cacheLastMinute: /! \d+s( left)?|! last call|! cooling( ·|,) \d+s left|! cache\W*\d+s|\d+s ?! cache|CACHE\W*(LAST CALL \d+S|! \d+S)/,
-  nearCompaction: /! context\W*\d+%|! ctx\W*\d+%|\d+% ?! context|CONTEXT\W*! (COMPACTS IN ~\d+K|\d+%)/,
-  contextNoCompaction: /! context\W*\d+%|! ctx\W*\d+%|\d+% ?! context|CONTEXT\W*! \d+%/,
+  // Chips' and pulse's mark leads the reading's words: `! 30s left`, `! ctx 94%`.
+  cacheLastMinute: /! \d+s( left)?|CACHE\W*(LAST CALL \d+S|! \d+S)/,
+  nearCompaction: /! context\W*\d+%|! ctx\W*\d+%|CONTEXT\W*! (COMPACTS IN ~\d+K|\d+%)/,
+  contextNoCompaction: /! context\W*\d+%|! ctx\W*\d+%|CONTEXT\W*! \d+%/,
   // The board's short form keeps the mark and the value: `5H ! 82%`. The
   // span after 5h's value stops at 7D's group, so 7D's amber is never 5h's.
-  limit80: /! (last call [·-] )?5h|5H\W*\d+%(?:(?!7D)[^!])*! (NEAR LIMIT|FULL ~\d\d:\d\d|FULL IN ~)|5H\W*! \d+%/,
-  fiveHourAhead: /! (last call [·-] )?5h|5H\W*\d+%(?:(?!7D)[^!])*! FULL (~\d\d:\d\d|IN ~)|5H\W*! \d+%/,
+  limit80: /! 5h|5H\W*\d+%(?:(?!7D)[^!])*! (NEAR LIMIT|FULL ~\d\d:\d\d|FULL IN ~)|5H\W*! \d+%/,
+  fiveHourAhead: /! 5h|5H\W*\d+%(?:(?!7D)[^!])*! FULL (~\d\d:\d\d|IN ~)|5H\W*! \d+%/,
   // The board's row for it, open only: its name, then its status.
   otherLimit80: /! spend \d+%|spend \d+%!|SPEND LIMIT\W*! (NEAR LIMIT|\d+%)/,
 }
@@ -167,7 +166,7 @@ const UNMARKED = /re-warm \$|next message \$|full (in |at )?\d|on pace for \d/i
  *  East-Asian-Ambiguous, so the ascii tier never may (spec §3.2). */
 export const cutBySurface = (n: Node): boolean => n.type === 'Text' && typeof n.props?.wrap === 'string' && n.props.wrap !== 'wrap'
 
-/** The rows an open view of the shared cards takes at its floor, which a
+/** The rows chips' open view of its cards takes at its floor, which a
  *  band shorter than that scrolls: the rows its view declares, then what it
  *  opens with each card cut to its head and one body row, and the footer to
  *  its one row. Undefined without the cards. */
@@ -279,7 +278,7 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   if (!svgDraws && svgs.length > 0) fail('svgPlacement', `${svgs.length} Svg where none draws`)
   for (const s of svgs) {
     const alt = s.props?.alt
-    // The shared cards' bars stretch to their slot, which caps them: they alone have no width.
+    // Chips' cards' bars stretch to their slot, which caps them: they alone have no width.
     const stretched = /preserveAspectRatio="none"/.test(typeof s.props?.source === 'string' ? s.props.source : '')
     if (typeof alt !== 'string' || alt === '' || (typeof s.props?.width !== 'number' && !stretched)) fail('svgProps', 'an Svg without an alt or a width')
     if (s.props?.id !== undefined || SVG_BARRED.test(typeof s.props?.source === 'string' ? s.props.source : ''))

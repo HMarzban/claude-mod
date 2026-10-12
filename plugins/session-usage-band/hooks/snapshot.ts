@@ -64,7 +64,7 @@ export type BandSnapshot = Readonly<{
   }>
   costUsd: number
   lastTurnUsd: number | null
-  /** This conversation's message costs and context, and the 5h trend. */
+  /** This conversation's message costs and context. */
   history: Trails
   context: Readonly<{
     tokens: number | undefined

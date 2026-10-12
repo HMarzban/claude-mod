@@ -1,6 +1,6 @@
 // What the band can tell you that the engine's own figures don't: what your
 // last message cost, when your pace fills the 5-hour limit, and the trails
-// the history views draw: each message's cost, the context, and the 5h reading.
+// pulse draws: each message's cost, and the context.
 
 import { MINUTE_MS, SAME_RESET_MS } from './format'
 

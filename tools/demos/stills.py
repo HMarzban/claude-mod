@@ -114,8 +114,8 @@ STATES = [
 # One row per layout, in the command's order: calm, then the cache's last minute.
 LAYOUTS = [([f'layout-{k}', f'layout-{k}-amber'], t, d) for k, t, d in [
     ('chips', 'Chips', 'the default: a row of pills'),
-    ('pulse', 'Pulse', 'cost per message and the 5h trend'),
-    ('departures', 'Departures', 'every reading a countdown, soonest first'),
+    ('pulse', 'Pulse', 'is cost per message rising; will a limit fill before it resets'),
+    ('departures', 'Departures', 'when the cache goes cold, and each limit resets or fills'),
 ]]
 GTHEME = {
     'light': dict(bg='#faf9f5', text='#1f1e1b', text3='#6b675e', shadow='0 1px 2px rgba(31,30,27,.06), 0 12px 30px -12px rgba(31,30,27,.3)'),

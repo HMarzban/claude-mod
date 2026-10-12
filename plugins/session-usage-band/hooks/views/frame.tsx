@@ -1,5 +1,6 @@
 // What every layout's frame shares: the toggle on the row nearest the
-// prompt, and the rows the shared cards are given beneath the collapsed lines.
+// prompt, the rows an open view is given beneath the collapsed lines, and
+// the footer.
 
 import type { RenderElement } from 'claude-code'
 import type { Kit } from '../kit'

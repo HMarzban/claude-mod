@@ -64,7 +64,7 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/band.tsx` | `drawBand(elements, snapshot, actions)`: a pure function from a snapshot to a tree. It builds the kit and the readings, draws the chosen layout, and falls back to chips. |
 | `hooks/kit.tsx` | The drawing kit made once per draw: elements, the Svg gate, palette, measure, hover cards, gaps, icons. |
 | `hooks/reading.ts` | `readingsOf`: everything a view reads, built once per draw. Each section's facts, with its words from `words.ts`. |
-| `hooks/words.ts` | The phrasebook: every phrase a layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. It holds the departures board's words too: statuses, short forms, remarks, alt sentences and `stripWords`. |
+| `hooks/words.ts` | The phrasebook: every phrase a layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. It holds the departures board's words too: statuses, short forms, remarks and alt sentences. |
 | `hooks/views/view.ts` | `View` (the rows it declares and `draw`) and `rowsOf`. |
 | `hooks/views/index.ts` | `VIEWS`: every layout by name. |
 | `hooks/views/cards.tsx` | `cardsView`, chips' open view: its four cards. Chips' alone; pulse and departures import nothing from it. |
@@ -84,7 +84,7 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/insights.ts` | Last message cost, the 5-hour pace, and the trails pulse draws. |
 | `hooks/format.ts` | Numbers, times, thresholds and escalation marks. |
 | `hooks/palette.ts` | The dark, light and plain palettes, and the colours for the band's bare ground. |
-| `hooks/workspace.ts` | The workspace strip's git state and path, parsed from git's output. |
+| `hooks/workspace.ts` | The workspace strip's git state and path, parsed from git's output, and `stripWords`, its facts in words, which departures' header row draws. |
 | `hooks/memory.ts` | What the band remembers across sessions (last replies, rates, the layout, the limit samples), and what it reads off a transcript. |
 | `types/index.d.ts` | The plugin's state contract. |
 | `tests/` | Tests, one file per area, with shared helpers in `helpers.ts`: `setup()` starts a test from a fresh engine, `mountBand()` draws the band, `byKey()` finds a node. |

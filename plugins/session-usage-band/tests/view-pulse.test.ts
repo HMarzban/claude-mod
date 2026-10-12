@@ -20,9 +20,7 @@ viewSuite('pulse')
 /** Twenty-four messages, $0.20 each but a $0.84 re-warm seven from the end
  *  and a last of $0.21. */
 const COSTS = Array.from({ length: 24 }, (_, i) => ({ usd: i === 23 ? 0.21 : i === 17 ? 0.84 : 0.2, reWarm: i === 17 }))
-/** The last hour of the 5h limit, a reading every five minutes, 2% to 4%. */
-const FIVE_HOUR = Array.from({ length: 12 }, (_, i) => ({ at: (i - 11) * 5 * MIN, pct: 2 + i / 5.5 }))
-const HISTORY = { costs: COSTS, context: [40_000, 60_000, 76_000], fiveHour: FIVE_HOUR }
+const HISTORY = { costs: COSTS, context: [40_000, 60_000, 76_000] }
 
 /** The band as pulse draws it at 160 columns, with history. */
 const band = (over: Partial<BandSnapshot> = {}): Node =>

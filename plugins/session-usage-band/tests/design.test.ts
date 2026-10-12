@@ -75,7 +75,7 @@ for (const [name, p, hosts] of [
     expect(contrast(p.value, p.surface)).toBeGreaterThanOrEqual(4.5)
   })
 
-  test(`${name}: a window's name holds as text on its own tint, as rings' pills say it`, () => {
+  test(`${name}: a window's name holds as text on its own tint and on the card`, () => {
     expect(contrast(p.fiveText, p.fiveBg)).toBeGreaterThanOrEqual(4.5)
     expect(contrast(p.weekText, p.weekBg)).toBeGreaterThanOrEqual(4.5)
     expect(contrast(p.weekText, p.cardBg)).toBeGreaterThanOrEqual(4.5)
