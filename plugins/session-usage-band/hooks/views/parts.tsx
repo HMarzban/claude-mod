@@ -1,16 +1,13 @@
 // The pieces several views draw: the pill a chip sits in; the cache's
-// battery, an icon on the desktop and the pill itself in a terminal; the
-// amber cache pill pulse and week share; and the lines every layout
-// squeezes to fit, with the words they're written in.
+// battery, an icon on the desktop and the pill itself in a terminal; and the
+// lines the layouts squeeze to fit, with the words they're written in.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
-import { meter } from '../charts'
 import { clamp01 } from '../format'
 import { asciiText } from '../glyphs'
 import { GLYPH } from '../icons'
 import type { Kit } from '../kit'
 import { fitSqueeze, isDrawn, keepsIn } from '../layout'
-import type { BarSize } from '../layout'
 import type { Palette } from '../palette'
 import type { LimitKey, Readings, Tone } from '../reading'
 import type { Amber, Role, Say } from '../words'
@@ -69,56 +66,6 @@ export const batteryIcon = (kit: Kit, charge: number, tone: Tone, alt: string, p
   return <Svg key="battery" source={source} alt={alt} width={px} height={12} />
 }
 
-/** The battery across a card head's slot, as gauges' board draws it: 8px
- *  tall, a 1px edge, the charge inside it and the 2×4 nub, drawn at the
- *  slot's estimate and stretched to it. The desktop's alone. */
-export const batterySlot = (kit: Kit, charge: number, tone: Tone, alt: string, size: BarSize): RenderChildren => {
-  const { Svg, palette, onTone } = kit
-  if (!Svg) return null
-  const edge = onTone(tone, palette.trackStroke)
-  const body = size.px - 3
-  const width = Math.round(clamp01(charge) * (body - 2) * 10) / 10
-  const source =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${size.px}" height="8" viewBox="0 0 ${size.px} 8" preserveAspectRatio="none">` +
-    `<rect class="edge" x="0.5" y="0.5" width="${body}" height="7" rx="2" fill="none" stroke="${edge}" stroke-width="1" vector-effect="non-scaling-stroke"/>` +
-    `<rect class="nub" x="${body + 1}" y="2" width="2" height="4" rx="0.5" fill="${edge}"/>` +
-    `<rect class="charge" x="1.5" y="1.5" width="${width}" height="5" rx="1" fill="${onTone(tone, palette.warm)}"/>` +
-    '</svg>'
-  return <Svg key="battery" source={source} alt={alt} height={8} />
-}
-
-/** The battery as a mark of `size`: the desktop's icon, or in text its
- *  charge in cells, draining right to left, and its cap `╸`. */
-export const batteryMark = (kit: Kit, charge: number, tone: Tone, alt: string, size: BarSize): RenderChildren => {
-  const { Svg, Text, palette, onTone } = kit
-  if (Svg) return batteryIcon(kit, charge, tone, alt, size.px)
-  const cells = size.cells - 1
-  const filled = Math.round(clamp01(charge) * cells)
-  return (
-    <Text key="battery" color={onTone(tone, palette.label)}>
-      {filled > 0 ? <Text key="charge" color={onTone(tone, palette.warm)}>{'█'.repeat(filled)}</Text> : null}
-      {filled < cells ? <Text key="track" color={palette.meterTrack}>{'░'.repeat(cells - filled)}</Text> : null}
-      {'╸'}
-    </Text>
-  )
-}
-
-/** The battery as long as a bar: time left, draining. On the desktop its
- *  outline; in a terminal its cells, the charge painted in the warm colour
- *  and the drained in the track's; with no ground to paint, a bar's glyphs. */
-export const batteryBar = (kit: Kit, charge: number, tone: Tone, alt: string, size: BarSize): RenderChildren => {
-  const { Svg, Text, palette, onTone } = kit
-  if (Svg) return batteryIcon(kit, charge, tone, alt, size.px)
-  if (!palette.filled) return meter(kit, { key: 'battery', label: 'cache', frac: charge, tone, accent: palette.warm, size, reads: 'left' })
-  const cut = Math.round(clamp01(charge) * size.cells)
-  return (
-    <Text key="battery">
-      {cut > 0 ? <Text key="charge" backgroundColor={onTone(tone, palette.warm)}>{' '.repeat(cut)}</Text> : null}
-      {cut < size.cells ? <Text key="drained" backgroundColor={palette.meterTrack}>{' '.repeat(size.cells - cut)}</Text> : null}
-    </Text>
-  )
-}
-
 /** Text in runs, each bold or not: a figure among its words. */
 type BoldRuns = ReadonlyArray<readonly [text: string, bold: boolean]>
 
@@ -159,21 +106,6 @@ export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string |
 /** The cache pill's hover card: what its mood means now. */
 export const cacheHover = (read: Readings): string => read.chips.reading.copy.hover
 
-/** An amber cache as a pill for pulse and week: chips' battery, ground and
- *  hover card, and its reason, long or short. */
-export const layoutCacheSpec = (kit: Kit, read: Readings, amber: Amber, short: boolean): PillSpec => {
-  const { Text, Svg, palette, onTone } = kit
-  const c = read.cache
-  const text = short ? amber.short : amber.long
-  const fg = onTone(c.tone, palette.value)
-  const body = Svg
-    ? [batteryIcon(kit, c.charge, c.tone, c.alt), <Text key="c" color={fg}>{` ${text}`}</Text>]
-    : palette.filled
-      ? textBattery(kit, c.charge, c.tone, text)
-      : [<Text key="c" color={fg}>{text}</Text>]
-  return { key: 'cache', tone: c.tone, body, hover: cacheHover(read), paintsOwnBg: !Svg && palette.filled }
-}
-
 // ---- what every layout squeezes its lines with ----------------------------
 
 /** What a line's build may ask at its squeeze. */
@@ -187,7 +119,7 @@ export type Keeps<P extends string> = Readonly<{
 }>
 
 /** The step `fitLine` appends to every order that doesn't name it: amber turns short. */
-export const AMBER_STEP = 'amberShort'
+const AMBER_STEP = 'amberShort'
 /** Asks a `Keeps` which of an amber reading's forms it would pick. */
 const AMBER_PROBE: Amber = { long: 'long', short: 'short' }
 
@@ -212,7 +144,7 @@ export const line = (kit: Kit, key: string, pieces: readonly RenderChildren[], e
  *  fits, and what that squeeze keeps. The amber step is last unless the
  *  order names it, so amber shortens only once every calm piece before it
  *  has gone. */
-export const fitLineKeeps = <P extends string>(
+const fitLineKeeps = <P extends string>(
   kit: Kit,
   order: readonly P[],
   room: number,
@@ -235,21 +167,6 @@ export const fitLine = <P extends string>(kit: Kit, order: readonly P[], room: n
 
 /** True until the amber step: an amber reading's chart stays while this holds. */
 export const beforeLast = <P extends string>(keeps: Keeps<P>): boolean => keeps.amber(AMBER_PROBE) === AMBER_PROBE.long
-
-/** An amber reading's reason, long until every calm piece has gone. */
-export const amberSay = <P extends string>(amber: Amber, keeps: Keeps<P>): Say => [[keeps.amber(amber), 'amber']]
-
-/** What needs you first: the amber items, then the calm, each in its order. */
-export const amberFirst = <T extends Readonly<{ amber: Amber | undefined }>>(items: readonly T[]): T[] => [
-  ...items.filter(i => i.amber !== undefined),
-  ...items.filter(i => i.amber === undefined),
-]
-
-/** A piece built the first time it is asked for, then kept. */
-export const once = <T,>(build: () => T): (() => T) => {
-  let built: T | undefined
-  return () => (built ??= build())
-}
 
 /** Each role's ink: text on the card ground. */
 export const ROLE_INK: Readonly<Record<Role, Exclude<keyof Palette, 'filled'>>> = {
@@ -288,9 +205,6 @@ export const resetClause = (kit: Kit, ink: string, when: string, separator = ' �
     </Text>,
   ]
 }
-
-/** The top of a limit's scale: its percentages run to 100. */
-export const PERCENT = 100
 
 /** A limit's accent: its window's, or the meter's for any other. */
 export const accentOf = (kit: Kit, limit: Readonly<{ key: LimitKey }>): string =>

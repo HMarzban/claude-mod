@@ -47,10 +47,6 @@ export type Palette = {
   weekText: string
   /** Week's text cells in each window's tint: a guess dim, none left
    *  dimmer, both apart from label grey, which is the notch's. */
-  weekGuess: string
-  weekSpent: string
-  fiveGuess: string
-  fiveSpent: string
   /** The departures board: the case behind the tiles, dark in dark and
    *  light alike (plain draws none). */
   boardBg: string
@@ -98,10 +94,6 @@ export const DARK: Readonly<Palette> = {
   weekFg: '#d9d3f5',
   weekAccent: '#a99cf0',
   weekText: '#a99cf0',
-  weekGuess: '#8a80d0',
-  weekSpent: '#7a70c0',
-  fiveGuess: '#62a86f',
-  fiveSpent: '#4f8a5b',
   boardBg: '#141414',
   flapBg: '#262626',
   flapSeam: '#0E0E0E',
@@ -143,10 +135,6 @@ export const LIGHT: Readonly<Palette> = {
   weekFg: '#3c3489',
   weekAccent: '#6b5fd3',
   weekText: '#5a4ec4',
-  weekGuess: '#7a70d8',
-  weekSpent: '#8077dc',
-  fiveGuess: '#3a9450',
-  fiveSpent: '#3f9a55',
   boardBg: '#141414',
   flapBg: '#262626',
   flapSeam: '#0E0E0E',
@@ -190,10 +178,6 @@ export const PLAIN: Readonly<Palette> = {
   weekFg: 'text',
   weekAccent: 'text',
   weekText: 'text',
-  weekGuess: 'inactive',
-  weekSpent: 'inactive',
-  fiveGuess: 'inactive',
-  fiveSpent: 'inactive',
   boardBg: '',
   flapBg: '',
   flapSeam: '',

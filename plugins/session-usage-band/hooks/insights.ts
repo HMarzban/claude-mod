@@ -32,7 +32,7 @@ export const FIVE_HOUR_TRAIL = 300
 
 /** What a main-loop message cost, and whether its turn rebuilt the cache. */
 export type CostEntry = Readonly<{ usd: number; reWarm: boolean }>
-export type TrailPoint = Readonly<{ at: number; pct: number }>
+type TrailPoint = Readonly<{ at: number; pct: number }>
 export type Trails = Readonly<{ costs: readonly CostEntry[]; context: readonly number[]; fiveHour: readonly TrailPoint[] }>
 
 /** The mean cost of the messages that found the cache warm: a re-warm's

@@ -85,9 +85,6 @@ export const resetIn = (iso: string | undefined, now: number): ResetIn | undefin
 /** The words for escalation: colour is never the only signal. */
 export const severityMark = (frac: number): string => (frac >= SEVERE_AT ? '!!' : frac >= WARN_AT ? '!' : '')
 
-/** A day's minutes, from which a projection is said in days. */
-const DAY_MINUTES = 24 * 60
-
 /** A projection's whole minutes: 5-minute steps under an hour, 15 from one. */
 export const etaMinutes = (ms: number): number => {
   const mins = Math.max(0, ms) / MINUTE_MS
@@ -100,17 +97,6 @@ export const fmtEta = (ms: number): string => {
   const hours = Math.floor(mins / 60)
   const rest = mins % 60
   return hours === 0 ? `~${mins}m` : rest ? `~${hours}h ${rest}m` : `~${hours}h`
-}
-
-/** From this far off, departures' projection says its day, not its minutes. */
-const DAYS_FROM_MINUTES = 12 * 60
-
-/** Departures' projection: from 12 hours, whole days to the nearest, at
- *  least one, `~1d`, since its minute would claim too much; nearer, as
- *  `fmtEta`. */
-export const fmtEtaDays = (ms: number): string => {
-  const mins = etaMinutes(ms)
-  return mins >= DAYS_FROM_MINUTES ? `~${Math.max(1, Math.round(mins / DAY_MINUTES))}d` : fmtEta(ms)
 }
 
 /** `text` at most `max` characters, cut in the middle: a branch keeps both

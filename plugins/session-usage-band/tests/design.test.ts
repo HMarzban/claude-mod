@@ -75,19 +75,6 @@ for (const [name, p, hosts] of [
     expect(contrast(p.value, p.surface)).toBeGreaterThanOrEqual(4.5)
   })
 
-  test(`${name}: week's text cells, guessed and none left, are marks in their window's tint on every ground they sit on`, () => {
-    // The days sit in the 7d pill, amber or calm, and the hours in a card's head.
-    for (const [guess, spent, grounds] of [
-      [p.weekGuess, p.weekSpent, [p.weekBg, p.amberBg, p.cardBg]],
-      [p.fiveGuess, p.fiveSpent, [p.cardBg]],
-    ] as const) {
-      for (const bg of grounds) for (const mark of [guess, spent]) expect(contrast(mark, bg)).toBeGreaterThanOrEqual(3)
-      // Label grey means the notch alone.
-      expect([guess, spent]).not.toContain(p.label)
-      expect(guess).not.toBe(spent)
-    }
-  })
-
   test(`${name}: a window's name holds as text on its own tint, as rings' pills say it`, () => {
     expect(contrast(p.fiveText, p.fiveBg)).toBeGreaterThanOrEqual(4.5)
     expect(contrast(p.weekText, p.weekBg)).toBeGreaterThanOrEqual(4.5)

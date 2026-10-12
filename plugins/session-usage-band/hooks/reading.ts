@@ -28,7 +28,7 @@ import { drawnTier } from './glyphs'
 import { warmAverageOf } from './insights'
 import type { CostEntry, Trails } from './insights'
 import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
-import { boardWords, cacheCopy, cacheWords, contextWords, historyWords, lastHourOf, limitWords, spendWords, tokenBreakdownOf, weekWords } from './words'
+import { boardWords, cacheCopy, cacheWords, contextWords, historyWords, limitWords, spendWords, tokenBreakdownOf, weekWords } from './words'
 import type { Board, CacheCopy, CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
 
 export type Tone = 'calm' | 'amber'
@@ -80,19 +80,6 @@ const contextReading = (ctx: BandSnapshot['context']) => {
   }
 }
 
-/** Messages until `room` more tokens are in context, at the pace the trail
- *  has grown since its last drop, a compaction or a clear; undefined until
- *  two points show it growing. */
-const messagesTo = (trail: readonly number[], room: number | undefined): number | undefined => {
-  let start = 0
-  for (let i = 1; i < trail.length; i++) if ((trail[i] ?? 0) < (trail[i - 1] ?? 0)) start = i
-  const first = trail[start]
-  const last = trail[trail.length - 1]
-  const steps = trail.length - 1 - start
-  if (room === undefined || first === undefined || last === undefined || steps < 1 || last <= first) return undefined
-  return Math.max(1, Math.ceil(room / ((last - first) / steps)))
-}
-
 // ---- the limits -------------------------------------------------------------
 
 /** The share of a window gone, from its length and its reset at `at`, NaN when unknown. */
@@ -134,8 +121,6 @@ export type ContextFacts = ReturnType<typeof contextReading> &
     compactAt: number | undefined
     autoCompactOff: boolean
     window: number
-    /** Messages until compaction at the conversation's pace; undefined until it shows one. */
-    msgsToCompact: number | undefined
   }>
 
 export type SpendFacts = Readonly<{
@@ -182,8 +167,8 @@ export type LimitFacts = Readonly<{
 }>
 
 // What the views read: each section's facts, and its words beside them.
-export type CacheReading = CacheFacts & CacheWords
-export type ContextReading = ContextFacts & ContextWords
+type CacheReading = CacheFacts & CacheWords
+type ContextReading = ContextFacts & ContextWords
 type SpendReading = SpendFacts & SpendWords
 /** A limit window as the views read it. A view, not a reading: `LimitReading`
  *  is the snapshot's raw window. */
@@ -196,7 +181,7 @@ type ChipsReadings = Readonly<{
 }>
 
 /** The conversation's trails, their words, and the series a chart draws. */
-export type HistoryReading = Trails &
+type HistoryReading = Trails &
   HistoryWords &
   Readonly<{
     /** No cost yet this conversation. */
@@ -207,8 +192,6 @@ export type HistoryReading = Trails &
     reWarms: readonly boolean[]
     /** Their mean, re-warms left out: what a chart scales and rules its bars by. */
     warmAvgUsd: number | undefined
-    /** The 5h trail's percentages over the last hour. */
-    fiveHourHour: readonly number[]
     /** The top of the cost scale: twice the warm average, or the largest warm
      *  cost if that is more; with no warm cost the largest cost; 1 when there
      *  is none to scale by. Never 0. */
@@ -296,7 +279,6 @@ const contextFacts = (snap: BandSnapshot): ContextFacts => {
     compactAt: snap.context.compactAt,
     autoCompactOff: snap.context.autoCompactOff,
     window: snap.context.window,
-    msgsToCompact: messagesTo(snap.history.context, reading.toCompact),
   }
 }
 
@@ -356,14 +338,13 @@ const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
 }
 
 /** The conversation's trails with their words and the series a chart draws. */
-const historyFacts = (trails: Trails, fiveHour: LimitView | undefined, context: ContextFacts, now: number): HistoryReading => ({
+const historyFacts = (trails: Trails, context: ContextFacts): HistoryReading => ({
   ...trails,
-  ...historyWords(trails, fiveHour, context, now),
+  ...historyWords(trails, context),
   empty: trails.costs.length === 0,
   costValues: trails.costs.map(e => e.usd),
   reWarms: trails.costs.map(e => e.reWarm),
   warmAvgUsd: warmAverageOf(trails.costs),
-  fiveHourHour: lastHourOf(trails.fiveHour, now).map(p => p.pct),
   beatsTop: beatsTopOf(trails.costs),
 })
 
@@ -384,7 +365,7 @@ const windowOf = (l: LimitView | undefined, now: number): WindowNow | undefined 
         percentUsed: l.percentUsed,
         projectedPct: l.projectedPct,
         resetsAt: l.resetInMs === undefined ? undefined : now + l.resetInMs,
-        // The fill the forecast says, so the week names the same one.
+        // The fill the limit's own words say, so the week's cells name the same one.
         fullAt: l.fullInMs === undefined ? undefined : now + l.fullInMs,
       }
 
@@ -441,7 +422,7 @@ const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour
   const daysDrawn = { values: dayValues, guess, today: today < 0 ? undefined : today, measured: dayValues.some((v, i) => v !== undefined && !guess[i]) }
   return {
     ...week,
-    ...weekWords(week, { days: dayRow, hours: hourRow }, seven?.fullAt === undefined ? undefined : { at: seven.fullAt, zone, now: snap.now }, fiveHour),
+    ...weekWords(week, dayRow, fiveHour),
     dayRow,
     hourRow,
     fiveHourWindow,
@@ -489,7 +470,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     worstLimit,
     workspace: snap.workspace,
     get history() {
-      return (history ??= historyFacts(snap.history, fiveHour, context, snap.now))
+      return (history ??= historyFacts(snap.history, context))
     },
     get week() {
       return (week ??= weekFacts(snap, sevenDay, fiveHour))

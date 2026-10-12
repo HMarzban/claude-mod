@@ -17,21 +17,21 @@ import { ROLE_INK, accentOf } from './parts'
 
 /** The cards, in the order they are drawn. */
 const CARD_NAMES = ['cache', 'spend', 'context', 'limits'] as const
-export type CardName = (typeof CARD_NAMES)[number]
+type CardName = (typeof CARD_NAMES)[number]
 
-export type OpenOptions = Readonly<{
+type OpenOptions = Readonly<{
   /** The rows the collapsed row takes, so the cards take only what is left. */
   collapsedRows: number
 }>
 
-export const SPLIT_ALT = `token split: ${SPLIT_LABELS.join(', ')}`
+const SPLIT_ALT = `token split: ${SPLIT_LABELS.join(', ')}`
 
 /** The session's tokens split by kind, in `SPLIT_LABELS`' order, each part
  *  in its colour. Cache reads are in the warm colour: cheap, and often most
  *  of the bar. In text each part has its own fill too, since the inks sit
  *  close in lightness: colour is never the only signal. The desktop's parts
  *  are solid, divided by the ground, so its legend marks them solid. */
-export const tokenPartsOf = (kit: Kit, read: Readings): SplitPart[] => {
+const tokenPartsOf = (kit: Kit, read: Readings): SplitPart[] => {
   const { Svg, palette } = kit
   const { spend } = read
   const [inputFill, outputFill, readsFill] = Svg ? ['■', '■', '■'] : read.frame.glyphs === 'ascii' ? ['#', '=', '+'] : ['█', '▓', '▒']

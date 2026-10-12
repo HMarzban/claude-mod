@@ -65,7 +65,7 @@ const collapsed = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
     // No cost yet: the words for that in the trace's place, beside the total.
     const trace = !k.has('beats') ? null
       : hist.empty ? <Text key="empty" color={palette.label}>{EMPTY.costs}</Text>
-      : charts ? barChart(kit, { key: 'beats', shape: 'beats', alt: hist.costsAltOf(n), values: hist.costValues.slice(-n), marked: hist.reWarms.slice(-n), color: palette.value, markColor: palette.value, px: BEATS_PX[n], height: 20, max: hist.beatsTop })
+      : charts ? barChart(kit, { key: 'beats', alt: hist.costsAltOf(n), values: hist.costValues.slice(-n), marked: hist.reWarms.slice(-n), color: palette.value, markColor: palette.value, px: BEATS_PX[n], height: 20, max: hist.beatsTop })
       : null
     // Spend is never amber: it gives way whole at its step.
     const spendGroup = !k.has('spend') ? null : group(kit, 'spend', trace,

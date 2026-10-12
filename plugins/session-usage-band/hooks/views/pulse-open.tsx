@@ -150,7 +150,7 @@ const bands = (kit: Kit, read: Readings, step: Step, room: number): Drawn[] => {
     const empty = step.spend === 'chart' && hist.empty && cellsIn(kit, words) + 1 + cellsIn(kit, EMPTY.costs) <= room
     const chart = empty ? <Text key="empty" color={palette.label}>{EMPTY.costs}</Text>
       : px === undefined ? null
-      : barChart(kit, { key: 'beats', shape: 'beats', alt: hist.costsAltOf(BEATS), values: hist.costValues.slice(-BEATS), marked: hist.reWarms.slice(-BEATS), level: hist.warmAvgUsd, color: palette.value, markColor: palette.value, px, height: CHART_PX[SPEND_ROWS], air: AIR_PX, max: hist.beatsTop })
+      : barChart(kit, { key: 'beats', alt: hist.costsAltOf(BEATS), values: hist.costValues.slice(-BEATS), marked: hist.reWarms.slice(-BEATS), level: hist.warmAvgUsd, color: palette.value, markColor: palette.value, px, height: CHART_PX[SPEND_ROWS], air: AIR_PX, max: hist.beatsTop })
     drawn.push({ el: band(kit, 'band:spend', chart, words, false), rows: rowsOf(kit, px !== undefined, SPEND_ROWS) })
   }
   if (step.context !== undefined) {

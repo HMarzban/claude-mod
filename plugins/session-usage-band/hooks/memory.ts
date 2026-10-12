@@ -59,7 +59,7 @@ export const asLayoutName = (v: unknown): LayoutName | undefined => {
 }
 
 /** Layouts this version removed: a stored one draws chips, and the command names it. */
-export const REMOVED_LAYOUTS = ['gauges', 'ledger', 'rings', 'tiles', 'week', 'forecast'] as const
+const REMOVED_LAYOUTS = ['gauges', 'ledger', 'rings', 'tiles', 'week', 'forecast'] as const
 export const REMOVED_IN = '0.14.0'
 /** A removed layout's name, from the store or the command, trimmed and lowercased; else undefined. */
 export const removedLayoutOf = (v: unknown): string | undefined => {
