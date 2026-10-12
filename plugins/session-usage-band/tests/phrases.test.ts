@@ -4,9 +4,9 @@
 import { test, expect } from 'claude-code/testing'
 import { fixedZone, fmtClock, fmtDay, fmtDayClock, fmtEtaSpoken, fmtLeft, fmtLeftSpoken } from '../hooks/format'
 import { AMBER, EMPTY, altOf, paceText } from '../hooks/words'
+import { MIN } from './helpers'
 
 const T = Date.UTC(2026, 9, 9, 13, 40) // a Friday, 13:40 UTC
-const MIN = 60_000
 const UTC = fixedZone(0)
 
 test('clock times are local and 24-hour', () => {

@@ -11,9 +11,8 @@ import {
   noteTurnStart,
   resetInsights,
 } from '../hooks/insights'
-import { endTurn, fact, mountBand, resp, respond, setup, START, startTurn } from './helpers'
+import { MIN, endTurn, fact, mountBand, resp, respond, setup, START, startTurn } from './helpers'
 
-const MIN = 60_000
 const cents = (n: number | null): number | null => (n === null ? null : Math.round(n * 100))
 const RESET_IN_3H = new Date(3 * 60 * MIN).toISOString()
 
