@@ -5,6 +5,17 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.13.2] - 2026-10-12
+
+### Fixed
+- Forecast and departures name the same count of messages to compaction.
+  With room for 11.4 messages, forecast said `~11` and departures `~12`;
+  both now round up, as departures did.
+- When the session's usage can't be read, the band steps aside for that
+  draw. The hook used to fail, and the engine skipped and reported it.
+- A limit sample that arrives late no longer overwrites a newer one taken
+  in the same 15 minutes, so week's cells keep the later reading.
+
 ## [0.13.1] - 2026-10-12
 
 ### Fixed
