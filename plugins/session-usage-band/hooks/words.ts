@@ -22,6 +22,7 @@ import {
   fmtSmallCost,
   fmtTokens,
   HOUR_MS,
+  plural,
   severityMark,
   SOON_MS,
 } from './format'
@@ -721,7 +722,7 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, co
     toCompaction:
       messages === undefined
         ? undefined
-        : [`~${messages} message${messages === 1 ? '' : 's'} to compaction`, `~${messages} msg${messages === 1 ? '' : 's'} to compact`, `~${messages}`],
+        : [`~${plural(messages, 'message')} to compaction`, `~${plural(messages, 'msg')} to compact`, `~${messages}`],
   }
 }
 
