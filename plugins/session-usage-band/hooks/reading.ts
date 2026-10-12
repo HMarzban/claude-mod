@@ -16,7 +16,6 @@ import {
   contextUsed,
   dayOf,
   fixedZone,
-  fmtCountdown,
   fmtEstimate,
   fmtPct,
   fmtTokens,
@@ -28,8 +27,8 @@ import { drawnTier } from './glyphs'
 import { warmAverageOf } from './insights'
 import type { Trails } from './insights'
 import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
-import { cacheWords, contextWords, historyWords, lastHourOf, limitWords, spendWords, weekWords } from './words'
-import type { CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
+import { cacheCopy, cacheWords, contextWords, historyWords, lastHourOf, limitWords, spendWords, tokenBreakdownOf, weekWords } from './words'
+import type { CacheCopy, CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
 
 export type Tone = 'calm' | 'amber'
 
@@ -59,66 +58,6 @@ export const cacheCharge = (c: Cache, mood: CacheMood, isWorking: boolean): numb
 /** What the next message costs to rebuild the cache: dollars when a rate is
  *  known, else the tokens it writes. */
 export const reWarmEstimate = (c: Cache): string => (c.reWarmUsd !== null ? fmtEstimate(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`)
-
-/** Every word chips' row says about the cache, for one mood: the pill, its
- *  hover and the battery's name. One table, so a mood's wording changes in
- *  one place; the cards read theirs from `cacheWords`. */
-export type CacheCopy = Readonly<{
-  pill: (short: boolean) => string
-  /** The countdown a calm pill ends on, `52m`: its figure, for a layout that bolds it. */
-  figure: string | undefined
-  hover: string
-  alt: string
-}>
-
-export const cacheCopy = (c: Cache, mood: CacheMood, isWorking: boolean): CacheCopy => {
-  const estimate = reWarmEstimate(c)
-  // What a warm read costs against input on the model in force: 5% on Opus 5.5.
-  const readPct = `${+(c.readShare * 100).toFixed(1)}%`
-  const left = fmtCountdown(c.msLeft)
-  const charge = cacheCharge(c, mood, isWorking)
-  const battery = charge <= 0 ? 'cache battery empty' : `cache battery ${Math.round(clamp01(charge) * 100)}% left`
-  const warmHover = `${left} left; warm cache bills input at ${readPct}, expires ${c.ttl} after a reply`
-  switch (mood) {
-    case 'unmeasured':
-      return {
-        pill: () => 'cache –',
-        figure: undefined,
-        hover: "Not measured since the band loaded; the countdown starts with Claude's next reply",
-        alt: 'cache not measured yet',
-      }
-    case 'warming':
-      return {
-        pill: () => 'cache warming',
-        figure: undefined,
-        hover: `Your first message builds the cache; after that it bills input at ${readPct}`,
-        alt: 'cache warming',
-      }
-    case 'expiring':
-      return {
-        pill: short => (short ? `${left} ${estimate}` : `${left} left · re-warm ${estimate}`),
-        figure: undefined,
-        hover: warmHover,
-        alt: battery,
-      }
-    case 'cold':
-      return {
-        // Cold is a price, not an error: neutral, no hue, no alarm.
-        pill: short => (short ? `cold ${estimate}` : `cache cold · next message ${estimate}`),
-        figure: undefined,
-        hover: `Cold: next message rebuilds ${fmtTokens(c.window)} tokens${c.reWarmUsd === null ? '' : ` (${fmtEstimate(c.reWarmUsd)})`}`,
-        alt: battery,
-      }
-    case 'warm':
-      return {
-        // Mid-turn every step restarts the TTL, so a countdown would only bounce.
-        pill: () => (isWorking ? 'cache warm' : `cache ${left}`),
-        figure: isWorking ? undefined : left,
-        hover: warmHover,
-        alt: battery,
-      }
-  }
-}
 
 // ---- the context ------------------------------------------------------------
 
@@ -489,6 +428,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
   }
   const cache = cacheFacts(snap)
   const spend = spendFacts(snap)
+  const spendSaid = spendWords(spend)
   const context = contextFacts(snap)
   const limits = limitFacts(snap).map((f): LimitView => ({ ...f, ...limitWords(f, frame) }))
   // The headline is the window closest to its limit.
@@ -502,7 +442,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
   return {
     frame,
     cache: { ...cache, ...cacheWords(cache, c, frame) },
-    spend: { ...spend, ...spendWords(spend) },
+    spend: { ...spend, ...spendSaid },
     context: { ...context, ...contextWords(context, frame) },
     fiveHour,
     sevenDay,
@@ -518,8 +458,8 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     chips: {
       raw: snap,
       reading: {
-        copy: cacheCopy(c, cache.mood, snap.isWorking),
-        tokenBreakdown: `input ${fmtTokens(c.tokens.sent)} · output ${fmtTokens(c.tokens.back)} · cache reads ${fmtTokens(c.tokens.cached)}`,
+        copy: cacheCopy(cache, c, frame),
+        tokenBreakdown: tokenBreakdownOf(spendSaid.split),
       },
     },
   }

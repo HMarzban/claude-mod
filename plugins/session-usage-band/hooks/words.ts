@@ -4,6 +4,7 @@
 
 import type { DayCell, Week } from './calendar'
 import {
+  clamp01,
   fmtAgo,
   fmtClock,
   fmtCost,
@@ -416,6 +417,63 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
   }
 }
 
+/** Every word chips' row says about the cache, for one mood: the pill, its
+ *  hover and the battery's name. One table, so a mood's wording changes in
+ *  one place; the cards read theirs from `cacheWords`. */
+export type CacheCopy = Readonly<{
+  pill: (short: boolean) => string
+  /** The countdown a calm pill ends on, `52m`: its figure, for a layout that bolds it. */
+  figure: string | undefined
+  hover: string
+  alt: string
+}>
+
+export const cacheCopy = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame): CacheCopy => {
+  // What a warm read costs against input on the model in force.
+  const readPct = `${+(c.readShare * 100).toFixed(1)}%`
+  const left = fmtCountdown(c.msLeft)
+  const battery = f.charge <= 0 ? 'cache battery empty' : `cache battery ${Math.round(clamp01(f.charge) * 100)}% left`
+  const warmHover = `${left} left; warm cache bills input at ${readPct}, expires ${c.ttl} after a reply`
+  switch (f.mood) {
+    case 'unmeasured':
+      return {
+        pill: () => 'cache –',
+        figure: undefined,
+        hover: "Not measured since the band loaded; the countdown starts with Claude's next reply",
+        alt: 'cache not measured yet',
+      }
+    case 'warming':
+      return {
+        pill: () => 'cache warming',
+        figure: undefined,
+        hover: `Your first message builds the cache; after that it bills input at ${readPct}`,
+        alt: 'cache warming',
+      }
+    case 'expiring':
+      return {
+        pill: short => (short ? `${left} ${f.estimate}` : `${left} left · re-warm ${f.estimate}`),
+        figure: undefined,
+        hover: warmHover,
+        alt: battery,
+      }
+    case 'cold':
+      return {
+        // Cold is a price, not an error: neutral, no hue, no alarm.
+        pill: short => (short ? `cold ${f.estimate}` : `cache cold · next message ${f.estimate}`),
+        figure: undefined,
+        hover: `Cold: next message rebuilds ${fmtTokens(c.window)} tokens${c.reWarmUsd === null ? '' : ` (${f.estimate})`}`,
+        alt: battery,
+      }
+    case 'warm':
+      return {
+        pill: () => (frame.isWorking ? 'cache warm' : `cache ${left}`),
+        figure: frame.isWorking ? undefined : left,
+        hover: warmHover,
+        alt: battery,
+      }
+  }
+}
+
 /** The context in words, measured toward compaction when it is on; unknown
  *  while the engine reports none, never 0%. */
 export const contextWords = (f: ContextFacts, frame: Frame): ContextWords => {
@@ -479,6 +537,9 @@ export const spendWords = (f: SpendFacts): SpendWords => {
     sentence: [['spent ', 'label'], [totalText, 'value']],
   }
 }
+
+/** The tokens by kind as chips' hover says them: `input 41k · output 12k · cache reads 155k`. */
+export const tokenBreakdownOf = (split: readonly SpendSplit[]): string => split.map(s => `${s.label} ${s.text}`).join(' · ')
 
 /** A limit window in words; once it has passed, only that it reset. */
 export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
