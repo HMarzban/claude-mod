@@ -61,8 +61,6 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet
 html,body{{width:1000px;height:560px;overflow:hidden;background:{bg}}}
 body{{font-family:-apple-system,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:22px 26px}}
 .cap{{color:{text};font-size:21px;font-weight:700;letter-spacing:-.3px;height:32px}} .cap .em{{font-family:"Instrument Serif",Georgia,serif;font-style:italic;font-weight:400;color:{accent};font-size:1.14em}} .cap .hl{{background-image:linear-gradient(transparent 58%,{hl} 58%,{hl} 92%,transparent 92%);padding:0 .06em}} .cap span.rest{{color:{text3};font-weight:400;font-size:18px;margin-left:6px}}
-.cap span{{color:#a8a49c;font-weight:400}}
-.cap em{{font-style:normal;color:#d97757}}
 .term{{box-shadow:{shadow};margin-top:10px;height:488px;display:flex;flex-direction:column;background:#1e1e1e;border:1px solid #34332f;border-radius:12px;overflow:hidden}}
 .bar{{height:30px;display:flex;align-items:center;gap:7px;padding:0 12px;background:#262624;border-bottom:1px solid #34332f}}
 .bar i{{width:11px;height:11px;border-radius:50%;background:#4a4945}}
