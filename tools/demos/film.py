@@ -12,7 +12,7 @@ import json
 import math
 import sys
 
-from render_desk import node
+from render_desk import BAND_CSS, MARK, node
 
 FPS = 30
 
@@ -85,9 +85,6 @@ CHAPTERS = [
     (T_CURSOR_A, T_END, 'The cards', '▵ opens ', 'every', ' fact.', 'Cache, spend, context and limits.'),
 ]
 
-MARK = '''<svg viewBox="0 0 64 64" width="{s}" height="{s}" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#1f1e1b"/><circle cx="32" cy="32" r="21" fill="none" stroke="#3b3934" stroke-width="5"/><circle cx="32" cy="32" r="21" fill="none" stroke="#d97757" stroke-width="5" stroke-linecap="round" stroke-dasharray="97 132" transform="rotate(-90 32 32)"/><rect x="20.5" y="25" width="20" height="14" rx="3.6" fill="none" stroke="#f2f0eb" stroke-width="3"/><rect x="41.8" y="28.8" width="3" height="6.4" rx="1.3" fill="#f2f0eb"/><rect x="24" y="28.5" width="7" height="7" rx="1.5" fill="#d97757"/></svg>'''
-
-
 def caption_at(t):
     for a, b, _, pre, acc, post, rest in CHAPTERS:
         if a <= t < b:
@@ -127,7 +124,7 @@ def frame(i, theme, trees, minutes):
         **THEMES[theme], band=node(trees[band_at(t, minutes)]), title=title, tsweep=title_sweep * 100, app=app,
         cap=cap, pre=pre, acc=acc, post=post, rest=rest, sweep=sweep * 100, clock=clock_at(t), chrome=chrome,
         lapse=lapse, end=endcard, esweep=end_sweep * 100, chapters=chapters_at(t), mark64=MARK.format(s=64), mark44=MARK.format(s=44),
-        params=json.dumps(params))
+        band_css=BAND_CSS, params=json.dumps(params))
 
 
 PAGE = """<!doctype html><html><head><meta charset="utf-8">
@@ -147,11 +144,8 @@ body{{font-family:-apple-system,system-ui,sans-serif;-webkit-font-smoothing:anti
 .chat{{padding:0 22px;color:#d6d3cc;font-size:15px;line-height:23px}}
 .chat p{{margin-bottom:10px}} .chat .you{{background:#2a2a28;border-radius:14px;padding:8px 14px;margin:0 0 14px auto;width:fit-content;max-width:70%}}
 .chat code{{font:13px "SF Mono",ui-monospace,Menlo,monospace;background:#262624;padding:1px 5px;border-radius:5px}}
-.band{{margin:6px 10px 0;width:964px;background:#212121;border-radius:16px;padding:12px;font-size:15px;line-height:24px;color:#ececf2;white-space:pre;position:relative}}
-.t{{white-space:pre}} .svg{{display:block;flex-shrink:0}}
-.toggle{{display:inline-flex;align-items:center;justify-content:center;width:30px;height:28px;border-radius:7px;background:#333336;color:#ececf2;font-size:13px}}
-.btn{{display:inline-flex;align-items:center;gap:8px;height:30px;padding:0 6px 0 12px;border-radius:8px;background:#2e2e31;border:1px solid #3c3c40;color:#ececf2}}
-.key{{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border:1px solid #55555e;border-radius:5px;font-size:12px;color:#b8b8c2}}
+{band_css}
+.band{{margin:6px 10px 0}}
 .input{{margin:10px 10px 0;height:50px;flex-shrink:0;border:1px solid #3a3a38;border-radius:16px;display:flex;align-items:center;padding:0 18px;color:#8f8c85;font-size:16px}}
 .ring{{position:absolute;border:3px solid #d97757;border-radius:12px;pointer-events:none;box-shadow:0 0 0 6px rgba(217,119,87,.18)}}
 .cap{{position:absolute;z-index:3;left:140px;top:26px;font-size:24px;font-weight:700;letter-spacing:-.4px;white-space:nowrap}}
