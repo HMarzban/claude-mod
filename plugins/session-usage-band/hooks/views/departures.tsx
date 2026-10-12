@@ -6,7 +6,6 @@
 // queue, each first row one the row left out.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
-import { asciiText } from '../glyphs'
 import type { Kit } from '../kit'
 import { ROW_SLACK } from '../layout'
 import type { LimitView, Readings, Tone } from '../reading'
@@ -18,7 +17,7 @@ import { LIMITS, costPill, tokensPill } from './chips'
 import type { ChipKey } from './chips'
 import { toggleButton } from './frame'
 import { batteryIcon, beforeLast, line, pill, fitLineKeeps, resetClause, textBattery } from './parts'
-import type { BoldRuns, Keeps } from './parts'
+import type { Keeps } from './parts'
 import { defineCardsView, type CardOptions } from './view'
 
 /** What gives way as the row narrows, first to last; amber never does. The
@@ -73,10 +72,7 @@ const cacheStop = (kit: Kit, read: Readings): Stop => {
   const cachePill = (cd: Countdown): RenderElement => {
     if (Svg) return pill(kit, { key: 'cache', tone, body: [batteryIcon(kit, c.charge, tone, c.alt), gap('g-battery'), ...said(kit, cd, onTone(tone, palette.value))] })
     if (!palette.filled) return pill(kit, { key: 'cache', tone, body: said(kit, cd, onTone(tone, palette.value)) })
-    // The ascii words are mapped before the battery's cut, as chips maps its own.
-    const runs: BoldRuns = [[`◷ ${cd.words}`, false], [cd.figure, true], [cd.after, false]]
-    const drawn: BoldRuns = read.frame.glyphs === 'ascii' ? runs.map(([text, bold]) => [asciiText(text), bold]) : runs
-    return pill(kit, { key: 'cache', tone, body: textBattery(kit, c.charge, tone, drawn), paintsOwnBg: true })
+    return pill(kit, { key: 'cache', tone, body: textBattery(kit, c.charge, tone, [[`◷ ${cd.words}`, false], [cd.figure, true], [cd.after, false]]), paintsOwnBg: true })
   }
   const draw = (keeps: Keeps<Piece>): Drawn => {
     const cd = formOf(c.departure, tone, keeps)

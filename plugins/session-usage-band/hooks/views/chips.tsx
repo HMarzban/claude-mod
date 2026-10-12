@@ -7,7 +7,6 @@
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { meter } from '../charts'
 import { fmtCost, fmtEta, fmtSmallCost, fmtTokens, severityMark } from '../format'
-import { asciiText } from '../glyphs'
 import type { Icon } from '../icons'
 import type { Kit } from '../kit'
 import { GIVES_WAY, ROW_SLACK, SHORT_BELOW, cellsOf, keeps, spansOf, squeezeToFit } from '../layout'
@@ -18,7 +17,7 @@ import type { BandActions } from '../snapshot'
 import { paceText } from '../words'
 import { toggleButton } from './frame'
 import { batteryIcon, pill, resetClause, textBattery } from './parts'
-import type { BoldRuns, PillSpec } from './parts'
+import type { PillSpec } from './parts'
 import { defineCardsView } from './view'
 
 // ---- limits ---------------------------------------------------------------
@@ -91,14 +90,11 @@ export const cachePill = (kit: Kit, read: Readings, short: boolean, bold = false
     // battery would paint a square-cornered block here.
     return { key: 'cache', tone, body: [batteryIcon(kit, charge, tone, copy.alt), ...words('c', ` ${text}`)], hover: copy.hover }
   }
-  // The ascii label is mapped before the battery's cut, so a dropped glyph
-  // neither leaves a gap at the cut nor takes its cells from the charge.
   if (palette.filled) {
-    const runs: BoldRuns = [[`◷ ${text.slice(0, text.length - figure.length)}`, false], [figure, true]]
     return {
       key: 'cache',
       tone,
-      body: textBattery(kit, charge, tone, read.frame.glyphs === 'ascii' ? runs.map(([run, bold]) => [asciiText(run), bold]) : runs),
+      body: textBattery(kit, charge, tone, [[`◷ ${text.slice(0, text.length - figure.length)}`, false], [figure, true]]),
       hover: copy.hover,
       paintsOwnBg: true,
     }

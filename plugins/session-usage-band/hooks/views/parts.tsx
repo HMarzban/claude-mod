@@ -120,15 +120,17 @@ export const batteryBar = (kit: Kit, charge: number, tone: Tone, alt: string, si
 }
 
 /** Text in runs, each bold or not: a figure among its words. */
-export type BoldRuns = ReadonlyArray<readonly [text: string, bold: boolean]>
+type BoldRuns = ReadonlyArray<readonly [text: string, bold: boolean]>
 
 /** On a text surface the battery is the pill itself: its charge painted as
- *  the background of the leading characters, draining right to left. `text`
- *  arrives in the glyphs it is drawn in, so the cut falls where it shows; in
- *  runs, a bold one stays bold either side of the cut. */
+ *  the background of the leading characters, draining right to left. In the
+ *  ascii tier `text` is mapped before the cut, so a dropped glyph neither
+ *  leaves a gap at the cut nor takes its cells from the charge; in runs, a
+ *  bold one stays bold either side of the cut. */
 export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string | BoldRuns): RenderChildren[] => {
-  const { Text, palette, onTone } = kit
-  const runs: BoldRuns = typeof text === 'string' ? [[text, false]] : text
+  const { Text, palette, onTone, glyphs } = kit
+  const given: BoldRuns = typeof text === 'string' ? [[text, false]] : text
+  const runs: BoldRuns = glyphs === 'ascii' ? given.map(([run, bold]) => [asciiText(run), bold]) : given
   const pad = { ch: ' ', bold: false }
   const chars = [pad, ...runs.flatMap(([run, bold]) => [...run].map(ch => ({ ch, bold }))), pad]
   const cut = Math.round(clamp01(charge) * chars.length)
@@ -161,11 +163,10 @@ export const layoutCacheSpec = (kit: Kit, read: Readings, short: boolean): PillS
   const c = read.cache
   const text = c.amber !== undefined ? (short ? c.amber.short : c.amber.long) : short ? c.textShort : c.text
   const fg = onTone(c.tone, palette.value)
-  // The ascii text is mapped before the battery's cut, as chips maps its own on a terminal.
   const body = Svg
     ? [batteryIcon(kit, c.charge, c.tone, c.alt), <Text key="c" color={fg}>{` ${text}`}</Text>]
     : palette.filled
-      ? textBattery(kit, c.charge, c.tone, read.frame.glyphs === 'ascii' ? asciiText(text) : text)
+      ? textBattery(kit, c.charge, c.tone, text)
       : [<Text key="c" color={fg}>{text}</Text>]
   return { key: 'cache', tone: c.tone, body, paintsOwnBg: !Svg && palette.filled }
 }
