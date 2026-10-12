@@ -9,7 +9,7 @@
 
 import { NO_TOKENS, addTokens, modelName, weightedTokens } from './cache'
 import type { Spend, TokenCounts, Ttl } from './cache'
-import { SEVEN_DAY_MS } from './format'
+import { MINUTE_MS, SEVEN_DAY_MS } from './format'
 import { LAYOUT_NAMES } from './snapshot'
 import type { LayoutName } from './snapshot'
 import { stripTrailingSlashes } from './workspace'
@@ -73,7 +73,7 @@ export const SEVEN_DAY = 'seven_day'
 /** Both limits at one moment, with the resets that name their windows (epoch ms). */
 export type Sample = Readonly<{ at: number; fivePct: number; sevenPct: number; fiveResetAt: number; sevenResetAt: number }>
 
-const BUCKET_MS = 15 * 60_000
+const BUCKET_MS = 15 * MINUTE_MS
 /** A week of buckets. */
 export const MAX_SAMPLES = SEVEN_DAY_MS / BUCKET_MS
 

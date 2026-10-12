@@ -31,7 +31,7 @@ import {
   takeRebuilt,
 } from './cache'
 import type { ResumedCache, Spend, Ttl } from './cache'
-import { COMPACT_NEAR, SEVERE_AT, WARN_AT, clipMiddle, contextUsed, fmtCountdown, fmtEta, fmtTokens, hostZone, readableZone } from './format'
+import { COMPACT_NEAR, MINUTE_MS, SEVERE_AT, WARN_AT, clipMiddle, contextUsed, fmtCountdown, fmtEta, fmtTokens, hostZone, readableZone } from './format'
 import { resolveGlyphs } from './glyphs'
 import {
   fiveHourEtaMs,
@@ -506,7 +506,7 @@ export const register: Register = on => {
         const eta = fiveHourEtaMs(now)
         // The minute turns just past the boundary, as the countdowns to a
         // time on the minute do: on it, they still read the minute before.
-        const key = `${Math.ceil(now / 60_000)}|${fmtCountdown(left)}|${left > 0}|${eta === null ? '-' : fmtEta(eta)}`
+        const key = `${Math.ceil(now / MINUTE_MS)}|${fmtCountdown(left)}|${left > 0}|${eta === null ? '-' : fmtEta(eta)}`
         if (key !== band.lastPaintKey) {
           band.lastPaintKey = key
           $.ui.invalidate('ui.render')

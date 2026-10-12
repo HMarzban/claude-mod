@@ -2,12 +2,12 @@
 // last message cost, when your pace fills the 5-hour limit, and the trails
 // the history views draw: each message's cost, the context, and the 5h reading.
 
-import { FIVE_HOUR_MS, SAME_RESET_MS } from './format'
+import { FIVE_HOUR_MS, MINUTE_MS, SAME_RESET_MS } from './format'
 
-const WINDOW_MS = 30 * 60_000
-const MIN_SPAN_MS = 10 * 60_000
+const WINDOW_MS = 30 * MINUTE_MS
+const MIN_SPAN_MS = 10 * MINUTE_MS
 const MIN_RISE = 2
-const STALE_MS = 15 * 60_000
+const STALE_MS = 15 * MINUTE_MS
 
 type InsightState = {
   turnStartCost: Map<string, number>
@@ -69,7 +69,7 @@ export const pushContext = (tokens: number): void => {
  *  whose 30-minute window and restarts are the ETA's evidence. */
 export const noteFiveHourTrail = (now: number, pct: number): void => {
   const last = kept.fiveHour[kept.fiveHour.length - 1]
-  if (last !== undefined && Math.floor(last.at / 60_000) === Math.floor(now / 60_000)) kept.fiveHour.pop()
+  if (last !== undefined && Math.floor(last.at / MINUTE_MS) === Math.floor(now / MINUTE_MS)) kept.fiveHour.pop()
   kept.fiveHour.push({ at: now, pct })
   while ((kept.fiveHour[0]?.at ?? now) < now - FIVE_HOUR_MS) kept.fiveHour.shift()
   capped(kept.fiveHour, FIVE_HOUR_TRAIL)
