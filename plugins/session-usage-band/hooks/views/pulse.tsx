@@ -4,7 +4,7 @@
 // charts are the desktop's and the unicode tier's; ascii draws the words.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
-import { barChart, dayCells, heartbeat, sparkline } from '../charts'
+import { barChart, dayCells, flatBeats, heartbeat, sparkline } from '../charts'
 import type { Kit } from '../kit'
 import { ROW_SLACK } from '../layout'
 import type { Readings, Tone } from '../reading'
@@ -62,14 +62,14 @@ const collapsed = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
     const cacheGroup = group(kit, 'cache',
       heartbeat(kit, { key: 'beat', alt: cache.heartAlt, state: heartState(read), color: cache.tone === 'amber' ? palette.amberFg : palette.warm }),
       said(kit, 'w', cache.amber === undefined ? calmWords(k, cache.textMarked, cache.textShortMarked) : k.amber(cache.amber), cache.amber !== undefined))
-    // No cost yet: the words for that in the trace's place, beside the total.
-    const trace = !k.has('beats') ? null
-      : hist.empty ? <Text key="empty" color={palette.label}>{EMPTY.costs}</Text>
-      : charts ? barChart(kit, { key: 'beats', alt: hist.costsAltOf(n), values: hist.costValues.slice(-n), marked: hist.reWarms.slice(-n), color: palette.value, markColor: palette.value, px: BEATS_PX[n], height: 20, max: hist.beatsTop })
-      : null
+    // No cost yet: the trace flat, in a label's ink, and its words after the total.
+    const trace = !k.has('beats') || !charts ? null
+      : hist.empty ? flatBeats(kit, { key: 'beats', alt: EMPTY.costsAlt, beats: n, color: palette.label, px: BEATS_PX[n], height: 20 })
+      : barChart(kit, { key: 'beats', alt: hist.costsAltOf(n), values: hist.costValues.slice(-n), marked: hist.reWarms.slice(-n), color: palette.value, markColor: palette.value, px: BEATS_PX[n], height: 20, max: hist.beatsTop })
+    const total = said(kit, 'w', k.has('last') && !hist.empty ? [read.spend.totalText, hist.numbersShort].join(' · ') : read.spend.totalText, false)
     // Spend is never amber: it gives way whole at its step.
     const spendGroup = !k.has('spend') ? null : group(kit, 'spend', trace,
-      said(kit, 'w', (k.has('last') && !hist.empty ? [read.spend.totalText, hist.numbersShort] : [read.spend.totalText]).join(' · '), false))
+      hist.empty && k.has('last') ? <Text key="w">{total}<Text key="none" color={palette.label}>{` · ${EMPTY.costsShort}`}</Text></Text> : total)
     const contextGroup = !k.calm('context', context.tone) ? null : group(kit, 'context',
       charts && chartKept(k, 'contextTrail', context.tone) && hist.context.length > 1
         ? sparkline(kit, { key: 'trail', alt: hist.contextTrailAlt, values: hist.context, color: palette.label, px: 36, height: 16, max: context.compactAt ?? context.window })

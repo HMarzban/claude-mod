@@ -304,6 +304,18 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
   return <Svg key={key} source={svgOf(px, height + air, airOf(rule + beats, air))} alt={alt} width={px} height={height + air} />
 }
 
+/** The beats' empty state, before a cost: a flat line on the baseline
+ *  every beat starts and ends on, `beats` wide, dim, in `color`. Text draws
+ *  braille's floor, a cell for two beats. */
+export const flatBeats = (kit: Kit, o: Readonly<{ key: string; alt: string; beats: number; color: string; px: number; height: number }>): RenderChildren => {
+  const { Svg, oneLine } = kit
+  const { key, alt, beats, color, px, height } = o
+  if (!Svg) return oneLine({ key, color }, braille(Array.from({ length: beats }, () => 0), 1, 1))
+  const base = height - 4
+  const flat = `<line class="flat" x1="1" y1="${base}" x2="${px - 1}" y2="${base}" stroke="${color}" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>`
+  return <Svg key={key} source={svgOf(px, height, flat)} alt={alt} width={px} height={height} />
+}
+
 // ---- heartbeat ------------------------------------------------------------
 
 /** The cache's heartbeat, 12px: a dot while warm or in its last minute, a

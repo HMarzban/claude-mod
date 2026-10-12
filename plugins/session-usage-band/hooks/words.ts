@@ -76,6 +76,10 @@ export const AMBER = {
 
 export const EMPTY = {
   costs: "Costs show after Claude's next reply.",
+  /** Pulse's row, beside its flat trace: the costs' empty state, short. */
+  costsShort: 'no costs yet',
+  /** The flat trace's alt. */
+  costsAlt: 'cost per message: none yet',
   context: 'not reported',
 } as const
 

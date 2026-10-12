@@ -70,8 +70,17 @@ test('working shows no countdown', async ($, on) => {
   const working = await drawCases($, on, { scenario: 'working', appearance: 'dark', layout: 'pulse' }, [{ surface: 'terminal', cols: 160 }])
   expect(shown(firstRow(Object.values(working)[0]))).not.toMatch(/\d+m left|\d+s left/)
 })
-test("no costs yet says so in the trace's place", () => {
-  expect(shown(rowOf({ history: { costs: [], context: [] } }))).toContain(EMPTY.costs)
+test("no costs yet: a flat trace in the beats' place, then the total and no costs yet; open, the Spend band says when they show", () => {
+  const none = { history: { costs: [], context: [] } }
+  for (const surface of ['desktop', 'terminal'] as const) {
+    const row = rowOf({ surface, ...none })
+    expect(shown(row)).not.toContain(EMPTY.costs)
+    expect(shown(byKey(row, 'spend', 'Box'))).toMatch(surface === 'desktop' ? /^\$3\.19 · no costs yet$/ : /^⣀{7} ?\$3\.19 · no costs yet$/)
+  }
+  const flat = svgsOf(byKey(rowOf({ surface: 'desktop', ...none }), 'spend', 'Box'))
+  expect(flat.map(s => s.props?.alt)).toEqual([EMPTY.costsAlt])
+  expect(String(flat[0]?.props?.source)).toMatch(new RegExp(`<line class="flat"[^>]* stroke="${DARK.label}"`))
+  expect(shown(byKey(band({ surface: 'desktop', expanded: true, ...none }), 'band:spend', 'Box'))).toContain(EMPTY.costs)
 })
 test('no limits: no 5h or 7d; no samples: 5h and 7d in words only', () => {
   expect(shown(rowOf({ fiveHour: undefined, sevenDay: undefined }))).not.toMatch(/5h|7d/)
@@ -124,21 +133,18 @@ test("terminal: the cache and the 7d in words alone, as spec §4.1's table draws
   expect(shown(byKey(row, 'cache', 'Box'))).toMatch(/^cache 52m left$/)
   expect(shown(byKey(row, '7d', 'Box'))).toMatch(/^7d 41%$/)
 })
-test("the empty costs in the trace's place, in a label's ink, then the total", () => {
-  const spend = byKey(rowOf({ history: { costs: [], context: [] } }), 'spend', 'Box')
-  expect(shown(spend)).toMatch(/^Costs show[\s\S]*\$3\.19$/)
-  const ink = (n: unknown): unknown[] => {
-    const found: unknown[] = []
-    const visit = (x: unknown): void => {
-      const node = x as Node | null
-      if (node === null || typeof node !== 'object') return
-      if (node.type === 'Text' && (node.children ?? []).join('') === EMPTY.costs) found.push(node.props?.color)
-      for (const k of node.children ?? []) visit(k)
-    }
-    visit(n)
-    return found
+test("no costs yet: the flat trace and its words in a label's ink, the total in a value's", () => {
+  const spend = byKey(rowOf({ surface: 'terminal', history: { costs: [], context: [] } }), 'spend', 'Box')
+  const inks: string[] = []
+  const visit = (x: unknown): void => {
+    const node = x as Node | null
+    if (node === null || typeof node !== 'object') return
+    const text = (node.children ?? []).every(k => typeof k === 'string') ? (node.children ?? []).join('') : ''
+    if (node.type === 'Text' && text !== '') inks.push(`${text}|${node.props?.color === DARK.label ? 'label' : node.props?.color === DARK.value ? 'value' : String(node.props?.color)}`)
+    for (const k of node.children ?? []) visit(k)
   }
-  expect(ink(spend)).toEqual([DARK.label])
+  visit(spend)
+  expect(inks).toEqual(['⣀⣀⣀⣀⣀⣀⣀|label', '$3.19|value', ` · ${EMPTY.costsShort}|label`])
 })
 test('an amber reading keeps its chart past the calm ones, until the amber step', () => {
   // SAMPLES' window, so its trail is drawn.

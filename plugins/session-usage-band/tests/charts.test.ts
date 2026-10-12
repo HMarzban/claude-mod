@@ -1,5 +1,5 @@
 import { test, expect } from 'claude-code/testing'
-import { CHART_MIN_PX, barChart, braille, chartFit, dayCells, dayCellsFit, heartbeat, meter, sparkline } from '../hooks/charts'
+import { CHART_MIN_PX, barChart, braille, chartFit, dayCells, dayCellsFit, flatBeats, heartbeat, meter, sparkline } from '../hooks/charts'
 import { makeKit } from '../hooks/kit'
 import { METER_CELLS } from '../hooks/layout'
 import { drawBand } from '../hooks/band'
@@ -218,4 +218,18 @@ test('beats: a zero or tiny value is a flat tick, never a notch below the baseli
     const ys = [...d.matchAll(/[ML]([\d.]+),([\d.]+)/g)].map(m => Number(m[2]))
     expect(ys[1]).toBeLessThanOrEqual(16)
   }
+})
+test("the beats' empty state: a flat line on the beats' baseline, dim, in the ink given; in text braille's floor", () => {
+  const n = svg(flatBeats(deskKit(), { key: 'b', alt: 'no costs yet', beats: 14, color: '#9a9aa4', px: 84, height: 20 }))
+  expect([n.props.alt, n.props.width]).toEqual(['no costs yet', 84])
+  const line = /<line class="flat" x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)"([^>]*)\/>/.exec(n.props.source)
+  // Where every beat starts and ends, 4 px above the bottom, across the width.
+  expect([line?.[2], line?.[4]]).toEqual(['16', '16'])
+  expect(Number(line?.[3]) - Number(line?.[1])).toBeGreaterThan(80)
+  expect(line?.[5]).toMatch(/stroke="#9a9aa4"[^>]*opacity="0\.\d+"/)
+  expect(n.props.source).not.toMatch(/<path/)
+  // Seven cells for fourteen beats, each on the floor.
+  const text = flatBeats(term, { key: 'b', alt: 'no costs yet', beats: 14, color: '#9a9aa4', px: 84, height: 20 })
+  expect(textOf(text)).toBe('⣀'.repeat(7))
+  expect((text as Node).props?.color).toBe('#9a9aa4')
 })
