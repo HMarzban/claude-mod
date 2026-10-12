@@ -51,6 +51,23 @@ export type Palette = {
   weekSpent: string
   fiveGuess: string
   fiveSpent: string
+  /** The departures board: the case behind the tiles, dark in dark and
+   *  light alike (plain draws none). */
+  boardBg: string
+  /** A flap tile's face. */
+  flapBg: string
+  /** The hairline across a tile's middle: decoration, no contrast target. */
+  flapSeam: string
+  /** Each item's ink on a tile; the 5h and 7d ones are the chips' accents. */
+  flapItemCache: string
+  flapItemSpend: string
+  flapItemContext: string
+  flapItem5h: string
+  flapItem7d: string
+  /** The board's plain text, its dim words and its warning amber. */
+  flapText: string
+  flapDim: string
+  flapAmber: string
 }
 
 export const DARK: Readonly<Palette> = {
@@ -85,6 +102,17 @@ export const DARK: Readonly<Palette> = {
   weekSpent: '#7a70c0',
   fiveGuess: '#62a86f',
   fiveSpent: '#4f8a5b',
+  boardBg: '#141414',
+  flapBg: '#262626',
+  flapSeam: '#0E0E0E',
+  flapItemCache: '#7FD48A',
+  flapItemSpend: '#E8C25A',
+  flapItemContext: '#9DB4D0',
+  flapItem5h: '#7fcf8a',
+  flapItem7d: '#a99cf0',
+  flapText: '#F2EEE3',
+  flapDim: '#B9B4A8',
+  flapAmber: '#F5B14C',
 }
 
 export const LIGHT: Readonly<Palette> = {
@@ -119,6 +147,17 @@ export const LIGHT: Readonly<Palette> = {
   weekSpent: '#8077dc',
   fiveGuess: '#3a9450',
   fiveSpent: '#3f9a55',
+  boardBg: '#141414',
+  flapBg: '#262626',
+  flapSeam: '#0E0E0E',
+  flapItemCache: '#7FD48A',
+  flapItemSpend: '#E8C25A',
+  flapItemContext: '#9DB4D0',
+  flapItem5h: '#7fcf8a',
+  flapItem7d: '#a99cf0',
+  flapText: '#F2EEE3',
+  flapDim: '#B9B4A8',
+  flapAmber: '#F5B14C',
 }
 
 // No backgrounds at all: every colour is a theme key, so it follows whatever
@@ -155,6 +194,17 @@ export const PLAIN: Readonly<Palette> = {
   weekSpent: 'inactive',
   fiveGuess: 'inactive',
   fiveSpent: 'inactive',
+  boardBg: '',
+  flapBg: '',
+  flapSeam: '',
+  flapItemCache: 'text',
+  flapItemSpend: 'text',
+  flapItemContext: 'text',
+  flapItem5h: 'text',
+  flapItem7d: 'text',
+  flapText: 'text',
+  flapDim: 'text',
+  flapAmber: 'text',
 }
 
 /** The palette CC_BAND_APPEARANCE names; NO_COLOR forces plain. */
