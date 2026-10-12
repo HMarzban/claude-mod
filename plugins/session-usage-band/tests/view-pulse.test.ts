@@ -284,13 +284,14 @@ test("7d at 85% on a fast pace: the guessed days, drawn, never pass what is left
 
 // ---- sign-off fixes -------------------------------------------------------
 
-test("open: the cache's drain is inked by its mood: warm green only while warm", () => {
+test("open: the cache's drain is inked by its mood: warm green only while warm, grey cold, none unknown", () => {
   const moods: ReadonlyArray<readonly [string, BandSnapshot['cache'], string]> = [
     ['warm', snapOf().cache, DARK.warm],
     ['expiring', EXPIRING, DARK.amberFg],
     ['cold', { ...snapOf().cache, msLeft: 0 }, DARK.label],
-    ['unmeasured', { ...snapOf().cache, requests: 0, recalled: false, fresh: false }, DARK.label],
-    ['warming', { ...snapOf().cache, requests: 0, recalled: false, fresh: true }, DARK.label],
+    // Unmeasured and warming draw no drain: their level isn't known.
+    ['unmeasured', { ...snapOf().cache, requests: 0, recalled: false, fresh: false }, 'undefined'],
+    ['warming', { ...snapOf().cache, requests: 0, recalled: false, fresh: true }, 'undefined'],
   ]
   for (const [mood, cache, ink] of moods) {
     expect(readingsOf(snapOf({ cache })).cache.mood).toBe(mood)
@@ -408,4 +409,50 @@ test('open, too little history: context flat at its level now; 5h and 7d no char
   expect(new Set(at.map(l => l.wordsAt)).size).toBe(1)
   // Spend: no message's cost known, its dim baseline.
   expect(String(svgsOf(byKey(open, 'band:spend', 'Box'))[0]?.props?.source)).toMatch(/class="flat"/)
+})
+
+// ---- review fixes -----------------------------------------------------------
+
+test("open, no costs: Spend's flat baseline is drawn only beside a costs note, long or short, at every width", () => {
+  const none = { history: { costs: [], context: [76_000] } }
+  let short = 0
+  for (const surface of ['desktop', 'terminal'] as const)
+    for (let columns = 40; columns <= 120; columns += 4) {
+      const spend = byKey(band({ surface, columns, expanded: true, maxRows: 13, ...LIMITS, ...none }), 'band:spend', 'Box')
+      if (spend === undefined) continue
+      const baseline = surface === 'desktop' ? svgsOf(spend).length > 0 : /⣀/.test(shown(spend))
+      const note = byKey(spend, 'note', 'Text')
+      const said = (note?.children ?? []).join('')
+      if (said === EMPTY.costsShort) short++
+      expect(`${surface} ${columns} ${baseline ? (said === EMPTY.costs || said === EMPTY.costsShort ? 'noted' : 'bare') : 'none'}`).not.toMatch(/bare$/)
+    }
+  expect(short).toBeGreaterThan(0)
+})
+test("open: an unmeasured or warming cache draws no drain, its level unknown; a cold one its line at 0", async ($, on) => {
+  const moods: ReadonlyArray<readonly [string, BandSnapshot['cache'], number]> = [
+    ['unmeasured', { ...snapOf().cache, requests: 0, recalled: false, fresh: false }, 0],
+    ['warming', { ...snapOf().cache, requests: 0, recalled: false, fresh: true }, 0],
+    ['cold', { ...snapOf().cache, msLeft: 0 }, 1],
+  ]
+  for (const [mood, cache, svgs] of moods) {
+    const open = band({ surface: 'desktop', expanded: true, cache })
+    expect(`${mood} ${svgsOf(byKey(open, 'band:cache', 'Box')).length}`).toBe(`${mood} ${svgs}`)
+    // The words still start at the grid's column.
+    expect(new Set(linesOf(byKey(open, 'stack', 'Box'), 'desktop').map(l => l.wordsAt)).size).toBe(1)
+  }
+})
+test("open on the terminal, one context reading: its flat line spans the chart column, as Spend's floor does", () => {
+  const open = band({ surface: 'terminal', columns: 100, expanded: true, ...LIMITS, history: { costs: [], context: [76_000] } })
+  const braille = shown(byKey(open, 'band:context', 'Box')).match(/[⠀-⣿]+/)?.[0] ?? ''
+  expect(braille.length).toBe(12)
+})
+test('open on a narrower desktop: a charted band and one with its cell empty start their words at one x', () => {
+  for (const columns of [60, 66, 70]) {
+    const open = band({ surface: 'desktop', columns, expanded: true, maxRows: 13, ...LIMITS, samples: [] })
+    const lines = linesOf(byKey(open, 'stack', 'Box'), 'desktop')
+    expect(lines.some(l => l.chartPx === undefined) && lines.some(l => l.chartPx !== undefined)).toBe(true)
+    expect(`${columns} ${new Set(lines.map(l => l.wordsAt)).size}`).toBe(`${columns} 1`)
+    // In px too: a chart is whole columns, as wide as an empty cell's.
+    for (const l of lines) if (l.chartPx !== undefined) expect(`${columns} ${l.key} ${l.chartPx % 10}`).toBe(`${columns} ${l.key} 0`)
+  }
 })

@@ -117,7 +117,7 @@ const limitLine = (kit: Kit, read: Readings, grid: StackGrid, l: LimitView, rows
   // cell stays empty, so the grid keeps its columns (spec §4.1: words only).
   let chart: RenderChildren = null
   if (column !== undefined && l.key === '5h' && week.fiveHourWindow.values.length > 1)
-    chart = sparkline(kit, { key: 'trail', alt: week.windowAlt, values: week.fiveHourWindow.values.slice(-2 * column.cells), nowAt: week.fiveHourWindow.nowAt, color: ink, px: column.px, height: CHART_PX[rows], air: AIR_PX[rows], max: 100 })
+    chart = sparkline(kit, { key: 'trail', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, color: ink, px: column.px, height: CHART_PX[rows], air: AIR_PX[rows], max: 100 })
   // The day cells are the desktop's: in text the 7d's chart cell is empty.
   if (column !== undefined && Svg && l.key === '7d' && week.daysDrawn.measured) {
     const days = week.daysDrawn
@@ -158,28 +158,33 @@ const bands = (kit: Kit, read: Readings, grid: StackGrid, step: Step, room: numb
   if (step.cache !== undefined) {
     const words = fitWords(kit, cache.bandWords, left)
     // Inked by its mood: amber in its last minute, warm green while warm, a
-    // label's ink cold, unmeasured or warming.
+    // label's ink cold (its line at 0, which is true). Unmeasured or warming,
+    // its level isn't known: no drain, its cell empty.
     const ink = cache.tone === 'amber' ? palette.amberFg : cache.mood === 'warm' ? palette.warm : palette.label
-    const chart = column === undefined ? null : sparkline(kit, { key: 'drain', alt: cache.heartAlt, values: [1, cache.charge], color: ink, px: column.px, height: CHART_PX[1], max: 1 })
+    const unknown = cache.mood === 'unmeasured' || cache.mood === 'warming'
+    const chart = column === undefined || unknown ? null : sparkline(kit, { key: 'drain', alt: cache.heartAlt, values: [1, cache.charge], color: ink, px: column.px, height: CHART_PX[1], max: 1 })
     drawn.push({ el: gridLine(kit, grid, 'band:cache', chart, cache.bandName, words, cache.amber !== undefined), rows: 1 })
   }
   if (step.spend !== undefined) {
     const rows = SPEND_ROWS[step.spend]
     const words = fitWords(kit, hist.spendBandWords, left)
-    // No cost yet: the chart flat, and after the words, when they show, while it fits.
-    const note = hist.empty && cellsIn(kit, words) + 1 + cellsIn(kit, EMPTY.costs) <= left ? EMPTY.costs : undefined
+    // No cost yet: after the words, the long note while it fits, else the
+    // short; the chart flat only beside one, since alone it would read as $0
+    // a message, else its cell empty.
+    const fits = (note: string) => cellsIn(kit, words) + 1 + cellsIn(kit, note) <= left
+    const note = !hist.empty ? undefined : [EMPTY.costs, EMPTY.costsShort].find(fits)
     const beats = column === undefined ? 0 : kit.Svg ? BEATS : Math.min(BEATS, 2 * column.cells)
     const chart = column === undefined ? null
-      : hist.empty ? flat(kit, grid, EMPTY.costsAlt, rows)
+      : hist.empty ? (note === undefined ? null : flat(kit, grid, EMPTY.costsAlt, rows))
       : barChart(kit, { key: 'beats', alt: hist.costsAltOf(beats), values: hist.costValues.slice(-beats), marked: hist.reWarms.slice(-beats), level: hist.warmAvgUsd, color: palette.value, markColor: palette.value, px: column.px, height: CHART_PX[rows], air: AIR_PX[rows], max: hist.beatsTop })
-    drawn.push({ el: gridLine(kit, grid, 'band:spend', chart, hist.spendBandName, words, false, note), rows: rowsOf(kit, grid, rows) })
+    drawn.push({ el: gridLine(kit, grid, 'band:spend', chart, hist.spendBandName, words, false, note), rows: rowsOf(kit, grid, rows, chart !== null) })
   }
   if (step.context !== undefined) {
     const words = fitWords(kit, context.bandWords, left)
     const turns = column === undefined ? 0 : kit.Svg ? hist.context.length : 2 * column.cells
     // Fewer than two turns: the line flat at its level now, which is known;
     // not reported, no chart, its cell empty.
-    const values = hist.context.length > 1 ? hist.context.slice(-turns) : context.known ? [context.used, context.used] : []
+    const values = hist.context.length > 1 ? hist.context.slice(-turns) : context.known ? Array.from({ length: Math.max(2, turns) }, () => context.used) : []
     const chart = column === undefined || values.length === 0 ? null
       : sparkline(kit, { key: 'trail', alt: hist.contextTrailAlt, values, color: palette.label, px: column.px, height: CHART_PX[CONTEXT_ROWS], air: AIR_PX[CONTEXT_ROWS], headroom: HEADROOM_PX, max: context.compactAt ?? context.window, level: context.compactAt === undefined ? undefined : 1 })
     drawn.push({ el: gridLine(kit, grid, 'band:context', chart, context.bandName, words, context.amber !== undefined), rows: rowsOf(kit, grid, CONTEXT_ROWS, chart !== null) })

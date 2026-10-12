@@ -64,8 +64,9 @@ export const stackGrid = (kit: Kit, room: number, names: readonly string[], char
   const name = Math.ceil(Math.max(0, ...names.map(n => [...n].length)) * measure.text)
   // What the words leave the chart: the room less the name column, two gaps and the words' least.
   const spare = room - name - 2 - STACK_WORDS_LEAST
-  const px = Math.min(STACK_CHART_PX, Math.floor((room * measure.pxPerCell) / STACK_SHARE), spare * measure.pxPerCell)
-  const cells = Svg ? Math.ceil(px / measure.pxPerCell) : Math.min(STACK_TEXT_CELLS, Math.floor(room / STACK_SHARE), spare)
+  // Whole columns, so a drawn chart is as wide as an empty cell.
+  const px = Math.floor(Math.min(STACK_CHART_PX, (room * measure.pxPerCell) / STACK_SHARE, spare * measure.pxPerCell) / measure.pxPerCell) * measure.pxPerCell
+  const cells = Svg ? px / measure.pxPerCell : Math.min(STACK_TEXT_CELLS, Math.floor(room / STACK_SHARE), spare)
   const fits = charts && (Svg ? px >= CHART_MIN_PX : cells >= STACK_TEXT_LEAST)
   const chart = !fits ? undefined : Svg ? { px, cells } : { px: cells * measure.pxPerCell, cells }
   return { chart, name, lead: (chart === undefined ? 0 : chart.cells + 1) + name + 1 }
