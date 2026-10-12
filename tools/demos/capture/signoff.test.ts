@@ -13,7 +13,7 @@ import { test } from 'claude-code/testing'
 import { drawBand } from '../hooks/band'
 import { DARK, LIGHT, PLAIN } from '../hooks/palette'
 import type { BandSnapshot, LayoutName } from '../hooks/snapshot'
-import { HOUR, SAMPLES, USAGE, byKey, fakeEl, firstRow, type Node } from './helpers'
+import { HOUR, MIN, USAGE, byKey, fakeEl, firstRow, type Node } from './helpers'
 import {
   NO_ACT, caseKey, drawCases, invariantErrors, snapOf, ttlOf, withLimits,
   type Appearance, type InvariantContext, type Mount, type ScenarioName,
@@ -94,14 +94,17 @@ const capture = (layout: LayoutName, c: Case, appearance: Appearance, mounts: re
 }
 
 // The unknown zone: drawCases draws in the host's zone, so the band is drawn
-// directly with none. 5h 26% and 7d 85%, with pulse's trails to draw.
+// directly with none. 5h 26% and 7d 85%, with pulse's trails to draw: the
+// 5h window's readings climb from 0% at its start to 26% now, so its line
+// ends about a quarter up.
 const COSTS = Array.from({ length: 24 }, (_, i) => ({ usd: i === 23 ? 0.21 : i === 17 ? 0.84 : 0.2, reWarm: i === 17 }))
 const UNZONED = {
   zone: undefined,
   fiveHour: { percentUsed: 26, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null },
   sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() },
   history: { costs: COSTS, context: [40_000, 60_000, 76_000] },
-  samples: SAMPLES,
+  samples: ([[-120, 0, 70], [-90, 6, 74], [-60, 13, 78], [-30, 20, 82], [-5, 26, 85]] as const)
+    .map(([m, fivePct, sevenPct]) => ({ at: m * MIN, fivePct, sevenPct, fiveResetAt: 3 * HOUR, sevenResetAt: 67 * HOUR })),
 } satisfies Partial<BandSnapshot>
 
 for (const layout of LAYOUTS) {
