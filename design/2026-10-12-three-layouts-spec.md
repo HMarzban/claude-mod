@@ -64,7 +64,7 @@ cache 38m  ╭╮╭─╮╭╮╭  $0.24 · last $0.03   context ⠤⠴⠶ 8% 
 | **5h** | `sparkline` over the window from its start to its reset. Its points are built in `reading.ts` (`history.fiveHourWindow`) from `week.hourRow`'s cells, so the view only draws them: measured solid, the projection dashed, now marked. Then `5h 26%`. | A braille trail beside the words |
 | **7d** | `dayCells` for the seven days: measured solid, guessed dashed, today outlined. Then `! 7d 85%`. | The words |
 
-- **Heartbeat.** Only an amber cache moves. Its alt names the mood ("cache warm", "cache in its last minute", "cache cold"), never the countdown, so its Svg doesn't change from one second to the next. The Svg's source changes only when the cache's mood changes, never per tick, so its frame isn't reloaded each second. Motion ships only if the spike (§8, step 1) shows that the frame survives redraws and that `prefers-reduced-motion` reaches it. Otherwise the mark is still, and its ink and words carry the state. If the spike has no answer by the time pulse is built, the mark ships still.
+- **Heartbeat.** Only an amber cache moves. Its alt names the mood ("cache warm", "cache in its last minute", "cache cold"), never the countdown, so its Svg doesn't change from one second to the next. The Svg's source changes only when the cache's mood changes, never per tick, so its frame isn't reloaded each second. The mark ships still in 0.14.0, its ink and words carrying the state: the spike (§8, step 1) had no answer by the time pulse was built. Motion is a follow-up release, and ships only if the spike shows that the frame survives redraws and that `prefers-reduced-motion` reaches it.
 - **Give-way, calm pieces only, first to last:**
   1. `· last $0.03`;
   2. the context trail;
