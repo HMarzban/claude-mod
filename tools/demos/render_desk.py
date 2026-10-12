@@ -82,3 +82,9 @@ BAND_CSS = '''
 
 # The project's mark; MARK.format(s=size).
 MARK = '''<svg viewBox="0 0 64 64" width="{s}" height="{s}" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#1f1e1b"/><circle cx="32" cy="32" r="21" fill="none" stroke="#3b3934" stroke-width="5"/><circle cx="32" cy="32" r="21" fill="none" stroke="#d97757" stroke-width="5" stroke-linecap="round" stroke-dasharray="97 132" transform="rotate(-90 32 32)"/><rect x="20.5" y="25" width="20" height="14" rx="3.6" fill="none" stroke="#f2f0eb" stroke-width="3"/><rect x="41.8" y="28.8" width="3" height="6.4" rx="1.3" fill="#f2f0eb"/><rect x="24" y="28.5" width="7" height="7" rx="1.5" fill="#d97757"/></svg>'''
+
+# The site's page colours, for every demo page; each adds its own shadow.
+SITE = {
+    'light': dict(bg='#faf9f5', text='#1f1e1b', text3='#6b675e', accent='#b4502c', hl='rgba(217,119,87,.30)'),
+    'dark': dict(bg='#141413', text='#f2f0eb', text3='#8a877f', accent='#d97757', hl='rgba(217,119,87,.32)'),
+}

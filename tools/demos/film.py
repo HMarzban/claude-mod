@@ -12,7 +12,7 @@ import json
 import math
 import sys
 
-from render_desk import BAND_CSS, MARK, node
+from render_desk import BAND_CSS, MARK, SITE, node
 
 FPS = 30
 
@@ -70,10 +70,8 @@ def zoom_at(t):
 
 
 THEMES = {
-    'light': dict(bg='#faf9f5', text='#1f1e1b', text3='#6b675e', accent='#b4502c', hl='rgba(217,119,87,.30)',
-                  surface='#ffffff', line='#e4e0d6', shadow='0 1px 2px rgba(31,30,27,.06), 0 30px 70px -16px rgba(31,30,27,.32)'),
-    'dark': dict(bg='#141413', text='#f2f0eb', text3='#8a877f', accent='#d97757', hl='rgba(217,119,87,.32)',
-                 surface='#1b1b1a', line='#2f2e2b', shadow='0 0 0 1px #2f2e2b, 0 30px 70px -16px rgba(0,0,0,.6)'),
+    'light': dict(SITE['light'], surface='#ffffff', line='#e4e0d6', shadow='0 1px 2px rgba(31,30,27,.06), 0 30px 70px -16px rgba(31,30,27,.32)'),
+    'dark': dict(SITE['dark'], surface='#1b1b1a', line='#2f2e2b', shadow='0 0 0 1px #2f2e2b, 0 30px 70px -16px rgba(0,0,0,.6)'),
 }
 
 # Each chapter: its span, its name on the chapter bar, and its caption.
