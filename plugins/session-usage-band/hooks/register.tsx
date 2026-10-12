@@ -52,11 +52,13 @@ import { DARK, resolvePalette } from './palette'
 import type { Palette } from './palette'
 import {
   COST_RECORD,
+  FIVE_HOUR,
   LAYOUT_KEY,
   LIMIT_SAMPLES_KEY,
   RATES_KEY,
   READ_LIMIT,
   SESSIONS_KEY,
+  SEVEN_DAY,
   addSample,
   asLayoutName,
   asLimitSamples,
@@ -84,8 +86,8 @@ import type { Workspace } from './workspace'
 const isHidden = atom({ plugin: 'session-usage-band', key: 'isHidden' } as const, false)
 const isExpanded = atom({ plugin: 'session-usage-band', key: 'isExpanded' } as const, false)
 
-const FIVE_HOUR = 'five_hour'
-const SEVEN_DAY = 'seven_day'
+/** The context toast's key in `band.warned`. */
+const CONTEXT_WARN = 'context'
 
 /** How much of a transcript's end to read: room for a long last reply. */
 const TAIL_BYTES = 1024 * 1024
@@ -528,7 +530,7 @@ export const register: Register = on => {
     // The context warning is this conversation's; the 5-hour one is the
     // account's, and /clear changes nothing about it.
     resetConversationInsights()
-    band.warned.delete('context')
+    band.warned.delete(CONTEXT_WARN)
     band.lastPaintKey = ''
     // A resume may be another project.
     void readWorkspace($)
@@ -638,10 +640,10 @@ export const register: Register = on => {
     if (used !== undefined) {
       const at = band.compactAt
       if (at !== undefined) {
-        note('context', used / at, [COMPACT_NEAR], () => `Auto-compaction in ~${fmtTokens(Math.max(0, at - used))} tokens.`)
+        note(CONTEXT_WARN, used / at, [COMPACT_NEAR], () => `Auto-compaction in ~${fmtTokens(Math.max(0, at - used))} tokens.`)
       } else {
         const off = band.autoCompactOff
-        note('context', used / e.context.window, [WARN_AT, SEVERE_AT], pct =>
+        note(CONTEXT_WARN, used / e.context.window, [WARN_AT, SEVERE_AT], pct =>
           off
             ? `Context is ${pct}% full and auto-compaction is off, so the conversation will run out of room.`
             : `Context is ${pct}% full.`,

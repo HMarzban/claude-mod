@@ -65,6 +65,10 @@ export const rememberReply = (sessions: Sessions, id: string, lastAt: number): S
       .slice(0, MAX_SESSIONS),
   )
 
+/** The engine's names for the two limits a sample holds. */
+export const FIVE_HOUR = 'five_hour'
+export const SEVEN_DAY = 'seven_day'
+
 /** Both limits at one moment, with the resets that name their windows (epoch ms). */
 export type Sample = Readonly<{ at: number; fivePct: number; sevenPct: number; fiveResetAt: number; sevenResetAt: number }>
 
@@ -114,8 +118,8 @@ export const asLimitSamples = (v: unknown): Sample[] => (Array.isArray(v) ? merg
 
 /** Both limits now, as one sample; undefined unless each is reported with a readable reset. */
 export const sampleOf = (now: number, limits: ReadonlyArray<Readonly<{ kind: string; percentUsed: number; resetsAt?: string }>>): Sample | undefined => {
-  const five = limits.find(l => l.kind === 'five_hour')
-  const seven = limits.find(l => l.kind === 'seven_day')
+  const five = limits.find(l => l.kind === FIVE_HOUR)
+  const seven = limits.find(l => l.kind === SEVEN_DAY)
   const fiveResetAt = Date.parse(five?.resetsAt ?? '')
   const sevenResetAt = Date.parse(seven?.resetsAt ?? '')
   if (five === undefined || seven === undefined || !Number.isFinite(fiveResetAt) || !Number.isFinite(sevenResetAt)) return undefined
