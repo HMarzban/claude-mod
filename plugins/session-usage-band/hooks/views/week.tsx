@@ -57,7 +57,7 @@ const builtOf = (kit: Kit, read: Readings): Built => {
   const chip = { '7d': once(() => limitPill(kit, read, '7d', NO_BARS, false)), '5h': once(() => limitPill(kit, read, '5h', NO_BARS, false)) }
   /** The cache: chips' pill, its countdown bold, while calm; amber, its reason, with chips' card. */
   const cache = (short: boolean) => (): PillSpec =>
-    read.cache.amber === undefined ? cachePill(kit, read, short, true) : { ...layoutCacheSpec(kit, read, short), hover: cachePill(kit, read, short).hover }
+    read.cache.amber === undefined ? cachePill(kit, read, short, true) : layoutCacheSpec(kit, read, read.cache.amber, short)
   return {
     chip,
     days: once(() => {

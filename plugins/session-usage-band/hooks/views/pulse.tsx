@@ -116,10 +116,8 @@ const amberSpec = (kit: Kit, chip: Pick<PillSpec, 'key' | 'bg' | 'hover'>, icon:
 }
 
 /** The cache: chips' pill; amber, its reason, long until its words go short. */
-const cacheSpec = (kit: Kit, read: Readings, keeps: Keeps<Step>, short: boolean): PillSpec => {
-  const chip = cachePill(kit, read, short)
-  return read.cache.amber === undefined ? chip : { ...layoutCacheSpec(kit, read, !beforeLast(keeps)), hover: chip.hover }
-}
+const cacheSpec = (kit: Kit, read: Readings, keeps: Keeps<Step>, short: boolean): PillSpec =>
+  read.cache.amber === undefined ? cachePill(kit, read, short) : layoutCacheSpec(kit, read, read.cache.amber, !beforeLast(keeps))
 
 /** The total, the newest costs' bars beside it and the last one's after, as
  *  the row keeps them; with no cost yet, the band's words for that. */
