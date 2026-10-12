@@ -4,8 +4,6 @@
 
 import { FIVE_HOUR_MS, SAME_RESET_MS } from './format'
 
-type Sample = { t: number; pct: number }
-
 const WINDOW_MS = 30 * 60_000
 const MIN_SPAN_MS = 10 * 60_000
 const MIN_RISE = 2
@@ -13,7 +11,7 @@ const STALE_MS = 15 * 60_000
 
 type InsightState = {
   turnStartCost: Map<string, number>
-  samples: Sample[]
+  samples: TrailPoint[]
   resetsAt: string | undefined
 }
 
@@ -130,8 +128,8 @@ export const noteFiveHour = (now: number, percentUsed: number, resetsAt: string 
     state.samples = []
   }
   state.resetsAt = resetsAt
-  state.samples.push({ t: now, pct: percentUsed })
-  state.samples = state.samples.filter(s => now - s.t <= WINDOW_MS)
+  state.samples.push({ at: now, pct: percentUsed })
+  state.samples = state.samples.filter(s => now - s.at <= WINDOW_MS)
 }
 
 /** Time until your pace fills the 5-hour window, or null while the
@@ -140,10 +138,10 @@ export const fiveHourEtaMs = (now: number): number | null => {
   const first = state.samples[0]
   const last = state.samples[state.samples.length - 1]
   if (first === undefined || last === undefined || last.pct >= 100) return null
-  const span = last.t - first.t
+  const span = last.at - first.at
   const rise = last.pct - first.pct
-  if (span < MIN_SPAN_MS || rise < MIN_RISE || now - last.t > STALE_MS) return null
-  const tFull = last.t + ((100 - last.pct) * span) / rise
+  if (span < MIN_SPAN_MS || rise < MIN_RISE || now - last.at > STALE_MS) return null
+  const tFull = last.at + ((100 - last.pct) * span) / rise
   if (state.resetsAt !== undefined) {
     const resetAt = Date.parse(state.resetsAt)
     if (!Number.isNaN(resetAt) && tFull >= resetAt) return null
