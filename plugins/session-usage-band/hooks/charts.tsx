@@ -78,7 +78,7 @@ const trackOf = (kit: Kit, width: number, height: number): string =>
 /** The ground a slim bar's notch is knocked out of, either side of it. */
 const SLIM_RING = 1.5
 
-export type MeterOptions = Readonly<{
+type MeterOptions = Readonly<{
   key?: string
   label: string
   frac: number
@@ -191,7 +191,7 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
 /** A part of a split bar: its amount, its colour and, in text, its fill. */
 export type SplitPart = Readonly<{ n: number; color: string; mark: string }>
 
-export type SplitBarOptions = Readonly<{
+type SplitBarOptions = Readonly<{
   key?: string
   alt: string
   parts: readonly SplitPart[]
@@ -276,7 +276,7 @@ export const splitBar = (kit: Kit, o: SplitBarOptions): RenderChildren => {
 
 // ---- ring -----------------------------------------------------------------
 
-export type RingOptions = Readonly<{
+type RingOptions = Readonly<{
   key: string
   alt: string
   frac: number
@@ -337,7 +337,7 @@ export const ring = (kit: Kit, o: RingOptions): RenderChildren => {
 
 // ---- sparkline ------------------------------------------------------------
 
-export type SparklineOptions = Readonly<{
+type SparklineOptions = Readonly<{
   key: string
   alt: string
   values: readonly number[]
@@ -414,7 +414,7 @@ export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
 
 // ---- bar chart ------------------------------------------------------------
 
-export type BarChartOptions = Readonly<{
+type BarChartOptions = Readonly<{
   key: string
   alt: string
   values: readonly number[]
@@ -478,7 +478,7 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
 
 // ---- day cells ------------------------------------------------------------
 
-export type DayCellsOptions = Readonly<{
+type DayCellsOptions = Readonly<{
   key: string
   alt: string
   /** A value per cell; undefined for one with nothing to show yet. */
@@ -558,7 +558,7 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
 
 // ---- slice cells ----------------------------------------------------------
 
-export type SliceCellsOptions = Readonly<{
+type SliceCellsOptions = Readonly<{
   key: string
   alt: string
   row: SliceRow
