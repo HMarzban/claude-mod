@@ -19,6 +19,7 @@ import {
   sampleOf,
   transcriptPath,
 } from '../hooks/memory'
+import { HOUR } from './helpers'
 
 const iso = (ms: number): string => new Date(ms).toISOString()
 const jsonl = (...lines: unknown[]): string => lines.map(line => (typeof line === 'string' ? line : JSON.stringify(line))).join('\n') + '\n'
@@ -107,9 +108,8 @@ test('the sessions kept stay under 4,000 bytes of JSON, at UUIDs and 13-digit ti
 
 // ── the limit samples kept ─────────────────────────────────────────────
 
-const H = 3600_000
 const T0 = Date.UTC(2026, 9, 6, 8, 40) // Tue 08:40 UTC, the 7d window's start
-const s = (hours: number, seven: number, five = 0) => ({ at: T0 + hours * H, fivePct: five, sevenPct: seven, fiveResetAt: T0 + (Math.floor(hours / 5) + 1) * 5 * H, sevenResetAt: T0 + 168 * H })
+const s = (hours: number, seven: number, five = 0) => ({ at: T0 + hours * HOUR, fivePct: five, sevenPct: seven, fiveResetAt: T0 + (Math.floor(hours / 5) + 1) * 5 * HOUR, sevenResetAt: T0 + 168 * HOUR })
 
 test('one sample per 15-minute bucket, the latest winning, capped', () => {
   const held = addSample(addSample([], s(0, 1)), { ...s(0, 2), at: T0 + 60_000 })
@@ -120,7 +120,7 @@ test('one sample per 15-minute bucket, the latest winning, capped', () => {
   for (let i = 1; i < 800; i++) all = addSample(all, s(i * 0.25, 99.9, 99.9))
   // 800 buckets, so the oldest 128 go.
   expect(all).toHaveLength(MAX_SAMPLES)
-  expect([all[0]?.at, all.at(-1)?.at]).toEqual([T0 + 128 * 0.25 * H, T0 + 799 * 0.25 * H])
+  expect([all[0]?.at, all.at(-1)?.at]).toEqual([T0 + 128 * 0.25 * HOUR, T0 + 799 * 0.25 * HOUR])
   expect(JSON.stringify(all).length).toBeLessThan(75_000)
 })
 
@@ -140,15 +140,15 @@ test('the store is data, not trusted', () => {
 test('a stored list past the cap is read as its newest week, malformed entries dropped', () => {
   const read = asLimitSamples([...Array.from({ length: 800 }, (_, i) => s(i * 0.25, 1)), { ...s(300, 1), fiveResetAt: NaN }])
   expect(read).toHaveLength(MAX_SAMPLES)
-  expect([read[0]?.at, read.at(-1)?.at]).toEqual([T0 + 128 * 0.25 * H, T0 + 799 * 0.25 * H])
+  expect([read[0]?.at, read.at(-1)?.at]).toEqual([T0 + 128 * 0.25 * HOUR, T0 + 799 * 0.25 * HOUR])
 })
 
 test('a sample needs both windows and their resets', () => {
   const both = [
-    { kind: 'five_hour', percentUsed: 4, resetsAt: new Date(T0 + 3 * H).toISOString() },
-    { kind: 'seven_day', percentUsed: 30, resetsAt: new Date(T0 + 67 * H).toISOString() },
+    { kind: 'five_hour', percentUsed: 4, resetsAt: new Date(T0 + 3 * HOUR).toISOString() },
+    { kind: 'seven_day', percentUsed: 30, resetsAt: new Date(T0 + 67 * HOUR).toISOString() },
   ]
-  expect(sampleOf(T0, both)).toEqual({ at: T0, fivePct: 4, sevenPct: 30, fiveResetAt: T0 + 3 * H, sevenResetAt: T0 + 67 * H })
+  expect(sampleOf(T0, both)).toEqual({ at: T0, fivePct: 4, sevenPct: 30, fiveResetAt: T0 + 3 * HOUR, sevenResetAt: T0 + 67 * HOUR })
   expect(sampleOf(T0, both.slice(0, 1))).toBeUndefined()
 })
 

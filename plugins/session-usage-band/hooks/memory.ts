@@ -9,6 +9,7 @@
 
 import { NO_TOKENS, addTokens, modelName, weightedTokens } from './cache'
 import type { Spend, TokenCounts, Ttl } from './cache'
+import { SEVEN_DAY_MS } from './format'
 import { LAYOUT_NAMES } from './snapshot'
 import type { LayoutName } from './snapshot'
 import { stripTrailingSlashes } from './workspace'
@@ -72,9 +73,9 @@ export const SEVEN_DAY = 'seven_day'
 /** Both limits at one moment, with the resets that name their windows (epoch ms). */
 export type Sample = Readonly<{ at: number; fivePct: number; sevenPct: number; fiveResetAt: number; sevenResetAt: number }>
 
-/** A week of 15-minute buckets: 7 × 96. */
-export const MAX_SAMPLES = 672
 const BUCKET_MS = 15 * 60_000
+/** A week of buckets. */
+export const MAX_SAMPLES = SEVEN_DAY_MS / BUCKET_MS
 
 /** The 15-minute bucket `at` falls in. */
 const bucketOf = (at: number): number => Math.floor(at / BUCKET_MS)
@@ -146,6 +147,9 @@ function* fromEnd(transcript: string, marker: string): Generator<Record<string, 
   }
 }
 
+/** What marks a reply's line. */
+const REPLY = '"assistant"'
+
 /** When a transcript line was logged; undefined where it doesn't say. */
 const loggedAt = (entry: Record<string, unknown>): number | undefined => {
   const at = typeof entry.timestamp === 'string' ? Date.parse(entry.timestamp) : NaN
@@ -155,7 +159,7 @@ const loggedAt = (entry: Record<string, unknown>): number | undefined => {
 /** When a transcript's last assistant reply was. Its file time won't do:
  *  Claude Code writes a cost line each time it opens a session. */
 export const lastReplyAt = (transcript: string): number | undefined => {
-  for (const entry of fromEnd(transcript, '"assistant"')) {
+  for (const entry of fromEnd(transcript, REPLY)) {
     const at = entry.type === 'assistant' ? loggedAt(entry) : undefined
     if (at !== undefined) return at
   }
@@ -164,7 +168,7 @@ export const lastReplyAt = (transcript: string): number | undefined => {
 
 /** The model the transcript's last reply was billed under, as the API names it. */
 export const lastReplyModel = (transcript: string): string | undefined => {
-  for (const entry of fromEnd(transcript, '"assistant"')) {
+  for (const entry of fromEnd(transcript, REPLY)) {
     if (entry.type !== 'assistant' || !isRecord(entry.message)) continue
     const model = entry.message.model
     if (typeof model === 'string' && model !== '') return model
@@ -199,13 +203,16 @@ const replyTokens = (usage: Record<string, unknown>): TokenCounts => ({
 const recordRate = (m: Record<string, unknown>, model: string): number | null => {
   const weighted = weightedTokens(recordTokens(m), model)
   const rate = weighted > 0 ? countOf(m, 'costUSD') / weighted : 0
-  return Number.isFinite(rate) && rate > 0 ? rate : null
+  return rate > 0 ? rate : null
 }
+
+/** What marks a cost record's line, for `grep -F` to find. */
+export const COST_RECORD = '"type":"cost-state"'
 
 /** The base rate per token on `model`, solved from the transcript's last
  *  cost record. */
 export const rateFromTranscript = (transcript: string, model: string): number | null => {
-  for (const entry of fromEnd(transcript, '"cost-state"')) {
+  for (const entry of fromEnd(transcript, COST_RECORD)) {
     if (entry.type !== 'cost-state') continue
     const usage = entry.modelUsage
     const m = isRecord(usage) ? usage[modelName(model)] : undefined
@@ -228,9 +235,6 @@ export const lastWriteTtl = (transcript: string): Ttl | undefined => {
   }
   return undefined
 }
-
-/** What marks a cost record's line, for `grep -F` to find. */
-export const COST_RECORD = '"type":"cost-state"'
 
 /** A line's cost record, parsed; undefined for any other line, or one cut short. */
 const costRecordOf = (line: string): Record<string, unknown> | undefined => {
@@ -277,7 +281,7 @@ export const transcriptSpend = (transcript: string, sessionId: string, before: n
   const counted = new Set<string>()
   for (let i = at + 1; i < lines.length; i++) {
     const line = lines[i] ?? ''
-    if (!line.includes('"assistant"')) continue
+    if (!line.includes(REPLY)) continue
     const entry = parsed(line)
     if (entry?.type !== 'assistant' || (loggedAt(entry) ?? -Infinity) >= before) continue
     const message = isRecord(entry.message) ? entry.message : undefined
