@@ -9,7 +9,6 @@ import {
   noteFiveHour,
   noteTurnEnd,
   noteTurnStart,
-  openTurns,
   resetInsights,
 } from '../hooks/insights'
 import { endTurn, fact, mountBand, resp, respond, setup, START, startTurn } from './helpers'
@@ -120,9 +119,8 @@ test('the ETA rounds to 5 minutes under an hour and 15 from an hour', () => {
 test('a forgotten turn leaves no start cost behind', () => {
   resetInsights()
   noteTurnStart('s', 1)
-  expect(openTurns()).toBe(1)
   forgetTurn('s')
-  expect(openTurns()).toBe(0)
+  expect(noteTurnEnd('s', 2)).toBe(null)
 })
 
 test('forgetting a turn keeps the other turns open', () => {
@@ -130,7 +128,7 @@ test('forgetting a turn keeps the other turns open', () => {
   noteTurnStart('a', 1)
   noteTurnStart('b', 2)
   forgetTurn('b')
-  expect(openTurns()).toBe(1)
+  expect(noteTurnEnd('b', 3)).toBe(null)
   noteTurnEnd('a', 1.5)
   expect(cents(insights.lastTurnUsd)).toBe(50)
 })

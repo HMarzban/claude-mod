@@ -178,7 +178,7 @@ test('a measured fill lands at 100, so it too is full before reset', () => {
 })
 test('a passed window has no reset words', () => {
   const r = readingsOf(snapOf({ now: 4 * HOUR }))
-  expect([r.fiveHour?.text, r.fiveHour?.resetAtGlyph, r.fiveHour?.resetShort]).toEqual(['5h reset', undefined, undefined])
+  expect([r.fiveHour?.text, r.fiveHour?.resetAtGlyph]).toEqual(['5h reset', undefined])
 })
 test('a limit reads its value, or once its window has passed, reset', () => {
   expect(readingsOf(snapOf()).fiveHour?.valueText).toBe('4%')

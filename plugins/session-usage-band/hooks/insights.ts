@@ -116,9 +116,6 @@ export const forgetTurn = (turnId: string): void => {
   state.turnStartCost.delete(turnId)
 }
 
-/** Turns started and not yet ended. */
-export const openTurns = (): number => state.turnStartCost.size
-
 const sameReset = (a: string | undefined, b: string | undefined): boolean => {
   if (a === b) return true
   if (a === undefined || b === undefined) return false

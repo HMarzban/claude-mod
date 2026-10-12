@@ -24,7 +24,7 @@ import {
   severityMark,
   SOON_MS,
 } from './format'
-import type { ResetIn, Zone } from './format'
+import type { Zone } from './format'
 import { warmAverageOf } from './insights'
 import type { CostEntry, TrailPoint, Trails } from './insights'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
@@ -105,10 +105,6 @@ export const EMPTY = {
   costs: "Costs show after Claude's next reply.",
   context: 'not reported',
 } as const
-
-/** A reset as a duration: words in sentences, the glyph on tight rows. */
-export const resetPhrase = (r: ResetIn, form: 'words' | 'glyph'): string =>
-  r.kind === 'passed' ? 'reset' : form === 'words' ? `resets in ${r.text}` : `↻ in ${r.text}`
 
 /** A landing at or over 100% is none: the window fills before it resets. */
 const fillsBeforeReset = (projectedPct: number): boolean => projectedPct >= 100
@@ -267,8 +263,6 @@ export type LimitWords = Readonly<{
   say: Say
   /** `on pace for ~10%`, `full in ~40m`, `full before reset`, or empty. */
   pace: string
-  /** Chips' short form, `↻ 3h 00m`; undefined once passed. */
-  resetShort: string | undefined
   /** Its reset as the boards say it after `↻`: the 5h counting down, `4h
    *  55m`; the 7d at its clock time once the offset is known, `Sat 13:30`.
    *  Undefined once passed. */
@@ -498,7 +492,6 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const fullIn = etaMs !== null ? fmtEta(etaMs) : undefined
   const valueText = live ? f.value : 'reset'
   const say: Say = [[`${f.name} `, 'label'], [valueText, 'value']]
-  const resetGlyph = f.reset?.kind === 'in' ? resetPhrase(f.reset, 'glyph') : undefined
   const resetAt = f.resetInMs === undefined ? undefined : frame.now + f.resetInMs
   const resetClock = resetAt !== undefined && zone !== undefined ? fmtDayClock(resetAt, zone, frame.now) : undefined
   // The ascii tier drops `↻`, so a phrase whose object is the glyph says its word.
@@ -506,6 +499,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const resetMark = ascii ? 'resets' : '↻'
   const pace = live ? paceText(f) : ''
   const resetIn = f.reset?.kind !== 'in' ? undefined : `in ${f.reset.text}`
+  const resetGlyph = resetIn === undefined ? undefined : `↻ ${resetIn}`
   const resetWhen = resetClock ?? resetIn
   const fillInMs = live ? f.fillInMs : undefined
   // A day's window says the fill's day; a shorter one its clock too, as its reset does.
@@ -545,7 +539,6 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     text: joined(say),
     say,
     pace,
-    resetShort: f.reset?.kind === 'in' ? `↻ ${f.reset.text}` : undefined,
     resetSaid: f.reset?.kind !== 'in' ? undefined : f.key === '7d' ? (resetClock ?? f.reset.text) : f.reset.text,
     resetClock,
     resetAtGlyph,

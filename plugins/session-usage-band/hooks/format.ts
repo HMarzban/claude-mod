@@ -215,9 +215,6 @@ const secondsLeft = (ms: number): number => Math.max(1, Math.ceil(ms / 1000))
  *  counts them. */
 const minutesLeft = (ms: number): number => (ms < 600_000 ? Math.ceil(ms / 60_000) : Math.floor(wholeSeconds(ms) / 60))
 
-/** The cache's last minute in words, where a `0:47` would read as a clock. */
-export const fmtSecondsLeft = (ms: number): string => `${secondsLeft(ms)}s left`
-
 /** The countdown alone, for a tile or a pill: `1h 00m`, `52m`, `10m`, `47s`. */
 export const fmtLeftShort = (ms: number): string =>
   ms < 60_000 ? `${secondsLeft(ms)}s` : ms < 600_000 ? `${minutesLeft(ms)}m` : fmtCountdown(ms)
