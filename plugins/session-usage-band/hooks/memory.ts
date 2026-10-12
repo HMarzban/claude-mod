@@ -93,17 +93,8 @@ export const mergeSamples = (a: readonly Sample[], b: readonly Sample[]): Sample
   return [...byBucket.values()].sort((x, y) => x.at - y.at).slice(-MAX_SAMPLES)
 }
 
-/** Into the samples held in memory, in place: the last replaced when `s` is in
- *  its bucket, else appended (O(1)); only an out-of-order sample goes through
- *  mergeSamples. Capped. */
-export const addSample = (samples: Sample[], s: Sample): Sample[] => {
-  const last = samples[samples.length - 1]
-  if (last !== undefined && sameBucket(last, s)) samples[samples.length - 1] = s
-  else if (last === undefined || s.at > last.at) samples.push(s)
-  else return mergeSamples(samples, [s])
-  if (samples.length > MAX_SAMPLES) samples.splice(0, samples.length - MAX_SAMPLES)
-  return samples
-}
+/** `samples` with `s` added, as mergeSamples keeps them. */
+export const addSample = (samples: readonly Sample[], s: Sample): Sample[] => mergeSamples(samples, [s])
 
 /** The samples taken by `now`: one dated later, from a clock that ran ahead,
  *  would stay last and open a new bucket every turn. */

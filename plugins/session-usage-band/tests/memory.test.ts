@@ -111,9 +111,8 @@ const H = 3600_000
 const T0 = Date.UTC(2026, 9, 6, 8, 40) // Tue 08:40 UTC, the 7d window's start
 const s = (hours: number, seven: number, five = 0) => ({ at: T0 + hours * H, fivePct: five, sevenPct: seven, fiveResetAt: T0 + (Math.floor(hours / 5) + 1) * 5 * H, sevenResetAt: T0 + 168 * H })
 
-test('one sample per 15-minute bucket, the latest winning, appended in place, capped', () => {
-  const held = addSample([], s(0, 1))
-  expect(addSample(held, { ...s(0, 2), at: T0 + 60_000 })).toBe(held)
+test('one sample per 15-minute bucket, the latest winning, capped', () => {
+  const held = addSample(addSample([], s(0, 1)), { ...s(0, 2), at: T0 + 60_000 })
   expect(held).toHaveLength(1)
   expect(held[0]?.sevenPct).toBe(2)
   let all = held
@@ -123,6 +122,10 @@ test('one sample per 15-minute bucket, the latest winning, appended in place, ca
   expect(all).toHaveLength(MAX_SAMPLES)
   expect([all[0]?.at, all.at(-1)?.at]).toEqual([T0 + 128 * 0.25 * H, T0 + 799 * 0.25 * H])
   expect(JSON.stringify(all).length).toBeLessThan(75_000)
+})
+
+test('an earlier sample in the same bucket never replaces a later one', () => {
+  expect(addSample([{ ...s(0, 2), at: T0 + 60_000 }], s(0, 1)).map(x => x.sevenPct)).toEqual([2])
 })
 
 test('merging keeps one sample per bucket, the later winning, sorted', () => {
