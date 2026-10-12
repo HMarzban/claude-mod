@@ -25,7 +25,7 @@ const NO_BARS = GIVES_WAY.length
 
 /** A window's slices in its colour and its tints: the days in a pill, led
  *  by their own air, the hours in a card's head. */
-const cellsOf = (kit: Kit, l: LimitView, row: SliceRow, alt: string, ground: string, wide: boolean): RenderChildren => {
+const windowCells = (kit: Kit, l: LimitView, row: SliceRow, alt: string, ground: string, wide: boolean): RenderChildren => {
   const { palette, onTone } = kit
   const seven = l.key === '7d'
   return sliceCells(kit, {
@@ -64,7 +64,7 @@ const builtOf = (kit: Kit, read: Readings): Built => {
       const seven = read.sevenDay
       if (seven === undefined) return null
       const ground = onTone(seven.tone, chip['7d']()?.bg ?? palette.surface, palette.amberBg)
-      return cellsOf(kit, seven, read.week.dayRow, read.week.daysAlt, ground, true)
+      return windowCells(kit, seven, read.week.dayRow, read.week.daysAlt, ground, true)
     }),
     cache: { long: once(cache(false)), short: once(cache(true)) },
   }
@@ -150,7 +150,7 @@ const weekPills = (kit: Kit, read: Readings, built: Built, keeps: Keeps<Piece>):
  *  terminal's slot holds the five cells alone. */
 const hoursLens = (kit: Kit, read: Readings, five: LimitView): RenderChildren => {
   const { Svg, palette, gap, oneLine } = kit
-  const cells = cellsOf(kit, five, read.week.hourRow, read.week.hoursAlt, palette.cardBg, false)
+  const cells = windowCells(kit, five, read.week.hourRow, read.week.hoursAlt, palette.cardBg, false)
   return Svg ? [cells, gap('g-lens'), oneLine({ key: 'by', color: palette.label }, WEEK.byHour)] : oneLine({ key: 'lens' }, cells)
 }
 
