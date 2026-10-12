@@ -77,10 +77,11 @@ export const stackGrid = (kit: Kit, room: number, names: readonly string[], char
 /** Values as braille, two to a cell: the left column takes dots 7,3,2,1 from
  *  the bottom, the right 8,6,5,4. East-Asian-Neutral, so one column wide
  *  everywhere, as btop and termui draw their graphs. A value draws at least
- *  `floor` dots, so a chart's line or bars never vanish at the bottom. */
+ *  `floor` dots, so a chart's line or bars never vanish at the bottom; an
+ *  undefined one, none. */
 const LEFT = [0x40, 0x04, 0x02, 0x01] as const
 const RIGHT = [0x80, 0x20, 0x10, 0x08] as const
-export const braille = (values: readonly number[], max: number, floor = 0): string => {
+export const braille = (values: ReadonlyArray<number | undefined>, max: number, floor = 0): string => {
   const level = (v: number | undefined) => (v === undefined || max <= 0 ? 0 : Math.max(floor, Math.min(4, Math.round((v / max) * 4))))
   let out = ''
   for (let i = 0; i < values.length; i += 2) {
@@ -243,6 +244,9 @@ type SparklineOptions = Readonly<{
   /** Now's index: the points after it are drawn dashed, as a projection, and
    *  a rule in label ink marks now. */
   nowAt?: number
+  /** The first point drawn, on the same x scale: those before it aren't
+   *  known, so none is drawn, and in text their cells are blank. */
+  from?: number
   /** A line to read against, as a fraction of the scale's top, such as compaction. */
   level?: number
   /** Px of air above the chart, inside its Svg: a band's room past its chart. */
@@ -259,19 +263,19 @@ const SPARK_AIR = 2
  *  braille on its floor, on one line that a row too narrow cuts. */
 export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   const { Svg, palette, oneLine } = kit
-  const { key, alt, values, color, px, height, max, nowAt, level, air = 0, headroom = 0 } = o
+  const { key, alt, values, color, px, height, max, nowAt, level, air = 0, headroom = 0, from = 0 } = o
   const top = max ?? topOf(values)
-  if (!Svg) return oneLine({ key, color }, braille(values, top, 1))
+  if (!Svg) return oneLine({ key, color }, braille(values.map((v, i) => (i < from ? undefined : v)), top, 1))
   const end = px - SPARK_AIR
   const x = (i: number) => (values.length <= 1 ? end : tenth(SPARK_AIR + (i * (end - SPARK_AIR)) / (values.length - 1)))
   const y = (frac: number) => tenth(height - SPARK_AIR - clamp01(frac) * (height - 2 * SPARK_AIR - headroom))
   const points = values.map((v, i) => [x(i), y(top > 0 ? v / top : 0)] as const)
   let marks = ''
   // Solid up to now; from now on, dashed.
-  const solid = nowAt === undefined ? points : points.slice(0, nowAt + 1)
+  const solid = nowAt === undefined ? points.slice(from) : points.slice(from, nowAt + 1)
   if (solid.length > 1) marks += `<polyline points="${solid.map(p => p.join(',')).join(' ')}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`
   if (nowAt !== undefined) {
-    const ahead = points.slice(nowAt)
+    const ahead = points.slice(Math.max(from, nowAt))
     if (ahead.length > 1) marks += `<polyline class="ahead" points="${ahead.map(p => p.join(',')).join(' ')}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" ${PROJECTION_DASH}/>`
     marks += `<line class="now" x1="${x(nowAt)}" y1="0" x2="${x(nowAt)}" y2="${height}" stroke="${palette.label}" stroke-width="1"/>`
   }

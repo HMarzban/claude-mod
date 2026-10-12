@@ -80,7 +80,7 @@ const collapsed = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
       said(kit, 'w', context.amber === undefined ? context.text : k.amber(context.amber), context.amber !== undefined))
     const fiveGroup = fiveHour === undefined || !k.calm('five', fiveHour.tone) ? null : group(kit, '5h',
       charts && chartKept(k, 'fiveTrail', fiveHour.tone) && week.fiveHourWindow.values.length > 1
-        ? sparkline(kit, { key: 'trail', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, color: fiveHour.tone === 'amber' ? palette.amberFg : palette.fiveAccent, px: 48, height: 16, max: 100 })
+        ? sparkline(kit, { key: 'trail', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, from: week.fiveHourWindow.from, color: fiveHour.tone === 'amber' ? palette.amberFg : palette.fiveAccent, px: 48, height: 16, max: 100 })
         : null,
       said(kit, 'w', fiveHour.amber === undefined ? fiveHour.text : k.amber(fiveHour.amber), fiveHour.amber !== undefined))
     // The 7d's cells are the desktop's: in text it is words (spec §4.1).

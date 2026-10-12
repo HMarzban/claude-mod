@@ -348,8 +348,43 @@ test("fiveHourWindow's now stays on the chart: at the window's very end it is th
   expect(windowNowAt(3, 0)).toBeUndefined()
   expect(windowNowAt(undefined, 5)).toBeUndefined()
 })
-test('windowAlt speaks the whole window, not the last hour', () => {
-  expect(readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0) })).week.windowAlt).toMatch(/^5h window from start to reset, 4% used/)
+test('windowAlt speaks the whole window, not the last hour: its use, its pace as about, no ~; nothing once passed', () => {
+  const alt = readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0) })).week.windowAlt
+  expect(alt).toBe('5h window from start to reset, 4% used, on pace for about 10%')
+  expect(alt).not.toMatch(/~/)
+  expect(readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0), now: 4 * HOUR })).week.windowAlt).toBe('')
+})
+// A 5h window from 0 to 5h, its samples only from `from` on, as when the
+// window opened on another device or the band came mid-window.
+const fiveFrom = (samples: ReadonlyArray<readonly [number, number]>, percentUsed: number, now: number) =>
+  readingsOf(snapOf({
+    zone: fixedZone(0), now,
+    fiveHour: { percentUsed, resetsAt: new Date(5 * HOUR).toISOString(), etaMs: null },
+    samples: samples.map(([at, fivePct]) => ({ at, fivePct, sevenPct: 30, fiveResetAt: 5 * HOUR, sevenResetAt: 67 * HOUR })),
+  }))
+test("fiveHourWindow's level now is the window's percentUsed, so the line and its words agree", () => {
+  // Samples since 2h: the window was at 20% before the band saw it.
+  const r = fiveFrom([[2.2 * HOUR, 20], [3.2 * HOUR, 26]], 26, 3.5 * HOUR)
+  const w = r.week.fiveHourWindow
+  expect(w.nowAt).toBe(3)
+  expect(w.values[w.nowAt ?? -1]).toBe(26)
+  // The dashed run lands where the words' pace does.
+  expect(Math.abs((w.values.at(-1) ?? 0) - (r.fiveHour?.projectedPct ?? 0))).toBeLessThan(1e-9)
+})
+test('fiveHourWindow leaves the hours before its first sample undrawn: their level is not known', () => {
+  // The first sample in hour 3, at 26%; then 30% in hour 4. Hours 0 to 2
+  // are not known, and hour 3 is drawn from its end, where 26% stood.
+  const w = fiveFrom([[3.2 * HOUR, 26], [4.2 * HOUR, 30]], 30, 4.5 * HOUR).week.fiveHourWindow
+  expect(w.nowAt).toBe(4)
+  expect(w.from).toBe(3)
+  expect(w.values[4]).toBe(30)
+  expect(w.values[3]).toBe(26)
+})
+test('fiveHourWindow, measured from the window start, is drawn whole, and a later reading lifts now, not the past', () => {
+  // From the window start: hour 0 rises 5, hour 1 to 12; now in hour 2, the reading says 14.
+  const w = fiveFrom([[0.5 * HOUR, 5], [1.5 * HOUR, 12]], 14, 2.5 * HOUR).week.fiveHourWindow
+  expect(w.from).toBe(0)
+  expect(w.values.slice(0, 3)).toEqual([5, 12, 14])
 })
 test("a recalled cache's time is marked ~ in pulse's words, until a reply measures it", () => {
   const cache = (over: Partial<ReturnType<typeof snapOf>['cache']>) => readingsOf(snapOf({ cache: { ...snapOf().cache, ...over } })).cache

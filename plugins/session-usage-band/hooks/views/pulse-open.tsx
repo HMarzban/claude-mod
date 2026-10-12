@@ -117,7 +117,7 @@ const limitLine = (kit: Kit, read: Readings, grid: StackGrid, l: LimitView, rows
   // cell stays empty, so the grid keeps its columns (spec §4.1: words only).
   let chart: RenderChildren = null
   if (column !== undefined && l.key === '5h' && week.fiveHourWindow.values.length > 1)
-    chart = sparkline(kit, { key: 'trail', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, color: ink, px: column.px, height: CHART_PX[rows], air: AIR_PX[rows], max: 100 })
+    chart = sparkline(kit, { key: 'trail', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, from: week.fiveHourWindow.from, color: ink, px: column.px, height: CHART_PX[rows], air: AIR_PX[rows], max: 100 })
   // The day cells are the desktop's: in text the 7d's chart cell is empty.
   if (column !== undefined && Svg && l.key === '7d' && week.daysDrawn.measured) {
     const days = week.daysDrawn

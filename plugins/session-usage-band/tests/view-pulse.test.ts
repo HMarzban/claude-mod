@@ -263,6 +263,17 @@ test('open: every band fits its room, nothing cut, and the 5h chart keeps its no
       if (surface === 'desktop' && columns === 120) expect(five).toBeDefined()
     }
 })
+test("a 5h window first seen mid-window: its chart, shut and open, starts at the first hour it knows, its level now the window's", () => {
+  // Samples from hour 3 on, as when the window opened on another device.
+  const sample = (at: number, fivePct: number) => ({ at, fivePct, sevenPct: 30, fiveResetAt: 5 * HOUR, sevenResetAt: 67 * HOUR })
+  const mid = { surface: 'desktop', now: 4.5 * HOUR, fiveHour: { percentUsed: 30, resetsAt: new Date(5 * HOUR).toISOString(), etaMs: null }, samples: [sample(3.2 * HOUR, 26), sample(4.2 * HOUR, 30)] } as const
+  for (const tree of [rowOf(mid), byKey(band({ ...mid, expanded: true }), 'band:limits', 'Box')]) {
+    const five = svgsOf(tree).find(s => /^5h window/.test(String(s.props?.alt)))
+    const solid = /<polyline points="([^"]+)"/.exec(String(five?.props?.source))?.[1]?.split(' ') ?? []
+    // Hour 3's end, then now's: two points, not five from 0%.
+    expect(solid).toHaveLength(2)
+  }
+})
 test("pulse's amber cache is led by '! ', on the row and open", () => {
   const row = rowOf({ surface: 'terminal', cache: EXPIRING })
   expect(shown(byKey(row, 'cache', 'Box'))).toMatch(/^! 30s left/)

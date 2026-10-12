@@ -215,10 +215,12 @@ type WeekReading = Week &
     dayRow: SliceRow
     hourRow: SliceRow
     /** The 5h window's cumulative percent at the end of each hour slice, from
-     *  `hourRow`; empty where no slice is measured. `nowAt` is the slice now
-     *  falls in (counted from 0), the last at the very end; undefined where not
-     *  known or with no values. */
-    fiveHourWindow: Readonly<{ values: readonly number[]; nowAt: number | undefined }>
+     *  `hourRow`, its level at now's slice the window's `percentUsed`; empty
+     *  where no slice is measured. `nowAt` is the slice now falls in (counted
+     *  from 0), the last at the very end; undefined where not known or with no
+     *  values. `from` is the first value drawn: those before it are hours
+     *  before the first sample, whose level isn't known. */
+    fiveHourWindow: Readonly<{ values: readonly number[]; nowAt: number | undefined; from: number }>
     /** The 7d's days as day cells draw them, from `dayRow`'s capped marks,
      *  so the guesses never pass what is left: each value (undefined where
      *  unknown), whether it is a guess, and today's index. The day that fills
@@ -395,6 +397,32 @@ export const cappedMarks = (cells: ReadonlyArray<DayCell | HourCell>, percentUse
 export const windowNowAt = (notch: number | undefined, count: number): number | undefined =>
   notch === undefined || count === 0 ? undefined : Math.min(Math.floor(notch), count - 1)
 
+/** The 5h window's climb: each hour's rise added to the ones before it, set
+ *  so its level now is the window's `percentUsed`, as its words say. Before
+ *  the first measured hour the level isn't known (the window opened on
+ *  another device, or the band came mid-window): the line starts at that
+ *  hour's start, `from`, the level there what the hours since leave of
+ *  `percentUsed`. Measured from the window's start, the past stays as
+ *  measured and a reading newer than the last sample lifts now on. A fill
+ *  marked in now's hour keeps its climb to the cap past `percentUsed`. */
+const fiveHourClimb = (row: SliceRow, hours: readonly HourCell[], percentUsed: number): WeekReading['fiveHourWindow'] => {
+  const first = row.marks.findIndex(m => m.kind === 'measured')
+  if (first < 0) return { values: [], nowAt: undefined, from: 0 }
+  const nowAt = windowNowAt(row.notch, row.marks.length)
+  let climb = 0
+  const rises = row.marks.map(m => (climb += m.pct))
+  // The level measured up to now: a fill's own rise, without what it takes of the cap.
+  let measured = 0
+  for (const [i, m] of row.marks.entries()) {
+    if (nowAt === undefined || i > nowAt) break
+    measured += m.kind !== 'fills' ? m.pct : hours[i]?.guess === false ? (hours[i]?.pct ?? 0) : 0
+  }
+  const lift = nowAt === undefined ? 0 : percentUsed - measured
+  const from = first > 0 ? first - 1 : 0
+  const liftFrom = first > 0 ? from : (nowAt ?? rises.length)
+  return { values: rises.map((v, i) => (i < liftFrom ? v : v + lift)), nowAt, from }
+}
+
 /** The week's cells from the limit samples, with their words. With the zone
  *  unknown, the cells are named in UTC. */
 const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour: LimitView | undefined): WeekReading => {
@@ -411,10 +439,7 @@ const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour
   const hourNotch = fiveHour?.gone === undefined || fiveHour.percentUsed === 0 || week.hours.length === 0 ? undefined : fiveHour.gone * week.hours.length
   const dayRow: SliceRow = { marks: cappedMarks(week.days, sevenDay?.percentUsed ?? 0), notch: today < 0 ? undefined : today + todayGone }
   const hourRow: SliceRow = { marks: cappedMarks(week.hours, fiveHour?.percentUsed ?? 0), notch: hourNotch }
-  // The 5h window's climb: each hour's rise added to the ones before it.
-  let climb = 0
-  const values = hourRow.marks.some(m => m.kind === 'measured') ? hourRow.marks.map(m => (climb += m.pct)) : []
-  const fiveHourWindow = { values, nowAt: windowNowAt(hourRow.notch, values.length) }
+  const fiveHourWindow = fiveHourClimb(hourRow, week.hours, fiveHour?.percentUsed ?? 0)
   // Today's fill is its rise so far, measured; another day's, or today's
   // with no reading inside it yet, the guess of what is left, as the alt
   // says it: never a measured 0.

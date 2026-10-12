@@ -197,6 +197,19 @@ test('sparkline: nowAt draws a now rule and the points after it dashed; level, a
   expect(src).toMatch(/class="ahead"[^>]*stroke-dasharray/)
   expect(src).toMatch(/class="level"[^>]*stroke-dasharray/)
 })
+test('sparkline: from leaves the points before it undrawn, on the same x scale; in text, blank cells', () => {
+  const o = { key: 's', alt: 'a', values: [0, 0, 20, 26, 37], color: '#fff', px: 60, height: 16, max: 100, nowAt: 3 } as const
+  const pointsOf = (src: string, cls: string) => (new RegExp(`<polyline ${cls}points="([^"]+)"`).exec(src)?.[1] ?? '').split(' ').map(p => Number(p.split(',')[0]))
+  const whole = String(svgsOf(sparkline(deskKit(), o))[0]?.props?.source)
+  const from = String(svgsOf(sparkline(deskKit(), { ...o, from: 2 }))[0]?.props?.source)
+  // The solid run starts at the third point, at the x it has drawn whole.
+  expect(pointsOf(from, '')).toEqual(pointsOf(whole, '').slice(2))
+  expect(pointsOf(from, 'class="ahead" ')).toEqual(pointsOf(whole, 'class="ahead" '))
+  // From 0, the line is as it was.
+  expect(String(svgsOf(sparkline(deskKit(), { ...o, from: 0 }))[0]?.props?.source)).toBe(whole)
+  // In text the hours before it are blank, so the chart keeps its width.
+  expect(textOf(sparkline(term, { ...o, values: [10, 10, 20, 26], from: 2 }))).toBe(`${braille([0, 0], 100)}${braille([20, 26], 100, 1)}`)
+})
 test('heartbeat per state; the beat ships still: no animation, never interactive', () => {
   const of = (state: 'still' | 'beat' | 'flat' | 'hollow') => svgsOf(heartbeat(deskKit(), { key: 'h', alt: 'cache warm', state, color: '#F5B14C' }))[0]
   expect(String(of('flat')?.props?.source)).toMatch(/<line/)
