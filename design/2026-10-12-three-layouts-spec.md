@@ -1,6 +1,6 @@
 # Three layouts: design spec
 
-v2 · 2026-10-12 · supersedes `2026-10-09-band-layouts-spec.md` §1, §4.2's list reply, §6 and §7's per-view parts. That spec's §2 (UX contract), §3 (glyph tiers) and §5 (data) still hold, with the amendments in §2 below.
+v2.1 · 2026-10-12 · supersedes `2026-10-09-band-layouts-spec.md` §1, §4.2's list reply, §6 and §7's per-view parts. That spec's §2 (UX contract), §3 (glyph tiers) and §5 (data) still hold, with the amendments in §2 below.
 
 Status: Draft, reviewed (staff engineering, PM, head of engineering).
 
@@ -64,7 +64,7 @@ cache 38m  ╭╮╭─╮╭╮╭  $0.24 · last $0.03   context ⠤⠴⠶ 8% 
 | **5h** | `sparkline` over the window from its start to its reset. Its points are built in `reading.ts` (`history.fiveHourWindow`) from `week.hourRow`'s cells, so the view only draws them: measured solid, the projection dashed, now marked. Then `5h 26%`. | A braille trail beside the words |
 | **7d** | `dayCells` for the seven days: measured solid, guessed dashed, today outlined. Then `! 7d 85%`. | The words |
 
-- **Heartbeat.** Only an amber cache moves. The Svg's source changes only when the cache's mood changes, never per tick, so its frame isn't reloaded each second. Motion ships only if the spike (§8, step 1) shows that the frame survives redraws and that `prefers-reduced-motion` reaches it. Otherwise the mark is still, and its ink and words carry the state. If the spike has no answer by the time pulse is built, the mark ships still.
+- **Heartbeat.** Only an amber cache moves. Its alt names the mood ("cache warm", "cache in its last minute", "cache cold"), never the countdown, so its Svg doesn't change from one second to the next. The Svg's source changes only when the cache's mood changes, never per tick, so its frame isn't reloaded each second. Motion ships only if the spike (§8, step 1) shows that the frame survives redraws and that `prefers-reduced-motion` reaches it. Otherwise the mark is still, and its ink and words carry the state. If the spike has no answer by the time pulse is built, the mark ships still.
 - **Give-way, calm pieces only, first to last:**
   1. `· last $0.03`;
   2. the context trail;
@@ -107,10 +107,10 @@ A stack of full-width bands, each with its chart on the left and its words on th
 
 - **Ground.** The board is a dark `Box` on `boardBg` in the dark and light appearances. Plain has no board: it draws groups as `[CACHE]` in theme keys.
 - **Flaps.**
-  - Desktop: one Svg per flap group, at most 20 px tall. Each character sits on its own tile, with a 1 px seam across the tile's middle. The group's width is its character count × the tile's pitch, and the row is fitted by those widths.
+  - Desktop: one Svg per reading, at most 20 px tall, holding its ITEM code and its cell as runs of tiles a blank tile apart. Each character sits on its own tile, with a 1 px seam across the tile's middle; a space is a blank tile. The group's width is its character count × the tile's pitch, and the row is fitted by those widths.
   - Terminal: each group is a `Box backgroundColor` run, with a space between groups.
-- **Alt text.** Each group's alt is a sentence from `reading.ts`, in words, for example "Cache goes cold at 17:24, in 38 minutes". It never uses the capitals or `↻`.
-- **Tokens** (new). The board is dark in both palettes, so DARK and LIGHT hold the same hex values, DARK's own, not aliases of their palette's accents. PLAIN maps them to theme keys. `design.test.ts` checks every item ink, `flapText`, `flapDim` and `flapAmber` at 4.5:1 on `flapBg`, and `flapSeam` at 3:1, in every palette.
+- **Alt text.** Each reading's one Svg has one alt: a sentence from the readings, in words, for example "cache 38 minutes left, warm". It never uses the board's capitals or `↻`.
+- **Tokens** (new). The board is dark in both palettes, so DARK and LIGHT hold the same hex values, DARK's own, not aliases of their palette's accents. `design.test.ts` checks every item ink, `flapText`, `flapDim` and `flapAmber` at 4.5:1 on `flapBg` in DARK and LIGHT. The seam is decoration, not information, so it has no contrast target; it only has to differ from the tile. PLAIN draws no board (below).
 
   | Token | For |
   | --- | --- |
@@ -120,8 +120,8 @@ A stack of full-width bands, each with its chart on the left and its words on th
   | `flapItemCache` | CACHE, a warm green |
   | `flapItemSpend` | SPEND, gold |
   | `flapItemContext` | CONTEXT, a cool grey-blue |
-  | `flapItem5h` | 5H, DARK's 5h accent |
-  | `flapItem7d` | 7D, DARK's 7d accent |
+  | `flapItem5h` | 5H, DARK's `fiveAccent` |
+  | `flapItem7d` | 7D, DARK's `weekAccent` |
   | `flapText` | Statuses and times |
   | `flapDim` | Remarks |
   | `flapAmber` | Amber words. Nothing is red. |
@@ -142,7 +142,7 @@ CACHE DEPARTS 17:24  SPEND $0.24  CONTEXT 8%  5H 26% ↻ 17:50  7D 85% ↻ SAT 1
 | Cache, working | `BOARDING` | `BOARDING` |
 | Cache, unmeasured or warming | `CHECK-IN` | `CHECK-IN` |
 | Context, amber | `! COMPACTS IN ~12K` | `! CONTEXT 93%` |
-| A limit | The value, then `↻ 17:50`, then one remark. An amber remark replaces a calm one, and `↻` stays: `! NEAR LIMIT` (80%), or for 5h, `! FULL ~14:20` (the pace fills). | `5H 26%` |
+| A limit | The value, then `↻ 17:50`, then one remark. An amber remark replaces a calm one, and `↻` stays: `! NEAR LIMIT` (80%), or for 5h, `! FULL ~14:20` (the pace fills; `! FULL IN ~40 MIN` with the zone unknown). | `5H 26%` |
 | A passed reset | `↻ PASSED` | the value |
 
 - **Give-way, calm only, first to last:**
@@ -197,7 +197,7 @@ These are unchanged: register → snapshot → reading (facts and words) → vie
 
 - **`snapshot.ts`:** `LAYOUT_NAMES = ['chips', 'pulse', 'departures']`.
 - **`memory.ts`:** `REMOVED_LAYOUTS = ['gauges', 'ledger', 'rings', 'tiles', 'week', 'forecast']`, beside `asLayoutName`, for the command's replies (§7).
-- **`cache.ts` → snapshot → `reading.ts`:** `cache.coldAt`, from the existing `measuredColdAt`; `undefined` where it isn't known. It is a reading fact, not stored.
+- **`cache.ts` → snapshot → `reading.ts`:** `cache.coldAt`, from the existing `measuredColdAt`; `null` where it isn't known, including a resumed cache the engine called expired. It is a reading fact, not stored. `msLeft` derives from the same function, so the two never disagree.
 - **`words.ts`:**
   - Pulse's average: `avg ~$0.02`.
   - The board's statuses, short forms, remarks and alt sentences: §5.2 and §5.3's words, and `CHECK-IN`.
@@ -214,8 +214,7 @@ These are unchanged: register → snapshot → reading (facts and words) → vie
 - **Removed:** the six view files and their `tests/view-*.test.ts`.
 - **The dead-export sweep** runs after pulse and departures are built (§8, step 4), by usage, never from a list. Expected to go:
   - `ring`, `sliceCells`, `meter`'s `tick`, `projectTo` and `slim` options;
-  - parts' `battery*` variants, `layoutCacheSpec`, `amberSay`, `amberFirst`, `once`, `PERCENT`, `AMBER_STEP`;
-  - layout's `fitSqueeze`;
+  - parts' `battery*` variants, `layoutCacheSpec`, `amberSay`, `amberFirst`, `once`, `PERCENT`. `fitSqueeze` and `AMBER_STEP` stay, because `fitLine` needs them;
   - palette's `week*` and `five*` guess and spent tokens;
   - words' gauge, sentence, week and forecast phrases.
 
@@ -239,8 +238,8 @@ These are unchanged: register → snapshot → reading (facts and words) → vie
    - whether the frame keeps its animation across the band's redraws.
 
    It needs one desktop screenshot or recording from you. The result decides §4.1.
-2. **Frame and cards.** Move `footer` into `frame.tsx`, and strip `cards.tsx` to chips'. Chips' golden hashes must pass.
-3. **Remove** the six views and their tests. **Fix** `barChart` and `dayCells` with their failing tests first. **Build** departures, then pulse, each under `viewSuite`. The matrix gains:
+2. **Frame.** Move `footer` into `frame.tsx`. Chips' golden hashes must pass.
+3. **Remove** the six views and their tests. **Fix** `barChart` and `dayCells` with their failing tests first. **Build** departures, then pulse, each under `viewSuite`. Then strip `cards.tsx` to chips', which can only happen once the old pulse and departures, its last other readers, are gone. The matrix gains:
    - the board's forms: `LAST CALL`, `! NEAR LIMIT`, `! FULL ~hh:mm`, `! COMPACTS IN ~nK`, and `CONTEXT` as context's name;
    - desktop words read from a flap Svg's `<text>` runs, so its checks see them;
    - two invariants: the one order, and no import from `cards.tsx` (outside chips).
@@ -265,5 +264,5 @@ These are unchanged: register → snapshot → reading (facts and words) → vie
    - `tools/demos/site/template.html`, which generates `docs/index.html`;
    - `tools/demos/stills.py` and `capture/desktop.test.ts`;
    - the old spec's status line, which points here;
-   - CHANGELOG 0.14.0 → *Removed:* "Six layouts: gauges, ledger, rings, tiles, week and forecast. A saved one draws chips, and `/usage-band layout` says so. Week's day cells now live in pulse, and forecast's clock times in departures." *Changed:* "Pulse and departures are rebuilt, and each has its own open view."
+   - CHANGELOG 0.14.0 → *Removed:* "Six layouts: gauges, ledger, rings, tiles, week and forecast. A saved one draws chips, and `/usage-band layout` says so. Week's day cells now live in pulse, and forecast's clock times in departures." *Changed:* "Pulse and departures are rebuilt, and each has its own open view. Both draw their readings in one order: cache, spend, context, 5h, 7d."
    - Then merge, tag and release.
