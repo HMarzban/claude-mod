@@ -6,11 +6,10 @@
 import { test, expect } from 'claude-code/testing'
 import { drawBand } from '../hooks/band'
 import { fixedZone } from '../hooks/format'
-import type { Sample } from '../hooks/memory'
 import { DARK } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { EMPTY } from '../hooks/words'
-import { CLEAR, HOUR, LONG, MIN, START, boldOf, byKey, cardFirstRow, cardHead, cardOf, fakeEl, firstRow, mountBand, pacing, pillKeys, resp, respond, setup, shown, svgAlts, svgRect, svgsOf, usage, type Node } from './helpers'
+import { CLEAR, HOUR, LONG, MIN, SAMPLES, START, boldOf, byKey, cardFirstRow, cardHead, cardOf, fakeEl, firstRow, mountBand, pacing, pillKeys, resp, respond, setup, shown, svgAlts, svgRect, svgsOf, usage, type Node } from './helpers'
 import { NO_ACT, snapOf, viewSuite, visualRows } from './matrix'
 
 viewSuite('pulse')
@@ -21,8 +20,6 @@ const COSTS = Array.from({ length: 24 }, (_, i) => ({ usd: i === 23 ? 0.21 : i =
 /** The last hour of the 5h limit, a reading every five minutes, 2% to 4%. */
 const FIVE_HOUR = Array.from({ length: 12 }, (_, i) => ({ at: (i - 11) * 5 * MIN, pct: 2 + i / 5.5 }))
 const HISTORY = { costs: COSTS, context: [40_000, 60_000, 76_000], fiveHour: FIVE_HOUR }
-/** The 7d window measured across yesterday, 20% to 30%. */
-const SAMPLES: Sample[] = [-30 * HOUR, -HOUR].map((at, i) => ({ at, fivePct: 4, sevenPct: 20 + 10 * i, fiveResetAt: 3 * HOUR, sevenResetAt: 67 * HOUR }))
 
 /** The band as pulse draws it at 160 columns, with history. */
 const band = (over: Partial<BandSnapshot> = {}): Node =>

@@ -2,7 +2,7 @@ import { test, expect } from 'claude-code/testing'
 import { fixedZone, fmtClock } from '../hooks/format'
 import type { HourCell } from '../hooks/calendar'
 import { cappedMarks, readingsOf } from '../hooks/reading'
-import { HOUR, MIN } from './helpers'
+import { HOUR, MIN, SAMPLES } from './helpers'
 import { snapOf } from './matrix'
 
 const cacheAt = (msLeft: number) => ({ ...snapOf().cache, msLeft })
@@ -412,4 +412,31 @@ test('compaction is messages away at the trail\'s pace since its last drop, else
     const x = context(trail)
     expect([x.msgsToCompact, x.msgsHead, x.roomLead]).toEqual([undefined, undefined, undefined])
   }
+})
+
+const costs = (list: Array<[number, boolean]>) => readingsOf(snapOf({ history: { costs: list.map(([usd, reWarm]) => ({ usd, reWarm })), context: [], fiveHour: [] } })).history
+const FIVE = { percentUsed: 4, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null }
+
+test('avgText is the warm average, as an estimate; none before a cost', () => {
+  expect(costs([[0.02, false], [0.9, true], [0.02, false]]).avgText).toBe('avg ~$0.02')
+  expect(costs([]).avgText).toBeUndefined()
+})
+test('beatsTop is never 0 and leaves re-warms out', () => {
+  expect(costs([]).beatsTop).toBe(1)
+  expect(costs([[0, false], [0, false]]).beatsTop).toBe(1)
+  expect(costs([[0.02, false], [0.9, true]]).beatsTop).toBe(0.04)
+  expect(costs([[0.9, true]]).beatsTop).toBe(0.9)
+})
+test('fiveHourWindow climbs slice by slice and marks now', () => {
+  const w = readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0), fiveHour: FIVE })).week.fiveHourWindow
+  expect(w.values.length).toBe(5)
+  expect(w.nowAt).toBeGreaterThanOrEqual(0)
+  for (let i = 1; i < w.values.length; i++) expect(w.values[i]).toBeGreaterThanOrEqual(w.values[i - 1] ?? 0)
+})
+test('fiveHourWindow is empty with no 5h window, or no slice measured', () => {
+  expect(readingsOf(snapOf({ samples: [], fiveHour: undefined })).week.fiveHourWindow.values).toEqual([])
+  expect(readingsOf(snapOf({ samples: [], zone: fixedZone(0), fiveHour: FIVE })).week.fiveHourWindow.values).toEqual([])
+})
+test('windowAlt speaks the whole window, not the last hour', () => {
+  expect(readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0), fiveHour: FIVE })).week.windowAlt).toMatch(/^5h window from start to reset, 4% used/)
 })

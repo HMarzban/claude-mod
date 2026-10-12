@@ -26,7 +26,7 @@ import {
 import type { ResetIn, Zone } from './format'
 import { drawnTier } from './glyphs'
 import { warmAverageOf } from './insights'
-import type { Trails } from './insights'
+import type { CostEntry, Trails } from './insights'
 import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
 import { boardWords, cacheCopy, cacheWords, contextWords, historyWords, lastHourOf, limitWords, spendWords, tokenBreakdownOf, weekWords } from './words'
 import type { Board, CacheCopy, CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
@@ -209,6 +209,10 @@ export type HistoryReading = Trails &
     warmAvgUsd: number | undefined
     /** The 5h trail's percentages over the last hour. */
     fiveHourHour: readonly number[]
+    /** The top of the cost scale: twice the warm average, or the largest warm
+     *  cost if that is more; with no warm cost the largest cost; 1 when there
+     *  is none to scale by. Never 0. */
+    beatsTop: number
   }>
 
 /** How week draws a slice: measured, a guess, the guess that fills the
@@ -227,6 +231,10 @@ type WeekReading = Week &
     /** The days and the hours as drawn, each guess stopped at the cap. */
     dayRow: SliceRow
     hourRow: SliceRow
+    /** The 5h window's cumulative percent at the end of each hour slice, from
+     *  `hourRow`; empty where no slice is measured. `nowAt` is the slice now
+     *  falls in (counted from 0), undefined where not known. */
+    fiveHourWindow: Readonly<{ values: readonly number[]; nowAt: number | undefined }>
   }>
 
 export type Readings = Readonly<{
@@ -349,7 +357,17 @@ const historyFacts = (trails: Trails, fiveHour: LimitView | undefined, context: 
   reWarms: trails.costs.map(e => e.reWarm),
   warmAvgUsd: warmAverageOf(trails.costs),
   fiveHourHour: lastHourOf(trails.fiveHour, now).map(p => p.pct),
+  beatsTop: beatsTopOf(trails.costs),
 })
+
+/** A chart's cost scale: the larger of twice the warm average and the largest
+ *  warm cost, else the largest cost; 1 where that would be 0. */
+const beatsTopOf = (costs: readonly CostEntry[]): number => {
+  const avg = warmAverageOf(costs)
+  const top = Math.max(...(avg === undefined ? costs : costs.filter(e => !e.reWarm)).map(e => e.usd), 0)
+  const scale = avg === undefined ? top : Math.max(2 * avg, top)
+  return scale > 0 ? scale : 1
+}
 
 /** A window as the calendar reads it: its reset and its fill as times. */
 const windowOf = (l: LimitView | undefined, now: number): WindowNow | undefined =>
@@ -399,11 +417,18 @@ const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour
   const hourNotch = fiveHour?.gone === undefined || fiveHour.percentUsed === 0 || week.hours.length === 0 ? undefined : fiveHour.gone * week.hours.length
   const dayRow: SliceRow = { marks: cappedMarks(week.days, sevenDay?.percentUsed ?? 0), notch: today < 0 ? undefined : today + todayGone }
   const hourRow: SliceRow = { marks: cappedMarks(week.hours, fiveHour?.percentUsed ?? 0), notch: hourNotch }
+  // The 5h window's climb: each hour's rise added to the ones before it.
+  let climb = 0
+  const fiveHourWindow = {
+    values: hourRow.marks.some(m => m.kind === 'measured') ? hourRow.marks.map(m => (climb += m.pct)) : [],
+    nowAt: hourRow.notch === undefined ? undefined : Math.floor(hourRow.notch),
+  }
   return {
     ...week,
-    ...weekWords(week, { days: dayRow, hours: hourRow }, seven?.fullAt === undefined ? undefined : { at: seven.fullAt, zone, now: snap.now }),
+    ...weekWords(week, { days: dayRow, hours: hourRow }, seven?.fullAt === undefined ? undefined : { at: seven.fullAt, zone, now: snap.now }, fiveHour),
     dayRow,
     hourRow,
+    fiveHourWindow,
   }
 }
 

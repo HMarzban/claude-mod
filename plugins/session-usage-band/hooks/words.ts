@@ -570,6 +570,8 @@ export type HistoryWords = Readonly<{
   lastText: string | undefined
   /** 'last $0.21' */
   numbersShort: string
+  /** 'avg ~$0.02': the warm average, said as the estimate it is; undefined before a warm cost. */
+  avgText: string | undefined
   /** The newest `count` costs for a reader, as a chart draws them: 'cost of
    *  the last 14 messages, steady, average $0.18, max $0.84 re-warm', then
    *  ', the newest a re-warm' when it was: the average leaves re-warms out. */
@@ -636,6 +638,7 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, co
   return {
     lastText,
     numbersShort: lastText === undefined ? '' : `last ${lastText}`,
+    avgText: avg === undefined ? undefined : `avg ${fmtEstimate(avg)}`,
     costsAltOf,
     trailAlt: `5h usage over the last hour, ${riseOf(lastHourOf(record.fiveHour, now))}${fullIn}`,
     contextTrailAlt: `context over the conversation, ${contextTrendOf(record.context)}${compactsAt}`,
@@ -658,6 +661,9 @@ export type WeekWords = Readonly<{
   measuredAlt: string
   /** '5-hour limit by hour: 08:40 10%, 09:40 15%' */
   hoursAlt: string
+  /** The 5h window whole, start to reset: '5h window from start to reset, 26%
+   *  used, on pace for about 33%'; no pace where none is known, '' with no 5h window. */
+  windowAlt: string
   /** 'full ~Mon': the day the guess fills the 7d; undefined unless it does. */
   fullDay: string | undefined
   /** The week from today, each form a run of days shorter, longest first:
@@ -714,6 +720,7 @@ export const weekWords = (
   w: Week,
   rows: Readonly<{ days: SliceRow; hours: SliceRow }>,
   fill: Readonly<{ at: number; zone: Zone; now: number }> | undefined,
+  five?: Pick<LimitWords, 'valueText'> & Readonly<{ projectedPct: number | undefined; passed: boolean }>,
 ): WeekWords => {
   const fills = fill !== undefined && rows.days.marks.some(m => m.kind === 'fills')
   return {
@@ -724,6 +731,10 @@ export const weekWords = (
       rows.days.marks.filter(m => m.kind === 'measured'),
     ),
     hoursAlt: slicesSpoken('5-hour limit by hour', w.hours.map(c => c.startClock), rows.hours.marks),
+    windowAlt:
+      five === undefined || five.passed
+        ? ''
+        : `5h window from start to reset, ${five.valueText} used${five.projectedPct === undefined ? '' : `, on pace for about ${Math.round(five.projectedPct)}%`}`,
     fullDay: fills ? `full ~${fmtDay(fill.at, fill.zone, fill.now)}` : undefined,
     byDay: byDayOf(w.days, rows.days.marks),
   }

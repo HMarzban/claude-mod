@@ -15,6 +15,7 @@ import type {
   TurnStopReason,
 } from 'claude-code'
 import { mock, type Engine, type MockClock } from 'claude-code/testing'
+import type { Sample } from '../hooks/memory'
 import { METER_CELLS } from '../hooks/layout'
 import { READ_LIMIT } from '../hooks/memory'
 import { DARK } from '../hooks/palette'
@@ -35,6 +36,8 @@ export const props = (cols: number, isWorking = false, maxRows = DEFAULT_MAX_ROW
 
 export const MIN = 60_000
 export const HOUR = 60 * MIN
+/** The 7d window measured across yesterday, 20% to 30%. */
+export const SAMPLES: Sample[] = [-30 * HOUR, -HOUR].map((at, i) => ({ at, fivePct: 4, sevenPct: 20 + 10 * i, fiveResetAt: 3 * HOUR, sevenResetAt: 67 * HOUR }))
 
 export const USAGE: SessionUsage = {
   startedAt: 0,
