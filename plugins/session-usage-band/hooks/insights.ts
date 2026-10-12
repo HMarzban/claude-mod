@@ -152,7 +152,7 @@ export const fiveHourEtaMs = (now: number): number | null => {
 }
 
 /** A toast re-arms once its figure falls back below this share. */
-export const TOAST_REARM_BELOW = 0.75
+const TOAST_REARM_BELOW = 0.75
 
 /** Whether a toast speaks, and the level to remember: it speaks once per
  *  threshold crossed (at the highest reached), holds while the figure stays

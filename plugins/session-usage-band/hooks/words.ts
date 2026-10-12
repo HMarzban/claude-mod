@@ -231,7 +231,7 @@ export type ContextWords = Readonly<{
 /** The kinds the session's tokens split into, in the order they are drawn. */
 export const SPLIT_LABELS = ['input', 'output', 'cache reads'] as const
 
-export type SpendSplit = Readonly<{ label: (typeof SPLIT_LABELS)[number]; tokens: number; text: string; frac: number }>
+type SpendSplit = Readonly<{ label: (typeof SPLIT_LABELS)[number]; tokens: number; text: string; frac: number }>
 
 export type SpendWords = Readonly<{
   /** `$3.19`, the last message's `$0.21`, and the tokens, `225k`. */
