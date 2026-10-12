@@ -1,7 +1,7 @@
 import { test, expect } from 'claude-code/testing'
 import { fixedZone, fmtClock } from '../hooks/format'
 import type { HourCell } from '../hooks/calendar'
-import { cappedMarks, readingsOf } from '../hooks/reading'
+import { cappedMarks, readingsOf, windowNowAt } from '../hooks/reading'
 import { HOUR, MIN, SAMPLES } from './helpers'
 import { snapOf } from './matrix'
 
@@ -436,6 +436,13 @@ test('fiveHourWindow climbs slice by slice and marks now', () => {
 test('fiveHourWindow is empty with no 5h window, or no slice measured', () => {
   expect(readingsOf(snapOf({ samples: [], fiveHour: undefined })).week.fiveHourWindow.values).toEqual([])
   expect(readingsOf(snapOf({ samples: [], zone: fixedZone(0), fiveHour: FIVE })).week.fiveHourWindow.values).toEqual([])
+})
+test("fiveHourWindow's now stays on the chart: at the window's very end it is the last slice, and with no slice none", () => {
+  expect(windowNowAt(5, 5)).toBe(4)
+  expect(windowNowAt(4.99, 5)).toBe(4)
+  expect(windowNowAt(2.5, 5)).toBe(2)
+  expect(windowNowAt(3, 0)).toBeUndefined()
+  expect(windowNowAt(undefined, 5)).toBeUndefined()
 })
 test('windowAlt speaks the whole window, not the last hour', () => {
   expect(readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0), fiveHour: FIVE })).week.windowAlt).toMatch(/^5h window from start to reset, 4% used/)

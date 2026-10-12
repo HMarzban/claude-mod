@@ -233,7 +233,8 @@ type WeekReading = Week &
     hourRow: SliceRow
     /** The 5h window's cumulative percent at the end of each hour slice, from
      *  `hourRow`; empty where no slice is measured. `nowAt` is the slice now
-     *  falls in (counted from 0), undefined where not known. */
+     *  falls in (counted from 0), the last at the very end; undefined where not
+     *  known or with no values. */
     fiveHourWindow: Readonly<{ values: readonly number[]; nowAt: number | undefined }>
   }>
 
@@ -401,6 +402,12 @@ export const cappedMarks = (cells: ReadonlyArray<DayCell | HourCell>, percentUse
   })
 }
 
+/** Now's slice among `count`, from its notch counted in slices: the slice
+ *  it falls in, the last one at the window's very end, so a now rule never
+ *  falls past the chart; undefined with no notch or no slice. */
+export const windowNowAt = (notch: number | undefined, count: number): number | undefined =>
+  notch === undefined || count === 0 ? undefined : Math.min(Math.floor(notch), count - 1)
+
 /** The week's cells from the limit samples, with their words. With the zone
  *  unknown, the cells are named in UTC. */
 const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour: LimitView | undefined): WeekReading => {
@@ -419,10 +426,8 @@ const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour
   const hourRow: SliceRow = { marks: cappedMarks(week.hours, fiveHour?.percentUsed ?? 0), notch: hourNotch }
   // The 5h window's climb: each hour's rise added to the ones before it.
   let climb = 0
-  const fiveHourWindow = {
-    values: hourRow.marks.some(m => m.kind === 'measured') ? hourRow.marks.map(m => (climb += m.pct)) : [],
-    nowAt: hourRow.notch === undefined ? undefined : Math.floor(hourRow.notch),
-  }
+  const values = hourRow.marks.some(m => m.kind === 'measured') ? hourRow.marks.map(m => (climb += m.pct)) : []
+  const fiveHourWindow = { values, nowAt: windowNowAt(hourRow.notch, values.length) }
   return {
     ...week,
     ...weekWords(week, { days: dayRow, hours: hourRow }, seven?.fullAt === undefined ? undefined : { at: seven.fullAt, zone, now: snap.now }, fiveHour),
