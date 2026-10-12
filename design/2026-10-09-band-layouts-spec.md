@@ -4,6 +4,10 @@ v3 · 2026-10-09 · issue HMarzban/claude-mod#1 · visual reference: the "Usage 
 
 Status: Implemented in 0.12.0.
 
+Note, 2026-10-12: this spec records the design as built in 0.12.0. Code and
+tests cite its sections, but module and function names have moved since;
+CONTRIBUTING's module table names them as they are now.
+
 **Where the canvas and this spec differ, the spec wins.** The canvas is refreshed to match before P2.
 
 Maintainer decisions:
@@ -166,7 +170,7 @@ band.tsx: drawBand builds kit and readings once, calls VIEWS[layout].draw, and f
 | `hooks/views/<name>.tsx` | `export const <name>View: View`. `chips.tsx` keeps `limitChip`, `buildPills` and its `GIVES_WAY`. Its existing `format.ts` calls move over unchanged, so it is exempt from the no-`format.ts` rule. |
 | `hooks/snapshot.ts` | `LAYOUT_NAMES`, `LayoutName`, `DEFAULT_LAYOUT = 'chips'`, plus the fields `layout`, `utcOffsetMin`, `glyphs` and the histories |
 | `hooks/memory.ts` | `LAYOUT_KEY`, `LIMIT_SAMPLES_KEY`, `asLayoutName(v: unknown)` (it trims and lowercases a string, and serves both the command and the store), `asLimitSamples` |
-| `hooks/layout.ts` | Adds `ROW_PX = 24`. `cellsOf` measures a column Box as the widest of its rows. Each collapsed row is squeezed on its own: it takes the smallest squeeze at which it fits, and a give-way step that names no piece in that row is a no-op for it. |
+| `hooks/layout.ts` | `cellsOf` measures a column Box as the widest of its rows. Each collapsed row is squeezed on its own: it takes the smallest squeeze at which it fits, and a give-way step that names no piece in that row is a no-op for it. |
 | `hooks/register.tsx` | `band.layout`, the command, store reads and writes, `utcOffsetMin`, `glyphs`, the histories |
 
 ```ts
@@ -205,7 +209,7 @@ type View = Readonly<{
 | Layouts | `LayoutName`, `LAYOUT_NAMES`, `DEFAULT_LAYOUT`, `VIEWS`, `<name>View` |
 | Store | `LAYOUT_KEY = 'layout'`, `LIMIT_SAMPLES_KEY = 'limitSamples'`, `asLayoutName`, `asLimitSamples` |
 | Charts | `meter`, `ring`, `sparkline`, `barChart`, `dayCells`, `braille` |
-| Time | `utcOffsetMin` (east positive), `fmtClock`, `fmtDayClock`, `fmtSecondsLeft` |
+| Time | `utcOffsetMin` (east positive), `fmtClock`, `fmtDayClock` |
 | Histories | `costTrail` `{ usd, reWarm }`, `contextTrail`, `fiveHourTrail`, samples `{ at, fivePct, sevenPct, fiveResetAt, sevenResetAt }` (epoch ms) |
 | Other | `worstLimit`; `glyphs: 'unicode' \| 'ascii'` from `resolveGlyphs(env)` |
 | Words | "re-warm" (code `reWarm`), "workspace strip"; `5h` and `7d` in rows, "5-hour limit" and "Weekly limit" in headings |
@@ -370,7 +374,7 @@ type View = Readonly<{
 - **`tests/matrix.ts`:**
   - **Scenarios:** calm, unmeasured, warming, recalled, cold, last minute, working, near compaction, compaction off, limit 80%, 5h ahead, 7d full before reset, no limits, gateway spend, reset passed, no workspace, not a repo, git fails, empty history, full history.
   - **Exports:** `SCENARIOS`, `AMBER_WORDS`, `drawAs`, `viewSuite`, `expectInvariants`, and `visualRows(tree, surface)`.
-  - **Measures:** widths use `cellsOf(tree, DESKTOP | TERMINAL)`. For `visualRows` on the desktop, a Text line is `ROW_PX`, an Svg is its height, a column Box sums its children and a row Box takes the tallest; the total is divided by `ROW_PX`, rounded to the nearest row. The terminal counts lines.
+  - **Measures:** widths use `cellsOf(tree, DESKTOP | TERMINAL)`. For `visualRows` on the desktop, a Text line is 24 px (matrix's `ROW_PX`), an Svg is its height, a column Box sums its children and a row Box takes the tallest; the total is divided by 24, rounded to the nearest row. The terminal counts lines.
 - **`expectInvariants` checks:**
   - the declared rows;
   - ▿ or ▵;
