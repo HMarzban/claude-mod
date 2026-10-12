@@ -411,7 +411,6 @@ export const cacheView = (now: number, sessionCost: number | undefined, contextT
     reWarmUsd: recalled ? recalledPrice : rate === null ? null : reWarmAt(rate, state.window),
     recalled,
     idleMs: recalled && lastAt !== undefined ? now - lastAt : null,
-    coldAt: measuredColdAt(),
     // Every cache read saved the rest of the base rate against full input price.
     savedUsd: rate === null || tokens.read <= 0 ? null : rate * (1 - share) * tokens.read,
     readShare: share,

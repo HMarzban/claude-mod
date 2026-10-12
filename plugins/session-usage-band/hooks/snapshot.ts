@@ -16,7 +16,7 @@ export type Glyphs = 'unicode' | 'ascii'
 /** Every layout the band can be drawn in. */
 export const LAYOUT_NAMES = ['chips', 'gauges', 'ledger', 'rings', 'pulse', 'tiles', 'week', 'departures', 'forecast'] as const
 export type LayoutName = (typeof LAYOUT_NAMES)[number]
-/** Chips, the band as it has always been, until the command chooses another. */
+/** The layout drawn until /usage-band layout chooses another. */
 export const DEFAULT_LAYOUT: LayoutName = 'chips'
 
 export type LimitReading = Readonly<{ percentUsed: number; resetsAt: string | undefined }>
@@ -54,9 +54,6 @@ export type BandSnapshot = Readonly<{
     recalled: boolean
     /** How long since that recalled reply. */
     idleMs: number | null
-    /** When the cache goes or went cold: a lifetime after the last reply
-     *  this band saw; none before one. */
-    coldAt: number | null
     /** A resumed conversation's spend and tokens from before this process
      *  are counted, as its transcript records them. */
     recovered: boolean

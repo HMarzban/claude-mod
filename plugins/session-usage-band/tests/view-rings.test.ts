@@ -37,7 +37,7 @@ const AMBER_FIVE: Partial<BandSnapshot> = { fiveHour: { percentUsed: 82, resetsA
 const FILLING_FIVE: Partial<BandSnapshot> = { fiveHour: { percentUsed: 60, resetsAt: new Date(NOW + 3 * HOUR).toISOString(), etaMs: HOUR } }
 const LAST_MINUTE: Partial<BandSnapshot> = { cache: { ...snapOf().cache, msLeft: 30_000, reWarmUsd: 0.8 } }
 const NEAR_COMPACTION: Partial<BandSnapshot> = { context: { tokens: 930_000, window: 1_000_000, percent: 93, compactAt: 967_000, autoCompactOff: false } }
-const COLD: Partial<BandSnapshot> = { cache: { ...snapOf().cache, msLeft: 0, reWarmUsd: 0.8, coldAt: NOW - MIN } }
+const COLD: Partial<BandSnapshot> = { cache: { ...snapOf().cache, msLeft: 0, reWarmUsd: 0.8 } }
 
 /** The row's pills by key, as drawn. */
 const pillKeys = (tree: Node): unknown[] =>
