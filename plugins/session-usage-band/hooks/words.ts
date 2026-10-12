@@ -885,7 +885,7 @@ const contextBoard = (r: BoardFacts): BoardRow => {
   const x = r.context
   const base = { key: 'context', item: 'CONTEXT', time: NONE, alt: x.alt } as const
   if (!x.known) return { ...base, status: 'NOT REPORTED', remarks: '', cell: 'NOT REPORTED', cellShort: 'NOT REPORTED', tone: 'calm' }
-  const remarks = [x.roomText === undefined ? '' : `${x.roomText} LEFT`, x.compactsAtText ?? ''].filter(Boolean).join(' · ')
+  const remarks = [x.roomText === undefined ? '' : `${x.roomText} LEFT`, x.compactsAtText === undefined ? '' : `COMPACTS AT ${x.compactsAtText}`].filter(Boolean).join(' · ')
   if (x.tone === 'calm') return { ...base, status: `${x.valueText} USED`, remarks, cell: x.valueText, cellShort: x.valueText, tone: 'calm' }
   // Near compaction the board names the event; with compaction off, the fill.
   const short = `! CONTEXT ${x.valueText}`

@@ -80,3 +80,7 @@ test('remarksFit cuts with an ellipsis and leaves a short one whole; padTo pads'
   expect(padTo('5H', 4)).toBe('5H  ')
   expect(padTo('CONTEXT', 4)).toBe('CONTEXT')
 })
+test('a calm context row\'s remarks name the room and where compaction falls', () => {
+  const calm = row({ context: { ...snapOf().context, tokens: 76_000, window: 200_000, compactAt: 190_000 } }, 'context')
+  expect(calm?.remarks).toMatch(/^~?\d+K LEFT · COMPACTS AT 190K$/)
+})
