@@ -1,14 +1,16 @@
 // Pulse open: a stack of full-width bands under the collapsed row, each its
 // chart on the left and its words on the right, in the one order: Cache,
 // Spend, Context, Limits (5h and 7d side by side), then the other limits as
-// words (spec §4.2). Short of rows, the bands give way by STEPS; the footer,
-// with the strip in its row, stays.
+// words (spec §4.2). Each band fits its room: its words first, phrase by
+// phrase, then its chart in what they leave, none under the least. Short of
+// rows, the bands give way by STEPS; the footer, with the strip in its row,
+// stays.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
-import { barChart, dayCells, sparkline } from '../charts'
+import { barChart, chartFit, dayCells, dayCellsFit, sparkline } from '../charts'
 import type { Kit } from '../kit'
 import { ROW_SLACK } from '../layout'
-import type { Readings } from '../reading'
+import type { LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { drawStrip } from '../strip'
 import { EMPTY } from '../words'
@@ -24,7 +26,8 @@ type Step = Readonly<Partial<Record<Band, Size>>>
 
 /** What the stack draws at each step, first to last (spec §4.2's give-way):
  *  every band; Other gone; Context gone; Limits at two rows, then words;
- *  Spend to words; Cache gone; nothing. The stack takes the first that fits. */
+ *  Spend to words; Cache gone; nothing. The stack takes the first whose
+ *  bands, as they draw, fit. */
 const STEPS: readonly Step[] = [
   { cache: 'chart', spend: 'chart', context: 'chart', limits: 'chart', other: 'words' },
   { cache: 'chart', spend: 'chart', context: 'chart', limits: 'chart' },
@@ -36,128 +39,155 @@ const STEPS: readonly Step[] = [
   {},
 ]
 
-/** The rows each band takes at each size: on the desktop a row is 24 px, a
- *  two-row chart 40 px and a three-row one 64, each with 8 px of air above
- *  it; in text each band is a line of braille beside its words, Limits two,
- *  5h's over 7d's, until it is words. */
-const ROWS: Readonly<Record<'desktop' | 'terminal', Readonly<Record<Band, Readonly<Record<Size, number>>>>>> = {
-  desktop: {
-    cache: { chart: 1, two: 1, words: 1 },
-    spend: { chart: 2, two: 2, words: 1 },
-    context: { chart: 2, two: 2, words: 1 },
-    limits: { chart: 3, two: 2, words: 1 },
-    other: { chart: 1, two: 1, words: 1 },
-  },
-  terminal: {
-    cache: { chart: 1, two: 1, words: 1 },
-    spend: { chart: 1, two: 1, words: 1 },
-    context: { chart: 1, two: 1, words: 1 },
-    limits: { chart: 2, two: 2, words: 1 },
-    other: { chart: 1, two: 1, words: 1 },
-  },
-}
-/** A chart's px by its rows, and the air above it that makes them whole. */
+/** On the desktop a row is 24 px: a chart of two rows is 40 px and one of
+ *  three 64, each with 8 px of air above it, so its band is whole rows. */
+const SPEND_ROWS = 2
+const CONTEXT_ROWS = 2
 const CHART_PX = { 2: 40, 3: 64 } as const
-const AIR_PX = 8
 const DAY_PX = { 2: 38, 3: 62 } as const
+const AIR_PX = 8
+/** The widest each chart is drawn: a line or the beats, the cache's drain,
+ *  and a day cell. */
+const LINE_PX = 240
+const DRAIN_PX = 120
+const DAY_CELL_PX = 18
+/** The beats open: the last 24 messages. */
+const BEATS = 24
 
-/** Phrases joined by DOT, the missing and the empty left out. */
-const phrases = (parts: ReadonlyArray<string | undefined>): string => parts.filter(p => p !== undefined && p !== '').join(DOT)
+/** A band as drawn, and the rows it takes. */
+type Drawn = Readonly<{ el: RenderElement; rows: number }>
 
-/** A band: its chart, growing to fill the row, then its words in their ink,
- *  kept whole on one line. */
+/** The columns text takes. */
+const cellsIn = (kit: Kit, text: string): number => [...text].length * kit.measure.text
+
+/** The phrases joined by DOT, as many as fit `room` from the first; the
+ *  first always, which the surface cuts if it must. */
+const fitWords = (kit: Kit, phrases: readonly string[], room: number): string => {
+  let words = phrases[0] ?? ''
+  for (const p of phrases.slice(1)) {
+    const longer = `${words}${DOT}${p}`
+    if (cellsIn(kit, longer) > room) break
+    words = longer
+  }
+  return words
+}
+
+/** A band: its chart, if drawn, then its words in their ink, on one line. */
 const band = (kit: Kit, key: string, chart: RenderChildren, words: string, amber: boolean): RenderElement => {
   const { Box, palette, onTone, oneLine } = kit
   return (
-    <Box key={key} flexDirection="row" columnGap={1} overflow="hidden">
-      {chart === null ? null : <Box key="chart" flexGrow={1}>{chart}</Box>}
+    <Box key={key} flexDirection="row" columnGap={1}>
+      {chart === null ? null : <Box key="chart" flexShrink={0}>{chart}</Box>}
       <Box key="words" flexShrink={0}>{oneLine({ key: 'w', color: onTone(amber ? 'amber' : 'calm', palette.value) }, words)}</Box>
     </Box>
   )
 }
 
-/** The bands of one step, in the one order. */
-const bands = (kit: Kit, read: Readings, step: Step): RenderElement[] => {
-  const { Svg, Box, Text, palette } = kit
-  const { cache, context, fiveHour, sevenDay, history: hist, week } = read
+/** A chart's rows: on the desktop its own, in text the line it shares. */
+const rowsOf = (kit: Kit, drawn: boolean, rows: number): number => (kit.Svg && drawn ? rows : 1)
+
+/** A limit's half of the Limits band in `room` columns: its chart, at
+ *  `size`, beside its words. */
+const limitHalf = (kit: Kit, read: Readings, l: LimitView, size: Size, room: number): Drawn => {
+  const { Svg, palette } = kit
+  const { week } = read
+  const words = fitWords(kit, l.bandWords, room)
+  const tall = size === 'two' ? 2 : 3
+  const ink = l.tone === 'amber' ? palette.amberFg : l.key === '5h' ? palette.fiveAccent : palette.weekAccent
+  const charts = read.frame.glyphs === 'unicode' && size !== 'words'
+  let chart: RenderChildren = null
+  if (charts && l.key === '5h' && week.fiveHourWindow.values.length > 1) {
+    const px = chartFit(kit, room, words, LINE_PX, week.fiveHourWindow.values.length)
+    if (px !== undefined)
+      chart = sparkline(kit, { key: 'trail', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, color: ink, px, height: CHART_PX[tall], air: AIR_PX, max: 100 })
+  }
+  // The day cells are the desktop's: in text the 7d is words.
+  if (charts && Svg && l.key === '7d' && week.daysDrawn.measured) {
+    const days = week.daysDrawn
+    const px = chartFit(kit, room, words, LINE_PX, days.values.length)
+    const cellPx = px === undefined ? undefined : dayCellsFit(px, days.values.length, DAY_CELL_PX)
+    if (cellPx !== undefined)
+      chart = dayCells(kit, { key: 'days', alt: week.daysAlt, values: days.values, guess: days.guess, today: days.today, color: ink, cellPx, height: DAY_PX[tall], air: AIR_PX, max: 100 })
+  }
+  return { el: band(kit, l.key, chart, words, l.amber !== undefined), rows: rowsOf(kit, chart !== null, tall) }
+}
+
+/** Limits: 5h and 7d side by side, each in half the room, while their
+ *  words fit there; else 5h over 7d, each in the whole room. In text at
+ *  full size always 5h's line over 7d's. */
+const limitsBand = (kit: Kit, read: Readings, size: Size, room: number): Drawn | undefined => {
+  const { Box } = kit
+  const halves = [read.fiveHour, read.sevenDay].filter((l): l is LimitView => l !== undefined)
+  if (halves.length === 0) return undefined
+  const half = (room - 2) / 2
+  const across = halves.length === 1 || ((kit.Svg !== undefined || size === 'words') && halves.every(l => cellsIn(kit, l.bandWords.join(DOT)) <= half))
+  const drawn = halves.map(l => limitHalf(kit, read, l, size, across && halves.length > 1 ? half : room))
+  const el = (
+    <Box key="band:limits" flexDirection={across ? 'row' : 'column'} columnGap={2}>
+      {drawn.map(d => d.el)}
+    </Box>
+  )
+  return { el, rows: across ? Math.max(...drawn.map(d => d.rows)) : drawn.reduce((n, d) => n + d.rows, 0) }
+}
+
+/** The bands of one step, in the one order, each as it draws in `room`;
+ *  a band with nothing to say is left out. */
+const bands = (kit: Kit, read: Readings, step: Step, room: number): Drawn[] => {
+  const { Text, palette } = kit
+  const { cache, context, history: hist } = read
   const charts = read.frame.glyphs === 'unicode'
-  const drawn: RenderElement[] = []
+  const drawn: Drawn[] = []
   if (step.cache !== undefined) {
-    const chart = charts ? sparkline(kit, { key: 'drain', alt: cache.heartAlt, values: [1, cache.charge], color: cache.tone === 'amber' ? palette.amberFg : palette.warm, px: 120, height: 16, max: 1 }) : null
-    const words = cache.amber === undefined
-      ? phrases([cache.textMarked, cache.coldAtText, cache.mood === 'cold' ? undefined : cache.gaugeMore])
-      : phrases([`cache ${cache.amber.long}`, cache.coldAtText])
-    drawn.push(band(kit, 'band:cache', chart, words, cache.amber !== undefined))
+    const words = fitWords(kit, cache.bandWords, room)
+    const px = charts ? chartFit(kit, room, words, DRAIN_PX, 2) : undefined
+    const chart = px === undefined ? null : sparkline(kit, { key: 'drain', alt: cache.heartAlt, values: [1, cache.charge], color: cache.tone === 'amber' ? palette.amberFg : palette.warm, px, height: 16, max: 1 })
+    drawn.push({ el: band(kit, 'band:cache', chart, words, cache.amber !== undefined), rows: 1 })
   }
   if (step.spend !== undefined) {
-    const chart = step.spend === 'words' ? null
-      : hist.empty ? <Text key="empty" color={palette.label}>{EMPTY.costs}</Text>
-      : charts ? barChart(kit, { key: 'beats', shape: 'beats', alt: hist.costsAltOf(24), values: hist.costValues.slice(-24), marked: hist.reWarms.slice(-24), level: hist.warmAvgUsd, color: palette.value, markColor: palette.value, px: 240, height: CHART_PX[2], air: AIR_PX, max: hist.beatsTop })
-      : null
-    drawn.push(band(kit, 'band:spend', chart, phrases([read.spend.totalText, hist.empty ? undefined : hist.numbersShort, hist.avgText]), false))
+    const words = fitWords(kit, [read.spend.totalText, ...(hist.empty ? [] : [hist.numbersShort]), ...(hist.avgText === undefined ? [] : [hist.avgText])], room)
+    const px = charts && step.spend === 'chart' && !hist.empty ? chartFit(kit, room, words, LINE_PX, BEATS) : undefined
+    // No cost yet: the words for that in the trace's place, while they fit.
+    const empty = step.spend === 'chart' && hist.empty && cellsIn(kit, words) + 1 + cellsIn(kit, EMPTY.costs) <= room
+    const chart = empty ? <Text key="empty" color={palette.label}>{EMPTY.costs}</Text>
+      : px === undefined ? null
+      : barChart(kit, { key: 'beats', shape: 'beats', alt: hist.costsAltOf(BEATS), values: hist.costValues.slice(-BEATS), marked: hist.reWarms.slice(-BEATS), level: hist.warmAvgUsd, color: palette.value, markColor: palette.value, px, height: CHART_PX[SPEND_ROWS], air: AIR_PX, max: hist.beatsTop })
+    drawn.push({ el: band(kit, 'band:spend', chart, words, false), rows: rowsOf(kit, px !== undefined, SPEND_ROWS) })
   }
   if (step.context !== undefined) {
-    const chart = charts && hist.context.length > 1
-      ? sparkline(kit, { key: 'trail', alt: hist.contextTrailAlt, values: hist.context, color: palette.label, px: 240, height: CHART_PX[2], air: AIR_PX, max: context.compactAt ?? context.window, level: context.compactAt === undefined ? undefined : 1 })
-      : null
-    const room = context.roomText === undefined ? undefined : `${context.roomText} left`
-    const words = context.amber === undefined
-      ? phrases([`context ${context.valueText}`, room, context.compactsAtText === undefined ? undefined : `compacts at ${context.compactsAtText}`])
-      : phrases([context.amber.long, room])
-    drawn.push(band(kit, 'band:context', chart, words, context.amber !== undefined))
+    const words = fitWords(kit, context.bandWords, room)
+    const px = charts && hist.context.length > 1 ? chartFit(kit, room, words, LINE_PX, hist.context.length) : undefined
+    const chart = px === undefined ? null
+      : sparkline(kit, { key: 'trail', alt: hist.contextTrailAlt, values: hist.context, color: palette.label, px, height: CHART_PX[CONTEXT_ROWS], air: AIR_PX, max: context.compactAt ?? context.window, level: context.compactAt === undefined ? undefined : 1 })
+    drawn.push({ el: band(kit, 'band:context', chart, words, context.amber !== undefined), rows: rowsOf(kit, chart !== null, CONTEXT_ROWS) })
   }
-  if (step.limits !== undefined && (fiveHour !== undefined || sevenDay !== undefined)) {
-    const size = step.limits
-    const rows = size === 'two' ? 2 : 3
-    const five = fiveHour === undefined ? null : band(kit, '5h',
-      charts && size !== 'words' && week.fiveHourWindow.values.length > 1
-        ? sparkline(kit, { key: 'trail', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, color: fiveHour.tone === 'amber' ? palette.amberFg : palette.fiveAccent, px: 240, height: CHART_PX[rows], air: AIR_PX, max: 100 })
-        : null,
-      // A measured fill is already in the amber words.
-      phrases([fiveHour.amber?.long ?? fiveHour.text, fiveHour.amber !== undefined && fiveHour.fullIn !== undefined ? undefined : fiveHour.pace, fiveHour.resetAtGlyph]),
-      fiveHour.amber !== undefined)
-    // The day cells are the desktop's, as on the row: in text the 7d is words.
-    const seven = sevenDay === undefined ? null : band(kit, '7d',
-      Svg && size !== 'words' && week.days.some(d => d.pct !== undefined && !d.guess)
-        ? dayCells(kit, { key: 'days', alt: week.daysAlt, values: week.days.map(d => d.pct), guess: week.days.map(d => d.guess), today: week.days.findIndex(d => d.today), color: sevenDay.tone === 'amber' ? palette.amberFg : palette.weekAccent, cellPx: 18, height: DAY_PX[rows], air: AIR_PX, max: 100 })
-        : null,
-      phrases([sevenDay.amber?.long ?? sevenDay.text, sevenDay.fillText, sevenDay.resetAtGlyph]),
-      sevenDay.amber !== undefined)
-    // Side by side on the desktop, and as words; in text 5h's line over 7d's.
-    const across = Svg !== undefined || size === 'words'
-    drawn.push(
-      <Box key="band:limits" flexDirection={across ? 'row' : 'column'} columnGap={2}>
-        {[five, seven].map((b, i) => (b === null ? null : <Box key={i === 0 ? 'five' : 'seven'} flexGrow={1}>{b}</Box>))}
-      </Box>,
-    )
-  }
+  const limits = step.limits === undefined ? undefined : limitsBand(kit, read, step.limits, room)
+  if (limits !== undefined) drawn.push(limits)
   const others = read.limits.filter(l => l.key === 'other')
   if (step.other !== undefined && others.length > 0)
-    drawn.push(band(kit, 'band:other', null, phrases(others.map(l => l.amber?.long ?? l.text)), others.some(l => l.amber !== undefined)))
+    drawn.push({ el: band(kit, 'band:other', null, fitWords(kit, others.flatMap(l => l.bandWords), room), others.some(l => l.amber !== undefined)), rows: 1 })
   return drawn
 }
 
-/** The step that fits `rows`, Other kept at every step while it is amber
- *  (spec §2.1: an amber reading never gives way), and counted. */
-const stepFor = (read: Readings, surface: 'desktop' | 'terminal', rows: number): Step => {
-  const others = read.limits.filter(l => l.key === 'other')
-  const amberOther = others.some(l => l.amber !== undefined)
-  const fits = (step: Step): boolean => {
-    const kept: Step = amberOther ? { ...step, other: 'words' } : others.length === 0 ? { ...step, other: undefined } : step
-    const used = (Object.entries(kept) as Array<[Band, Size | undefined]>).reduce((n, [b, size]) => (size === undefined ? n : n + ROWS[surface][b][size]), 0)
-    return used <= rows
+/** The first step whose bands, as drawn, fit `rows`: Other kept at every
+ *  step while it is amber (spec §2.1: an amber reading never gives way);
+ *  none when not even that fits. */
+const fitted = (kit: Kit, read: Readings, rows: number, room: number): Drawn[] => {
+  const amberOther = read.limits.some(l => l.key === 'other' && l.amber !== undefined)
+  for (const step of STEPS) {
+    const drawn = bands(kit, read, amberOther ? { ...step, other: 'words' } : step, room)
+    if (drawn.reduce((n, d) => n + d.rows, 0) <= rows) return drawn
   }
-  const step = STEPS.find(fits)
-  return step === undefined ? {} : amberOther ? { ...step, other: 'words' } : step
+  return []
 }
 
-/** Pulse open: the stack, its bands fitted to the body's rows, then the
- *  footer, the strip in its row. */
+/** Pulse open: the stack, its bands fitted to the body's rows and the
+ *  row's room, then the footer, the strip in its row. */
 export const openStack = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
-  const { Box, Svg } = kit
+  const { Box } = kit
   const ws = read.workspace
-  const strip = ws === undefined ? undefined : drawStrip(kit, ws, 'footer', 0, kit.columns - ROW_SLACK - footerRoom(kit))
-  const drawn = bands(kit, read, stepFor(read, Svg ? 'desktop' : 'terminal', bodyRowsFor(read.frame.maxRows, 1, 0)))
-  const stack = drawn.length === 0 ? null : <Box key="stack" flexDirection="column" marginTop={1}>{drawn}</Box>
+  const room = kit.columns - ROW_SLACK
+  const strip = ws === undefined ? undefined : drawStrip(kit, ws, 'footer', 0, room - footerRoom(kit))
+  const drawn = fitted(kit, read, bodyRowsFor(read.frame.maxRows, 1, 0), room)
+  const stack = drawn.length === 0 ? null : <Box key="stack" flexDirection="column" marginTop={1}>{drawn.map(d => d.el)}</Box>
   return [stack, footer(kit, act, strip)].filter(e => e !== null)
 }

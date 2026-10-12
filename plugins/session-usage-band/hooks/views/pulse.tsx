@@ -9,7 +9,7 @@ import type { Kit } from '../kit'
 import { ROW_SLACK } from '../layout'
 import type { Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
-import { EMPTY, type Amber } from '../words'
+import { EMPTY } from '../words'
 import { toggleButton } from './frame'
 import { beforeLast, fitLine, line, type Keeps } from './parts'
 import { openStack } from './pulse-open'
@@ -28,14 +28,14 @@ type Piece = (typeof ORDER)[number]
 const BEATS_PX = { 14: 84, 8: 48 } as const
 
 /** The heartbeat's state for the cache's mood. */
-export const heartState = (read: Readings): 'still' | 'beat' | 'flat' | 'hollow' =>
+const heartState = (read: Readings): 'still' | 'beat' | 'flat' | 'hollow' =>
   read.cache.mood === 'cold' ? 'flat'
   : read.cache.mood === 'unmeasured' || read.cache.mood === 'warming' ? 'hollow'
   : read.cache.tone === 'amber' ? 'beat'
   : 'still'
 
 /** A reading's words in its tone's ink. */
-export const said = (kit: Kit, key: string, text: string, amber: boolean): RenderElement => {
+const said = (kit: Kit, key: string, text: string, amber: boolean): RenderElement => {
   const { Text, palette, onTone } = kit
   return <Text key={key} color={onTone(amber ? 'amber' : 'calm', palette.value)}>{text}</Text>
 }
@@ -50,10 +50,8 @@ const group = (kit: Kit, key: string, chart: RenderChildren, words: RenderChildr
  *  amber one until the amber step. */
 const chartKept = (k: Keeps<Piece>, piece: Piece, tone: Tone): boolean => k.has(piece) || (tone === 'amber' && beforeLast(k))
 
-/** An amber reading's words, long until the amber step; a calm one's, long
- *  until the short step. */
-const wordsOf = (k: Keeps<Piece>, amber: Amber | undefined, long: string, short: string): string =>
-  amber !== undefined ? k.amber(amber) : k.has('short') ? long : short
+/** A calm reading's words, long until the short step. */
+const calmWords = (k: Keeps<Piece>, long: string, short: string): string => (k.has('short') ? long : short)
 
 const collapsed = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
   fitLine(kit, ORDER, kit.columns - ROW_SLACK, k => {
@@ -63,7 +61,7 @@ const collapsed = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
     const n = k.has('beats14') ? 14 : 8
     const cacheGroup = group(kit, 'cache',
       heartbeat(kit, { key: 'beat', alt: cache.heartAlt, state: heartState(read), color: cache.tone === 'amber' ? palette.amberFg : palette.warm }),
-      said(kit, 'w', cache.amber === undefined ? wordsOf(k, undefined, cache.textMarked, cache.textShortMarked) : `cache ${k.amber(cache.amber)}`, cache.amber !== undefined))
+      said(kit, 'w', cache.amber === undefined ? calmWords(k, cache.textMarked, cache.textShortMarked) : k.amber(cache.amber), cache.amber !== undefined))
     // No cost yet: the words for that in the trace's place, beside the total.
     const trace = !k.has('beats') ? null
       : hist.empty ? <Text key="empty" color={palette.label}>{EMPTY.costs}</Text>
@@ -71,12 +69,12 @@ const collapsed = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
       : null
     // Spend is never amber: it gives way whole at its step.
     const spendGroup = !k.has('spend') ? null : group(kit, 'spend', trace,
-      said(kit, 'w', k.has('last') && !hist.empty ? `${read.spend.totalText} · ${hist.numbersShort}` : read.spend.totalText, false))
+      said(kit, 'w', (k.has('last') && !hist.empty ? [read.spend.totalText, hist.numbersShort] : [read.spend.totalText]).join(' · '), false))
     const contextGroup = !k.calm('context', context.tone) ? null : group(kit, 'context',
       charts && chartKept(k, 'contextTrail', context.tone) && hist.context.length > 1
         ? sparkline(kit, { key: 'trail', alt: hist.contextTrailAlt, values: hist.context, color: palette.label, px: 36, height: 16, max: context.compactAt ?? context.window })
         : null,
-      said(kit, 'w', context.amber === undefined ? `context ${context.valueText}` : k.amber(context.amber), context.amber !== undefined))
+      said(kit, 'w', context.amber === undefined ? context.text : k.amber(context.amber), context.amber !== undefined))
     const fiveGroup = fiveHour === undefined || !k.calm('five', fiveHour.tone) ? null : group(kit, '5h',
       charts && chartKept(k, 'fiveTrail', fiveHour.tone) && week.fiveHourWindow.values.length > 1
         ? sparkline(kit, { key: 'trail', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, color: fiveHour.tone === 'amber' ? palette.amberFg : palette.fiveAccent, px: 48, height: 16, max: 100 })
@@ -84,8 +82,8 @@ const collapsed = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
       said(kit, 'w', fiveHour.amber === undefined ? fiveHour.text : k.amber(fiveHour.amber), fiveHour.amber !== undefined))
     // The 7d's cells are the desktop's: in text it is words (spec §4.1).
     const sevenGroup = sevenDay === undefined ? null : group(kit, '7d',
-      Svg && chartKept(k, 'sevenDays', sevenDay.tone) && week.days.some(d => d.pct !== undefined && !d.guess)
-        ? dayCells(kit, { key: 'days', alt: week.daysAlt, values: week.days.map(d => d.pct), guess: week.days.map(d => d.guess), today: week.days.findIndex(d => d.today), color: sevenDay.tone === 'amber' ? palette.amberFg : palette.weekAccent, cellPx: 4, height: 14, max: 100 })
+      Svg && chartKept(k, 'sevenDays', sevenDay.tone) && week.daysDrawn.measured
+        ? dayCells(kit, { key: 'days', alt: week.daysAlt, values: week.daysDrawn.values, guess: week.daysDrawn.guess, today: week.daysDrawn.today, color: sevenDay.tone === 'amber' ? palette.amberFg : palette.weekAccent, cellPx: 4, height: 14, max: 100 })
         : null,
       said(kit, 'w', sevenDay.amber === undefined ? sevenDay.text : k.amber(sevenDay.amber), sevenDay.amber !== undefined))
     return line(kit, 'row', [cacheGroup, spendGroup, contextGroup, fiveGroup, sevenGroup], toggleButton(kit, read, act), 1)

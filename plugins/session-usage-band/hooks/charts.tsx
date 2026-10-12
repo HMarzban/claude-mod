@@ -29,6 +29,21 @@ const svgOf = (width: number, height: number, marks: string, attrs = ''): string
 /** Marks set `air` px down, below the air above them. */
 const airOf = (marks: string, air: number): string => (air > 0 ? `<g transform="translate(0 ${air})">${marks}</g>` : marks)
 
+// ---- a chart beside its words ---------------------------------------------
+
+/** The least a chart is drawn at beside its words: under it, the words alone. */
+export const CHART_MIN_PX = 48
+
+/** The px a chart of `points` may take beside `words`, a column apart, in
+ *  `room` columns: on the desktop up to `most`, none under CHART_MIN_PX; in
+ *  text its braille, two points to a cell, `most` while it fits, else none. */
+export const chartFit = (kit: Kit, room: number, words: string, most: number, points: number): number | undefined => {
+  const left = room - 1 - Math.ceil([...words].length * kit.measure.text)
+  if (!kit.Svg) return left >= Math.ceil(points / 2) ? most : undefined
+  const px = Math.min(most, Math.floor(left * kit.measure.pxPerCell))
+  return px >= CHART_MIN_PX ? px : undefined
+}
+
 // ---- braille --------------------------------------------------------------
 
 /** Values as braille, two to a cell: the left column takes dots 7,3,2,1 from
@@ -558,6 +573,15 @@ type DayCellsOptions = Readonly<{
 const DAY_GAP = 3
 /** Room around the cells for today's outline. */
 const DAY_EDGE = 1
+/** The narrowest day cell drawn. */
+const DAY_MIN_PX = 6
+
+/** The widest cell, up to `most`, at which `count` day cells fit in `px`;
+ *  none under DAY_MIN_PX. */
+export const dayCellsFit = (px: number, count: number, most: number): number | undefined => {
+  const cell = Math.min(most, Math.floor((px - 2 * DAY_EDGE + DAY_GAP) / count) - DAY_GAP)
+  return cell >= DAY_MIN_PX ? cell : undefined
+}
 /** Today's dash, finer than a guess's. */
 const TODAY_DASH = 'stroke-dasharray="2 1.6"'
 
@@ -596,7 +620,12 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
       : isGuess(i)
         ? `<rect class="ground" x="${x}" y="${DAY_EDGE}" width="${cellPx}" height="${height}" rx="3" fill="${palette.meterTrack}"/>`
         : ''
-    const filled = fillPx > 0 ? `<rect class="fill" x="${x + 1}" y="${tenth(DAY_EDGE + height - 1 - fillPx)}" width="${cellPx - 2}" height="${fillPx}" rx="2" fill="${color}"/>` : ''
+    // A guess fills toward its value, dimmed, so the cells say what is to come.
+    const guessPx = !isGuess(i) || v === undefined || top <= 0 ? 0 : tenth(clamp01(v / top) * (height - 2))
+    const filled =
+      fillPx > 0 ? `<rect class="fill" x="${x + 1}" y="${tenth(DAY_EDGE + height - 1 - fillPx)}" width="${cellPx - 2}" height="${fillPx}" rx="2" fill="${color}"/>`
+      : guessPx > 0 ? `<rect class="guess" x="${x + 1}" y="${tenth(DAY_EDGE + height - 1 - guessPx)}" width="${cellPx - 2}" height="${guessPx}" rx="2" fill="${color}" opacity="0.45"/>`
+      : ''
     const [stroke, dash] = isToday(i)
       ? [palette.value, ` ${TODAY_DASH}`]
       : isGuess(i)

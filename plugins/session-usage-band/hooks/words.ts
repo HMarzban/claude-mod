@@ -64,6 +64,8 @@ export const AMBER_LEAD = '! '
 
 /** A phrase's segments as one plain string. */
 const joined = (say: Say): string => say.map(([text]) => text).join('')
+/** The phrases said, the missing and the empty left out. */
+const said = (parts: ReadonlyArray<string | undefined>): string[] => parts.filter((p): p is string => p !== undefined && p !== '')
 
 const amberOf = (say: Say, sayShort: Say, beside: string): ReadingAmber => ({ long: joined(say), short: joined(sayShort), say, sayShort, beside: `${AMBER_LEAD}${beside}` })
 
@@ -146,6 +148,10 @@ export type CacheWords = Readonly<{
    *  not measured: `cache ~40m left`, `cache ~40m`. Pulse's row says these. */
   textMarked: string
   textShortMarked: string
+  /** Pulse's open band, phrase by phrase: `52m left`, `cold at 14:32`,
+   *  `re-warm ~$1.66`; the time `~` while recalled; cold, `cold` and its
+   *  re-warm; amber, its amber words, then when it goes cold. */
+  bandWords: readonly string[]
   /** The last minute: `! 47s left · re-warm ~$1.66`, then `! 47s`. */
   amber: ReadingAmber | undefined
   /** `cold at 14:32`, as a lens says it, while counting and the offset is known. */
@@ -194,6 +200,10 @@ export type ContextWords = Readonly<{
   inContextText: string
   compactsAtText: string | undefined
   roomText: string | undefined
+  /** Pulse's open band, phrase by phrase: `38%`, `~114k left`, `compacts
+   *  at 190k`; amber, its amber words, then where it compacts; unknown,
+   *  `context –`. */
+  bandWords: readonly string[]
   /** Its room and where it compacts as one row's label, long then short:
    *  `room left · auto-compacts at 190k`, `room left · compacts at 190k`. */
   roomCompacts: readonly [long: string, short: string] | undefined
@@ -269,6 +279,10 @@ export type LimitWords = Readonly<{
   fillNamed: string | undefined
   /** `7d ~Mon`: named, short of room for its words. */
   fillNamedShort: string | undefined
+  /** Pulse's open band, phrase by phrase: `5h 4%` or its amber words, its
+   *  pace (the 7d its fill), and `↻ 16:40`; the pace left out where the
+   *  amber words already say the fill. Another window, its words alone. */
+  bandWords: readonly string[]
   /** Its next change after its name: its fill, `66% · full ~Mon · ↻ Sat
    *  13:30`, else its reset and pace, `4% · ↻ 16:40 · on pace for ~10%`;
    *  none at 0%, where nothing is moving, or once passed. */
@@ -339,6 +353,12 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     textShort: joined(sayShort),
     textMarked: recalledTime ? `cache ~${left}` : joined(say),
     textShortMarked: recalledTime ? `cache ~${leftShort}` : joined(sayShort),
+    bandWords:
+      f.mood === 'expiring' ? said([AMBER.cache(leftShort, f.estimate).long, coldAtClock === undefined ? undefined : `cold at ${coldAtClock}`])
+      : f.mood === 'cold' ? said(['cold', reWarm])
+      : counting ? said([recalledTime ? `~${left}` : left, coldAtClock === undefined ? undefined : `cold at ${coldAtClock}`, reWarm])
+      : f.mood === 'unmeasured' ? ['not measured yet']
+      : [value],
     amber: f.mood === 'expiring' ? AMBER.cache(leftShort, f.estimate) : undefined,
     coldAtText: coldAtClock === undefined ? undefined : `cold at ${coldAtClock}`,
     ahead,
@@ -449,6 +469,11 @@ export const contextWords = (f: ContextFacts): ContextWords => {
     inContextText: f.known ? fmtTokens(f.used) : UNKNOWN,
     compactsAtText,
     roomText,
+    bandWords: said([
+      amber?.long ?? (f.known ? value : joined(say)),
+      amber === undefined && roomText !== undefined ? `${roomText} left` : undefined,
+      compactsAtText === undefined ? undefined : `compacts at ${compactsAtText}`,
+    ]),
     roomCompacts,
     windowText: fmtTokens(f.window),
     ahead: roomText === undefined ? undefined : { lead: [['compacts in ', 'value']], figure: roomText },
@@ -512,6 +537,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const fillDay = f.key === '7d' ? fmtDay : fmtDayClock
   const fillAt = fillInMs === undefined ? undefined : zone !== undefined ? `~${fillDay(frame.now + fillInMs, zone, frame.now)}` : `in ${fmtEta(fillInMs)}`
   const resetAtGlyph = resetClock === undefined ? resetGlyph : `${resetMark} ${resetClock}`
+  const amber = f.tone !== 'amber' ? undefined : fullIn !== undefined ? AMBER.limitPace(f.name, fullIn) : AMBER.limit(f.name, f.percentUsed)
   const cardResetLess = (): string | undefined => {
     if (span === undefined) return undefined
     return [`resets ${span}`, pace].filter(t => t !== '').join(' · ')
@@ -549,9 +575,14 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     fillText: fillAt === undefined ? undefined : `full ${fillAt}`,
     fillNamed: fillAt === undefined ? undefined : `${f.name} full ${fillAt}`,
     fillNamedShort: fillAt === undefined ? undefined : `${f.name} ${fillAt}`,
+    bandWords: said([
+      amber?.long ?? joined(say),
+      f.key === 'other' ? undefined : f.key === '7d' ? (fillAt === undefined ? undefined : `full ${fillAt}`) : amber !== undefined && fullIn !== undefined ? undefined : pace,
+      f.key === 'other' ? undefined : resetAtGlyph,
+    ]),
     ahead,
     fullIn,
-    amber: f.tone !== 'amber' ? undefined : fullIn !== undefined ? AMBER.limitPace(f.name, fullIn) : AMBER.limit(f.name, f.percentUsed),
+    amber,
     amberHead: f.tone !== 'amber' ? undefined : [[AMBER_LEAD, 'amber'], [`${f.name} `, 'label'], [valueText, 'value']],
     alt: altOf(
       `${f.name} limit`,

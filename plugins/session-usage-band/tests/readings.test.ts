@@ -450,3 +450,34 @@ test("a recalled cache's time is marked ~ in pulse's words, until a reply measur
   expect([cache({}).textMarked, cache({}).textShortMarked]).toEqual(['cache 52m left', 'cache 52m'])
   expect(cache({ requests: 1, recalled: true }).textMarked).toBe('cache 52m left')
 })
+test("at the 5h window's very end, now is its last slice", () => {
+  // A minute before the reset, as the samples' window ends.
+  const w = readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0), fiveHour: FIVE, now: 3 * HOUR - MIN })).week.fiveHourWindow
+  expect(w.values.length).toBeGreaterThan(1)
+  expect(w.nowAt).toBe(w.values.length - 1)
+})
+test("pulse's open bands' words: each band's phrases, an amber one led by its amber words", () => {
+  const read = (over: Parameters<typeof snapOf>[0] = {}) => readingsOf(snapOf({ zone: fixedZone(0), ...over }))
+  const calm = read()
+  expect(calm.cache.bandWords).toEqual(['52m left', 'cold at 00:52', 're-warm ~$1.66'])
+  expect(calm.context.bandWords).toEqual(['40%', '~114k left', 'compacts at 190k'])
+  expect(calm.fiveHour?.bandWords).toEqual(['5h 4%', 'on pace for ~10%', '↻ 03:00'])
+  expect(calm.sevenDay?.bandWords).toEqual(['7d 30%', '↻ Sat 19:00'])
+  const expiring = read({ cache: { ...snapOf().cache, msLeft: 30_000, ttl: '5m' } }).cache.bandWords
+  expect(expiring[0]).toMatch(/^! 30s left · re-warm ~\$/)
+  expect(read({ cache: { ...snapOf().cache, msLeft: 0 } }).cache.bandWords).toEqual(['cold', 're-warm ~$1.66'])
+  expect(read({ cache: { ...snapOf().cache, requests: 0, recalled: true } }).cache.bandWords[0]).toBe('~52m left')
+  const near = read({ context: { tokens: 180_000, window: 200_000, percent: 90, compactAt: 190_000, autoCompactOff: false } }).context.bandWords
+  expect(near).toEqual(['! context 95% · compacts in ~10k', 'compacts at 190k'])
+  const pace = read({ fiveHour: { percentUsed: 50, resetsAt: new Date(4 * HOUR).toISOString(), etaMs: 40 * MIN } }).fiveHour?.bandWords
+  expect(pace?.[0]).toBe('! 5h full in ~40m')
+  expect(pace?.some(p => /^full in/.test(p))).toBe(false)
+  for (const words of [calm.cache.bandWords, calm.context.bandWords, calm.fiveHour?.bandWords ?? []]) expect(words.every(w => w !== '')).toBe(true)
+})
+test("the 7d's days as drawn: capped, so the guesses never pass what is left; today kept", () => {
+  const week = readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0), sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() } })).week
+  const d = week.daysDrawn
+  expect(d.values.reduce<number>((n, v, i) => n + (d.guess[i] ? (v ?? 0) : 0), 0)).toBeLessThanOrEqual(15 + 1e-9)
+  expect(d.today).toBe(week.days.findIndex(day => day.today))
+  expect(d.measured).toBe(true)
+})

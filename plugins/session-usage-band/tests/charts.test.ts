@@ -1,5 +1,5 @@
 import { test, expect } from 'claude-code/testing'
-import { barChart, barsWidth, braille, dayCells, heartbeat, meter, ring, sliceCells, sparkline } from '../hooks/charts'
+import { CHART_MIN_PX, barChart, barsWidth, braille, chartFit, dayCells, dayCellsFit, heartbeat, meter, ring, sliceCells, sparkline } from '../hooks/charts'
 import { makeKit } from '../hooks/kit'
 import { METER_CELLS } from '../hooks/layout'
 import { drawBand } from '../hooks/band'
@@ -77,7 +77,7 @@ test('a guessed day cell is dashed', () => {
 /** Each day cell's marks, by class, as `<class> <attrs that draw it>`. */
 const dayMarks = (source: string): string[] =>
   [...source.matchAll(/<rect class="(\w+)"([^>]*)\/>/g)].map(([, cls, attrs]) => `${cls}${[...(attrs ?? '').matchAll(/ (height|fill|stroke|stroke-dasharray|opacity)="([^"]+)"/g)].map(([, k, v]) => ` ${k}=${v}`).join('')}`)
-test("day cells as forecast's board draws them: a measured day solid, its share filled against the cap; today dashed in value ink on a lighter ground; days to come dashed and dim on the track", () => {
+test("day cells as forecast's board draws them: a measured day solid, its share filled against the cap; today dashed in value ink on a lighter ground; days to come dashed and dim on the track, filled dimmed toward their guess", () => {
   const { palette: p } = desk
   const source = svg(dayCells(desk, { key: 'd', alt: 'week', values: [60, 6, 50], guess: [false, false, true], today: 1, max: 100, color: p.trackStroke, cellPx: 13, height: 14 })).props.source
   expect(dayMarks(source)).toEqual([
@@ -88,6 +88,8 @@ test("day cells as forecast's board draws them: a measured day solid, its share 
     `fill height=0.7 fill=${p.trackStroke}`,
     `edge height=13 fill=none stroke=${p.value} stroke-dasharray=2 1.6`,
     `ground height=14 fill=${p.meterTrack}`,
+    // 50 of 100, guessed: half the 12px, dimmed.
+    `guess height=6 fill=${p.trackStroke} opacity=0.45`,
     `edge height=13 fill=none stroke=${p.trackStroke} stroke-dasharray=2 2 opacity=0.75`,
   ])
 })
@@ -131,6 +133,35 @@ test('air: a chart drawn below its air, the Svg as tall as both, its marks as th
     expect(aired.props.width).toBe(bare.props.width)
     const marks = (source: string) => source.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '')
     expect(marks(aired.props.source)).toBe(`<g transform="translate(0 8)">${marks(bare.props.source)}</g>`)
+  }
+})
+test('a guessed day is filled toward its guess, dimmed, behind its dashed edge; a measured one solid', () => {
+  const source = svg(dayCells(desk, { key: 'd', alt: 'w', values: [50, 50, undefined], guess: [false, true, true], max: 100, color: '#a99cf0', cellPx: 10, height: 16 })).props.source
+  const tall = (cls: string) => [...source.matchAll(new RegExp(`<rect class="${cls}"[^>]* height="([\\d.]+)"`, 'g'))].map(([, h]) => Number(h))
+  expect([tall('fill'), tall('guess')]).toEqual([[7], [7]])
+  expect(source).toMatch(/<rect class="guess"[^>]*opacity="0.45"/)
+})
+test("chartFit: a chart's px beside its words, up to its most, none under the least; in text its braille while it fits", () => {
+  const term = makeKit(fakeEl, snapOf({ surface: 'terminal' }))
+  // 40 columns, 20 characters of words at 0.75 a column: 15, the gap 1, 24 left, 240 px.
+  expect(chartFit(desk, 40, 'x'.repeat(20), 400, 24)).toBe(240)
+  expect(chartFit(desk, 40, 'x'.repeat(20), 120, 24)).toBe(120)
+  expect(chartFit(desk, 22, 'x'.repeat(20), 400, 24)).toBe(60)
+  expect(chartFit(desk, 20, 'x'.repeat(20), 400, 24)).toBeUndefined()
+  expect(CHART_MIN_PX).toBe(48)
+  // In text: 24 points are 12 cells.
+  expect(chartFit(term, 40, 'x'.repeat(27), 240, 24)).toBe(240)
+  expect(chartFit(term, 40, 'x'.repeat(28), 240, 24)).toBeUndefined()
+})
+test('dayCellsFit: the widest cell, up to its most, that keeps the cells within px; none under 6', () => {
+  // Seven 18 px cells, 3 apart, and the outline's 1 either side: 146 px.
+  expect(dayCellsFit(146, 7, 18)).toBe(18)
+  expect(dayCellsFit(400, 7, 18)).toBe(18)
+  expect(dayCellsFit(100, 7, 18)).toBe(11)
+  expect(dayCellsFit(60, 7, 18)).toBeUndefined()
+  for (const px of [60, 100, 146]) {
+    const cell = dayCellsFit(px, 7, 18)
+    if (cell !== undefined) expect(Number(svg(dayCells(desk, { key: 'd', alt: 'w', values: [1, 2, 3, 4, 5, 6, 7], color: '#fff', cellPx: cell, height: 16 })).props.width)).toBeLessThanOrEqual(px)
   }
 })
 // Guard for the day cells pulse reuses: each fill sits in its own cell and is as tall as its value.

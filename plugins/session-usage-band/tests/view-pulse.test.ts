@@ -5,8 +5,9 @@
 import type { RenderChildren } from 'claude-code'
 import { test, expect } from 'claude-code/testing'
 import { drawBand } from '../hooks/band'
-import { ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
+import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
+import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { EMPTY } from '../hooks/words'
 import { HOUR, MIN, SAMPLES, USAGE, byKey, fakeEl, firstRow, shown, svgAlts, svgsOf, type Node } from './helpers'
@@ -82,7 +83,9 @@ test('at 40 and 45 columns, full amber: the cache and the 7d stay, in order, ▵
   const drawn = await drawCases($, on, { scenario: 'lastMinute', appearance: 'dark', layout: 'pulse', usage: { ...USAGE, rateLimits: withLimits(30, 82) } }, [40, 45].map(cols => ({ surface: 'terminal' as const, cols })))
   for (const cols of [40, 45]) {
     const row = firstRow(drawn[caseKey({ surface: 'terminal', cols }, 'shut')]) as Node
-    expect(shown(row)).toMatch(/cache[\s\S]*7d/)
+    // The cache's amber words, led by '! ', then the 7d's.
+    expect(shown(row)).toMatch(/^! \d+s[\s\S]*7d/)
+    expect(shown(byKey(row, 'cache', 'Box'))).toMatch(/^! \d+s/)
     expect(byKey(row.children?.at(-1), 'more', 'Button')?.props?.label).toBe('▵')
     expect(cellsOf(row as unknown as RenderChildren, TERMINAL)).toBeLessThanOrEqual(cols - ROW_SLACK)
   }
@@ -184,4 +187,84 @@ test('open, an amber other limit outlasts every band', () => {
   const amber = [{ kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }] as BandSnapshot['otherLimits']
   const open = band({ surface: 'terminal', expanded: true, maxRows: 5, ...LIMITS, otherLimits: amber })
   expect(shown(byKey(open, 'band:other', 'Box'))).toMatch(/! spend 92%/)
+})
+
+// ---- review round 1 -------------------------------------------------------
+
+const BANDS = ['band:cache', 'band:spend', 'band:context', 'band:limits', 'band:other'] as const
+const NEAR = { tokens: 180_000, window: 200_000, percent: 90, compactAt: 190_000, autoCompactOff: false }
+const EXPIRING = { ...snapOf().cache, msLeft: 30_000, ttl: '5m' as const }
+const WS = { path: '/u/claude-mod', git: { branch: 'main', changed: 0 } } as BandSnapshot['workspace']
+
+test('open, no limits: in a body of 6 Context stays, since Limits draws nothing', () => {
+  const open = band({ surface: 'desktop', expanded: true, maxRows: 10, fiveHour: undefined, sevenDay: undefined })
+  expect(byKey(open, 'band:limits', 'Box')).toBeUndefined()
+  expect(byKey(open, 'band:context', 'Box')).toBeDefined()
+})
+test('open, no costs and one context point: Spend and Context are a row each, so Context stays in a body of 6', () => {
+  const open = band({ surface: 'desktop', expanded: true, maxRows: 10, ...LIMITS, history: { costs: [], context: [76_000], fiveHour: [] } })
+  expect(byKey(open, 'band:context', 'Box')).toBeDefined()
+  expect(visualRows(open, 'desktop')).toBeLessThanOrEqual(10)
+})
+test('open: while a band is left out, the body leaves at most one row unused', () => {
+  const fixtures: ReadonlyArray<Partial<BandSnapshot>> = [
+    { ...LIMITS, otherLimits: OTHER },
+    { fiveHour: undefined, sevenDay: undefined },
+    { ...LIMITS, history: { costs: [], context: [76_000], fiveHour: [] } },
+    { ...LIMITS, samples: [] },
+  ]
+  for (const surface of ['desktop', 'terminal'] as const)
+    for (const [f, over] of fixtures.entries()) {
+      const full = band({ surface, expanded: true, maxRows: 40, ...over })
+      const all = BANDS.filter(k => byKey(full, k, 'Box') !== undefined)
+      for (let maxRows = 4; maxRows <= 13; maxRows++) {
+        const open = band({ surface, expanded: true, maxRows, ...over })
+        const missing = all.filter(k => byKey(open, k, 'Box') === undefined)
+        // The body's rows (bodyRowsFor: less the row, two of air and the buttons), less the stack's bands.
+        const stack = byKey(open, 'stack', 'Box')
+        const unused = maxRows - 4 - (stack === undefined ? 0 : visualRows(stack, surface) - 1)
+        expect(`${surface} ${f} ${maxRows}: ${missing.length > 0 && unused > 1 ? `${unused} unused, ${missing.join(' ')} left out` : 'ok'}`).toBe(`${surface} ${f} ${maxRows}: ok`)
+      }
+    }
+})
+test('open: every band fits its room, nothing cut, and the 5h chart keeps its now', () => {
+  const amber = { cache: EXPIRING, context: NEAR, fiveHour: { percentUsed: 50, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 40 * MIN } }
+  for (const [surface, columns] of [['desktop', 80], ['desktop', 120], ['terminal', 60], ['terminal', 80]] as const)
+    for (const over of [{}, amber]) {
+      const open = band({ surface, columns, expanded: true, ...LIMITS, otherLimits: OTHER, workspace: WS, ...over })
+      for (const k of BANDS) {
+        const b = byKey(open, k, 'Box')
+        if (b === undefined) continue
+        const cells = cellsOf(b as unknown as RenderChildren, surface === 'desktop' ? DESKTOP : TERMINAL)
+        expect(`${surface} ${columns} ${k} ${cells <= columns - ROW_SLACK}`).toBe(`${surface} ${columns} ${k} true`)
+      }
+      const five = svgsOf(byKey(open, 'band:limits', 'Box')).find(s => /^5h window/.test(String(s.props?.alt)))
+      if (five !== undefined) expect(String(five.props?.source)).toMatch(/class="now"/)
+      if (surface === 'desktop' && columns === 120) expect(five).toBeDefined()
+    }
+})
+test("pulse's amber cache is led by '! ', on the row and open", () => {
+  const row = rowOf({ surface: 'terminal', cache: EXPIRING })
+  expect(shown(byKey(row, 'cache', 'Box'))).toMatch(/^! 30s left/)
+  const open = band({ surface: 'desktop', expanded: true, cache: EXPIRING })
+  expect(shown(byKey(open, 'band:cache', 'Box'))).toMatch(/^! 30s left · re-warm/)
+})
+test("an expiring cache's heartbeat is drawn in amber", () => {
+  expect(String(beatOf(band({ surface: 'desktop', cache: EXPIRING }))?.props?.source)).toMatch(new RegExp(`fill="${DARK.amberFg}"`))
+})
+test("7d at 85% on a fast pace: the guessed days, drawn, never pass what is left of the week", () => {
+  const snap = { surface: 'desktop' as const, fiveHour: LIMITS.fiveHour, sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() } }
+  // The raw guesses would pass the 15 points left.
+  const days = readingsOf(snapOf({ layout: 'pulse', samples: SAMPLES, ...snap })).week.days
+  expect(days.filter(d => d.guess).reduce((n, d) => n + (d.pct ?? 0), 0)).toBeGreaterThan(15)
+  for (const expanded of [false, true]) {
+    const cells = svgsOf(band({ ...snap, expanded })).filter(s => /^weekly limit by day/.test(String(s.props?.alt)))
+    expect(cells.length).toBeGreaterThan(0)
+    for (const c of cells) {
+      const source = String(c.props?.source)
+      const inner = Number(/<rect class="edge"[^>]* height="([\d.]+)"/.exec(source)?.[1]) - 1
+      const guessed = [...source.matchAll(/<rect class="guess"[^>]* height="([\d.]+)"/g)].reduce((n, [, h]) => n + (Number(h) / inner) * 100, 0)
+      expect(guessed).toBeLessThanOrEqual(15.5)
+    }
+  }
 })
