@@ -71,7 +71,7 @@ test('working shows no countdown', async ($, on) => {
   expect(shown(firstRow(Object.values(working)[0]))).not.toMatch(/\d+m left|\d+s left/)
 })
 test("no costs yet says so in the trace's place", () => {
-  expect(shown(rowOf({ history: { costs: [], context: [], fiveHour: [] } }))).toContain(EMPTY.costs)
+  expect(shown(rowOf({ history: { costs: [], context: [] } }))).toContain(EMPTY.costs)
 })
 test('no limits: no 5h or 7d; no samples: 5h and 7d in words only', () => {
   expect(shown(rowOf({ fiveHour: undefined, sevenDay: undefined }))).not.toMatch(/5h|7d/)
@@ -125,7 +125,7 @@ test("terminal: the cache and the 7d in words alone, as spec §4.1's table draws
   expect(shown(byKey(row, '7d', 'Box'))).toMatch(/^7d 41%$/)
 })
 test("the empty costs in the trace's place, in a label's ink, then the total", () => {
-  const spend = byKey(rowOf({ history: { costs: [], context: [], fiveHour: [] } }), 'spend', 'Box')
+  const spend = byKey(rowOf({ history: { costs: [], context: [] } }), 'spend', 'Box')
   expect(shown(spend)).toMatch(/^Costs show[\s\S]*\$3\.19$/)
   const ink = (n: unknown): unknown[] => {
     const found: unknown[] = []
@@ -202,7 +202,7 @@ test('open, no limits: in a body of 6 Context stays, since Limits draws nothing'
   expect(byKey(open, 'band:context', 'Box')).toBeDefined()
 })
 test('open, no costs and one context point: Spend and Context are a row each, so Context stays in a body of 6', () => {
-  const open = band({ surface: 'desktop', expanded: true, maxRows: 10, ...LIMITS, history: { costs: [], context: [76_000], fiveHour: [] } })
+  const open = band({ surface: 'desktop', expanded: true, maxRows: 10, ...LIMITS, history: { costs: [], context: [76_000] } })
   expect(byKey(open, 'band:context', 'Box')).toBeDefined()
   expect(visualRows(open, 'desktop')).toBeLessThanOrEqual(10)
 })
@@ -210,7 +210,7 @@ test('open: while a band is left out, the body leaves at most one row unused', (
   const fixtures: ReadonlyArray<Partial<BandSnapshot>> = [
     { ...LIMITS, otherLimits: OTHER },
     { fiveHour: undefined, sevenDay: undefined },
-    { ...LIMITS, history: { costs: [], context: [76_000], fiveHour: [] } },
+    { ...LIMITS, history: { costs: [], context: [76_000] } },
     { ...LIMITS, samples: [] },
   ]
   for (const surface of ['desktop', 'terminal'] as const)

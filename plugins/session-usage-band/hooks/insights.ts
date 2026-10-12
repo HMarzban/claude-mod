@@ -2,7 +2,7 @@
 // last message cost, when your pace fills the 5-hour limit, and the trails
 // the history views draw: each message's cost, the context, and the 5h reading.
 
-import { FIVE_HOUR_MS, MINUTE_MS, SAME_RESET_MS } from './format'
+import { MINUTE_MS, SAME_RESET_MS } from './format'
 
 const WINDOW_MS = 30 * MINUTE_MS
 const MIN_SPAN_MS = 10 * MINUTE_MS
@@ -28,12 +28,11 @@ export const insights: Readonly<typeof turns> = turns
 
 export const COST_TRAIL = 24
 export const CONTEXT_TRAIL = 40
-export const FIVE_HOUR_TRAIL = 300
 
 /** What a main-loop message cost, and whether its turn rebuilt the cache. */
 export type CostEntry = Readonly<{ usd: number; reWarm: boolean }>
 type TrailPoint = Readonly<{ at: number; pct: number }>
-export type Trails = Readonly<{ costs: readonly CostEntry[]; context: readonly number[]; fiveHour: readonly TrailPoint[] }>
+export type Trails = Readonly<{ costs: readonly CostEntry[]; context: readonly number[] }>
 
 /** The mean cost of the messages that found the cache warm: a re-warm's
  *  rebuild left out. Undefined while there is none. */
@@ -43,7 +42,7 @@ export const warmAverageOf = (costs: readonly CostEntry[]): number | undefined =
 }
 
 // Changed in place only, so the snapshot can hold them by reference.
-const kept = { costs: [] as CostEntry[], context: [] as number[], fiveHour: [] as TrailPoint[] }
+const kept = { costs: [] as CostEntry[], context: [] as number[] }
 
 /** The trails, read-only: the arrays the push functions keep, passed by reference. */
 export const trails: Trails = kept
@@ -64,17 +63,6 @@ export const pushContext = (tokens: number): void => {
   capped(kept.context, CONTEXT_TRAIL)
 }
 
-/** The 5h reading for the trail pulse draws: one a minute, the latest
- *  winning, five hours at most. Kept apart from the pace samples below,
- *  whose 30-minute window and restarts are the ETA's evidence. */
-export const noteFiveHourTrail = (now: number, pct: number): void => {
-  const last = kept.fiveHour[kept.fiveHour.length - 1]
-  if (last !== undefined && Math.floor(last.at / MINUTE_MS) === Math.floor(now / MINUTE_MS)) kept.fiveHour.pop()
-  kept.fiveHour.push({ at: now, pct })
-  while ((kept.fiveHour[0]?.at ?? now) < now - FIVE_HOUR_MS) kept.fiveHour.shift()
-  capped(kept.fiveHour, FIVE_HOUR_TRAIL)
-}
-
 /** A new conversation (/clear, resume): its turns and their trails start
  *  over, but the 5-hour window is account-wide, so its pace carries on. */
 export const resetConversationInsights = (): void => {
@@ -88,7 +76,6 @@ export const resetInsights = (): void => {
   resetConversationInsights()
   state.samples = []
   state.resetsAt = undefined
-  kept.fiveHour.length = 0
 }
 
 export const noteTurnStart = (turnId: string, costUsd: number | undefined): void => {

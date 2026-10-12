@@ -193,7 +193,7 @@ test('spend splits its tokens, each with its share', () => {
   expect(Math.abs((s.split[2]?.frac ?? 0) - 198 / 225)).toBeLessThan(1e-5)
 })
 test('the history speaks its numbers and its trend', () => {
-  const history = { costs: [{ usd: 0.2, reWarm: false }, { usd: 0.2, reWarm: false }, { usd: 0.84, reWarm: true }], context: [], fiveHour: [] }
+  const history = { costs: [{ usd: 0.2, reWarm: false }, { usd: 0.2, reWarm: false }, { usd: 0.84, reWarm: true }], context: [] }
   const hist = readingsOf(snapOf({ history })).history
   expect(hist.numbersShort).toBe('last $0.84')
   expect(hist.warmAvgUsd).toBe(0.2)
@@ -205,7 +205,7 @@ test('the history speaks its numbers and its trend', () => {
   expect([hist.empty, readingsOf(snapOf()).history.empty]).toEqual([false, true])
 })
 test('the context trail is spoken with where it compacts, when compaction is on', () => {
-  const history = { costs: [], context: [60_000, 50_000, 76_000], fiveHour: [] }
+  const history = { costs: [], context: [60_000, 50_000, 76_000] }
   expect(readingsOf(snapOf({ history })).history.contextTrailAlt).toBe('context over the conversation, rising, compacts at 190k')
   const off = readingsOf(snapOf({ history: { ...history, context: [90_000, 76_000] }, context: { tokens: 76_000, window: 200_000, percent: 38, compactAt: undefined, autoCompactOff: true } })).history
   expect(off.contextTrailAlt).toBe('context over the conversation, falling')
@@ -318,7 +318,7 @@ test('the cache counts down to cold; under 10 minutes it is its last call, a 5-m
   expect(cache({ msLeft: 10 * MIN }).lastCall).toBe(false)
   expect([cache({ ttl: '5m', msLeft: 4 * MIN }).lastCall, cache({ ttl: '5m', msLeft: 59_000 }).lastCall]).toEqual([false, true])
 })
-const costs = (list: Array<[number, boolean]>) => readingsOf(snapOf({ history: { costs: list.map(([usd, reWarm]) => ({ usd, reWarm })), context: [], fiveHour: [] } })).history
+const costs = (list: Array<[number, boolean]>) => readingsOf(snapOf({ history: { costs: list.map(([usd, reWarm]) => ({ usd, reWarm })), context: [] } })).history
 const FIVE = { percentUsed: 4, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null }
 
 test('avgText is the warm average, as an estimate; none before a cost', () => {
@@ -332,14 +332,14 @@ test('beatsTop is never 0 and leaves re-warms out', () => {
   expect(costs([[0.9, true]]).beatsTop).toBe(0.9)
 })
 test('fiveHourWindow climbs slice by slice and marks now', () => {
-  const w = readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0), fiveHour: FIVE })).week.fiveHourWindow
+  const w = readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0) })).week.fiveHourWindow
   expect(w.values.length).toBe(5)
   expect(w.nowAt).toBeGreaterThanOrEqual(0)
   for (let i = 1; i < w.values.length; i++) expect(w.values[i]).toBeGreaterThanOrEqual(w.values[i - 1] ?? 0)
 })
 test('fiveHourWindow is empty with no 5h window, or no slice measured', () => {
-  expect(readingsOf(snapOf({ samples: [], fiveHour: undefined })).week.fiveHourWindow.values).toEqual([])
-  expect(readingsOf(snapOf({ samples: [], zone: fixedZone(0), fiveHour: FIVE })).week.fiveHourWindow.values).toEqual([])
+  expect(readingsOf(snapOf({ samples: [] })).week.fiveHourWindow.values).toEqual([])
+  expect(readingsOf(snapOf({ samples: [], zone: fixedZone(0) })).week.fiveHourWindow.values).toEqual([])
 })
 test("fiveHourWindow's now stays on the chart: at the window's very end it is the last slice, and with no slice none", () => {
   expect(windowNowAt(5, 5)).toBe(4)
@@ -349,7 +349,7 @@ test("fiveHourWindow's now stays on the chart: at the window's very end it is th
   expect(windowNowAt(undefined, 5)).toBeUndefined()
 })
 test('windowAlt speaks the whole window, not the last hour', () => {
-  expect(readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0), fiveHour: FIVE })).week.windowAlt).toMatch(/^5h window from start to reset, 4% used/)
+  expect(readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0) })).week.windowAlt).toMatch(/^5h window from start to reset, 4% used/)
 })
 test("a recalled cache's time is marked ~ in pulse's words, until a reply measures it", () => {
   const cache = (over: Partial<ReturnType<typeof snapOf>['cache']>) => readingsOf(snapOf({ cache: { ...snapOf().cache, ...over } })).cache

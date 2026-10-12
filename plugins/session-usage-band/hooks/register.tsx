@@ -38,7 +38,6 @@ import {
   forgetTurn,
   insights,
   noteFiveHour,
-  noteFiveHourTrail,
   noteTurnEnd,
   noteTurnStart,
   escalate,
@@ -633,7 +632,6 @@ export const register: Register = on => {
     for (const limit of e.rateLimits) {
       if (limit.kind !== FIVE_HOUR) continue
       noteFiveHour(now, limit.percentUsed, limit.resetsAt)
-      noteFiveHourTrail(now, limit.percentUsed)
       note(FIVE_HOUR, limit.percentUsed / 100, [WARN_AT, SEVERE_AT], pct => `You've used ${pct}% of your 5-hour limit.`)
     }
 
