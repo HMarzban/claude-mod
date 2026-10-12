@@ -931,3 +931,13 @@ export const remarksFit = (remarks: string, tiles: number): string =>
 
 /** `text` padded with spaces to `n` characters; longer text is left whole. */
 export const padTo = (text: string, n: number): string => (text.length >= n ? text : text + ' '.repeat(n - text.length))
+
+/** The board's columns in characters: ITEM, STATUS and TIME each as wide as
+ *  its longest text among `rows`, plus one; REMARKS what is left of `room`. */
+export const boardColumns = (rows: readonly BoardRow[], room: number): Readonly<{ item: number; status: number; time: number; remarks: number }> => {
+  const widest = (of: (r: BoardRow) => string): number => Math.max(0, ...rows.map(r => of(r).length)) + 1
+  const item = widest(r => r.item)
+  const status = widest(r => r.status)
+  const time = widest(r => r.time)
+  return { item, status, time, remarks: Math.max(0, room - item - status - time) }
+}

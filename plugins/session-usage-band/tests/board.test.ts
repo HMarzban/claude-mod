@@ -1,7 +1,7 @@
 import { test, expect } from 'claude-code/testing'
 import { fixedZone } from '../hooks/format'
 import { readingsOf } from '../hooks/reading'
-import { padTo, remarksFit } from '../hooks/words'
+import { boardColumns, padTo, remarksFit, type BoardRow } from '../hooks/words'
 import { HOUR, MIN } from './helpers'
 import { snapOf } from './matrix'
 
@@ -83,4 +83,9 @@ test('remarksFit cuts with an ellipsis and leaves a short one whole; padTo pads'
 test('a calm context row\'s remarks name the room and where compaction falls', () => {
   const calm = row({ context: { ...snapOf().context, tokens: 76_000, window: 200_000, compactAt: 190_000 } }, 'context')
   expect(calm?.remarks).toMatch(/^~?\d+K LEFT · COMPACTS AT 190K$/)
+})
+test('boardColumns: ITEM, STATUS and TIME as wide as their longest text plus one; REMARKS the rest', () => {
+  const at = (item: string, status: string, time: string): BoardRow =>
+    ({ key: 'cache', item, status, time, remarks: '', cell: '', cellShort: '', tone: 'calm', alt: '' })
+  expect(boardColumns([at('CACHE', 'DEPARTS', '17:24'), at('5H', '26%', 'SAT 13:30')], 60)).toEqual({ item: 6, status: 8, time: 10, remarks: 36 })
 })

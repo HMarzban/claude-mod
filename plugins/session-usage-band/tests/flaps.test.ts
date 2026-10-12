@@ -1,5 +1,5 @@
 import { test, expect } from 'claude-code/testing'
-import { flaps, flapsWidth } from '../hooks/flaps'
+import { boardRoom, flaps, flapsWidth } from '../hooks/flaps'
 import { makeKit } from '../hooks/kit'
 import { PLAIN } from '../hooks/palette'
 import { fakeEl, shown, svgsOf, type Node } from './helpers'
@@ -33,4 +33,10 @@ test('flap text is escaped', () => {
   const k = makeKit(fakeEl, snapOf({ surface: 'desktop' }))
   const src = String(svgsOf(flaps(k, { key: 'f', alt: 'a', runs: [['<&>', '#fff']], bg: '#222', seam: '#000' }))[0]?.props?.source)
   expect(src).toMatch(/&lt;[\s\S]*&amp;[\s\S]*&gt;/)
+})
+test('boardRoom: the tiles a board row holds, at an 11 px pitch on the desktop, a cell each in a terminal', () => {
+  const kit = (surface: 'desktop' | 'terminal') => makeKit(fakeEl, snapOf({ surface, columns: 120 }))
+  // 120 columns, less the row's slack of 4 and the board's padding of 2: 114 columns.
+  expect(boardRoom(kit('terminal'))).toBe(114)
+  expect(boardRoom(kit('desktop'))).toBe(103)
 })

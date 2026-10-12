@@ -454,6 +454,16 @@ export const svgsOf = (n: unknown): Node[] => {
   return out
 }
 
+/** The words a flap Svg's tiles spell: each Svg's `<text>` runs joined,
+ *  spaces too, the Svgs a space apart. Its words, for the checks that read
+ *  text, since a desktop board draws none in a Text. */
+export const flapWords = (n: unknown): string =>
+  svgsOf(n)
+    .map(s => [...String(s.props?.source ?? '').matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map(m => m[1] ?? '').join(''))
+    .filter(w => w !== '')
+    .join(' ')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+
 export const svgAlts = (tree: unknown): string[] => svgsOf(tree).map(n => String(n.props?.alt))
 
 /** The desktop battery icon in the cache pill. */

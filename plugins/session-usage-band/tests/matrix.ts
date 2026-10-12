@@ -4,7 +4,7 @@
 
 import type { RenderChildren } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
-import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, firstRow, shown, walk, type Node } from './helpers'
+import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, firstRow, flapWords, shown, walk, type Node } from './helpers'
 import type { Ttl } from '../hooks/cache'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
@@ -41,16 +41,20 @@ export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide
 
 /** Every layout's words for each amber trigger. ` · ` reads `, ` in the ascii
  *  tier, and ` - ` in departures'. An other limit, open only, is the shared
- *  cards' LIMITS headline, marked as chips marks it: `spend 92%!`. */
+ *  cards' LIMITS headline, marked as chips marks it: `spend 92%!`.
+ *  Departures' board says each in its capitals, its item then its cell:
+ *  `\W*` between them, since a terminal's flaps set their runs a gap apart,
+ *  which the text does not hold, and plain brackets each run. */
 const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
   // Gauges' mark leads its gauge, its bar between the name and the figure;
   // tiles' figure comes first, its reason beside it: `30s! cache`, `98%! context`.
-  cacheLastMinute: /! \d+s( left)?|! last call|! cooling( ·|,) \d+s left|! cache\W*\d+s|\d+s ?! cache/,
-  nearCompaction: /! context\W*\d+%|! ctx\W*\d+%|\d+% ?! context/,
-  contextNoCompaction: /! context\W*\d+%|! ctx\W*\d+%|\d+% ?! context/,
-  limit80: /! (last call [·-] )?5h/,
-  fiveHourAhead: /! (last call [·-] )?5h/,
-  otherLimit80: /! spend \d+%|spend \d+%!/,
+  cacheLastMinute: /! \d+s( left)?|! last call|! cooling( ·|,) \d+s left|! cache\W*\d+s|\d+s ?! cache|CACHE\W*(LAST CALL \d+S|! \d+S)/,
+  nearCompaction: /! context\W*\d+%|! ctx\W*\d+%|\d+% ?! context|CONTEXT\W*! (COMPACTS IN ~\d+K|CONTEXT \d+%)/,
+  contextNoCompaction: /! context\W*\d+%|! ctx\W*\d+%|\d+% ?! context|CONTEXT\W*! CONTEXT \d+%/,
+  limit80: /! (last call [·-] )?5h|5H\W*\d+%[^!]*! (NEAR LIMIT|FULL ~\d\d:\d\d|FULL IN ~)/,
+  fiveHourAhead: /! (last call [·-] )?5h|5H\W*\d+%[^!]*! FULL (~\d\d:\d\d|IN ~)/,
+  // The board's row for it, open only: its name, then its status.
+  otherLimit80: /! spend \d+%|spend \d+%!|SPEND\W*! NEAR LIMIT/,
 }
 /** Amber the collapsed part never shows: other limits are drawn only open (spec §2.7). */
 const OPEN_ONLY: ReadonlySet<AmberReason> = new Set(['otherLimit80'])
@@ -181,6 +185,28 @@ const cardsFloor = (tree: Node, declared: number, surface: Surface): number | un
   return cards === 0 ? undefined : declared + visualRows(opened, surface)
 }
 
+/** The readings' one order on the collapsed row (spec §2.1). */
+const ONE_ORDER = ['cache', 'spend', 'context', '5h', '7d'] as const
+
+/** The one order's errors on a collapsed row: its readings' Box keys, in
+ *  document order, must be a subsequence of ONE_ORDER; the cache is always
+ *  there, and the 7d whenever it is reported. */
+export const orderErrors = (row: unknown, o: Readonly<{ has7d: boolean }>): string[] => {
+  const keys: string[] = []
+  walk(row, n => {
+    const key = n.props?.key
+    if (n.type === 'Box' && typeof key === 'string' && (ONE_ORDER as readonly string[]).includes(key)) keys.push(key)
+  })
+  const errors: string[] = []
+  for (let i = 1; i < keys.length; i++) {
+    const [a, b] = [keys[i - 1] ?? '', keys[i] ?? '']
+    if (ONE_ORDER.indexOf(a as (typeof ONE_ORDER)[number]) >= ONE_ORDER.indexOf(b as (typeof ONE_ORDER)[number])) errors.push(`order: ${a} before ${b}`)
+  }
+  if (!keys.includes('cache')) errors.push('order: no cache')
+  if (o.has7d && !keys.includes('7d')) errors.push('order: no 7d')
+  return errors
+}
+
 /** Each failed check as `<check>: <why>`; none when the tree keeps the spec
  *  §2 contract: the checks spec §7 lists, §9's node budget and §2.6's open height. */
 export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => {
@@ -236,7 +262,8 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
     if (typeof alt === 'string' && MISSTATED.test(alt)) fail('alt', `an alt reads "${alt}"`)
   }
 
-  const text = shown(tree)
+  // A desktop board's words are its flaps' tiles, which no Text holds.
+  const text = `${shown(tree)} ${flapWords(tree)}`
   if (/send|keep (it )?warm/i.test(text)) fail('wording', 'suggests sending a message')
   for (const reason of amber)
     if ((ctx.expanded || !OPEN_ONLY.has(reason)) && !AMBER_WORDS[reason].test(text)) fail('amber', `no words for ${reason}`)

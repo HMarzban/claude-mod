@@ -33,7 +33,7 @@ const replied = async ($: Engine): Promise<void> => {
   await started($)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
 }
-const withLimits = (five: number, seven: number, fiveResetH = 3, sevenResetH = 67): SessionUsage['rateLimits'] => [
+export const withLimits = (five: number, seven: number, fiveResetH = 3, sevenResetH = 67): SessionUsage['rateLimits'] => [
   { kind: 'five_hour', percentUsed: five, resetsAt: new Date(fiveResetH * HOUR).toISOString() },
   { kind: 'seven_day', percentUsed: seven, resetsAt: new Date(sevenResetH * HOUR).toISOString() },
 ]
@@ -111,6 +111,8 @@ export type CaseOptions = Readonly<{
   /** How far on the scenario starts, its clock and windows moved together:
    *  MODERN, for a case that reads the host's clock. */
   now?: number
+  /** The usage to start from, in place of the scenario's: a case's own limits. */
+  usage?: SessionUsage
 }>
 
 /** Where a drawn case was mounted, and whether it was open. */
@@ -130,7 +132,8 @@ export const drawCases = async ($: Engine, on: On, o: CaseOptions, mounts: reado
     ...o.env,
   }
   const store = { ...(s.store ?? {}), ...(o.layout === undefined ? {} : { layout: o.layout }) }
-  const usage = o.now === undefined ? s.usage : usageAt(o.now, s.usage)
+  const base = o.usage ?? s.usage
+  const usage = o.now === undefined ? base : usageAt(o.now, base)
   const clock = setup(on, { usage, store, env, now: o.now === undefined ? s.now : o.now + (s.now ?? 0) })
   s.prepare?.()
   await s.drive($, clock, TTL_MS[ttl])

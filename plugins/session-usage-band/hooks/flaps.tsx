@@ -5,6 +5,7 @@
 
 import type { RenderChildren } from 'claude-code'
 import type { Kit } from './kit'
+import { ROW_SLACK } from './layout'
 
 type Run = readonly [text: string, ink: string]
 const TILE_PX = 10
@@ -14,6 +15,16 @@ const escape = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&l
 /** The runs as tiles: each run's characters, a blank tile between runs. */
 const tilesOf = (runs: readonly Run[]): Array<readonly [string, string]> =>
   runs.flatMap(([text, ink], i) => [...(i === 0 ? [] : [[' ', ink] as const]), ...[...text].map(ch => [ch, ink] as const)])
+
+/** The columns a board's paddingX takes, either side. */
+const BOARD_PAD = 2
+/** The tiles a board row holds: its columns less the row's slack and the
+ *  board's padding; on the desktop at a tile's pitch, 11 px against a 10 px
+ *  column, in a terminal a cell each. */
+export const boardRoom = (kit: Kit): number => {
+  const columns = kit.columns - ROW_SLACK - BOARD_PAD
+  return kit.Svg ? Math.floor((columns * kit.measure.pxPerCell) / (TILE_PX + TILE_GAP)) : columns
+}
 
 /** The px the runs' tiles take: a flaps Svg's width. */
 export const flapsWidth = (runs: readonly Run[]): number => tilesOf(runs).length * (TILE_PX + TILE_GAP) - TILE_GAP

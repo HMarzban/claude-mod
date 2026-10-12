@@ -3,8 +3,10 @@
 import { test, expect } from 'claude-code/testing'
 import type { RenderChildren } from 'claude-code'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
-import type { Node } from './helpers'
-import { invariantErrors, visualRows, type InvariantContext } from './matrix'
+import { flaps } from '../hooks/flaps'
+import { makeKit } from '../hooks/kit'
+import { fakeEl, flapWords, type Node } from './helpers'
+import { invariantErrors, orderErrors, snapOf, visualRows, type InvariantContext } from './matrix'
 
 const t = (s: string, props: Record<string, unknown> = {}) => ({ type: 'Text', props, children: [s] })
 const toggle = (label = '▵') => ({ type: 'Button', props: { label } })
@@ -180,4 +182,33 @@ test("amber: tiles' figure-first reasons name the reading", () => {
   expect(amber('30s! cache', 'lastMinute')).not.toContain('amber')
   expect(amber('98%! context', 'nearCompaction')).not.toContain('amber')
   expect(amber('98%! cache', 'nearCompaction')).toContain('amber')
+})
+test('the order check catches 7d before the cache', () => {
+  const box = (key: string): Node => ({ type: 'Box', props: { key }, children: [] }) as Node
+  const tree = { type: 'Box', props: { flexDirection: 'row' }, children: [box('7d'), box('cache')] } as Node
+  expect(orderErrors(tree, { has7d: true })).toEqual(['order: 7d before cache'])
+})
+test('the order check: the cache always, the 7d when it is reported, and a subsequence keeps the order', () => {
+  const box = (key: string): Node => ({ type: 'Box', props: { key }, children: [] }) as Node
+  const row = (...keys: string[]) => ({ type: 'Box', props: { flexDirection: 'row' }, children: keys.map(box) }) as Node
+  expect(orderErrors(row('cache', 'context', '7d'), { has7d: true })).toEqual([])
+  expect(orderErrors(row('spend', '7d'), { has7d: true })).toEqual(['order: no cache'])
+  expect(orderErrors(row('cache', '5h'), { has7d: true })).toEqual(['order: no 7d'])
+  expect(orderErrors(row('cache', '5h'), { has7d: false })).toEqual([])
+})
+test('flapWords reads a flap Svg with its spaces', () => {
+  const k = makeKit(fakeEl, snapOf({ surface: 'desktop' }))
+  expect(flapWords(flaps(k, { key: 'f', alt: 'a', runs: [['CACHE', '#fff'], ['LAST CALL 47S', '#fff']], bg: '#222', seam: '#000' }))).toBe('CACHE LAST CALL 47S')
+})
+test("amber: the board's capitals name the reading, its item and cell joined, bracketed or a gap apart", () => {
+  const amber = (text: string, scenario: InvariantContext['scenario']) => failed(view([row(t(text), toggle())]), { scenario })
+  for (const said of ['CACHE LAST CALL 47S', 'CACHELAST CALL 47S', '[CACHE][! 47S]']) expect(amber(said, 'lastMinute')).not.toContain('amber')
+  expect(amber('CONTEXT ! COMPACTS IN ~10K', 'nearCompaction')).not.toContain('amber')
+  expect(amber('CONTEXT! CONTEXT 85%', 'compactionOff')).not.toContain('amber')
+  expect(amber('5H82% ↻ 17:50 ! NEAR LIMIT', 'limit80')).not.toContain('amber')
+  expect(amber('[5H][20% ! FULL ~14:20]', 'fiveHourAhead')).not.toContain('amber')
+  expect(amber('5H 82%', 'limit80')).toContain('amber')
+  expect(amber('7D 82% ! NEAR LIMIT', 'limit80')).toContain('amber')
+  const open = view([row(t('a'), toggle('▿'))], [t('SPEND     ! NEAR LIMIT  05:00  92%')])
+  expect(failed(open, { scenario: 'gatewaySpend', expanded: true })).not.toContain('amber')
 })
