@@ -3,8 +3,8 @@ import { weekOf } from '../hooks/calendar'
 import { fixedZone } from '../hooks/format'
 import { cappedMarks } from '../hooks/reading'
 import { weekWords } from '../hooks/words'
+import { HOUR as H } from './helpers'
 
-const H = 3600_000
 const T0 = Date.UTC(2026, 9, 6, 8, 40) // Tue 08:40 UTC, the 7d window's start
 const s = (hours: number, seven: number, five = 0) => ({ at: T0 + hours * H, fivePct: five, sevenPct: seven, fiveResetAt: T0 + (Math.floor(hours / 5) + 1) * 5 * H, sevenResetAt: T0 + 168 * H })
 const seven = (percentUsed: number, projectedPct: number) => ({ percentUsed, projectedPct, resetsAt: T0 + 168 * H })

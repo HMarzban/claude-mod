@@ -1,6 +1,7 @@
 // What the band reads off its snapshot before it draws anything: the cache's
-// mood and every word about it, the context's fill, a limit's tone and pace.
-// Pure, so each can be checked without mounting the band.
+// mood, the context's fill, each limit's tone and pace, with their words
+// from words.ts beside them. Pure, so readingsOf can be checked without
+// mounting the band.
 
 import { TTL_MS } from './cache'
 import { weekOf } from './calendar'
@@ -16,7 +17,6 @@ import {
   contextUsed,
   dayOf,
   fixedZone,
-  fmtCountdown,
   fmtEstimate,
   fmtPct,
   fmtTokens,
@@ -28,8 +28,8 @@ import { drawnTier } from './glyphs'
 import { warmAverageOf } from './insights'
 import type { Trails } from './insights'
 import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
-import { cacheWords, contextWords, historyWords, lastHourOf, limitWords, spendWords, weekWords } from './words'
-import type { CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
+import { cacheCopy, cacheWords, contextWords, historyWords, lastHourOf, limitWords, spendWords, tokenBreakdownOf, weekWords } from './words'
+import type { CacheCopy, CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
 
 export type Tone = 'calm' | 'amber'
 
@@ -38,9 +38,9 @@ export type Tone = 'calm' | 'amber'
 type Cache = BandSnapshot['cache']
 
 /** Unmeasured: loaded mid-conversation, before its next reply. */
-export type CacheMood = 'unmeasured' | 'warming' | 'warm' | 'expiring' | 'cold'
+type CacheMood = 'unmeasured' | 'warming' | 'warm' | 'expiring' | 'cold'
 
-export const cacheMood = (c: Cache): CacheMood =>
+const cacheMood = (c: Cache): CacheMood =>
   c.requests === 0 && !c.recalled
     ? c.fresh
       ? 'warming'
@@ -53,78 +53,18 @@ export const cacheMood = (c: Cache): CacheMood =>
 
 /** The battery's charge: the share of the lifetime left, full while Claude
  *  works, empty when there is nothing to count. */
-export const cacheCharge = (c: Cache, mood: CacheMood, isWorking: boolean): number =>
+const cacheCharge = (c: Cache, mood: CacheMood, isWorking: boolean): number =>
   mood === 'unmeasured' || mood === 'warming' || mood === 'cold' ? 0 : mood === 'warm' && isWorking ? 1 : c.msLeft / TTL_MS[c.ttl]
 
 /** What the next message costs to rebuild the cache: dollars when a rate is
  *  known, else the tokens it writes. */
-export const reWarmEstimate = (c: Cache): string => (c.reWarmUsd !== null ? fmtEstimate(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`)
-
-/** Every word chips' row says about the cache, for one mood: the pill, its
- *  hover and the battery's name. One table, so a mood's wording changes in
- *  one place; the cards read theirs from `cacheWords`. */
-export type CacheCopy = Readonly<{
-  pill: (short: boolean) => string
-  /** The countdown a calm pill ends on, `52m`: its figure, for a layout that bolds it. */
-  figure: string | undefined
-  hover: string
-  alt: string
-}>
-
-export const cacheCopy = (c: Cache, mood: CacheMood, isWorking: boolean): CacheCopy => {
-  const estimate = reWarmEstimate(c)
-  // What a warm read costs against input on the model in force: 5% on Opus 5.5.
-  const readPct = `${+(c.readShare * 100).toFixed(1)}%`
-  const left = fmtCountdown(c.msLeft)
-  const charge = cacheCharge(c, mood, isWorking)
-  const battery = charge <= 0 ? 'cache battery empty' : `cache battery ${Math.round(clamp01(charge) * 100)}% left`
-  const warmHover = `${left} left; warm cache bills input at ${readPct}, expires ${c.ttl} after a reply`
-  switch (mood) {
-    case 'unmeasured':
-      return {
-        pill: () => 'cache –',
-        figure: undefined,
-        hover: "Not measured since the band loaded; the countdown starts with Claude's next reply",
-        alt: 'cache not measured yet',
-      }
-    case 'warming':
-      return {
-        pill: () => 'cache warming',
-        figure: undefined,
-        hover: `Your first message builds the cache; after that it bills input at ${readPct}`,
-        alt: 'cache warming',
-      }
-    case 'expiring':
-      return {
-        pill: short => (short ? `${left} ${estimate}` : `${left} left · re-warm ${estimate}`),
-        figure: undefined,
-        hover: warmHover,
-        alt: battery,
-      }
-    case 'cold':
-      return {
-        // Cold is a price, not an error: neutral, no hue, no alarm.
-        pill: short => (short ? `cold ${estimate}` : `cache cold · next message ${estimate}`),
-        figure: undefined,
-        hover: `Cold: next message rebuilds ${fmtTokens(c.window)} tokens${c.reWarmUsd === null ? '' : ` (${fmtEstimate(c.reWarmUsd)})`}`,
-        alt: battery,
-      }
-    case 'warm':
-      return {
-        // Mid-turn every step restarts the TTL, so a countdown would only bounce.
-        pill: () => (isWorking ? 'cache warm' : `cache ${left}`),
-        figure: isWorking ? undefined : left,
-        hover: warmHover,
-        alt: battery,
-      }
-  }
-}
+const reWarmEstimate = (c: Cache): string => (c.reWarmUsd !== null ? fmtEstimate(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`)
 
 // ---- the context ------------------------------------------------------------
 
 /** The context's fill, measured toward auto-compaction when it is known:
  *  full means compacting, and no tick is needed to show where. */
-export const contextReading = (ctx: BandSnapshot['context']) => {
+const contextReading = (ctx: BandSnapshot['context']) => {
   const used = contextUsed(ctx) ?? 0
   const frac = clamp01(used / (ctx.compactAt ?? ctx.window))
   const nearCompact = ctx.compactAt !== undefined && frac >= COMPACT_NEAR
@@ -155,22 +95,11 @@ const messagesTo = (trail: readonly number[], room: number | undefined): number 
 
 // ---- the limits -------------------------------------------------------------
 
-/** A window past its reset: its last reading is from before it. */
-export const hasReset = (reading: LimitReading, now: number): boolean => resetIn(reading.resetsAt, now)?.kind === 'passed'
-
-/** The share of a window gone, from its length and its reset. */
-export const windowGone = (reading: LimitReading, windowMs: number | undefined, now: number): number | undefined => {
-  const at = reading.resetsAt === undefined ? NaN : Date.parse(reading.resetsAt)
-  return windowMs === undefined || Number.isNaN(at) || at <= now ? undefined : clamp01(1 - (at - now) / windowMs)
-}
-
-/** A limit's tone, the one rule chip and card share: amber at WARN_AT, or
- *  when a pace (`etaMs`) would fill it before it resets; calm once reset. */
-export const limitTone = (reading: LimitReading, now: number, etaMs: number | null = null): Tone =>
-  !hasReset(reading, now) && (clamp01(reading.percentUsed / 100) >= WARN_AT || etaMs !== null) ? 'amber' : 'calm'
+/** The share of a window gone, from its length and its reset at `at`, NaN when unknown. */
+const windowGone = (at: number, windowMs: number | undefined, now: number): number | undefined =>
+  windowMs === undefined || Number.isNaN(at) || at <= now ? undefined : clamp01(1 - (at - now) / windowMs)
 
 // ---- the facts every layout draws from ------------------------------------
-// Moved from band.tsx; words.ts phrases them, and readingsOf puts the two together.
 
 /** How the band is mounted and when: what every view lays itself out by. */
 export type Frame = Readonly<{
@@ -261,7 +190,7 @@ type SpendReading = SpendFacts & SpendWords
 export type LimitView = LimitFacts & LimitWords
 
 type ChipsReadings = Readonly<{
-  /** The snapshot itself: chips' own code moved over unchanged. Only chips reads it. */
+  /** The snapshot itself, for the raw facts chips' pills read; no other view reads it. */
   raw: BandSnapshot
   reading: Readonly<{ copy: CacheCopy; tokenBreakdown: string }>
 }>
@@ -281,8 +210,6 @@ export type HistoryReading = Trails &
     /** The 5h trail's percentages over the last hour. */
     fiveHourHour: readonly number[]
   }>
-
-export type { DayCell, HourCell } from './calendar'
 
 /** How week draws a slice: measured, a guess, the guess that fills the
  *  limit, none left after it, or not known. */
@@ -321,7 +248,7 @@ export type Readings = Readonly<{
 }>
 
 /** The cache's mood, tone, charge and re-warm price, and whether its timing is known. */
-export const cacheFacts = (snap: BandSnapshot): CacheFacts => {
+const cacheFacts = (snap: BandSnapshot): CacheFacts => {
   const c = snap.cache
   const mood = cacheMood(c)
   // Measured: a reply seen, or a resumed conversation's tokens read off its transcript.
@@ -357,17 +284,19 @@ const contextFacts = (snap: BandSnapshot): ContextFacts => {
 }
 
 /** The session's cost and its tokens: sent, back, read from cache, and their total. */
-export const spendFacts = (snap: BandSnapshot): SpendFacts => {
+const spendFacts = (snap: BandSnapshot): SpendFacts => {
   const t = snap.cache.tokens
   return { totalUsd: snap.costUsd, lastTurnUsd: snap.lastTurnUsd, sent: t.sent, back: t.back, cached: t.cached, total: t.sent + t.back + t.cached }
 }
 
 /** The facts of each window the engine reports: 5h, 7d, then the rest. */
-export const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
+const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
   const one = (name: string, key: LimitKey, reading: LimitReading, windowMs: number | undefined, etaMs: number | null): LimitFacts => {
     const reset = resetIn(reading.resetsAt, snap.now)
     const passed = reset?.kind === 'passed'
-    const gone = windowGone(reading, windowMs, snap.now)
+    const frac = clamp01(reading.percentUsed / 100)
+    const at = Date.parse(reading.resetsAt ?? '')
+    const gone = windowGone(at, windowMs, snap.now)
     // A measured fill lands it at 100, so the words and the amber agree; else
     // the average's landing, once 5% of the window has gone and any of it is
     // used: with none, the window may not have begun.
@@ -389,13 +318,14 @@ export const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
       gone,
       notch: reading.percentUsed > 0 ? gone : undefined,
       percentUsed: reading.percentUsed,
-      frac: clamp01(reading.percentUsed / 100),
-      tone: limitTone(reading, snap.now, etaMs),
+      frac,
+      // etaMs is set only for a measured fill that comes before the reset.
+      tone: !passed && (frac >= WARN_AT || etaMs !== null) ? 'amber' : 'calm',
       value: `${Math.round(reading.percentUsed)}%`,
       passed,
       projectedPct,
       projectedFrac: passed || projectedPct === undefined ? undefined : clamp01(projectedPct / 100),
-      resetInMs: reset?.kind === 'in' ? Date.parse(reading.resetsAt ?? '') - snap.now : undefined,
+      resetInMs: reset?.kind === 'in' ? at - snap.now : undefined,
       fillInMs,
       fullInMs,
       lastCall: fullInMs !== undefined && fullInMs < LAST_CALL_MS,
@@ -409,7 +339,7 @@ export const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
 }
 
 /** The conversation's trails with their words and the series a chart draws. */
-export const historyFacts = (trails: Trails, fiveHour: LimitView | undefined, context: ContextFacts, now: number): HistoryReading => ({
+const historyFacts = (trails: Trails, fiveHour: LimitView | undefined, context: ContextFacts, now: number): HistoryReading => ({
   ...trails,
   ...historyWords(trails, fiveHour, context, now),
   empty: trails.costs.length === 0,
@@ -453,7 +383,7 @@ export const cappedMarks = (cells: ReadonlyArray<DayCell | HourCell>, percentUse
 
 /** The week's cells from the limit samples, with their words. With the zone
  *  unknown, the cells are named in UTC. */
-export const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour: LimitView | undefined): WeekReading => {
+const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour: LimitView | undefined): WeekReading => {
   const zone = snap.zone ?? fixedZone(0)
   const seven = windowOf(sevenDay, snap.now)
   const week = weekOf({ samples: snap.samples, seven, five: windowOf(fiveHour, snap.now), now: snap.now, zone })
@@ -489,6 +419,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
   }
   const cache = cacheFacts(snap)
   const spend = spendFacts(snap)
+  const spendSaid = spendWords(spend)
   const context = contextFacts(snap)
   const limits = limitFacts(snap).map((f): LimitView => ({ ...f, ...limitWords(f, frame) }))
   // The headline is the window closest to its limit.
@@ -502,7 +433,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
   return {
     frame,
     cache: { ...cache, ...cacheWords(cache, c, frame) },
-    spend: { ...spend, ...spendWords(spend) },
+    spend: { ...spend, ...spendSaid },
     context: { ...context, ...contextWords(context, frame) },
     fiveHour,
     sevenDay,
@@ -518,8 +449,8 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     chips: {
       raw: snap,
       reading: {
-        copy: cacheCopy(c, cache.mood, snap.isWorking),
-        tokenBreakdown: `input ${fmtTokens(c.tokens.sent)} · output ${fmtTokens(c.tokens.back)} · cache reads ${fmtTokens(c.tokens.cached)}`,
+        copy: cacheCopy(cache, c, frame),
+        tokenBreakdown: tokenBreakdownOf(spendSaid.split),
       },
     },
   }

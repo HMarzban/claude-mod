@@ -1,8 +1,13 @@
 // The workspace strip: the line that says where the session is, its
 // project, its git branch or worktree, changes and ahead/behind.
+// A bare line, no border or fill: the panel's heading, not a fifth metric.
+// Its text lines up with the cards' text. It sits on the host's own ground,
+// so its text takes theme keys and its icons the BARE hexes. The desktop
+// spaces pieces with gaps and icons; a text surface says them in words,
+// between ` · `. One row always: nothing in it wraps.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
-import { clipMiddle } from './format'
+import { clipMiddle, plural } from './format'
 import { ALT } from './icons'
 import type { CardPlace, Kit } from './kit'
 import { STRIP_GIVES_WAY, isList, spansOf, squeezeToFit, stripKeeps } from './layout'
@@ -11,16 +16,10 @@ import { BARE } from './palette'
 import { gitSummary, splitPath } from './workspace'
 import type { GitState, Workspace } from './workspace'
 
-// A bare line, no border or fill: the panel's heading, not a fifth metric.
-// Its text lines up with the cards' text. It sits on the host's own ground,
-// so its text takes theme keys and its icons the BARE hexes. The desktop
-// spaces pieces with gaps and icons; a text surface says them in words,
-// between ` · `. One row always: nothing in it wraps.
-const commits = (n: number) => `${n} commit${n === 1 ? '' : 's'}`
 /** Push and pull in words, leaving out a side with nothing on it. */
 const tracking = (g: GitState): string => {
   if (g.ahead === undefined) return 'no upstream'
-  const sides = [g.ahead ? `${commits(g.ahead)} to push` : '', g.behind ? `${g.behind} to pull` : ''].filter(Boolean)
+  const sides = [g.ahead ? `${plural(g.ahead, 'commit')} to push` : '', g.behind ? `${g.behind} to pull` : ''].filter(Boolean)
   return sides.length === 0 ? 'up to date with its upstream' : sides.join(', ')
 }
 /** Where a strip sits: on top, under a row of air, its text lined up with
@@ -103,7 +102,7 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
   if (git !== undefined && git.changed > 0) {
     const word = kept('changedWord')
     state.push(
-      <Box flexDirection="row" {...explains('ws:changes', `${git.changed} uncommitted change${git.changed === 1 ? '' : 's'}`)}>
+      <Box flexDirection="row" {...explains('ws:changes', plural(git.changed, 'uncommitted change'))}>
         {Svg ? icon('changes', BARE.icon) : null}
         <Text color={BARE.value}>
           {`${!word && !Svg ? '±' : ''}${git.changed}`}

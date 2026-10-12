@@ -4,6 +4,7 @@
 
 import type { DayCell, Week } from './calendar'
 import {
+  clamp01,
   fmtAgo,
   fmtClock,
   fmtCost,
@@ -20,14 +21,15 @@ import {
   fmtPct,
   fmtSmallCost,
   fmtTokens,
+  HOUR_MS,
   severityMark,
   SOON_MS,
 } from './format'
-import type { ResetIn, Zone } from './format'
+import type { Zone } from './format'
 import { warmAverageOf } from './insights'
 import type { CostEntry, TrailPoint, Trails } from './insights'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
-import type { CacheFacts, CacheMood, ContextFacts, Frame, LimitFacts, LimitView, SliceMark, SliceRow, SpendFacts } from './reading'
+import type { CacheFacts, ContextFacts, Frame, LimitFacts, LimitView, SliceMark, SliceRow, SpendFacts } from './reading'
 import type { BandSnapshot } from './snapshot'
 
 /** The colour a piece of a phrase is drawn in. */
@@ -105,10 +107,6 @@ export const EMPTY = {
   context: 'not reported',
 } as const
 
-/** A reset as a duration: words in sentences, the glyph on tight rows. */
-export const resetPhrase = (r: ResetIn, form: 'words' | 'glyph'): string =>
-  r.kind === 'passed' ? 'reset' : form === 'words' ? `resets in ${r.text}` : `↻ in ${r.text}`
-
 /** A landing at or over 100% is none: the window fills before it resets. */
 const fillsBeforeReset = (projectedPct: number): boolean => projectedPct >= 100
 
@@ -128,9 +126,6 @@ export const altOf = (name: string, value: string, state?: string, more?: string
   [`${name} ${value}`, state, more].filter((s): s is string => s !== undefined && s !== '').join(', ')
 
 // ---- the words of each section, from its facts ------------------------------
-
-/** The cache's state as a reader hears it: `expiring` is `cooling`. */
-type CacheCondition = 'not measured' | 'warming' | 'warm' | 'cooling' | 'cold'
 
 export type CacheWords = Readonly<{
   /** The value after `cache `: `52m left`, `warm` while Claude works, `–`, `warming` or `cold`. */
@@ -233,7 +228,7 @@ export type ContextWords = Readonly<{
 /** The kinds the session's tokens split into, in the order they are drawn. */
 export const SPLIT_LABELS = ['input', 'output', 'cache reads'] as const
 
-export type SpendSplit = Readonly<{ label: (typeof SPLIT_LABELS)[number]; tokens: number; text: string; frac: number }>
+type SpendSplit = Readonly<{ label: (typeof SPLIT_LABELS)[number]; tokens: number; text: string; frac: number }>
 
 export type SpendWords = Readonly<{
   /** `$3.19`, the last message's `$0.21`, and the tokens, `225k`. */
@@ -266,8 +261,6 @@ export type LimitWords = Readonly<{
   say: Say
   /** `on pace for ~10%`, `full in ~40m`, `full before reset`, or empty. */
   pace: string
-  /** Chips' short form, `↻ 3h 00m`; undefined once passed. */
-  resetShort: string | undefined
   /** Its reset as the boards say it after `↻`: the 5h counting down, `4h
    *  55m`; the 7d at its clock time once the offset is known, `Sat 13:30`.
    *  Undefined once passed. */
@@ -318,15 +311,6 @@ export type LimitWords = Readonly<{
 /** Between the readings of a sentence: `cache 52m left │ spent $3.19`. */
 export const BETWEEN_READINGS = ' │ '
 
-/** The cache's condition for each mood, as a reader hears it. */
-const CONDITION: Readonly<Record<CacheMood, CacheCondition>> = {
-  unmeasured: 'not measured',
-  warming: 'warming',
-  warm: 'warm',
-  expiring: 'cooling',
-  cold: 'cold',
-}
-
 /** The cache in words, from its facts: it counts down only while `coldInMs` is set. */
 export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame): CacheWords => {
   const counting = f.coldInMs !== undefined
@@ -339,17 +323,8 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
   const price = c.reWarmUsd !== null ? fmtSmallCost(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`
   // The card counts down as chips' row always has: `1h 05m`, `0:47`.
   const countdown: Say = [[fmtCountdown(c.msLeft), 'value'], [' left', 'label']]
-  const cardHead: Say =
-    f.mood === 'unmeasured'
-      ? [['not measured yet', 'value']]
-      : f.mood === 'warming'
-        ? [['warming', 'value']]
-        : f.mood === 'cold'
-          ? [['cold', 'value']]
-          : working
-            ? [['warm', 'value']]
-            : countdown
-  const value = f.mood === 'unmeasured' ? UNKNOWN : f.mood === 'warming' ? 'warming' : f.mood === 'cold' ? 'cold' : working ? 'warm' : left
+  const value = counting ? left : f.mood === 'unmeasured' ? UNKNOWN : f.mood
+  const cardHead: Say = f.mood === 'unmeasured' ? [['not measured yet', 'value']] : counting ? countdown : [[value, 'value']]
   const say: Say =
     f.mood === 'cold' ? [['cache ', 'label'], ['cold', 'value'], [' · re-warm ', 'label'], [f.estimate, 'value']] : [['cache ', 'label'], [value, 'value']]
   const sayShort: Say =
@@ -398,7 +373,7 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     departureHead: counting ? [[f.coldInMs < SOON_MS ? fmtCountdown(f.coldInMs) : leftShort, 'value'], [' left', 'label']] : cardHead,
     gaugeSay: counting ? [[leftShort, 'value'], [' left', 'label']] : [[value, 'value']],
     gaugeShort: [[counting ? leftShort : value, 'value']],
-    gaugeMore: counting || f.mood === 'cold' ? `re-warm ${f.estimate}` : undefined,
+    gaugeMore: counting || f.mood === 'cold' ? reWarm : undefined,
     cardNote:
       f.mood === 'unmeasured' ? "Countdown starts with Claude's next reply." : f.mood === 'warming' ? 'First message builds the cache.' : undefined,
     departure:
@@ -416,8 +391,65 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
           : f.mood === 'cold'
             ? altOf('cache', 'cold', `re-warm about ${price}`)
             : counting
-              ? altOf('cache', fmtLeftSpoken(f.coldInMs), CONDITION[f.mood], f.mood === 'expiring' ? `re-warm about ${price}` : undefined)
+              ? altOf('cache', fmtLeftSpoken(f.coldInMs), f.mood === 'expiring' ? 'cooling' : 'warm', f.mood === 'expiring' ? `re-warm about ${price}` : undefined)
               : altOf('cache', 'warm', 'Claude is working'),
+  }
+}
+
+/** Every word chips' row says about the cache, for one mood: the pill, its
+ *  hover and the battery's name. One table, so a mood's wording changes in
+ *  one place; the cards read theirs from `cacheWords`. */
+export type CacheCopy = Readonly<{
+  pill: (short: boolean) => string
+  /** The countdown a calm pill ends on, `52m`: its figure, for a layout that bolds it. */
+  figure: string | undefined
+  hover: string
+  alt: string
+}>
+
+export const cacheCopy = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame): CacheCopy => {
+  // What a warm read costs against input on the model in force.
+  const readPct = `${+(c.readShare * 100).toFixed(1)}%`
+  const left = fmtCountdown(c.msLeft)
+  const battery = f.charge <= 0 ? 'cache battery empty' : `cache battery ${Math.round(clamp01(f.charge) * 100)}% left`
+  const warmHover = `${left} left; warm cache bills input at ${readPct}, expires ${c.ttl} after a reply`
+  switch (f.mood) {
+    case 'unmeasured':
+      return {
+        pill: () => 'cache –',
+        figure: undefined,
+        hover: "Not measured since the band loaded; the countdown starts with Claude's next reply",
+        alt: 'cache not measured yet',
+      }
+    case 'warming':
+      return {
+        pill: () => 'cache warming',
+        figure: undefined,
+        hover: `Your first message builds the cache; after that it bills input at ${readPct}`,
+        alt: 'cache warming',
+      }
+    case 'expiring':
+      return {
+        pill: short => (short ? `${left} ${f.estimate}` : `${left} left · re-warm ${f.estimate}`),
+        figure: undefined,
+        hover: warmHover,
+        alt: battery,
+      }
+    case 'cold':
+      return {
+        // Cold is a price, not an error: neutral, no hue, no alarm.
+        pill: short => (short ? `cold ${f.estimate}` : `cache cold · next message ${f.estimate}`),
+        figure: undefined,
+        hover: `Cold: next message rebuilds ${fmtTokens(c.window)} tokens${c.reWarmUsd === null ? '' : ` (${f.estimate})`}`,
+        alt: battery,
+      }
+    case 'warm':
+      return {
+        pill: () => (frame.isWorking ? 'cache warm' : `cache ${left}`),
+        figure: frame.isWorking ? undefined : left,
+        hover: warmHover,
+        alt: battery,
+      }
   }
 }
 
@@ -434,6 +466,8 @@ export const contextWords = (f: ContextFacts, frame: Frame): ContextWords => {
   const msgs = f.msgsToCompact === undefined ? undefined : `~${f.msgsToCompact}`
   const msgsUnit = f.msgsToCompact === 1 ? ' msg' : ' msgs'
   const compactsAtText = f.compactAt === undefined ? undefined : fmtTokens(f.compactAt)
+  const roomCompacts: ContextWords['roomCompacts'] =
+    roomText === undefined || compactsAtText === undefined ? undefined : [`room left · auto-compacts at ${compactsAtText}`, `room left · compacts at ${compactsAtText}`]
   return {
     valueText: value,
     text: joined(say),
@@ -444,10 +478,7 @@ export const contextWords = (f: ContextFacts, frame: Frame): ContextWords => {
     inContextText: f.known ? fmtTokens(f.used) : UNKNOWN,
     compactsAtText,
     roomText,
-    roomCompacts:
-      roomText === undefined || f.compactAt === undefined
-        ? undefined
-        : [`room left · auto-compacts at ${fmtTokens(f.compactAt)}`, `room left · compacts at ${fmtTokens(f.compactAt)}`],
+    roomCompacts,
     windowText: fmtTokens(f.window),
     ahead: roomText === undefined ? undefined : { lead: [['compacts in ', 'value']], figure: roomText },
     cardHead,
@@ -462,7 +493,7 @@ export const contextWords = (f: ContextFacts, frame: Frame): ContextWords => {
           ? undefined
           : alike(msgs === undefined ? departs('compacts in ', roomText) : departs('compacts ', msgs, msgsUnit)),
     msgsHead: msgs === undefined ? undefined : [[msgs, 'value'], [msgsUnit, 'label']],
-    roomLead: amber !== undefined || msgs === undefined || roomText === undefined || compactsAtText === undefined ? undefined : [`room left · auto-compacts at ${compactsAtText}`, roomText],
+    roomLead: amber !== undefined || msgs === undefined || roomText === undefined || roomCompacts === undefined ? undefined : [roomCompacts[0], roomText],
     alt: f.known
       ? altOf('context', `${Math.round(f.frac * 100)} percent ${towardText}`, f.tone === 'amber' ? 'near the limit' : 'fine')
       : altOf('context', EMPTY.context),
@@ -485,9 +516,14 @@ export const spendWords = (f: SpendFacts): SpendWords => {
   }
 }
 
+/** The tokens by kind as chips' hover says them: `input 41k · output 12k · cache reads 155k`. */
+export const tokenBreakdownOf = (split: readonly SpendSplit[]): string => split.map(s => `${s.label} ${s.text}`).join(' · ')
+
 /** A limit window in words; once it has passed, only that it reset. */
 export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const zone = frame.zone
+  // The time to the reset, while one is to come.
+  const span = f.reset?.kind === 'in' ? f.reset.text : undefined
   const live = !f.passed
   const projected = live ? f.projectedPct : undefined
   const fills = projected !== undefined && fillsBeforeReset(projected)
@@ -497,14 +533,14 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const fullIn = etaMs !== null ? fmtEta(etaMs) : undefined
   const valueText = live ? f.value : 'reset'
   const say: Say = [[`${f.name} `, 'label'], [valueText, 'value']]
-  const resetGlyph = f.reset?.kind === 'in' ? resetPhrase(f.reset, 'glyph') : undefined
   const resetAt = f.resetInMs === undefined ? undefined : frame.now + f.resetInMs
   const resetClock = resetAt !== undefined && zone !== undefined ? fmtDayClock(resetAt, zone, frame.now) : undefined
   // The ascii tier drops `↻`, so a phrase whose object is the glyph says its word.
   const ascii = frame.glyphs === 'ascii'
   const resetMark = ascii ? 'resets' : '↻'
   const pace = live ? paceText(f) : ''
-  const resetIn = f.reset?.kind !== 'in' ? undefined : `in ${f.reset.text}`
+  const resetIn = span === undefined ? undefined : `in ${span}`
+  const resetGlyph = resetIn === undefined ? undefined : `↻ ${resetIn}`
   const resetWhen = resetClock ?? resetIn
   const fillInMs = live ? f.fillInMs : undefined
   // A day's window says the fill's day; a shorter one its clock too, as its reset does.
@@ -512,8 +548,8 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const fillAt = fillInMs === undefined ? undefined : zone !== undefined ? `~${fillDay(frame.now + fillInMs, zone, frame.now)}` : `in ${fmtEta(fillInMs)}`
   const resetAtGlyph = resetClock === undefined ? resetGlyph : `${resetMark} ${resetClock}`
   const cardResetLess = (form: 'countdown' | 'clock', said: Readonly<{ reset: boolean; pace: boolean }>): string | undefined => {
-    if (f.reset?.kind !== 'in') return undefined
-    const parts = [said.reset ? '' : `resets ${form === 'clock' ? resetWhen : f.reset.text}`, said.pace ? '' : pace].filter(t => t !== '')
+    if (span === undefined) return undefined
+    const parts = [said.reset ? '' : `resets ${form === 'clock' ? resetWhen : span}`, said.pace ? '' : pace].filter(t => t !== '')
     return parts.length === 0 ? undefined : parts.join(' · ')
   }
   const tail = (withPace: boolean, withReset: boolean): Say =>
@@ -522,17 +558,16 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   // Its next change says its reset after the mark, as chips' pill does:
   // `↻ Sat 13:30`, or with the offset unknown, `↻ 5d 22h`.
   const ahead: Ahead | undefined =
-    f.reset?.kind !== 'in' || Math.round(f.percentUsed) === 0
+    span === undefined || Math.round(f.percentUsed) === 0
       ? undefined
       : fillAt !== undefined && fillInMs !== undefined
-        ? { lead: [...standing, ['full ', 'value']], figure: fillAt, soon: zone === undefined ? undefined : `in ${fmtEta(fillInMs)}`, tail: `${resetMark} ${resetClock ?? f.reset.text}` }
+        ? { lead: [...standing, ['full ', 'value']], figure: fillAt, soon: zone === undefined ? undefined : `in ${fmtEta(fillInMs)}`, tail: `${resetMark} ${resetClock ?? span}` }
         : {
             lead: [...standing, [`${resetMark} `, 'value']],
-            figure: resetClock ?? f.reset.text,
-            soon: resetClock === undefined ? undefined : `in ${f.reset.text}`,
+            figure: resetClock ?? span,
+            soon: resetClock === undefined ? undefined : resetIn,
             tail: pace === '' ? undefined : pace,
           }
-  const resetSpan = f.reset?.kind === 'in' ? f.reset.text : undefined
   const fillsIn = f.fullInMs === undefined ? undefined : fmtEtaDays(f.fullInMs)
   const mark = f.lastCall ? `! last call${departsDot(frame)}` : f.tone === 'amber' ? '! ' : ''
   return {
@@ -544,8 +579,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     text: joined(say),
     say,
     pace,
-    resetShort: f.reset?.kind === 'in' ? `↻ ${f.reset.text}` : undefined,
-    resetSaid: f.reset?.kind !== 'in' ? undefined : f.key === '7d' ? (resetClock ?? f.reset.text) : f.reset.text,
+    resetSaid: f.key === '7d' && span !== undefined ? (resetClock ?? span) : span,
     resetClock,
     resetAtGlyph,
     sentence: (withPace, withReset) => [...say, ...tail(withPace, withReset)],
@@ -562,18 +596,18 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
       ? alike(departs(`${f.name} reset`, ''))
       : fillsIn !== undefined
         ? { long: departs(`${mark}${f.name} full `, fillsIn), short: departs(`${mark}${f.name} `, fillsIn) }
-        : f.tone === 'amber' || resetSpan === undefined
+        : f.tone === 'amber' || span === undefined
           ? alike(departs(`${mark}${f.name} `, f.value))
-          : alike(departs(`${f.name} resets `, resetSpan)),
-    departureReset: fillsIn !== undefined || f.tone === 'amber' ? resetSpan : undefined,
+          : alike(departs(`${f.name} resets `, span)),
+    departureReset: fillsIn !== undefined || f.tone === 'amber' ? span : undefined,
     departureLens: `${f.name} ${f.passed ? 'reset' : fillsIn !== undefined ? 'fills' : 'resets'}`,
     departureHead: f.passed
       ? undefined
       : fillsIn !== undefined
         ? [[`${f.name} full `, 'label'], [fillsIn, 'value']]
-        : resetSpan === undefined
+        : span === undefined
           ? undefined
-          : [[`${f.name} in `, 'label'], [resetSpan, 'value']],
+          : [[`${f.name} in `, 'label'], [span, 'value']],
     alt: altOf(
       `${f.name} limit`,
       live ? `${Math.round(f.percentUsed)} percent used` : 'reset',
@@ -636,7 +670,7 @@ const TREND_FACTOR = 1.5
 const TRAIL_RISE = 2
 
 /** The points of a trail from the last hour before `now`. */
-export const lastHourOf = (trail: readonly TrailPoint[], now: number): TrailPoint[] => trail.filter(p => p.at >= now - 3600_000)
+export const lastHourOf = (trail: readonly TrailPoint[], now: number): TrailPoint[] => trail.filter(p => p.at >= now - HOUR_MS)
 
 /** A 5h trail's trend: rising once it has climbed `TRAIL_RISE` points. */
 const riseOf = (points: readonly TrailPoint[]): 'rising' | 'steady' =>
@@ -677,11 +711,7 @@ export const historyWords = (record: Trails, fiveHour: LimitView | undefined, co
   }
   const fullIn = fiveHour === undefined || fiveHour.etaMs === null ? '' : `, full in ${fmtEtaSpoken(fiveHour.etaMs)}`
   const compactsAt = context.compactAt === undefined ? '' : `, compacts at ${fmtTokens(context.compactAt)}`
-  // A compaction drops the context, so its rise is measured since the newest drop.
-  const trail = record.context
-  const tokens = trail.slice(Math.max(0, trail.findLastIndex((t, i) => i > 0 && t < (trail[i - 1] ?? 0))))
-  const risePerMessage = tokens.length < 2 ? 0 : ((tokens[tokens.length - 1] ?? 0) - (tokens[0] ?? 0)) / (tokens.length - 1)
-  const messages = context.toCompact === undefined || risePerMessage <= 0 ? undefined : Math.max(1, Math.round(context.toCompact / risePerMessage))
+  const messages = context.msgsToCompact
   return {
     lastText,
     numbersShort: lastText === undefined ? '' : `last ${lastText}`,
