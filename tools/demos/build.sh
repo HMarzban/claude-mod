@@ -15,7 +15,7 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 PLUGIN="$ROOT/plugins/session-usage-band"
 OUT="$HERE/out"
 DOCS="$ROOT/docs"
-CHROME="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
+export CHROME="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
 mkdir -p "$OUT"
 cd "$HERE"
 
@@ -25,11 +25,16 @@ shot() { # shot WIDTH HEIGHT PAGE PNG
 }
 
 # ---- 1. capture: run the capture files as tests, keep what they print ------
+# In a scratch copy of the plugin holding only what they import, so a failed
+# run leaves nothing in the plugin's tests/.
 capture() {
   echo "capturing the band's frames"
-  trap 'rm -f "$PLUGIN"/tests/zz-capture-*.test.ts' RETURN
-  for f in capture/*.test.ts; do cp "$f" "$PLUGIN/tests/zz-capture-$(basename "$f")"; done
-  claude plugin test "$PLUGIN" > "$OUT/capture.log" 2>&1 || { tail -20 "$OUT/capture.log"; exit 1; }
+  SCRATCH="$(mktemp -d)"
+  trap 'rm -rf "$SCRATCH"' EXIT
+  find "$PLUGIN" -mindepth 1 -maxdepth 1 ! -name tests -exec cp -R {} "$SCRATCH/" \;
+  mkdir -p "$SCRATCH/tests"
+  cp "$PLUGIN"/tests/{helpers.ts,globals.d.ts} capture/*.test.ts "$SCRATCH/tests/"
+  claude plugin test "$SCRATCH" > "$OUT/capture.log" 2>&1 || { tail -20 "$OUT/capture.log"; exit 1; }
   grep '^FRAME' "$OUT/capture.log" > "$OUT/frames.txt"
   grep '^FILM' "$OUT/capture.log" > "$OUT/film.txt"
   grep -E '^(LIVE|STATE)' "$OUT/capture.log" > "$OUT/site.txt"

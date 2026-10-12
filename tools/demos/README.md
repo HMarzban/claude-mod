@@ -15,10 +15,10 @@ It uses the first `python3` it finds that can import Pillow; set
 
 ## How it works
 
-1. **Capture.** `capture/*.test.ts` are not tests. The build copies them into
-   the plugin's `tests/` for one `claude plugin test` run, removes them, and
-   keeps what they print: the band's drawn tree at each moment, with the clock
-   moved forward and the session in a known shape.
+1. **Capture.** `capture/*.test.ts` are not tests. The build runs them in a
+   scratch copy of the plugin with one `claude plugin test` and keeps what
+   they print: the band's drawn tree at each moment, with the clock moved
+   forward and the session in a known shape.
 2. **Draw.** `render.py` turns a terminal tree into HTML on a monospace grid;
    `render_desk.py` turns a desktop tree into HTML laid out like the Code tab
    (10px per column, 24px per text row), with the band's real SVG icons.

@@ -1,7 +1,7 @@
 // Demo capture, not a test: the band's real desktop output, for the film (every
 // minute of the hour, then the last minute in seconds), the site's live band,
 // its states, and every layout for the site's layouts section and gallery.
-// tools/demos/build.sh copies this into the plugin's tests/ only while it runs.
+// tools/demos/build.sh runs it in a scratch copy of the plugin.
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
