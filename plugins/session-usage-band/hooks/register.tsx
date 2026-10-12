@@ -86,7 +86,6 @@ import type { Workspace } from './workspace'
 const isHidden = atom({ plugin: 'session-usage-band', key: 'isHidden' } as const, false)
 const isExpanded = atom({ plugin: 'session-usage-band', key: 'isExpanded' } as const, false)
 
-/** The context toast's key in `band.warned`. */
 const CONTEXT_WARN = 'context'
 
 /** How much of a transcript's end to read: room for a long last reply. */
