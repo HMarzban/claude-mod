@@ -177,23 +177,24 @@ test("a reset a week out on today's weekday says next, as a fill there does", ()
   expect(r.sevenDay?.resetClock).toBe('next Sat 13:30')
   expect(r.sevenDay?.resetAtGlyph).toBe('↻ next Sat 13:30')
 })
-test('the longest reset and fill words fit every layout at every width, shut and open', () => {
+test('the longest reset and fill words fit every layout at every width, shut and open, in either tier', () => {
   // Sat 14:00, the reset next Saturday; Sat 23:00 at 6%, the fill next Saturday too.
   const filling = readAt('2026-10-17T23:00Z', fixedZone(0), { sevenAt: '2026-10-24T13:30Z', seven: 6 })
   expect([filling.sevenDay?.resetClock, filling.sevenDay?.fillAt, filling.week.fullDay]).toEqual(['next Sat 13:30', '~next Sat', 'full ~next Sat'])
   for (const [iso, seven] of [['2026-10-17T14:00Z', 1], ['2026-10-17T23:00Z', 6]] as const)
     for (const layout of LAYOUT_NAMES)
-      for (const surface of ['terminal', 'desktop'] as const)
+      // The ascii tier says `resets` for `↻`: its longest, `resets next Sat 13:30`.
+      for (const [surface, glyphs] of [['terminal', 'unicode'], ['desktop', 'unicode'], ['terminal', 'ascii']] as const)
         for (const cols of [40, 41, 50, 60, 67, 68, 80, 95, 120])
           for (const expanded of [false, true]) {
             const now = at(iso)
             const tree = drawBand(fakeEl, snapOf({
-              layout, surface, columns: cols, expanded, maxRows: DEFAULT_MAX_ROWS, now, zone: fixedZone(0),
+              layout, surface, glyphs, columns: cols, expanded, maxRows: DEFAULT_MAX_ROWS, now, zone: fixedZone(0),
               fiveHour: { percentUsed: 4, resetsAt: new Date(now + 3 * HOUR).toISOString(), etaMs: null },
               sevenDay: { percentUsed: seven, resetsAt: '2026-10-24T13:30Z' },
             }), NO_ACT) as unknown as Node
-            const errors = invariantErrors(tree, { layout, surface, appearance: 'dark', cols, maxRows: DEFAULT_MAX_ROWS, scenario: 'calm', glyphs: 'unicode', expanded })
-            const key = `${iso} ${layout} ${surface} ${cols} ${expanded ? 'open' : 'shut'}`
+            const errors = invariantErrors(tree, { layout, surface, appearance: 'dark', cols, maxRows: DEFAULT_MAX_ROWS, scenario: 'calm', glyphs, expanded })
+            const key = `${iso} ${layout} ${surface} ${glyphs} ${cols} ${expanded ? 'open' : 'shut'}`
             expect(`${key}: ${errors.join('; ')}`).toBe(`${key}: `)
           }
 })
