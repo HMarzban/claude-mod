@@ -3,8 +3,9 @@
 // layout runs.
 
 import type { RenderChildren } from 'claude-code'
-import { expect, test } from 'claude-code/testing'
-import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, USAGE, firstRow, flapWords, shown, walk, type Node } from './helpers'
+import { expect, test, type Engine } from 'claude-code/testing'
+import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, USAGE, firstRow, flapWords, mountBand, shown, walk, type Node } from './helpers'
+import { layoutAt } from '../hooks/band'
 import type { Ttl } from '../hooks/cache'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
@@ -250,18 +251,14 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
     if (last?.type !== 'Button' || last.props?.label !== mark) fail('toggle', `${mark} is not the row's last piece`)
   }
 
-  // Below 60 columns an amber reading's words may not fit beside the rest:
-  // calm pieces go first, then amber turns short, and past that the row
-  // clips, ▵ pinned at its end (the old spec's §2.6). For chips that is
-  // all-amber, which lastMinute stands for; for departures any scenario
-  // whose collapsed row is amber, a calm one fitting at every width. Pulse
-  // never clips: once its calm pieces have gone and amber is short, its
-  // row fits, ▵ in view. On the terminal it fits the row less its slack, as
-  // each line is squeezed to; the desktop's estimate keeps the row's width.
-  const clipsByDesign = ctx.cols < 60 && (
-    ctx.layout === 'chips' ? ctx.scenario === ALL_AMBER
-    : ctx.layout === 'departures' ? amber.some(r => !OPEN_ONLY.has(r))
-    : false)
+  // Below 60 columns chips' all-amber row, which lastMinute stands for, may
+  // not fit: calm pieces go first, then amber turns short, and past that the
+  // row clips, ▵ pinned at its end (the old spec's §2.6). Pulse and
+  // departures never clip: once their calm pieces have gone and amber is
+  // short, the row fits, ▵ in view (departures draws chips below its 60
+  // columns). On the terminal it fits the row less its slack, as each line
+  // is squeezed to; the desktop's estimate keeps the row's width.
+  const clipsByDesign = ctx.cols < 60 && ctx.layout === 'chips' && ctx.scenario === ALL_AMBER
   const width = cellsOf(collapsed as RenderChildren, ctx.surface === 'desktop' ? DESKTOP : TERMINAL)
   const room = ctx.surface === 'terminal' ? ctx.cols - ROW_SLACK : ctx.cols
   if (!clipsByDesign && width > room) fail('width', `${width} columns at ${ctx.cols}`)
@@ -344,7 +341,8 @@ const LONG_WALKS: ReadonlySet<ScenarioName> = new Set(['lastMinute', 'cold', 'co
 export const ttlOf = (scenario: ScenarioName): Ttl => (LONG_WALKS.has(scenario) ? '5m' : '1h')
 
 /** The suite's 101 cases, one setup each: every scenario at 120 columns,
- *  and at 40 and 50 in dark, light and plain; calm and the last minute in
+ *  and at 40 and 50 in dark, light and plain, and either side of a
+ *  layout's own fewest columns; calm and the last minute in
  *  light, plain and the ascii tier, and at every width; the other amber
  *  scenarios narrow; calm, the open-only amber and the empty states short
  *  of rows. */
@@ -370,14 +368,11 @@ export const suiteCases = (layout: LayoutName): SuiteCase[] => {
     })),
     // Every scenario at its narrowest, in each appearance: once every calm
     // piece has gone and amber is short, the row fits its room, ▵ in view.
-    // But departures in plain on a 40-column terminal: its bracketed runs
-    // can't fit CACHE and 7D there with a cold cache's RE-WARM, 41 cells
-    // against 36, until 45 columns. Escalated, with its numbers, in the
-    // sign-off fix report, not drawn here.
+    // A layout with fewest columns of its own is drawn either side of them.
     ...(['dark', 'light', 'plain'] as const).flatMap(appearance => SCENARIO_NAMES.map(scenario => ({
       name: `${layout}: ${scenario}, narrow, ${appearance}`,
       options: optionsOf(scenario, appearance),
-      mounts: [40, 50].flatMap(cols => bothSurfaces(cols)).filter(m => !(layout === 'departures' && appearance === 'plain' && m.surface === 'terminal' && m.cols === 40)),
+      mounts: [...new Set([40, 50, ...edgeOf(layout)])].flatMap(cols => bothSurfaces(cols)),
     }))),
     { name: `${layout}: calm, short of rows`, options: optionsOf('calm'), mounts: [4, 8, 13, 40].flatMap(maxRows => bothSurfaces(120, maxRows)) },
     // The open-only amber short of rows, on both grids, from a body of one
@@ -399,17 +394,56 @@ export const suiteCases = (layout: LayoutName): SuiteCase[] => {
   ]
 }
 
+/** A layout's own fewest columns, and the width just under them. */
+const edgeOf = (layout: LayoutName): number[] => {
+  const least = VIEWS[layout].minColumns
+  return least === undefined ? [] : [least - 1, least]
+}
+
+/** The mounts drawn again as chips, after `/usage-band layout chips`, each
+ *  shut and open as drawCases draws them; then the layout chosen again. */
+const drawnAsChips = async ($: Engine, layout: LayoutName, mounts: readonly Mount[], isWorking?: boolean): Promise<Readonly<Record<string, Node>>> => {
+  const run = (args: string) => $.command.run({ command: 'usage-band', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 110 } })
+  await run('layout chips')
+  const trees: Record<string, Node> = {}
+  for (const m of mounts) {
+    const ui = await mountBand($, m.surface, m.cols, { maxRows: m.maxRows, isWorking })
+    trees[caseKey(m, 'shut')] = (await ui.drawn()) as Node
+    await ui.press({ key: 'more' })
+    trees[caseKey(m, 'open')] = (await ui.drawn()) as Node
+    await ui.press({ key: 'more' })
+    await ui.unmount()
+  }
+  await run(`layout ${layout}`)
+  return trees
+}
+
+/** Whether two drawn trees are the same, each press's handle aside: every
+ *  mount hands its Buttons new ones. */
+const drawnAlike = (a: unknown, b: unknown): boolean => {
+  const bare = (n: unknown) => JSON.stringify(n, (k, v: unknown) => (k === 'handle' ? undefined : v))
+  return bare(a) === bare(b)
+}
+
 /** Registers one LONG test per case: one drawCases call, every tree checked
- *  shut and open, each failure named by its mount. */
+ *  shut and open, each failure named by its mount. Where the layout draws
+ *  chips (layoutAt), the tree must be chips' own on that mount. */
 export const viewSuite = (layout: LayoutName): void => {
   for (const c of suiteCases(layout)) {
     test(c.name, LONG, async ($, on) => {
       const trees = await drawCases($, on, c.options, c.mounts)
+      const asChips = c.mounts.filter(m => layoutAt(layout, m.cols) !== layout)
+      const chips = asChips.length === 0 ? {} : await drawnAsChips($, layout, asChips, (SCENARIOS[c.options.scenario] as Scenario).isWorking)
       const glyphs: Glyphs = c.options.env?.CC_BAND_GLYPHS === 'ascii' ? 'ascii' : 'unicode'
       for (const m of c.mounts) {
         for (const state of ['shut', 'open'] as const) {
           const key = caseKey(m, state)
           const tree = trees[key]
+          const chipsTree = chips[key]
+          if (chipsTree !== undefined) {
+            expect(`${key} ${drawnAlike(tree, chipsTree) ? 'chips' : 'not chips'}`).toBe(`${key} chips`)
+            continue
+          }
           const errors = tree === undefined
             ? ['missing: not drawn']
             : invariantErrors(tree, {

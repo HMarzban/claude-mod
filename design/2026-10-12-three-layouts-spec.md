@@ -14,6 +14,8 @@ Every layout except chips opens into chips' cards (`defineCardsView` → `cardsV
 | `pulse` | Is my cost per message rising, and will a limit fill before it resets? | 1 | 1 |
 | `departures` | When does the cache go cold, and when does each limit reset or fill? | 1 | 1 |
 
+Below 40 columns every layout draws chips. Below 60 columns, departures draws chips: its tiles need the room (`View.minColumns`).
+
 - **Removed:** `gauges`, `ledger`, `rings`, `tiles`, `week` and `forecast`.
 - **Chips** is unchanged, and its golden hashes must pass byte for byte.
 - **No new stored data.** Every series already exists. New reading facts are listed in §6.2.
@@ -153,7 +155,8 @@ CACHE DEPARTS 17:24  SPEND $0.24  CONTEXT 8%  5H 26% ↻ 17:50  7D 85% ↻ SAT 1
   4. CONTEXT;
   5. 5h's remark;
   6. the short forms.
-  - CACHE and 7D never go. At 40 columns the row is `CACHE 17:24  7D 85%  ▵`.
+  - CACHE and 7D never go.
+  - Below 60 columns, departures draws chips.
 - **Zone unknown:** every clock time becomes a countdown, `IN 38 MIN` and `↻ IN 1H 04M`, as the earlier spec's §2.12 allows on the board.
 
 ### 5.3 Open

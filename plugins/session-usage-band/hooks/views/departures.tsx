@@ -16,8 +16,8 @@ import { beforeLast, fitLine, line, type Keeps } from './parts'
 import type { View } from './view'
 
 /** What gives way as the row narrows, first to last (spec §5.2), calm only:
- *  5h's ↻, 7d's ↻, SPEND, CONTEXT, 5h's remark, then 5H itself, so at 40
- *  columns the row is CACHE and 7D alone, then the short forms. An amber
+ *  5h's ↻, 7d's ↻, SPEND, CONTEXT, 5h's remark, then 5H itself, so the
+ *  narrowest row is CACHE and 7D alone, then the short forms. An amber
  *  reading keeps its whole cell, ↻ too, until fitLine's amber step, last of
  *  all. CACHE and 7D never go. */
 const ORDER = ['reset5h', 'reset7d', 'spend', 'context', 'remark5h', 'five', 'long'] as const
@@ -58,8 +58,12 @@ const collapsed = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
   fitLine(kit, ORDER, kit.columns - ROW_SLACK, k =>
     line(kit, 'row', read.board.rows.filter(r => keeps(r, k)).map(r => group(kit, r, cellOf(r, k))), toggleButton(kit, read, act)))
 
+/** The board's tiles need room: below 60 columns the band draws chips. */
+const MIN_COLUMNS = 60
+
 export const departuresView: View = {
   rows: { desktop: 1, terminal: 1 },
+  minColumns: MIN_COLUMNS,
   draw: (kit, read, act) => {
     const { Box } = kit
     return (

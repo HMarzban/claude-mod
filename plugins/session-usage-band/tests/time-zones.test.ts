@@ -4,7 +4,7 @@
 // the mounted one follows the host's own.
 
 import { test, expect } from 'claude-code/testing'
-import { drawBand } from '../hooks/band'
+import { drawBand, layoutAt } from '../hooks/band'
 import { weekOf } from '../hooks/calendar'
 import { dayOf, fixedZone, hostZone, midnightOf, type Zone } from '../hooks/format'
 import type { Sample } from '../hooks/memory'
@@ -204,7 +204,8 @@ test('the longest reset and fill words fit every layout at every width, shut and
               fiveHour: { percentUsed: 4, resetsAt: new Date(now + 3 * HOUR).toISOString(), etaMs: null },
               sevenDay: { percentUsed: seven, resetsAt: '2026-10-24T13:30Z' },
             }), NO_ACT) as unknown as Node
-            const errors = invariantErrors(tree, { layout, surface, appearance: 'dark', cols, maxRows: DEFAULT_MAX_ROWS, scenario: 'calm', glyphs, expanded })
+            // Held to the rules of the layout drawn there: chips below departures' 60.
+            const errors = invariantErrors(tree, { layout: layoutAt(layout, cols), surface, appearance: 'dark', cols, maxRows: DEFAULT_MAX_ROWS, scenario: 'calm', glyphs, expanded })
             const key = `${iso} ${layout} ${surface} ${glyphs} ${cols} ${expanded ? 'open' : 'shut'}`
             expect(`${key}: ${errors.join('; ')}`).toBe(`${key}: `)
           }

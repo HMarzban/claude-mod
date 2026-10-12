@@ -37,15 +37,15 @@ test('desktop: one flap Svg per reading, each at most 20 px tall, its alt in wor
     expect(String(s.props?.alt).replace(/5h|7d/g, '')).not.toMatch(/↻|\b[A-Z]{2,}\b/)
   }
 })
-test('at 40 columns, cache in its last minute and 7d at 82%: CACHE and 7D stay, and the row fits', async ($, on) => {
-  const drawn = await drawCases($, on, { scenario: 'lastMinute', appearance: 'dark', layout: 'departures', usage: { ...USAGE, rateLimits: withLimits(30, 82) } }, [{ surface: 'terminal', cols: 40 }])
+test('at its fewest, 60 columns, cache in its last minute and 7d at 82%: CACHE and 7D stay, and the row fits', async ($, on) => {
+  const drawn = await drawCases($, on, { scenario: 'lastMinute', appearance: 'dark', layout: 'departures', usage: { ...USAGE, rateLimits: withLimits(30, 82) } }, [{ surface: 'terminal', cols: 60 }])
   const row = firstRow(Object.values(drawn)[0]) as Node
   expect(words(row)).toMatch(/CACHE[\s\S]*7D/)
-  expect(cellsOf(row as unknown as RenderChildren, TERMINAL)).toBeLessThanOrEqual(40 - ROW_SLACK)
+  expect(cellsOf(row as unknown as RenderChildren, TERMINAL)).toBeLessThanOrEqual(60 - ROW_SLACK)
   expect(toggleOf(row)).toBe('▵')
 })
-test('at 40 columns calm: CACHE and 7D only', () => {
-  const row = firstRow(band({ surface: 'terminal', columns: 40, sevenDay: at(41, 67) })) as Node
+test('at its fewest, 60 columns, calm with a cold cache: CACHE and 7D only', () => {
+  const row = firstRow(band({ surface: 'terminal', columns: 60, sevenDay: at(41, 67), cache: { ...snapOf().cache, msLeft: 0 } })) as Node
   expect(['spend', 'context', '5h'].map(k => byKey(row, k, 'Box'))).toEqual([undefined, undefined, undefined])
   // A terminal's flaps set ITEM and cell a gap apart, which the text holds no space for.
   expect(words(row)).toMatch(/CACHE[\s\S]*7D\W*41%/)
@@ -89,8 +89,8 @@ test('open: as rows run out, the board gives way in the spec order and the foote
 
 /** A reading's group on the collapsed row, as its words read. */
 const groupOf = (row: unknown, key: string) => words(byKey(row, key, 'Box')).trim()
-/** The calm row at each width, widest first: spec §3's scenario, 7D amber at 85%. */
-const NARROWING = Array.from({ length: 121 }, (_, i) => 160 - i)
+/** The calm row at each width, 160 down to its fewest, 60: spec §3's scenario, 7D amber at 85%. */
+const NARROWING = Array.from({ length: 101 }, (_, i) => 160 - i)
 
 test("a calm 5H's remark gives way before 5H does: there is a width where it reads 5H 26% alone", () => {
   const forms = NARROWING.map(columns => groupOf(firstRow(band({ surface: 'terminal', columns })), '5h'))
@@ -110,11 +110,11 @@ test("an amber limit keeps its ↻ while calm pieces give way, until the amber s
   }
   expect(dropping).toBeGreaterThan(0)
 })
-test("every board line fits the board's room: 40, 80 and 200 columns, dark and plain, calm and amber", () => {
+test("every board line fits the board's room: 60, 80 and 200 columns, dark and plain, calm and amber", () => {
   const NEAR = { tokens: 176_000, window: 200_000, percent: 88, compactAt: 190_000, autoCompactOff: false }
   const amber = { context: NEAR, cache: { ...snapOf().cache, msLeft: 40_000, ttl: '5m' as const } }
   for (const surface of ['terminal', 'desktop'] as const)
-    for (const columns of [40, 80, 200])
+    for (const columns of [60, 80, 200])
       for (const palette of [DARK, PLAIN])
         for (const over of [{}, amber]) {
           const open = band({ surface, columns, palette, expanded: true, workspace: WS, otherLimits: OTHER, maxRows: 40, ...over })
@@ -147,4 +147,20 @@ test('the low case at 100 terminal columns gives SPEND way rightly: with it the 
   const at100 = rowAt(100)
   expect(byKey(at100, 'spend', 'Box')).toBeUndefined()
   expect(cells(at100)).toBe(85)
+})
+test("below its 60 columns departures draws exactly chips' tree; at 60, the board", () => {
+  const NEAR = { tokens: 176_000, window: 200_000, percent: 88, compactAt: 190_000, autoCompactOff: false }
+  const states: ReadonlyArray<Partial<BandSnapshot>> = [
+    {}, { cache: { ...snapOf().cache, msLeft: 0 } }, { context: NEAR }, { cache: { ...snapOf().cache, msLeft: 40_000, ttl: '5m' } },
+    { fiveHour: { ...at(82, 3), etaMs: null } }, { workspace: WS, otherLimits: OTHER },
+  ]
+  for (const surface of ['terminal', 'desktop'] as const)
+    for (const palette of [DARK, LIGHT, PLAIN])
+      for (const expanded of [false, true])
+        for (const over of states) {
+          const as = (layout: 'departures' | 'chips', columns: number) => band({ surface, palette, expanded, columns, ...over, layout })
+          for (const columns of [40, 50, 59]) expect(as('departures', columns)).toEqual(as('chips', columns))
+          expect(words(as('departures', 60))).toMatch(/CACHE/)
+          expect(as('departures', 60)).not.toEqual(as('chips', 60))
+        }
 })

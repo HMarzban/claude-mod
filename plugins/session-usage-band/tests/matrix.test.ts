@@ -215,18 +215,18 @@ test("amber: the board's capitals name the reading, its item and cell joined, br
   const open = view([row(t('a'), toggle('▿'))], [t('SPEND LIMIT  ! NEAR LIMIT  05:00  92%')])
   expect(failed(open, { scenario: 'gatewaySpend', expanded: true })).not.toContain('amber')
 })
-test('width: pulse fits its room at every width, amber or calm; departures clips below 60 only where amber is raised, ▵ still last', () => {
+test('width: pulse and departures fit their room at every width, amber or calm, ▵ last', () => {
   const at = (layout: 'pulse' | 'departures', scenario: InvariantContext['scenario'], cols: number, kids: unknown[]) =>
     failed(view([row(...kids)]), { layout, scenario, cols })
   const wide = t(`5H ! 82% ${'x'.repeat(60)}`)
-  // Every calm piece gone and amber short, pulse's row still fits, ▵ in view.
-  expect(at('pulse', 'limit80', 50, [wide, toggle()])).toContain('width')
-  expect(at('pulse', 'nearCompaction', 40, [wide, toggle()])).toContain('width')
-  expect(at('pulse', 'calm', 50, [wide, toggle()])).toContain('width')
-  expect(at('departures', 'limit80', 50, [wide, toggle()])).not.toContain('width')
-  expect(at('departures', 'limit80', 60, [wide, toggle()])).toContain('width')
-  expect(at('departures', 'calm', 50, [wide, toggle()])).toContain('width')
-  for (const layout of ['pulse', 'departures'] as const) expect(at(layout, 'limit80', 50, [toggle(), wide])).toContain('toggle')
+  // Every calm piece gone and amber short, the row still fits, ▵ in view.
+  for (const layout of ['pulse', 'departures'] as const) {
+    expect(at(layout, 'limit80', 50, [wide, toggle()])).toContain('width')
+    expect(at(layout, 'nearCompaction', 40, [wide, toggle()])).toContain('width')
+    expect(at(layout, 'limit80', 60, [wide, toggle()])).toContain('width')
+    expect(at(layout, 'calm', 50, [wide, toggle()])).toContain('width')
+    expect(at(layout, 'limit80', 50, [toggle(), wide])).toContain('toggle')
+  }
 })
 test('order: pulse and departures keep the one order on the collapsed row; chips its own', () => {
   const box = (key: string): Node => ({ type: 'Box', props: { key }, children: [t(key)] }) as Node

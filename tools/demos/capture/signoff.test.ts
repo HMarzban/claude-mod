@@ -10,7 +10,7 @@
 // 80 and 200. Every mount is 13 rows, where the open give-way is defined.
 import type { SessionUsage } from 'claude-code'
 import { test } from 'claude-code/testing'
-import { drawBand } from '../hooks/band'
+import { drawBand, layoutAt } from '../hooks/band'
 import { DARK, LIGHT, PLAIN } from '../hooks/palette'
 import type { BandSnapshot, LayoutName } from '../hooks/snapshot'
 import { HOUR, HOUR_1, MIN, START, USAGE, byKey, fakeEl, firstRow, mountBand, resp, respond, setup, turn, type Node } from './helpers'
@@ -67,8 +67,10 @@ const chipsNote = (error: string, tree: Node, ctx: InvariantContext): boolean =>
   return pill !== undefined && paintsAmber(byKey(firstRow(tree), pill, 'Box'))
 }
 
-/** Prints one drawn tree, its invariant errors first. */
-const print = (file: string, tree: Node, ctx: InvariantContext): void => {
+/** Prints one drawn tree, its invariant errors first: held to the rules of
+ *  the layout drawn at its width, chips where the band draws chips. */
+const print = (file: string, tree: Node, chosen: InvariantContext): void => {
+  const ctx = { ...chosen, layout: layoutAt(chosen.layout, chosen.cols) }
   const errors = invariantErrors(tree, ctx)
   const notes = errors.filter(e => chipsNote(e, tree, ctx))
   const blocking = errors.filter(e => !notes.includes(e))
