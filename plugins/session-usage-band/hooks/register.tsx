@@ -688,7 +688,8 @@ export const register: Register = on => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || (await read($, isHidden))) return next(e)
 
-    const usage = await $.session.usage()
+    const usage = await $.session.usage().catch(() => undefined)
+    if (usage === undefined) return next(e)
     const now = await $.clock.now()
     const five = usage.rateLimits.find(l => l.kind === FIVE_HOUR)
     const seven = usage.rateLimits.find(l => l.kind === SEVEN_DAY)

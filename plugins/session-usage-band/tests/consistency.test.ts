@@ -86,6 +86,10 @@ test('a usage read that fails mid-turn never breaks the turn or the band', async
   await $.turn.start({ text: 'hi', turnId: 't1' })
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+  // While the read fails, the band steps aside rather than break the prompt.
+  const failing = await mountBand($, 'terminal', 140)
+  expect(shown(await failing.drawn())).toBe('')
+  await failing.unmount()
   usage.fails = false
   const ui = await mountBand($, 'terminal', 140)
   expect(shown(pillOf(await ui.drawn(), 'cache'))).toMatch(/cache 1h 00m/)
