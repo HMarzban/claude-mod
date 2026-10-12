@@ -1,12 +1,12 @@
-// Chips, the band as it has always been: a row of pills, and the shared
-// cards beneath it when open. Its pill builders and its row are exported, so
-// a layout composes chips' pills, tints and icons rather than drawing its
-// own; they draw from the snapshot itself (`read.chips.raw`), as they did in
-// band.tsx.
+// Chips: a row of pills, and the shared cards beneath it when open. Its pill
+// builders, their hover strings, LIMITS and its row are exported, so a layout
+// composes chips' pills, tints and icons rather than drawing its own. They
+// draw from the readings' words; only the context's pill and hover still
+// read raw facts (`read.chips.raw`).
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { meter } from '../charts'
-import { fmtCost, fmtEta, fmtSmallCost, fmtTokens, severityMark } from '../format'
+import { fmtTokens, severityMark } from '../format'
 import type { Icon } from '../icons'
 import type { Kit } from '../kit'
 import { GIVES_WAY, ROW_SLACK, SHORT_BELOW, cellsOf, keeps, spansOf, squeezeToFit } from '../layout'
@@ -14,7 +14,6 @@ import type { Piece } from '../layout'
 import type { Palette } from '../palette'
 import type { LimitKey, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
-import { paceText } from '../words'
 import { toggleButton } from './frame'
 import { batteryIcon, pill, resetClause, textBattery } from './parts'
 import type { PillSpec } from './parts'
@@ -114,15 +113,12 @@ export const cachePill = (kit: Kit, read: Readings, short: boolean, bold = false
 /** The session's cost; its card names the last message's. */
 export const costPill = (kit: Kit, read: Readings): PillSpec => {
   const { Text, palette, icon } = kit
-  const snap = read.chips.raw
+  const { totalText, lastText } = read.spend
   return {
     key: 'cost',
     tone: 'calm',
-    body: [...icon('cost', palette.coin), <Text key="v" color={palette.value} bold>{fmtCost(snap.costUsd)}</Text>],
-    hover:
-      snap.lastTurnUsd === null
-        ? `${fmtCost(snap.costUsd)} so far this session`
-        : `${fmtSmallCost(snap.lastTurnUsd)} spent during your last message, subagents included`,
+    body: [...icon('cost', palette.coin), <Text key="v" color={palette.value} bold>{totalText}</Text>],
+    hover: lastText === undefined ? `${totalText} so far this session` : `${lastText} spent during your last message, subagents included`,
   }
 }
 
@@ -132,7 +128,7 @@ export const tokensPill = (kit: Kit, read: Readings): PillSpec => {
   return {
     key: 'tokens',
     tone: 'calm',
-    body: [...icon('tokens', palette.label), <Text key="v" color={palette.value}>{fmtTokens(read.spend.total)}</Text>],
+    body: [...icon('tokens', palette.label), <Text key="v" color={palette.value}>{read.spend.tokensText}</Text>],
     hover: read.chips.reading.tokenBreakdown,
   }
 }
@@ -207,7 +203,7 @@ export const limitPill = (kit: Kit, read: Readings, key: ChipKey, squeeze: numbe
       hover: limitHover(read, key),
     }
   }
-  const pace = w.etaMs === null ? '' : short ? ` ${fmtEta(w.etaMs)}` : ` ${paceText(w)}`
+  const pace = w.fullIn === undefined ? '' : ` ${short ? w.fullIn : w.pace}`
   const fg = onTone(tone, tint.fg)
   const accent = onTone(tone, tint.accent)
   const bar = keeps(squeeze, 'limitBars') ? [gap('g-bar'), mark ?? meter(kit, { label: key, frac, tone, accent: tint.accent })] : []
