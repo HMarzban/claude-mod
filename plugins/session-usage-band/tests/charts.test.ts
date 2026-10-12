@@ -295,3 +295,15 @@ test('heartbeat per state; the beat ships still: no animation, never interactive
   expect(String(of('beat')?.props?.source)).toMatch(/fill="#F5B14C"/)
   expect(heartbeat(makeKit(fakeEl, snapOf({ surface: 'terminal' })), { key: 'h', alt: 'a', state: 'beat', color: '#fff' })).toBeNull()
 })
+test('beats: the average rule is dotted', () => {
+  const src = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values: [0.5, 0.7], marked: [false, false], color: '#fff', markColor: '#fff', px: 40, height: 20, max: 1, level: 0.6, shape: 'beats' }))[0]?.props?.source)
+  expect(src).toMatch(/class="level"[^>]*stroke-dasharray/)
+})
+test('beats: a zero or tiny value is a flat tick, never a notch below the baseline', () => {
+  for (const v of [0, 0.001]) {
+    const src = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values: [v], marked: [false], color: '#fff', markColor: '#fff', px: 20, height: 20, max: 1, shape: 'beats' }))[0]?.props?.source)
+    const d = src.match(/ d="([^"]+)"/)?.[1] ?? ''
+    const ys = [...d.matchAll(/[ML]([\d.]+),([\d.]+)/g)].map(m => Number(m[2]))
+    expect(ys[1]).toBeLessThanOrEqual(16)
+  }
+})

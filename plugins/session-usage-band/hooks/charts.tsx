@@ -480,12 +480,13 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
     const d = values.map((v, i) => {
       const x0 = tenth(i * step), peak = tenth(x0 + step * 0.45), dip = tenth(x0 + step * 0.6), x1 = tenth(x0 + step)
       const capped = marked[i] === true
-      const at = capped ? CAP_ROOM : y(v)
+      // A tiny cost is a flat tick: its peak never drops below the baseline.
+      const at = capped ? CAP_ROOM : Math.min(base, y(v))
       // A re-warm is capped flat across its peak: its shape says what it is.
       const peaks = capped ? `L${tenth(peak - 1.5)},${at}L${tenth(peak + 1.5)},${at}` : `L${peak},${at}`
       return `${i === 0 ? 'M' : 'L'}${x0},${base}${peaks}L${dip},${Math.min(height - 1, base + 3)}L${x1},${base}`
     }).join('')
-    const rule = level === undefined ? '' : `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1"/>`
+    const rule = level === undefined ? '' : `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1" stroke-dasharray="1 2"/>`
     const beats = `<path class="beats" d="${d}" fill="none" stroke="${color}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>`
     return <Svg key={key} source={svgOf(px, height, rule + beats)} alt={alt} width={px} height={height} />
   }
