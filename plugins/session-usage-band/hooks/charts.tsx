@@ -46,11 +46,6 @@ export const braille = (values: readonly number[], max: number, floor = 0): stri
   return out
 }
 
-/** A line chart in text: braille against the top of its scale, by default
- *  its largest value, on its floor. It never wraps: a row too narrow cuts it. */
-const brailleText = (kit: Kit, key: string, values: readonly number[], color: string, top = topOf(values)): RenderChildren =>
-  kit.oneLine({ key, color }, braille(values, top, 1))
-
 /** Text cells, each a glyph and its ink, under one Text keyed `key`:
  *  neighbouring cells in one ink share a Text. */
 const textRuns = (kit: Kit, key: string, cells: ReadonlyArray<readonly [string, string]>, color?: string): RenderChildren => {
@@ -383,12 +378,13 @@ const peaksOf = (values: readonly number[], count: number): number[] =>
     ? [...values]
     : Array.from({ length: count }, (_, i) => Math.max(...values.slice(Math.floor((i * values.length) / count), Math.floor(((i + 1) * values.length) / count))))
 
-/** A line over time, ending bare at its newest point. Text draws it in braille. */
+/** A line over time, ending bare at its newest point. Text draws it in
+ *  braille on its floor, on one line that a row too narrow cuts. */
 export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
-  const { Svg, palette } = kit
+  const { Svg, palette, oneLine } = kit
   const { key, alt, values, color, px, height, max, projectTo, cells, track = false, area = false, stretch = false, rise = false } = o
   const top = max ?? topOf(values)
-  if (!Svg) return brailleText(kit, key, cells === undefined ? values : peaksOf(values, 2 * cells), color, top)
+  if (!Svg) return oneLine({ key, color }, braille(cells === undefined ? values : peaksOf(values, 2 * cells), top, 1))
   const end = px - SPARK_AIR - (projectTo === undefined ? 0 : SPARK_AHEAD)
   const x = (i: number) => (values.length <= 1 ? end : tenth(SPARK_AIR + (i * (end - SPARK_AIR)) / (values.length - 1)))
   const y = (frac: number) => tenth(height - SPARK_AIR - clamp01(frac) * (height - 2 * SPARK_AIR))
