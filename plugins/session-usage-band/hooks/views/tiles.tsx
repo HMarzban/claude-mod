@@ -27,12 +27,8 @@ type Piece = (typeof ORDER)[number]
 /** A tile's mark at its lengths, longest first, a cell shorter each: the
  *  row takes the longest it holds before a word gives way, and the shortest
  *  once the bar length has. A card head's mark. */
-const MARKS: readonly BarSize[] = [
-  { px: 40, cells: 6 },
-  { px: 32, cells: 5 },
-  { px: 24, cells: 4 },
-]
 const SHORT_MARK: BarSize = { px: 24, cells: 4 }
+const MARKS: readonly [BarSize, ...BarSize[]] = [{ px: 40, cells: 6 }, { px: 32, cells: 5 }, SHORT_MARK]
 const SLOT: BarSize = { px: 64, cells: 6 }
 
 /** A tile, built once: the squeeze picks its label, its mark's size, and
@@ -205,14 +201,15 @@ const tilesRow = (kit: Kit, read: Readings, act: BandActions): RenderElement => 
     }
     // A cell shorter at a time before a word gives way; held by none, the
     // longest, so the squeeze moves on.
-    const sizes = keeps.has('barLength') ? MARKS : [SHORT_MARK]
-    let first: RenderElement | undefined
-    for (const size of sizes) {
+    const sizes: readonly [BarSize, ...BarSize[]] = keeps.has('barLength') ? MARKS : [SHORT_MARK]
+    const [longest, ...shorter] = sizes
+    const first = rowAt(longest)
+    if (cellsOf(first, measure) <= room) return first
+    for (const size of shorter) {
       const row = rowAt(size)
       if (cellsOf(row, measure) <= room) return row
-      first ??= row
     }
-    return first ?? rowAt(SHORT_MARK)
+    return first
   })
 }
 
