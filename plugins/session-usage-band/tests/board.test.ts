@@ -61,6 +61,16 @@ test('a 5h pace that fills says when, by clock or, with no zone, by countdown', 
   expect(row(pace, '5h')?.cell).toMatch(/! FULL ~\d\d:\d\d$/)
   expect(row({ ...pace, zone: undefined }, '5h')?.cell).toMatch(/! FULL IN ~40 MIN$/)
 })
+test('a 5h amber from its pace says the fill once: STATUS has it, REMARKS keeps the value alone', () => {
+  const pace = { fiveHour: { ...limit(20, 3), etaMs: 40 * MIN } }
+  for (const zone of [UTC, undefined]) {
+    const r = row({ ...pace, zone }, '5h')
+    expect(r?.status).toMatch(/^! FULL (~\d\d:\d\d|IN ~40 MIN)$/)
+    expect(r?.remarks).toBe('20%')
+  }
+  // A limit amber from its value keeps its calm remark beside the value.
+  expect(row({ sevenDay: limit(85, 67) }, '7d')?.remarks).toMatch(/^85%( · .+)?$/)
+})
 test('a passed reset says PASSED', () => {
   expect(row({ now: 4 * HOUR, fiveHour: limit(4, 3) }, '5h')?.time).toBe('PASSED')
 })

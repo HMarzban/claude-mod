@@ -628,7 +628,8 @@ const limitBoard = (r: BoardFacts, l: LimitFacts & LimitWords): BoardRow => {
   return {
     // An other limit names itself a limit: `spend` alone would read as the session's SPEND.
     key: l.key, item: l.key !== 'other' ? l.key : /\blimit$/.test(l.name) ? l.name : `${l.name} limit`, status: amber ?? l.valueText, time,
-    remarks: amber === undefined ? calm : [l.valueText, calm].filter(Boolean).join(' · '),
+    // Amber from the pace, STATUS says the fill, so REMARKS doesn't again.
+    remarks: amber === undefined ? calm : [l.valueText, byPace ? '' : calm].filter(Boolean).join(' · '),
     cell: `${l.valueText}${time === NONE ? '' : ` ↻ ${time}`}${tail}`, cellShort: amber === undefined ? l.valueText : `! ${l.valueText}`, cellNoReset: `${l.valueText}${tail}`,
     tone: l.tone, alt: l.alt,
   }

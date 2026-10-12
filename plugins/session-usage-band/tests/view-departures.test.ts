@@ -7,7 +7,7 @@ import { DARK, LIGHT, PLAIN } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { withLimits } from './cases'
 import { HOUR, USAGE, byKey, fakeEl, firstRow, flapWords, shown, svgsOf, type Node } from './helpers'
-import { NO_ACT, drawCases, snapOf, viewSuite, visualRows } from './matrix'
+import { NO_ACT, caseKey, drawCases, snapOf, viewSuite, visualRows } from './matrix'
 
 viewSuite('departures')
 
@@ -127,4 +127,24 @@ test("every board line fits the board's room: 40, 80 and 200 columns, dark and p
               .toBe(`${surface} ${columns} ${palette.filled ? 'filled' : 'plain'} ${l.props?.key} true`)
           }
         }
+})
+test('the low case at 100 terminal columns gives SPEND way rightly: with it the row is 98 cells, past the 96 its room holds', async ($, on) => {
+  const low = { scenario: 'calm', appearance: 'dark', layout: 'departures', usage: { ...USAGE, rateLimits: withLimits(3, 10) } } as const
+  const drawn = await drawCases($, on, low, [100, 102].map(cols => ({ surface: 'terminal' as const, cols })))
+  const rowAt = (cols: number) => firstRow(drawn[caseKey({ surface: 'terminal', cols }, 'shut')]) as Node
+  const cells = (row: Node) => cellsOf(row as unknown as RenderChildren, TERMINAL)
+  // At 102 the room is 98: both resets gone, SPEND kept. That row is the
+  // one 100 columns would draw with SPEND, every group and gap counted:
+  // CACHE 19, SPEND 11, CONTEXT 11, 5H 21, 7D 23, six gaps of 2 (the air
+  // before ▵ takes two), and ▵ 1.
+  const withSpend = rowAt(102)
+  expect(byKey(withSpend, 'spend', 'Box')).toBeDefined()
+  expect(words(withSpend)).not.toMatch(/↻/)
+  expect(['cache', 'spend', 'context', '5h', '7d'].map(k => cells(byKey(withSpend, k, 'Box') as Node))).toEqual([19, 11, 11, 21, 23])
+  expect(cells(withSpend)).toBe(98)
+  expect(cells(withSpend)).toBeGreaterThan(100 - ROW_SLACK)
+  // So at 100 SPEND gives way, and the row is 85 cells.
+  const at100 = rowAt(100)
+  expect(byKey(at100, 'spend', 'Box')).toBeUndefined()
+  expect(cells(at100)).toBe(85)
 })

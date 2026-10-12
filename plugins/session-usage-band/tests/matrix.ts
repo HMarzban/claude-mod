@@ -370,9 +370,10 @@ export const suiteCases = (layout: LayoutName): SuiteCase[] => {
     })),
     // Every scenario at its narrowest, in each appearance: once every calm
     // piece has gone and amber is short, the row fits its room, ▵ in view.
-    // But departures in plain on a 40-column terminal, whose bracketed runs
-    // can't fit CACHE and 7D there with a cold cache's RE-WARM: escalated,
-    // with its numbers, in the sign-off fix report, not drawn here.
+    // But departures in plain on a 40-column terminal: its bracketed runs
+    // can't fit CACHE and 7D there with a cold cache's RE-WARM, 41 cells
+    // against 36, until 45 columns. Escalated, with its numbers, in the
+    // sign-off fix report, not drawn here.
     ...(['dark', 'light', 'plain'] as const).flatMap(appearance => SCENARIO_NAMES.map(scenario => ({
       name: `${layout}: ${scenario}, narrow, ${appearance}`,
       options: optionsOf(scenario, appearance),
