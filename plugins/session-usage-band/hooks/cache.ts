@@ -372,17 +372,23 @@ const reWarmAt = (rate: number, tokens: number): number => rate * WRITE_MULT * t
  *  this band saw; none before one. */
 const measuredColdAt = (): number | null => (state.requests > 0 ? state.lastAt + TTL_MS[effectiveTtl()] : null)
 
+/** When the cache goes or went cold: measured from the last reply, else
+ *  recalled; null with nothing to go by, or a resume the engine called expired. */
+const coldAtOf = (): number | null => {
+  const measured = measuredColdAt()
+  if (measured !== null) return measured
+  if (state.resumedCache?.expired === true) return null
+  const recalled = isRecalled() ? recalledAt() : undefined
+  return recalled === undefined ? null : recalled + TTL_MS[effectiveTtl()]
+}
+
 /** The cache's time left: from the last reply this band saw, else the one
  *  it recalls, none if the engine called it expired; a full lifetime before
  *  either. */
 export const msLeft = (now: number): number => {
-  const measured = measuredColdAt()
-  if (measured !== null) return Math.max(0, measured - now)
-  const ttlMs = TTL_MS[effectiveTtl()]
-  const recalled = isRecalled() ? recalledAt() : undefined
-  if (recalled === undefined) return ttlMs
-  if (state.resumedCache?.expired === true) return 0
-  return Math.max(0, recalled + ttlMs - now)
+  if (state.requests === 0 && state.resumedCache?.expired === true) return 0
+  const at = coldAtOf()
+  return at === null ? TTL_MS[effectiveTtl()] : Math.max(0, at - now)
 }
 
 /** The cache as the band shows it, at `now`: measured once a reply has been
@@ -401,6 +407,7 @@ export const cacheView = (now: number, sessionCost: number | undefined, contextT
   return {
     requests: state.requests,
     msLeft: msLeft(now),
+    coldAt: coldAtOf(),
     ttl: effectiveTtl(),
     // Known, not assumed: pinned, or seen on the transcript's last cache write.
     ttlPinned: state.ttlPinned || state.ttlSeen !== undefined,

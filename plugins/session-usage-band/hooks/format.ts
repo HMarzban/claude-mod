@@ -89,7 +89,7 @@ export const severityMark = (frac: number): string => (frac >= SEVERE_AT ? '!!' 
 const DAY_MINUTES = 24 * 60
 
 /** A projection's whole minutes: 5-minute steps under an hour, 15 from one. */
-const etaMinutes = (ms: number): number => {
+export const etaMinutes = (ms: number): number => {
   const mins = Math.max(0, ms) / MINUTE_MS
   return mins < 57.5 ? Math.max(5, Math.round(mins / 5) * 5) : Math.round(mins / 15) * 15
 }
@@ -211,10 +211,10 @@ export const fmtDayClock = (ms: number, zone: Zone, now: number): string =>
 export const fmtDay = (ms: number, zone: Zone, now: number): string => (isToday(ms, zone, now) ? fmtClock(ms, zone) : weekdayOf(ms, zone, now))
 
 /** Whole seconds left, never 0 while any remain. */
-const secondsLeft = (ms: number): number => Math.max(1, Math.ceil(ms / 1000))
+export const secondsLeft = (ms: number): number => Math.max(1, Math.ceil(ms / 1000))
 /** Whole minutes left: rounded up under ten minutes, then as `fmtCountdown`
  *  counts them. */
-const minutesLeft = (ms: number): number => (ms < 10 * MINUTE_MS ? Math.ceil(ms / MINUTE_MS) : Math.floor(wholeSeconds(ms) / 60))
+export const minutesLeft = (ms: number): number => (ms < 10 * MINUTE_MS ? Math.ceil(ms / MINUTE_MS) : Math.floor(wholeSeconds(ms) / 60))
 
 /** The countdown alone, for a tile or a pill: `1h 00m`, `52m`, `10m`, `47s`. */
 export const fmtLeftShort = (ms: number): string =>

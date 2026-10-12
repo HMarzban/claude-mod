@@ -5,6 +5,7 @@
 import type { DayCell, Week } from './calendar'
 import {
   clamp01,
+  etaMinutes,
   fmtAgo,
   fmtClock,
   fmtCost,
@@ -22,16 +23,22 @@ import {
   fmtSmallCost,
   fmtTokens,
   HOUR_MS,
+  MINUTE_MS,
+  minutesLeft,
   plural,
+  secondsLeft,
   severityMark,
   SOON_MS,
+  WARN_AT,
 } from './format'
 import type { Zone } from './format'
 import { warmAverageOf } from './insights'
 import type { CostEntry, TrailPoint, Trails } from './insights'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
-import type { CacheFacts, ContextFacts, Frame, LimitFacts, LimitView, SliceMark, SliceRow, SpendFacts } from './reading'
+import type { CacheFacts, ContextFacts, Frame, LimitFacts, LimitKey, LimitView, SliceMark, SliceRow, SpendFacts, Tone } from './reading'
 import type { BandSnapshot } from './snapshot'
+import type { Workspace } from './workspace'
+import { stripWords } from './workspace'
 
 /** The colour a piece of a phrase is drawn in. */
 export type Role = 'label' | 'value' | 'amber' | 'accent5' | 'accent7'
@@ -137,6 +144,8 @@ export type CacheWords = Readonly<{
   leftShort: string
   say: Say
   sayShort: Say
+  /** The cache's mood for a reader, unchanged as it counts down: the heartbeat's alt. */
+  heartAlt: string
   /** The cache as a sentence names it, bold on its figure alone: `cache
    *  52m left`, `cache cold · re-warm ~$1.66`; cold and short of room,
    *  `cache cold ~$1.66`. Warming or working, it has no figure to bold. */
@@ -357,6 +366,8 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     leftShort,
     say,
     sayShort,
+    heartAlt:
+      f.mood === 'cold' ? 'cache cold' : f.mood === 'expiring' ? 'cache in its last minute' : f.mood === 'unmeasured' ? 'cache not measured yet' : f.mood === 'warming' ? 'cache warming' : 'cache warm',
     sentence,
     sentenceShort: f.mood === 'cold' ? [['cache cold ', 'label'], [f.estimate, 'value']] : sentence,
     text: joined(say),
@@ -808,3 +819,115 @@ export const weekWords = (
     byDay: byDayOf(w.days, rows.days.marks),
   }
 }
+
+// ---- the departures board ----------------------------------------------------
+
+export type BoardKey = 'cache' | 'spend' | 'context' | '5h' | '7d' | 'other'
+export type BoardRow = Readonly<{
+  key: BoardKey
+  item: string        // CACHE | SPEND | CONTEXT | 5H | 7D | an other limit's name, upper-case
+  status: string      // DEPARTS | LAST CALL | DEPARTED | BOARDING | CHECK-IN | $0.24 | 8% USED | 26% | ! NEAR LIMIT
+  time: string        // 17:24 | SAT 13:30 | IN 38 MIN | IN 1H 04M | PASSED | -
+  remarks: string
+  cell: string        // collapsed, long: DEPARTS 17:24 | 26% ↻ 17:50 | 85% ↻ SAT 13:30 ! NEAR LIMIT
+  cellShort: string   // collapsed, short: 17:24 | ! 47S | 26%
+  /** Limits only: the cell without its reset. */
+  cellNoReset?: string
+  tone: Tone
+  alt: string         // in words, never capitals or ↻: the reading's existing alt
+}>
+export type Board = Readonly<{ header: readonly string[] | undefined; rows: readonly BoardRow[] }>
+export type BoardFacts = Readonly<{
+  frame: Frame
+  cache: CacheFacts & CacheWords
+  spend: SpendFacts & SpendWords
+  context: ContextFacts & ContextWords
+  limits: readonly (LimitFacts & LimitWords)[]
+  workspace: Workspace | undefined
+  coldAt: number | null
+}>
+
+const NONE = '-'
+/** A measured span on the board: `47S`, `38 MIN`, `1H 04M`. Never `38M`. */
+const boardSpan = (ms: number): string =>
+  ms < MINUTE_MS ? `${secondsLeft(ms)}S` : ms < HOUR_MS ? `${minutesLeft(ms)} MIN` : fmtCountdown(ms)
+/** A projection on the board: `~40 MIN`, `~1H 15M`. */
+const boardEta = (ms: number): string => (etaMinutes(ms) < 60 ? `~${etaMinutes(ms)} MIN` : fmtEta(ms))
+
+const cacheBoard = (r: BoardFacts): BoardRow => {
+  const c = r.cache
+  const zone = r.frame.zone
+  const at = (cell: Omit<BoardRow, 'key' | 'item' | 'alt'>): BoardRow => ({ key: 'cache', item: 'CACHE', alt: c.alt, ...cell })
+  const reWarm = `RE-WARM ${c.estimate}`
+  if (c.mood === 'unmeasured' || c.mood === 'warming') return at({ status: 'CHECK-IN', time: NONE, remarks: '', cell: 'CHECK-IN', cellShort: 'CHECK-IN', tone: 'calm' })
+  if (r.frame.isWorking) return at({ status: 'BOARDING', time: NONE, remarks: '', cell: 'BOARDING', cellShort: 'BOARDING', tone: 'calm' })
+  const clock = r.coldAt === null || zone === undefined ? undefined : `${c.measured ? '' : '~'}${fmtClock(r.coldAt, zone)}`
+  if (c.mood === 'cold')
+    return at({ status: 'DEPARTED', time: clock ?? NONE, remarks: reWarm, cell: clock === undefined ? `DEPARTED · ${reWarm}` : `DEPARTED ${clock} · ${reWarm}`, cellShort: reWarm, tone: 'calm' })
+  const left = c.coldInMs ?? 0
+  if (c.tone === 'amber') {
+    const secs = boardSpan(left)
+    return at({ status: 'LAST CALL', time: secs, remarks: reWarm, cell: `LAST CALL ${secs}`, cellShort: `! ${secs}`, tone: 'amber' })
+  }
+  const status = c.lastCall ? 'LAST CALL' : 'DEPARTS'
+  const countdown = `IN ${boardSpan(left)}`
+  const time = clock ?? countdown
+  return at({ status, time, remarks: `${clock === undefined ? '' : `${countdown} · `}${reWarm} IF MISSED`, cell: `${status} ${time}`, cellShort: time, tone: 'calm' })
+}
+
+const spendBoard = (r: BoardFacts): BoardRow => ({
+  key: 'spend', item: 'SPEND', status: r.spend.totalText, time: NONE,
+  remarks: r.spend.lastText === undefined ? '' : `LAST ${r.spend.lastText}`,
+  cell: r.spend.totalText, cellShort: r.spend.totalText, tone: 'calm', alt: `spent ${r.spend.totalText} this session`,
+})
+
+const contextBoard = (r: BoardFacts): BoardRow => {
+  const x = r.context
+  const base = { key: 'context', item: 'CONTEXT', time: NONE, alt: x.alt } as const
+  if (!x.known) return { ...base, status: 'NOT REPORTED', remarks: '', cell: 'NOT REPORTED', cellShort: 'NOT REPORTED', tone: 'calm' }
+  const remarks = [x.roomText === undefined ? '' : `${x.roomText} LEFT`, x.compactsAtText ?? ''].filter(Boolean).join(' · ')
+  if (x.tone === 'calm') return { ...base, status: `${x.valueText} USED`, remarks, cell: x.valueText, cellShort: x.valueText, tone: 'calm' }
+  // Near compaction the board names the event; with compaction off, the fill.
+  const short = `! CONTEXT ${x.valueText}`
+  const long = x.toCompact === undefined ? short : `! COMPACTS IN ~${fmtTokens(x.toCompact)}`
+  return { ...base, status: long, remarks, cell: long, cellShort: short, tone: 'amber' }
+}
+
+const limitBoard = (r: BoardFacts, l: LimitFacts & LimitWords): BoardRow => {
+  const { zone, now } = r.frame
+  const time = l.passed ? 'PASSED' : l.resetInMs === undefined ? NONE : zone === undefined ? `IN ${boardSpan(l.resetInMs)}` : fmtDayClock(now + l.resetInMs, zone, now)
+  // Amber from the pace, not from crossing the warning line: say when it fills.
+  const byPace = l.key === '5h' && l.tone === 'amber' && l.etaMs !== null && l.percentUsed < WARN_AT * 100
+  const amber = l.tone !== 'amber' ? undefined : byPace && l.etaMs !== null ? (zone === undefined ? `! FULL IN ${boardEta(l.etaMs)}` : `! FULL ~${fmtClock(now + l.etaMs, zone)}`) : '! NEAR LIMIT'
+  const calm = l.fillText ?? l.pace
+  const tail = (amber ?? calm) === '' ? '' : ` ${amber ?? calm}`
+  return {
+    key: l.key, item: l.key === 'other' ? l.name : l.key, status: amber ?? l.valueText, time,
+    remarks: amber === undefined ? calm : [l.valueText, calm].filter(Boolean).join(' · '),
+    cell: `${l.valueText}${time === NONE ? '' : ` ↻ ${time}`}${tail}`, cellShort: l.valueText, cellNoReset: `${l.valueText}${tail}`,
+    tone: l.tone, alt: l.alt,
+  }
+}
+
+const upRow = (row: BoardRow): BoardRow => ({
+  ...row, item: row.item.toUpperCase(), status: row.status.toUpperCase(), time: row.time.toUpperCase(),
+  remarks: row.remarks.toUpperCase(), cell: row.cell.toUpperCase(), cellShort: row.cellShort.toUpperCase(),
+  ...(row.cellNoReset === undefined ? {} : { cellNoReset: row.cellNoReset.toUpperCase() }),
+})
+
+/** The departures board: a row per reading in the one order, in the
+ *  board's capitals; alts stay in words. */
+export const boardWords = (r: BoardFacts): Board => {
+  const of = (key: LimitKey) => r.limits.filter(l => l.key === key).map(l => limitBoard(r, l))
+  return {
+    header: r.workspace === undefined ? undefined : stripWords(r.workspace).map(w => w.toUpperCase()),
+    rows: [cacheBoard(r), spendBoard(r), contextBoard(r), ...of('5h'), ...of('7d'), ...of('other')].map(upRow),
+  }
+}
+
+/** REMARKS cut to `tiles` characters, `…` last where cut. */
+export const remarksFit = (remarks: string, tiles: number): string =>
+  remarks.length <= tiles ? remarks : tiles <= 1 ? '' : `${remarks.slice(0, tiles - 1)}…`
+
+/** `text` padded with spaces to `n` characters; longer text is left whole. */
+export const padTo = (text: string, n: number): string => (text.length >= n ? text : text + ' '.repeat(n - text.length))

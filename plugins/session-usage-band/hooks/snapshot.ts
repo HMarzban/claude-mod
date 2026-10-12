@@ -34,6 +34,8 @@ export type BandSnapshot = Readonly<{
   cache: Readonly<{
     requests: number
     msLeft: number
+    /** When the cache goes or went cold, epoch ms; null when not known. */
+    coldAt: number | null
     ttl: Ttl
     /** The TTL is known, not assumed: pinned by the environment, or seen on
      *  the transcript's last cache write before this band's first reply. */

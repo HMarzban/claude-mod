@@ -28,8 +28,8 @@ import { drawnTier } from './glyphs'
 import { warmAverageOf } from './insights'
 import type { Trails } from './insights'
 import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
-import { cacheCopy, cacheWords, contextWords, historyWords, lastHourOf, limitWords, spendWords, tokenBreakdownOf, weekWords } from './words'
-import type { CacheCopy, CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
+import { boardWords, cacheCopy, cacheWords, contextWords, historyWords, lastHourOf, limitWords, spendWords, tokenBreakdownOf, weekWords } from './words'
+import type { Board, CacheCopy, CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
 
 export type Tone = 'calm' | 'amber'
 
@@ -244,6 +244,8 @@ export type Readings = Readonly<{
   history: HistoryReading
   /** The week's day and hour cells; built, like history, the first time a view reads it. */
   week: WeekReading
+  /** The departures board's rows, in its capitals; built, like history, the first time a view reads it. */
+  board: Board
   chips: ChipsReadings
 }>
 
@@ -430,11 +432,15 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
   const sevenDay = limits.find(l => l.key === '7d')
   let history: HistoryReading | undefined
   let week: WeekReading | undefined
+  let board: Board | undefined
+  const cacheRead = { ...cache, ...cacheWords(cache, c, frame) }
+  const spendRead = { ...spend, ...spendSaid }
+  const contextRead = { ...context, ...contextWords(context, frame) }
   return {
     frame,
-    cache: { ...cache, ...cacheWords(cache, c, frame) },
-    spend: { ...spend, ...spendSaid },
-    context: { ...context, ...contextWords(context, frame) },
+    cache: cacheRead,
+    spend: spendRead,
+    context: contextRead,
     fiveHour,
     sevenDay,
     limits,
@@ -445,6 +451,9 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     },
     get week() {
       return (week ??= weekFacts(snap, sevenDay, fiveHour))
+    },
+    get board() {
+      return (board ??= boardWords({ frame, cache: cacheRead, spend: spendRead, context: contextRead, limits, workspace: snap.workspace, coldAt: c.coldAt }))
     },
     chips: {
       raw: snap,

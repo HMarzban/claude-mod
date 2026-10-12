@@ -2,7 +2,7 @@
 // reply has been seen, recalled before that, and one rule between the two.
 
 import { test, expect } from 'claude-code/testing'
-import { cacheView, noteLoad, notePriceModel, noteRecall, recordResponse, resetCache, resetConversation } from '../hooks/cache'
+import { cacheView, noteLoad, noteResume, notePriceModel, noteRecall, recordResponse, resetCache, resetConversation } from '../hooks/cache'
 import { MIN } from './helpers'
 
 const RATE = 0.00001
@@ -57,4 +57,16 @@ test('a reset forgets the recall and the model the tokens were priced at', () =>
   const view = cacheView(0, 2.41, 0)
   expect(view.recalled).toBe(false)
   expect(view.readShare).toBe(0.1)
+})
+
+test('coldAt: null before a reply, the reply plus the lifetime after, null once a resume is called expired', () => {
+  resetCache()
+  expect(cacheView(0, undefined, 0).coldAt).toBeNull()
+  recordResponse({ input_tokens: 10, output_tokens: 10, cache_read_input_tokens: 0, cache_creation_input_tokens: 1000 }, 5 * MIN, true, undefined)
+  const v = cacheView(10 * MIN, undefined, 0)
+  expect(v.coldAt).toBe(10 * MIN + v.msLeft)
+  resetCache()
+  noteResume({ lastAt: 0, expired: true, reWarmUsd: 0.5 })
+  expect(cacheView(MIN, undefined, 0).coldAt).toBeNull()
+  expect(cacheView(MIN, undefined, 0).msLeft).toBe(0)
 })
