@@ -117,9 +117,11 @@ export type CacheWords = Readonly<{
    *  it is recalled, not measured: `cache ~40m left`, `cache ~40m`. Pulse's row says these. */
   textMarked: string
   textShortMarked: string
-  /** Pulse's open band, phrase by phrase: `52m left`, `cold at 14:32`,
-   *  `re-warm ~$1.66`; the time `~` while recalled; cold, `cold` and its
-   *  re-warm; amber, its amber words, then when it goes cold. */
+  /** Pulse's open band: its name, `cache`, then phrase by phrase:
+   *  `52m left`, `cold at 14:32`, `re-warm ~$1.66`; the time `~` while
+   *  recalled; cold, `cold` and its re-warm; amber, its amber words, then
+   *  when it goes cold. */
+  bandName: string
   bandWords: readonly string[]
   /** The last minute: `! 47s left · re-warm ~$1.66`, then `! 47s`. */
   amber: Amber | undefined
@@ -151,9 +153,10 @@ export type ContextWords = Readonly<{
   inContextText: string
   compactsAtText: string | undefined
   roomText: string | undefined
-  /** Pulse's open band, phrase by phrase: `38%`, `~114k left`, `compacts
-   *  at 190k`; amber, its amber words, then where it compacts; unknown,
-   *  `context –`. */
+  /** Pulse's open band: its name, `context`, then phrase by phrase: `38%`,
+   *  `~114k left`, `compacts at 190k`; amber, `! 93%`, the room before it
+   *  compacts, then where; unknown, `–`. */
+  bandName: string
   bandWords: readonly string[]
   windowText: string
   /** The context card's headline: `87% full`, marked past 80% when compaction is off. */
@@ -201,9 +204,12 @@ export type LimitWords = Readonly<{
   fillAt: string | undefined
   /** `full ~Mon`, as the board says it; set where `fillAt` is. */
   fillText: string | undefined
-  /** Pulse's open band, phrase by phrase: `5h 4%` or its amber words, its
+  /** Pulse's open band: its name, `5h`, then phrase by phrase: `4%` or
+   *  its amber words without the name, `! 82%` or `! full in ~40m`, its
    *  pace (the 7d its fill), and `↻ 16:40`; the pace left out where the
-   *  amber words already say the fill. Another window, its words alone. */
+   *  amber words already say the fill. Another window, its words alone,
+   *  its name among them. */
+  bandName: string
   bandWords: readonly string[]
   /** A measured fill, `~40m`. */
   fullIn: string | undefined
@@ -245,6 +251,7 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     text: joined(say),
     textMarked: recalledTime ? `cache ~${left}` : joined(say),
     textShortMarked: recalledTime ? `cache ~${leftShort}` : joined(sayShort),
+    bandName: 'cache',
     bandWords:
       f.mood === 'expiring' ? said([AMBER.cache(leftShort, f.estimate).long, coldAtClock === undefined ? undefined : `cold at ${coldAtClock}`])
       : f.mood === 'cold' ? said(['cold', reWarm])
@@ -349,9 +356,10 @@ export const contextWords = (f: ContextFacts): ContextWords => {
     inContextText: f.known ? fmtTokens(f.used) : UNKNOWN,
     compactsAtText,
     roomText,
+    bandName: 'context',
     bandWords: said([
-      amber?.long ?? (f.known ? value : joined(say)),
-      amber === undefined && roomText !== undefined ? `${roomText} left` : undefined,
+      amber === undefined ? value : `${AMBER_LEAD}${value}`,
+      amber === undefined ? (roomText === undefined ? undefined : `${roomText} left`) : f.toCompact === undefined ? undefined : `compacts in ~${fmtTokens(f.toCompact)}`,
       compactsAtText === undefined ? undefined : `compacts at ${compactsAtText}`,
     ]),
     windowText: fmtTokens(f.window),
@@ -425,8 +433,10 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     resetAtGlyph,
     fillAt,
     fillText: fillAt === undefined ? undefined : `full ${fillAt}`,
+    bandName: f.name,
     bandWords: said([
-      amber?.long ?? joined(say),
+      // Another window's line says its name among its words; 5h and 7d lead with theirs.
+      f.key === 'other' ? (amber?.long ?? joined(say)) : amber === undefined ? valueText : fullIn !== undefined ? `${AMBER_LEAD}full in ${fullIn}` : `${AMBER_LEAD}${valueText}`,
       f.key === 'other' ? undefined : f.key === '7d' ? (fillAt === undefined ? undefined : `full ${fillAt}`) : amber !== undefined && fullIn !== undefined ? undefined : pace,
       f.key === 'other' ? undefined : resetAtGlyph,
     ]),
@@ -459,6 +469,10 @@ export type HistoryWords = Readonly<{
   costsAltOf: (count: number) => string
   /** 'context over the conversation, rising, compacts at 190k'; with compaction off, no compaction point. */
   contextTrailAlt: string
+  /** Pulse's open Spend band: its name, `spend`, then phrase by phrase:
+   *  the total, `last $0.21` and `avg ~$0.02`, once there are costs. */
+  spendBandName: string
+  spendBandWords: readonly string[]
 }>
 
 /** A message above this many times the warm average is rising; below the average divided by it, falling. */
@@ -470,7 +484,7 @@ const contextTrendOf = (tokens: readonly number[]): 'rising' | 'falling' | 'stea
   return first === undefined || last === undefined || last === first ? 'steady' : last > first ? 'rising' : 'falling'
 }
 
-export const historyWords = (record: Trails, context: ContextFacts): HistoryWords => {
+export const historyWords = (record: Trails, context: ContextFacts, totalText: string): HistoryWords => {
   const last = record.costs[record.costs.length - 1]
   const avg = warmAverageOf(record.costs)
   const lastText = last === undefined ? undefined : fmtSmallCost(last.usd)
@@ -497,12 +511,16 @@ export const historyWords = (record: Trails, context: ContextFacts): HistoryWord
       .join(', ')
   }
   const compactsAt = context.compactAt === undefined ? '' : `, compacts at ${fmtTokens(context.compactAt)}`
+  const numbersShort = lastText === undefined ? '' : `last ${lastText}`
+  const avgText = avg === undefined ? undefined : `avg ${fmtEstimate(avg)}`
   return {
     lastText,
-    numbersShort: lastText === undefined ? '' : `last ${lastText}`,
-    avgText: avg === undefined ? undefined : `avg ${fmtEstimate(avg)}`,
+    numbersShort,
+    avgText,
     costsAltOf,
     contextTrailAlt: `context over the conversation, ${contextTrendOf(record.context)}${compactsAt}`,
+    spendBandName: 'spend',
+    spendBandWords: said([totalText, numbersShort, avgText]),
   }
 }
 

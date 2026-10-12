@@ -363,22 +363,30 @@ test("at the 5h window's very end, now is its last slice", () => {
   expect(w.values.length).toBeGreaterThan(1)
   expect(w.nowAt).toBe(w.values.length - 1)
 })
-test("pulse's open bands' words: each band's phrases, an amber one led by its amber words", () => {
+test("pulse's open bands' words: each band's name, then its phrases, an amber one led by its amber words, the name never again", () => {
   const read = (over: Parameters<typeof snapOf>[0] = {}) => readingsOf(snapOf({ zone: fixedZone(0), ...over }))
   const calm = read()
+  expect([calm.cache.bandName, calm.history.spendBandName, calm.context.bandName, calm.fiveHour?.bandName, calm.sevenDay?.bandName]).toEqual(['cache', 'spend', 'context', '5h', '7d'])
   expect(calm.cache.bandWords).toEqual(['52m left', 'cold at 00:52', 're-warm ~$1.66'])
+  expect(calm.history.spendBandWords).toEqual(['$3.19'])
+  expect(read({ history: { costs: [{ usd: 0.2, reWarm: false }, { usd: 0.21, reWarm: false }], context: [] } }).history.spendBandWords).toEqual(['$3.19', 'last $0.21', 'avg ~$0.21'])
   expect(calm.context.bandWords).toEqual(['40%', '~114k left', 'compacts at 190k'])
-  expect(calm.fiveHour?.bandWords).toEqual(['5h 4%', 'on pace for ~10%', '↻ 03:00'])
-  expect(calm.sevenDay?.bandWords).toEqual(['7d 30%', '↻ Sat 19:00'])
+  expect(calm.fiveHour?.bandWords).toEqual(['4%', 'on pace for ~10%', '↻ 03:00'])
+  expect(calm.sevenDay?.bandWords).toEqual(['30%', '↻ Sat 19:00'])
   const expiring = read({ cache: { ...snapOf().cache, msLeft: 30_000, ttl: '5m' } }).cache.bandWords
   expect(expiring[0]).toMatch(/^! 30s left · re-warm ~\$/)
   expect(read({ cache: { ...snapOf().cache, msLeft: 0 } }).cache.bandWords).toEqual(['cold', 're-warm ~$1.66'])
   expect(read({ cache: { ...snapOf().cache, requests: 0, recalled: true } }).cache.bandWords[0]).toBe('~52m left')
   const near = read({ context: { tokens: 180_000, window: 200_000, percent: 90, compactAt: 190_000, autoCompactOff: false } }).context.bandWords
-  expect(near).toEqual(['! context 95% · compacts in ~10k', 'compacts at 190k'])
+  expect(near).toEqual(['! 95%', 'compacts in ~10k', 'compacts at 190k'])
+  expect(read({ context: { tokens: undefined, window: 200_000, percent: undefined, compactAt: undefined, autoCompactOff: false } }).context.bandWords).toEqual(['–'])
   const pace = read({ fiveHour: { percentUsed: 50, resetsAt: new Date(4 * HOUR).toISOString(), etaMs: 40 * MIN } }).fiveHour?.bandWords
-  expect(pace?.[0]).toBe('! 5h full in ~40m')
+  expect(pace?.[0]).toBe('! full in ~40m')
   expect(pace?.some(p => /^full in/.test(p))).toBe(false)
+  const seven = read({ sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() } }).sevenDay
+  expect(seven?.bandWords[0]).toBe('! 85%')
+  for (const [name, words] of [['cache', expiring], ['context', near], ['5h', pace ?? []], ['7d', seven?.bandWords ?? []]] as const)
+    expect(words.join(' · ')).not.toMatch(new RegExp(`\\b${name}\\b`))
   for (const words of [calm.cache.bandWords, calm.context.bandWords, calm.fiveHour?.bandWords ?? []]) expect(words.every(w => w !== '')).toBe(true)
 })
 test("the 7d's days as drawn: capped, so the guesses never pass what is left; today kept", () => {

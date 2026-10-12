@@ -72,13 +72,20 @@ const fitWords = (kit: Kit, phrases: readonly string[], room: number): string =>
   return words
 }
 
-/** A band: its chart, if drawn, then its words in their ink, on one line. */
-const band = (kit: Kit, key: string, chart: RenderChildren, words: string, amber: boolean): RenderElement => {
-  const { Box, palette, onTone, oneLine } = kit
+/** The columns a band's name takes before its words, a column apart. */
+const nameRoom = (kit: Kit, name: string | undefined): number => (name === undefined ? 0 : cellsIn(kit, name) + 1)
+
+/** A band: its chart, if drawn, then its name in a label's ink, if it has
+ *  one, and its words in their ink, on one line. */
+const band = (kit: Kit, key: string, chart: RenderChildren, name: string | undefined, words: string, amber: boolean): RenderElement => {
+  const { Box, Text, palette, onTone, oneLine } = kit
   return (
     <Box key={key} flexDirection="row" columnGap={1}>
       {chart === null ? null : <Box key="chart" flexShrink={0}>{chart}</Box>}
-      <Box key="words" flexShrink={0}>{oneLine({ key: 'w', color: onTone(amber ? 'amber' : 'calm', palette.value) }, words)}</Box>
+      <Box key="words" flexShrink={0} flexDirection="row" columnGap={1}>
+        {name === undefined ? null : <Text key="name" color={palette.label}>{name}</Text>}
+        {oneLine({ key: 'w', color: onTone(amber ? 'amber' : 'calm', palette.value) }, words)}
+      </Box>
     </Box>
   )
 }
@@ -91,25 +98,27 @@ const rowsOf = (kit: Kit, drawn: boolean, rows: number): number => (kit.Svg && d
 const limitHalf = (kit: Kit, read: Readings, l: LimitView, size: Size, room: number): Drawn => {
   const { Svg, palette } = kit
   const { week } = read
-  const words = fitWords(kit, l.bandWords, room)
+  // The name leads the words: what is left of the room is theirs.
+  const left = room - nameRoom(kit, l.bandName)
+  const words = fitWords(kit, l.bandWords, left)
   const tall = size === 'two' ? 2 : 3
   const ink = l.tone === 'amber' ? palette.amberFg : l.key === '5h' ? palette.fiveAccent : palette.weekAccent
   const charts = read.frame.glyphs === 'unicode' && size !== 'words'
   let chart: RenderChildren = null
   if (charts && l.key === '5h' && week.fiveHourWindow.values.length > 1) {
-    const px = chartFit(kit, room, words, LINE_PX, week.fiveHourWindow.values.length)
+    const px = chartFit(kit, left, words, LINE_PX, week.fiveHourWindow.values.length)
     if (px !== undefined)
       chart = sparkline(kit, { key: 'trail', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, color: ink, px, height: CHART_PX[tall], air: AIR_PX, max: 100 })
   }
   // The day cells are the desktop's: in text the 7d is words.
   if (charts && Svg && l.key === '7d' && week.daysDrawn.measured) {
     const days = week.daysDrawn
-    const px = chartFit(kit, room, words, LINE_PX, days.values.length)
+    const px = chartFit(kit, left, words, LINE_PX, days.values.length)
     const cellPx = px === undefined ? undefined : dayCellsFit(px, days.values.length, DAY_CELL_PX)
     if (cellPx !== undefined)
       chart = dayCells(kit, { key: 'days', alt: week.daysAlt, values: days.values, guess: days.guess, today: days.today, color: ink, cellPx, height: DAY_PX[tall], air: AIR_PX, max: 100 })
   }
-  return { el: band(kit, l.key, chart, words, l.amber !== undefined), rows: rowsOf(kit, chart !== null, tall) }
+  return { el: band(kit, l.key, chart, l.bandName, words, l.amber !== undefined), rows: rowsOf(kit, chart !== null, tall) }
 }
 
 /** Limits: 5h and 7d side by side, each in half the room, while their
@@ -120,7 +129,7 @@ const limitsBand = (kit: Kit, read: Readings, size: Size, room: number): Drawn |
   const halves = [read.fiveHour, read.sevenDay].filter((l): l is LimitView => l !== undefined)
   if (halves.length === 0) return undefined
   const half = (room - 2) / 2
-  const across = halves.length === 1 || ((kit.Svg !== undefined || size === 'words') && halves.every(l => cellsIn(kit, l.bandWords.join(DOT)) <= half))
+  const across = halves.length === 1 || ((kit.Svg !== undefined || size === 'words') && halves.every(l => nameRoom(kit, l.bandName) + cellsIn(kit, l.bandWords.join(DOT)) <= half))
   const drawn = halves.map(l => limitHalf(kit, read, l, size, across && halves.length > 1 ? half : room))
   const el = (
     <Box key="band:limits" flexDirection={across ? 'row' : 'column'} columnGap={2}>
@@ -138,36 +147,39 @@ const bands = (kit: Kit, read: Readings, step: Step, room: number): Drawn[] => {
   const charts = read.frame.glyphs === 'unicode'
   const drawn: Drawn[] = []
   if (step.cache !== undefined) {
-    const words = fitWords(kit, cache.bandWords, room)
-    const px = charts ? chartFit(kit, room, words, DRAIN_PX, 2) : undefined
+    const left = room - nameRoom(kit, cache.bandName)
+    const words = fitWords(kit, cache.bandWords, left)
+    const px = charts ? chartFit(kit, left, words, DRAIN_PX, 2) : undefined
     // Inked by its mood: amber in its last minute, warm green while warm, a
     // label's ink cold, unmeasured or warming.
     const ink = cache.tone === 'amber' ? palette.amberFg : cache.mood === 'warm' ? palette.warm : palette.label
     const chart = px === undefined ? null : sparkline(kit, { key: 'drain', alt: cache.heartAlt, values: [1, cache.charge], color: ink, px, height: 16, max: 1 })
-    drawn.push({ el: band(kit, 'band:cache', chart, words, cache.amber !== undefined), rows: 1 })
+    drawn.push({ el: band(kit, 'band:cache', chart, cache.bandName, words, cache.amber !== undefined), rows: 1 })
   }
   if (step.spend !== undefined) {
-    const words = fitWords(kit, [read.spend.totalText, ...(hist.empty ? [] : [hist.numbersShort]), ...(hist.avgText === undefined ? [] : [hist.avgText])], room)
-    const px = charts && step.spend === 'chart' && !hist.empty ? chartFit(kit, room, words, LINE_PX, BEATS) : undefined
+    const left = room - nameRoom(kit, hist.spendBandName)
+    const words = fitWords(kit, hist.spendBandWords, left)
+    const px = charts && step.spend === 'chart' && !hist.empty ? chartFit(kit, left, words, LINE_PX, BEATS) : undefined
     // No cost yet: the words for that in the trace's place, while they fit.
-    const empty = step.spend === 'chart' && hist.empty && cellsIn(kit, words) + 1 + cellsIn(kit, EMPTY.costs) <= room
+    const empty = step.spend === 'chart' && hist.empty && cellsIn(kit, words) + 1 + cellsIn(kit, EMPTY.costs) <= left
     const chart = empty ? <Text key="empty" color={palette.label}>{EMPTY.costs}</Text>
       : px === undefined ? null
       : barChart(kit, { key: 'beats', alt: hist.costsAltOf(BEATS), values: hist.costValues.slice(-BEATS), marked: hist.reWarms.slice(-BEATS), level: hist.warmAvgUsd, color: palette.value, markColor: palette.value, px, height: CHART_PX[SPEND_ROWS], air: AIR_PX, max: hist.beatsTop })
-    drawn.push({ el: band(kit, 'band:spend', chart, words, false), rows: rowsOf(kit, px !== undefined, SPEND_ROWS) })
+    drawn.push({ el: band(kit, 'band:spend', chart, hist.spendBandName, words, false), rows: rowsOf(kit, px !== undefined, SPEND_ROWS) })
   }
   if (step.context !== undefined) {
-    const words = fitWords(kit, context.bandWords, room)
-    const px = charts && hist.context.length > 1 ? chartFit(kit, room, words, LINE_PX, hist.context.length) : undefined
+    const left = room - nameRoom(kit, context.bandName)
+    const words = fitWords(kit, context.bandWords, left)
+    const px = charts && hist.context.length > 1 ? chartFit(kit, left, words, LINE_PX, hist.context.length) : undefined
     const chart = px === undefined ? null
       : sparkline(kit, { key: 'trail', alt: hist.contextTrailAlt, values: hist.context, color: palette.label, px, height: CHART_PX[CONTEXT_ROWS], air: AIR_PX, max: context.compactAt ?? context.window, level: context.compactAt === undefined ? undefined : 1 })
-    drawn.push({ el: band(kit, 'band:context', chart, words, context.amber !== undefined), rows: rowsOf(kit, chart !== null, CONTEXT_ROWS) })
+    drawn.push({ el: band(kit, 'band:context', chart, context.bandName, words, context.amber !== undefined), rows: rowsOf(kit, chart !== null, CONTEXT_ROWS) })
   }
   const limits = step.limits === undefined ? undefined : limitsBand(kit, read, step.limits, room)
   if (limits !== undefined) drawn.push(limits)
   const others = read.limits.filter(l => l.key === 'other')
   if (step.other !== undefined && others.length > 0)
-    drawn.push({ el: band(kit, 'band:other', null, fitWords(kit, others.flatMap(l => l.bandWords), room), others.some(l => l.amber !== undefined)), rows: 1 })
+    drawn.push({ el: band(kit, 'band:other', null, undefined, fitWords(kit, others.flatMap(l => l.bandWords), room), others.some(l => l.amber !== undefined)), rows: 1 })
   return drawn
 }
 

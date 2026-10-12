@@ -10,7 +10,7 @@ import { DARK } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { EMPTY } from '../hooks/words'
-import { HOUR, MIN, SAMPLES, USAGE, byKey, fakeEl, firstRow, shown, svgAlts, svgsOf, type Node } from './helpers'
+import { HOUR, MIN, SAMPLES, USAGE, byKey, fakeEl, firstRow, shown, svgAlts, svgsOf, walk, type Node } from './helpers'
 import { NO_ACT, caseKey, drawCases, snapOf, viewSuite, visualRows, withLimits } from './matrix'
 
 viewSuite('pulse')
@@ -187,7 +187,7 @@ test('open: as rows run out, the bands give way in the spec order and the footer
 test('open on the terminal: each band a line, braille beside its words, Limits two', () => {
   const open = band({ surface: 'terminal', expanded: true, maxRows: 13, ...LIMITS, otherLimits: OTHER })
   expect(['band:cache', 'band:spend', 'band:context', 'band:limits', 'band:other'].map(k => visualRows(byKey(open, k, 'Box'), 'terminal'))).toEqual([1, 1, 1, 2, 1])
-  expect(shown(byKey(open, 'band:spend', 'Box'))).toMatch(/^[⠀-⣿]+ ?\$3\.19 · last \$0\.21 · avg ~\$/)
+  expect(shown(byKey(open, 'band:spend', 'Box'))).toMatch(/^[⠀-⣿]+ ?spend ?\$3\.19 · last \$0\.21 · avg ~\$/)
 })
 test('open, an amber other limit outlasts every band', () => {
   const amber = [{ kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }] as BandSnapshot['otherLimits']
@@ -253,7 +253,7 @@ test("pulse's amber cache is led by '! ', on the row and open", () => {
   const row = rowOf({ surface: 'terminal', cache: EXPIRING })
   expect(shown(byKey(row, 'cache', 'Box'))).toMatch(/^! 30s left/)
   const open = band({ surface: 'desktop', expanded: true, cache: EXPIRING })
-  expect(shown(byKey(open, 'band:cache', 'Box'))).toMatch(/^! 30s left · re-warm/)
+  expect(shown(byKey(open, 'band:cache', 'Box'))).toMatch(/^cache ?! 30s left · re-warm/)
 })
 test("an expiring cache's heartbeat is drawn in amber", () => {
   expect(String(beatOf(band({ surface: 'desktop', cache: EXPIRING }))?.props?.source)).toMatch(new RegExp(`fill="${DARK.amberFg}"`))
@@ -312,4 +312,20 @@ test("today's fill, with no reading inside today yet, draws as the alt says it: 
     expect(guesses).toHaveLength(1)
     expect(Math.abs((guesses[0] ?? 0) - 15)).toBeLessThan(2)
   }
+})
+test('open: each band leads with its name in a label\'s ink, cache, spend, context, 5h and 7d, never said twice', () => {
+  const amber = { cache: EXPIRING, context: NEAR, sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() } }
+  for (const surface of ['desktop', 'terminal'] as const)
+    for (const over of [{}, amber]) {
+      const open = band({ surface, expanded: true, ...LIMITS, ...over })
+      const names: string[] = []
+      for (const k of ['band:cache', 'band:spend', 'band:context', 'band:limits']) {
+        walk(byKey(open, k, 'Box'), n => {
+          if (n.type === 'Text' && n.props?.key === 'name') names.push(`${(n.children ?? []).join('')}|${n.props?.color === DARK.label ? 'label' : String(n.props?.color)}`)
+        })
+      }
+      expect(`${surface} ${names.join(' ')}`).toBe(`${surface} cache|label spend|label context|label 5h|label 7d|label`)
+      expect(shown(byKey(open, 'band:context', 'Box'))).toMatch(over === amber ? /^[⠀-⣿]* ?context ?! 95% · / : /^[⠀-⣿]* ?context ?40% · /)
+      expect(shown(byKey(open, 'band:limits', 'Box'))).toMatch(over === amber ? /5h ?26% ·[\s\S]*7d ?! 85% · / : /5h ?26% ·[\s\S]*7d ?41% · /)
+    }
 })

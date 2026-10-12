@@ -89,6 +89,7 @@ A stack of full-width bands, each with its chart on the left and its words on th
 | Context | 2 | The last 40 turns under a dashed compaction line | `8% · ~893k left · compacts at 967k` |
 | Limits | 3 | 5h on the left: start to reset, now marked, projection dashed. 7d on the right: the day cells. | `5h 26% · on pace for ~33% · ↻ 17:50`<br>`! 7d 85% · full ~Tue · ↻ Sat 13:30` |
 
+- Each band's words lead with its name in a label's ink, `cache`, `spend`, `context`, `5h` and `7d`, and never say it again: an amber 7d reads `7d ! 85% · full ~Tue · ↻ Sat 13:30`.
 - `otherLimits` follow as one line of words, and that line counts in the body.
 - **Rows at `maxRows` 13:** 1 collapsed + 9 body (8 for the bands and 1 for `otherLimits`) + 3 frame. The strip sits in the footer row.
 - **Give-way:**
