@@ -9,14 +9,13 @@ import { meter, splitBar } from '../charts'
 import type { SplitPart } from '../charts'
 import type { Icon } from '../icons'
 import type { Kit } from '../kit'
-import { CARD_TEXT, DESKTOP, HOTKEY_MARK, ROW_SLACK, cellsOf } from '../layout'
+import { CARD_TEXT, DESKTOP, ROW_SLACK, cellsOf } from '../layout'
 import type { BarSize } from '../layout'
-import { BARE } from '../palette'
 import type { LimitKey, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { drawStrip } from '../strip'
 import { SPLIT_LABELS, type Say } from '../words'
-import { bodyRowsFor } from './frame'
+import { bodyRowsFor, footer, footerRoom } from './frame'
 import { ROLE_INK, accentOf } from './parts'
 
 /** The cards, in the order they are drawn. */
@@ -127,7 +126,7 @@ export const tokenPartsOf = (kit: Kit, read: Readings): SplitPart[] => {
  *  hold their text, each as much of its body as the band has rows for; the
  *  workspace strip on top or in the footer; then Collapse and Hide band. */
 export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOptions): RenderChildren[] => {
-  const { Box, Button, Text, Svg, palette, measure, columns, onTone, oneLine, icon } = kit
+  const { Box, Text, Svg, palette, measure, columns, onTone, oneLine, icon } = kit
   const { cache, spend, context } = read
 
   /** A label and its value at either end of a line, unless the collapsed
@@ -441,25 +440,12 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
 
   const cardViews = [cacheView, spendView, contextView, limitsView].filter(view => view !== null)
 
-  const buttons = [
-    <Button key="collapse" label="Collapse" variant="secondary" hotkey="c" onPress={act.toggleExpanded} />,
-    <Button key="hide" label="Hide band" variant="secondary" hotkey="h" onPress={act.hide} />,
-  ]
   let strip: RenderElement | null = null
   if (stripPlace !== undefined && ws !== undefined) {
     // In the footer it shares the line with the buttons and their hotkey marks.
-    const room = columns - ROW_SLACK - (stripPlace === 'footer' ? cellsOf(buttons, measure) + 2 * HOTKEY_MARK + 2 : 0)
+    const room = columns - ROW_SLACK - (stripPlace === 'footer' ? footerRoom(kit) : 0)
     strip = drawStrip(kit, ws, stripPlace, edge, room)
   }
-  const hint = (
-    <Box key="hint" flexDirection="row">
-      {Svg ? icon('info', BARE.icon) : null}
-      <Text color={BARE.label}>Bring it back with /usage-band</Text>
-    </Box>
-  )
-  // The hint is optional words and the buttons the controls: past the band
-  // less its slack, as the strip beside them is measured, the hint gives way.
-  const hinted = cellsOf(hint, measure) + cellsOf(buttons, measure) + 2 * HOTKEY_MARK + buttons.length + 1 <= columns - ROW_SLACK
 
   return [
     stripPlace === 'top' ? strip : null,
@@ -477,13 +463,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
         {oneLine({ key: 'alert', color: palette.amberFg }, alerts.join(' · '))}
       </Box>
     ) : null,
-    // A strip in the footer grows into all the room the buttons leave, at
-    // least the room its cards are given; the hint leaves it to air.
-    <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>
-      {stripPlace === 'footer' ? strip : hinted ? hint : null}
-      {stripPlace === 'footer' && strip !== null ? null : <Box flexGrow={1} />}
-      {buttons}
-    </Box>,
+    footer(kit, act, stripPlace === 'footer' && strip !== null ? strip : undefined),
   ]
 }
 

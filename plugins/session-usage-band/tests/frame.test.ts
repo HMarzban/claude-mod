@@ -2,8 +2,9 @@ import { test, expect } from 'claude-code/testing'
 import { makeKit } from '../hooks/kit'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { bodyRowsFor, toggleButton } from '../hooks/views/frame'
-import { byKey, fakeEl, type Node } from './helpers'
+import { bodyRowsFor, footer, footerRoom, toggleButton } from '../hooks/views/frame'
+import type { RenderElement } from 'claude-code'
+import { byKey, fakeEl, shown, type Node } from './helpers'
 import { NO_ACT, snapOf } from './matrix'
 
 test('the body gets what is left of the rows, never less than none', () => {
@@ -26,4 +27,22 @@ test('the toggle sits on the row nearest the prompt, the way its arrow points, i
     const snap = snapOf({ surface })
     expect((toggleButton(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT) as unknown as Node).props).toMatchObject({ flexShrink: 0, position: 'relative', alignSelf: 'flex-end' })
   }
+})
+
+const kit120 = () => makeKit(fakeEl, snapOf({ surface: 'terminal', columns: 120, expanded: true }))
+test('footer without a strip: the hint, air, then Collapse (c) and Hide band (h)', () => {
+  const tree = footer(kit120(), NO_ACT) as unknown as Node
+  expect(byKey(tree, 'collapse', 'Button')?.props?.hotkey).toBe('c')
+  expect(byKey(tree, 'hide', 'Button')?.props?.hotkey).toBe('h')
+  expect(shown(tree)).toContain('Bring it back with /usage-band')
+})
+test('footer with a strip draws the strip in place of the hint', () => {
+  const k = kit120()
+  const strip = k.oneLine({ key: 'strip', color: '#fff' }, 'claude-mod') as RenderElement
+  const text = shown(footer(k, NO_ACT, strip))
+  expect(text).toContain('claude-mod')
+  expect(text).not.toContain('Bring it back')
+})
+test('footerRoom counts the buttons, their marks and gaps', () => {
+  expect(footerRoom(kit120())).toBeGreaterThan(20)
 })
