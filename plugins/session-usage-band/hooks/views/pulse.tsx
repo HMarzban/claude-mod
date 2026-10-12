@@ -17,7 +17,7 @@ import { EMPTY } from '../words'
 import type { Amber } from '../words'
 import type { Fact } from './cards'
 import { LIMITS, cachePill, contextHover, contextPill, costPill, limitPill, pillRow, type ChipKey } from './chips'
-import { AMBER_STEP, beforeLast, fitLine, layoutCacheSpec, once, type Keeps, type PillSpec } from './parts'
+import { AMBER_STEP, PERCENT, beforeLast, fitLine, layoutCacheSpec, once, type Keeps, type PillSpec } from './parts'
 import { defineCardsView, type CardOptions } from './view'
 
 /** What gives way as the row narrows, first to last: the charts, then
@@ -44,8 +44,6 @@ const LENS_CELLS = 12
 /** A measured day's cell on the desktop before it spans its slot, and the air between. */
 const DAY_PX = 12
 const DAY_GAP_PX = 4
-/** The top of a limit's scale: its percentages run to 100. */
-const PERCENT = 100
 /** The cost charts' top: three times the warm average, so a warm message
  *  stands a third of the way up and a re-warm stands clipped at the top. */
 const COST_SCALE = 3

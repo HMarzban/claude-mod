@@ -286,6 +286,9 @@ export const resetClause = (kit: Kit, ink: string, when: string, separator = ' â
   ]
 }
 
+/** The top of a limit's scale: its percentages run to 100. */
+export const PERCENT = 100
+
 /** A limit's accent: its window's, or the meter's for any other. */
 export const accentOf = (kit: Kit, limit: Readonly<{ key: LimitKey }>): string =>
   limit.key === '5h' ? kit.palette.fiveAccent : limit.key === '7d' ? kit.palette.weekAccent : kit.palette.meterFill

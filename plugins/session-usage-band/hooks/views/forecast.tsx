@@ -11,7 +11,7 @@ import type { BandActions } from '../snapshot'
 import type { Ahead, Amber } from '../words'
 import type { Fact, Slots } from './cards'
 import { LIMITS, cacheHover, contextHover, limitHover, pillRow, type ChipKey } from './chips'
-import { AMBER_STEP, ROLE_INK, batteryIcon, beforeLast, fitLine, type Keeps, type PillSpec } from './parts'
+import { AMBER_STEP, PERCENT, ROLE_INK, batteryIcon, beforeLast, fitLine, type Keeps, type PillSpec } from './parts'
 import { defineCardsView, type CardOptions } from './view'
 
 /** What gives way as the row narrows, first to last: the limits' tails, how
@@ -218,10 +218,7 @@ const fit = (kit: Kit, read: Readings, act: BandActions) => {
   return { row, drawn }
 }
 
-/** The top of a limit's scale: its percentages run to 100. */
-const PERCENT = 100
-
-/** The week's day cells, 16px tall; in ascii, which has no braille, none. */
+/** The week's day cells; in ascii, which has no braille, none. */
 const weekCells = (kit: Kit, read: Readings): RenderChildren => {
   const { days, daysAlt } = read.week
   if (read.frame.glyphs === 'ascii' || days.length === 0) return null
