@@ -610,8 +610,9 @@ const contextBoard = (r: BoardFacts): BoardRow => {
   if (!x.known) return { ...base, status: 'NOT REPORTED', remarks: '', cell: 'NOT REPORTED', cellShort: 'NOT REPORTED', tone: 'calm' }
   const remarks = [x.roomText === undefined ? '' : `${x.roomText} LEFT`, x.compactsAtText === undefined ? '' : `COMPACTS AT ${x.compactsAtText}`].filter(Boolean).join(' · ')
   if (x.tone === 'calm') return { ...base, status: `${x.valueText} USED`, remarks, cell: x.valueText, cellShort: x.valueText, tone: 'calm' }
-  // Near compaction the board names the event; with compaction off, the fill.
-  const short = `! CONTEXT ${x.valueText}`
+  // Near compaction the board names the event; with compaction off, the
+  // fill. The group's ITEM already says CONTEXT, so its cell never does.
+  const short = `! ${x.valueText}`
   const long = x.toCompact === undefined ? short : `! COMPACTS IN ~${fmtTokens(x.toCompact)}`
   return { ...base, status: long, remarks, cell: long, cellShort: short, tone: 'amber' }
 }

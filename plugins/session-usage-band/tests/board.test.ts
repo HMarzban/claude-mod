@@ -40,14 +40,15 @@ test('working boards; unmeasured and warming check in; recalled carries ~', () =
   expect(row({ cache: cacheAt({ requests: 0, recalled: false, fresh: true }) }, 'cache')?.cell).toBe('CHECK-IN')
   expect(row({ cache: cacheAt({ requests: 0, recalled: true, msLeft: 38 * MIN, coldAt: 38 * MIN }) }, 'cache')?.cell).toBe('DEPARTS ~00:38')
 })
-test('context: USED when calm; amber says COMPACTS IN, its short form CONTEXT; never CTX', () => {
+test('context: USED when calm; amber says COMPACTS IN, its short form the mark and value; never CTX', () => {
   expect(row({}, 'context')?.status).toMatch(/^\d+% USED$/)
   const near = row({ context: { ...snapOf().context, tokens: 150_000, window: 200_000, compactAt: 160_000 } }, 'context')
   expect(near?.cell).toMatch(/^! COMPACTS IN ~\d+K$/)
-  expect(near?.cellShort).toMatch(/^! CONTEXT \d+%$/)
+  // The group's ITEM already says CONTEXT: its cell never says it again.
+  expect(near?.cellShort).toBe('! 94%')
   const off = row({ context: { ...snapOf().context, tokens: 170_000, window: 200_000, compactAt: undefined } }, 'context')
-  expect(off?.cell).toMatch(/^! CONTEXT \d+%$/)
-  expect(`${near?.cell}${near?.cellShort}${near?.status}${off?.cell}`).not.toMatch(/CTX/)
+  expect([off?.cell, off?.cellShort, off?.status]).toEqual(['! 85%', '! 85%', '! 85%'])
+  expect(`${near?.cell}${near?.cellShort}${near?.status}${off?.cell}`).not.toMatch(/CTX|CONTEXT/)
 })
 test('limits: the reset stays, an amber remark replaces a calm one, cellNoReset drops only the reset', () => {
   const seven = row({ sevenDay: limit(85, 67) }, '7d')

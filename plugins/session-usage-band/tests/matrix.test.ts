@@ -205,7 +205,9 @@ test("amber: the board's capitals name the reading, its item and cell joined, br
   const amber = (text: string, scenario: InvariantContext['scenario']) => failed(view([row(t(text), toggle())]), { scenario })
   for (const said of ['CACHE LAST CALL 47S', 'CACHELAST CALL 47S', '[CACHE][! 47S]']) expect(amber(said, 'lastMinute')).not.toContain('amber')
   expect(amber('CONTEXT ! COMPACTS IN ~10K', 'nearCompaction')).not.toContain('amber')
-  expect(amber('CONTEXT! CONTEXT 85%', 'compactionOff')).not.toContain('amber')
+  expect(amber('CONTEXT ! 94%', 'nearCompaction')).not.toContain('amber')
+  expect(amber('CONTEXT! 85%', 'compactionOff')).not.toContain('amber')
+  expect(amber('[CONTEXT][! 85%]', 'compactionOff')).not.toContain('amber')
   expect(amber('5H82% ↻ 17:50 ! NEAR LIMIT', 'limit80')).not.toContain('amber')
   expect(amber('[5H][20% ! FULL ~14:20]', 'fiveHourAhead')).not.toContain('amber')
   expect(amber('5H 82%', 'limit80')).toContain('amber')
@@ -213,16 +215,18 @@ test("amber: the board's capitals name the reading, its item and cell joined, br
   const open = view([row(t('a'), toggle('▿'))], [t('SPEND LIMIT  ! NEAR LIMIT  05:00  92%')])
   expect(failed(open, { scenario: 'gatewaySpend', expanded: true })).not.toContain('amber')
 })
-test('width: pulse and departures clip below 60 only where amber is raised, ▵ still last; calm fits at every width', () => {
-  for (const layout of ['pulse', 'departures'] as const) {
-    const dep = (scenario: InvariantContext['scenario'], cols: number, kids: unknown[]) =>
-      failed(view([row(...kids)]), { layout, scenario, cols })
-    const wide = t(`5H ! 82% ${'x'.repeat(60)}`)
-    expect(dep('limit80', 50, [wide, toggle()])).not.toContain('width')
-    expect(dep('limit80', 60, [wide, toggle()])).toContain('width')
-    expect(dep('calm', 50, [wide, toggle()])).toContain('width')
-    expect(dep('limit80', 50, [toggle(), wide])).toContain('toggle')
-  }
+test('width: pulse fits its room at every width, amber or calm; departures clips below 60 only where amber is raised, ▵ still last', () => {
+  const at = (layout: 'pulse' | 'departures', scenario: InvariantContext['scenario'], cols: number, kids: unknown[]) =>
+    failed(view([row(...kids)]), { layout, scenario, cols })
+  const wide = t(`5H ! 82% ${'x'.repeat(60)}`)
+  // Every calm piece gone and amber short, pulse's row still fits, ▵ in view.
+  expect(at('pulse', 'limit80', 50, [wide, toggle()])).toContain('width')
+  expect(at('pulse', 'nearCompaction', 40, [wide, toggle()])).toContain('width')
+  expect(at('pulse', 'calm', 50, [wide, toggle()])).toContain('width')
+  expect(at('departures', 'limit80', 50, [wide, toggle()])).not.toContain('width')
+  expect(at('departures', 'limit80', 60, [wide, toggle()])).toContain('width')
+  expect(at('departures', 'calm', 50, [wide, toggle()])).toContain('width')
+  for (const layout of ['pulse', 'departures'] as const) expect(at(layout, 'limit80', 50, [toggle(), wide])).toContain('toggle')
 })
 test('order: pulse and departures keep the one order on the collapsed row; chips its own', () => {
   const box = (key: string): Node => ({ type: 'Box', props: { key }, children: [t(key)] }) as Node

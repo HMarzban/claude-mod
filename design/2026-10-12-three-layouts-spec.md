@@ -141,7 +141,7 @@ CACHE DEPARTS 17:24  SPEND $0.24  CONTEXT 8%  5H 26% ↻ 17:50  7D 85% ↻ SAT 1
 | Cache, cold | `DEPARTED 17:24 · RE-WARM ~$0.57`, or `DEPARTED · RE-WARM ~$0.57` with no known time | `RE-WARM ~$0.57` |
 | Cache, working | `BOARDING` | `BOARDING` |
 | Cache, unmeasured or warming | `CHECK-IN` | `CHECK-IN` |
-| Context, amber | `! COMPACTS IN ~12K` | `! CONTEXT 93%` |
+| Context, amber | `! COMPACTS IN ~12K`; with compaction off, `! 93%` | `! 93%`: the group's CONTEXT already names it |
 | A limit | The value, then `↻ 17:50`, then one remark. An amber remark replaces a calm one, and `↻` stays: `! NEAR LIMIT` (80%), or for 5h, `! FULL ~14:20` (the pace fills; `! FULL IN ~40 MIN` with the zone unknown). | `5H 26%` |
 | A passed reset | `↻ PASSED` | the value |
 
