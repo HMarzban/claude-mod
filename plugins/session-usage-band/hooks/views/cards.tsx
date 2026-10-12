@@ -244,13 +244,13 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     if ('says' in lead) return { row: fitting ?? null, says: fitting === undefined ? [] : lead.says }
     return { row: fitting ?? rows.at(-1) ?? null, says: [] }
   }
-  const leads: Readonly<Partial<Record<CardName, ReturnType<typeof leadOf>>>> = Object.fromEntries(CARD_NAMES.map(name => [name, leadOf(o.lead?.[name])]))
+  const leads = Object.fromEntries(CARD_NAMES.map(name => [name, leadOf(o.lead?.[name])])) as Readonly<Record<CardName, ReturnType<typeof leadOf>>>
   // What the collapsed lines show and the drawn leads say: no card row repeats it.
-  const shown = new Set<Fact>([...(o.shown ?? []), ...CARD_NAMES.flatMap(name => leads[name]?.says ?? [])])
+  const shown = new Set<Fact>([...(o.shown ?? []), ...CARD_NAMES.flatMap(name => leads[name].says)])
   /** A card: its title, the layout's lens and its headline on one line, then
    *  its bar, the layout's lead and its body. */
   const card = (name: CardName, title: string, head: Readonly<{ say: Say; tone?: Tone }>, bar: RenderChildren, body: RenderChildren[]) => {
-    const lead = leads[name]?.row ?? null
+    const lead = leads[name].row
     const say = headline(o.heads?.[name] ?? head.say, head.tone ?? 'calm')
     const titled = (
       <Box key="title" flexDirection="row" flexShrink={0}>
@@ -417,7 +417,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     const lead = leadRow()
     const rows = read.limits.map(limitRows)
     const lines = rows.flat().filter(part => part !== null)
-    const room = bodyRows - (lead === null ? 0 : 1) - ((leads.limits?.row ?? null) === null ? 0 : 1)
+    const room = bodyRows - (lead === null ? 0 : 1) - (leads.limits.row === null ? 0 : 1)
     if (lines.length <= room) return [lead, ...lines]
     const bars = rows.map(([bar]) => bar)
     const worstAt = lead === null ? read.limits.findIndex(w => w === worst) : -1
