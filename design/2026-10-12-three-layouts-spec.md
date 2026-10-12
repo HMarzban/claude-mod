@@ -132,7 +132,7 @@ A stack of full-width bands, each with its chart on the left and its words on th
 ### 5.2 Collapsed
 
 ```
-CACHE DEPARTS 17:24  SPEND $0.24  CONTEXT 8%  5H 26% ↻ 17:50  7D 85% ↻ SAT 13:30 ! NEAR LIMIT  ▵
+CACHE DEPARTS 17:24  SPEND $0.24  CONTEXT 8%  5H 26% RESET 17:50  7D 85% RESET SAT 13:30 ! NEAR LIMIT  ▵
 ```
 
 | Reading | Long form | Short form (give-way) |
@@ -145,19 +145,19 @@ CACHE DEPARTS 17:24  SPEND $0.24  CONTEXT 8%  5H 26% ↻ 17:50  7D 85% ↻ SAT 1
 | Cache, working | `BOARDING` | `BOARDING` |
 | Cache, unmeasured or warming | `CHECK-IN` | `CHECK-IN` |
 | Context, amber | `! COMPACTS IN ~12K`; with compaction off, `! 93%` | `! 93%`: the group's CONTEXT already names it |
-| A limit | The value, then `↻ 17:50`, then one remark. An amber remark replaces a calm one, and `↻` stays: `! NEAR LIMIT` (80%), or for 5h, `! FULL ~14:20` (the pace fills; `! FULL IN ~40 MIN` with the zone unknown). | `5H 26%` |
-| A passed reset | `↻ PASSED` | the value |
+| A limit | The value, then `RESET 17:50` (the flap face has no `↻`), then one remark. An amber remark replaces a calm one, and `RESET` stays: `! NEAR LIMIT` (80%), or for 5h, `! FULL ~14:20` (the pace fills; `! FULL IN ~40 MIN` with the zone unknown). | `5H 26%` |
+| A passed reset | `RESET PASSED` | the value |
 
 - **Give-way, calm only, first to last:**
-  1. 5h's `↻`;
-  2. 7d's `↻`;
+  1. 5h's `RESET`;
+  2. 7d's `RESET`;
   3. SPEND;
   4. CONTEXT;
   5. 5h's remark;
   6. the short forms.
   - CACHE and 7D never go.
   - Below 60 columns, departures draws chips.
-- **Zone unknown:** every clock time becomes a countdown, `IN 38 MIN` and `↻ IN 1H 04M`, as the earlier spec's §2.12 allows on the board.
+- **Zone unknown:** every clock time becomes a countdown, `IN 38 MIN` and `RESET IN 1H 04M`, as the earlier spec's §2.12 allows on the board.
 
 ### 5.3 Open
 
@@ -173,7 +173,7 @@ CACHE DEPARTS 17:24  SPEND $0.24  CONTEXT 8%  5H 26% ↻ 17:50  7D 85% ↻ SAT 1
 ```
 
 - **Header row.** The workspace strip's facts drawn as flaps (§6.2's `stripWords`), not as a second strip. With no workspace, the header row is left out.
-- **Rows.** The one order, with `otherLimits` after 7D. TIME's placeholder is `-`. REMARKS truncates first. Where TIME and REMARKS can't both fit, TIME's words lead REMARKS.
+- **Rows.** Every line is padded to the board's width, REMARKS too, so the board is a rectangle of tiles. The one order, with `otherLimits` after 7D. TIME's placeholder is `-`. REMARKS truncates first. Where TIME and REMARKS can't both fit, TIME's words lead REMARKS.
 - **Rows at `maxRows` 13:** 1 collapsed + 9 body (the header row, the column headings, five rows, two `otherLimits`) + 3 frame.
 - **Give-way:**
   1. `otherLimits`;

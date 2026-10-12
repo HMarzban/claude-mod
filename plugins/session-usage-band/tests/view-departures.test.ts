@@ -94,19 +94,19 @@ const NARROWING = Array.from({ length: 101 }, (_, i) => 160 - i)
 
 test("a calm 5H's remark gives way before 5H does: there is a width where it reads 5H 26% alone", () => {
   const forms = NARROWING.map(columns => groupOf(firstRow(band({ surface: 'terminal', columns })), '5h'))
-  expect(forms.some(f => /↻/.test(f))).toBe(true)
-  expect(forms.some(f => /ON PACE/.test(f) && !/↻/.test(f))).toBe(true)
+  expect(forms.some(f => /RESET/.test(f))).toBe(true)
+  expect(forms.some(f => /ON PACE/.test(f) && !/RESET/.test(f))).toBe(true)
   expect(forms).toContain('5H26%')
 })
-test("an amber limit keeps its ↻ while calm pieces give way, until the amber step", () => {
+test("an amber limit keeps its RESET while calm pieces give way, until the amber step", () => {
   let dropping = 0
   for (const columns of NARROWING) {
     const row = firstRow(band({ surface: 'terminal', columns }))
     const five = groupOf(row, '5h')
     // 5H still drawn: the amber step, which comes after it goes, is not reached.
     if (five === '') continue
-    if (!/↻/.test(five)) dropping++
-    expect(`${columns} ${groupOf(row, '7d')}`).toMatch(/↻/)
+    if (!/RESET/.test(five)) dropping++
+    expect(`${columns} ${groupOf(row, '7d')}`).toMatch(/RESET/)
   }
   expect(dropping).toBeGreaterThan(0)
 })
@@ -139,7 +139,7 @@ test('the low case at 100 terminal columns gives SPEND way rightly: with it the 
   // before ▵ takes two), and ▵ 1.
   const withSpend = rowAt(102)
   expect(byKey(withSpend, 'spend', 'Box')).toBeDefined()
-  expect(words(withSpend)).not.toMatch(/↻/)
+  expect(words(withSpend)).not.toMatch(/RESET/)
   expect(['cache', 'spend', 'context', '5h', '7d'].map(k => cells(byKey(withSpend, k, 'Box') as Node))).toEqual([19, 11, 11, 21, 23])
   expect(cells(withSpend)).toBe(98)
   expect(cells(withSpend)).toBeGreaterThan(100 - ROW_SLACK)
@@ -163,4 +163,14 @@ test("below its 60 columns departures draws exactly chips' tree; at 60, the boar
           expect(words(as('departures', 60))).toMatch(/CACHE/)
           expect(as('departures', 60)).not.toEqual(as('chips', 60))
         }
+})
+test('open: every board line is the same count of tiles, a clean rectangle', () => {
+  for (const surface of ['desktop', 'terminal'] as const)
+    for (const columns of [60, 94, 160]) {
+      const board = byKey(band({ surface, columns, expanded: true, workspace: WS, otherLimits: OTHER, maxRows: 40 }), 'board', 'Box')
+      const lines = ((board?.children ?? []) as Node[]).filter(l => String(l.props?.key).startsWith('row:'))
+      const tiles = lines.map(l => surface === 'desktop' ? Number(svgsOf(l)[0]?.props?.width) : cellsOf(l as unknown as RenderChildren, TERMINAL))
+      expect(lines.length).toBeGreaterThan(5)
+      expect(`${surface} ${columns} ${new Set(tiles).size}`).toBe(`${surface} ${columns} 1`)
+    }
 })

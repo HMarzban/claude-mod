@@ -569,13 +569,15 @@ export type BoardRow = Readonly<{
   status: string      // DEPARTS | LAST CALL | DEPARTED | BOARDING | CHECK-IN | $0.24 | 8% USED | 26% | ! NEAR LIMIT
   time: string        // 17:24 | SAT 13:30 | IN 38 MIN | IN 1H 04M | PASSED | -
   remarks: string
-  cell: string        // collapsed, long: DEPARTS 17:24 | 26% ↻ 17:50 | 85% ↻ SAT 13:30 ! NEAR LIMIT
+  cell: string        // collapsed, long: DEPARTS 17:24 | 26% RESET 17:50 | 85% RESET SAT 13:30 ! NEAR LIMIT
   cellShort: string   // collapsed, short: 17:24 | ! 47S | 26%
   /** Limits only: the cell without its reset. */
   cellNoReset?: string
   tone: Tone
   alt: string         // in words, never capitals or ↻: the reading's existing alt
 }>
+/** What the board says for a reset: the flap face has no ↻. */
+const BOARD_RESET = 'RESET'
 export type Board = Readonly<{
   header: readonly string[] | undefined
   /** The header's facts in words, for its flaps' alt. */
@@ -652,7 +654,7 @@ const limitBoard = (r: BoardFacts, l: LimitFacts & LimitWords): BoardRow => {
     key: l.key, item: l.key !== 'other' ? l.key : /\blimit$/.test(l.name) ? l.name : `${l.name} limit`, status: amber ?? l.valueText, time,
     // Amber from the pace, STATUS says the fill, so REMARKS doesn't again.
     remarks: amber === undefined ? calm : [l.valueText, byPace ? '' : calm].filter(Boolean).join(' · '),
-    cell: `${l.valueText}${time === NONE ? '' : ` ↻ ${time}`}${tail}`, cellShort: amber === undefined ? l.valueText : `! ${l.valueText}`, cellNoReset: `${l.valueText}${tail}`,
+    cell: `${l.valueText}${time === NONE ? '' : ` ${BOARD_RESET} ${time}`}${tail}`, cellShort: amber === undefined ? l.valueText : `! ${l.valueText}`, cellNoReset: `${l.valueText}${tail}`,
     tone: l.tone, alt: l.alt,
   }
 }
@@ -710,15 +712,20 @@ const REMARKS_LEAST = 8
 /** `text` cut to `n` characters, `…` last, then padded to them. */
 const fitTo = (text: string, n: number): string => padTo(remarksFit(text, n), n)
 
+/** The board's header line: the workspace's facts three tiles apart, cut
+ *  and padded to the room, as wide as every other line. */
+export const boardHeaderLine = (header: readonly string[], room: number): string => fitTo(header.join('   '), room)
+
 /** The board's lines in `room` tiles, a blank tile between runs taken from
- *  it: ITEM, STATUS and TIME padded to their columns, REMARKS cut to theirs.
+ *  it: ITEM, STATUS and TIME padded to their columns, REMARKS cut and padded
+ *  to theirs, so every line is the room's width and the board a rectangle.
  *  Where REMARKS would have fewer than 8, TIME's words lead them and the
  *  TIME column goes (spec §5.3); past that, STATUS is cut, then ITEM, so no
  *  line is longer than the room. */
 export const boardLines = (rows: readonly BoardText[], room: number): readonly BoardLine[] => {
   const whole = boardColumns(rows, room - 3)
   if (whole.remarks >= REMARKS_LEAST)
-    return rows.map(r => ({ item: padTo(r.item, whole.item), status: padTo(r.status, whole.status), time: padTo(r.time, whole.time), remarks: remarksFit(r.remarks, whole.remarks) }))
+    return rows.map(r => ({ item: padTo(r.item, whole.item), status: padTo(r.status, whole.status), time: padTo(r.time, whole.time), remarks: fitTo(r.remarks, whole.remarks) }))
   const lead = (r: BoardText): BoardText =>
     r === BOARD_HEADINGS || r.time === NONE ? r : { ...r, remarks: r.remarks === '' ? r.time : `${r.time} · ${r.remarks}` }
   const lines = rows.map(lead)
@@ -726,5 +733,5 @@ export const boardLines = (rows: readonly BoardText[], room: number): readonly B
   const item = Math.min(widestOf(lines, r => r.item), inner)
   const status = Math.min(widestOf(lines, r => r.status), inner - item)
   const remarks = inner - item - status
-  return lines.map(r => ({ item: fitTo(r.item, item), status: fitTo(r.status, status), time: undefined, remarks: remarksFit(r.remarks, remarks) }))
+  return lines.map(r => ({ item: fitTo(r.item, item), status: fitTo(r.status, status), time: undefined, remarks: fitTo(r.remarks, remarks) }))
 }

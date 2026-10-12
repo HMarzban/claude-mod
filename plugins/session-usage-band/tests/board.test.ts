@@ -52,7 +52,8 @@ test('context: USED when calm; amber says COMPACTS IN, its short form the mark a
 })
 test('limits: the reset stays, an amber remark replaces a calm one, cellNoReset drops only the reset', () => {
   const seven = row({ sevenDay: limit(85, 67) }, '7d')
-  expect(seven?.cell).toMatch(/^85% ↻ \S+ \d\d:\d\d ! NEAR LIMIT$/)
+  // The flap face has no ↻: the board says RESET.
+  expect(seven?.cell).toMatch(/^85% RESET \S+ \d\d:\d\d ! NEAR LIMIT$/)
   expect(seven?.cellNoReset).toBe('85% ! NEAR LIMIT')
   expect(seven?.tone).toBe('amber')
 })
@@ -73,6 +74,22 @@ test('a 5h amber from its pace says the fill once: STATUS has it, REMARKS keeps 
 })
 test('a passed reset says PASSED', () => {
   expect(row({ now: 4 * HOUR, fiveHour: limit(4, 3) }, '5h')?.time).toBe('PASSED')
+  expect(row({ now: 4 * HOUR, fiveHour: limit(4, 3) }, '5h')?.cell).toMatch(/RESET PASSED/)
+})
+test('no board form draws ↻, which the flap face lacks: RESET says it', () => {
+  const pace = { fiveHour: { ...limit(20, 3), etaMs: 40 * MIN }, sevenDay: limit(85, 67), otherLimits: [{ kind: 'spend_limit', percentUsed: 40, resetsAt: new Date(5 * HOUR).toISOString() }] }
+  for (const zone of [UTC, undefined])
+    for (const r of board({ ...pace, zone }).rows) for (const text of [r.status, r.time, r.remarks, r.cell, r.cellShort, r.cellNoReset ?? '']) expect(text).not.toMatch(/↻/)
+  expect(row({ fiveHour: limit(26, 3) }, '5h')?.cell).toMatch(/^26% RESET 03:00/)
+})
+test("boardLines: REMARKS padded to its column, so every line is the room's width, folded or not", () => {
+  const at = (item: string, status: string, time: string, remarks: string): BoardRow =>
+    ({ key: 'cache', item, status, time, remarks, cell: '', cellShort: '', tone: 'calm', alt: '' })
+  const rows = [BOARD_HEADINGS, at('CACHE', 'DEPARTS', '17:24', 'IN 38 MIN · RE-WARM ~$0.57 IF MISSED'), at('SPEND', '$0.24', '-', ''), at('5H', '26%', 'SAT 13:30', 'ON PACE ~33%')]
+  for (const room of [34, 63, 120]) {
+    const widths = boardLines(rows, room).map(l => [l.item, l.status, ...(l.time === undefined ? [] : [l.time]), l.remarks].join(' ').length)
+    expect(`${room} ${widths.join(',')}`).toBe(`${room} ${widths.map(() => room).join(',')}`)
+  }
 })
 test('an unknown zone: no clock anywhere on the board, and no empty time', () => {
   for (const r of board({ zone: undefined, fiveHour: limit(26, 3), sevenDay: limit(85, 67) }).rows) {
@@ -100,20 +117,20 @@ test('boardColumns: ITEM, STATUS and TIME as wide as their longest text plus one
     ({ key: 'cache', item, status, time, remarks: '', cell: '', cellShort: '', tone: 'calm', alt: '' })
   expect(boardColumns([at('CACHE', 'DEPARTS', '17:24'), at('5H', '26%', 'SAT 13:30')], 60)).toEqual({ item: 6, status: 8, time: 10, remarks: 36 })
 })
-test("boardLines: each row's four runs padded to their columns, three blank tiles between them taken from the room", () => {
+test("boardLines: each row's four runs padded to their columns, REMARKS too, three blank tiles between them taken from the room", () => {
   const at = (item: string, status: string, time: string, remarks: string): BoardRow =>
     ({ key: 'cache', item, status, time, remarks, cell: '', cellShort: '', tone: 'calm', alt: '' })
   const rows = [at('CACHE', 'DEPARTS', '17:24', 'IN 38 MIN · RE-WARM ~$0.57 IF MISSED'), at('5H', '26%', 'SAT 13:30', 'ON PACE ~33%')]
   expect(boardLines(rows, 63)).toEqual([
     { item: 'CACHE ', status: 'DEPARTS ', time: '17:24     ', remarks: 'IN 38 MIN · RE-WARM ~$0.57 IF MISSED' },
-    { item: '5H    ', status: '26%     ', time: 'SAT 13:30 ', remarks: 'ON PACE ~33%' },
+    { item: '5H    ', status: '26%     ', time: 'SAT 13:30 ', remarks: 'ON PACE ~33%'.padEnd(36) },
   ])
   // REMARKS of fewer than 8 tiles: TIME's words lead them, and the TIME
   // column, headings and all, goes.
   const narrow = boardLines([BOARD_HEADINGS, ...rows], 34)
   expect(narrow.map(l => l.time)).toEqual([undefined, undefined, undefined])
   expect(narrow[1]?.remarks).toMatch(/^17:24 · IN/)
-  expect(narrow[0]?.remarks).toBe('REMARKS')
+  expect(narrow[0]?.remarks.trimEnd()).toBe('REMARKS')
   for (const l of narrow) expect([l.item, l.status, l.remarks].join(' ').length).toBeLessThanOrEqual(34)
 })
 test('boardLines: past folding TIME, a STATUS too long for the room is cut, so no line overflows', () => {

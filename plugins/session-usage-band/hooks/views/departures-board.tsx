@@ -10,7 +10,7 @@ import type { Kit } from '../kit'
 import type { Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import type { Palette } from '../palette'
-import { BOARD_HEADINGS, BOARD_HEADINGS_ALT, boardLines, remarksFit, type BoardKey, type BoardLine, type BoardRow } from '../words'
+import { BOARD_HEADINGS, BOARD_HEADINGS_ALT, boardHeaderLine, boardLines, type BoardKey, type BoardLine, type BoardRow } from '../words'
 import { bodyRowsFor, footer } from './frame'
 
 /** Each reading's ITEM ink: its own, as an airline's code has its colour. */
@@ -93,7 +93,7 @@ const board = (kit: Kit, read: Readings): RenderElement | null => {
     <Box key="board" flexDirection="column" marginTop={1} paddingX={1} backgroundColor={palette.filled ? palette.boardBg : undefined}>
       {shown.map(l =>
         l.row !== undefined ? rowLine(kit, l.row, l.key, lineOf(l.row))
-        : l.name === 'header' ? flapLine(kit, l.key, headerAlt, [[remarksFit(header.join('   '), room), dim]])
+        : l.name === 'header' ? flapLine(kit, l.key, headerAlt, [[boardHeaderLine(header, room), dim]])
         : flapLine(kit, l.key, BOARD_HEADINGS_ALT, runsOf(lines[0], { item: dim, status: dim, time: dim, remarks: dim })))}
     </Box>
   )
