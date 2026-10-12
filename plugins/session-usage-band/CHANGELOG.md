@@ -5,7 +5,7 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
-## [Unreleased]
+## [0.13.1] - 2026-10-12
 
 ### Fixed
 - Times are right in every time zone, across daylight-saving changes too.
@@ -16,8 +16,8 @@ version may change how the band reads.
 - In the week layout, on a week with a change of clocks, a day's rise
   could land in the day beside it and name the wrong busiest day. A 23- or
   25-hour day is now one day, two days never share a cell, and each day's
-  rise stays put on every redraw. The 5-hour cells on that night name the hour twice, or skip one,
-  as the clock does.
+  rise stays put on every redraw. The 5-hour cells on that night name the
+  hour twice, or skip one, as the clock does.
 - Week named a different fill day than the band's own projection: never
   today, and from its own guess. It now names the forecast's fill, today
   included.
