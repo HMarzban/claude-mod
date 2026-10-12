@@ -24,7 +24,6 @@ import {
   fakeEl,
   hoverCardOf,
   isCard,
-  props,
   shown,
   svgsOf,
   walk,

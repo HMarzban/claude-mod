@@ -1,5 +1,5 @@
 import { test, expect } from 'claude-code/testing'
-import { fixedZone, fmtClock, fmtDayClock } from '../hooks/format'
+import { fixedZone, fmtClock } from '../hooks/format'
 import type { HourCell } from '../hooks/calendar'
 import { cappedMarks, readingsOf } from '../hooks/reading'
 import { usedSoFar } from '../hooks/words'
