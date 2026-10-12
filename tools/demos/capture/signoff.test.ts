@@ -13,7 +13,7 @@ import { test } from 'claude-code/testing'
 import { drawBand } from '../hooks/band'
 import { DARK, LIGHT, PLAIN } from '../hooks/palette'
 import type { BandSnapshot, LayoutName } from '../hooks/snapshot'
-import { HOUR, MIN, USAGE, byKey, fakeEl, firstRow, type Node } from './helpers'
+import { HOUR, HOUR_1, MIN, START, USAGE, byKey, fakeEl, firstRow, mountBand, resp, respond, setup, turn, type Node } from './helpers'
 import {
   NO_ACT, caseKey, drawCases, invariantErrors, snapOf, ttlOf, withLimits,
   type Appearance, type InvariantContext, type Mount, type ScenarioName,
@@ -93,6 +93,37 @@ const capture = (layout: LayoutName, c: Case, appearance: Appearance, mounts: re
   })
 }
 
+// The low case with a few messages behind it, so pulse's trace shows: for
+// the distinctness gate's three collapsed images, every layout in this one
+// state. A reply, then eight turns of $0.15 to $0.31, two minutes apart.
+const LOW_COSTS = [0.18, 0.22, 0.15, 0.31, 0.2, 0.26, 0.19, 0.24]
+const lowHistory = (layout: LayoutName): void => {
+  test(`signoff: ${layout} low with history`, { timeoutMs: 120_000 }, async ($, on) => {
+    const clock = setup(on, { usage: limited(3, 10), env: HOUR_1, store: { layout } })
+    await $.session.start(START)
+    await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+    let ledger = USAGE.cost.usd
+    for (const [i, usd] of LOW_COSTS.entries()) {
+      await clock.advance(2 * MIN)
+      await turn($, `t${i + 1}`, ledger, ledger + usd)
+      ledger += usd
+    }
+    await clock.settle()
+    let drawn = 0
+    for (const m of BASE) {
+      const ui = await mountBand($, m.surface, m.cols, { maxRows: m.maxRows })
+      for (const state of STATES) {
+        if (state === 'open') await ui.press({ key: 'more' })
+        print(`${layout}-lowhistory-${m.surface}-${state}`, (await ui.drawn()) as Node, { layout, surface: m.surface, appearance: 'dark', cols: m.cols, maxRows: ROWS, scenario: 'calm', glyphs: 'unicode', expanded: state === 'open' })
+        drawn++
+      }
+      await ui.press({ key: 'more' })
+      await ui.unmount()
+    }
+    console.log(`SIGNOFF-DONE ${drawn}`)
+  })
+}
+
 // The unknown zone: drawCases draws in the host's zone, so the band is drawn
 // directly with none. 5h 26% and 7d 85%, with pulse's trails to draw: the
 // 5h window's readings climb from 0% at its start to 26% now, so its line
@@ -109,6 +140,7 @@ const UNZONED = {
 
 for (const layout of LAYOUTS) {
   for (const c of CASES) capture(layout, c, 'dark', BASE, false)
+  lowHistory(layout)
   for (const c of [LOW, ...NEAR]) for (const appearance of ['light', 'plain'] as const) capture(layout, c, appearance, WIDE, true)
   test(`signoff: ${layout} unknown zone`, () => {
     let drawn = 0
