@@ -474,7 +474,11 @@ export const register: Register = on => {
     // unless the engine said when it was.
     if (id !== undefined && !cache.knownFresh && cache.resumedCache === undefined) {
       const path = band.resume?.path
-      noteRecalled(await recallLastReply($, id, () => transcriptFile($, id, path).then(f => (f === undefined ? undefined : transcriptEnd($, f)))))
+      const readEnd = async () => {
+        const file = await transcriptFile($, id, path)
+        return file === undefined ? undefined : transcriptEnd($, file)
+      }
+      noteRecalled(await recallLastReply($, id, readEnd))
     }
 
     band.palette = resolvePalette((await $.env.get('CC_BAND_APPEARANCE'))?.toLowerCase(), await $.env.get('NO_COLOR'))
@@ -682,6 +686,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || (await read($, isHidden))) return next(e)
 
+    // A failed read steps aside rather than break the prompt.
     const usage = await $.session.usage().catch(() => undefined)
     if (usage === undefined) return next(e)
     const now = await $.clock.now()

@@ -164,7 +164,7 @@ export const toasts: string[] = []
 let nextUsage: ModelUsage | null = null
 
 /** Everything beneath the plugin: the engine's own answers. */
-export const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Record<string, unknown>> = {}): void => {
+const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Record<string, unknown>> = {}): void => {
   Object.assign(usage, USAGE_FLAGS, { current: initial })
   toasts.length = 0
   nextUsage = null

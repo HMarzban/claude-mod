@@ -24,10 +24,10 @@ export const LIMIT_SAMPLES_KEY = 'limitSamples'
 export const MAX_SESSIONS = 50
 
 /** Each session's last main-loop reply, by session id. */
-export type Sessions = Readonly<Record<string, Readonly<{ lastAt: number }>>>
+type Sessions = Readonly<Record<string, Readonly<{ lastAt: number }>>>
 
 /** The base input rate per token, solved from a session's own bill, by model. */
-export type Rates = Readonly<Record<string, number>>
+type Rates = Readonly<Record<string, number>>
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
@@ -148,7 +148,7 @@ function* fromEnd(transcript: string, marker: string): Generator<Record<string, 
 }
 
 /** What marks a reply's line. */
-const REPLY = '"assistant"'
+const REPLY_MARKER = '"assistant"'
 
 /** When a transcript line was logged; undefined where it doesn't say. */
 const loggedAt = (entry: Record<string, unknown>): number | undefined => {
@@ -159,7 +159,7 @@ const loggedAt = (entry: Record<string, unknown>): number | undefined => {
 /** When a transcript's last assistant reply was. Its file time won't do:
  *  Claude Code writes a cost line each time it opens a session. */
 export const lastReplyAt = (transcript: string): number | undefined => {
-  for (const entry of fromEnd(transcript, REPLY)) {
+  for (const entry of fromEnd(transcript, REPLY_MARKER)) {
     const at = entry.type === 'assistant' ? loggedAt(entry) : undefined
     if (at !== undefined) return at
   }
@@ -168,7 +168,7 @@ export const lastReplyAt = (transcript: string): number | undefined => {
 
 /** The model the transcript's last reply was billed under, as the API names it. */
 export const lastReplyModel = (transcript: string): string | undefined => {
-  for (const entry of fromEnd(transcript, REPLY)) {
+  for (const entry of fromEnd(transcript, REPLY_MARKER)) {
     if (entry.type !== 'assistant' || !isRecord(entry.message)) continue
     const model = entry.message.model
     if (typeof model === 'string' && model !== '') return model
@@ -281,7 +281,7 @@ export const transcriptSpend = (transcript: string, sessionId: string, before: n
   const counted = new Set<string>()
   for (let i = at + 1; i < lines.length; i++) {
     const line = lines[i] ?? ''
-    if (!line.includes(REPLY)) continue
+    if (!line.includes(REPLY_MARKER)) continue
     const entry = parsed(line)
     if (entry?.type !== 'assistant' || (loggedAt(entry) ?? -Infinity) >= before) continue
     const message = isRecord(entry.message) ? entry.message : undefined
