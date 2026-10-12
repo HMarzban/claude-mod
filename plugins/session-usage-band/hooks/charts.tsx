@@ -107,9 +107,8 @@ type MeterOptions = Readonly<{
 
 /** A bar: `frac` filled toward its cap, the fill ending bare, since the
  *  number beside it says where. `label` names it for a reader, and `reads`
- *  says what the fill is. A stretched
- *  bar has no width of its own: drawn wider than any slot, the slot caps it,
- *  so it spans its card. */
+ *  says what the fill is. A stretched bar has no width of its own: drawn
+ *  wider than any slot, the slot caps it, so it spans its card. */
 export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
   const { Svg, Text, palette, onTone } = kit
   const { key = 'meter', label, frac, tone, accent, size = CHIP_BAR, stretch = false, reads = 'used', tick, projectTo, ground = palette.cardBg, dash = '▒', slim = false } = o
