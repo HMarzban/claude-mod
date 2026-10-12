@@ -57,7 +57,6 @@ const piecesOf = (tree: Node): Set<string> => {
   }
   return out
 }
-/** A card's first body row, past its head, as it reads. */
 
 test("the row is chips' pills in chips' order: cache, spend, context, 5h, 7d, then the tokens", () => {
   expect(pillKeys(firstRow(draw()))).toEqual(['cache', 'cost', 'ctx', '5h', '7d', 'tokens'])

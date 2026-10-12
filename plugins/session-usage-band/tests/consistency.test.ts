@@ -1,7 +1,7 @@
 // One source for each figure: a pace, a tone, a read price, the context in
 // use. Where the band says a thing twice, it says it the same way.
 
-import { test, expect } from 'claude-code/testing'
+import { test, expect, type Plugin } from 'claude-code/testing'
 import { contextUsed } from '../hooks/format'
 import { DARK } from '../hooks/palette'
 import {
@@ -79,7 +79,22 @@ test('the context in use: tokens, else the percent of the window, else unknown',
   expect(contextUsed({ tokens: undefined, percent: undefined, window: 200_000 })).toBeUndefined()
 })
 
-test('a usage read that fails mid-turn never breaks the turn or the band', async ($, on) => {
+// A band hook that throws before next() is skipped, and what lies beneath
+// draws in its place, as empty as a band that stepped aside. So above the
+// band, this draws its link's outcome in place of the drawing unless it returned.
+const tracer = {
+  name: 'band-tracer',
+  tier: 'prepend',
+  register(on) {
+    on('ui.render', { component: 'AbovePrompt' }, async (_$, e, next) => {
+      const drawn = await next(e)
+      const outcome = next.trace.find(t => t.plugin === 'session-usage-band')?.outcome ?? 'absent'
+      return outcome === 'returned' ? drawn : { type: 'Text', children: [outcome] }
+    })
+  },
+} satisfies Plugin
+
+test('a usage read that fails mid-turn never breaks the turn or the band', { plugins: [tracer] }, async ($, on) => {
   setup(on)
   await $.session.start(START)
   usage.fails = true

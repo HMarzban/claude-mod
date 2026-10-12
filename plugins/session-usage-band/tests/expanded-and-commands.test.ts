@@ -9,7 +9,6 @@ import {
   props,
   resp,
   respond,
-  usage,
   rowCount,
   cardOf,
   fact,

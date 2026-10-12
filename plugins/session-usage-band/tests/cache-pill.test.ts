@@ -18,7 +18,6 @@ import {
   segments,
   batteryOf,
   fillWidth,
-  turn,
   type Node,
   engine,
   setup,

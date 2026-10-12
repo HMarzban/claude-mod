@@ -10,7 +10,7 @@ import type { Sample } from '../hooks/memory'
 import { DARK } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { EMPTY } from '../hooks/words'
-import { CLEAR, HOUR, LONG, MIN, START, boldOf, byKey, cardFirstRow, cardOf, fakeEl, firstRow, mountBand, pacing, pillKeys, resp, respond, setup, shown, svgAlts, svgRect, svgsOf, usage, type Node } from './helpers'
+import { CLEAR, HOUR, LONG, MIN, START, boldOf, byKey, cardFirstRow, cardHead, cardOf, fakeEl, firstRow, mountBand, pacing, pillKeys, resp, respond, setup, shown, svgAlts, svgRect, svgsOf, usage, type Node } from './helpers'
 import { NO_ACT, snapOf, viewSuite, visualRows } from './matrix'
 
 viewSuite('pulse')
@@ -221,10 +221,11 @@ test('open fits the band from 13 rows, each card keeping a row of its own', () =
 })
 test("an amber limit heads LIMITS as chips' cards head it, bold on its figure alone", () => {
   const otherLimits = [{ kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }]
-  const headOf = (layout: 'pulse' | 'chips') => byKey(cardOf(band({ surface: 'desktop', expanded: true, layout, otherLimits }), 'limits'), 'head')
-  expect(shown(headOf('pulse'))).toMatch(/spend 92%!$/)
-  expect(shown(headOf('pulse'))).toBe(shown(headOf('chips')))
-  expect(boldOf(headOf('pulse'))).toEqual(['92%!'])
+  const pulse = cardHead(band({ surface: 'desktop', expanded: true, layout: 'pulse', otherLimits }), 'limits')
+  const chips = cardHead(band({ surface: 'desktop', expanded: true, layout: 'chips', otherLimits }), 'limits')
+  expect(shown(pulse)).toMatch(/spend 92%!$/)
+  expect(shown(pulse)).toBe(shown(chips))
+  expect(boldOf(pulse)).toEqual(['92%!'])
 })
 test("narrow, the row's last cost gives way and SPEND says the last message", () => {
   for (const surface of ['terminal', 'desktop'] as const) {
