@@ -1,9 +1,8 @@
 // Demo capture, not a test: the band's real desktop output, for the film (every
 // minute of the hour, then the last minute in seconds), the site's live band,
 // its states, and every layout for the site's layouts section and gallery.
-// tools/demos/build.sh copies this into the plugin's tests/ only while it runs.
-import { test, expect } from 'claude-code/testing'
-import type { Engine } from 'claude-code/testing'
+// tools/demos/build.sh runs it in a scratch copy of the plugin.
+import { test, type Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import { LAYOUT_NAMES, type LayoutName } from '../hooks/snapshot'
 import { MIN, START, breakdown, mountBand, resp, respond, setup, usage, FRESH, HOUR_1 } from './helpers'
@@ -32,7 +31,6 @@ test('capture: the film', { timeoutMs: 120_000 }, async ($, on) => {
   for (let s = 3545; s < 3600; s += 4) { await clock.advance(4_000); await snap(`s${s}`) }
   await clock.advance(10_000); await snap('cold')
   await ui.press({ key: 'more' }); await snap('cards')
-  expect(1).toBe(1)
   await ui.unmount()
 })
 
@@ -44,7 +42,6 @@ test('capture: the live band', { timeoutMs: 120_000 }, async ($, on) => {
   await ui.press({ key: 'collapse' })
   await clock.advance(60_000); await snap('cold')
   await ui.press({ key: 'more' }); await snap('coldOpen')
-  expect(1).toBe(1)
   await ui.unmount()
 })
 
@@ -84,7 +81,6 @@ async function state($: Engine, on: On, name: string, shape: Shape) {
   console.log('STATE ' + name + ' ' + JSON.stringify(await ui.drawn()))
   await ui.press({ key: 'more' })
   console.log('STATE ' + name + 'Open ' + JSON.stringify(await ui.drawn()))
-  expect(1).toBe(1)
   await ui.unmount()
 }
 
@@ -157,7 +153,6 @@ async function livedIn($: Engine, on: On, layout: LayoutName) {
   await draw(`layout-${layout}`)
   await clock.advance(60 * MIN - 30_000)
   await draw(`layout-${layout}-amber`)
-  expect(1).toBe(1)
 }
 
 for (const layout of LAYOUT_NAMES) {

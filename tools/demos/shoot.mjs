@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 
 const dir = process.argv[2]
 const scale = Number(process.argv[3] ?? 1.5)
-const chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+const chrome = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const profile = mkdtempSync(join(tmpdir(), 'shoot-'))
 const proc = spawn(chrome, ['--headless=new', '--disable-gpu', '--hide-scrollbars', `--user-data-dir=${profile}`,
   '--remote-debugging-port=0', '--no-first-run', '--no-default-browser-check', 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] })

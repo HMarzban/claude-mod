@@ -1,6 +1,6 @@
 // Demo capture, not a test: the band's real terminal output at seven moments.
-// tools/demos/build.sh copies this into the plugin's tests/ only while it runs.
-import { test, expect } from 'claude-code/testing'
+// tools/demos/build.sh runs it in a scratch copy of the plugin.
+import { test } from 'claude-code/testing'
 import { LONG, MIN, START, mountBand, resp, respond, setup, usage, FRESH, HOUR_1 } from './helpers'
 
 test('capture: terminal frames', LONG, async ($, on) => {
@@ -27,6 +27,5 @@ test('capture: terminal frames', LONG, async ($, on) => {
   await clock.advance(20_000); await snap('last2')
   await clock.advance(2 * MIN); await snap('cold')
   await ui.press({ key: 'more' }); await snap('cards')
-  expect(1).toBe(1)
   await ui.unmount()
 })

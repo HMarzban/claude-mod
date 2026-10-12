@@ -4,8 +4,6 @@ Each tree is Box/Text/Button with flex props measured in terminal cells, so it
 maps straight onto CSS flexbox with 1 cell = 1ch and 1 row = 1 line.
 """
 import html
-import json
-import sys
 
 LH = 1.45  # line height in em; one terminal row
 
@@ -58,14 +56,12 @@ def node(n):
     return f"<div style=\"{';'.join(st)}\">{node(kids)}</div>"
 
 
-PAGE = """<!doctype html><html><head><meta charset="utf-8"><style>
+PAGE = """<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=block"><style>
 *{{box-sizing:border-box;margin:0;padding:0}}
-html,body{{width:1000px;height:{h}px;overflow:hidden;background:#141413}}
+html,body{{width:1000px;height:560px;overflow:hidden;background:{bg}}}
 body{{font-family:-apple-system,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:22px 26px}}
-.cap{{color:#f2f0eb;font-size:19px;font-weight:650;height:30px}}
-.cap span{{color:#a8a49c;font-weight:400}}
-.cap em{{font-style:normal;color:#d97757}}
-.term{{margin-top:10px;height:{th}px;display:flex;flex-direction:column;background:#1e1e1e;border:1px solid #34332f;border-radius:12px;overflow:hidden}}
+.cap{{color:{text};font-size:21px;font-weight:700;letter-spacing:-.3px;height:32px}} .cap .em{{font-family:"Instrument Serif",Georgia,serif;font-style:italic;font-weight:400;color:{accent};font-size:1.14em}} .cap .hl{{background-image:linear-gradient(transparent 58%,{hl} 58%,{hl} 92%,transparent 92%);padding:0 .06em}} .cap span.rest{{color:{text3};font-weight:400;font-size:18px;margin-left:6px}}
+.term{{box-shadow:{shadow};margin-top:10px;height:488px;display:flex;flex-direction:column;background:#1e1e1e;border:1px solid #34332f;border-radius:12px;overflow:hidden}}
 .bar{{height:30px;display:flex;align-items:center;gap:7px;padding:0 12px;background:#262624;border-bottom:1px solid #34332f}}
 .bar i{{width:11px;height:11px;border-radius:50%;background:#4a4945}}
 .bar b{{margin-left:auto;margin-right:auto;color:#8f8c85;font:500 12px -apple-system,system-ui}}
@@ -87,21 +83,3 @@ body{{font-family:-apple-system,system-ui,sans-serif;-webkit-font-smoothing:anti
 <div style="margin-top:{lh}em">{band}</div>
 <div class="prompt">&gt; <span style="color:#d4d4d8">▌</span></div></div></div>
 </body></html>"""
-
-CAPS = {
-    'reply': 'Claude just replied. <span>The cache is warm for an hour.</span>',
-    'm20': '20 minutes later <span>· the countdown runs</span>',
-    'm45': '45 minutes later',
-    'last': 'Its last minute: <em>the band says what a cold cache will cost</em>',
-    'last2': 'Its last minute: <em>the band says what a cold cache will cost</em>',
-    'cold': 'Gone cold. <span>Now you know what the next message costs.</span>',
-    'cards': '▵ opens every fact <span>· cache, spend, context, limits</span>',
-}
-
-if __name__ == '__main__':
-    frames_txt, out = sys.argv[1], sys.argv[2]
-    for line in open(frames_txt):
-        _, name, js = line.split(' ', 2)
-        tree = json.loads(js)
-        open(f"{out}/{name}.html", 'w').write(PAGE.format(h=560, th=488, lh=LH, cap=CAPS[name], band=node(tree)))
-        print(name)
