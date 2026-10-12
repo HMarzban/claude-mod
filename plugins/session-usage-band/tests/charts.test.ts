@@ -1,5 +1,5 @@
 import { test, expect } from 'claude-code/testing'
-import { CHART_MIN_PX, barChart, braille, chartFit, dayCells, dayCellsFit, flatBeats, heartbeat, meter, sparkline, stackGrid } from '../hooks/charts'
+import { barChart, braille, dayCells, dayCellsFit, flatBeats, heartbeat, meter, sparkline, stackGrid } from '../hooks/charts'
 import { makeKit } from '../hooks/kit'
 import { METER_CELLS } from '../hooks/layout'
 import { drawBand } from '../hooks/band'
@@ -101,18 +101,6 @@ test('a guessed day is filled toward its guess, dimmed, behind its dashed edge; 
   const tall = (cls: string) => [...source.matchAll(new RegExp(`<rect class="${cls}"[^>]* height="([\\d.]+)"`, 'g'))].map(([, h]) => Number(h))
   expect([tall('fill'), tall('guess')]).toEqual([[7], [7]])
   expect(source).toMatch(/<rect class="guess"[^>]*opacity="0.45"/)
-})
-test("chartFit: a chart's px beside its words, up to its most, none under the least; in text its braille while it fits", () => {
-  const term = makeKit(fakeEl, snapOf({ surface: 'terminal' }))
-  // 40 columns, 20 characters of words at 0.75 a column: 15, the gap 1, 24 left, 240 px.
-  expect(chartFit(desk, 40, 'x'.repeat(20), 400, 24)).toBe(240)
-  expect(chartFit(desk, 40, 'x'.repeat(20), 120, 24)).toBe(120)
-  expect(chartFit(desk, 22, 'x'.repeat(20), 400, 24)).toBe(60)
-  expect(chartFit(desk, 20, 'x'.repeat(20), 400, 24)).toBeUndefined()
-  expect(CHART_MIN_PX).toBe(48)
-  // In text: 24 points are 12 cells.
-  expect(chartFit(term, 40, 'x'.repeat(27), 240, 24)).toBe(240)
-  expect(chartFit(term, 40, 'x'.repeat(28), 240, 24)).toBeUndefined()
 })
 test('dayCellsFit: the widest cell, up to its most, that keeps the cells within px; none under 6', () => {
   // Seven 18 px cells, 3 apart, and the outline's 1 either side: 146 px.

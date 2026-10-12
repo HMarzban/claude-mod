@@ -15,6 +15,7 @@ version may change how the band reads.
 - Departures is rebuilt as a split-flap board. Open, each reading is a line: item, status, time and remarks. Below 60 columns it draws chips.
 - Pulse and departures draw their readings in one order: cache, spend, context, 5h, 7d. As the row narrows, spend, context and 5h give way; the cache and the 7d never do.
 - `/usage-band layout` lists the three: chips (at a glance), pulse (trends), departures (times).
+- Departures turns amber at the same moments as every layout. Its `LAST CALL`, ten minutes before an hour's cache goes cold, is calm; only the last minute is amber, and a limit has no last call.
 
 ## [0.13.2] - 2026-10-12
 

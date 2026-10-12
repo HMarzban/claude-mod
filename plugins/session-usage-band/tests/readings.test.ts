@@ -299,17 +299,6 @@ test('a limit fills in its measured time, else on its average once it lands at 1
   // A full window has nothing left to fill, measured or not.
   for (const etaMs of [null, 5 * MIN]) expect(fullIn({ fiveHour: { percentUsed: 100, resetsAt: new Date(2 * HOUR).toISOString(), etaMs } })[0]).toBeUndefined()
 })
-test('a limit under 10 minutes from full is its last call, measured or on its average, never once full', () => {
-  const five = (percentUsed: number, resetInMin: number, etaMs: number | null) =>
-    readingsOf(snapOf({ fiveHour: { percentUsed, resetsAt: new Date(resetInMin * MIN).toISOString(), etaMs } })).fiveHour
-  expect(five(40, 180, 6 * MIN)?.lastCall).toBe(true)
-  expect(five(40, 180, 10 * MIN)?.lastCall).toBe(false)
-  // 70% in the 20 minutes gone: the 30% left takes 20m × 30 / 70, under 9m,
-  // though under 80% the window is calm.
-  const average = five(70, 280, null)
-  expect([average?.lastCall, average?.tone]).toEqual([true, 'calm'])
-  expect(five(100, 120, 5 * MIN)?.lastCall).toBe(false)
-})
 test('the cache counts down to cold; under 10 minutes it is its last call, a 5-minute cache in its last minute', () => {
   const cache = (over: Partial<ReturnType<typeof snapOf>['cache']>) => readingsOf(snapOf({ cache: { ...snapOf().cache, ...over } })).cache
   expect(cache({}).lastCall).toBe(false)

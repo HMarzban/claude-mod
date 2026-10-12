@@ -29,20 +29,10 @@ const svgOf = (width: number, height: number, marks: string, attrs = ''): string
 /** Marks set `air` px down, below the air above them. */
 const airOf = (marks: string, air: number): string => (air > 0 ? `<g transform="translate(0 ${air})">${marks}</g>` : marks)
 
-// ---- a chart beside its words ---------------------------------------------
+// ---- the open stack's grid --------------------------------------------------
 
 /** The least a chart is drawn at beside its words: under it, the words alone. */
-export const CHART_MIN_PX = 48
-
-/** The px a chart of `points` may take beside `words`, a column apart, in
- *  `room` columns: on the desktop up to `most`, none under CHART_MIN_PX; in
- *  text its braille, two points to a cell, `most` while it fits, else none. */
-export const chartFit = (kit: Kit, room: number, words: string, most: number, points: number): number | undefined => {
-  const left = room - 1 - Math.ceil([...words].length * kit.measure.text)
-  if (!kit.Svg) return left >= Math.ceil(points / 2) ? most : undefined
-  const px = Math.min(most, Math.floor(left * kit.measure.pxPerCell))
-  return px >= CHART_MIN_PX ? px : undefined
-}
+const CHART_MIN_PX = 48
 
 /** The open stack's widest chart, its share of the room, and in text its
  *  cells: two beats or turns a cell, the last 24. */
@@ -120,7 +110,7 @@ type MeterOptions = Readonly<{
   tone: Tone
   accent: string
   size?: BarSize
-  /** An Svg with no width, capped by its slot: the shared cards' heads and
+  /** An Svg with no width, capped by its slot: chips' cards' heads and
    *  bodies alone, since spec §2.9 bars it from every collapsed line. */
   stretch?: boolean
   /** What the fill is: what's used or what's left. */

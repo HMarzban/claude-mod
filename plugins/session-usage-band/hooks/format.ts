@@ -3,7 +3,8 @@
 export const MINUTE_MS = 60_000
 /** The cache's last minute: the one span where acting changes the bill. */
 export const SOON_MS = MINUTE_MS
-/** Departures' last call: an hour's cache this near cold, or a limit this near full, leads its row in amber. */
+/** Departures' calm last call: an hour's cache this near cold says LAST CALL at
+ *  its clock, in the board's calm ink. Only the last minute is amber. */
 export const LAST_CALL_MS = 10 * MINUTE_MS
 
 /** At this share a pill turns amber and gains `!`, and a toast speaks. */

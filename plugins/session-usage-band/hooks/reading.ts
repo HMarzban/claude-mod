@@ -111,8 +111,9 @@ export type CacheFacts = Readonly<{
   hitFrac: number | undefined
   /** Time to cold while it counts down: expiring, or warm while Claude isn't working. */
   coldInMs: number | undefined
-  /** Departures' last call: under LAST_CALL_MS to cold, or for the 5-minute
-   *  cache its last minute. */
+  /** Departures' calm last call, LAST CALL at its clock: under LAST_CALL_MS
+   *  to cold, or for the 5-minute cache its last minute. The board draws the
+   *  last minute by its amber tone first, as every layout does. */
   lastCall: boolean
 }>
 
@@ -162,8 +163,6 @@ export type LimitFacts = Readonly<{
   /** `fillInMs` while there is something left to fill: undefined once
    *  passed, or full. */
   fullInMs: number | undefined
-  /** Departures' last call: under LAST_CALL_MS to full. */
-  lastCall: boolean
 }>
 
 // What the views read: each section's facts, and its words beside them.
@@ -329,7 +328,6 @@ const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
       resetInMs: reset?.kind === 'in' ? at - snap.now : undefined,
       fillInMs,
       fullInMs,
-      lastCall: fullInMs !== undefined && fullInMs < LAST_CALL_MS,
     }
   }
   return [

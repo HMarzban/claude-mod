@@ -148,13 +148,13 @@ readings. Chips, the default, opens with `▵` into four cards, Cache,
 Spend, Context and Limits; pulse and departures open into views of their
 own. All three draw one row collapsed, end it with the same `▵`, and open
 with the same `Collapse` and `Hide band` buttons.
-Every layout turns amber at the same moments, by the same rules, but for
-departures' last call, ten minutes before an hour's cache goes cold or a
-limit fills. Pulse and departures draw their readings in one order:
-cache, spend, context, 5h, 7d. On the desktop, chips explains
-each pill on hover with its own cards. Chips and pulse keep the workspace
-line, with its hover cards; departures shows the same facts as a header
-row of flaps.
+Every layout turns amber at the same moments, by the same rules.
+Departures' board also says `LAST CALL`, calm, ten minutes before an
+hour's cache goes cold; only its last minute is amber. Pulse and
+departures draw their readings in one order: cache, spend, context, 5h,
+7d. On the desktop, chips explains each pill on hover with its own cards.
+Chips and pulse keep the workspace line, with its hover cards; departures
+shows the folder, branch and status as a header row of flaps.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-layouts-dark.png">
