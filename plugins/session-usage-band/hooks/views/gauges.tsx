@@ -13,7 +13,7 @@ import type { BarSize } from '../layout'
 import type { LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { AMBER_LEAD, type Say } from '../words'
-import { tokenPartsOf, type Fact, type Slots } from './cards'
+import { SPLIT_ALT, tokenPartsOf, type Fact, type Slots } from './cards'
 import { LIMITS, costPill, type ChipKey } from './chips'
 import { toggleButton } from './frame'
 import { accentOf, batteryBar, batterySlot, beforeLast, fitLineKeeps, pill, type Keeps } from './parts'
@@ -232,13 +232,13 @@ const slots = (kit: Kit, read: Readings): Slots => {
   const { Svg, palette } = kit
   const { cache, context } = read
   const worst = read.worstLimit
-  const split = tokenPartsOf(kit, read).map(([, part]) => part)
+  const split = tokenPartsOf(kit, read)
   const greys = [palette.meterFill, palette.label, palette.value]
   return {
     cache: cache.known ? (Svg ? batterySlot : batteryBar)(kit, cache.charge, cache.tone, cache.alt, SLOT_BAR) : undefined,
     spend: cache.measured
       ? splitBar(kit, {
-          alt: 'token split: input, output, cache reads',
+          alt: SPLIT_ALT,
           parts: Svg ? split.map((part, i) => ({ ...part, color: greys[i] ?? part.color })) : split,
           size: SLOT_BAR,
           slim: true,

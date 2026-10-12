@@ -105,19 +105,22 @@ export type OpenOptions = Readonly<{
   reWarmLabel?: string
 }>
 
-/** The session's tokens split by kind, each part in its colour. Cache reads
- *  are in the warm colour: cheap, and often most of the bar. In text each
- *  part has its own fill too, since the inks sit close in lightness: colour
- *  is never the only signal. The desktop's parts are solid, divided by the
- *  ground, so its legend marks them solid. */
-export const tokenPartsOf = (kit: Kit, read: Readings): ReadonlyArray<readonly [string, SplitPart]> => {
+/** The token split bar's alt text. */
+export const SPLIT_ALT = `token split: ${SPLIT_LABELS.join(', ')}`
+
+/** The session's tokens split by kind, in `SPLIT_LABELS`' order, each part
+ *  in its colour. Cache reads are in the warm colour: cheap, and often most
+ *  of the bar. In text each part has its own fill too, since the inks sit
+ *  close in lightness: colour is never the only signal. The desktop's parts
+ *  are solid, divided by the ground, so its legend marks them solid. */
+export const tokenPartsOf = (kit: Kit, read: Readings): SplitPart[] => {
   const { Svg, palette } = kit
   const { spend } = read
   const [inputFill, outputFill, readsFill] = Svg ? ['■', '■', '■'] : read.frame.glyphs === 'ascii' ? ['#', '=', '+'] : ['█', '▓', '▒']
   return [
-    ['input', { n: spend.sent, color: palette.meterFill, mark: inputFill }],
-    ['output', { n: spend.back, color: palette.coin, mark: outputFill }],
-    ['cache reads', { n: spend.cached, color: palette.warm, mark: readsFill }],
+    { n: spend.sent, color: palette.meterFill, mark: inputFill },
+    { n: spend.back, color: palette.coin, mark: outputFill },
+    { n: spend.cached, color: palette.warm, mark: readsFill },
   ]
 }
 
@@ -313,7 +316,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
 
   const tokenParts = tokenPartsOf(kit, read)
   const split = (size: BarSize) =>
-    splitBar(kit, { alt: 'token split: input, output, cache reads', parts: tokenParts.map(([, part]) => part), size })
+    splitBar(kit, { alt: SPLIT_ALT, parts: tokenParts, size })
   const lastRow = spend.lastText === undefined ? null : factRow('lastMessage', 'last message', spend.lastText)
   const splitShown = cache.measured && !shown.has('tokenSplit')
   // Short of rows for the legend's three, its one line: the bar, then the
@@ -334,7 +337,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
             {oneLine({ color: palette.label }, legend)}
           </Box>,
         ]
-      : spend.split.map((part, i) => factRow(undefined, part.label, part.text, tokenParts[i]?.[1]))
+      : spend.split.map((part, i) => factRow(undefined, part.label, part.text, tokenParts[i]))
   const spendView = card('spend', 'Spend', { say: [[spend.totalText, 'value']] }, splitShown && !compact ? split(cardBar) : null, [lastRow, ...tokenRows])
 
   const contextView = context.known
