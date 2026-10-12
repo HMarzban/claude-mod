@@ -126,17 +126,17 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
     // they round true at the scale it lands on.
     const k = stretch ? 2 : 1
     const width = size.px * k
-    const scaling = stretch ? ' vector-effect="non-scaling-stroke"' : ''
+    const keep = stretch ? KEEP_STROKE : ''
     // A sliver under 6px reads as a dot or nothing: any use shows as a nub.
     // No clipPath: ids are document-wide where Svgs share a page, so a
     // rounded fill draws its own ends.
     const fillWidth = frac > 0 ? Math.max(6 * k, Math.round(clamp01(frac) * width)) : 0
     const tickX = tick === undefined ? undefined : Math.max(0, Math.min(width - 2 * k, tenth(clamp01(tick) * width - k)))
     const marks =
-      `<rect x="${0.5 * k}" y="1.5" width="${width - k}" height="5" rx="${2.5 * k}" ry="2.5" fill="${palette.meterTrack}" stroke="${palette.trackStroke}"${scaling}/>` +
+      `<rect x="${0.5 * k}" y="1.5" width="${width - k}" height="5" rx="${2.5 * k}" ry="2.5" fill="${palette.meterTrack}" stroke="${palette.trackStroke}"${keep}/>` +
       (projectTo === undefined
         ? ''
-        : `<line class="projection" x1="${fillWidth}" y1="4" x2="${Math.round(clamp01(projectTo) * width)}" y2="4" stroke="${fill}" stroke-width="2" ${PROJECTION_DASH}${scaling}/>`) +
+        : `<line class="projection" x1="${fillWidth}" y1="4" x2="${Math.round(clamp01(projectTo) * width)}" y2="4" stroke="${fill}" stroke-width="2" ${PROJECTION_DASH}${keep}/>`) +
       (fillWidth > 0 ? `<rect class="fill" y="1" width="${fillWidth}" height="6" rx="${3 * k}" ry="3" fill="${fill}"/>` : '') +
       // Knocked out of the ground a pixel either side, so it reads over the
       // fill and the track alike.
@@ -480,8 +480,8 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
     const bar = `<rect class="bar" x="${x}" y="${barTop}" width="${BAR_PX}" height="${height - barTop}" rx="1" fill="${isMarked ? markColor : color}"/>`
     return isMarked ? `${bar}<rect class="cap" x="${x}" y="${barTop - CAP_ROOM}" width="${BAR_PX}" height="${CAP_PX}" rx="1" fill="${markColor}"/>` : bar
   })
-  const rule =
-    level === undefined ? '' : `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1"${stretch ? KEEP_STROKE : ''}/>`
+  const keep = stretch ? KEEP_STROKE : ''
+  const rule = level === undefined ? '' : `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1"${keep}/>`
   const drawn = (track ? trackOf(kit, px, height) : '') + marks.join('') + rule
   return stretch ? (
     <Svg key={key} source={stretchedOf(kit, px, height, drawn)} alt={alt} height={height} />
