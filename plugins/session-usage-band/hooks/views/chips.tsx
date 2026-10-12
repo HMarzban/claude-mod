@@ -14,10 +14,11 @@ import type { Piece } from '../layout'
 import type { Palette } from '../palette'
 import type { LimitKey, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
+import { cardsView } from './cards'
 import { toggleButton } from './frame'
 import { batteryIcon, cacheHover, pill, resetClause, textBattery } from './parts'
 import type { PillSpec } from './parts'
-import { defineCardsView } from './view'
+import type { View } from './view'
 
 // ---- limits ---------------------------------------------------------------
 
@@ -263,4 +264,7 @@ export const pillRow = (kit: Kit, read: Readings, act: BandActions, specs: reado
 const chipsRow = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
   squeezeToFit(squeeze => pillRow(kit, read, act, chipsPills(kit, read, squeeze)), GIVES_WAY.length, kit.columns - ROW_SLACK, kit.measure)
 
-export const chipsView = defineCardsView({ desktop: 1, terminal: 1 }, (kit, read, act) => ({ lines: [chipsRow(kit, read, act)] }))
+export const chipsView: View = {
+  rows: { desktop: 1, terminal: 1 },
+  draw: (kit, read, act) => cardsView(kit, read, act, [chipsRow(kit, read, act)], { collapsedRows: 1 }),
+}

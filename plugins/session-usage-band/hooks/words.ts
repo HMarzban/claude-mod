@@ -235,16 +235,12 @@ export type LimitWords = Readonly<{
   valueText: string
   /** `82%!`: the value with its escalation mark, colour never the only signal. */
   valueMarked: string
-  /** A card's reset and pace, `resets 3h 00m · on pace for ~10%`, or in the
-   *  clock's form `resets 16:40 · …`, less what a layout's collapsed lines
-   *  already say of the window: `resets 16:40`, or its pace alone; undefined
-   *  without a reset to come, or once nothing is left. */
-  cardResetLess: (form: 'countdown' | 'clock', said: Readonly<{ reset: boolean; pace: boolean }>) => string | undefined
+  /** A card's reset and pace, `resets 3h 00m · on pace for ~10%`; undefined
+   *  without a reset to come. */
+  cardResetLess: () => string | undefined
   /** When it resets, after `resets`: `16:40` or `Sat 13:30` once the offset
    *  is known, else `resetIn`; undefined without a reset to come. */
   resetWhen: string | undefined
-  /** When it resets as a countdown, `in 3h 00m`; undefined without a reset to come. */
-  resetIn: string | undefined
   /** `5h 4%`, or once its window has passed, `5h reset`. */
   text: string
   say: Say
@@ -516,10 +512,9 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const fillDay = f.key === '7d' ? fmtDay : fmtDayClock
   const fillAt = fillInMs === undefined ? undefined : zone !== undefined ? `~${fillDay(frame.now + fillInMs, zone, frame.now)}` : `in ${fmtEta(fillInMs)}`
   const resetAtGlyph = resetClock === undefined ? resetGlyph : `${resetMark} ${resetClock}`
-  const cardResetLess = (form: 'countdown' | 'clock', said: Readonly<{ reset: boolean; pace: boolean }>): string | undefined => {
+  const cardResetLess = (): string | undefined => {
     if (span === undefined) return undefined
-    const parts = [said.reset ? '' : `resets ${form === 'clock' ? resetWhen : span}`, said.pace ? '' : pace].filter(t => t !== '')
-    return parts.length === 0 ? undefined : parts.join(' · ')
+    return [`resets ${span}`, pace].filter(t => t !== '').join(' · ')
   }
   const tail = (withPace: boolean, withReset: boolean): Say =>
     [withPace ? pace : '', withReset ? (resetAtGlyph ?? '') : ''].filter(t => t !== '').map((t): Say[number] => [` · ${t}`, 'label'])
@@ -542,7 +537,6 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     valueMarked: `${f.value}${severityMark(f.frac)}`,
     cardResetLess,
     resetWhen,
-    resetIn,
     text: joined(say),
     say,
     pace,

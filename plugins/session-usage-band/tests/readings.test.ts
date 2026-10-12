@@ -6,7 +6,6 @@ import { HOUR, MIN, SAMPLES } from './helpers'
 import { snapOf } from './matrix'
 
 const cacheAt = (msLeft: number) => ({ ...snapOf().cache, msLeft })
-const NOTHING_SAID = { reset: false, pace: false }
 
 test('readings name every limit with its tone, value, reset and projection', () => {
   const r = readingsOf(snapOf())
@@ -18,7 +17,7 @@ test('readings name every limit with its tone, value, reset and projection', () 
   expect(r.limits.map(l => l.name)).toEqual(['5h', '7d'])
 })
 test("a card says each limit's reset with its pace", () => {
-  expect(readingsOf(snapOf()).limits.map(l => l.cardResetLess('countdown', NOTHING_SAID))).toEqual(['resets 3h 00m · on pace for ~10%', 'resets 2d 19h · on pace for ~50%'])
+  expect(readingsOf(snapOf()).limits.map(l => l.cardResetLess())).toEqual(['resets 3h 00m · on pace for ~10%', 'resets 2d 19h · on pace for ~50%'])
 })
 test('a card says when a limit resets: its clock once the offset is known, else how long until; nothing once passed', () => {
   expect(readingsOf(snapOf({ zone: fixedZone(0) })).limits.map(l => l.resetWhen)).toEqual(['03:00', 'Sat 19:00'])
@@ -60,10 +59,8 @@ test("forecast's messages to compaction are the count departures shows", () => {
   // 114k of room at 10k a message: both say the 12th message compacts.
   expect([r.history.toCompaction?.[2], r.context.msgsHead?.[0]?.[0]]).toEqual(['~12', '~12'])
 })
-test("a card can say each limit's reset at its clock time, with its pace, as LIMITS' lead row does", () => {
-  expect(readingsOf(snapOf({ zone: fixedZone(0) })).limits.map(l => l.cardResetLess('clock', NOTHING_SAID))).toEqual(['resets 03:00 · on pace for ~10%', 'resets Sat 19:00 · on pace for ~50%'])
-  expect(readingsOf(snapOf()).fiveHour?.cardResetLess('clock', NOTHING_SAID)).toBe('resets in 3h 00m · on pace for ~10%')
-  expect(readingsOf(snapOf({ now: 4 * HOUR })).fiveHour?.cardResetLess('clock', NOTHING_SAID)).toBeUndefined()
+test('a card says nothing of a window that has passed', () => {
+  expect(readingsOf(snapOf({ now: 4 * HOUR })).fiveHour?.cardResetLess()).toBeUndefined()
 })
 test('a card heads its section with one figure, the rest in words, in lowercase', () => {
   const r = readingsOf(snapOf())
@@ -88,7 +85,7 @@ test('a measured 5h fill sets its projection to 100', () => {
   const r = readingsOf(snapOf({ fiveHour: { percentUsed: 84, resetsAt: new Date(70 * MIN).toISOString(), etaMs: 40 * MIN } }))
   expect(r.fiveHour?.projectedPct).toBe(100)
   expect(r.fiveHour?.tone).toBe('amber')
-  expect(r.fiveHour?.cardResetLess('countdown', NOTHING_SAID)).toBe('resets 1h 10m · full in ~40m')
+  expect(r.fiveHour?.cardResetLess()).toBe('resets 1h 10m · full in ~40m')
 })
 test('a gateway spend limit is a limit named spend', () => {
   const r = readingsOf(snapOf({ otherLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: undefined }] }))

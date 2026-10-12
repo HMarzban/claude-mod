@@ -65,9 +65,9 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/kit.tsx` | The drawing kit made once per draw: elements, the Svg gate, palette, measure, hover cards, gaps, icons. |
 | `hooks/reading.ts` | `readingsOf`: everything a view reads, built once per draw. Each section's facts, with its words from `words.ts`. |
 | `hooks/words.ts` | The phrasebook: every phrase a layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. |
-| `hooks/views/view.ts` | `View`, `rowsOf`, and `defineCardsView(rows, build)`. `build(kit, read, act)` returns `{ lines, open? }`: the collapsed lines, and a thunk for the shared cards' options, called only while open so it can reuse what fitting the lines found. |
+| `hooks/views/view.ts` | `View` (the rows it declares and `draw`) and `rowsOf`. |
 | `hooks/views/index.ts` | `VIEWS`: every layout by name. |
-| `hooks/views/cards.tsx` | `openBody`, the open view every layout shares: chips' four cards and its footer, each card's head with the layout's lens, a headline or first row in the layout's words, and no card repeating what the collapsed lines show. |
+| `hooks/views/cards.tsx` | `cardsView` and `openBody`, chips' open view: its four cards and its footer. |
 | `hooks/views/frame.tsx` | The toggle every layout ends its row with, and the rows the shared cards get beneath the collapsed lines. |
 | `hooks/views/parts.tsx` | The pieces several layouts draw: pills, the cache's battery and hover string, the amber cache pill pulse and week share, and the lines they squeeze to fit and the words they're written in. |
 | `hooks/views/<name>.tsx` | One file per layout: `chips`, `gauges`, `ledger`, `rings`, `pulse`, `tiles`, `week`, `departures`, `forecast`. Chips exports its pill builders, their hover strings, `LIMITS` and its pill row, for a layout to compose. |
@@ -124,12 +124,14 @@ Run `/reload-plugins` in your session afterwards.
   `!` / `!!`. Text meets WCAG AA contrast (4.5:1) and edges and tracks meet
   3:1, in every palette. The design tests check both, over every palette.
 - **A new layout** is: its name in `LAYOUT_NAMES` (`hooks/snapshot.ts`);
-  `hooks/views/<name>.tsx`, made with `defineCardsView`; an entry in `VIEWS`
+  `hooks/views/<name>.tsx`, which draws its own collapsed row and open view, and shares only `views/frame.tsx` (the toggle, `bodyRowsFor` and `footer`); an entry in `VIEWS`
   (`hooks/views/index.ts`); and `tests/view-<name>.test.ts`, which calls
   `viewSuite('<name>')`. It draws only words from `read`: outside
   `chips.tsx`, `parts.tsx` and `frame.tsx`, no `.tsx` file in `views/`
   contains `.raw`, `.reading.`, `Date.parse`, `.replace(`, `Math.round` or
-  an import of `../format`. `tools/views-gate.sh` checks. Then add it to the
+  an import of `../format`. `tools/views-gate.sh` checks, and also that a pulse or departures file
+  imports nothing from `./cards` or `./chips` and draws no pill, battery or
+  meter, since those layouts keep their own look. Then add it to the
   Layouts table in the plugin README, add it to the layout names and count
   in both READMEs (and the gallery's alt text) and to the list of layouts
   in this file's table, and rebuild the
