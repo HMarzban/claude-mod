@@ -29,7 +29,7 @@ import type { Zone } from './format'
 import { warmAverageOf } from './insights'
 import type { CostEntry, TrailPoint, Trails } from './insights'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
-import type { CacheFacts, CacheMood, ContextFacts, Frame, LimitFacts, LimitView, SliceMark, SliceRow, SpendFacts } from './reading'
+import type { CacheFacts, ContextFacts, Frame, LimitFacts, LimitView, SliceMark, SliceRow, SpendFacts } from './reading'
 import type { BandSnapshot } from './snapshot'
 
 /** The colour a piece of a phrase is drawn in. */
@@ -126,9 +126,6 @@ export const altOf = (name: string, value: string, state?: string, more?: string
   [`${name} ${value}`, state, more].filter((s): s is string => s !== undefined && s !== '').join(', ')
 
 // ---- the words of each section, from its facts ------------------------------
-
-/** The cache's state as a reader hears it: `expiring` is `cooling`. */
-type CacheCondition = 'not measured' | 'warming' | 'warm' | 'cooling' | 'cold'
 
 export type CacheWords = Readonly<{
   /** The value after `cache `: `52m left`, `warm` while Claude works, `–`, `warming` or `cold`. */
@@ -314,15 +311,6 @@ export type LimitWords = Readonly<{
 /** Between the readings of a sentence: `cache 52m left │ spent $3.19`. */
 export const BETWEEN_READINGS = ' │ '
 
-/** The cache's condition for each mood, as a reader hears it. */
-const CONDITION: Readonly<Record<CacheMood, CacheCondition>> = {
-  unmeasured: 'not measured',
-  warming: 'warming',
-  warm: 'warm',
-  expiring: 'cooling',
-  cold: 'cold',
-}
-
 /** The cache in words, from its facts: it counts down only while `coldInMs` is set. */
 export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame): CacheWords => {
   const counting = f.coldInMs !== undefined
@@ -335,17 +323,8 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
   const price = c.reWarmUsd !== null ? fmtSmallCost(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`
   // The card counts down as chips' row always has: `1h 05m`, `0:47`.
   const countdown: Say = [[fmtCountdown(c.msLeft), 'value'], [' left', 'label']]
-  const cardHead: Say =
-    f.mood === 'unmeasured'
-      ? [['not measured yet', 'value']]
-      : f.mood === 'warming'
-        ? [['warming', 'value']]
-        : f.mood === 'cold'
-          ? [['cold', 'value']]
-          : working
-            ? [['warm', 'value']]
-            : countdown
-  const value = f.mood === 'unmeasured' ? UNKNOWN : f.mood === 'warming' ? 'warming' : f.mood === 'cold' ? 'cold' : working ? 'warm' : left
+  const value = counting ? left : f.mood === 'unmeasured' ? UNKNOWN : f.mood
+  const cardHead: Say = f.mood === 'unmeasured' ? [['not measured yet', 'value']] : counting ? countdown : [[value, 'value']]
   const say: Say =
     f.mood === 'cold' ? [['cache ', 'label'], ['cold', 'value'], [' · re-warm ', 'label'], [f.estimate, 'value']] : [['cache ', 'label'], [value, 'value']]
   const sayShort: Say =
@@ -394,7 +373,7 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     departureHead: counting ? [[f.coldInMs < SOON_MS ? fmtCountdown(f.coldInMs) : leftShort, 'value'], [' left', 'label']] : cardHead,
     gaugeSay: counting ? [[leftShort, 'value'], [' left', 'label']] : [[value, 'value']],
     gaugeShort: [[counting ? leftShort : value, 'value']],
-    gaugeMore: counting || f.mood === 'cold' ? `re-warm ${f.estimate}` : undefined,
+    gaugeMore: counting || f.mood === 'cold' ? reWarm : undefined,
     cardNote:
       f.mood === 'unmeasured' ? "Countdown starts with Claude's next reply." : f.mood === 'warming' ? 'First message builds the cache.' : undefined,
     departure:
@@ -412,7 +391,7 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
           : f.mood === 'cold'
             ? altOf('cache', 'cold', `re-warm about ${price}`)
             : counting
-              ? altOf('cache', fmtLeftSpoken(f.coldInMs), CONDITION[f.mood], f.mood === 'expiring' ? `re-warm about ${price}` : undefined)
+              ? altOf('cache', fmtLeftSpoken(f.coldInMs), f.mood === 'expiring' ? 'cooling' : 'warm', f.mood === 'expiring' ? `re-warm about ${price}` : undefined)
               : altOf('cache', 'warm', 'Claude is working'),
   }
 }
@@ -487,6 +466,8 @@ export const contextWords = (f: ContextFacts, frame: Frame): ContextWords => {
   const msgs = f.msgsToCompact === undefined ? undefined : `~${f.msgsToCompact}`
   const msgsUnit = f.msgsToCompact === 1 ? ' msg' : ' msgs'
   const compactsAtText = f.compactAt === undefined ? undefined : fmtTokens(f.compactAt)
+  const roomCompacts: ContextWords['roomCompacts'] =
+    roomText === undefined || compactsAtText === undefined ? undefined : [`room left · auto-compacts at ${compactsAtText}`, `room left · compacts at ${compactsAtText}`]
   return {
     valueText: value,
     text: joined(say),
@@ -497,10 +478,7 @@ export const contextWords = (f: ContextFacts, frame: Frame): ContextWords => {
     inContextText: f.known ? fmtTokens(f.used) : UNKNOWN,
     compactsAtText,
     roomText,
-    roomCompacts:
-      roomText === undefined || f.compactAt === undefined
-        ? undefined
-        : [`room left · auto-compacts at ${fmtTokens(f.compactAt)}`, `room left · compacts at ${fmtTokens(f.compactAt)}`],
+    roomCompacts,
     windowText: fmtTokens(f.window),
     ahead: roomText === undefined ? undefined : { lead: [['compacts in ', 'value']], figure: roomText },
     cardHead,
@@ -515,7 +493,7 @@ export const contextWords = (f: ContextFacts, frame: Frame): ContextWords => {
           ? undefined
           : alike(msgs === undefined ? departs('compacts in ', roomText) : departs('compacts ', msgs, msgsUnit)),
     msgsHead: msgs === undefined ? undefined : [[msgs, 'value'], [msgsUnit, 'label']],
-    roomLead: amber !== undefined || msgs === undefined || roomText === undefined || compactsAtText === undefined ? undefined : [`room left · auto-compacts at ${compactsAtText}`, roomText],
+    roomLead: amber !== undefined || msgs === undefined || roomText === undefined || roomCompacts === undefined ? undefined : [roomCompacts[0], roomText],
     alt: f.known
       ? altOf('context', `${Math.round(f.frac * 100)} percent ${towardText}`, f.tone === 'amber' ? 'near the limit' : 'fine')
       : altOf('context', EMPTY.context),

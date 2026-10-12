@@ -38,7 +38,7 @@ export type Tone = 'calm' | 'amber'
 type Cache = BandSnapshot['cache']
 
 /** Unmeasured: loaded mid-conversation, before its next reply. */
-export type CacheMood = 'unmeasured' | 'warming' | 'warm' | 'expiring' | 'cold'
+type CacheMood = 'unmeasured' | 'warming' | 'warm' | 'expiring' | 'cold'
 
 const cacheMood = (c: Cache): CacheMood =>
   c.requests === 0 && !c.recalled
