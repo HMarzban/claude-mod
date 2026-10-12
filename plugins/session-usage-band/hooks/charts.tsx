@@ -213,11 +213,11 @@ export const splitBar = (kit: Kit, o: SplitBarOptions): RenderChildren => {
   const { key = 'split', alt, parts, size, slim = false } = o
   const total = parts.reduce((sum, { n }) => sum + n, 0)
   if (total <= 0) return null
+  const shown = parts.filter(({ n }) => n > 0)
   if (Svg && slim) {
     // Drawn at the slot's estimate and stretched to it; the slivers take
     // their 2px from the largest part.
     const width = size.px
-    const shown = parts.filter(({ n }) => n > 0)
     const widths = shown.map(({ n }) => Math.max(SLIVER_PX, (n / total) * width))
     const over = widths.reduce((sum, w) => sum + w, 0) - width
     const largest = widths.indexOf(Math.max(...widths))
@@ -242,7 +242,6 @@ export const splitBar = (kit: Kit, o: SplitBarOptions): RenderChildren => {
     // own rounded ends, as paths, the inner ones square.
     const width = size.px * 2
     const R = 6
-    const shown = parts.filter(({ n }) => n > 0)
     let x = 0
     const segments = shown.map(({ n, color }, i) => {
       const x0 = x
@@ -252,16 +251,14 @@ export const splitBar = (kit: Kit, o: SplitBarOptions): RenderChildren => {
       // Each ends a pixel short of the next, so the ground divides them.
       const x1 = last ? x : Math.max(x0, x - 1)
       const f = (v: number) => v.toFixed(1)
-      if (x1 - x0 < 2 * R || (!first && !last)) {
+      if (x1 - x0 < 2 * R || first === last) {
         return `<rect x="${f(x0)}" y="1" width="${f(x1 - x0)}" height="6"${first && last ? ` rx="${R}" ry="3"` : ''} fill="${color}"/>`
       }
-      if (first && last) return `<rect x="${f(x0)}" y="1" width="${f(x1 - x0)}" height="6" rx="${R}" ry="3" fill="${color}"/>`
       return first
         ? `<path d="M${f(x0 + R)} 1H${f(x1)}V7H${f(x0 + R)}A${R} 3 0 0 1 ${f(x0 + R)} 1Z" fill="${color}"/>`
         : `<path d="M${f(x0)} 1H${f(x1 - R)}A${R} 3 0 0 1 ${f(x1 - R)} 7H${f(x0)}Z" fill="${color}"/>`
     })
-    const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="8" viewBox="0 0 ${width} 8" preserveAspectRatio="none">${segments.join('')}</svg>`
-    return <Svg key={key} source={source} alt={alt} height={8} />
+    return <Svg key={key} source={svgOf(width, 8, segments.join(''), ' preserveAspectRatio="none"')} alt={alt} height={8} />
   }
   let used = 0
   return (
