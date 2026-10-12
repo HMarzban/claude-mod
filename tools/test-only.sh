@@ -11,11 +11,9 @@ trap 'rm -rf "$SCRATCH"' EXIT
 # Everything but the tests, hidden folders (the manifest, the types) included.
 find "$PLUGIN" -mindepth 1 -maxdepth 1 ! -name tests -exec cp -R {} "$SCRATCH/" \;
 mkdir -p "$SCRATCH/tests"
-# The shared test modules every test file may import.
-for shared in helpers.ts cases.ts matrix.ts globals.d.ts; do
-  if [ -f "$PLUGIN/tests/$shared" ]; then cp "$PLUGIN/tests/$shared" "$SCRATCH/tests/"; fi
-done
-if [ -d "$PLUGIN/tests/golden" ]; then cp -R "$PLUGIN/tests/golden" "$SCRATCH/tests/"; fi
+# Every shared module beside the test files, so a new one is never left out.
+find "$PLUGIN/tests" -maxdepth 1 -type f ! -name '*.test.ts' -exec cp {} "$SCRATCH/tests/" \;
+cp -R "$PLUGIN/tests/golden" "$SCRATCH/tests/"
 # Every glob must match at least one file, so a typo fails instead of
 # quietly running fewer tests.
 for glob in "$@"; do
