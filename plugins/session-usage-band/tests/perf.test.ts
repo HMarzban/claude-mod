@@ -3,16 +3,9 @@
 import type { On } from 'claude-code'
 import { test, expect, type Engine } from 'claude-code/testing'
 import { LAYOUT_NAMES, type LayoutName } from '../hooks/snapshot'
-import { LONG, engine, mountBand, walk } from './helpers'
+import { LONG, engine, mountBand, nodeCount } from './helpers'
 import { NODE_BUDGET, caseKey, drawCases, ttlOf, type Mount } from './matrix'
 
-const nodes = (tree: unknown): number => {
-  let n = 0
-  walk(tree, () => {
-    n++
-  })
-  return n
-}
 /** What timing needs of a mounted band, on either surface. */
 type Drawn = Readonly<{ redraw: () => Promise<void>; drawn: () => Promise<unknown> }>
 const medianOf = async (ui: Drawn): Promise<number> => {
@@ -32,7 +25,7 @@ const timed = async ($: Engine, on: On, layout: LayoutName, scenario: TimedScena
   const trees = await drawCases($, on, { layout, scenario, appearance: 'dark', ttl: ttlOf(scenario) }, mounts)
   const medians: Record<string, number> = {}
   for (const m of mounts) {
-    for (const state of ['shut', 'open'] as const) expect(nodes(trees[caseKey(m, state)])).toBeLessThanOrEqual(NODE_BUDGET[state])
+    for (const state of ['shut', 'open'] as const) expect(nodeCount(trees[caseKey(m, state)])).toBeLessThanOrEqual(NODE_BUDGET[state])
     const ui = await mountBand($, m.surface, m.cols)
     for (const state of ['shut', 'open'] as const) {
       if (state === 'open') await ui.press({ key: 'more' })

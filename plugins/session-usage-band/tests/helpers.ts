@@ -327,6 +327,15 @@ export const walk = (n: unknown, visit: (node: Node) => void): void => {
   for (const k of (n as Node).children ?? []) walk(k, visit)
 }
 
+/** How many nodes a tree holds. */
+export const nodeCount = (tree: unknown): number => {
+  let n = 0
+  walk(tree, () => {
+    n++
+  })
+  return n
+}
+
 /** The first node beneath `tree`, in drawing order, whose key is `key` and,
  *  when `type` is given, whose type is `type`. */
 export const byKey = (tree: unknown, key: string, type?: string): Node | undefined => {
