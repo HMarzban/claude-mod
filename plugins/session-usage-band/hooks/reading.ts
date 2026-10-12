@@ -338,9 +338,9 @@ const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
 }
 
 /** The conversation's trails with their words and the series a chart draws. */
-const historyFacts = (trails: Trails, context: ContextFacts, totalText: string): HistoryReading => ({
+const historyFacts = (trails: Trails, context: ContextFacts, spend: Readonly<{ totalText: string; totalUsd: number }>): HistoryReading => ({
   ...trails,
-  ...historyWords(trails, context, totalText),
+  ...historyWords(trails, context, spend),
   empty: trails.costs.length === 0,
   costValues: trails.costs.map(e => e.usd),
   reWarms: trails.costs.map(e => e.reWarm),
@@ -472,7 +472,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     worstLimit,
     workspace: snap.workspace,
     get history() {
-      return (history ??= historyFacts(snap.history, context, spendSaid.totalText))
+      return (history ??= historyFacts(snap.history, context, spendRead))
     },
     get week() {
       return (week ??= weekFacts(snap, sevenDay, fiveHour))

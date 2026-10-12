@@ -44,6 +44,33 @@ export const chartFit = (kit: Kit, room: number, words: string, most: number, po
   return px >= CHART_MIN_PX ? px : undefined
 }
 
+/** The open stack's widest chart, its share of the room, and in text its
+ *  cells: two beats or turns a cell, the last 24. */
+const STACK_CHART_PX = 240
+const STACK_SHARE = 3
+const STACK_TEXT_CELLS = 12
+const STACK_TEXT_LEAST = 4
+/** The columns a band's words keep beside the grid: the chart gives way to them. */
+const STACK_WORDS_LEAST = 24
+
+/** The open stack's grid: one chart width for every band, fitted once to
+ *  `room` and leaving the words their least, none where `charts` is off or
+ *  that leaves too little; a name column
+ *  as wide as the longest of `names`, in whole columns; and `lead`, the
+ *  columns both take before a band's words, a column after each. */
+export type StackGrid = Readonly<{ chart: Readonly<{ px: number; cells: number }> | undefined; name: number; lead: number }>
+export const stackGrid = (kit: Kit, room: number, names: readonly string[], charts: boolean): StackGrid => {
+  const { Svg, measure } = kit
+  const name = Math.ceil(Math.max(0, ...names.map(n => [...n].length)) * measure.text)
+  // What the words leave the chart: the room less the name column, two gaps and the words' least.
+  const spare = room - name - 2 - STACK_WORDS_LEAST
+  const px = Math.min(STACK_CHART_PX, Math.floor((room * measure.pxPerCell) / STACK_SHARE), spare * measure.pxPerCell)
+  const cells = Svg ? Math.ceil(px / measure.pxPerCell) : Math.min(STACK_TEXT_CELLS, Math.floor(room / STACK_SHARE), spare)
+  const fits = charts && (Svg ? px >= CHART_MIN_PX : cells >= STACK_TEXT_LEAST)
+  const chart = !fits ? undefined : Svg ? { px, cells } : { px: cells * measure.pxPerCell, cells }
+  return { chart, name, lead: (chart === undefined ? 0 : chart.cells + 1) + name + 1 }
+}
+
 // ---- braille --------------------------------------------------------------
 
 /** Values as braille, two to a cell: the left column takes dots 7,3,2,1 from
@@ -219,6 +246,9 @@ type SparklineOptions = Readonly<{
   level?: number
   /** Px of air above the chart, inside its Svg: a band's room past its chart. */
   air?: number
+  /** Px kept above the scale's top inside the chart, so a level drawn there
+   *  sits inside its own chart, clear of the band above. */
+  headroom?: number
 }>
 
 /** The air a line keeps from the chart's edges. */
@@ -228,12 +258,12 @@ const SPARK_AIR = 2
  *  braille on its floor, on one line that a row too narrow cuts. */
 export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   const { Svg, palette, oneLine } = kit
-  const { key, alt, values, color, px, height, max, nowAt, level, air = 0 } = o
+  const { key, alt, values, color, px, height, max, nowAt, level, air = 0, headroom = 0 } = o
   const top = max ?? topOf(values)
   if (!Svg) return oneLine({ key, color }, braille(values, top, 1))
   const end = px - SPARK_AIR
   const x = (i: number) => (values.length <= 1 ? end : tenth(SPARK_AIR + (i * (end - SPARK_AIR)) / (values.length - 1)))
-  const y = (frac: number) => tenth(height - SPARK_AIR - clamp01(frac) * (height - 2 * SPARK_AIR))
+  const y = (frac: number) => tenth(height - SPARK_AIR - clamp01(frac) * (height - 2 * SPARK_AIR - headroom))
   const points = values.map((v, i) => [x(i), y(top > 0 ? v / top : 0)] as const)
   let marks = ''
   // Solid up to now; from now on, dashed.
@@ -307,13 +337,13 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
 /** The beats' empty state, before a cost: a flat line on the baseline
  *  every beat starts and ends on, `beats` wide, dim, in `color`. Text draws
  *  braille's floor, a cell for two beats. */
-export const flatBeats = (kit: Kit, o: Readonly<{ key: string; alt: string; beats: number; color: string; px: number; height: number }>): RenderChildren => {
+export const flatBeats = (kit: Kit, o: Readonly<{ key: string; alt: string; beats: number; color: string; px: number; height: number; air?: number }>): RenderChildren => {
   const { Svg, oneLine } = kit
-  const { key, alt, beats, color, px, height } = o
+  const { key, alt, beats, color, px, height, air = 0 } = o
   if (!Svg) return oneLine({ key, color }, braille(Array.from({ length: beats }, () => 0), 1, 1))
   const base = height - 4
   const flat = `<line class="flat" x1="1" y1="${base}" x2="${px - 1}" y2="${base}" stroke="${color}" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>`
-  return <Svg key={key} source={svgOf(px, height, flat)} alt={alt} width={px} height={height} />
+  return <Svg key={key} source={svgOf(px, height + air, airOf(flat, air))} alt={alt} width={px} height={height + air} />
 }
 
 // ---- heartbeat ------------------------------------------------------------
@@ -351,6 +381,8 @@ type DayCellsOptions = Readonly<{
   max?: number
   /** Px of air above the cells, inside their Svg: a band's room past its chart. */
   air?: number
+  /** The Svg's width, the cells left-aligned in it, where wider than they are. */
+  px?: number
 }>
 
 const DAY_GAP = 3
@@ -375,7 +407,7 @@ const TODAY_DASH = 'stroke-dasharray="2 1.6"'
  *  Text draws a braille height per cell. */
 export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
   const { Svg, Text, palette } = kit
-  const { key, alt, values, guess = [], today, color, cellPx, height, max, air = 0 } = o
+  const { key, alt, values, guess = [], today, color, cellPx, height, max, air = 0, px } = o
   const top = max ?? topOf(values)
   const isGuess = (i: number) => guess[i] === true
   const isToday = (i: number) => today !== undefined && i === today
@@ -391,7 +423,7 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
     )
   }
   const step = cellPx + DAY_GAP
-  const width = values.length * step - DAY_GAP + 2 * DAY_EDGE
+  const width = Math.max(px ?? 0, values.length * step - DAY_GAP + 2 * DAY_EDGE)
   const tall = height + 2 * DAY_EDGE
   const marks = values.map((v, i) => {
     const x = DAY_EDGE + i * step

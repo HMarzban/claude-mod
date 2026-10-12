@@ -69,7 +69,7 @@ const collapsed = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
     const total = said(kit, 'w', k.has('last') && !hist.empty ? [read.spend.totalText, hist.numbersShort].join(' · ') : read.spend.totalText, false)
     // Spend is never amber: it gives way whole at its step.
     const spendGroup = !k.has('spend') ? null : group(kit, 'spend', trace,
-      hist.empty && k.has('last') ? <Text key="w">{total}<Text key="none" color={palette.label}>{` · ${EMPTY.costsShort}`}</Text></Text> : total)
+      hist.costsNote !== undefined && k.has('last') ? <Text key="w">{total}<Text key="none" color={palette.label}>{` · ${hist.costsNote}`}</Text></Text> : total)
     const contextGroup = !k.calm('context', context.tone) ? null : group(kit, 'context',
       charts && chartKept(k, 'contextTrail', context.tone) && hist.context.length > 1
         ? sparkline(kit, { key: 'trail', alt: hist.contextTrailAlt, values: hist.context, color: palette.label, px: 36, height: 16, max: context.compactAt ?? context.window })

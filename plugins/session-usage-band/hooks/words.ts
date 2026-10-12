@@ -473,6 +473,10 @@ export type HistoryWords = Readonly<{
    *  the total, `last $0.21` and `avg ~$0.02`, once there are costs. */
   spendBandName: string
   spendBandWords: readonly string[]
+  /** `no costs yet`, beside the flat trace, only while there is no cost at
+   *  all: none recorded and a total of $0. A resumed conversation's total
+   *  says there were costs. */
+  costsNote: string | undefined
 }>
 
 /** A message above this many times the warm average is rising; below the average divided by it, falling. */
@@ -484,7 +488,7 @@ const contextTrendOf = (tokens: readonly number[]): 'rising' | 'falling' | 'stea
   return first === undefined || last === undefined || last === first ? 'steady' : last > first ? 'rising' : 'falling'
 }
 
-export const historyWords = (record: Trails, context: ContextFacts, totalText: string): HistoryWords => {
+export const historyWords = (record: Trails, context: ContextFacts, spend: Readonly<{ totalText: string; totalUsd: number }>): HistoryWords => {
   const last = record.costs[record.costs.length - 1]
   const avg = warmAverageOf(record.costs)
   const lastText = last === undefined ? undefined : fmtSmallCost(last.usd)
@@ -520,7 +524,8 @@ export const historyWords = (record: Trails, context: ContextFacts, totalText: s
     costsAltOf,
     contextTrailAlt: `context over the conversation, ${contextTrendOf(record.context)}${compactsAt}`,
     spendBandName: 'spend',
-    spendBandWords: said([totalText, numbersShort, avgText]),
+    spendBandWords: said([spend.totalText, numbersShort, avgText]),
+    costsNote: record.costs.length === 0 && !(spend.totalUsd > 0) ? EMPTY.costsShort : undefined,
   }
 }
 

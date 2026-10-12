@@ -414,3 +414,9 @@ test("today's fill with no reading inside today yet is a guess of what is left, 
   // Wednesday measured from a reading before its start: the cells are drawn.
   expect(weekOf([at(-30 * 60, 60), ...late]).daysDrawn.measured).toBe(true)
 })
+test("`no costs yet` is said only while there is no cost at all: no message's and a total of $0", () => {
+  const none = { history: { costs: [], context: [] } }
+  expect(readingsOf(snapOf({ ...none, costUsd: 0 })).history.costsNote).toBe('no costs yet')
+  expect(readingsOf(snapOf({ ...none, costUsd: 2.41 })).history.costsNote).toBeUndefined()
+  expect(readingsOf(snapOf({ costUsd: 0, history: { costs: [{ usd: 0.2, reWarm: false }], context: [] } })).history.costsNote).toBeUndefined()
+})

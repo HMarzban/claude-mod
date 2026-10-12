@@ -1,5 +1,5 @@
 import { test, expect } from 'claude-code/testing'
-import { CHART_MIN_PX, barChart, braille, chartFit, dayCells, dayCellsFit, flatBeats, heartbeat, meter, sparkline } from '../hooks/charts'
+import { CHART_MIN_PX, barChart, braille, chartFit, dayCells, dayCellsFit, flatBeats, heartbeat, meter, sparkline, stackGrid } from '../hooks/charts'
 import { makeKit } from '../hooks/kit'
 import { METER_CELLS } from '../hooks/layout'
 import { drawBand } from '../hooks/band'
@@ -232,4 +232,36 @@ test("the beats' empty state: a flat line on the beats' baseline, dim, in the in
   const text = flatBeats(term, { key: 'b', alt: 'no costs yet', beats: 14, color: '#9a9aa4', px: 84, height: 20 })
   expect(textOf(text)).toBe('⣀'.repeat(7))
   expect((text as Node).props?.color).toBe('#9a9aa4')
+})
+test("the open stack's grid: one chart width for every band, fitted once to the room, and a name column as wide as the longest name", () => {
+  const names = ['cache', 'spend', 'context', '5h', '7d']
+  const at = (surface: 'desktop' | 'terminal', columns: number) => stackGrid(makeKit(fakeEl, snapOf({ surface, columns })), columns - 4, names, true)
+  // The desktop: up to 240 px, a third of the room or less; a whole column for 'context'.
+  expect(at('desktop', 160)).toEqual({ chart: { px: 240, cells: 24 }, name: 6, lead: 32 })
+  expect(at('desktop', 94).chart?.px).toBe(240)
+  expect(at('desktop', 60).chart?.px).toBeLessThan(240)
+  // In text, braille cells: twelve, two beats a cell.
+  expect(at('terminal', 100)).toEqual({ chart: { px: 96, cells: 12 }, name: 7, lead: 21 })
+  // The words keep 24 columns: narrower, the chart gives way to them, then goes.
+  expect(at('terminal', 46)).toEqual({ chart: { px: 72, cells: 9 }, name: 7, lead: 18 })
+  expect(at('terminal', 40).chart).toBeUndefined()
+  expect(at('desktop', 40).chart).toBeUndefined()
+  // No charts, as in the ascii tier: the name column alone.
+  expect(stackGrid(makeKit(fakeEl, snapOf({ columns: 100 })), 96, names, false)).toEqual({ chart: undefined, name: 7, lead: 8 })
+})
+test("a line's headroom keeps its scale's top, and a level drawn there, below the chart's own top", () => {
+  const src = svg(sparkline(desk, { key: 's', alt: 'context', values: [10, 20], color: '#888888', px: 90, height: 40, max: 20, level: 1, air: 8, headroom: 8 })).props.source
+  const y = Number(/<line class="level" x1="0" y1="([\d.]+)"/.exec(src)?.[1])
+  // Inside the air's translate: 8 of air, then 2 + 8 of the plot's own.
+  expect(y).toBe(10)
+  expect(src).toMatch(/translate\(0 8\)/)
+})
+test('day cells drawn at a set width, left-aligned, the rest of it empty', () => {
+  const n = svg(dayCells(desk, { key: 'd', alt: 'weekly limit by day', values: [6, 9, 11, 4, 7, 7, 7], today: 3, color: '#a99cf0', cellPx: 16, height: 16, px: 240 }))
+  expect(n.props.width).toBe(240)
+})
+test("the flat line keeps its chart's air above it", () => {
+  const n = svg(flatBeats(desk, { key: 'b', alt: 'a', beats: 24, color: '#9a9aa4', px: 240, height: 40, air: 8 }))
+  expect([n.props.width, (n as Node).props?.height]).toEqual([240, 48])
+  expect(n.props.source).toMatch(/translate\(0 8\)/)
 })

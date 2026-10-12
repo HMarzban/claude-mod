@@ -76,13 +76,13 @@ cache 38m  ╭╮╭─╮╭╮╭  $0.24 · last $0.03   context ⠤⠴⠶ 8% 
   6. the trace.
   - Every reading's words remain. At its narrowest the terminal row is text alone, and that is accepted.
 - **Empty states:**
-  - No costs yet: the trace drawn flat, a dim line in a label's ink (braille's floor in text), then the total and `no costs yet`. Open, the Spend band says `Costs show after Claude's next reply.`
+  - No costs yet: the trace drawn flat, a dim line in a label's ink (braille's floor in text), then the total, and `no costs yet` only while the total is $0 (a resumed conversation's total says there were costs). Open, the Spend band draws its chart flat and says `Costs show after Claude's next reply.` after its words.
   - No 5h or 7d samples: that reading is words only.
   - No limits: 5h and 7d are left out.
 
 ### 4.2 Open
 
-A stack of full-width bands, each with its chart on the left and its words on the right:
+A stack of full-width bands laid out as a grid: every band's chart at one width, fitted once to the room (up to 240 px, a third of the room, leaving the words 24 columns; in text 12 braille cells), then a name column in a label's ink as wide as the longest name, then the words and any note. A band with too little to chart (no costs, one context reading, no 5h or 7d readings) draws its chart flat, a dim baseline, so the grid keeps its look. The context chart keeps 8 px above its scale, so its compaction line sits inside its own chart, clear of Spend's beats. 5h and 7d sit side by side where both fit beside the grid, else one over the other, each a line of the grid two rows tall.
 
 | Band | Rows | Chart | Words |
 | --- | --- | --- | --- |
