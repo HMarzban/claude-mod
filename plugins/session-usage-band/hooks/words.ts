@@ -648,15 +648,18 @@ const contextBoard = (r: BoardFacts): BoardRow => {
 
 const limitBoard = (r: BoardFacts, l: LimitFacts & LimitWords): BoardRow => {
   const { zone, now } = r.frame
-  const time = l.passed ? 'PASSED' : l.resetInMs === undefined ? NONE : zone === undefined ? `IN ${boardSpan(l.resetInMs)}` : fmtDayClock(now + l.resetInMs, zone, now)
+  // An other limit names itself a limit: `spend` alone would read as the session's SPEND.
+  const item = l.key !== 'other' ? l.key : /\blimit$/.test(l.name) ? l.name : `${l.name} limit`
+  // Passed, its value is that it reset: RESET PASSED says it once, and the short forms the value.
+  if (l.passed) return { key: l.key, item, status: l.valueText, time: 'PASSED', remarks: '', cell: `${BOARD_RESET} PASSED`, cellShort: l.valueText, cellNoReset: l.valueText, tone: l.tone, alt: l.alt }
+  const time = l.resetInMs === undefined ? NONE : zone === undefined ? `IN ${boardSpan(l.resetInMs)}` : fmtDayClock(now + l.resetInMs, zone, now)
   // Amber from the pace, not from crossing the warning line: say when it fills.
   const byPace = l.key === '5h' && l.tone === 'amber' && l.etaMs !== null && l.percentUsed < WARN_AT * 100
   const amber = l.tone !== 'amber' ? undefined : byPace && l.etaMs !== null ? (zone === undefined ? `! FULL IN ${boardEta(l.etaMs)}` : `! FULL ~${fmtClock(now + l.etaMs, zone)}`) : '! NEAR LIMIT'
   const calm = l.fillText ?? l.pace
   const tail = (amber ?? calm) === '' ? '' : ` ${amber ?? calm}`
   return {
-    // An other limit names itself a limit: `spend` alone would read as the session's SPEND.
-    key: l.key, item: l.key !== 'other' ? l.key : /\blimit$/.test(l.name) ? l.name : `${l.name} limit`, status: amber ?? l.valueText, time,
+    key: l.key, item, status: amber ?? l.valueText, time,
     // Amber from the pace, STATUS says the fill, so REMARKS doesn't again.
     remarks: amber === undefined ? calm : [l.valueText, byPace ? '' : calm].filter(Boolean).join(' · '),
     cell: `${l.valueText}${time === NONE ? '' : ` ${BOARD_RESET} ${time}`}${tail}`, cellShort: amber === undefined ? l.valueText : `! ${l.valueText}`, cellNoReset: `${l.valueText}${tail}`,

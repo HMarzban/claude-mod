@@ -72,9 +72,16 @@ test('a 5h amber from its pace says the fill once: STATUS has it, REMARKS keeps 
   // A limit amber from its value keeps its calm remark beside the value.
   expect(row({ sevenDay: limit(85, 67) }, '7d')?.remarks).toMatch(/^85%( · .+)?$/)
 })
-test('a passed reset says PASSED', () => {
-  expect(row({ now: 4 * HOUR, fiveHour: limit(4, 3) }, '5h')?.time).toBe('PASSED')
-  expect(row({ now: 4 * HOUR, fiveHour: limit(4, 3) }, '5h')?.cell).toMatch(/RESET PASSED/)
+test('a passed reset says RESET PASSED once, never RESET twice, zone known or not', () => {
+  for (const zone of [UTC, undefined]) {
+    const r = row({ zone, now: 4 * HOUR, fiveHour: limit(4, 3) }, '5h')
+    // Open: STATUS says it reset, TIME that it passed, REMARKS nothing.
+    expect([r?.item, r?.status, r?.time, r?.remarks, r?.tone]).toEqual(['5H', 'RESET', 'PASSED', '', 'calm'])
+    // Collapsed: the long form, and the short ones the value, which is RESET.
+    expect(r?.cell).toBe('RESET PASSED')
+    expect(r?.cellNoReset).toBe('RESET')
+    expect(r?.cellShort).toBe('RESET')
+  }
 })
 test('no board form draws ↻, which the flap face lacks: RESET says it', () => {
   const pace = { fiveHour: { ...limit(20, 3), etaMs: 40 * MIN }, sevenDay: limit(85, 67), otherLimits: [{ kind: 'spend_limit', percentUsed: 40, resetsAt: new Date(5 * HOUR).toISOString() }] }

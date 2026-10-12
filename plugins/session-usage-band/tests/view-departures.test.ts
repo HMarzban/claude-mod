@@ -29,6 +29,17 @@ test('collapsed: one row, a group per reading in the one order, then ▵', () =>
     expect(visualRows(row, surface)).toBe(1)
   }
 })
+test('a passed 5h reset reads 5H RESET PASSED, shut and open, on both surfaces', () => {
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const passed = { surface, now: 4 * HOUR, fiveHour: { ...at(4, 3), etaMs: null } }
+    const shut = words(firstRow(band(passed)))
+    expect(shut).toMatch(/5H\W*RESET PASSED/)
+    expect(shut).not.toMatch(/RESET\W*RESET/)
+    const open = words(band({ ...passed, expanded: true }))
+    expect(open).toMatch(/5H\W*RESET\W*PASSED/)
+    expect(open).not.toMatch(/RESET\W*RESET/)
+  }
+})
 test('desktop: one flap Svg per reading, each at most 20 px tall, its alt in words', () => {
   const svgs = svgsOf(firstRow(band({ surface: 'desktop' })))
   expect(svgs).toHaveLength(5)
