@@ -522,6 +522,8 @@ export const tokenBreakdownOf = (split: readonly SpendSplit[]): string => split.
 /** A limit window in words; once it has passed, only that it reset. */
 export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const zone = frame.zone
+  // The time to the reset, while one is to come.
+  const span = f.reset?.kind === 'in' ? f.reset.text : undefined
   const live = !f.passed
   const projected = live ? f.projectedPct : undefined
   const fills = projected !== undefined && fillsBeforeReset(projected)
@@ -537,7 +539,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const ascii = frame.glyphs === 'ascii'
   const resetMark = ascii ? 'resets' : '↻'
   const pace = live ? paceText(f) : ''
-  const resetIn = f.reset?.kind !== 'in' ? undefined : `in ${f.reset.text}`
+  const resetIn = span === undefined ? undefined : `in ${span}`
   const resetGlyph = resetIn === undefined ? undefined : `↻ ${resetIn}`
   const resetWhen = resetClock ?? resetIn
   const fillInMs = live ? f.fillInMs : undefined
@@ -546,8 +548,8 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const fillAt = fillInMs === undefined ? undefined : zone !== undefined ? `~${fillDay(frame.now + fillInMs, zone, frame.now)}` : `in ${fmtEta(fillInMs)}`
   const resetAtGlyph = resetClock === undefined ? resetGlyph : `${resetMark} ${resetClock}`
   const cardResetLess = (form: 'countdown' | 'clock', said: Readonly<{ reset: boolean; pace: boolean }>): string | undefined => {
-    if (f.reset?.kind !== 'in') return undefined
-    const parts = [said.reset ? '' : `resets ${form === 'clock' ? resetWhen : f.reset.text}`, said.pace ? '' : pace].filter(t => t !== '')
+    if (span === undefined) return undefined
+    const parts = [said.reset ? '' : `resets ${form === 'clock' ? resetWhen : span}`, said.pace ? '' : pace].filter(t => t !== '')
     return parts.length === 0 ? undefined : parts.join(' · ')
   }
   const tail = (withPace: boolean, withReset: boolean): Say =>
@@ -556,17 +558,16 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   // Its next change says its reset after the mark, as chips' pill does:
   // `↻ Sat 13:30`, or with the offset unknown, `↻ 5d 22h`.
   const ahead: Ahead | undefined =
-    f.reset?.kind !== 'in' || Math.round(f.percentUsed) === 0
+    span === undefined || Math.round(f.percentUsed) === 0
       ? undefined
       : fillAt !== undefined && fillInMs !== undefined
-        ? { lead: [...standing, ['full ', 'value']], figure: fillAt, soon: zone === undefined ? undefined : `in ${fmtEta(fillInMs)}`, tail: `${resetMark} ${resetClock ?? f.reset.text}` }
+        ? { lead: [...standing, ['full ', 'value']], figure: fillAt, soon: zone === undefined ? undefined : `in ${fmtEta(fillInMs)}`, tail: `${resetMark} ${resetClock ?? span}` }
         : {
             lead: [...standing, [`${resetMark} `, 'value']],
-            figure: resetClock ?? f.reset.text,
-            soon: resetClock === undefined ? undefined : `in ${f.reset.text}`,
+            figure: resetClock ?? span,
+            soon: resetClock === undefined ? undefined : resetIn,
             tail: pace === '' ? undefined : pace,
           }
-  const resetSpan = f.reset?.kind === 'in' ? f.reset.text : undefined
   const fillsIn = f.fullInMs === undefined ? undefined : fmtEtaDays(f.fullInMs)
   const mark = f.lastCall ? `! last call${departsDot(frame)}` : f.tone === 'amber' ? '! ' : ''
   return {
@@ -578,7 +579,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     text: joined(say),
     say,
     pace,
-    resetSaid: f.reset?.kind !== 'in' ? undefined : f.key === '7d' ? (resetClock ?? f.reset.text) : f.reset.text,
+    resetSaid: f.key === '7d' && span !== undefined ? (resetClock ?? span) : span,
     resetClock,
     resetAtGlyph,
     sentence: (withPace, withReset) => [...say, ...tail(withPace, withReset)],
@@ -595,18 +596,18 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
       ? alike(departs(`${f.name} reset`, ''))
       : fillsIn !== undefined
         ? { long: departs(`${mark}${f.name} full `, fillsIn), short: departs(`${mark}${f.name} `, fillsIn) }
-        : f.tone === 'amber' || resetSpan === undefined
+        : f.tone === 'amber' || span === undefined
           ? alike(departs(`${mark}${f.name} `, f.value))
-          : alike(departs(`${f.name} resets `, resetSpan)),
-    departureReset: fillsIn !== undefined || f.tone === 'amber' ? resetSpan : undefined,
+          : alike(departs(`${f.name} resets `, span)),
+    departureReset: fillsIn !== undefined || f.tone === 'amber' ? span : undefined,
     departureLens: `${f.name} ${f.passed ? 'reset' : fillsIn !== undefined ? 'fills' : 'resets'}`,
     departureHead: f.passed
       ? undefined
       : fillsIn !== undefined
         ? [[`${f.name} full `, 'label'], [fillsIn, 'value']]
-        : resetSpan === undefined
+        : span === undefined
           ? undefined
-          : [[`${f.name} in `, 'label'], [resetSpan, 'value']],
+          : [[`${f.name} in `, 'label'], [span, 'value']],
     alt: altOf(
       `${f.name} limit`,
       live ? `${Math.round(f.percentUsed)} percent used` : 'reset',
