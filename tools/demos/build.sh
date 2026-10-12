@@ -7,6 +7,7 @@
 #
 # Needs: Claude Code (claude plugin test), Google Chrome, Node 22+, Python 3
 # with Pillow, and ffmpeg. Output lands in docs/; scratch in tools/demos/out/.
+# PYTHON=/path/to/python3 picks the Python; else the first on PATH with Pillow.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -37,11 +38,26 @@ capture() {
 capture
 [ "${1:-}" = capture ] && exit 0
 
+# ---- the Python with Pillow: $PYTHON, else the first python3 that has it ----
+pillow_python() {
+  local py
+  if [ -n "${PYTHON:-}" ]; then
+    "$PYTHON" -c 'import PIL' 2>/dev/null && { echo "$PYTHON"; return; }
+    echo "build.sh: PYTHON=$PYTHON can't import Pillow" >&2; exit 1
+  fi
+  for py in python3 python3.14 python3.13 python3.12 python3.11 python3.10 /opt/homebrew/bin/python3 /usr/local/bin/python3; do
+    command -v "$py" >/dev/null 2>&1 && "$py" -c 'import PIL' 2>/dev/null && { echo "$py"; return; }
+  done
+  echo "build.sh: no python3 with Pillow found; run 'python3 -m pip install Pillow' or set PYTHON=/path/to/python3" >&2
+  exit 1
+}
+PY="$(pillow_python)"
+
 # ---- 2. the terminal GIF, light and dark ------------------------------------
 for th in light dark; do
   echo "terminal ($th)"
   mkdir -p "$OUT/term-$th"
-  python3 term_themed.py "$OUT/frames.txt" "$OUT/term-$th" "$th" >/dev/null
+  "$PY" term_themed.py "$OUT/frames.txt" "$OUT/term-$th" "$th" >/dev/null
   for f in reply m20 m45 last last2 cold cards; do shot 1000 560 "$OUT/term-$th/$f.html" "$OUT/term-$th/$f.png"; done
   sed "s#file '#file '$OUT/term-$th/#" terminal-timing.txt > "$OUT/term-$th.txt"
   ffmpeg -y -loglevel error -f concat -safe 0 -i "$OUT/term-$th.txt" \
@@ -53,7 +69,7 @@ done
 for th in light dark; do
   echo "film ($th)"
   mkdir -p "$OUT/film-$th"
-  python3 film2.py "$OUT/film.txt" "$OUT/film-$th" "$th" >/dev/null
+  "$PY" film2.py "$OUT/film.txt" "$OUT/film-$th" "$th" >/dev/null
   node shoot.mjs "$OUT/film-$th" 1.5
   suffix=$([ "$th" = dark ] && echo "-dark" || echo "")
   ffmpeg -y -loglevel error -framerate 30 -i "$OUT/film-$th/f%04d.png" -c:v libx264 -crf 18 -preset slow \
@@ -61,18 +77,18 @@ for th in light dark; do
   ffmpeg -y -loglevel error -framerate 30 -i "$OUT/film-$th/f%04d.png" \
     -vf "fps=15,scale=960:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=160:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" \
     -loop 0 "$DOCS/band-film-$th.gif"
-  python3 -c 'import sys; from PIL import Image; im = Image.open(sys.argv[1]); im.thumbnail((1600, 1600)); im.save(sys.argv[2])' \
+  "$PY" -c 'import sys; from PIL import Image; im = Image.open(sys.argv[1]); im.thumbnail((1600, 1600)); im.save(sys.argv[2])' \
     "$OUT/film-$th/f0250.png" "$DOCS/demo-poster$suffix.png"
 done
 
 # ---- 4. the landing page, with the live band and its states ----------------
 echo "site"
-python3 gen_site.py "$OUT/site.txt" site/template.html "$DOCS/index.html" >/dev/null
+"$PY" gen_site.py "$OUT/site.txt" site/template.html "$DOCS/index.html" >/dev/null
 
 # ---- 5. the stills: social card, anatomy, expanded band, the galleries -------
 echo "stills"
 mkdir -p "$OUT/stills"
-python3 stills.py "$OUT/site.txt" "$OUT/stills" >/dev/null
+"$PY" stills.py "$OUT/site.txt" "$OUT/stills" >/dev/null
 shot 1280 640 "$OUT/stills/social.html" "$DOCS/social-preview.png"
 shot 1100 270 "$OUT/stills/anatomy.html" "$DOCS/band-anatomy.png"
 shot 1012 700 "$OUT/stills/expanded.html" "$DOCS/band-expanded.png"
@@ -80,7 +96,7 @@ for th in light dark; do
   shot 1100 900 "$OUT/stills/states-$th.html" "$DOCS/band-states-$th.png"
   shot 1100 1600 "$OUT/stills/layouts-$th.html" "$DOCS/band-layouts-$th.png"
 done
-python3 - "$DOCS" <<'EOF'
+"$PY" - "$DOCS" <<'EOF'
 import sys
 from PIL import Image
 def crop(path, pad=48):

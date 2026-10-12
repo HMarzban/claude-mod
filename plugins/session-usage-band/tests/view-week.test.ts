@@ -7,12 +7,12 @@ import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import { drawBand } from '../hooks/band'
-import { DAY_MS, utcOffsetOf } from '../hooks/format'
+import { DAY_MS, fixedZone, hostZone } from '../hooks/format'
 import { CARD_TEXT } from '../hooks/layout'
 import type { Sample } from '../hooks/memory'
 import { DARK } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { DEFAULT_MAX_ROWS, HOUR, HOUR_1, LONG, MIN, START, USAGE, byKey, cardOf, fact, fakeEl, firstRow, mountBand, pillOf, setup, shown, svgsOf, walk, type Node } from './helpers'
+import { DEFAULT_MAX_ROWS, HOUR, HOUR_1, LONG, MIN, MODERN, START, byKey, cardOf, fact, fakeEl, firstRow, mountBand, pillOf, setup, shown, svgsOf, usageAt, walk, type Node } from './helpers'
 import { NO_ACT, caseKey, invariantErrors, snapOf, viewSuite, type Mount } from './matrix'
 
 viewSuite('week')
@@ -25,7 +25,7 @@ const FIVE_RESET = SUN + (4 * 60 + 55) * MIN
 const boardSample = (at: number, sevenPct: number): Sample => ({ at, fivePct: 0, sevenPct, fiveResetAt: FIVE_RESET, sevenResetAt: SAT_RESET })
 const board = (over: Partial<BandSnapshot> = {}): Node =>
   drawBand(fakeEl, snapOf({
-    layout: 'week', columns: 160, now: SUN, utcOffsetMin: 0,
+    layout: 'week', columns: 160, now: SUN, zone: fixedZone(0),
     samples: [boardSample(SAT_RESET - 168 * HOUR, 0), boardSample(SUN - MIN, 66)],
     sevenDay: { percentUsed: 66, resetsAt: new Date(SAT_RESET).toISOString() },
     fiveHour: { percentUsed: 0, resetsAt: new Date(FIVE_RESET).toISOString(), etaMs: null },
@@ -195,9 +195,10 @@ test('amber leads the row, said with its own `! `', () => {
   const near = board({ context: { tokens: 180_000, window: 200_000, percent: 90, compactAt: 190_000, autoCompactOff: false } })
   expect(pillKeys(near)[0]).toBe('ctx')
   expect(shown(pillOf(near, 'ctx'))).toBe('! context 95% · compacts in ~10k')
-  // The 7d keeps its cells while amber, its reason in place of its value.
+  // The 7d keeps its cells while amber, its reason in place of its value:
+  // at its pace it fills today, at the clock the forecast says.
   const seven = board({ sevenDay: { percentUsed: 85, resetsAt: new Date(SAT_RESET).toISOString() } })
-  expect(shown(pillOf(seven, '7d'))).toMatch(/^! 7d 85% ▅▅▏[▁-█]{2} ╌╌ /)
+  expect(shown(pillOf(seven, '7d'))).toMatch(/^! 7d 85% [▁-█]{2}▏(╌╌ ){6}· full ~19:46 /)
   expect(pillOf(seven, '7d')?.props?.backgroundColor).toBe(DARK.amberBg)
 })
 test('no limits reported: no limit pills, and no LIMITS card open', () => {
@@ -269,16 +270,15 @@ test('open, it fits its rows, on both surfaces, from a body of one row up', () =
 })
 
 // On the engine: a week of samples stored, the clock at the host's 03:30.
-/** The first moment from 0 the host reads 03:30: the kit's zone is the host's. */
-const NOW = (((((3 * 60 + 30) - (utcOffsetOf(0) ?? 0)) * MIN) % DAY_MS) + DAY_MS) % DAY_MS
+/** The first moment from MODERN the host reads 03:30: the kit's zone is the host's. */
+const NOW = MODERN + (((((3 * 60 + 30) - hostZone(MODERN)) * MIN) % DAY_MS) + DAY_MS) % DAY_MS
 /** A sample of the windows USAGE reports (5h resets 3h on, 7d 67h on), `hours` from NOW. */
 const sample = (hours: number, five: number, seven: number): Sample =>
   ({ at: NOW + hours * HOUR, fivePct: five, sevenPct: seven, fiveResetAt: NOW + 3 * HOUR, sevenResetAt: NOW + 67 * HOUR })
 const SAMPLES = [sample(-100, 0, 5), sample(-60, 0, 10), sample(-40, 0, 15), sample(-10, 0, 22), sample(-1.5, 1, 27), sample(-0.5, 3, 28)]
 /** The band with that week stored, each mount drawn shut and open. */
 const withHistory = async ($: Engine, on: On, mounts: readonly Mount[]) => {
-  const usage = { ...USAGE, rateLimits: USAGE.rateLimits.map(l => (l.resetsAt === undefined ? l : { ...l, resetsAt: new Date(NOW + Date.parse(l.resetsAt)).toISOString() })) }
-  setup(on, { store: { layout: 'week', limitSamples: SAMPLES }, env: HOUR_1, usage, now: NOW })
+  setup(on, { store: { layout: 'week', limitSamples: SAMPLES }, env: HOUR_1, usage: usageAt(NOW), now: NOW })
   await $.session.start(START)
   const trees: Record<string, Node> = {}
   for (const m of mounts) {
@@ -313,19 +313,19 @@ test('with a week stored, today rises in its cells and in LIMITS words, shut and
 /** 12:00 UTC on a Thursday: another hour of the day in each zone. */
 const NOON = Date.UTC(2026, 9, 8, 12)
 const ZONES = [0, -420, 330, 840] as const
-/** The last local midnight at or before `now`, `utcOffsetMin` east of UTC. */
-const midnightBefore = (now: number, utcOffsetMin: number): number => now - ((((now + utcOffsetMin * MIN) % DAY_MS) + DAY_MS) % DAY_MS)
+/** The last local midnight at or before `now`, `offset` minutes east of UTC. */
+const midnightBefore = (now: number, offset: number): number => now - ((((now + offset * MIN) % DAY_MS) + DAY_MS) % DAY_MS)
 /** The week at `now`, the windows as USAGE reports them, open, on the desktop and the ascii terminal. */
-const drawWeek = (now: number, utcOffsetMin: number, samples: readonly Sample[]) => {
+const drawWeek = (now: number, offset: number, samples: readonly Sample[]) => {
   const snap = (over: Partial<BandSnapshot>) => snapOf({
-    layout: 'week', columns: 160, maxRows: DEFAULT_MAX_ROWS, expanded: true, now, utcOffsetMin, samples, ...over,
+    layout: 'week', columns: 160, maxRows: DEFAULT_MAX_ROWS, expanded: true, now, zone: fixedZone(offset), samples, ...over,
     fiveHour: { percentUsed: 4, resetsAt: new Date(now + 3 * HOUR).toISOString(), etaMs: null },
     sevenDay: { percentUsed: 30, resetsAt: new Date(now + 67 * HOUR).toISOString() },
   })
   return { desktop: drawBand(fakeEl, snap(desk), NO_ACT) as unknown as Node, ascii: drawBand(fakeEl, snap(ascii), NO_ACT) as unknown as Node }
 }
-/** Today's name where it is `now`, `utcOffsetMin` east of UTC. */
-const todayAt = (now: number, utcOffsetMin: number) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date(now + utcOffsetMin * MIN).getUTCDay()] ?? ''
+/** Today's name where it is `now`, `offset` minutes east of UTC. */
+const todayAt = (now: number, offset: number) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date(now + offset * MIN).getUTCDay()] ?? ''
 const zone = (off: number) => `UTC${off < 0 ? '' : '+'}${off / 60}`
 for (const off of ZONES) {
   test(`at ${zone(off)}, today is the day it is, with its rise, and the days ahead are guesses`, () => {

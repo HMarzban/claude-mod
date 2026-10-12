@@ -5,6 +5,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import { drawBand } from '../hooks/band'
+import { fixedZone } from '../hooks/format'
 import { makeKit } from '../hooks/kit'
 import { DARK } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
@@ -17,7 +18,7 @@ viewSuite('gauges')
 
 /** Gauges drawn outside a mount: calm, at 160 terminal columns, the zone UTC. */
 const draw = (over: Partial<BandSnapshot> = {}): Node => {
-  const snap = snapOf({ layout: 'gauges', columns: 160, utcOffsetMin: 0, ...over })
+  const snap = snapOf({ layout: 'gauges', columns: 160, zone: fixedZone(0), ...over })
   return gaugesView.draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT) as unknown as Node
 }
 const rowOf = (over: Partial<BandSnapshot> = {}): Node => firstRow(draw(over)) as Node
@@ -154,7 +155,7 @@ test('unreported, the context says so in label ink; with no limits, row two hold
   expect(columnsOf(row)).toEqual([['cache'], ['ctx'], [], ['cost', 'more']])
 })
 test('in the ascii tier the grid draws ASCII alone, its reset in words', () => {
-  const band = drawBand(fakeEl, snapOf({ layout: 'gauges', columns: 160, utcOffsetMin: 0, glyphs: 'ascii' }), NO_ACT)
+  const band = drawBand(fakeEl, snapOf({ layout: 'gauges', columns: 160, zone: fixedZone(0), glyphs: 'ascii' }), NO_ACT)
   const row = shown(firstRow(band))
   expect(row).toMatch(/^[\x20-\x7e]*$/)
   expect(row).toMatch(/5h:---\|-------4%, on pace for ~10%, resets 03:00/)

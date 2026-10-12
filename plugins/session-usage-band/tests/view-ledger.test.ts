@@ -6,16 +6,17 @@ import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 import { drawBand } from '../hooks/band'
+import { fixedZone } from '../hooks/format'
 import { DARK, PLAIN } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { HOUR, MIN, byKey, cardOf, fakeEl, firstRow, hostClock, shown, svgAlts, svgsOf, walk, type Node } from './helpers'
+import { HOUR, MIN, MODERN, byKey, cardOf, fakeEl, firstRow, hostClock, shown, svgAlts, svgsOf, walk, type Node } from './helpers'
 import { NO_ACT, caseKey, drawCases, snapOf, viewSuite, visualRows, type Mount } from './matrix'
 
 viewSuite('ledger')
 
 /** The band drawn as ledger at 160 columns, the zone's offset known. */
 const drawn = (over: Partial<BandSnapshot> = {}): Node =>
-  drawBand(fakeEl, snapOf({ layout: 'ledger', columns: 160, utcOffsetMin: 0, ...over }), NO_ACT) as unknown as Node
+  drawBand(fakeEl, snapOf({ layout: 'ledger', columns: 160, zone: fixedZone(0), ...over }), NO_ACT) as unknown as Node
 /** The collapsed row as it reads; the toggle is a Button, its label no text. */
 const rowText = (over: Partial<BandSnapshot> = {}): string => shown(firstRow(drawn(over)))
 /** The bold Texts of a node, as they read. */
@@ -43,10 +44,10 @@ test('one sentence: each reading named, │ between them, the closest limit with
 })
 test('mounted, it reads the same on both surfaces', async ($, on) => {
   const mounts: Mount[] = [{ surface: 'terminal', cols: 160 }, { surface: 'desktop', cols: 160 }]
-  const trees = await drawCases($, on, { layout: 'ledger', scenario: 'calm', appearance: 'dark', ttl: '1h' }, mounts)
+  const trees = await drawCases($, on, { layout: 'ledger', scenario: 'calm', appearance: 'dark', ttl: '1h', now: MODERN }, mounts)
   for (const m of mounts)
     expect(shown(firstRow(trees[caseKey(m, 'shut')]))).toBe(
-      `cache 1h 00m left │ spent $2.41 │ context 38% full │ 5h 4% │ 7d 30% · on pace for ~50% · ↻ ${hostClock(67 * HOUR, 0)}`,
+      `cache 1h 00m left │ spent $2.41 │ context 38% full │ 5h 4% │ 7d 30% · on pace for ~50% · ↻ ${hostClock(MODERN + 67 * HOUR, MODERN)}`,
     )
 })
 test('one bold per reading, on its figure; names, qualifiers and separators in label ink', () => {

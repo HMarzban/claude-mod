@@ -3,6 +3,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { RenderChildren, RenderElement } from 'claude-code'
+import { fixedZone } from '../hooks/format'
 import { makeKit } from '../hooks/kit'
 import { DESKTOP, HOTKEY_MARK, TERMINAL, cellsOf } from '../hooks/layout'
 import { readingsOf } from '../hooks/reading'
@@ -192,21 +193,21 @@ test('a card head is bold on its figure alone, its words in label ink', () => {
   expect([shown(label), label?.props?.color]).toEqual([' left', DARK.label])
 })
 test("LIMITS leads with the worst window's reset and pace, never the collapsed row's value", () => {
-  const zoned = { utcOffsetMin: 0, maxRows: 13 }
+  const zoned = { zone: fixedZone(0), maxRows: 13 }
   expect(firstRowOf(opened({}, zoned), 'limits')).toBe('resetsSat 19:00 · on pace for ~50%')
   expect(firstRowOf(opened({}, { maxRows: 13 }), 'limits')).toBe('resetsin 2d 19h · on pace for ~50%')
   expect(firstRowOf(opened({ shown: ['pace'] }, zoned), 'limits')).toBe('resetsSat 19:00')
   expect(firstRowOf(opened({ shown: ['reset'] }, zoned), 'limits')).toBe('on pace for ~50%')
   expect(firstRowOf(opened({ shown: ['reset', 'pace'] }, zoned), 'limits')).toMatch(/^5h/)
   // Taller, every window follows; the worst's own reset line isn't said twice.
-  const tall = opened({}, { utcOffsetMin: 0 })
+  const tall = opened({}, { zone: fixedZone(0) })
   expect([fact(tall, '5h'), fact(tall, '7d'), fact(tall, '5h pace'), fact(tall, '7d pace')]).toEqual(['4%', '30%', '5h resets 3h 00m · on pace for ~10%', undefined])
   // A layout may have each window say its reset at the clock, as the lead row does.
-  expect(fact(opened({ windowResets: 'clock' }, { utcOffsetMin: 0 }), '5h pace')).toBe('5h resets 03:00 · on pace for ~10%')
+  expect(fact(opened({ windowResets: 'clock' }, { zone: fixedZone(0) }), '5h pace')).toBe('5h resets 03:00 · on pace for ~10%')
 })
 test("a window's own line leaves out what the collapsed lines say of it, the worst's lead row too", () => {
   const said = (shownByWindow: OpenOptions['shownByWindow']) => {
-    const tree = opened({ shownByWindow, windowResets: 'clock' }, { utcOffsetMin: 0 })
+    const tree = opened({ shownByWindow, windowResets: 'clock' }, { zone: fixedZone(0) })
     return [fact(tree, '5h pace'), firstRowOf(tree, 'limits')]
   }
   expect(said({})).toEqual(['5h resets 03:00 · on pace for ~10%', 'resetsSat 19:00 · on pace for ~50%'])

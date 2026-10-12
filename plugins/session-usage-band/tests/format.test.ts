@@ -80,10 +80,11 @@ test('a reset with no readable time is unknown', () => {
   expect(resetIn('soon', NOW)).toBeUndefined()
 })
 
-test('a reset at or before now has passed, as has one less than a second off', () => {
+test('a reset at or before now has passed; one less than a second off has not yet', () => {
   expect(resetIn(at(-SEC), NOW)).toEqual({ kind: 'passed' })
   expect(resetIn(at(0), NOW)).toEqual({ kind: 'passed' })
-  expect(resetIn(at(999), NOW)).toEqual({ kind: 'passed' })
+  expect(resetIn(at(1), NOW)).toEqual({ kind: 'in', text: '<1m' })
+  expect(resetIn(at(999), NOW)).toEqual({ kind: 'in', text: '<1m' })
 })
 
 test('a reset within the hour is whole minutes, cut down', () => {

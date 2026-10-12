@@ -20,6 +20,8 @@ import {
   fact,
   firstRow,
   hostClock,
+  MODERN,
+  usageAt,
   pillOf,
   resp,
   respond,
@@ -288,7 +290,7 @@ test('the spend card names its split like a legend: input, output, cache reads',
 })
 
 test('the limits card puts each value beside its bar and says the pace in words', async ($, on) => {
-  setup(on) // 5h 4%, 2h of 5h gone; 7d 30%, 101h of 168h gone
+  setup(on, { usage: usageAt(MODERN), now: MODERN }) // 5h 4%, 2h of 5h gone; 7d 30%, 101h of 168h gone
   await $.session.start(START)
   const ui = await mountBand($, 'terminal', 140)
   await ui.press({ key: 'more' })
@@ -297,7 +299,7 @@ test('the limits card puts each value beside its bar and says the pace in words'
   expect(fact(tree, '5h')).toBe('4%')
   expect(fact(tree, '5h pace')).toBe('5h resets 3h 00m · on pace for ~10%')
   // The worst window, 7d, leads the card with its reset at its clock time and its pace.
-  expect(fact(tree, 'resets')).toBe(`${hostClock(67 * HOUR, 0)} · on pace for ~50%`)
+  expect(fact(tree, 'resets')).toBe(`${hostClock(MODERN + 67 * HOUR, MODERN)} · on pace for ~50%`)
   expect(fact(tree, '7d pace')).toBeUndefined()
   await ui.unmount()
 })

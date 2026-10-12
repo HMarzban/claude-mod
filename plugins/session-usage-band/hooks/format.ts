@@ -78,8 +78,8 @@ export const resetIn = (iso: string | undefined, now: number): ResetIn | undefin
   if (!iso) return undefined
   const at = Date.parse(iso)
   if (Number.isNaN(at)) return undefined
-  const secs = Math.floor((at - now) / 1000)
-  return secs <= 0 ? { kind: 'passed' } : { kind: 'in', text: fmtSpan(secs * 1000) }
+  const left = at - now
+  return left <= 0 ? { kind: 'passed' } : { kind: 'in', text: fmtSpan(left) }
 }
 
 /** The words for escalation: colour is never the only signal. */
@@ -144,45 +144,69 @@ export const FIVE_HOUR_MS = 5 * 3600_000
 export const SEVEN_DAY_MS = 7 * DAY_MS
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
+
+/** A zone: its offset from UTC at an instant, east-positive minutes. Read
+ *  per instant, so a reset past a daylight-saving change says its own clock. */
+export type Zone = (ms: number) => number
+/** A zone from a clock's minutes behind UTC at each instant, as
+ *  getTimezoneOffset reports them (`0 -` keeps a UTC offset +0). */
+export const zoneOf =
+  (behind: (ms: number) => number): Zone =>
+  ms =>
+    0 - behind(ms)
+/** This machine's zone, as its clock reports each instant. */
+export const hostZone: Zone = zoneOf(ms => new Date(ms).getTimezoneOffset())
+/** `zone`, or undefined where its offset at `now` can't be read, so the band
+ *  counts down instead. */
+export const readableZone = (zone: Zone, now: number): Zone | undefined => (Number.isFinite(zone(now)) ? zone : undefined)
+/** A zone whose offset never changes. */
+export const fixedZone =
+  (min: number): Zone =>
+  () =>
+    min
+
 /** `ms` as local wall time, to be read through the UTC getters. */
-const wallTime = (ms: number, utcOffsetMin: number): number => ms + utcOffsetMin * 60_000
+const wallTime = (ms: number, zone: Zone): number => ms + zone(ms) * 60_000
 const hhmm = (wall: number): string => {
   const at = new Date(wall)
   return `${String(at.getUTCHours()).padStart(2, '0')}:${String(at.getUTCMinutes()).padStart(2, '0')}`
 }
 
-/** A local 24-hour clock time: `14:32`. The offset is east-positive minutes. */
-export const fmtClock = (ms: number, utcOffsetMin: number): string => hhmm(wallTime(ms, utcOffsetMin))
+/** A local 24-hour clock time: `14:32`. */
+export const fmtClock = (ms: number, zone: Zone): string => hhmm(wallTime(ms, zone))
 
 /** The local day `ms` falls on, counted from the epoch. */
-const dayOf = (ms: number, utcOffsetMin: number): number => Math.floor(wallTime(ms, utcOffsetMin) / DAY_MS)
+export const dayOf = (ms: number, zone: Zone): number => Math.floor(wallTime(ms, zone) / DAY_MS)
 
-/** Whether `ms` falls on the same local day as `now`. */
-const isToday = (ms: number, utcOffsetMin: number, now: number): boolean => dayOf(ms, utcOffsetMin) === dayOf(now, utcOffsetMin)
-
-/** A clock time, with its weekday when it isn't today: `16:40`, `Mon 08:40`. */
-export const fmtDayClock = (ms: number, utcOffsetMin: number, now: number): string => {
-  const wall = wallTime(ms, utcOffsetMin)
-  return isToday(ms, utcOffsetMin, now) ? hhmm(wall) : `${DAYS[new Date(wall).getUTCDay()]} ${hhmm(wall)}`
+/** The first instant of local day `day`: the earliest of three passes that
+ *  lands on the day, at the offset in force there and an hour before. Where
+ *  midnight falls in a spring-forward gap, one lands in the day before, and
+ *  the day starts at the gap's end; where it comes twice, at a fall back to
+ *  00:00, the hour before finds the first. */
+export const midnightOf = (day: number, zone: Zone): number => {
+  const at = (offsetAt: number): number => day * DAY_MS - zone(offsetAt) * 60_000
+  const first = at(day * DAY_MS)
+  const landed = [first, at(first), at(first - 3600_000)].filter(t => dayOf(t, zone) === day)
+  return landed.length === 0 ? first : Math.min(...landed)
 }
+
+/** Whether `ms` falls on the same local day as `now`, each under its own offset. */
+const isToday = (ms: number, zone: Zone, now: number): boolean => dayOf(ms, zone) === dayOf(now, zone)
+
+/** The weekday `ms` falls on, `Sat`; a week or more on `next Sat`, so it
+ *  never reads as today's. */
+const weekdayOf = (ms: number, zone: Zone, now: number): string => {
+  const day = DAYS[new Date(wallTime(ms, zone)).getUTCDay()] ?? ''
+  return dayOf(ms, zone) - dayOf(now, zone) >= 7 ? `next ${day}` : day
+}
+
+/** A clock time, with its weekday when it isn't today: `16:40`, `Mon 08:40`, `next Sat 13:30`. */
+export const fmtDayClock = (ms: number, zone: Zone, now: number): string =>
+  isToday(ms, zone, now) ? fmtClock(ms, zone) : `${weekdayOf(ms, zone, now)} ${fmtClock(ms, zone)}`
 
 /** A projection's day, which its minute would claim too much for: its
- *  weekday, `Mon`, a week on `next Sun`, so it never reads as today, or
- *  today its clock time, `16:40`. */
-export const fmtDay = (ms: number, utcOffsetMin: number, now: number): string => {
-  const wall = wallTime(ms, utcOffsetMin)
-  if (isToday(ms, utcOffsetMin, now)) return hhmm(wall)
-  const day = `${DAYS[new Date(wall).getUTCDay()]}`
-  return dayOf(ms, utcOffsetMin) - dayOf(now, utcOffsetMin) >= 7 ? `next ${day}` : day
-}
-
-/** This machine's offset from UTC at `now`, east-positive minutes; undefined
- *  when the time can't be read. A real UTC offset of 0 can't be told from a
- *  sandbox that reports no zone. */
-export const utcOffsetOf = (now: number): number | undefined => {
-  const offset = -new Date(now).getTimezoneOffset()
-  return Number.isFinite(offset) ? offset : undefined
-}
+ *  weekday, `Mon`, a week on `next Sun`, or today its clock time, `16:40`. */
+export const fmtDay = (ms: number, zone: Zone, now: number): string => (isToday(ms, zone, now) ? fmtClock(ms, zone) : weekdayOf(ms, zone, now))
 
 /** Whole seconds left, never 0 while any remain. */
 const secondsLeft = (ms: number): number => Math.max(1, Math.ceil(ms / 1000))

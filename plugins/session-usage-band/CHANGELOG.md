@@ -5,6 +5,28 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.13.1] - 2026-10-12
+
+### Fixed
+- Times are right in every time zone, across daylight-saving changes too.
+  A reset, a fill or `cold at` past a change of clocks said the time an
+  hour off, or one that never shows (`02:20` the night the clocks spring
+  forward). Each time is now read with the offset in force at it, and an
+  idle band picks up a change within a minute, with no reply needed.
+- In the week layout, on a week with a change of clocks, a day's rise
+  could land in the day beside it and name the wrong busiest day. A 23- or
+  25-hour day is now one day, two days never share a cell, and each day's
+  rise stays put on every redraw. The 5-hour cells on that night name the
+  hour twice, or skip one, as the clock does.
+- Week named a different fill day than the band's own projection: never
+  today, and from its own guess. It now names the forecast's fill, today
+  included.
+- Just after the weekly reset, the next one said `↻ Sat 13:30`, today's
+  weekday at a time already gone. It now says `↻ next Sat 13:30`.
+- A 5-hour fill past midnight said only its day, `full ~Sun`. It now says
+  its clock too, `full ~Sun 01:00`, as its reset does.
+- A window read `reset` up to a second before it reset.
+
 ## [0.13.0] - 2026-10-12
 
 ### Changed

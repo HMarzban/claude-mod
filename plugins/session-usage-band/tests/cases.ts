@@ -7,7 +7,7 @@ import type { On, SessionUsage } from 'claude-code'
 import type { Engine, MockClock } from 'claude-code/testing'
 import { TTL_MS, type Ttl } from '../hooks/cache'
 import {
-  DEFAULT_MAX_ROWS, HOUR, HOUR_1, MIN, START, USAGE, FRESH, breakdown, engine, mountBand, pacing, resp, respond, setup, turn, type Node,
+  DEFAULT_MAX_ROWS, HOUR, HOUR_1, MIN, START, USAGE, FRESH, breakdown, engine, mountBand, pacing, resp, respond, setup, turn, usageAt, type Node,
 } from './helpers'
 
 export type Appearance = 'dark' | 'light' | 'plain'
@@ -108,6 +108,9 @@ export type CaseOptions = Readonly<{
   layout?: string
   /** The cache's lifetime: 5m walks a twelfth of the clock 1h does. */
   ttl?: Ttl
+  /** How far on the scenario starts, its clock and windows moved together:
+   *  MODERN, for a case that reads the host's clock. */
+  now?: number
 }>
 /** A case's cache lifetime, for the view tests that pick one. */
 export type { Ttl }
@@ -129,7 +132,8 @@ export const drawCases = async ($: Engine, on: On, o: CaseOptions, mounts: reado
     ...o.env,
   }
   const store = { ...(s.store ?? {}), ...(o.layout === undefined ? {} : { layout: o.layout }) }
-  const clock = setup(on, { usage: s.usage, store, env, now: s.now })
+  const usage = o.now === undefined ? s.usage : usageAt(o.now, s.usage)
+  const clock = setup(on, { usage, store, env, now: o.now === undefined ? s.now : o.now + (s.now ?? 0) })
   s.prepare?.()
   await s.drive($, clock, TTL_MS[ttl])
   await clock.settle()

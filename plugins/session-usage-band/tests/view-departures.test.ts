@@ -5,6 +5,7 @@
 import { test, expect } from 'claude-code/testing'
 import type { RenderChildren } from 'claude-code'
 import { drawBand } from '../hooks/band'
+import { fixedZone } from '../hooks/format'
 import { asciiTree } from '../hooks/glyphs'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
@@ -298,7 +299,7 @@ test("open, CACHE counts down as its pill does: '6m left' on its last call, m:ss
 for (const surface of ['terminal', 'desktop'] as const)
   test(`open on the ${surface}, LIMITS says no clock time, and no window's reset its pill already says`, () => {
     for (let columns = 160; columns >= 40; columns -= 5) {
-      const tree = draw({ surface, columns, expanded: true, maxRows: 40, utcOffsetMin: 0 })
+      const tree = draw({ surface, columns, expanded: true, maxRows: 40, zone: fixedZone(0) })
       const row = shown(firstRow(tree))
       const body = ((cardOf(tree, 'limits')?.children ?? []) as Node[]).filter(Boolean).slice(1).map(shown).join(' | ')
       expect(`${columns}: ${body}`).not.toMatch(/\d\d:\d\d/)
@@ -306,7 +307,7 @@ for (const surface of ['terminal', 'desktop'] as const)
     }
   })
 test('open, LIMITS heads with the 5h counting down, as its pill does, never its clock', () => {
-  const tree = draw({ expanded: true, maxRows: 40, columns: 200, utcOffsetMin: 0 })
+  const tree = draw({ expanded: true, maxRows: 40, columns: 200, zone: fixedZone(0) })
   expect(headOf(tree, 'limits')).toBe('LIMITS25h resets37d resets5h in 3h 00m')
   expect(shown(cardOf(tree, 'limits'))).not.toMatch(/resets 03:00/)
 })

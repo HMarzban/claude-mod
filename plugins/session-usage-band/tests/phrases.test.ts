@@ -2,25 +2,26 @@
 // spoken durations, amber, pace, resets, empty states and alt text.
 
 import { test, expect } from 'claude-code/testing'
-import { fmtClock, fmtDay, fmtDayClock, fmtEtaSpoken, fmtLeft, fmtLeftSpoken, fmtSecondsLeft } from '../hooks/format'
+import { fixedZone, fmtClock, fmtDay, fmtDayClock, fmtEtaSpoken, fmtLeft, fmtLeftSpoken, fmtSecondsLeft } from '../hooks/format'
 import { AMBER, EMPTY, altOf, paceText, resetPhrase } from '../hooks/words'
 
 const T = Date.UTC(2026, 9, 9, 13, 40) // a Friday, 13:40 UTC
 const MIN = 60_000
+const UTC = fixedZone(0)
 
 test('clock times are local and 24-hour', () => {
-  expect(fmtClock(T, 0)).toBe('13:40')
-  expect(fmtClock(T, 120)).toBe('15:40')
-  expect(fmtClock(T, -330)).toBe('08:10')
+  expect(fmtClock(T, UTC)).toBe('13:40')
+  expect(fmtClock(T, fixedZone(120))).toBe('15:40')
+  expect(fmtClock(T, fixedZone(-330))).toBe('08:10')
 })
 test('a clock time on another day names the day', () => {
-  expect(fmtDayClock(T + 3 * 60 * MIN, 0, T)).toBe('16:40')
-  expect(fmtDayClock(T + 67 * 60 * MIN, 0, T)).toBe('Mon 08:40')
+  expect(fmtDayClock(T + 3 * 60 * MIN, UTC, T)).toBe('16:40')
+  expect(fmtDayClock(T + 67 * 60 * MIN, UTC, T)).toBe('Mon 08:40')
 })
 test("a projection's day is today's clock, else its weekday, a week on the next one", () => {
-  expect([fmtDay(T + 3 * 60 * MIN, 0, T), fmtDay(T + 67 * 60 * MIN, 0, T), fmtDay(T + 6 * 24 * 60 * MIN, 0, T)]).toEqual(['16:40', 'Mon', 'Thu'])
+  expect([fmtDay(T + 3 * 60 * MIN, UTC, T), fmtDay(T + 67 * 60 * MIN, UTC, T), fmtDay(T + 6 * 24 * 60 * MIN, UTC, T)]).toEqual(['16:40', 'Mon', 'Thu'])
   // Friday a week on is not today.
-  expect(fmtDay(T + (7 * 24 - 1) * 60 * MIN, 0, T)).toBe('next Fri')
+  expect(fmtDay(T + (7 * 24 - 1) * 60 * MIN, UTC, T)).toBe('next Fri')
 })
 test('a countdown is words, never a clock', () => {
   expect(fmtSecondsLeft(47_000)).toBe('47s left')

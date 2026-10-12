@@ -31,7 +31,7 @@ import {
   takeRebuilt,
 } from './cache'
 import type { ResumedCache, Spend, Ttl } from './cache'
-import { COMPACT_NEAR, SEVERE_AT, WARN_AT, clipMiddle, contextUsed, fmtCountdown, fmtEta, fmtTokens, utcOffsetOf } from './format'
+import { COMPACT_NEAR, SEVERE_AT, WARN_AT, clipMiddle, contextUsed, fmtCountdown, fmtEta, fmtTokens, hostZone, readableZone } from './format'
 import { resolveGlyphs } from './glyphs'
 import {
   fiveHourEtaMs,
@@ -137,9 +137,6 @@ const band: {
   compactAt: number | undefined
   /** The breakdown said auto-compaction is off. */
   autoCompactOff: boolean
-  /** The local zone's offset from UTC, east-positive minutes; read at load
-   *  and after each turn, so a change of zone shows by the next reply. */
-  utcOffsetMin: number | undefined
   /** Where the session is: its project, home-relative, and git there. Read
    *  between redraws, never while drawing, since git takes a process. */
   workspace: Workspace | undefined
@@ -163,7 +160,6 @@ const band: {
   glyphs: 'unicode',
   compactAt: undefined,
   autoCompactOff: false,
-  utcOffsetMin: undefined,
   workspace: undefined,
   samples: [],
   reads: 0,
@@ -470,7 +466,6 @@ export const register: Register = on => {
     band.workspace = undefined
     const now = await $.clock.now()
     band.samples = samplesUpTo((await storedSamples($)) ?? [], now)
-    band.utcOffsetMin = utcOffsetOf(now)
     band.reads++ // any read still out began before this load
     // A read that fails keeps the layout drawn: none yet, so chips.
     band.layout = DEFAULT_LAYOUT
@@ -581,7 +576,6 @@ export const register: Register = on => {
       const now = await $.clock.now()
       const sample = usage === undefined ? undefined : sampleOf(now, usage.rateLimits)
       if (sample !== undefined) await noteSample($, sample)
-      band.utcOffsetMin = utcOffsetOf(now)
       // Another session may have chosen a layout since.
       await readLayout($)
       // A turn may have switched branch, committed or moved the session.
@@ -728,7 +722,9 @@ export const register: Register = on => {
         sevenDay: seven ? { percentUsed: seven.percentUsed, resetsAt: seven.resetsAt } : undefined,
         samples: band.samples,
         workspace: band.workspace,
-        utcOffsetMin: band.utcOffsetMin,
+        // Read at each instant drawn, so a daylight-saving change shows by
+        // the next minute's repaint, with no reply needed.
+        zone: readableZone(hostZone, now),
         otherLimits: usage.rateLimits
           .filter(l => l.kind !== FIVE_HOUR && l.kind !== SEVEN_DAY)
           .map(l => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: l.resetsAt })),

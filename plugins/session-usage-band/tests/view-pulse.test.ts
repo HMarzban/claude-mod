@@ -5,6 +5,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import { drawBand } from '../hooks/band'
+import { fixedZone } from '../hooks/format'
 import type { Sample } from '../hooks/memory'
 import { DARK } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
@@ -214,7 +215,7 @@ test("open on the desktop, LIMITS' measured days span its slot, 4px apart and 3p
 })
 test('no card opens on a row the collapsed one shows', () => {
   for (const surface of ['terminal', 'desktop'] as const) {
-    const open = band({ surface, expanded: true, maxRows: 13, columns: 120, utcOffsetMin: 0 })
+    const open = band({ surface, expanded: true, maxRows: 13, columns: 120, zone: fixedZone(0) })
     expect(['cache', 'spend', 'context', 'limits'].map(name => firstRowOf(open, name))).toEqual([
       're-warm if cold~$1.66',
       expect.stringMatching(/input18k$/),

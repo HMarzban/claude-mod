@@ -7,7 +7,6 @@ import { weekOf } from './calendar'
 import type { DayCell, HourCell, Week, WindowNow } from './calendar'
 import {
   COMPACT_NEAR,
-  DAY_MS,
   FIVE_HOUR_MS,
   LAST_CALL_MS,
   SEVEN_DAY_MS,
@@ -15,13 +14,16 @@ import {
   WARN_AT,
   clamp01,
   contextUsed,
+  dayOf,
+  fixedZone,
   fmtCountdown,
   fmtEstimate,
   fmtPct,
   fmtTokens,
+  midnightOf,
   resetIn,
 } from './format'
-import type { ResetIn } from './format'
+import type { ResetIn, Zone } from './format'
 import { drawnTier } from './glyphs'
 import { warmAverageOf } from './insights'
 import type { Trails } from './insights'
@@ -179,7 +181,7 @@ export type Frame = Readonly<{
   /** The tier drawn in: the session's on a terminal, where ambiguous-width
    *  glyphs can draw wide; the band's own glyphs on every other surface. */
   glyphs: Glyphs
-  utcOffsetMin: number | undefined
+  zone: Zone | undefined
 }>
 
 export type CacheFacts = Readonly<{
@@ -417,7 +419,7 @@ export const historyFacts = (trails: Trails, fiveHour: LimitView | undefined, co
   fiveHourHour: lastHourOf(trails.fiveHour, now).map(p => p.pct),
 })
 
-/** A window as the calendar reads it: its reset and a measured fill as times. */
+/** A window as the calendar reads it: its reset and its fill as times. */
 const windowOf = (l: LimitView | undefined, now: number): WindowNow | undefined =>
   l === undefined
     ? undefined
@@ -425,21 +427,23 @@ const windowOf = (l: LimitView | undefined, now: number): WindowNow | undefined 
         percentUsed: l.percentUsed,
         projectedPct: l.projectedPct,
         resetsAt: l.resetInMs === undefined ? undefined : now + l.resetInMs,
-        fullAt: l.etaMs === null ? undefined : now + l.etaMs,
+        // The fill the forecast says, so the week names the same one.
+        fullAt: l.fullInMs === undefined ? undefined : now + l.fullInMs,
       }
 
 /** A window's slices with each guess stopped at the cap: the slice calendar
- *  marks full takes what is left, and none is left after it, so the cells
- *  and their words agree. calendar.ts keeps every slice's guess. */
+ *  marks full takes what is left, today's on top of its rise so far, and
+ *  none is left after it, so the cells and their words agree. calendar.ts
+ *  keeps every slice's guess. */
 export const cappedMarks = (cells: ReadonlyArray<DayCell | HourCell>, percentUsed: number): SliceMark[] => {
   const full = cells.findIndex(c => c.fullMark)
   let left = Math.max(0, 100 - percentUsed)
   return cells.map((c, i): SliceMark => {
     if (full >= 0 && i > full) return { kind: 'spent', pct: 0 }
+    // The fill takes what is left, though the step's guess may say less or more.
+    if (i === full) return { kind: 'fills', pct: (c.guess ? 0 : (c.pct ?? 0)) + left }
     if (c.pct === undefined) return { kind: 'unknown', pct: 0 }
     if (!c.guess) return { kind: 'measured', pct: c.pct }
-    // The fill takes what is left, though the step's guess may say less or more.
-    if (i === full) return { kind: 'fills', pct: left }
     if (left <= 0) return { kind: 'spent', pct: 0 }
     const pct = Math.min(c.pct, left)
     left -= pct
@@ -450,11 +454,14 @@ export const cappedMarks = (cells: ReadonlyArray<DayCell | HourCell>, percentUse
 /** The week's cells from the limit samples, with their words. With the zone
  *  unknown, the cells are named in UTC. */
 export const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour: LimitView | undefined): WeekReading => {
-  const utcOffsetMin = snap.utcOffsetMin ?? 0
-  const week = weekOf({ samples: snap.samples, seven: windowOf(sevenDay, snap.now), five: windowOf(fiveHour, snap.now), now: snap.now, utcOffsetMin })
-  // Now sits in today's cell as far in as today has gone by the local clock.
+  const zone = snap.zone ?? fixedZone(0)
+  const seven = windowOf(sevenDay, snap.now)
+  const week = weekOf({ samples: snap.samples, seven, five: windowOf(fiveHour, snap.now), now: snap.now, zone })
+  // Now sits in today's cell as far in as today has gone, of its own length:
+  // 25 hours on the day the clocks go back.
   const today = week.days.findIndex(d => d.today)
-  const todayGone = ((((snap.now + utcOffsetMin * 60_000) % DAY_MS) + DAY_MS) % DAY_MS) / DAY_MS
+  const day = dayOf(snap.now, zone)
+  const todayGone = (snap.now - midnightOf(day, zone)) / (midnightOf(day + 1, zone) - midnightOf(day, zone))
   // The hours are an hour each up to the reset, so the share of the window
   // gone places now among them; at 0% the 5h has no notch.
   const hourNotch = fiveHour?.gone === undefined || fiveHour.percentUsed === 0 || week.hours.length === 0 ? undefined : fiveHour.gone * week.hours.length
@@ -462,7 +469,7 @@ export const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, f
   const hourRow: SliceRow = { marks: cappedMarks(week.hours, fiveHour?.percentUsed ?? 0), notch: hourNotch }
   return {
     ...week,
-    ...weekWords(week, { days: dayRow, hours: hourRow }),
+    ...weekWords(week, { days: dayRow, hours: hourRow }, seven?.fullAt === undefined ? undefined : { at: seven.fullAt, zone, now: snap.now }),
     dayRow,
     hourRow,
   }
@@ -478,7 +485,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     now: snap.now,
     isWorking: snap.isWorking,
     glyphs: drawnTier(snap),
-    utcOffsetMin: snap.utcOffsetMin,
+    zone: snap.zone,
   }
   const cache = cacheFacts(snap)
   const spend = spendFacts(snap)

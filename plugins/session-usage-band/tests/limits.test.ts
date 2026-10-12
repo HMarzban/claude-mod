@@ -9,6 +9,8 @@ import {
   MIN,
   HOUR,
   hostClock,
+  MODERN,
+  usageAt,
   CLEAR,
   resp,
   respond,
@@ -185,14 +187,14 @@ test('no rate limits: the band draws without the 5h pill or limit facts', async 
 })
 
 test('a gateway spend limit is listed in the expanded line', async ($, on) => {
-  setup(on, { usage: { ...USAGE, rateLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * 3600_000).toISOString() }] } })
+  setup(on, { usage: usageAt(MODERN, { ...USAGE, rateLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }] }), now: MODERN })
   await $.session.start(START)
   const ui = await mountBand($, 'terminal', 110)
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
   expect(fact(tree, 'spend')).toBe('92%!') // past 80%: marked, never colour alone
   // The worst window's reset leads the card, at its clock time; no window length, so no pace.
-  expect(fact(tree, 'resets')).toBe(hostClock(5 * HOUR, 0))
+  expect(fact(tree, 'resets')).toBe(hostClock(MODERN + 5 * HOUR, MODERN))
   expect(fact(tree, 'spend pace')).toBeUndefined()
   await ui.unmount()
 })

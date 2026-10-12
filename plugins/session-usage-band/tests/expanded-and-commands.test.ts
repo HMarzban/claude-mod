@@ -19,6 +19,8 @@ import {
   USAGE,
   HOUR,
   hostClock,
+  MODERN,
+  usageAt,
   breakdown,
   type Node,
   svgsOf,
@@ -153,10 +155,11 @@ test('the context card: used of the window, and where compaction runs', async ($
 
 test('the limits card: each window with its usage and reset', async ($, on) => {
   setup(on, {
-    usage: {
+    usage: usageAt(MODERN, {
       ...USAGE,
       rateLimits: [...USAGE.rateLimits, { kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }],
-    },
+    }),
+    now: MODERN,
   })
   await $.session.start(START)
   const ui = await mountBand($, 'terminal', 110)
@@ -166,7 +169,7 @@ test('the limits card: each window with its usage and reset', async ($, on) => {
   expect(fact(tree, '7d')).toBe('30%')
   expect(fact(tree, 'spend')).toBe('92%!') // past 80%: marked, never colour alone
   // The worst, spend, leads with its reset; no window length, so no pace.
-  expect(fact(tree, 'resets')).toBe(hostClock(5 * HOUR, 0))
+  expect(fact(tree, 'resets')).toBe(hostClock(MODERN + 5 * HOUR, MODERN))
   expect(fact(tree, '5h pace')).toBe('5h resets 3h 00m · on pace for ~10%')
   await ui.unmount()
 })

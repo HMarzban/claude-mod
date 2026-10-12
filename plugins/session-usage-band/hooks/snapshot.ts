@@ -3,6 +3,7 @@
 
 import type { RenderSurface } from 'claude-code'
 import type { Ttl } from './cache'
+import type { Zone } from './format'
 import type { Trails } from './insights'
 import type { Sample } from './memory'
 import type { Palette } from './palette'
@@ -87,9 +88,9 @@ export type BandSnapshot = Readonly<{
   layout: LayoutName
   /** The glyph tier, resolved once per session. */
   glyphs: Glyphs
-  /** The local zone's offset from UTC, in east-positive minutes; undefined
-   *  when it can't be read. */
-  utcOffsetMin: number | undefined
+  /** The local zone, its offset read at each instant drawn; undefined when
+   *  the clock gives no offset, and the band counts down instead. */
+  zone: Zone | undefined
 }>
 
 export type BandActions = Readonly<{
