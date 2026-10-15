@@ -4,20 +4,36 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Nightly, so a Claude Code release that breaks the band shows here within
+  # a day instead of on the next merge.
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   check:
+    name: check (claude-code ${{ matrix.claude-code }})
     runs-on: ubuntu-latest
+    strategy:
+      # Each version's result on its own: red on latest alone is a Claude
+      # Code release, red on both is the change.
+      fail-fast: false
+      matrix:
+        # The pin is the last version known good. Bump it on purpose, once
+        # latest is green, never to get a red run green.
+        claude-code: [latest, 2.1.296]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code
+        run: |
+          npm install -g @anthropic-ai/claude-code@${{ matrix.claude-code }}
+          claude --version
       - name: Validate the marketplace and the plugin
         run: |
           claude plugin validate .
