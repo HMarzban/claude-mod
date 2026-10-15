@@ -53,7 +53,7 @@ export type Week = Readonly<{
 
 type Known<C> = C & Readonly<{ pct: number }>
 /** A cell measured: neither a guess nor unknown. */
-export const isKnown = <C extends DayCell | HourCell>(c: C): c is Known<C> => !c.guess && c.pct !== undefined
+const isKnown = <C extends DayCell | HourCell>(c: C): c is Known<C> => !c.guess && c.pct !== undefined
 
 /** How a window is cut: what a sample says of it, and its slices' edges,
  *  oldest first. */

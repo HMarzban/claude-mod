@@ -1,292 +1,513 @@
-// Pulse, is my spending speeding up: chips' pills with history inside them,
-// the cost bars beside the total and the 5h trail on its own scale; how the
-// row gives way and amber leads; and the shared cards it opens into, their
-// heads carrying the conversation's history.
+// Pulse, the session's trace: the cache a heartbeat, each message a beat,
+// context and the 5h window as lines, the week by day, in the one order;
+// open, a stack of chart bands with their words, giving way as rows run out.
 
+import type { RenderChildren } from 'claude-code'
 import { test, expect } from 'claude-code/testing'
 import { drawBand } from '../hooks/band'
-import { fixedZone } from '../hooks/format'
-import type { Sample } from '../hooks/memory'
+import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
+import { sparkline } from '../hooks/charts'
+import { makeKit } from '../hooks/kit'
+import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { EMPTY } from '../hooks/words'
-import { CLEAR, HOUR, LONG, MIN, START, boldOf, byKey, cardFirstRow, cardHead, cardOf, fakeEl, firstRow, mountBand, pacing, pillKeys, resp, respond, setup, shown, svgAlts, svgRect, svgsOf, usage, type Node } from './helpers'
-import { NO_ACT, snapOf, viewSuite, visualRows } from './matrix'
+import { HOUR, MIN, SAMPLES, USAGE, byKey, fakeEl, firstRow, shown, svgAlts, svgsOf, walk, type Node } from './helpers'
+import { NO_ACT, caseKey, drawCases, snapOf, viewSuite, visualRows, withLimits } from './matrix'
 
 viewSuite('pulse')
 
 /** Twenty-four messages, $0.20 each but a $0.84 re-warm seven from the end
  *  and a last of $0.21. */
 const COSTS = Array.from({ length: 24 }, (_, i) => ({ usd: i === 23 ? 0.21 : i === 17 ? 0.84 : 0.2, reWarm: i === 17 }))
-/** The last hour of the 5h limit, a reading every five minutes, 2% to 4%. */
-const FIVE_HOUR = Array.from({ length: 12 }, (_, i) => ({ at: (i - 11) * 5 * MIN, pct: 2 + i / 5.5 }))
-const HISTORY = { costs: COSTS, context: [40_000, 60_000, 76_000], fiveHour: FIVE_HOUR }
-/** The 7d window measured across yesterday, 20% to 30%. */
-const SAMPLES: Sample[] = [-30 * HOUR, -HOUR].map((at, i) => ({ at, fivePct: 4, sevenPct: 20 + 10 * i, fiveResetAt: 3 * HOUR, sevenResetAt: 67 * HOUR }))
+const HISTORY = { costs: COSTS, context: [40_000, 60_000, 76_000] }
 
 /** The band as pulse draws it at 160 columns, with history. */
 const band = (over: Partial<BandSnapshot> = {}): Node =>
   drawBand(fakeEl, snapOf({ layout: 'pulse', columns: 160, maxRows: 40, history: HISTORY, samples: SAMPLES, ...over }), NO_ACT) as unknown as Node
 const rowOf = (over: Partial<BandSnapshot> = {}): Node => firstRow(band(over)) as Node
-const pillOf = (row: Node, key: string): Node | undefined => byKey(row, key, 'Box')
-const BRAILLE = /[⠀-⣿]+/
-/** The Svgs that chart a reading: the bars, a trail, a meter, the day cells. */
-const chartsOf = (n: unknown): Node[] => svgsOf(n).filter(s => /^(cost of|5h usage|context|7d|weekly)/.test(String(s.props?.alt)) && !/^context$/.test(String(s.props?.alt)))
 
-test("collapsed is one row of chips' pills: cache, the cost with its bars, context, 5h on its trail, 7d on its bar, then ▵", () => {
-  for (const surface of ['terminal', 'desktop'] as const) {
-    const row = rowOf({ surface })
-    expect(pillKeys(row)).toEqual(['cache', 'cost', 'ctx', '5h', '7d'])
-    expect(byKey(row.children?.at(-1), 'more', 'Button')?.props?.label).toBe('▵')
-  }
-  const text = shown(rowOf())
-  expect(text).toMatch(/◷ cache 52m .*\$3\.19 [⠀-⣿]{7} · last \$0\.21◔ 40% full5h [⠀-⣿]{6} 4%7d █+░+ 30%$/)
-  // No tokens and no resets: the cards say them.
-  expect(text).not.toMatch(/Σ|↻/)
-  expect(chartsOf(rowOf({ surface: 'desktop' })).map(s => String(s.props?.alt))).toEqual([
-    'cost of the last 14 messages, steady, average $0.20, max $0.84 re-warm',
-    '5h usage over the last hour, rising',
-    '7d 30% used',
-  ])
+const CLASS = (alt: string) => (/^cache/.test(alt) ? 'cache' : /^cost of/.test(alt) ? 'cost' : /^context/.test(alt) ? 'context' : /^5h/.test(alt) ? '5h' : /^weekly/.test(alt) ? '7d' : alt)
+const LIMITS = { fiveHour: { percentUsed: 26, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null }, sevenDay: { percentUsed: 41, resetsAt: new Date(67 * HOUR).toISOString() } }
+const OTHER = [{ kind: 'spend_limit', percentUsed: 40, resetsAt: new Date(5 * HOUR).toISOString() }] as BandSnapshot['otherLimits']
+const beatOf = (tree: unknown) => svgsOf(firstRow(tree)).find(s => /^cache/.test(String(s.props?.alt)))
+
+test('collapsed desktop: one row; its charts in the one order', () => {
+  const row = rowOf({ surface: 'desktop', ...LIMITS })
+  expect(svgAlts(row).map(CLASS)).toEqual(['cache', 'cost', 'context', '5h', '7d'])
+  expect(visualRows(row, 'desktop')).toBe(1)
 })
-test('one bold per reading, on its figure: the total, 5h and 7d', () => {
-  for (const surface of ['terminal', 'desktop'] as const) expect(boldOf(rowOf({ surface }))).toEqual(['$3.19', ' 4%', ' 30%'])
+test('collapsed terminal: every reading in words, in order, then ▵', () => {
+  const row = rowOf({ surface: 'terminal', ...LIMITS })
+  expect(shown(row)).toMatch(/cache[\s\S]*\$3\.19[\s\S]*context[\s\S]*5h[\s\S]*7d/)
+  expect(byKey(row.children?.at(-1), 'more', 'Button')?.props?.label).toBe('▵')
 })
-test('no thumb or knob ends a fill or a line, shut or open', () => {
-  for (const expanded of [false, true]) {
-    const sources = chartsOf(band({ surface: 'desktop', expanded })).map(s => String(s.props?.source))
-    expect(sources.length).toBeGreaterThanOrEqual(3)
-    for (const source of sources) expect(source).not.toMatch(/class="tick"|<circle/)
-  }
+test('no chips pill or battery: no group has a ground, and no battery alt', () => {
+  const row = rowOf({ surface: 'desktop', ...LIMITS })
+  expect(['cache', 'spend', 'context', '5h', '7d'].map(k => byKey(row, k, 'Box')?.props?.backgroundColor)).toEqual([undefined, undefined, undefined, undefined, undefined])
+  expect(svgAlts(row).some(a => /battery/.test(a))).toBe(false)
 })
-test('the cost bars sit on a track, warm in grey, a re-warm in value ink with a cap, scaled to three times the warm average', () => {
-  const bars = chartsOf(rowOf({ surface: 'desktop' })).find(s => /^cost of/.test(String(s.props?.alt)))
-  const source = String(bars?.props?.source)
-  expect(source).toMatch(/<rect class="track"/)
-  const heights = [...source.matchAll(/<rect class="bar" [^>]*height="(\d+)" [^>]*fill="([^"]+)"/g)].map(m => [Number(m[1]), m[2]])
-  // The warm average is about $0.20, so its bars stand a third of the 13 px
-  // the cap leaves, and the re-warm, past the top, stands full.
-  expect(heights.map(([tall]) => tall)).toEqual([4, 4, 4, 4, 4, 4, 4, 13, 4, 4, 4, 4, 4, 5])
-  expect(heights.map(([, fill]) => fill === DARK.value)).toEqual(heights.map((_, i) => i === 7))
-  expect(source.match(/class="cap"/g)?.length).toBe(1)
-  // In text the re-warm's cell is in value ink, the rest in the bars' grey.
-  const cells = ((byKey(pillOf(rowOf(), 'cost'), 'bars', 'Text')?.children ?? []) as Node[]).map(k => [shown(k), k.props?.color])
-  expect(cells).toEqual([['⣀⣀⣀', DARK.meterFill], ['⣸', DARK.value], ['⣀⣀⣀', DARK.meterFill]])
+test('the beats: 14 wide, a path', () => {
+  const beats = svgsOf(rowOf({ surface: 'desktop', ...LIMITS })).find(s => /^cost of the last 14/.test(String(s.props?.alt)))
+  expect(String(beats?.props?.source)).toMatch(/<path class="beats"/)
 })
-test('the 5h trail runs 0 to 100 on a track, so a flat 0% sits on the floor', () => {
-  const flat = { fiveHour: { percentUsed: 0, resetsAt: new Date(5 * HOUR).toISOString(), etaMs: null }, history: { ...HISTORY, fiveHour: FIVE_HOUR.map(p => ({ ...p, pct: 0 })) } }
-  const trail = chartsOf(rowOf({ surface: 'desktop', ...flat })).find(s => /^5h usage/.test(String(s.props?.alt)))
-  const source = String(trail?.props?.source)
-  expect(source).toMatch(/<rect class="track"/)
-  const [, points = ''] = source.match(/<polyline points="([^"]+)"/) ?? []
-  expect(new Set(points.split(' ').map(p => p.split(',')[1]))).toEqual(new Set(['14']))
-  expect(shown(byKey(pillOf(rowOf(flat), '5h'), 'trail', 'Text'))).toBe('⣀'.repeat(6))
+// One drawCases a test: the engine's hooks are registered before its first call.
+for (const [scenario, mark] of [['calm', /<circle[^>]*fill="#/], ['cold', /<line/], ['unmeasured', /fill="none"/], ['warming', /fill="none"/]] as const) {
+  test(`the heartbeat per mood: ${scenario}`, async ($, on) => {
+    const drawn = await drawCases($, on, { scenario, appearance: 'dark', layout: 'pulse' }, [{ surface: 'desktop', cols: 160 }])
+    expect(String(beatOf(Object.values(drawn)[0])?.props?.source)).toMatch(mark)
+  })
+}
+test('the heartbeat: its source unchanged as the last minute counts down', () => {
+  const tick = (msLeft: number) => beatOf(band({ surface: 'desktop', ...LIMITS, cache: { ...snapOf().cache, requests: 1, msLeft, coldAt: msLeft } }))
+  expect([tick(40_000)?.props?.source, tick(40_000)?.props?.alt]).toEqual([tick(39_000)?.props?.source, tick(39_000)?.props?.alt])
 })
-test("the charts give way first; then 7d's bar, 7d, the wording, the last cost, context and 5h", () => {
-  /** Whether a pill says `re`, in its text or its charts' alts. */
-  const says = (key: string, re: RegExp) => (row: Node): boolean => {
-    const p = pillOf(row, key)
-    return p !== undefined && re.test([shown(p), ...svgAlts(p)].join(' '))
-  }
-  /** What each step leaves in the row, in the order they give way. */
-  const kept: ReadonlyArray<readonly [string, (row: Node) => boolean]> = [
-    ['barsMany', says('cost', /cost of the last 14|[⠀-⣿]{7}/)],
-    ['trailChart', says('5h', /5h usage|[⠀-⣿]/)],
-    ['barsChart', says('cost', /cost of|[⠀-⣿]/)],
-    ['weekBar', says('7d', /7d \d+% used|[█░]/)],
-    ['calmWeek', says('7d', /7d/)],
-    ['shortWording', says('ctx', / full/)],
-    ['lastCost', says('cost', /last \$/)],
-    ['calmContext', says('ctx', /%/)],
-    ['calmFive', says('5h', /5h/)],
-  ]
-  for (const surface of ['terminal', 'desktop'] as const) {
-    const widths = Array.from({ length: 121 }, (_, i) => 160 - i)
-    const rows = widths.map(columns => rowOf({ surface, columns }))
-    // Each piece's widest row without it; every one is there at 160.
-    const gone = kept.map(([name, has]) => [name, widths.find((_, i) => !has(rows[i] as Node)) ?? 0] as const)
-    expect(gone.filter(([, at]) => at === 160)).toEqual([])
-    const order = [...gone].sort((a, b) => b[1] - a[1]).map(([name]) => name)
-    expect(`${surface}: ${order.join(' ')}`).toBe(`${surface}: ${kept.map(([name]) => name).join(' ')}`)
-    // Calm, the cache and the total outlast the rest.
-    expect(pillKeys(rows.at(-1) as Node).slice(0, 2)).toEqual(['cache', 'cost'])
-  }
+test('recalled carries ~ on its time', async ($, on) => {
+  const recalled = await drawCases($, on, { scenario: 'recalled', appearance: 'dark', layout: 'pulse' }, [{ surface: 'terminal', cols: 160 }])
+  expect(shown(firstRow(Object.values(recalled)[0]))).toMatch(/cache[^·]*~/)
 })
-test("amber moves to the front, whole and led by '! ', and outlasts every calm piece", () => {
-  const pace = { fiveHour: { percentUsed: 50, resetsAt: new Date(4 * HOUR).toISOString(), etaMs: 40 * MIN } }
-  for (const surface of ['terminal', 'desktop'] as const) {
-    const row = rowOf({ surface, ...pace })
-    expect(pillKeys(row)).toEqual(['5h', 'cache', 'cost', 'ctx', '7d'])
-    expect(shown(pillOf(row, '5h'))).toMatch(/^! 5h full in ~40m/)
-    expect(pillKeys(rowOf({ surface, columns: 40, ...pace }))[0]).toBe('5h')
-  }
-  // Narrow, its trail gives way, then its words go short, and the total
-  // after them; ▵ stays. A desktop pill's padding and icons make it wider.
-  expect(pillKeys(rowOf({ columns: 50, ...pace }))).toEqual(['5h', 'cache', 'cost'])
-  for (const [surface, columns, keys] of [
-    ['terminal', 40, ['5h', 'cache', 'cost']],
-    ['desktop', 48, ['5h', 'cache', 'cost']],
-    ['desktop', 40, ['5h', 'cache']],
-  ] as const) {
-    const narrow = rowOf({ surface, columns, ...pace })
-    expect([pillKeys(narrow), shown(pillOf(narrow, '5h')).trim()]).toEqual([keys, '! 5h ~40m'])
-    expect(byKey(narrow.children?.at(-1), 'more', 'Button')?.props?.label).toBe('▵')
-  }
-  // Amber, the trail is drawn in amber and climbs dashed to where it lands.
-  const trail = chartsOf(pillOf(rowOf({ surface: 'desktop', ...pace }), '5h')).find(s => /^5h usage/.test(String(s.props?.alt)))
-  expect(String(trail?.props?.source)).toMatch(new RegExp(`stroke="${DARK.amberFg}"[^>]*stroke-dasharray`))
-  const lastMinute = rowOf({ cache: { ...snapOf().cache, msLeft: 30_000 } })
-  expect(shown(pillOf(lastMinute, 'cache'))).toMatch(/^ ?! 30s left · re-warm ~\$1\.66/)
-  const near = rowOf({ context: { tokens: 180_000, window: 200_000, percent: 90, compactAt: 190_000, autoCompactOff: false } })
-  expect(pillKeys(near)[0]).toBe('ctx')
-  expect(shown(pillOf(near, 'ctx'))).toMatch(/! context 95% · compacts in ~10k/)
+test('working shows no countdown', async ($, on) => {
+  const working = await drawCases($, on, { scenario: 'working', appearance: 'dark', layout: 'pulse' }, [{ surface: 'terminal', cols: 160 }])
+  expect(shown(firstRow(Object.values(working)[0]))).not.toMatch(/\d+m left|\d+s left/)
 })
-test('open, ▿ ends the row nearest the prompt', () => {
-  for (const surface of ['terminal', 'desktop'] as const) {
-    const row = rowOf({ surface, expanded: true })
-    expect(byKey(row.children?.at(-1), 'more', 'Button')?.props?.label).toBe('▿')
-  }
-})
-test("open is the four cards, spend's bars, context's trail and the measured days in their heads; the cache's bare", () => {
-  for (const surface of ['terminal', 'desktop'] as const) {
-    const open = band({ surface, expanded: true })
-    expect(['cache', 'spend', 'context', 'limits'].map(name => cardOf(open, name) !== undefined)).toEqual([true, true, true, true])
-    const slot = (name: string) => byKey(byKey(cardOf(open, name), 'head'), 'slot', 'Box')
-    expect(slot('cache')).toBeUndefined()
-    // From a zero basis, as a card's meter rows are, so a stretched lens scales to its slot.
-    expect(['spend', 'context', 'limits'].map(name => slot(name)?.props?.width)).toEqual([0, 0, 0])
-    if (surface === 'terminal') {
-      expect(['spend', 'context', 'limits'].map(name => BRAILLE.test(shown(slot(name))))).toEqual([true, true, true])
-      continue
+test("no costs yet: the flat trace only beside `no costs yet`, while the total is $0; a known total alone, no trace", () => {
+  const none = { history: { costs: [], context: [] } }
+  for (const surface of ['desktop', 'terminal'] as const) {
+    // A resumed conversation: its total known, no message's cost recorded.
+    const resumed = byKey(rowOf({ surface, ...none }), 'spend', 'Box')
+    expect(shown(resumed)).toBe('$3.19')
+    expect(svgsOf(resumed)).toHaveLength(0)
+    const fresh = rowOf({ surface, ...none, costUsd: 0 })
+    expect(shown(byKey(fresh, 'spend', 'Box'))).toMatch(surface === 'desktop' ? /^\$0\.00 · no costs yet$/ : /^⣀{7} ?\$0\.00 · no costs yet$/)
+    // As the row narrows, no step leaves the trace without its word.
+    for (let columns = 160; columns >= 40; columns--) {
+      const spend = byKey(rowOf({ surface, columns, ...none, costUsd: 0 }), 'spend', 'Box')
+      if (spend === undefined) continue
+      const traced = surface === 'desktop' ? svgsOf(spend).length > 0 : /⣀/.test(shown(spend))
+      expect(`${surface} ${columns} ${traced && !shown(spend).includes(EMPTY.costsShort) ? 'bare' : 'ok'}`).toBe(`${surface} ${columns} ok`)
     }
-    expect(['spend', 'context', 'limits'].map(name => svgAlts(slot(name)))).toEqual([
-      ['cost of the last 24 messages, steady, average $0.20, max $0.84 re-warm'],
-      ['context over the conversation, rising, compacts at 190k'],
-      ['weekly limit by day, measured: Wednesday 10%'],
-    ])
-    // Each fits its slot: none is drawn wider than the band, nor taller than 16 px.
-    for (const name of ['spend', 'context', 'limits']) for (const s of svgsOf(slot(name))) expect(Number(s.props?.height)).toBeLessThanOrEqual(16)
+  }
+  const flat = svgsOf(byKey(rowOf({ surface: 'desktop', ...none, costUsd: 0 }), 'spend', 'Box'))
+  expect(flat.map(s => s.props?.alt)).toEqual([EMPTY.costsAlt])
+  expect(String(flat[0]?.props?.source)).toMatch(new RegExp(`<line class="flat"[^>]* stroke="${DARK.label}"`))
+  expect(shown(byKey(band({ surface: 'desktop', expanded: true, ...none }), 'band:spend', 'Box'))).toContain(EMPTY.costs)
+})
+test('no limits: no 5h or 7d; no samples: 5h and 7d in words only', () => {
+  expect(shown(rowOf({ fiveHour: undefined, sevenDay: undefined }))).not.toMatch(/5h|7d/)
+  const bare = rowOf({ surface: 'desktop', ...LIMITS, samples: [] })
+  expect(svgAlts(bare).map(CLASS)).not.toContain('5h')
+  expect(shown(bare)).toMatch(/5h 26%[\s\S]*7d 41%/)
+})
+test('at 40 and 45 columns, full amber: the cache and the 7d stay, in order, ▵ last, and the row fits', async ($, on) => {
+  const drawn = await drawCases($, on, { scenario: 'lastMinute', appearance: 'dark', layout: 'pulse', usage: { ...USAGE, rateLimits: withLimits(30, 82) } }, [40, 45].map(cols => ({ surface: 'terminal' as const, cols })))
+  for (const cols of [40, 45]) {
+    const row = firstRow(drawn[caseKey({ surface: 'terminal', cols }, 'shut')]) as Node
+    // The cache's amber words, led by '! ', then the 7d's.
+    expect(shown(row)).toMatch(/^! \d+s[\s\S]*7d/)
+    expect(shown(byKey(row, 'cache', 'Box'))).toMatch(/^! \d+s/)
+    expect(byKey(row.children?.at(-1), 'more', 'Button')?.props?.label).toBe('▵')
+    expect(cellsOf(row as unknown as RenderChildren, TERMINAL)).toBeLessThanOrEqual(cols - ROW_SLACK)
   }
 })
-test("the spend lens rules the warm average and scales as the row's bars do; the context lens rises across its slot under its cap", () => {
-  const open = band({ surface: 'desktop', expanded: true })
-  const bars = String(svgsOf(byKey(cardOf(open, 'spend'), 'head')).find(s => /^cost of/.test(String(s.props?.alt)))?.props?.source)
-  expect(bars).toMatch(/<line class="level" [^>]*stroke="[^"]+"/)
-  expect(bars).toMatch(/preserveAspectRatio="none"/)
-  const trail = String(svgsOf(byKey(cardOf(open, 'context'), 'head')).find(s => /^context over/.test(String(s.props?.alt)))?.props?.source)
-  // As its board draws it: the oldest point at 14.6 of 16, the newest at 3.6,
-  // the line in the meter's grey over a 16% fill, a 1px cap in label ink on top.
-  const ys = (/<polyline points="([^"]+)"/.exec(trail)?.[1] ?? '').split(' ').map(p => Number(p.split(',')[1]))
-  expect([ys[0], ys.at(-1)]).toEqual([14.6, 3.6])
-  expect(trail).toMatch(new RegExp(`<polyline [^>]*stroke="${DARK.meterFill}"`))
-  expect(trail).toMatch(new RegExp(`class="area"[^>]*fill="${DARK.meterFill}" opacity="0.16"`))
-  expect(trail).toMatch(new RegExp(`<line class="cap" [^>]*y1="0.5"[^>]*stroke="${DARK.label}" stroke-width="1"`))
-  expect(trail).not.toMatch(/<circle/)
+test('narrow and calm, spend gives way, then context, then 5h; the cache and 7d stay, and the row fits', () => {
+  // A cold cache says its re-warm, so at 40 columns even 5h has gone.
+  const cold = { ...LIMITS, cache: { ...snapOf().cache, msLeft: 0 } }
+  const keys = (columns: number) => ['cache', 'spend', 'context', '5h', '7d'].filter(k => byKey(rowOf({ columns, ...cold }), k, 'Box') !== undefined)
+  expect(shown(byKey(rowOf(cold), 'cache', 'Box'))).toMatch(/^cache cold/)
+  expect(keys(40)).toEqual(['cache', '7d'])
+  // The widest row without each group: spend's is the widest, then context's, then 5h's.
+  const widths = Array.from({ length: 121 }, (_, i) => 160 - i)
+  const goneAt = (k: string) => widths.find(columns => !keys(columns).includes(k)) ?? 0
+  const [spend, context, five] = [goneAt('spend'), goneAt('context'), goneAt('5h')]
+  expect([spend > context, context > five, five > 40]).toEqual([true, true, true])
+  expect(keys(spend)).toEqual(['cache', 'context', '5h', '7d'])
+  expect(keys(context)).toEqual(['cache', '5h', '7d'])
+  for (const columns of widths) expect(cellsOf(rowOf({ columns, ...cold }) as unknown as RenderChildren, TERMINAL)).toBeLessThanOrEqual(columns - ROW_SLACK)
+  // The calm session of the other tests keeps 5h at 40: only what doesn't fit goes.
+  const calm = rowOf({ columns: 40, ...LIMITS })
+  expect(['spend', 'context'].map(k => byKey(calm, k, 'Box'))).toEqual([undefined, undefined])
+  expect(shown(calm)).toMatch(/cache[\s\S]*7d/)
+  expect(cellsOf(calm as unknown as RenderChildren, TERMINAL)).toBeLessThanOrEqual(40 - ROW_SLACK)
 })
-test("open on the desktop, CONTEXT's lens stands for its bar: no bar beneath its head", () => {
-  const open = band({ surface: 'desktop', expanded: true })
-  const keys = ((cardOf(open, 'context')?.children ?? []) as Node[]).flat().filter(Boolean).map(k => String(k.props?.key))
-  expect(keys).not.toContain('meter')
-  // The spend's split bar is drawn nowhere else, so it stays.
-  expect(byKey(cardOf(open, 'spend'), 'split')).toBeDefined()
-})
-test("open on the desktop, LIMITS' measured days span its slot, 4px apart and 3px round: a measured day filled in the track's grey, an empty one a solid edge", () => {
-  const days = svgsOf(byKey(cardOf(band({ surface: 'desktop', expanded: true }), 'limits'), 'head')).find(s => /^weekly limit by day/.test(String(s.props?.alt)))
-  const source = String(days?.props?.source)
-  expect(days?.props?.width).toBeUndefined()
-  expect(source).toMatch(/preserveAspectRatio="none"/)
-  expect(source).not.toMatch(/stroke-dasharray/)
-  expect(source).toMatch(new RegExp(`class="fill"[^>]*fill="${DARK.trackStroke}"`))
-  expect(source.match(new RegExp(`class="edge"[^>]*stroke="${DARK.meterTrack}"`, 'g'))?.length).toBeGreaterThan(0)
-  const xs = [...source.matchAll(/class="edge" x="([\d.]+)"/g)].map(([, x]) => Number(x))
-  expect([(xs[1] ?? 0) - (xs[0] ?? 0) - (svgRect(source, 'edge')?.width ?? 0) - 1, svgRect(source, 'edge')?.rx]).toEqual([4, 3])
-})
-test('no card opens on a row the collapsed one shows', () => {
-  for (const surface of ['terminal', 'desktop'] as const) {
-    const open = band({ surface, expanded: true, maxRows: 13, columns: 120, zone: fixedZone(0) })
-    expect(['cache', 'spend', 'context', 'limits'].map(name => cardFirstRow(open, name))).toEqual([
-      're-warm if cold~$1.66',
-      expect.stringMatching(/input18k$/),
-      'room left~114k',
-      'resetsSat 19:00 · on pace for ~50%',
-    ])
+test('one cost, or every cost a re-warm: no NaN', () => {
+  for (const costs of [[{ usd: 0.2, reWarm: false }], [{ usd: 0.8, reWarm: true }, { usd: 0.9, reWarm: true }]]) {
+    const src = svgsOf(rowOf({ surface: 'desktop', ...LIMITS, history: { ...HISTORY, costs } })).map(s => String(s.props?.source)).join('')
+    expect(src).not.toMatch(/NaN|Infinity/)
   }
 })
-test('open fits the band from 13 rows, each card keeping a row of its own', () => {
-  for (const maxRows of [13, 16, 40]) {
-    const open = band({ expanded: true, maxRows, columns: 120 })
-    expect(visualRows(open, 'terminal')).toBeLessThanOrEqual(maxRows)
-    for (const name of ['cache', 'spend', 'context', 'limits']) expect(((cardOf(open, name)?.children ?? []) as Node[]).flat().filter(Boolean).length).toBeGreaterThan(1)
+test('terminal: braille beside the numbers', () => {
+  expect(shown(rowOf({ surface: 'terminal', ...LIMITS }))).toMatch(/[⠀-⣿]+ ?\$3\.19/)
+})
+test("terminal: the cache and the 7d in words alone, as spec §4.1's table draws them", () => {
+  const row = rowOf({ surface: 'terminal', ...LIMITS })
+  expect(shown(byKey(row, 'cache', 'Box'))).toMatch(/^cache 52m left$/)
+  expect(shown(byKey(row, '7d', 'Box'))).toMatch(/^7d 41%$/)
+})
+test("no costs yet: the flat trace and its words in a label's ink, the total in a value's", () => {
+  const spend = byKey(rowOf({ surface: 'terminal', history: { costs: [], context: [] }, costUsd: 0 }), 'spend', 'Box')
+  const inks: string[] = []
+  const visit = (x: unknown): void => {
+    const node = x as Node | null
+    if (node === null || typeof node !== 'object') return
+    const text = (node.children ?? []).every(k => typeof k === 'string') ? (node.children ?? []).join('') : ''
+    if (node.type === 'Text' && text !== '') inks.push(`${text}|${node.props?.color === DARK.label ? 'label' : node.props?.color === DARK.value ? 'value' : String(node.props?.color)}`)
+    for (const k of node.children ?? []) visit(k)
+  }
+  visit(spend)
+  expect(inks).toEqual(['⣀⣀⣀⣀⣀⣀⣀|label', '$0.00|value', ` · ${EMPTY.costsShort}|label`])
+})
+test('an amber reading keeps its chart past the calm ones, until the amber step', () => {
+  // SAMPLES' window, so its trail is drawn.
+  const pace = { fiveHour: { percentUsed: 50, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 40 * MIN }, sevenDay: LIMITS.sevenDay }
+  // Narrow enough that every calm chart has gone.
+  const widths = Array.from({ length: 121 }, (_, i) => 160 - i)
+  const keeps5h = (columns: number) => svgAlts(rowOf({ surface: 'desktop', columns, ...pace })).map(CLASS).includes('5h')
+  const calmGone = widths.find(columns => !svgAlts(rowOf({ surface: 'desktop', columns, ...pace })).map(CLASS).includes('cost'))
+  expect(calmGone).toBeDefined()
+  expect(keeps5h(calmGone ?? 0)).toBe(true)
+})
+test('open: the bands in order, their words, the footer; all 13 rows with an other limit', () => {
+  const open = band({ surface: 'desktop', expanded: true, maxRows: 13, ...LIMITS, otherLimits: OTHER })
+  expect(['band:cache', 'band:spend', 'band:context', 'band:limits', 'band:other'].map(k => byKey(open, k, 'Box') !== undefined)).toEqual([true, true, true, true, true])
+  expect(shown(open)).toMatch(/avg ~\$/)
+  expect(byKey(open, 'collapse', 'Button')).toBeDefined()
+  expect(visualRows(open, 'desktop')).toBe(13)
+})
+test('open: as rows run out, the bands give way in the spec order and the footer stays', () => {
+  // Spec §4.2: Other, Context, then Cache (step 6); Limits and Spend, as
+  // words, go last, with the body.
+  const ORDER = ['band:other', 'band:context', 'band:cache', 'band:limits', 'band:spend']
+  let gone = 0
+  for (let rows = 13; rows >= 4; rows--) {
+    const open = band({ surface: 'desktop', expanded: true, maxRows: rows, ...LIMITS, otherLimits: OTHER })
+    expect(byKey(open, 'collapse', 'Button')).toBeDefined()
+    expect(visualRows(open, 'desktop')).toBeLessThanOrEqual(rows)
+    const present = ORDER.map(k => byKey(open, k, 'Box') !== undefined)
+    const first = present.indexOf(true)
+    gone = Math.max(gone, first === -1 ? ORDER.length : first)
+    expect(present.slice(gone).every(Boolean) || present.every(p => !p)).toBe(true)
+  }
+  // Limits shrinks to two rows, then to one, before Spend goes to one; a
+  // band of one row keeps its chart, a row tall, so the grid keeps its look.
+  const tallest = (rows: number, key: string) => Math.max(0, ...svgsOf(byKey(band({ surface: 'desktop', expanded: true, maxRows: rows, ...LIMITS }), key, 'Box')).map(s => Number(s.props?.height)))
+  expect(tallest(13, 'band:limits')).toBeGreaterThan(24)
+  // At 8 rows the body has 4: Cache 1, Spend 2, Limits one row 1.
+  expect(tallest(8, 'band:limits')).toBeLessThanOrEqual(24)
+  expect(tallest(8, 'band:spend')).toBeGreaterThan(24)
+})
+test('open on the terminal: each band a line, braille beside its words; Limits side by side where they fit, else two', () => {
+  const open = band({ surface: 'terminal', expanded: true, maxRows: 13, ...LIMITS, otherLimits: OTHER })
+  expect(['band:cache', 'band:spend', 'band:context', 'band:limits', 'band:other'].map(k => visualRows(byKey(open, k, 'Box'), 'terminal'))).toEqual([1, 1, 1, 1, 1])
+  expect(visualRows(byKey(band({ surface: 'terminal', columns: 80, expanded: true, maxRows: 13, ...LIMITS }), 'band:limits', 'Box'), 'terminal')).toBe(2)
+  expect(shown(byKey(open, 'band:spend', 'Box'))).toMatch(/^[⠀-⣿]+ ?spend ?\$3\.19 · last \$0\.21 · avg ~\$/)
+})
+test('open, an amber other limit outlasts every band', () => {
+  const amber = [{ kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }] as BandSnapshot['otherLimits']
+  const open = band({ surface: 'terminal', expanded: true, maxRows: 5, ...LIMITS, otherLimits: amber })
+  expect(shown(byKey(open, 'band:other', 'Box'))).toMatch(/! spend 92%/)
+})
+
+// ---- review round 1 -------------------------------------------------------
+
+const BANDS = ['band:cache', 'band:spend', 'band:context', 'band:limits', 'band:other'] as const
+const NEAR = { tokens: 180_000, window: 200_000, percent: 90, compactAt: 190_000, autoCompactOff: false }
+const EXPIRING = { ...snapOf().cache, msLeft: 30_000, ttl: '5m' as const }
+const WS = { path: '/u/claude-mod', git: { branch: 'main', changed: 0 } } as BandSnapshot['workspace']
+
+test('open, an amber band never gives way: near compaction Context stays, an expiring Cache and an amber 7d too, where calm they go', () => {
+  const AMBER_7D = { ...LIMITS, sevenDay: { ...LIMITS.sevenDay, percentUsed: 85 } }
+  const cases = [
+    ['band:context', { context: NEAR }],
+    ['band:cache', { cache: EXPIRING }],
+    ['band:limits', AMBER_7D],
+  ] as const
+  for (const surface of ['terminal', 'desktop'] as const)
+    for (const [key, amber] of cases)
+      // From a body of two rows, which holds any one band.
+      for (const maxRows of [6, 7, 8]) {
+        const calm = band({ surface, expanded: true, maxRows, ...LIMITS })
+        const open = band({ surface, expanded: true, maxRows, ...LIMITS, ...amber })
+        // Short of rows the calm band has gone; the amber one stays, and the stack still fits.
+        const kept = byKey(open, key, 'Box') !== undefined || byKey(calm, key, 'Box') !== undefined
+        expect(`${surface} ${key} ${maxRows} ${kept}`).toBe(`${surface} ${key} ${maxRows} true`)
+        expect(visualRows(open, surface)).toBeLessThanOrEqual(maxRows)
+      }
+  // The calm Context does go short of rows, so the case above means something.
+  expect(byKey(band({ surface: 'desktop', expanded: true, maxRows: 8, ...LIMITS }), 'band:context', 'Box')).toBeUndefined()
+  expect(byKey(band({ surface: 'desktop', expanded: true, maxRows: 8, ...LIMITS, context: NEAR }), 'band:context', 'Box')).toBeDefined()
+})
+test('open, more amber than the body holds: the amber bands give way in the spec order, never the whole stack', () => {
+  const AMBER_7D = { ...LIMITS, sevenDay: { ...LIMITS.sevenDay, percentUsed: 85 } }
+  const cases = [
+    ['desktop', { ...LIMITS, cache: EXPIRING, context: NEAR }],
+    ['terminal', { ...AMBER_7D, cache: EXPIRING, context: NEAR }],
+    ['desktop', { ...AMBER_7D, cache: EXPIRING, context: NEAR }],
+  ] as const
+  for (const [surface, over] of cases)
+    for (const maxRows of [5, 6]) {
+      const open = band({ surface, expanded: true, maxRows, ...over })
+      // Amber is shed in the give-way's order, Context before the cache: the cache, last, stays.
+      expect(`${surface} ${maxRows} ${byKey(open, 'band:cache', 'Box') !== undefined}`).toBe(`${surface} ${maxRows} true`)
+      expect(visualRows(open, surface)).toBeLessThanOrEqual(maxRows)
+    }
+})
+test('open, no limits: in a body of 6 Context stays, since Limits draws nothing', () => {
+  const open = band({ surface: 'desktop', expanded: true, maxRows: 10, fiveHour: undefined, sevenDay: undefined })
+  expect(byKey(open, 'band:limits', 'Box')).toBeUndefined()
+  expect(byKey(open, 'band:context', 'Box')).toBeDefined()
+})
+test('open, no costs and one context point: Spend and Context keep flat charts of their rows, so the stack keeps its look', () => {
+  const open = band({ surface: 'desktop', expanded: true, maxRows: 13, ...LIMITS, history: { costs: [], context: [76_000] } })
+  for (const k of ['band:spend', 'band:context']) expect(visualRows(byKey(open, k, 'Box'), 'desktop')).toBe(2)
+  expect(visualRows(band({ surface: 'desktop', expanded: true, maxRows: 10, ...LIMITS, history: { costs: [], context: [76_000] } }), 'desktop')).toBeLessThanOrEqual(10)
+})
+test('open: while a band is left out, the body leaves at most one row unused', () => {
+  const fixtures: ReadonlyArray<Partial<BandSnapshot>> = [
+    { ...LIMITS, otherLimits: OTHER },
+    { fiveHour: undefined, sevenDay: undefined },
+    { ...LIMITS, history: { costs: [], context: [76_000] } },
+    { ...LIMITS, samples: [] },
+    // More than one band amber: none gives way while the rows hold them.
+    { ...LIMITS, cache: EXPIRING, context: NEAR },
+  ]
+  for (const surface of ['desktop', 'terminal'] as const)
+    for (const [f, over] of fixtures.entries()) {
+      const full = band({ surface, expanded: true, maxRows: 40, ...over })
+      const all = BANDS.filter(k => byKey(full, k, 'Box') !== undefined)
+      for (let maxRows = 4; maxRows <= 13; maxRows++) {
+        const open = band({ surface, expanded: true, maxRows, ...over })
+        const missing = all.filter(k => byKey(open, k, 'Box') === undefined)
+        // The body's rows (bodyRowsFor: less the row, two of air and the buttons), less the stack's bands.
+        const stack = byKey(open, 'stack', 'Box')
+        const unused = maxRows - 4 - (stack === undefined ? 0 : visualRows(stack, surface) - 1)
+        expect(`${surface} ${f} ${maxRows}: ${missing.length > 0 && unused > 1 ? `${unused} unused, ${missing.join(' ')} left out` : 'ok'}`).toBe(`${surface} ${f} ${maxRows}: ok`)
+      }
+    }
+})
+test('open: every band fits its room, nothing cut, and the 5h chart keeps its now', () => {
+  const amber = { cache: EXPIRING, context: NEAR, fiveHour: { percentUsed: 50, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 40 * MIN } }
+  for (const [surface, columns] of [['desktop', 80], ['desktop', 120], ['terminal', 60], ['terminal', 80]] as const)
+    for (const over of [{}, amber]) {
+      const open = band({ surface, columns, expanded: true, ...LIMITS, otherLimits: OTHER, workspace: WS, ...over })
+      for (const k of BANDS) {
+        const b = byKey(open, k, 'Box')
+        if (b === undefined) continue
+        const cells = cellsOf(b as unknown as RenderChildren, surface === 'desktop' ? DESKTOP : TERMINAL)
+        expect(`${surface} ${columns} ${k} ${cells <= columns - ROW_SLACK}`).toBe(`${surface} ${columns} ${k} true`)
+      }
+      const five = svgsOf(byKey(open, 'band:limits', 'Box')).find(s => /^5h window/.test(String(s.props?.alt)))
+      if (five !== undefined) expect(String(five.props?.source)).toMatch(/class="now"/)
+      if (surface === 'desktop' && columns === 120) expect(five).toBeDefined()
+    }
+})
+test("a 5h window first seen mid-window: its chart, shut and open, starts at the first hour it knows, its level now the window's", () => {
+  // Samples from hour 3 on, as when the window opened on another device.
+  const sample = (at: number, fivePct: number) => ({ at, fivePct, sevenPct: 30, fiveResetAt: 5 * HOUR, sevenResetAt: 67 * HOUR })
+  const mid = { surface: 'desktop', now: 4.5 * HOUR, fiveHour: { percentUsed: 30, resetsAt: new Date(5 * HOUR).toISOString(), etaMs: null }, samples: [sample(3.2 * HOUR, 26), sample(4.2 * HOUR, 30)] } as const
+  for (const tree of [rowOf(mid), byKey(band({ ...mid, expanded: true }), 'band:limits', 'Box')]) {
+    const five = svgsOf(tree).find(s => /^5h window/.test(String(s.props?.alt)))
+    const solid = /<polyline points="([^"]+)"/.exec(String(five?.props?.source))?.[1]?.split(' ') ?? []
+    // Hour 3's end, then now's: two points, not five from 0%.
+    expect(solid).toHaveLength(2)
   }
 })
-test("an amber limit heads LIMITS as chips' cards head it, bold on its figure alone", () => {
-  const otherLimits = [{ kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }]
-  const pulse = cardHead(band({ surface: 'desktop', expanded: true, layout: 'pulse', otherLimits }), 'limits')
-  const chips = cardHead(band({ surface: 'desktop', expanded: true, layout: 'chips', otherLimits }), 'limits')
-  expect(shown(pulse)).toMatch(/spend 92%!$/)
-  expect(shown(pulse)).toBe(shown(chips))
-  expect(boldOf(pulse)).toEqual(['92%!'])
+test("pulse's amber cache is led by '! ', on the row and open", () => {
+  const row = rowOf({ surface: 'terminal', cache: EXPIRING })
+  expect(shown(byKey(row, 'cache', 'Box'))).toMatch(/^! 30s left/)
+  const open = band({ surface: 'desktop', expanded: true, cache: EXPIRING })
+  expect(shown(byKey(open, 'band:cache', 'Box'))).toMatch(/^cache ?! 30s left · re-warm/)
 })
-test("narrow, the row's last cost gives way and SPEND says the last message", () => {
-  for (const surface of ['terminal', 'desktop'] as const) {
-    const open = band({ surface, columns: 40, expanded: true })
-    expect(shown(firstRow(open))).not.toMatch(/last \$/)
-    expect(shown(cardOf(open, 'spend'))).toMatch(/last message\$0\.21/)
-    // Wide, the row says it, so the card doesn't.
-    expect(shown(cardOf(band({ surface, expanded: true }), 'spend'))).not.toMatch(/last message/)
-  }
+test("an expiring cache's heartbeat is drawn in amber", () => {
+  expect(String(beatOf(band({ surface: 'desktop', cache: EXPIRING }))?.props?.source)).toMatch(new RegExp(`fill="${DARK.amberFg}"`))
 })
-test("LIMITS' 5h row draws its last hour on a track in the meter's place; 7d keeps its meter", () => {
-  const factOf = (tree: Node, name: string) => byKey(cardOf(tree, 'limits'), `fact:${name}`, 'Box')
-  const desk = band({ surface: 'desktop', expanded: true })
-  const [trail, ...rest] = svgsOf(factOf(desk, '5h'))
-  expect([String(trail?.props?.alt), rest.length]).toEqual(['5h usage over the last hour, rising', 0])
-  expect([trail?.props?.width, trail?.props?.height]).toEqual([undefined, 14])
-  expect(String(trail?.props?.source)).toMatch(/<rect class="track".*preserveAspectRatio="none"|preserveAspectRatio="none".*<rect class="track"/)
-  expect(svgAlts(factOf(desk, '7d'))).toEqual(['7d 30% used'])
-  const term = band({ expanded: true })
-  expect(shown(factOf(term, '5h'))).toMatch(/^5h[⠀-⣿]+4%$/)
-  expect(shown(factOf(term, '7d'))).toMatch(/^7d█+░+30%$/)
-})
-test("amber, LIMITS' lead row leaves the pace the row's pill says", () => {
-  const pace = { fiveHour: { percentUsed: 50, resetsAt: new Date(4 * HOUR).toISOString(), etaMs: 40 * MIN } }
-  for (const columns of [160, 40]) expect(cardFirstRow(band({ columns, expanded: true, ...pace }), 'limits')).toBe('resetsin 4h 00m')
-})
-test('in ascii the charts give way to the numbers, shut and open', () => {
+test("7d at 85% on a fast pace: the guessed days, drawn, never pass what is left of the week", () => {
+  const snap = { surface: 'desktop' as const, fiveHour: LIMITS.fiveHour, sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() } }
+  // The raw guesses would pass the 15 points left.
+  const days = readingsOf(snapOf({ layout: 'pulse', samples: SAMPLES, ...snap })).week.days
+  expect(days.filter(d => d.guess).reduce((n, d) => n + (d.pct ?? 0), 0)).toBeGreaterThan(15)
   for (const expanded of [false, true]) {
-    const tree = band({ glyphs: 'ascii', expanded })
-    expect(shown(tree)).not.toMatch(BRAILLE)
-    expect(shown(firstRow(tree))).toMatch(/\$3\.19, last \$0\.21/)
-    for (const name of ['spend', 'context', 'limits']) expect(byKey(byKey(cardOf(tree, name), 'head'), 'slot', 'Box')).toBeUndefined()
+    const cells = svgsOf(band({ ...snap, expanded })).filter(s => /^weekly limit by day/.test(String(s.props?.alt)))
+    expect(cells.length).toBeGreaterThan(0)
+    for (const c of cells) {
+      const source = String(c.props?.source)
+      const inner = Number(/<rect class="edge"[^>]* height="([\d.]+)"/.exec(source)?.[1]) - 1
+      const guessed = [...source.matchAll(/<rect class="guess"[^>]* height="([\d.]+)"/g)].reduce((n, [, h]) => n + (Number(h) / inner) * 100, 0)
+      expect(guessed).toBeLessThanOrEqual(15.5)
+    }
   }
 })
-test("no history yet says so in the cost pill, in the band's words and a label's ink", () => {
-  const cost = pillOf(rowOf({ history: { costs: [], context: [], fiveHour: [] }, lastTurnUsd: null }), 'cost')
-  expect(shown(cost)).toBe(`$3.19 · ${EMPTY.costs}`)
-  expect(byKey(cost, 'last', 'Text')?.props?.color).toBe(DARK.label)
-})
-test('a message after the cache went cold is marked a re-warm', LONG, async ($, on) => {
-  const clock = setup(on, { store: { layout: 'pulse' }, env: { FORCE_PROMPT_CACHING_5M: '1' } })
-  await $.session.start(START)
-  for (const [id, from, to, wait] of [['t1', 2.41, 2.62, 6 * MIN], ['t2', 2.62, 3.1, 0]] as const) {
-    usage.current = { ...usage.current, cost: { usd: from } }
-    await $.turn.start({ text: 'hi', turnId: id })
-    await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
-    usage.current = { ...usage.current, cost: { usd: to } }
-    await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: id, reason: 'answer' })
-    await clock.advance(wait)
+
+// ---- sign-off fixes -------------------------------------------------------
+
+test("open: the cache's drain is inked by its mood: warm green only while warm, grey cold, none unknown", () => {
+  const moods: ReadonlyArray<readonly [string, BandSnapshot['cache'], string]> = [
+    ['warm', snapOf().cache, DARK.warm],
+    ['expiring', EXPIRING, DARK.amberFg],
+    ['cold', { ...snapOf().cache, msLeft: 0 }, DARK.label],
+    // Unmeasured and warming draw no drain: their level isn't known.
+    ['unmeasured', { ...snapOf().cache, requests: 0, recalled: false, fresh: false }, 'undefined'],
+    ['warming', { ...snapOf().cache, requests: 0, recalled: false, fresh: true }, 'undefined'],
+  ]
+  for (const [mood, cache, ink] of moods) {
+    expect(readingsOf(snapOf({ cache })).cache.mood).toBe(mood)
+    const drain = svgsOf(byKey(band({ surface: 'desktop', expanded: true, cache }), 'band:cache', 'Box'))[0]
+    expect(`${mood} ${/<polyline[^>]* stroke="([^"]+)"/.exec(String(drain?.props?.source))?.[1]}`).toBe(`${mood} ${ink}`)
   }
-  const ui = await mountBand($, 'desktop', 160)
-  expect(svgAlts(await ui.drawn()).some(a => /the newest a re-warm$/.test(a))).toBe(true)
-  await ui.unmount()
 })
-test('/clear empties the costs and keeps the 5h trail', LONG, async ($, on) => {
-  const clock = setup(on, { store: { layout: 'pulse' } })
-  await pacing($, clock)
-  await $.session.end(CLEAR)
-  const ui = await mountBand($, 'terminal', 160)
-  const row = firstRow(await ui.drawn()) as Node
-  await ui.unmount()
-  expect(shown(pillOf(row, '5h'))).toMatch(/^! 5h full in ~\S+ [⠀-⣿]+$/)
-  expect(shown(pillOf(row, 'cost')).endsWith(` · ${EMPTY.costs}`)).toBe(true)
+test("today's fill, with no reading inside today yet, draws as the alt says it: a guess of what is left, else the 7d in words", () => {
+  const at = (m: number, sevenPct: number) => ({ at: m * MIN, fivePct: 0, sevenPct, fiveResetAt: 3 * HOUR, sevenResetAt: 67 * HOUR })
+  const late = [at(-120, 70), at(-90, 74), at(-60, 78), at(-30, 82), at(-5, 85)]
+  const unzoned = (samples: ReturnType<typeof at>[], expanded: boolean) =>
+    band({ surface: 'desktop', zone: undefined, expanded, fiveHour: LIMITS.fiveHour, sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() }, samples })
+  const cellsOf7d = (tree: Node) => svgsOf(tree).filter(s => /^weekly limit by day/.test(String(s.props?.alt)))
+  // No day measured: no cells, shut or open, and the 7d's words stay.
+  for (const expanded of [false, true]) {
+    expect(cellsOf7d(unzoned(late, expanded))).toHaveLength(0)
+    expect(shown(firstRow(unzoned(late, expanded)))).toMatch(/7d 85%/)
+  }
+  // Wednesday measured: today's cell is a guess filling about 15 of its 100.
+  for (const expanded of [false, true]) {
+    const [cells] = cellsOf7d(unzoned([at(-30 * 60, 60), ...late], expanded))
+    const source = String(cells?.props?.source)
+    expect(cells?.props?.alt).toMatch(/Thursday about 15% and fills it/)
+    const inner = Number(/<rect class="edge"[^>]* height="([\d.]+)"/.exec(source)?.[1]) - 1
+    const guesses = [...source.matchAll(/<rect class="guess"[^>]* height="([\d.]+)"/g)].map(([, h]) => (Number(h) / inner) * 100)
+    expect(guesses).toHaveLength(1)
+    expect(Math.abs((guesses[0] ?? 0) - 15)).toBeLessThan(2)
+  }
+})
+test('open: each band leads with its name in a label\'s ink, cache, spend, context, 5h and 7d, never said twice', () => {
+  const amber = { cache: EXPIRING, context: NEAR, sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() } }
+  for (const surface of ['desktop', 'terminal'] as const)
+    for (const over of [{}, amber]) {
+      const open = band({ surface, expanded: true, ...LIMITS, ...over })
+      const names: string[] = []
+      for (const k of ['band:cache', 'band:spend', 'band:context', 'band:limits']) {
+        walk(byKey(open, k, 'Box'), n => {
+          if (n.type === 'Text' && n.props?.key === 'name') names.push(`${(n.children ?? []).join('')}|${n.props?.color === DARK.label ? 'label' : String(n.props?.color)}`)
+        })
+      }
+      expect(`${surface} ${names.join(' ')}`).toBe(`${surface} cache|label spend|label context|label 5h|label 7d|label`)
+      expect(shown(byKey(open, 'band:context', 'Box'))).toMatch(over === amber ? /^[⠀-⣿]* ?context ?! 95% · / : /^[⠀-⣿]* ?context ?40% · /)
+      expect(shown(byKey(open, 'band:limits', 'Box'))).toMatch(over === amber ? /5h ?26% ·[\s\S]*7d ?! 85% · / : /5h ?26% ·[\s\S]*7d ?41% · /)
+    }
+})
+
+// ---- design round: the open stack as a grid --------------------------------
+
+/** Each line of the open stack: a Box whose children hold a name column and
+ *  its words; the columns before the words, each child's cells and the gap. */
+const linesOf = (stack: unknown, surface: 'desktop' | 'terminal') => {
+  const lines: Array<{ key: string; wordsAt: number; chartPx: number | undefined }> = []
+  walk(stack, n => {
+    const kids = (n.children ?? []) as Node[]
+    const at = kids.findIndex(k => k?.props?.key === 'words')
+    if (n.type !== 'Box' || at < 0 || !kids.some(k => k?.props?.key === 'name')) return
+    const gap = typeof n.props?.columnGap === 'number' ? n.props.columnGap : 0
+    const before = kids.slice(0, at).reduce((sum, k) => sum + cellsOf(k as unknown as RenderChildren, surface === 'desktop' ? DESKTOP : TERMINAL) + gap, 0)
+    const chart = svgsOf(kids.find(k => k?.props?.key === 'chart'))[0]
+    lines.push({ key: String(n.props?.key), wordsAt: before, chartPx: chart === undefined ? undefined : Number(chart.props?.width) })
+  })
+  return lines
+}
+test('open: a grid, one chart width for every band and every band\'s words at one column', () => {
+  for (const [surface, columns] of [['desktop', 94], ['desktop', 160], ['terminal', 100]] as const)
+    for (const over of [{}, { history: { costs: [], context: [76_000] } }, { samples: [] }]) {
+      const open = band({ surface, columns, expanded: true, maxRows: 13, ...LIMITS, ...over })
+      const lines = linesOf(byKey(open, 'stack', 'Box'), surface)
+      expect(lines.map(l => l.key)).toEqual(['band:cache', 'band:spend', 'band:context', '5h', '7d'])
+      expect(`${surface} ${columns} ${[...new Set(lines.map(l => l.wordsAt))].length}`).toBe(`${surface} ${columns} 1`)
+      if (surface === 'desktop') {
+        // With no samples 5h and 7d have no chart, only its cell.
+        const charted = 'samples' in over ? lines.filter(l => l.key !== '5h' && l.key !== '7d') : lines
+        expect(charted.every(l => l.chartPx !== undefined)).toBe(true)
+        expect(`${columns} ${[...new Set(charted.map(l => l.chartPx))].join(',')}`).toBe(`${columns} 240`)
+      }
+    }
+})
+test("open: the context band's compaction line sits inside its own chart, with air above it", () => {
+  const open = band({ surface: 'desktop', columns: 120, expanded: true, ...LIMITS })
+  const chart = svgsOf(byKey(open, 'band:context', 'Box'))[0]
+  const src = String(chart?.props?.source)
+  const shift = Number(/translate\(0 ([\d.]+)\)/.exec(src)?.[1] ?? 0)
+  const y = Number(/<line class="level"[^>]* y1="([\d.]+)"/.exec(src)?.[1]) + shift
+  expect(y).toBeGreaterThanOrEqual(shift + 8)
+  expect(y).toBeLessThan(Number(chart?.props?.height))
+})
+test('open: a band says its name, then its words, then its note; with no costs Spend keeps a flat chart, Context its level now', () => {
+  const none = { history: { costs: [], context: [76_000] } }
+  const open = band({ surface: 'desktop', columns: 160, expanded: true, ...LIMITS, ...none })
+  const spend = byKey(open, 'band:spend', 'Box')
+  expect(shown(spend)).toMatch(new RegExp(`^spend ?\\$3\\.19 ?${EMPTY.costs.replace('.', '\\.')}$`))
+  expect(svgsOf(spend).map(s => s.props?.alt)).toEqual([EMPTY.costsAlt])
+  expect(String(svgsOf(byKey(open, 'band:context', 'Box'))[0]?.props?.source)).toMatch(/<polyline points="2,([\d.]+) 238,\1"/)
+})
+
+// ---- accuracy round: no chart implies a value it doesn't have ---------------
+
+test('open, too little history: context flat at its level now; 5h and 7d no chart, only its cell; spend its dim baseline', () => {
+  const over = { ...LIMITS, samples: [], history: { costs: [], context: [76_000] } }
+  const open = band({ surface: 'desktop', columns: 160, expanded: true, maxRows: 13, ...over })
+  // Context: its one reading, 76k of the 190k compaction, drawn level there, not at 0.
+  const context = svgsOf(byKey(open, 'band:context', 'Box'))[0]
+  const kit = makeKit(fakeEl, snapOf({ surface: 'desktop', columns: 160 }))
+  const want = svgsOf(sparkline(kit, { key: 'trail', alt: 'a', values: [76_000, 76_000], color: DARK.label, px: 240, height: 40, air: 8, headroom: 8, max: 190_000, level: 1 }))[0]
+  const points = (svg: unknown) => /<polyline points="([^"]+)"/.exec(String((svg as Node | undefined)?.props?.source))?.[1]
+  expect(points(context)).toBe(points(want))
+  const [a, b] = (points(context) ?? '').split(' ').map(p => Number(p.split(',')[1]))
+  expect(a).toBe(b)
+  expect(a).toBeLessThan(40 - 4)
+  // 5h and 7d: no Svg; the words still start at the grid's column.
+  const limits = byKey(open, 'band:limits', 'Box')
+  expect(svgsOf(limits)).toHaveLength(0)
+  const at = linesOf(byKey(open, 'stack', 'Box'), 'desktop')
+  expect(new Set(at.map(l => l.wordsAt)).size).toBe(1)
+  // Spend: no message's cost known, its dim baseline.
+  expect(String(svgsOf(byKey(open, 'band:spend', 'Box'))[0]?.props?.source)).toMatch(/class="flat"/)
+})
+
+// ---- review fixes -----------------------------------------------------------
+
+test("open, no costs: Spend's flat baseline is drawn only beside a costs note, long or short, at every width", () => {
+  const none = { history: { costs: [], context: [76_000] } }
+  let short = 0
+  for (const surface of ['desktop', 'terminal'] as const)
+    for (let columns = 40; columns <= 120; columns += 4) {
+      const spend = byKey(band({ surface, columns, expanded: true, maxRows: 13, ...LIMITS, ...none }), 'band:spend', 'Box')
+      if (spend === undefined) continue
+      const baseline = surface === 'desktop' ? svgsOf(spend).length > 0 : /⣀/.test(shown(spend))
+      const note = byKey(spend, 'note', 'Text')
+      const said = (note?.children ?? []).join('')
+      if (said === EMPTY.costsShort) short++
+      expect(`${surface} ${columns} ${baseline ? (said === EMPTY.costs || said === EMPTY.costsShort ? 'noted' : 'bare') : 'none'}`).not.toMatch(/bare$/)
+    }
+  expect(short).toBeGreaterThan(0)
+})
+test("open: an unmeasured or warming cache draws no drain, its level unknown; a cold one its line at 0", async ($, on) => {
+  const moods: ReadonlyArray<readonly [string, BandSnapshot['cache'], number]> = [
+    ['unmeasured', { ...snapOf().cache, requests: 0, recalled: false, fresh: false }, 0],
+    ['warming', { ...snapOf().cache, requests: 0, recalled: false, fresh: true }, 0],
+    ['cold', { ...snapOf().cache, msLeft: 0 }, 1],
+  ]
+  for (const [mood, cache, svgs] of moods) {
+    const open = band({ surface: 'desktop', expanded: true, cache })
+    expect(`${mood} ${svgsOf(byKey(open, 'band:cache', 'Box')).length}`).toBe(`${mood} ${svgs}`)
+    // The words still start at the grid's column.
+    expect(new Set(linesOf(byKey(open, 'stack', 'Box'), 'desktop').map(l => l.wordsAt)).size).toBe(1)
+  }
+})
+test("open on the terminal, one context reading: its flat line spans the chart column, as Spend's floor does", () => {
+  const open = band({ surface: 'terminal', columns: 100, expanded: true, ...LIMITS, history: { costs: [], context: [76_000] } })
+  const braille = shown(byKey(open, 'band:context', 'Box')).match(/[⠀-⣿]+/)?.[0] ?? ''
+  expect(braille.length).toBe(12)
+})
+test('open on a narrower desktop: a charted band and one with its cell empty start their words at one x', () => {
+  for (const columns of [60, 66, 70]) {
+    const open = band({ surface: 'desktop', columns, expanded: true, maxRows: 13, ...LIMITS, samples: [] })
+    const lines = linesOf(byKey(open, 'stack', 'Box'), 'desktop')
+    expect(lines.some(l => l.chartPx === undefined) && lines.some(l => l.chartPx !== undefined)).toBe(true)
+    expect(`${columns} ${new Set(lines.map(l => l.wordsAt)).size}`).toBe(`${columns} 1`)
+    // In px too: a chart is whole columns, as wide as an empty cell's.
+    for (const l of lines) if (l.chartPx !== undefined) expect(`${columns} ${l.key} ${l.chartPx % 10}`).toBe(`${columns} ${l.key} 0`)
+  }
 })

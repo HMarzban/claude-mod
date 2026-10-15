@@ -12,8 +12,13 @@ import type { BandActions, BandSnapshot, LayoutName } from './snapshot'
 import { VIEWS } from './views/index'
 import type { View } from './views/index'
 
-/** Below this, every layout draws chips (spec §1). */
+/** Below this, every layout draws chips (spec §1); a layout may need more. */
 const CHIPS_BELOW = 40
+
+/** The layout the band draws at `columns`: the one chosen, or chips below
+ *  CHIPS_BELOW or the chosen view's own fewest columns. */
+export const layoutAt = (layout: LayoutName, columns: number, views: Readonly<Record<LayoutName, View>> = VIEWS): LayoutName =>
+  columns < Math.max(CHIPS_BELOW, views[layout].minColumns ?? 0) ? DEFAULT_LAYOUT : layout
 
 /** `views` is for a test's registry; the band draws from VIEWS. */
 export const drawBand = (
@@ -24,7 +29,7 @@ export const drawBand = (
 ): RenderElement => {
   const kit = makeKit(el, snap)
   const read = readingsOf(snap)
-  const view = snap.columns < CHIPS_BELOW ? views[DEFAULT_LAYOUT] : views[snap.layout]
+  const view = views[layoutAt(snap.layout, snap.columns, views)]
   let tree: RenderElement
   try {
     tree = view.draw(kit, read, act)

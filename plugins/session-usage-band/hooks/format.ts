@@ -3,7 +3,8 @@
 export const MINUTE_MS = 60_000
 /** The cache's last minute: the one span where acting changes the bill. */
 export const SOON_MS = MINUTE_MS
-/** Departures' last call: an hour's cache this near cold, or a limit this near full, leads its row in amber. */
+/** Departures' calm last call: an hour's cache this near cold says LAST CALL at
+ *  its clock, in the board's calm ink. Only the last minute is amber. */
 export const LAST_CALL_MS = 10 * MINUTE_MS
 
 /** At this share a pill turns amber and gains `!`, and a toast speaks. */
@@ -85,11 +86,8 @@ export const resetIn = (iso: string | undefined, now: number): ResetIn | undefin
 /** The words for escalation: colour is never the only signal. */
 export const severityMark = (frac: number): string => (frac >= SEVERE_AT ? '!!' : frac >= WARN_AT ? '!' : '')
 
-/** A day's minutes, from which a projection is said in days. */
-const DAY_MINUTES = 24 * 60
-
 /** A projection's whole minutes: 5-minute steps under an hour, 15 from one. */
-const etaMinutes = (ms: number): number => {
+export const etaMinutes = (ms: number): number => {
   const mins = Math.max(0, ms) / MINUTE_MS
   return mins < 57.5 ? Math.max(5, Math.round(mins / 5) * 5) : Math.round(mins / 15) * 15
 }
@@ -100,17 +98,6 @@ export const fmtEta = (ms: number): string => {
   const hours = Math.floor(mins / 60)
   const rest = mins % 60
   return hours === 0 ? `~${mins}m` : rest ? `~${hours}h ${rest}m` : `~${hours}h`
-}
-
-/** From this far off, departures' projection says its day, not its minutes. */
-const DAYS_FROM_MINUTES = 12 * 60
-
-/** Departures' projection: from 12 hours, whole days to the nearest, at
- *  least one, `~1d`, since its minute would claim too much; nearer, as
- *  `fmtEta`. */
-export const fmtEtaDays = (ms: number): string => {
-  const mins = etaMinutes(ms)
-  return mins >= DAYS_FROM_MINUTES ? `~${Math.max(1, Math.round(mins / DAY_MINUTES))}d` : fmtEta(ms)
 }
 
 /** `text` at most `max` characters, cut in the middle: a branch keeps both
@@ -211,10 +198,10 @@ export const fmtDayClock = (ms: number, zone: Zone, now: number): string =>
 export const fmtDay = (ms: number, zone: Zone, now: number): string => (isToday(ms, zone, now) ? fmtClock(ms, zone) : weekdayOf(ms, zone, now))
 
 /** Whole seconds left, never 0 while any remain. */
-const secondsLeft = (ms: number): number => Math.max(1, Math.ceil(ms / 1000))
+export const secondsLeft = (ms: number): number => Math.max(1, Math.ceil(ms / 1000))
 /** Whole minutes left: rounded up under ten minutes, then as `fmtCountdown`
  *  counts them. */
-const minutesLeft = (ms: number): number => (ms < 10 * MINUTE_MS ? Math.ceil(ms / MINUTE_MS) : Math.floor(wholeSeconds(ms) / 60))
+export const minutesLeft = (ms: number): number => (ms < 10 * MINUTE_MS ? Math.ceil(ms / MINUTE_MS) : Math.floor(wholeSeconds(ms) / 60))
 
 /** The countdown alone, for a tile or a pill: `1h 00m`, `52m`, `10m`, `47s`. */
 export const fmtLeftShort = (ms: number): string =>

@@ -1,246 +1,106 @@
-// Pulse, is my spending speeding up: chips' pills with the conversation's
-// history drawn inside them, each message's cost as bars beside the total
-// and the last hour of the 5h limit on its own scale; open, the shared
-// cards, their heads carrying the history. In the ascii tier, which has no
-// braille, the charts give way to the numbers.
+// Pulse, the session's trace: each message a beat, the cache a heartbeat,
+// context and the 5h window as lines over time, the week by day, in the one
+// order. Open, a stack of charts with their words (pulse-open.tsx). The
+// charts are the desktop's and the unicode tier's; ascii draws the words.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
-import { isKnown } from '../calendar'
-import { barChart, barsWidth, dayCells, sparkline } from '../charts'
-import type { Icon } from '../icons'
+import { barChart, dayCells, flatBeats, heartbeat, sparkline } from '../charts'
 import type { Kit } from '../kit'
-import { GIVES_WAY, ROW_SLACK, SHORT_BELOW } from '../layout'
-import type { BarSize, Piece } from '../layout'
-import type { HistoryReading, LimitView, Readings } from '../reading'
+import { ROW_SLACK } from '../layout'
+import type { Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY } from '../words'
-import type { Amber } from '../words'
-import type { Fact } from './cards'
-import { LIMITS, cachePill, contextHover, contextPill, costPill, limitPill, pillRow, type ChipKey } from './chips'
-import { AMBER_STEP, PERCENT, beforeLast, fitLine, layoutCacheSpec, once, type Keeps, type PillSpec } from './parts'
-import { defineCardsView, type CardOptions } from './view'
+import { toggleButton } from './frame'
+import { beforeLast, fitLine, line, type Keeps } from './parts'
+import { openStack } from './pulse-open'
+import type { View } from './view'
 
-/** What gives way as the row narrows, first to last: the charts, then
- *  chips' own steps from the 7d bar on, the last cost outlasting the
- *  wording; then an amber reading's chart, then its words go short, and the
- *  total last, so a narrow row keeps the reading and ▵. Amber words never
- *  give way. */
-const ORDER = ['barsMany', 'trailChart', 'barsChart', 'weekBar', 'calmWeek', 'shortWording', 'lastCost', 'calmContext', 'calmFive', 'amberChart', AMBER_STEP, 'cost'] as const
-type Step = (typeof ORDER)[number]
+/** What gives way as the row narrows, first to last (spec §4.1, §2.1),
+ *  calm only: the last cost, the context trail, the trace from 14 beats to
+ *  8, the 5h trail, the 7d cells, the trace; then whole readings, spend,
+ *  context and 5h, so at 40 columns the row is the cache and the 7d; then
+ *  their short forms. An amber reading keeps its group, its chart and its
+ *  long words until fitLine's amber step, last of all. The cache and the 7d
+ *  never go. */
+const ORDER = ['last', 'contextTrail', 'beats14', 'fiveTrail', 'sevenDays', 'beats', 'spend', 'context', 'five', 'short'] as const
+type Piece = (typeof ORDER)[number]
+/** The beats' width: 6 px a beat. */
+const BEATS_PX = { 14: 84, 8: 48 } as const
 
-/** The cost bars drawn collapsed, before and after they give way. */
-const BARS_MANY = 14
-const BARS_FEW = 8
-/** A chart's height, in a pill or a card's head. */
-const CHART_PX = 16
-/** The 5h trail's size in its pill. */
-const TRAIL: BarSize = { px: 64, cells: 6 }
-/** The 5h trail's height in its row on LIMITS. */
-const ROW_TRAIL_PX = 14
-/** A lens's width before it is stretched to its slot, and its most cells in
- *  text: the 24 costs kept, two to a cell. */
-const LENS_PX = 200
-const LENS_CELLS = 12
-/** A measured day's cell on the desktop before it spans its slot, and the air between. */
-const DAY_PX = 12
-const DAY_GAP_PX = 4
-/** The cost charts' top: three times the warm average, so a warm message
- *  stands a third of the way up and a re-warm stands clipped at the top. */
-const COST_SCALE = 3
+/** The heartbeat's state for the cache's mood. */
+const heartState = (read: Readings): 'still' | 'beat' | 'flat' | 'hollow' =>
+  read.cache.mood === 'cold' ? 'flat'
+  : read.cache.mood === 'unmeasured' || read.cache.mood === 'warming' ? 'hollow'
+  : read.cache.tone === 'amber' ? 'beat'
+  : 'still'
 
-/** Chips' squeeze just past `piece`: its pills drawn without it and what
- *  gives way before it. */
-const past = (piece: Piece): number => GIVES_WAY.indexOf(piece) + 1
+/** A reading's words in its tone's ink. */
+const said = (kit: Kit, key: string, text: string, amber: boolean): RenderElement => {
+  const { Text, palette, onTone } = kit
+  return <Text key={key} color={onTone(amber ? 'amber' : 'calm', palette.value)}>{text}</Text>
+}
 
-/** The newest `count` costs as bars on a track, a re-warm in value ink with
- *  its cap; `stretch`, spanning a card's head with the warm average ruled. */
-const costBars = (kit: Kit, hist: HistoryReading, count: number, stretch = false): RenderChildren => {
-  const { palette: p } = kit
-  const values = hist.costValues.slice(-count)
-  const avg = hist.warmAvgUsd
-  return barChart(kit, {
-    key: 'bars',
-    alt: hist.costsAltOf(count),
-    values,
-    marked: hist.reWarms.slice(-count),
-    color: p.meterFill,
-    markColor: p.value,
-    px: barsWidth(values.length),
-    height: CHART_PX,
-    max: avg === undefined ? undefined : avg * COST_SCALE,
-    level: stretch ? avg : undefined,
-    track: true,
-    stretch,
+/** A reading as one keyed group: its chart, if kept, then its words. */
+const group = (kit: Kit, key: string, chart: RenderChildren, words: RenderChildren): RenderElement => {
+  const { Box } = kit
+  return <Box key={key} flexDirection="row" columnGap={1} flexShrink={0}>{chart}{words}</Box>
+}
+
+/** Whether a reading's chart is kept: a calm one while its step holds, an
+ *  amber one until the amber step. */
+const chartKept = (k: Keeps<Piece>, piece: Piece, tone: Tone): boolean => k.has(piece) || (tone === 'amber' && beforeLast(k))
+
+/** A calm reading's words, long until the short step. */
+const calmWords = (k: Keeps<Piece>, long: string, short: string): string => (k.has('short') ? long : short)
+
+const collapsed = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
+  fitLine(kit, ORDER, kit.columns - ROW_SLACK, k => {
+    const { Svg, Text, palette } = kit
+    const { cache, context, fiveHour, sevenDay, history: hist, week } = read
+    const charts = read.frame.glyphs === 'unicode'
+    const n = k.has('beats14') ? 14 : 8
+    const cacheGroup = group(kit, 'cache',
+      heartbeat(kit, { key: 'beat', alt: cache.heartAlt, state: heartState(read), color: cache.tone === 'amber' ? palette.amberFg : palette.warm }),
+      said(kit, 'w', cache.amber === undefined ? calmWords(k, cache.textMarked, cache.textShortMarked) : k.amber(cache.amber), cache.amber !== undefined))
+    // No message's cost: the trace flat, in a label's ink, only beside `no
+    // costs yet`, while the total is $0, and the two give way together;
+    // alone it would read as $0 a message. A known total says itself alone.
+    const noted = hist.costsNote !== undefined && k.has('last')
+    const trace = !k.has('beats') || !charts ? null
+      : hist.empty ? (noted ? flatBeats(kit, { key: 'beats', alt: EMPTY.costsAlt, beats: n, color: palette.label, px: BEATS_PX[n], height: 20 }) : null)
+      : barChart(kit, { key: 'beats', alt: hist.costsAltOf(n), values: hist.costValues.slice(-n), marked: hist.reWarms.slice(-n), color: palette.value, markColor: palette.value, px: BEATS_PX[n], height: 20, max: hist.beatsTop })
+    const total = said(kit, 'w', k.has('last') && !hist.empty ? [read.spend.totalText, hist.numbersShort].join(' · ') : read.spend.totalText, false)
+    // Spend is never amber: it gives way whole at its step.
+    const spendGroup = !k.has('spend') ? null : group(kit, 'spend', trace,
+      noted ? <Text key="w">{total}<Text key="none" color={palette.label}>{` · ${hist.costsNote}`}</Text></Text> : total)
+    const contextGroup = !k.calm('context', context.tone) ? null : group(kit, 'context',
+      charts && chartKept(k, 'contextTrail', context.tone) && hist.context.length > 1
+        ? sparkline(kit, { key: 'trail', alt: hist.contextTrailAlt, values: hist.context, color: palette.label, px: 36, height: 16, max: context.compactAt ?? context.window })
+        : null,
+      said(kit, 'w', context.amber === undefined ? context.text : k.amber(context.amber), context.amber !== undefined))
+    const fiveGroup = fiveHour === undefined || !k.calm('five', fiveHour.tone) ? null : group(kit, '5h',
+      charts && chartKept(k, 'fiveTrail', fiveHour.tone) && week.fiveHourWindow.values.length > 1
+        ? sparkline(kit, { key: 'trail', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, from: week.fiveHourWindow.from, color: fiveHour.tone === 'amber' ? palette.amberFg : palette.fiveAccent, px: 48, height: 16, max: 100 })
+        : null,
+      said(kit, 'w', fiveHour.amber === undefined ? fiveHour.text : k.amber(fiveHour.amber), fiveHour.amber !== undefined))
+    // The 7d's cells are the desktop's: in text it is words (spec §4.1).
+    const sevenGroup = sevenDay === undefined ? null : group(kit, '7d',
+      Svg && chartKept(k, 'sevenDays', sevenDay.tone) && week.daysDrawn.measured
+        ? dayCells(kit, { key: 'days', alt: week.daysAlt, values: week.daysDrawn.values, guess: week.daysDrawn.guess, today: week.daysDrawn.today, color: sevenDay.tone === 'amber' ? palette.amberFg : palette.weekAccent, cellPx: 4, height: 14, max: 100 })
+        : null,
+      said(kit, 'w', sevenDay.amber === undefined ? sevenDay.text : k.amber(sevenDay.amber), sevenDay.amber !== undefined))
+    return line(kit, 'row', [cacheGroup, spendGroup, contextGroup, fiveGroup, sevenGroup], toggleButton(kit, read, act), 1)
   })
+
+export const pulseView: View = {
+  rows: { desktop: 1, terminal: 1 },
+  draw: (kit, read, act) => {
+    const { Box } = kit
+    return (
+      <Box flexDirection="column">
+        {collapsed(kit, read, act)}
+        {read.frame.expanded ? openStack(kit, read, act) : null}
+      </Box>
+    )
+  },
 }
-
-/** The 5h limit's last hour on a track, on its own 0 to 100 scale, in its
- *  accent; amber, in amber, climbing dashed to where the window lands, or to
- *  the top when no landing is measured. `stretch`, spanning its slot.
- *  Nothing until it has two points. */
-const fiveHourTrail = (kit: Kit, f: LimitView, hist: HistoryReading, size: BarSize, height: number, stretch = false): RenderChildren =>
-  hist.fiveHourHour.length < 2
-    ? null
-    : sparkline(kit, {
-        key: 'trail',
-        alt: hist.trailAlt,
-        values: hist.fiveHourHour,
-        color: f.amber === undefined ? kit.palette.fiveAccent : kit.palette.amberFg,
-        px: size.px,
-        height,
-        max: PERCENT,
-        projectTo: f.amber === undefined ? undefined : (f.projectedFrac ?? 1),
-        cells: size.cells,
-        track: true,
-        stretch,
-      })
-
-/** An amber reading as its chip: its reason whole, led by `! ` and long
- *  until the amber step, then its chart; on the desktop its icon, in amber,
- *  ahead of it. */
-const amberSpec = (kit: Kit, chip: Pick<PillSpec, 'key' | 'bg' | 'hover'>, icon: Icon, amber: Amber, keeps: Keeps<Step>, chart: RenderChildren = null): PillSpec => {
-  const { Svg, Text, palette, gap } = kit
-  return {
-    ...chip,
-    tone: 'amber',
-    body: [
-      ...(Svg ? kit.icon(icon, palette.amberFg) : []),
-      <Text key="amber" color={palette.amberFg}>
-        {keeps.amber(amber)}
-      </Text>,
-      ...(chart === null ? [] : [gap('g-chart'), chart]),
-    ],
-  }
-}
-
-/** The cache: chips' pill; amber, its reason, long until its words go short. */
-const cacheSpec = (kit: Kit, read: Readings, keeps: Keeps<Step>, short: boolean): PillSpec =>
-  read.cache.amber === undefined ? cachePill(kit, read, short) : layoutCacheSpec(kit, read, read.cache.amber, !beforeLast(keeps))
-
-/** The total, the newest costs' bars beside it and the last one's after, as
- *  the row keeps them; with no cost yet, the band's words for that. */
-const costSpec = (kit: Kit, read: Readings, keeps: Keeps<Step>, bars: RenderChildren): PillSpec | undefined => {
-  if (!keeps.has('cost')) return undefined
-  const { Text, palette, gap } = kit
-  const hist = read.history
-  const last = hist.empty ? EMPTY.costs : hist.numbersShort
-  const chip = costPill(kit, read)
-  return {
-    ...chip,
-    body: [
-      ...chip.body,
-      ...(bars === null ? [] : [gap('g-bars'), bars]),
-      keeps.has('lastCost') && last !== '' ? <Text key="last" color={palette.label}>{` · ${last}`}</Text> : null,
-    ],
-  }
-}
-
-/** The context: chips' pill without its meter; amber, its reason. */
-const contextSpec = (kit: Kit, read: Readings, keeps: Keeps<Step>, short: boolean): PillSpec | undefined => {
-  const x = read.context
-  if (!x.known) return undefined
-  if (x.amber !== undefined) return amberSpec(kit, { key: 'ctx', hover: contextHover(read) }, 'context', x.amber, keeps)
-  return keeps.has('calmContext') ? contextPill(kit, read, past(short ? 'shortWording' : 'contextMeter')) : undefined
-}
-
-/** The step each limit's calm pill gives way at, and its mark's. */
-const LIMIT_STEPS: Readonly<Record<ChipKey, Readonly<{ calm: Step; mark: Step }>>> = {
-  '5h': { calm: 'calmFive', mark: 'trailChart' },
-  '7d': { calm: 'calmWeek', mark: 'weekBar' },
-}
-
-/** A limit: chips' chip with `mark` in its bar's place, the bar itself when
- *  there is none; amber, its reason, the mark after it while it's kept. */
-const limitSpec = (kit: Kit, read: Readings, keeps: Keeps<Step>, short: boolean, key: ChipKey, mark: RenderChildren): PillSpec | undefined => {
-  const w = key === '5h' ? read.fiveHour : read.sevenDay
-  const steps = LIMIT_STEPS[key]
-  const chip = limitPill(kit, read, key, past(keeps.has(steps.mark) ? 'fiveReset' : 'limitBars'), short, mark ?? undefined)
-  if (chip === undefined || w?.amber === undefined) return keeps.has(steps.calm) ? chip : undefined
-  return amberSpec(kit, chip, LIMITS[key].icon, w.amber, keeps, keeps.has('amberChart') ? mark : null)
-}
-
-/** Pulse's one row, fitted to its width: amber first, then the cache, the
- *  cost, the context and the limits as the squeeze keeps them, then ▵; and
- *  the facts it says, so the cards skip what that very row says. */
-const fitted = (kit: Kit, read: Readings, act: BandActions): Readonly<{ row: RenderElement; shown: readonly Fact[] }> => {
-  const { history: hist, worstLimit: worst } = read
-  const charts = read.frame.glyphs === 'unicode'
-  // Built once: none changes with the squeeze, which only picks among them.
-  const barsMany = once(() => costBars(kit, hist, BARS_MANY))
-  const barsFew = once(() => costBars(kit, hist, BARS_FEW))
-  const trail = charts && read.fiveHour !== undefined ? fiveHourTrail(kit, read.fiveHour, hist, TRAIL, CHART_PX) : null
-  let shown: readonly Fact[] = []
-  const row = fitLine(kit, ORDER, kit.columns - ROW_SLACK, keeps => {
-    const short = kit.columns < SHORT_BELOW || !keeps.has('shortWording')
-    const bars = charts && !hist.empty && keeps.has('barsChart') ? (keeps.has('barsMany') ? barsMany() : barsFew()) : null
-    const specs = [
-      cacheSpec(kit, read, keeps, short),
-      costSpec(kit, read, keeps, bars),
-      contextSpec(kit, read, keeps, short),
-      limitSpec(kit, read, keeps, short, '5h', trail),
-      limitSpec(kit, read, keeps, short, '7d', null),
-    ].filter((spec): spec is PillSpec => spec !== undefined)
-    // The line drawn is the last one built: its last cost while kept, and
-    // the worst window's pace where its pill says it.
-    shown = [
-      ...(!hist.empty && keeps.has('lastCost') ? (['lastMessage'] as const) : []),
-      ...(worst !== undefined && worst.etaMs !== null && specs.some(s => s.key === worst.key) ? (['pace'] as const) : []),
-    ]
-    return pillRow(kit, read, act, [...specs.filter(s => s.tone === 'amber'), ...specs.filter(s => s.tone !== 'amber')])
-  })
-  return { row, shown }
-}
-
-/** Pulse's lens on the cards: the conversation's costs, its context rising
- *  across its slot in place of its bar, and the week's measured days
- *  spanning theirs, each in its card's head, and the 5h window's last hour
- *  in its row on LIMITS; the cache runs in minutes, so its head stays bare.
- *  The ascii tier has no braille, so no lens. */
-const lens = (kit: Kit, read: Readings): CardOptions => {
-  const { palette: p } = kit
-  const { context: x, history: hist, week, fiveHour: five } = read
-  if (read.frame.glyphs !== 'unicode') return {}
-  return {
-    slots: {
-      spend: hist.empty ? undefined : costBars(kit, hist, hist.costValues.length, true),
-      // In text its scale tops out where it compacts; on the desktop it rises across its slot under its cap.
-      context:
-        !x.known || hist.context.length < 2
-          ? undefined
-          : sparkline(kit, {
-              key: 'trail',
-              alt: hist.contextTrailAlt,
-              values: hist.context,
-              color: p.meterFill,
-              px: LENS_PX,
-              height: CHART_PX,
-              max: x.compactAt ?? x.window,
-              cells: LENS_CELLS,
-              track: true,
-              area: true,
-              stretch: true,
-              rise: true,
-            }),
-      limits: !week.days.some(isKnown)
-        ? undefined
-        : dayCells(kit, {
-            key: 'days',
-            alt: week.measuredAlt,
-            values: week.days.map(d => (d.guess ? undefined : d.pct)),
-            color: p.trackStroke,
-            cellPx: DAY_PX,
-            height: CHART_PX - 2,
-            stretch: true,
-            gapPx: DAY_GAP_PX,
-          }),
-    },
-    slotsReplaceBars: ['context'],
-    limitMarks: five === undefined ? {} : { '5h': size => fiveHourTrail(kit, five, hist, size, ROW_TRAIL_PX, true) },
-  }
-}
-
-/** Fitted once, so the cards skip what that very row says. */
-export const pulseView = defineCardsView({ desktop: 1, terminal: 1 }, (kit, read, act) => {
-  const { row, shown } = fitted(kit, read, act)
-  return { lines: [row], open: () => ({ ...lens(kit, read), shown }) }
-})

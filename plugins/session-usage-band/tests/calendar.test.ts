@@ -1,8 +1,6 @@
 import { test, expect } from 'claude-code/testing'
 import { weekOf } from '../hooks/calendar'
 import { fixedZone } from '../hooks/format'
-import { cappedMarks } from '../hooks/reading'
-import { weekWords } from '../hooks/words'
 import { HOUR as H } from './helpers'
 
 const T0 = Date.UTC(2026, 9, 6, 8, 40) // Tue 08:40 UTC, the 7d window's start
@@ -36,9 +34,6 @@ test('the hour cells are the five hours before the 5h reset, with the fill marke
   const wk = weekOf({ samples: [s(0, 0, 0), s(0.9, 1, 10), s(1.9, 2, 25), s(2.4, 3, 40)], seven: undefined, five, now: T0 + 2.5 * H, zone: fixedZone(0) })
   expect(wk.hours.map(c => c.label)).toEqual(['08', '09', '10', '11', '12'])
   expect(wk.hours.map(c => c.startClock)).toEqual(['08:40', '09:40', '10:40', '11:40', '12:40'])
-  // Each hour is said from where it starts, not from its clock hour.
-  const hours = { marks: cappedMarks(wk.hours, five.percentUsed), notch: undefined }
-  expect(weekWords(wk, { days: { marks: [], notch: undefined }, hours }, undefined).hoursAlt).toBe('5-hour limit by hour: 08:40 10%, 09:40 15%, 10:40 15%, 11:40 about 30%, 12:40 about 30% and fills it')
   expect(wk.hours.slice(0, 3).map(c => c.text)).toEqual(['10%', '15%', '15%'])
   expect(wk.hours[2]?.now).toBe(true)
   expect(wk.hours.findIndex(c => c.fullMark)).toBe(4)

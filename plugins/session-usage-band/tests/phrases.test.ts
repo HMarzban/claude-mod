@@ -53,7 +53,7 @@ test('pace speaks a measured rate first, then the average', () => {
   expect(paceText({ etaMs: null, projectedPct: 9.6 })).toBe('on pace for ~10%')
   expect(paceText({ etaMs: null, projectedPct: undefined })).toBe('')
 })
-test('every amber phrase, long, short and beside its figure, starts with "! " once', () => {
+test('every amber phrase, long and short, starts with "! " once', () => {
   const all = [
     AMBER.cache('47s', '~$1.66'),
     AMBER.context(0.93, 12_000),
@@ -61,33 +61,23 @@ test('every amber phrase, long, short and beside its figure, starts with "! " on
     AMBER.limit('5h', 82),
     AMBER.limitPace('5h', '~40m'),
   ]
-  expect(all.map(({ long, short, beside }) => ({ long, short, beside }))).toEqual([
-    { long: '! 47s left · re-warm ~$1.66', short: '! 47s', beside: '! cache' },
-    { long: '! context 93% · compacts in ~12k', short: '! ctx 93%', beside: '! context' },
-    { long: '! context 85%', short: '! ctx 85%', beside: '! context' },
-    { long: '! 5h 82%', short: '! 5h 82%', beside: '! 5h' },
-    { long: '! 5h full in ~40m', short: '! 5h ~40m', beside: '! 5h ~40m' },
+  expect(all.map(({ long, short }) => ({ long, short }))).toEqual([
+    { long: '! 47s left · re-warm ~$1.66', short: '! 47s' },
+    { long: '! context 93% · compacts in ~12k', short: '! ctx 93%' },
+    { long: '! context 85%', short: '! ctx 85%' },
+    { long: '! 5h 82%', short: '! 5h 82%' },
+    { long: '! 5h full in ~40m', short: '! 5h ~40m' },
   ])
-  for (const a of all) for (const s of [a.long, a.short, a.beside]) {
+  for (const a of all) for (const s of [a.long, a.short]) {
     expect(s.startsWith('! ')).toBe(true)
     expect(s.match(/!/g)?.length).toBe(1)
   }
 })
-test('every amber phrase says its words in segments too, its figure the one value', () => {
-  const all = [AMBER.cache('47s', '~$1.66'), AMBER.context(0.93, 12_000), AMBER.contextNoCompaction(0.85), AMBER.limit('5h', 82), AMBER.limitPace('5h', '~40m')]
-  const figures = (say: readonly (readonly [string, string])[]) => say.filter(([, role]) => role === 'value').map(([text]) => text)
-  expect(all.map(a => [figures(a.say), figures(a.sayShort)])).toEqual([
-    [['47s'], ['47s']],
-    [['93%'], ['93%']],
-    [['85%'], ['85%']],
-    [['82%'], ['82%']],
-    [['~40m'], ['~40m']],
-  ])
-  for (const a of all) expect([a.say, a.sayShort].map(say => say.map(([text]) => text).join(''))).toEqual([a.long, a.short])
-})
 test('empty states read like the band', () => {
   expect(EMPTY).toEqual({
     costs: "Costs show after Claude's next reply.",
+    costsShort: 'no costs yet',
+    costsAlt: 'cost per message: none yet',
     context: 'not reported',
   })
 })

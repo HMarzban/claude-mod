@@ -58,6 +58,16 @@ export const asLayoutName = (v: unknown): LayoutName | undefined => {
   return (LAYOUT_NAMES as readonly string[]).includes(word) ? (word as LayoutName) : undefined
 }
 
+/** Layouts this version removed: a stored one draws chips, and the command names it. */
+const REMOVED_LAYOUTS = ['gauges', 'ledger', 'rings', 'tiles', 'week', 'forecast'] as const
+export const REMOVED_IN = '0.14.0'
+/** A removed layout's name, from the store or the command, trimmed and lowercased; else undefined. */
+export const removedLayoutOf = (v: unknown): string | undefined => {
+  if (typeof v !== 'string') return undefined
+  const word = v.trim().toLowerCase()
+  return (REMOVED_LAYOUTS as readonly string[]).includes(word) ? word : undefined
+}
+
 /** `sessions` with `id`'s reply at `lastAt`, the oldest dropped past MAX_SESSIONS. */
 export const rememberReply = (sessions: Sessions, id: string, lastAt: number): Sessions =>
   Object.fromEntries(

@@ -3,7 +3,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import { asLayoutName } from '../hooks/memory'
+import { asLayoutName, removedLayoutOf } from '../hooks/memory'
 import { START, engine, mountBand, resp, respond, setup, shown, turn } from './helpers'
 
 const run = async ($: Engine, args: string): Promise<string> => {
@@ -22,12 +22,33 @@ const drawnBesideChips = async ($: Engine): Promise<readonly [string, string]> =
   await run($, 'layout chips')
   return [drawn, await drawnText($)]
 }
-const LIST = 'Choose one: chips, gauges, ledger, rings, pulse, tiles, week, departures, forecast.'
+const LIST = 'Choose one: chips (at a glance), pulse (trends), departures (times).'
 
 test('asLayoutName takes a name in any case and spacing, and nothing else', () => {
-  expect(asLayoutName('  Ledger ')).toBe('ledger')
-  expect(asLayoutName('ledger extra')).toBeUndefined()
-  for (const v of [42, null, {}, [], 'sparkle', '']) expect(asLayoutName(v)).toBeUndefined()
+  expect(asLayoutName('  Pulse ')).toBe('pulse')
+  expect(asLayoutName('pulse extra')).toBeUndefined()
+  for (const v of [42, null, {}, [], 'sparkle', '', 'ledger']) expect(asLayoutName(v)).toBeUndefined()
+})
+test('removedLayoutOf knows the six removed names, in any case', () => {
+  expect(removedLayoutOf(' Week ')).toBe('week')
+  expect(removedLayoutOf('pulse')).toBeUndefined()
+})
+test('a removed name stored draws chips, the list says so, and nothing is written', async ($, on) => {
+  setup(on, { store: { layout: 'gauges' } }); await $.session.start(START)
+  expect(await run($, 'layout')).toBe(`Usage band layout: chips (gauges was removed in 0.14.0). ${LIST}`)
+  expect(engine.storeSets).not.toContain('layout')
+  const [drawn, chips] = await drawnBesideChips($)
+  expect(drawn).toBe(chips)
+})
+test('choosing a removed name changes nothing and says so', async ($, on) => {
+  setup(on); await $.session.start(START)
+  expect(await run($, 'layout week')).toBe(`week was removed in 0.14.0. ${LIST}`)
+  expect(engine.storeSets).not.toContain('layout')
+})
+test('a switch clears the removed note', async ($, on) => {
+  setup(on, { store: { layout: 'rings' } }); await $.session.start(START)
+  await run($, 'layout pulse')
+  expect(await run($, 'layout')).toBe(`Usage band layout: pulse. ${LIST}`)
 })
 test('/usage-band layout lists the layouts and names the current one', async ($, on) => {
   setup(on); await $.session.start(START)
@@ -42,12 +63,12 @@ test('/usage-band layout <name> saves it once, says how back, and chips says not
 })
 test('an unknown name changes nothing and lists the names', async ($, on) => {
   setup(on); await $.session.start(START)
-  expect(await run($, 'layout sparkle-sparkle-sparkle-sparkle')).toMatch(/^Unknown layout ".{1,20}"\. Choose one: chips, /)
+  expect(await run($, 'layout sparkle-sparkle-sparkle-sparkle')).toMatch(/^Unknown layout ".{1,20}"\. Choose one: chips \(/)
   expect(engine.storeSets).not.toContain('layout')
 })
 test('extra words after the name are unknown', async ($, on) => {
   setup(on); await $.session.start(START)
-  expect(await run($, 'layout  Ledger  extra')).toMatch(/^Unknown layout/)
+  expect(await run($, 'layout  Pulse  extra')).toMatch(/^Unknown layout/)
   expect(engine.storeSets).not.toContain('layout')
 })
 test('nothing stored, nothing written', async ($, on) => {
@@ -56,8 +77,8 @@ test('nothing stored, nothing written', async ($, on) => {
   expect(engine.storeSets).not.toContain('layout')
 })
 test('a stored layout is read when the session starts', async ($, on) => {
-  setup(on, { store: { layout: 'ledger' } }); await $.session.start(START)
-  expect(await run($, 'layout')).toBe(`Usage band layout: ledger. ${LIST}`)
+  setup(on, { store: { layout: 'departures' } }); await $.session.start(START)
+  expect(await run($, 'layout')).toBe(`Usage band layout: departures. ${LIST}`)
 })
 test("a stored layout this version doesn't know draws chips", async ($, on) => {
   setup(on, { store: { layout: 'sparkle' } }); await $.session.start(START)
@@ -75,17 +96,17 @@ test('setting a layout shows a hidden band and asks for a redraw', async ($, on)
   setup(on); await $.session.start(START)
   await run($, 'hide')
   const before = engine.invalidates
-  await run($, 'layout ledger')
+  await run($, 'layout pulse')
   expect(engine.invalidates).toBeGreaterThan(before)
   // The band shows again: this checks it draws, not which layout.
   expect(await drawnText($)).toMatch(/\$2\.41/)
 })
 test('a store that fails to write still switches the layout, and says until when', async ($, on) => {
   setup(on); engine.storeFails = true; await $.session.start(START)
-  expect(await run($, 'layout ledger')).toBe(
-    "Usage band layout: ledger. /usage-band layout chips goes back. It couldn't be saved, so it lasts until Claude's next reply.",
+  expect(await run($, 'layout pulse')).toBe(
+    "Usage band layout: pulse. /usage-band layout chips goes back. It couldn't be saved, so it lasts until Claude's next reply.",
   )
-  expect(await run($, 'layout')).toMatch(/^Usage band layout: ledger\./)
+  expect(await run($, 'layout')).toMatch(/^Usage band layout: pulse\./)
   // As it says: the next reply reads the store back, which holds none.
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   await turn($, 'x', 2.41, 2.5)
@@ -103,21 +124,21 @@ test("another session's layout is read after this session's next turn", async ($
   setup(on); await $.session.start(START)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
   engine.storeGets.length = 0
-  engine.store.layout = 'ledger'
+  engine.store.layout = 'pulse'
   await turn($, 'x', 2.41, 2.5)
   expect(engine.storeGets).toContain('layout')
-  expect(await run($, 'layout')).toMatch(/^Usage band layout: ledger\./)
+  expect(await run($, 'layout')).toMatch(/^Usage band layout: pulse\./)
 })
 test('a store read that fails after a turn keeps the layout drawn', async ($, on) => {
   setup(on); await $.session.start(START)
-  await run($, 'layout ledger')
+  await run($, 'layout pulse')
   engine.storeReadFails = true
   await turn($, 'x', 2.41, 2.5)
-  expect(await run($, 'layout')).toMatch(/^Usage band layout: ledger\./)
+  expect(await run($, 'layout')).toMatch(/^Usage band layout: pulse\./)
 })
 test('a store read that fails as a new session starts draws chips, not the last session\'s layout', async ($, on) => {
   setup(on); await $.session.start(START)
-  await run($, 'layout ledger')
+  await run($, 'layout pulse')
   engine.storeReadFails = true
   await $.session.start(START)
   expect(await run($, 'layout')).toMatch(/^Usage band layout: chips\./)

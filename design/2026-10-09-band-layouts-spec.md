@@ -2,7 +2,7 @@
 
 v3 · 2026-10-09 · issue HMarzban/claude-mod#1 · visual reference: the "Usage band layouts" canvas, Keepers row.
 
-Status: Implemented in 0.12.0.
+Status: Implemented in 0.12.0. Superseded in part by 2026-10-12-three-layouts-spec.md.
 
 Note, 2026-10-12: this spec records the design as built in 0.12.0. Code and
 tests cite its sections, but module and function names have moved since;

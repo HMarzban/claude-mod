@@ -15,7 +15,7 @@ import { EMPTY } from '../hooks/words'
 import { byKey, fakeEl, shown, walk } from './helpers'
 import { NO_ACT, snapOf } from './matrix'
 
-const marker: View = { rows: { desktop: 1, terminal: 1 }, draw: () => ({ type: 'Text', props: {}, children: ['LEDGER'] }) as unknown as RenderElement }
+const marker: View = { rows: { desktop: 1, terminal: 1 }, draw: () => ({ type: 'Text', props: {}, children: ['PULSE'] }) as unknown as RenderElement }
 const boom: View = { ...marker, draw: () => { throw new Error('boom') } }
 
 test('every layout name has a view', () => {
@@ -31,15 +31,15 @@ test('drawn outside a mount, the band reads as it does mounted', () => {
   expect(shown(drawBand(fakeEl, snapOf(), NO_ACT))).toMatch(/cache 52m/)
 })
 test('the stored layout draws, from 40 columns', () => {
-  expect(shown(drawBand(fakeEl, snapOf({ layout: 'ledger', columns: 40 }), NO_ACT, { ...VIEWS, ledger: marker }))).toBe('LEDGER')
+  expect(shown(drawBand(fakeEl, snapOf({ layout: 'pulse', columns: 40 }), NO_ACT, { ...VIEWS, pulse: marker }))).toBe('PULSE')
 })
 test('below 40 columns every layout draws chips', () => {
-  const band = shown(drawBand(fakeEl, snapOf({ layout: 'ledger', columns: 39 }), NO_ACT, { ...VIEWS, ledger: marker }))
-  expect(band).not.toMatch(/LEDGER/)
+  const band = shown(drawBand(fakeEl, snapOf({ layout: 'pulse', columns: 39 }), NO_ACT, { ...VIEWS, pulse: marker }))
+  expect(band).not.toMatch(/PULSE/)
   expect(band).toMatch(/cache 52m/)
 })
 test('a view that throws falls back to chips', () => {
-  expect(shown(drawBand(fakeEl, snapOf({ layout: 'ledger' }), NO_ACT, { ...VIEWS, ledger: boom }))).toMatch(/\$3\.19/)
+  expect(shown(drawBand(fakeEl, snapOf({ layout: 'pulse' }), NO_ACT, { ...VIEWS, pulse: boom }))).toMatch(/\$3\.19/)
 })
 test('every layout\'s toggle points the way the band will move: up while shut, down while open', () => {
   // The band is anchored to the prompt and grows upward when it opens. The
@@ -58,9 +58,9 @@ test('every layout\'s toggle points the way the band will move: up while shut, d
       }
 })
 test('every layout that says an empty state draws it in a label\'s ink', () => {
-  // Gauges and pulse say one in their rows; the rest leave out what isn't
-  // known, as a card with nothing known is left out.
-  const saysNone: ReadonlySet<string> = new Set(['chips', 'departures', 'week', 'rings', 'ledger', 'tiles', 'forecast'])
+  // Pulse says one in its rows; the rest leave out what isn't known, as a
+  // card with nothing known is left out.
+  const saysNone: ReadonlySet<string> = new Set(['chips', 'departures'])
   const layouts = LAYOUT_NAMES.filter(name => !saysNone.has(name))
   const phrases = Object.values(EMPTY)
   const inks: string[] = []
@@ -80,6 +80,7 @@ test('every layout that says an empty state draws it in a label\'s ink', () => {
           })
         }
   expect(new Set(inks.map(i => i.split(' ')[0]))).toEqual(new Set(layouts))
-  expect(phrases.filter(e => !inks.some(i => i.includes(e)))).toEqual([])
+  // Not every phrase: 'not reported' was gauges' alone; pulse says the costs'.
+  expect(inks.some(i => i.includes(EMPTY.costs))).toBe(true)
   expect(inks.filter(i => !i.endsWith(' label'))).toEqual([])
 })

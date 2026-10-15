@@ -1,8 +1,11 @@
 // What every layout's frame shares: the toggle on the row nearest the
-// prompt, and the rows the shared cards are given beneath the collapsed lines.
+// prompt, the rows an open view is given beneath the collapsed lines, and
+// the footer.
 
 import type { RenderElement } from 'claude-code'
 import type { Kit } from '../kit'
+import { HOTKEY_MARK, ROW_SLACK, cellsOf } from '../layout'
+import { BARE } from '../palette'
 import type { Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 
@@ -32,6 +35,41 @@ export const toggleButton = (kit: Kit, read: Readings, act: BandActions): Render
         {...(Svg ? { variant: 'secondary' as const } : { plain: true as const })}
         onPress={act.toggleExpanded}
       />
+    </Box>
+  )
+}
+
+const NO_PRESS: BandActions = { toggleExpanded: async () => undefined, hide: async () => undefined }
+
+const buttonsOf = (kit: Kit, act: BandActions): RenderElement[] => {
+  const { Button } = kit
+  return [
+    <Button key="collapse" label="Collapse" variant="secondary" hotkey="c" onPress={act.toggleExpanded} />,
+    <Button key="hide" label="Hide band" variant="secondary" hotkey="h" onPress={act.hide} />,
+  ]
+}
+
+/** The columns the buttons take with their hotkey marks and gaps: what a
+ *  strip in the footer leaves out of its room. */
+export const footerRoom = (kit: Kit): number => cellsOf(buttonsOf(kit, NO_PRESS), kit.measure) + 2 * HOTKEY_MARK + 2
+
+/** The open view's last row: the strip, given one, else the hint while it
+ *  fits; air; then Collapse and Hide band. */
+export const footer = (kit: Kit, act: BandActions, strip?: RenderElement): RenderElement => {
+  const { Box, Text, Svg, measure, columns, icon } = kit
+  const buttons = buttonsOf(kit, act)
+  const hint = (
+    <Box key="hint" flexDirection="row">
+      {Svg ? icon('info', BARE.icon) : null}
+      <Text color={BARE.label}>Bring it back with /usage-band</Text>
+    </Box>
+  )
+  const hinted = cellsOf(hint, measure) + cellsOf(buttons, measure) + 2 * HOTKEY_MARK + buttons.length + 1 <= columns - ROW_SLACK
+  return (
+    <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>
+      {strip ?? (hinted ? hint : null)}
+      {strip === undefined ? <Box flexGrow={1} /> : null}
+      {buttons}
     </Box>
   )
 }

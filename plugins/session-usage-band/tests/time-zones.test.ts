@@ -4,7 +4,7 @@
 // the mounted one follows the host's own.
 
 import { test, expect } from 'claude-code/testing'
-import { drawBand } from '../hooks/band'
+import { drawBand, layoutAt } from '../hooks/band'
 import { weekOf } from '../hooks/calendar'
 import { dayOf, fixedZone, hostZone, midnightOf, type Zone } from '../hooks/format'
 import type { Sample } from '../hooks/memory'
@@ -66,7 +66,7 @@ const MATRIX: ReadonlyArray<readonly [number, string, string, string, string, st
 for (const [offset, five, seven, cold, firstHour, today, days] of MATRIX) {
   test(`at UTC${offset < 0 ? '' : '+'}${offset / 60}, each clock and day reads as it does there`, () => {
     const r = readAt(NOON, fixedZone(offset), { fiveAt: '2026-10-08T15:00Z', sevenAt: '2026-10-11T07:00Z' })
-    expect([r.fiveHour?.resetClock, r.sevenDay?.resetClock, r.cache.coldAtText]).toEqual([five, seven, `cold at ${cold}`])
+    expect([r.fiveHour?.resetClock, r.sevenDay?.resetClock, r.cache.bandWords.find(w => w.startsWith('cold at'))]).toEqual([five, seven, `cold at ${cold}`])
     const wk = r.week
     expect(wk.hours[0]?.startClock).toBe(firstHour)
     expect(wk.days.filter(d => d.today).map(d => `${d.name} ${d.date}`)).toEqual([today])
@@ -89,12 +89,12 @@ test("the 7d reset says the clock in force at the reset, not at now's offset", (
 })
 test('on the night the clocks change, cold at says the clock that will show', () => {
   // New York falls back at 02:00 EDT: 01:28 EDT and 52 minutes is 01:20 EST.
-  expect(readAt('2026-11-01T05:28Z', NEW_YORK).cache.coldAtText).toBe('cold at 01:20')
+  expect(readAt('2026-11-01T05:28Z', NEW_YORK).cache.bandWords.find(w => w.startsWith('cold at'))).toBe('cold at 01:20')
   // And springs forward at 02:00 EST: 01:28 EST and 52 minutes is 03:20 EDT.
-  expect(readAt('2026-03-08T06:28Z', NEW_YORK).cache.coldAtText).toBe('cold at 03:20')
+  expect(readAt('2026-03-08T06:28Z', NEW_YORK).cache.bandWords.find(w => w.startsWith('cold at'))).toBe('cold at 03:20')
   // Berlin, 02:30 CEST: the 5h reset and cold at, both past the fall back.
   const berlin = readAt('2026-10-25T00:30Z', BERLIN, { fiveAt: '2026-10-25T04:30Z' })
-  expect([berlin.fiveHour?.resetClock, berlin.cache.coldAtText]).toEqual(['05:30', 'cold at 02:22'])
+  expect([berlin.fiveHour?.resetClock, berlin.cache.bandWords.find(w => w.startsWith('cold at'))]).toEqual(['05:30', 'cold at 02:22'])
 })
 test('the 5h hours are named by the clock at each start: 01 twice falling back, no 02 springing forward', () => {
   const five = (resetsAt: string) => ({ percentUsed: 4, projectedPct: 10, resetsAt: at(resetsAt) })
@@ -191,7 +191,7 @@ test("a reset a week out on today's weekday says next, as a fill there does", ()
 test('the longest reset and fill words fit every layout at every width, shut and open, in either tier', () => {
   // Sat 14:00, the reset next Saturday; Sat 23:00 at 6%, the fill next Saturday too.
   const filling = readAt('2026-10-17T23:00Z', fixedZone(0), { sevenAt: '2026-10-24T13:30Z', seven: 6 })
-  expect([filling.sevenDay?.resetClock, filling.sevenDay?.fillAt, filling.week.fullDay]).toEqual(['next Sat 13:30', '~next Sat', 'full ~next Sat'])
+  expect([filling.sevenDay?.resetClock, filling.sevenDay?.fillAt]).toEqual(['next Sat 13:30', '~next Sat'])
   for (const [iso, seven] of [['2026-10-17T14:00Z', 1], ['2026-10-17T23:00Z', 6]] as const)
     for (const layout of LAYOUT_NAMES)
       // The ascii tier says `resets` for `↻`: its longest, `resets next Sat 13:30`.
@@ -204,7 +204,8 @@ test('the longest reset and fill words fit every layout at every width, shut and
               fiveHour: { percentUsed: 4, resetsAt: new Date(now + 3 * HOUR).toISOString(), etaMs: null },
               sevenDay: { percentUsed: seven, resetsAt: '2026-10-24T13:30Z' },
             }), NO_ACT) as unknown as Node
-            const errors = invariantErrors(tree, { layout, surface, appearance: 'dark', cols, maxRows: DEFAULT_MAX_ROWS, scenario: 'calm', glyphs, expanded })
+            // Held to the rules of the layout drawn there: chips below departures' 60.
+            const errors = invariantErrors(tree, { layout: layoutAt(layout, cols), surface, appearance: 'dark', cols, maxRows: DEFAULT_MAX_ROWS, scenario: 'calm', glyphs, expanded })
             const key = `${iso} ${layout} ${surface} ${glyphs} ${cols} ${expanded ? 'open' : 'shut'}`
             expect(`${key}: ${errors.join('; ')}`).toBe(`${key}: `)
           }
@@ -218,12 +219,10 @@ test("the week's fill day is the forecast's, today included", () => {
   // UTC-8, Sat 09:30, 9 hours into the window at 60%: the average fills it today at 15:30.
   const today = readAt('2026-10-17T17:30Z', fixedZone(-480), { sevenAt: '2026-10-24T08:30Z', seven: 60 })
   expect(today.sevenDay?.fillAt).toBe('~15:30')
-  expect(today.week.fullDay).toBe('full ~15:30')
   expect(today.week.dayRow.marks[0]?.kind).toBe('fills')
   // UTC, Wed noon, a fill at Sat 01:30 in the Friday cell Saturday's morning folds into.
   const folded = readAt('2026-10-21T12:00Z', fixedZone(0), { sevenAt: '2026-10-24T06:00Z', seven: 62.4 })
   expect(folded.sevenDay?.fillAt).toBe('~Sat')
-  expect(folded.week.fullDay).toBe('full ~Sat')
 })
 test('a window under a second from its reset still reads its use, not reset', () => {
   const r = readAt('2026-10-17T13:59:59.400Z', fixedZone(0), { fiveAt: '2026-10-17T14:00:00.000Z', five: 97 })

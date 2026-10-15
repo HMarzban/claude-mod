@@ -6,10 +6,9 @@ it is one row of chips:
 
 ![The chip row, labelled: the cache countdown and what a re-warm will cost, the session cost, context toward auto-compaction, the 5-hour limit with its pace, the weekly limit and its reset, and the toggle that opens the cards](https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-anatomy.png)
 
-Eight more [layouts](#layouts) draw the same readings in other shapes,
-each asking one question of them: `gauges` (bars), `ledger` (one
-sentence), `rings`, `pulse` (cost trends), `tiles`, `week` (day cells),
-`departures` (countdowns) or `forecast` (clock times). Try every state live on the [website](https://hmarzban.github.io/claude-mod/),
+Two more [layouts](#layouts) draw the same readings in other shapes:
+`pulse` (the session's trace, for trends) and `departures` (a split-flap
+board, for times). Try every state live on the [website](https://hmarzban.github.io/claude-mod/),
 and see the [changelog](CHANGELOG.md) for what changed in each version. Found
 something off? [Open an issue](https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml).
 
@@ -144,35 +143,29 @@ amber at once, the end of the row is clipped rather than wrapped.
 
 ## Layouts
 
-Chips is one of nine layouts. The other eight each ask one question of
-the same readings and draw its answer in chips' language: its pills, tints
-and icons, one bold figure to a reading, its words in label ink. Every
-layout opens with `▵` into the same four cards, Cache, Spend, Context and
-Limits, under the workspace line and the same `Collapse` and `Hide band`
-buttons; most layouts mark each card's head their own way, and no card
-repeats what the row above it already says, though Limits' first row may
-name the worst window's reset again. Every layout
-turns amber at the same moments, by the same rules, but for departures'
-last call, ten minutes before an hour's cache goes cold or a limit fills. Chips, rings, pulse,
-week and forecast explain each pill on hover with chips' own cards; the
-workspace line has them in every layout.
+Chips is one of three layouts. Each asks one question of the same
+readings. Chips, the default, opens with `▵` into four cards, Cache,
+Spend, Context and Limits; pulse and departures open into views of their
+own. All three draw one row collapsed, end it with the same `▵`, and open
+with the same `Collapse` and `Hide band` buttons.
+Every layout turns amber at the same moments, by the same rules.
+Departures' board also says `LAST CALL`, calm, ten minutes before an
+hour's cache goes cold; only its last minute is amber. Pulse and
+departures draw their readings in one order: cache, spend, context, 5h,
+7d. On the desktop, chips explains each pill on hover with its own cards.
+Chips and pulse keep the workspace line, with its hover cards; departures
+shows the folder, branch and status as a header row of flaps.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-layouts-dark.png">
-  <img alt="The nine layouts on the desktop, each drawn twice from the band's own output, calm and in the cache's last minute: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" src="https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-layouts-light.png">
+  <img alt="The three layouts on the desktop, each drawn twice from the band's own output, calm and in the cache's last minute: chips, pulse and departures" src="https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-layouts-light.png">
 </picture>
 
 | Layout | Asks, and shows | Rows (desktop / terminal) |
 | --- | --- | --- |
-| `chips` | Is my cache warm, what is this costing, am I near a limit? The row of chips above; the default | 1 / 1 |
-| `gauges` | How much room is left on each meter, and is it filling faster than the clock? Four bars on one scale in a 2×2 grid: the cache's time left as a battery, context up to compaction, and the 5h and 7d limits notched where each window's time has gone; then the cost | 2 / 2 |
-| `ledger` | What does the band say, in plain words? One sentence, each reading named and bold on its figure alone, `│` between readings and `·` within one, what needs you moved to the front | 1 / 1 |
-| `rings` | How full is each one? Chips' pills, each led by a small ring where its reading has a cap: the cache drains, the context and the limits fill, a limit's ring notched for the time gone and dashed to where it lands; the terminal draws each ring as a glyph | 1 / 1 |
-| `pulse` | Is my spending speeding up? Chips' pills with each message's cost as bars beside the total and the last hour of the 5h limit drawn inside them; open, the cards' heads carry the history | 1 / 1 |
-| `tiles` | How does everything compare? One row of equal tiles, each its figure, its label and, where there's a cap, a bar or the cache's battery | 1 / 1 |
-| `week` | How does my week look? The weekly limit's pill holds seven day cells, solid where measured and dashed where guessed, a notch in today and the day the guess fills it named; open, the 5-hour limit by the hour | 1 / 1 |
-| `departures` | How long until each thing goes? Every reading as a countdown in chips' pills, soonest first, `›` between them: the cache, the 5h and 7d resets or when they fill, the messages to compaction, then the spend. Under 10 minutes from cold or full, the cache's or a limit's is its `! last call` | 1 / 1 |
-| `forecast` | What changes next, and at what clock time? Each reading's next change as a chip, its time the figure, soonest first and amber in front, so the cache goes cold at 16:13 and the 7d fills ~Mon | 1 / 1 |
+| `chips` | Is anything wrong right now? The row of chips above: the cache, the spend, the context and the limits at a glance; the default | 1 / 1 |
+| `pulse` | Is my cost per message rising, and will a limit fill before it resets? The session's trace: a heartbeat for the cache, each message's cost as a beat, the context and the 5h window over time, and the week by day. The heartbeat is still; only the words and its ink change. Open, a grid of chart bands, one per reading | 1 / 1 |
+| `departures` | When does the cache go cold, and when does each limit reset or fill? A split-flap board: each reading a line of flaps with its status, its time and a remark, such as `CACHE DEPARTS 17:24` or `7D 85% RESET SAT 13:30 ! NEAR LIMIT`. Open, a board of ITEM, STATUS, TIME and REMARKS. Below 60 columns it draws chips | 1 / 1 |
 
 ```
 /usage-band layout pulse    # draw pulse; /usage-band layout chips goes back
@@ -184,13 +177,21 @@ one already open switches after its next reply. Choosing a layout shows a
 hidden band. A name it doesn't know changes nothing, and the reply lists
 the names. If the store can't keep the choice, the reply says so, and the
 layout lasts until Claude's next reply. Below 40 columns every layout
-draws chips. On the desktop with `CC_BAND_APPEARANCE=plain` there are no
-SVG charts, so a layout draws as text and takes its terminal rows.
+draws chips, and departures does below 60. A layout from an earlier
+version that was removed (`gauges`, `ledger`, `rings`, `tiles`, `week` and
+`forecast`, gone in 0.14.0) draws chips, and `/usage-band layout` says so.
+Week's day cells now live in pulse, and forecast's clock times in
+departures.
 
-Pulse draws its charts in braille in the terminal, and week its cells as
-block heights, always beside their numbers. Week's cells come from the 5h and 7d readings the band keeps
-in its store from every session, at most one per 15 minutes and no more
-than 672, a week's worth, so they cover the days before this session.
+On the desktop with `CC_BAND_APPEARANCE=plain` there are no SVG charts,
+so a layout draws as text and takes its terminal rows.
+
+Pulse draws its charts in braille in the terminal, always beside their
+numbers. Its day cells for the week come from the 5h and 7d readings the
+band keeps in its store from every session, at most one per 15 minutes and
+no more than 672, a week's worth, so they cover the days before this
+session. As the row narrows, pulse and departures drop calm pieces first:
+spend, context and 5h give way, and the cache and the 7d never do.
 
 ### Glyphs in the terminal
 
@@ -214,14 +215,14 @@ chips included, and only in the terminal.
 
 ### Clock times
 
-Week, forecast and the Limits card every layout opens name clock times in
-your local zone; departures counts down instead. Each time is read with
+Pulse, departures and chips' Limits card name clock times in your local
+zone. Each time is read with
 the zone's offset in force at it, so a reset past a daylight-saving change
 says the clock that will show then, and the band follows a change of
 clocks within a minute, with no reply needed. Where the clock gives no
-offset, week names its days and hours in UTC, and its reset, like every
-time on forecast and the Limits card, says how long until it comes rather
-than when (`in 52m`, not `14:32`).
+offset, pulse names its days and hours in UTC, and a reset, on the board
+and the Limits card too, says how long until it comes rather than when
+(`in 52m`, not `14:32`).
 
 ## The cache countdown
 

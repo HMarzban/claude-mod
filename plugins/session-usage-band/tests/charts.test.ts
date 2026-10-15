@@ -1,9 +1,10 @@
 import { test, expect } from 'claude-code/testing'
-import { barChart, barsWidth, braille, dayCells, meter, ring, sliceCells, sparkline } from '../hooks/charts'
+import { barChart, braille, dayCells, dayCellsFit, flatBeats, heartbeat, meter, sparkline, stackGrid } from '../hooks/charts'
 import { makeKit } from '../hooks/kit'
 import { METER_CELLS } from '../hooks/layout'
-import { byKey, fakeEl, textOf, type Node } from './helpers'
-import { snapOf } from './matrix'
+import { drawBand } from '../hooks/band'
+import { byKey, fakeEl, svgsOf, textOf, type Node } from './helpers'
+import { NO_ACT, snapOf } from './matrix'
 
 test('braille puts two values in a cell, four heights each', () => {
   expect(braille([0, 0], 4)).toBe('⠀')
@@ -20,12 +21,10 @@ test('braille is one column everywhere: every glyph is in U+2800–28FF', () => 
 const desk = makeKit(fakeEl, snapOf({ surface: 'desktop' }))
 const svg = (el: unknown) => el as Node & { props: { alt: string; width: number; source: string } }
 for (const [name, el] of [
-  ['ring', ring(desk, { key: 'r', alt: '7d limit 66 percent used', frac: 0.66, color: '#a99cf0', px: 16, notch: 0.4, projectTo: 1 })],
-  ['sparkline', sparkline(desk, { key: 's', alt: '5h usage over the last hour', values: [1, 2, 3], color: '#7fcf8a', px: 90, height: 36, projectTo: 1 })],
+  ['sparkline', sparkline(desk, { key: 's', alt: '5h usage over the last hour', values: [1, 2, 3], color: '#7fcf8a', px: 90, height: 36 })],
   ['barChart', barChart(desk, { key: 'b', alt: 'cost of the last 3 messages', values: [1, 2, 9], marked: [false, false, true], color: '#888888', markColor: '#eeeeee', px: 18, height: 36 })],
   ['dayCells', dayCells(desk, { key: 'd', alt: 'weekly limit by day', values: [6, 9, 11, 4, 7, 7, 7], guess: [false, false, false, false, true, true, true], today: 3, color: '#a99cf0', cellPx: 16, height: 16 })],
-  ['sliceCells', sliceCells(desk, { key: 'd', alt: 'weekly limit by day', row: { marks: [{ kind: 'measured', pct: 66 }, { kind: 'fills', pct: 34 }, { kind: 'spent', pct: 0 }], notch: 0.6 }, color: '#a99cf0', guess: '#8a80d0', spent: '#7a70c0', ground: '#2a2540', cellPx: 14, wide: true })],
-  ['meter with a tick and a projection', meter(desk, { key: 'm', label: '5h', frac: 0.04, tone: 'calm', accent: '#7fcf8a', tick: 0.4, projectTo: 0.1 })],
+  ['meter', meter(desk, { key: 'm', label: '5h', frac: 0.04, tone: 'calm', accent: '#7fcf8a' })],
 ] as const) {
   test(`${name} draws one Svg with alt, width and no ids`, () => {
     const n = svg(el)
@@ -35,48 +34,13 @@ for (const [name, el] of [
     expect(n.props.source).not.toMatch(/\bid=|<clipPath|<linearGradient|<pattern/)
   })
 }
-test("the meter's tick is a rect of class tick, and a projection is dashed", () => {
-  const source = svg(meter(desk, { label: '5h', frac: 0.04, tone: 'calm', accent: '#7fcf8a', tick: 0.4, projectTo: 0.1 })).props.source
-  expect(source).toMatch(/<rect class="tick"/)
-  expect(source).toMatch(/stroke-dasharray="3 2"/)
-})
-test("the meter's tick stays inside the bar at either end", () => {
-  for (const tick of [0, 1]) {
-    const n = svg(meter(desk, { label: '5h', frac: 0.5, tone: 'calm', accent: '#7fcf8a', tick }))
-    const x = Number(/<rect class="tick" x="([^"]+)"/.exec(n.props.source)?.[1])
-    const tickWidth = Number(/<rect class="tick"[^>]* width="([^"]+)"/.exec(n.props.source)?.[1])
-    expect(x).toBeGreaterThanOrEqual(0)
-    expect(x + tickWidth).toBeLessThanOrEqual(n.props.width)
-  }
-})
-test("the meter's tick has a 1 px knockout of the card's ground either side", () => {
-  const source = svg(meter(desk, { label: '5h', frac: 0.5, tone: 'calm', accent: '#7fcf8a', tick: 0.5 })).props.source
-  const rect = (cls: string) => {
-    const tag = new RegExp(`<rect class="${cls}"[^>]*>`).exec(source)?.[0] ?? ''
-    return { x: Number(/ x="([^"]+)"/.exec(tag)?.[1]), width: Number(/ width="([^"]+)"/.exec(tag)?.[1]), tag }
-  }
-  const tick = rect('tick')
-  const knockout = rect('knockout')
-  expect([knockout.x, knockout.width]).toEqual([tick.x - 1, tick.width + 2])
-  expect(knockout.tag).toMatch(new RegExp(`fill="${snapOf().palette.cardBg}"`))
-  expect(tick.tag).not.toMatch(/stroke=/)
-  expect(source.indexOf('class="knockout"')).toBeLessThan(source.indexOf('class="tick"'))
-})
-test("the meter's tick is a notch in label ink, knocked out in the ground its bar sits on", () => {
-  const p = snapOf().palette
-  const source = svg(meter(desk, { label: '7d', frac: 0.5, tone: 'calm', accent: '#a99cf0', tick: 0.2, ground: p.weekBg })).props.source
-  expect(/<rect class="knockout"[^>]*>/.exec(source)?.[0]).toMatch(new RegExp(`fill="${p.weekBg}"`))
-  expect(/<rect class="tick"[^>]*>/.exec(source)?.[0]).toMatch(new RegExp(`fill="${p.label}"`))
-  const cells = meter(term, { label: '7d', frac: 0.5, tone: 'calm', accent: '#a99cf0', size: { px: 80, cells: 10 }, tick: 0.2 }) as Node
-  expect(byKey(cells, 'run-1', 'Text')?.props?.color).toBe(p.label)
-})
 test('a guessed day cell is dashed', () => {
   expect(svg(dayCells(desk, { key: 'd', alt: 'week', values: [6, 7], guess: [false, true], today: 0, color: '#a99cf0', cellPx: 16, height: 16 })).props.source).toMatch(/stroke-dasharray/)
 })
 /** Each day cell's marks, by class, as `<class> <attrs that draw it>`. */
 const dayMarks = (source: string): string[] =>
   [...source.matchAll(/<rect class="(\w+)"([^>]*)\/>/g)].map(([, cls, attrs]) => `${cls}${[...(attrs ?? '').matchAll(/ (height|fill|stroke|stroke-dasharray|opacity)="([^"]+)"/g)].map(([, k, v]) => ` ${k}=${v}`).join('')}`)
-test("day cells as forecast's board draws them: a measured day solid, its share filled against the cap; today dashed in value ink on a lighter ground; days to come dashed and dim on the track", () => {
+test("day cells as forecast's board draws them: a measured day solid, its share filled against the cap; today dashed in value ink on a lighter ground; days to come dashed and dim on the track, filled dimmed toward their guess", () => {
   const { palette: p } = desk
   const source = svg(dayCells(desk, { key: 'd', alt: 'week', values: [60, 6, 50], guess: [false, false, true], today: 1, max: 100, color: p.trackStroke, cellPx: 13, height: 14 })).props.source
   expect(dayMarks(source)).toEqual([
@@ -87,47 +51,83 @@ test("day cells as forecast's board draws them: a measured day solid, its share 
     `fill height=0.7 fill=${p.trackStroke}`,
     `edge height=13 fill=none stroke=${p.value} stroke-dasharray=2 1.6`,
     `ground height=14 fill=${p.meterTrack}`,
+    // 50 of 100, guessed: half the 12px, dimmed.
+    `guess height=6 fill=${p.trackStroke} opacity=0.45`,
     `edge height=13 fill=none stroke=${p.trackStroke} stroke-dasharray=2 2 opacity=0.75`,
   ])
 })
-test("day cells as pulse's board draws them: spanning their slot 4px apart, a measured day filled, an empty one a solid edge on the track", () => {
+test("day cells: a measured day filled, an empty one a solid edge on the track", () => {
   const { palette: p } = desk
-  const cells = svg(dayCells(desk, { key: 'd', alt: 'week', values: [undefined, 10, undefined], color: p.trackStroke, cellPx: 20, height: 14, stretch: true, gapPx: 4 }))
-  expect(cells.props.width).toBeUndefined()
-  expect(cells.props.source).toMatch(/preserveAspectRatio="none"/)
+  const cells = svg(dayCells(desk, { key: 'd', alt: 'week', values: [undefined, 10, undefined], color: p.trackStroke, cellPx: 20, height: 14 }))
   expect(dayMarks(cells.props.source)).toEqual([
     `edge height=13 fill=none stroke=${p.meterTrack}`,
     `fill height=12 fill=${p.trackStroke}`,
     `edge height=13 fill=none stroke=${p.trackStroke}`,
     `edge height=13 fill=none stroke=${p.meterTrack}`,
   ])
-  // 4px apart, each 3px round.
+  // 3px apart, each 3px round.
   const xs = [...cells.props.source.matchAll(/class="edge" x="([\d.]+)"/g)].map(([, x]) => Number(x))
-  expect([xs[1]! - xs[0]!, /class="edge"[^>]* rx="3"/.test(cells.props.source)]).toEqual([24, true])
+  expect([xs[1]! - xs[0]!, /class="edge"[^>]* rx="3"/.test(cells.props.source)]).toEqual([23, true])
 })
-/** The board's week: today measured, tomorrow fills the limit, none left after; now 0.6 into today. */
-const WEEK_ROW = { marks: [{ kind: 'measured', pct: 66 }, { kind: 'fills', pct: 34 }, { kind: 'spent', pct: 0 }, { kind: 'guess', pct: 10 }], notch: 0.6 } as const
-/** A week with nothing measured yet but a day at 0%, and two days not known. */
-const UNKNOWN_ROW = { marks: [{ kind: 'measured', pct: 0 }, { kind: 'unknown', pct: 0 }, { kind: 'unknown', pct: 0 }], notch: undefined } as const
-const slices = (kit: typeof desk, wide = true, row: Parameters<typeof sliceCells>[1]['row'] = WEEK_ROW) =>
-  sliceCells(kit, { key: 'd', alt: 'week', row, color: '#a99cf0', guess: kit.palette.weekGuess, spent: kit.palette.weekSpent, ground: '#2a2540', cellPx: 14, wide })
-test('a slice is solid while measured and dashed while guessed, filled toward its cap', () => {
-  const source = svg(slices(desk)).props.source
-  // Today's 66% of a 12px cell, on a dim track of its own.
-  expect(source).toMatch(/<rect x="0" y="6.1" width="14" height="7.9" rx="2" fill="#a99cf0"\/>/)
-  expect(source.match(/stroke-dasharray/g)).toHaveLength(3)
-  // The fill day's edge alone at full colour; a guess filled at 0.45.
-  expect(source.match(/stroke-opacity/g)).toHaveLength(2)
-  expect(source.match(/fill-opacity="0.45"/g)).toHaveLength(2)
-  expect(svg(slices(desk)).props.width).toBe(4 * 17 - 3)
+// Pulse's SPEND sliver (Task 0): a card lens drawn stretched has no width of its own, so the host
+// squashes its bars into whatever slot it gets. Pulse and departures draw none.
+test('no chart the new layouts draw stretches: every Svg has its own width and keeps its aspect', () => {
+  for (const layout of ['pulse', 'departures'] as const) for (const expanded of [false, true]) {
+    const tree = drawBand(fakeEl, snapOf({ layout, surface: 'desktop', columns: 160, maxRows: 13, expanded }), NO_ACT)
+    for (const s of svgsOf(tree)) {
+      expect(typeof s.props?.width).toBe('number')
+      expect(String(s.props?.source)).not.toMatch(/preserveAspectRatio="none"/)
+    }
+  }
 })
-test("a slice row's notch is label grey, knocked out of its ground, and absent where now isn't known", () => {
-  const source = svg(slices(desk)).props.source
-  const label = snapOf().palette.label
-  expect(source).toContain(`<rect x="6.4" y="0" width="4" height="16" rx="1.5" fill="#2a2540"/><rect x="7.4" y="0" width="2" height="16" rx="1" fill="${label}"/>`)
-  expect(svg(slices(desk, true, { ...WEEK_ROW, notch: undefined })).props.source).not.toContain(label)
+// Pulse's open bands are whole rows of 24 px: a chart 40 px tall takes two
+// with 8 px of air above it, inside its own Svg, the desktop's only unit finer than a row.
+test('air: a chart drawn below its air, the Svg as tall as both, its marks as they were', () => {
+  const charts = [
+    (air?: number) => sparkline(desk, { key: 's', alt: 'a', values: [1, 2, 3], color: '#7fcf8a', px: 90, height: 40, nowAt: 1, air }),
+    (air?: number) => barChart(desk, { key: 'b', alt: 'b', values: [1, 2, 9], marked: [false, false, true], color: '#888888', markColor: '#eeeeee', px: 18, height: 40, air }),
+    (air?: number) => dayCells(desk, { key: 'd', alt: 'd', values: [6, 9], today: 1, color: '#a99cf0', cellPx: 18, height: 38, air }),
+  ]
+  for (const chart of charts) {
+    const [bare, aired] = [svg(chart()), svg(chart(8))]
+    expect(Number(aired.props.height)).toBe(Number(bare.props.height) + 8)
+    expect(aired.props.width).toBe(bare.props.width)
+    const marks = (source: string) => source.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '')
+    expect(marks(aired.props.source)).toBe(`<g transform="translate(0 8)">${marks(bare.props.source)}</g>`)
+  }
 })
-
+test('a guessed day is filled toward its guess, dimmed, behind its dashed edge; a measured one solid', () => {
+  const source = svg(dayCells(desk, { key: 'd', alt: 'w', values: [50, 50, undefined], guess: [false, true, true], max: 100, color: '#a99cf0', cellPx: 10, height: 16 })).props.source
+  const tall = (cls: string) => [...source.matchAll(new RegExp(`<rect class="${cls}"[^>]* height="([\\d.]+)"`, 'g'))].map(([, h]) => Number(h))
+  expect([tall('fill'), tall('guess')]).toEqual([[7], [7]])
+  expect(source).toMatch(/<rect class="guess"[^>]*opacity="0.45"/)
+})
+test('dayCellsFit: the widest cell, up to its most, that keeps the cells within px; none under 6', () => {
+  // Seven 18 px cells, 3 apart, and the outline's 1 either side: 146 px.
+  expect(dayCellsFit(146, 7, 18)).toBe(18)
+  expect(dayCellsFit(400, 7, 18)).toBe(18)
+  expect(dayCellsFit(100, 7, 18)).toBe(11)
+  expect(dayCellsFit(60, 7, 18)).toBeUndefined()
+  for (const px of [60, 100, 146]) {
+    const cell = dayCellsFit(px, 7, 18)
+    if (cell !== undefined) expect(Number(svg(dayCells(desk, { key: 'd', alt: 'w', values: [1, 2, 3, 4, 5, 6, 7], color: '#fff', cellPx: cell, height: 16 })).props.width)).toBeLessThanOrEqual(px)
+  }
+})
+// Guard for the day cells pulse reuses: each fill sits in its own cell and is as tall as its value.
+for (const [cellPx, height] of [[18, 56], [4, 14]] as const) {
+  test(`day cells at ${cellPx}x${height}: each fill lies inside its own cell's edge and is as tall as its value`, () => {
+    const values = [50, 100]
+    const source = svg(dayCells(desk, { key: 'd', alt: 'week', values, today: 1, max: 100, color: '#a99cf0', cellPx, height })).props.source
+    const num = (tag: string, attr: string): number[] => [...source.matchAll(new RegExp(`<rect class="${tag}"[^>]* ${attr}="([\\d.]+)"`, 'g'))].map(([, v]) => Number(v))
+    const [edgeX, edgeW, fillX, fillW, fillH] = [num('edge', 'x'), num('edge', 'width'), num('fill', 'x'), num('fill', 'width'), num('fill', 'height')]
+    expect(fillX).toHaveLength(2)
+    values.forEach((v, i) => {
+      expect(fillX[i]!).toBeGreaterThanOrEqual(edgeX[i]! - 0.01)
+      expect(fillX[i]! + fillW[i]!).toBeLessThanOrEqual(edgeX[i]! + edgeW[i]! + 0.01)
+      expect(Math.abs(fillH[i]! - (v / 100) * (height - 2))).toBeLessThan(0.1)
+    })
+  })
+}
 const term = makeKit(fakeEl, snapOf())
 test('a builder drawn outside a mount keeps its key and its children', () => {
   const n = meter(term, { label: 'context', frac: 0.5, tone: 'calm', accent: '#b8b8c2' }) as Node
@@ -137,50 +137,21 @@ test('a builder drawn outside a mount keeps its key and its children', () => {
   expect(byKey(n, 'track', 'Text')).toBeDefined()
   expect(textOf(n)).toBe(`${'█'.repeat(half)}${'░'.repeat(METER_CELLS - half)}`)
 })
-test("the text meter's tick and projection take a cell each, never widening it", () => {
-  const size = { px: 80, cells: 10 }
-  expect(textOf(meter(term, { label: '5h', frac: 0.2, tone: 'calm', accent: '#7fcf8a', size, tick: 0.5 }))).toBe('██░░░│░░░░')
-  expect(textOf(meter(term, { label: '5h', frac: 0.2, tone: 'calm', accent: '#7fcf8a', size, projectTo: 0.5 }))).toBe('██▒▒▒░░░░░')
-  expect(textOf(meter(term, { label: '5h', frac: 0.2, tone: 'calm', accent: '#7fcf8a', size, tick: 1, projectTo: 1 }))).toBe('██▒▒▒▒▒▒▒│')
-  expect(textOf(meter(term, { label: '5h', frac: 0.2, tone: 'calm', accent: '#7fcf8a', size, projectTo: 0.5, dash: '╌' }))).toBe('██╌╌╌░░░░░')
+test('a stretched meter has no width of its own, its marks scaled to the slot', () => {
+  const n = svg(meter(desk, { label: 'cache', frac: 0.5, tone: 'calm', accent: '#7fcf8a', stretch: true }))
+  expect(n.props.width).toBeUndefined()
+  expect(n.props.source).toMatch(/preserveAspectRatio="none"/)
+  expect(n.props.source).toMatch(/vector-effect="non-scaling-stroke"/)
 })
-test('each bar starts where the bars before it end, so barsWidth holds them all', () => {
-  const values = [1, 2, 9]
-  const source = svg(barChart(desk, { key: 'b', alt: 'cost', values, marked: [false, false, false], color: '#888888', markColor: '#eeeeee', px: barsWidth(values.length), height: 36 })).props.source
-  const bars = [...source.matchAll(/<rect class="bar" x="(\d+)" [^>]*width="(\d+)"/g)].map(m => ({ x: Number(m[1]), width: Number(m[2]) }))
-  expect(bars.map(b => b.x)).toEqual(values.map((_, i) => barsWidth(i)))
-  const last = bars.at(-1)
-  expect((last?.x ?? 0) + (last?.width ?? 0)).toBeLessThan(barsWidth(values.length))
-})
-test('in text, a ring is its glyph to the nearest quarter, a line or bar chart is braille on its floor', () => {
-  expect([0, 0.1, 0.3, 0.5, 0.66, 0.9, 1].map(frac => textOf(ring(term, { key: 'r', alt: 'cache', frac, color: '#7fcf8a', px: 16 })))).toEqual(['○', '○', '◔', '◑', '◕', '●', '●'])
+test('in text, a line or bar chart is braille on its floor', () => {
   expect(textOf(sparkline(term, { key: 's', alt: '5h', values: [0, 4, 2, 4], color: '#7fcf8a', px: 90, height: 36 }))).toBe(braille([1, 4, 2, 4], 4))
   expect(textOf(barChart(term, { key: 'b', alt: 'cost', values: [1, 2], marked: [false, true], color: '#888888', markColor: '#eeeeee', px: 12, height: 36 }))).toBe(braille([1, 2], 2))
 })
-test("a sparkline's max sets the top of its scale, which its projection shares, and it ends bare", () => {
-  const source = svg(sparkline(desk, { key: 's', alt: '5h', values: [20, 50], color: '#7fcf8a', px: 90, height: 36, max: 100, projectTo: 1 })).props.source
+test("a sparkline's max sets the top of its scale, and it ends bare", () => {
+  const source = svg(sparkline(desk, { key: 's', alt: '5h', values: [20, 50], color: '#7fcf8a', px: 90, height: 36, max: 100 })).props.source
   expect(/<polyline points="[^"]*,([\d.]+)"/.exec(source)?.[1]).toBe('18')
-  expect(Number(/<line [^>]*y2="([^"]+)"/.exec(source)?.[1])).toBe(2)
   expect(source).not.toMatch(/<circle/)
   expect(textOf(sparkline(term, { key: 's', alt: '5h', values: [20, 50], color: '#7fcf8a', px: 90, height: 36, max: 100 }))).toBe(braille([20, 50], 100, 1))
-})
-test('a stretched chart spans its slot: no width of its own, its marks scaled to the slot', () => {
-  for (const el of [
-    sparkline(desk, { key: 's', alt: 'context', values: [50, 120], color: '#b8b8c2', px: 90, height: 16, stretch: true }),
-    barChart(desk, { key: 'b', alt: 'cost', values: [1, 2], marked: [false, false], color: '#888888', markColor: '#eeeeee', px: 12, height: 16, stretch: true }),
-  ]) {
-    const n = svg(el)
-    expect(n.props.width).toBeUndefined()
-    expect(n.props.source).toMatch(/preserveAspectRatio="none"/)
-    expect(n.props.source).toMatch(/vector-effect="non-scaling-stroke"|<rect class="bar"/)
-  }
-})
-test("a bar chart's max clips a taller bar to the top, a marked one capped; its level is a rule", () => {
-  const source = svg(barChart(desk, { key: 'b', alt: 'cost', values: [1, 9], marked: [false, true], color: '#888888', markColor: '#eeeeee', px: 12, height: 16, max: 3, level: 1 })).props.source
-  // 13 px of room under the cap's: a third of it, then all of it.
-  expect([...source.matchAll(/<rect class="bar" [^>]*height="(\d+)"/g)].map(m => Number(m[1]))).toEqual([4, 13])
-  expect(source).toMatch(/<rect class="cap" [^>]*y="0"/)
-  expect(source).toMatch(/<line class="level" [^>]*y1="12"/)
 })
 test("in text, day cells are a braille height each, a guess is a dot, and today is in brackets", () => {
   const cells = dayCells(term, { key: 'd', alt: 'week', values: [4, 2, undefined, 4], guess: [false, false, false, true], today: 1, color: '#a99cf0', cellPx: 16, height: 16 })
@@ -191,43 +162,107 @@ test('in text, day cells keep one width wherever today falls', () => {
   const widths = values.map((_, today) => textOf(dayCells(term, { key: 'd', alt: 'week', values, today, color: '#a99cf0', cellPx: 16, height: 16 })).length)
   expect(widths).toEqual(values.map(() => 2 * values.length + 1))
 })
-test('in text, a slice is a height toward its cap, the notch at the edge nearest now', () => {
-  expect(textOf(slices(term))).toBe('▅▅▏▃▃ ╌╌ ▁▁')
-  expect(textOf(slices(term, false))).toBe('▅▏▃╌▁')
-  expect(textOf(slices(term, true, { ...WEEK_ROW, notch: 0.2 }))).toBe('▏▅▅ ▃▃ ╌╌ ▁▁')
-  expect(textOf(slices(term, true, { ...WEEK_ROW, notch: 4 }))).toBe('▅▅ ▃▃ ╌╌ ▁▁▏')
-  expect(textOf(slices(term, true, { ...WEEK_ROW, notch: undefined }))).toBe('▅▅ ▃▃ ╌╌ ▁▁')
-  expect(textOf(slices(makeKit(fakeEl, snapOf({ glyphs: 'ascii' }))))).toBe('##|++ .. ++')
+const deskKit = () => makeKit(fakeEl, snapOf({ surface: 'desktop' }))
+test('beats: one path; no NaN with one value, all re-warms, or all zero', () => {
+  for (const [values, marked] of [[[0.2], [false]], [[0.8, 0.9], [true, true]], [[0, 0], [false, false]]] as const) {
+    const src = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values, marked, color: '#fff', markColor: '#fff', px: 84, height: 20 }))[0]?.props?.source)
+    expect(src).toMatch(/<path class="beats"/)
+    expect(src).not.toMatch(/NaN|Infinity/)
+  }
 })
-test("in text, each kind of slice has its own ink: measured the window's, a guess its dim tint, none left a dimmer one, the notch label grey", () => {
-  const { palette } = term
-  // Neighbours in one ink share a Text.
-  const runs = ((slices(term) as Node).children ?? []) as Node[]
-  expect(runs.map(r => [textOf(r), r.props?.color])).toEqual([
-    ['▅▅', '#a99cf0'],
-    ['▏', palette.label],
-    ['▃▃ ', palette.weekGuess],
-    ['╌╌ ', palette.weekSpent],
-    ['▁▁', palette.weekGuess],
-  ])
-  expect(palette.weekGuess).not.toBe(palette.label)
-  expect(palette.weekSpent).not.toBe(palette.weekGuess)
+test('beats: a re-warm is capped flat, a warm beat peaks to a point', () => {
+  const tops = (marked: boolean) => {
+    const d = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values: [0.5], marked: [marked], color: '#fff', markColor: '#fff', px: 20, height: 20, max: 1 }))[0]?.props?.source).match(/ d="([^"]+)"/)?.[1] ?? ''
+    const ys = [...d.matchAll(/L([\d.]+),([\d.]+)/g)].map(m => Number(m[2]))
+    return ys.filter(y => y === Math.min(...ys)).length
+  }
+  expect(tops(true)).toBe(2)
+  expect(tops(false)).toBe(1)
 })
-test('a slice not known yet is never drawn as none left, and a measured 0% rises nowhere', () => {
-  // Text: the 0% an empty track, as a text meter draws one; a dim dot per cell not known, in the track's grey.
-  const runs = ((slices(term, false, UNKNOWN_ROW) as Node).children ?? []) as Node[]
-  expect(textOf(slices(term, false, UNKNOWN_ROW))).toBe('░··')
-  expect(runs.map(r => r.props?.color)).toEqual([term.palette.meterTrack, term.palette.trackStroke])
-  expect(textOf(slices(term, true, UNKNOWN_ROW))).toBe('░░ ·· ··')
-  // An idle day between two measured ones keeps its place.
-  expect(textOf(slices(term, true, { marks: [{ kind: 'measured', pct: 10 }, { kind: 'measured', pct: 0 }, { kind: 'measured', pct: 5 }], notch: undefined }))).toBe('▁▁ ░░ ▁▁')
-  // In ascii a day not known is a dash, as the week board's map draws its dot, never a `?` that reads as a missing glyph.
-  const ascii = slices(makeKit(fakeEl, snapOf({ glyphs: 'ascii' })), false, UNKNOWN_ROW) as Node
-  expect(textOf(ascii)).toBe('---')
-  expect(((ascii.children ?? []) as Node[]).map(r => r.props?.color)).toEqual([term.palette.meterTrack, term.palette.trackStroke])
-  // The desktop: the 0% its track alone; a day not known a solid outline, never dashed.
-  const source = svg(slices(desk, true, UNKNOWN_ROW)).props.source
-  expect(source).not.toContain('stroke-dasharray')
-  expect(source.match(new RegExp(`fill="none" stroke="${desk.palette.trackStroke}"`, 'g'))).toHaveLength(2)
-  expect(source.match(/fill-opacity="0.35"/g)).toHaveLength(1)
+test('sparkline: nowAt draws a now rule and the points after it dashed; level, a dashed rule', () => {
+  const src = String(svgsOf(sparkline(deskKit(), { key: 's', alt: 'a', values: [1, 2, 3, 4, 5], color: '#fff', px: 60, height: 16, max: 10, nowAt: 2, level: 0.8 }))[0]?.props?.source)
+  expect(src).toMatch(/class="now"/)
+  expect(src).toMatch(/class="ahead"[^>]*stroke-dasharray/)
+  expect(src).toMatch(/class="level"[^>]*stroke-dasharray/)
+})
+test('sparkline: from leaves the points before it undrawn, on the same x scale; in text, blank cells', () => {
+  const o = { key: 's', alt: 'a', values: [0, 0, 20, 26, 37], color: '#fff', px: 60, height: 16, max: 100, nowAt: 3 } as const
+  const pointsOf = (src: string, cls: string) => (new RegExp(`<polyline ${cls}points="([^"]+)"`).exec(src)?.[1] ?? '').split(' ').map(p => Number(p.split(',')[0]))
+  const whole = String(svgsOf(sparkline(deskKit(), o))[0]?.props?.source)
+  const from = String(svgsOf(sparkline(deskKit(), { ...o, from: 2 }))[0]?.props?.source)
+  // The solid run starts at the third point, at the x it has drawn whole.
+  expect(pointsOf(from, '')).toEqual(pointsOf(whole, '').slice(2))
+  expect(pointsOf(from, 'class="ahead" ')).toEqual(pointsOf(whole, 'class="ahead" '))
+  // From 0, the line is as it was.
+  expect(String(svgsOf(sparkline(deskKit(), { ...o, from: 0 }))[0]?.props?.source)).toBe(whole)
+  // In text the hours before it are blank, so the chart keeps its width.
+  expect(textOf(sparkline(term, { ...o, values: [10, 10, 20, 26], from: 2 }))).toBe(`${braille([0, 0], 100)}${braille([20, 26], 100, 1)}`)
+})
+test('heartbeat per state; the beat ships still: no animation, never interactive', () => {
+  const of = (state: 'still' | 'beat' | 'flat' | 'hollow') => svgsOf(heartbeat(deskKit(), { key: 'h', alt: 'cache warm', state, color: '#F5B14C' }))[0]
+  expect(String(of('flat')?.props?.source)).toMatch(/<line/)
+  expect(String(of('hollow')?.props?.source)).toMatch(/fill="none"/)
+  expect(String(of('still')?.props?.source)).not.toMatch(/animation|<style/)
+  expect(of('beat')?.props?.isInteractive).toBeUndefined()
+  expect(String(of('beat')?.props?.source)).not.toMatch(/animation|<style/)
+  expect(String(of('beat')?.props?.source)).toMatch(/fill="#F5B14C"/)
+  expect(heartbeat(makeKit(fakeEl, snapOf({ surface: 'terminal' })), { key: 'h', alt: 'a', state: 'beat', color: '#fff' })).toBeNull()
+})
+test('beats: the average rule is dotted', () => {
+  const src = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values: [0.5, 0.7], marked: [false, false], color: '#fff', markColor: '#fff', px: 40, height: 20, max: 1, level: 0.6 }))[0]?.props?.source)
+  expect(src).toMatch(/class="level"[^>]*stroke-dasharray/)
+})
+test('beats: a zero or tiny value is a flat tick, never a notch below the baseline', () => {
+  for (const v of [0, 0.001]) {
+    const src = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values: [v], marked: [false], color: '#fff', markColor: '#fff', px: 20, height: 20, max: 1 }))[0]?.props?.source)
+    const d = src.match(/ d="([^"]+)"/)?.[1] ?? ''
+    const ys = [...d.matchAll(/[ML]([\d.]+),([\d.]+)/g)].map(m => Number(m[2]))
+    expect(ys[1]).toBeLessThanOrEqual(16)
+  }
+})
+test("the beats' empty state: a flat line on the beats' baseline, dim, in the ink given; in text braille's floor", () => {
+  const n = svg(flatBeats(deskKit(), { key: 'b', alt: 'no costs yet', beats: 14, color: '#9a9aa4', px: 84, height: 20 }))
+  expect([n.props.alt, n.props.width]).toEqual(['no costs yet', 84])
+  const line = /<line class="flat" x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)"([^>]*)\/>/.exec(n.props.source)
+  // Where every beat starts and ends, 4 px above the bottom, across the width.
+  expect([line?.[2], line?.[4]]).toEqual(['16', '16'])
+  expect(Number(line?.[3]) - Number(line?.[1])).toBeGreaterThan(80)
+  expect(line?.[5]).toMatch(/stroke="#9a9aa4"[^>]*opacity="0\.\d+"/)
+  expect(n.props.source).not.toMatch(/<path/)
+  // Seven cells for fourteen beats, each on the floor.
+  const text = flatBeats(term, { key: 'b', alt: 'no costs yet', beats: 14, color: '#9a9aa4', px: 84, height: 20 })
+  expect(textOf(text)).toBe('⣀'.repeat(7))
+  expect((text as Node).props?.color).toBe('#9a9aa4')
+})
+test("the open stack's grid: one chart width for every band, fitted once to the room, and a name column as wide as the longest name", () => {
+  const names = ['cache', 'spend', 'context', '5h', '7d']
+  const at = (surface: 'desktop' | 'terminal', columns: number) => stackGrid(makeKit(fakeEl, snapOf({ surface, columns })), columns - 4, names, true)
+  // The desktop: up to 240 px, a third of the room or less; a whole column for 'context'.
+  expect(at('desktop', 160)).toEqual({ chart: { px: 240, cells: 24 }, name: 6, lead: 32 })
+  expect(at('desktop', 94).chart?.px).toBe(240)
+  expect(at('desktop', 60).chart?.px).toBeLessThan(240)
+  // In text, braille cells: twelve, two beats a cell.
+  expect(at('terminal', 100)).toEqual({ chart: { px: 96, cells: 12 }, name: 7, lead: 21 })
+  // The words keep 24 columns: narrower, the chart gives way to them, then goes.
+  expect(at('terminal', 46)).toEqual({ chart: { px: 72, cells: 9 }, name: 7, lead: 18 })
+  expect(at('terminal', 40).chart).toBeUndefined()
+  expect(at('desktop', 40).chart).toBeUndefined()
+  // No charts, as in the ascii tier: the name column alone.
+  expect(stackGrid(makeKit(fakeEl, snapOf({ columns: 100 })), 96, names, false)).toEqual({ chart: undefined, name: 7, lead: 8 })
+})
+test("a line's headroom keeps its scale's top, and a level drawn there, below the chart's own top", () => {
+  const src = svg(sparkline(desk, { key: 's', alt: 'context', values: [10, 20], color: '#888888', px: 90, height: 40, max: 20, level: 1, air: 8, headroom: 8 })).props.source
+  const y = Number(/<line class="level" x1="0" y1="([\d.]+)"/.exec(src)?.[1])
+  // Inside the air's translate: 8 of air, then 2 + 8 of the plot's own.
+  expect(y).toBe(10)
+  expect(src).toMatch(/translate\(0 8\)/)
+})
+test('day cells drawn at a set width, left-aligned, the rest of it empty', () => {
+  const n = svg(dayCells(desk, { key: 'd', alt: 'weekly limit by day', values: [6, 9, 11, 4, 7, 7, 7], today: 3, color: '#a99cf0', cellPx: 16, height: 16, px: 240 }))
+  expect(n.props.width).toBe(240)
+})
+test("the flat line keeps its chart's air above it", () => {
+  const n = svg(flatBeats(desk, { key: 'b', alt: 'a', beats: 24, color: '#9a9aa4', px: 240, height: 40, air: 8 }))
+  expect([n.props.width, (n as Node).props?.height]).toEqual([240, 48])
+  expect(n.props.source).toMatch(/translate\(0 8\)/)
 })

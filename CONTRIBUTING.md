@@ -64,24 +64,27 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/band.tsx` | `drawBand(elements, snapshot, actions)`: a pure function from a snapshot to a tree. It builds the kit and the readings, draws the chosen layout, and falls back to chips. |
 | `hooks/kit.tsx` | The drawing kit made once per draw: elements, the Svg gate, palette, measure, hover cards, gaps, icons. |
 | `hooks/reading.ts` | `readingsOf`: everything a view reads, built once per draw. Each section's facts, with its words from `words.ts`. |
-| `hooks/words.ts` | The phrasebook: every phrase a layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. |
-| `hooks/views/view.ts` | `View`, `rowsOf`, and `defineCardsView(rows, build)`. `build(kit, read, act)` returns `{ lines, open? }`: the collapsed lines, and a thunk for the shared cards' options, called only while open so it can reuse what fitting the lines found. |
+| `hooks/words.ts` | The phrasebook: every phrase a layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. It holds the departures board's words too: statuses, short forms, remarks and alt sentences. |
+| `hooks/views/view.ts` | `View` (the rows it declares and `draw`) and `rowsOf`. |
 | `hooks/views/index.ts` | `VIEWS`: every layout by name. |
-| `hooks/views/cards.tsx` | `openBody`, the open view every layout shares: chips' four cards and its footer, each card's head with the layout's lens, a headline or first row in the layout's words, and no card repeating what the collapsed lines show. |
-| `hooks/views/frame.tsx` | The toggle every layout ends its row with, and the rows the shared cards get beneath the collapsed lines. |
-| `hooks/views/parts.tsx` | The pieces several layouts draw: pills, the cache's battery and hover string, the amber cache pill pulse and week share, and the lines they squeeze to fit and the words they're written in. |
-| `hooks/views/<name>.tsx` | One file per layout: `chips`, `gauges`, `ledger`, `rings`, `pulse`, `tiles`, `week`, `departures`, `forecast`. Chips exports its pill builders, their hover strings, `LIMITS` and its pill row, for a layout to compose. |
+| `hooks/views/cards.tsx` | `cardsView`, chips' open view: its four cards. Chips' alone; pulse and departures import nothing from it. |
+| `hooks/views/frame.tsx` | What all three layouts share: the toggle, `bodyRowsFor` and the `footer` (Collapse, Hide band, the hint and the strip's place). |
+| `hooks/views/parts.tsx` | The pieces layouts draw: chips' pills, the cache's battery and hover string, and the lines a layout squeezes to fit (`line`, `fitLine`) and the words they're written in. |
+| `hooks/views/<name>.tsx` | One file per layout: `chips`, `pulse` and `departures`. Chips exports its pill builders, their hover strings, `LIMITS` and its pill row. |
+| `hooks/views/pulse-open.tsx` | Pulse's open view: the grid of chart bands. |
+| `hooks/views/departures-board.tsx` | Departures' board: the ground, the header row, the rows and their give-way. |
+| `hooks/flaps.tsx` | The split-flap tiles departures draws: one Svg per reading on the desktop, a coloured run of text in the terminal. |
 | `hooks/strip.tsx` | The workspace strip: project, branch or worktree, changes, ahead/behind. |
-| `hooks/charts.tsx` | The charts: `meter`, `splitBar`, `ring`, `sparkline`, `barChart`, `dayCells`, `sliceCells`, `braille`. Each is an Svg on the desktop and text elsewhere. |
+| `hooks/charts.tsx` | The charts: `meter`, `splitBar`, `sparkline`, `barChart`, `dayCells`, `heartbeat`, `braille`. Each is an Svg on the desktop and text elsewhere. |
 | `hooks/glyphs.ts` | The terminal's glyph tier (`CC_BAND_GLYPHS`, a CJK locale) and the ASCII mapping. |
-| `hooks/calendar.ts` | Week's day and hour cells, read off the limit samples. |
+| `hooks/calendar.ts` | The day and hour cells pulse draws, read off the limit samples. |
 | `hooks/layout.ts` | Give-way orders, sizes, and how many columns a drawn tree takes. |
 | `hooks/icons.ts` | The icons' SVG bodies, glyphs and names. |
 | `hooks/cache.ts` | The prompt-cache model: TTL, misses, recall, a resume, re-warm and savings estimates, and the cache's view for the band. |
 | `hooks/insights.ts` | Last message cost, the 5-hour pace, and the trails pulse draws. |
 | `hooks/format.ts` | Numbers, times, thresholds and escalation marks. |
 | `hooks/palette.ts` | The dark, light and plain palettes, and the colours for the band's bare ground. |
-| `hooks/workspace.ts` | The workspace strip's git state and path, parsed from git's output. |
+| `hooks/workspace.ts` | The workspace strip's git state and path, parsed from git's output, and `stripWords`, its facts in words, which departures' header row draws. |
 | `hooks/memory.ts` | What the band remembers across sessions (last replies, rates, the layout, the limit samples), and what it reads off a transcript. |
 | `types/index.d.ts` | The plugin's state contract. |
 | `tests/` | Tests, one file per area, with shared helpers in `helpers.ts`: `setup()` starts a test from a fresh engine, `mountBand()` draws the band, `byKey()` finds a node. |
@@ -124,12 +127,14 @@ Run `/reload-plugins` in your session afterwards.
   `!` / `!!`. Text meets WCAG AA contrast (4.5:1) and edges and tracks meet
   3:1, in every palette. The design tests check both, over every palette.
 - **A new layout** is: its name in `LAYOUT_NAMES` (`hooks/snapshot.ts`);
-  `hooks/views/<name>.tsx`, made with `defineCardsView`; an entry in `VIEWS`
+  `hooks/views/<name>.tsx`, which draws its own collapsed row and open view, and shares only `views/frame.tsx` (the toggle, `bodyRowsFor` and `footer`); an entry in `VIEWS`
   (`hooks/views/index.ts`); and `tests/view-<name>.test.ts`, which calls
   `viewSuite('<name>')`. It draws only words from `read`: outside
   `chips.tsx`, `parts.tsx` and `frame.tsx`, no `.tsx` file in `views/`
   contains `.raw`, `.reading.`, `Date.parse`, `.replace(`, `Math.round` or
-  an import of `../format`. `tools/views-gate.sh` checks. Then add it to the
+  an import of `../format`. `tools/views-gate.sh` checks, and also that a pulse or departures file
+  imports nothing from `./cards` or `./chips` and draws no pill, battery or
+  meter, since those layouts keep their own look. Then add it to the
   Layouts table in the plugin README, add it to the layout names and count
   in both READMEs (and the gallery's alt text) and to the list of layouts
   in this file's table, and rebuild the

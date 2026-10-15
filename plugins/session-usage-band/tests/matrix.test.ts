@@ -3,8 +3,10 @@
 import { test, expect } from 'claude-code/testing'
 import type { RenderChildren } from 'claude-code'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
-import type { Node } from './helpers'
-import { invariantErrors, visualRows, type InvariantContext } from './matrix'
+import { flaps } from '../hooks/flaps'
+import { makeKit } from '../hooks/kit'
+import { fakeEl, flapWords, type Node } from './helpers'
+import { invariantErrors, orderErrors, snapOf, visualRows, type InvariantContext } from './matrix'
 
 const t = (s: string, props: Record<string, unknown> = {}) => ({ type: 'Text', props, children: [s] })
 const toggle = (label = '▵') => ({ type: 'Button', props: { label } })
@@ -15,8 +17,9 @@ const view = (lines: unknown[], rest: unknown[] = []) => ({
   props: { flexDirection: 'column' },
   children: [{ type: 'Box', props: { key: 'collapsed', flexDirection: 'column', paddingX: 1 }, children: lines }, ...rest],
 })
+// Chips' rules, the loosest: pulse and departures add the order and ▵ last.
 const CTX: InvariantContext = {
-  layout: 'ledger',
+  layout: 'chips',
   surface: 'terminal',
   appearance: 'dark',
   cols: 120,
@@ -117,7 +120,7 @@ test("amber: another limit's words are owed only open, where it is drawn, the ca
   const open = view([row(t('a'), toggle('▿'))], [t('spend 92%')])
   expect(failed(open, { scenario: 'gatewaySpend', expanded: true })).toContain('amber')
   expect(failed(view([row(t('a'), toggle('▿'))], [t('! spend 92%')]), { scenario: 'gatewaySpend', expanded: true })).not.toContain('amber')
-  // The shared cards' own mark for it, as chips' are.
+  // Chips' cards' own mark for it, as its pills' are.
   expect(failed(view([row(t('a'), toggle('▿'))], [t('spend 92%!')]), { scenario: 'gatewaySpend', expanded: true })).not.toContain('amber')
 })
 test('estimate: a price or a fill time carries ~', () => {
@@ -163,21 +166,96 @@ test("glyphs: the tier's own, and ASCII alone in the ascii tier", () => {
 test('size: at most 400 nodes shut, 1,500 open', () => {
   expect(failed(view([row(...Array.from({ length: 400 }, (_, i) => t(String(i % 10))), toggle())]))).toContain('size')
 })
-test('height: past maxRows, only the shared cards at their floor, a head and a row each, beneath the rows declared', () => {
+test("height: past maxRows, only chips' cards at their floor, a head and a row each, beneath the rows declared", () => {
   const card = (...rows: unknown[]) => ({ type: 'Box', props: { key: 'card:cache', flexDirection: 'column' }, children: [t('CACHE'), ...rows] })
   const footer = (...rows: unknown[]) => ({ type: 'Box', props: { key: 'actions', flexDirection: 'column', marginTop: 1 }, children: rows })
   const open = (lines: unknown[], rows: unknown[], buttons: unknown[] = [toggle('Collapse')]) => view(lines, [card(...rows), footer(...buttons)])
-  const tiles = { layout: 'tiles', expanded: true, maxRows: 2 } as const
+  const short = { layout: 'departures', expanded: true, maxRows: 2 } as const
   const shut = [row(t('a'), toggle('▿'))]
-  expect(failed(open(shut, [t('b')]), tiles)).not.toContain('height')
-  expect(failed(open(shut, [t('b'), t('c')]), tiles)).toContain('height')
+  expect(failed(open(shut, [t('b')]), short)).not.toContain('height')
+  expect(failed(open(shut, [t('b'), t('c')]), short)).toContain('height')
   // At the floor, a collapsed row that wrapped or a footer past its row is still too tall.
-  expect(failed(open([row(t('a')), row(t('a'), toggle('▿'))], [t('b')]), tiles)).toContain('height')
-  expect(failed(open(shut, [t('b')], [t('hint'), toggle('Collapse')]), tiles)).toContain('height')
+  expect(failed(open([row(t('a')), row(t('a'), toggle('▿'))], [t('b')]), short)).toContain('height')
+  expect(failed(open(shut, [t('b')], [t('hint'), toggle('Collapse')]), short)).toContain('height')
 })
-test("amber: tiles' figure-first reasons name the reading", () => {
+test('amber: a reason is said only in the words a live layout draws for it, naming its own reading', () => {
   const amber = (text: string, scenario: InvariantContext['scenario']) => failed(view([row(t(text), toggle())]), { scenario })
-  expect(amber('30s! cache', 'lastMinute')).not.toContain('amber')
-  expect(amber('98%! context', 'nearCompaction')).not.toContain('amber')
-  expect(amber('98%! cache', 'nearCompaction')).toContain('amber')
+  // Pulse's, chips' and the board's words for each.
+  for (const said of ['! 30s left', 'CACHE LAST CALL 30S']) expect(amber(said, 'lastMinute')).not.toContain('amber')
+  for (const said of ['! context 94%', '! ctx 94%', 'CONTEXT ! COMPACTS IN ~10K']) expect(amber(said, 'nearCompaction')).not.toContain('amber')
+  // Forms only the removed layouts drew no longer count, nor another reading's words.
+  for (const said of ['30s! cache', '! cache 30s', '! cooling · 30s left', '! last call']) expect(amber(said, 'lastMinute')).toContain('amber')
+  for (const said of ['98%! context', '98%! cache']) expect(amber(said, 'nearCompaction')).toContain('amber')
+})
+test('the order check catches 7d before the cache', () => {
+  const box = (key: string): Node => ({ type: 'Box', props: { key }, children: [] }) as Node
+  const tree = { type: 'Box', props: { flexDirection: 'row' }, children: [box('7d'), box('cache')] } as Node
+  expect(orderErrors(tree, { has7d: true })).toEqual(['order: 7d before cache'])
+})
+test('the order check: the cache always, the 7d when it is reported, and a subsequence keeps the order', () => {
+  const box = (key: string): Node => ({ type: 'Box', props: { key }, children: [] }) as Node
+  const row = (...keys: string[]) => ({ type: 'Box', props: { flexDirection: 'row' }, children: keys.map(box) }) as Node
+  expect(orderErrors(row('cache', 'context', '7d'), { has7d: true })).toEqual([])
+  expect(orderErrors(row('spend', '7d'), { has7d: true })).toEqual(['order: no cache'])
+  expect(orderErrors(row('cache', '5h'), { has7d: true })).toEqual(['order: no 7d'])
+  expect(orderErrors(row('cache', '5h'), { has7d: false })).toEqual([])
+})
+test('flapWords reads a flap Svg with its spaces', () => {
+  const k = makeKit(fakeEl, snapOf({ surface: 'desktop' }))
+  expect(flapWords(flaps(k, { key: 'f', alt: 'a', runs: [['CACHE', '#fff'], ['LAST CALL 47S', '#fff']], bg: '#222', seam: '#000' }))).toBe('CACHE LAST CALL 47S')
+})
+test("amber: the board's capitals name the reading, its item and cell joined, bracketed or a gap apart", () => {
+  const amber = (text: string, scenario: InvariantContext['scenario']) => failed(view([row(t(text), toggle())]), { scenario })
+  for (const said of ['CACHE LAST CALL 47S', 'CACHELAST CALL 47S', '[CACHE][! 47S]']) expect(amber(said, 'lastMinute')).not.toContain('amber')
+  expect(amber('CONTEXT ! COMPACTS IN ~10K', 'nearCompaction')).not.toContain('amber')
+  expect(amber('CONTEXT ! 94%', 'nearCompaction')).not.toContain('amber')
+  expect(amber('CONTEXT! 85%', 'compactionOff')).not.toContain('amber')
+  expect(amber('[CONTEXT][! 85%]', 'compactionOff')).not.toContain('amber')
+  expect(amber('5H82% ↻ 17:50 ! NEAR LIMIT', 'limit80')).not.toContain('amber')
+  expect(amber('[5H][20% ! FULL ~14:20]', 'fiveHourAhead')).not.toContain('amber')
+  expect(amber('5H 82%', 'limit80')).toContain('amber')
+  expect(amber('7D 82% ! NEAR LIMIT', 'limit80')).toContain('amber')
+  const open = view([row(t('a'), toggle('▿'))], [t('SPEND LIMIT  ! NEAR LIMIT  05:00  92%')])
+  expect(failed(open, { scenario: 'gatewaySpend', expanded: true })).not.toContain('amber')
+})
+test('width: pulse and departures fit their room at every width, amber or calm, ▵ last', () => {
+  const at = (layout: 'pulse' | 'departures', scenario: InvariantContext['scenario'], cols: number, kids: unknown[]) =>
+    failed(view([row(...kids)]), { layout, scenario, cols })
+  const wide = t(`5H ! 82% ${'x'.repeat(60)}`)
+  // Every calm piece gone and amber short, the row still fits, ▵ in view.
+  for (const layout of ['pulse', 'departures'] as const) {
+    expect(at(layout, 'limit80', 50, [wide, toggle()])).toContain('width')
+    expect(at(layout, 'nearCompaction', 40, [wide, toggle()])).toContain('width')
+    expect(at(layout, 'limit80', 60, [wide, toggle()])).toContain('width')
+    expect(at(layout, 'calm', 50, [wide, toggle()])).toContain('width')
+    expect(at(layout, 'limit80', 50, [toggle(), wide])).toContain('toggle')
+  }
+})
+test('order: pulse and departures keep the one order on the collapsed row; chips its own', () => {
+  const box = (key: string): Node => ({ type: 'Box', props: { key }, children: [t(key)] }) as Node
+  const keyed = (...keys: string[]) => view([row(...keys.map(box), toggle())])
+  for (const layout of ['pulse', 'departures'] as const) {
+    expect(failed(keyed('cache', 'spend', 'context', '5h', '7d'), { layout })).not.toContain('order')
+    expect(failed(keyed('7d', 'cache'), { layout })).toContain('order')
+  }
+  expect(failed(keyed('7d', 'cache'))).not.toContain('order')
+})
+test("amber: a limit's marked short form names it", () => {
+  const amber = (text: string, scenario: InvariantContext['scenario']) => failed(view([row(t(text), toggle())]), { scenario })
+  expect(amber('5H! 82%', 'limit80')).not.toContain('amber')
+  expect(amber('[5H][! 50%]', 'fiveHourAhead')).not.toContain('amber')
+  const open = (said: string) => failed(view([row(t('a'), toggle('▿'))], [t(said)]), { scenario: 'gatewaySpend', expanded: true })
+  expect(open('SPEND LIMIT ! 92%')).not.toContain('amber')
+  expect(open('SPEND LIMIT  ! NEAR LIMIT  05:00')).not.toContain('amber')
+})
+test('width: an open-only amber leaves the collapsed row calm, so departures is width-checked below 60', () => {
+  const dep = (cols: number, text: string) => failed(view([row(t(text), toggle())]), { layout: 'departures', scenario: 'gatewaySpend', cols })
+  expect(dep(50, 'x'.repeat(60))).toContain('width')
+  expect(dep(50, 'x'.repeat(40))).not.toContain('width')
+})
+test("amber: a calm 5H beside an amber 7D is not the 5h's amber", () => {
+  const said = (text: string) => failed(view([row(t(text), toggle())]), { scenario: 'limit80' })
+  expect(said('5H 26% ↻ 17:50  7D 85% ↻ SAT 13:30 ! NEAR LIMIT')).toContain('amber')
+  expect(said('5H26% ↻ 17:507D85% ! FULL IN ~2H')).toContain('amber')
+  expect(said('5H 82% ↻ 17:50 ! NEAR LIMIT  7D 30%')).not.toContain('amber')
 })

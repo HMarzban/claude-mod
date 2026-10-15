@@ -3,8 +3,9 @@
 // layout runs.
 
 import type { RenderChildren } from 'claude-code'
-import { expect, test } from 'claude-code/testing'
-import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, firstRow, shown, walk, type Node } from './helpers'
+import { expect, test, type Engine } from 'claude-code/testing'
+import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, USAGE, firstRow, flapWords, mountBand, shown, walk, type Node } from './helpers'
+import { layoutAt } from '../hooks/band'
 import type { Ttl } from '../hooks/cache'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
@@ -12,7 +13,7 @@ import type { BandActions, BandSnapshot, Glyphs, LayoutName } from '../hooks/sna
 import { VIEWS } from '../hooks/views/index'
 import { SPLIT_LABELS } from '../hooks/words'
 import { rowsOf } from '../hooks/views/view'
-import { SCENARIOS, SCENARIO_NAMES, caseKey, drawCases, type AmberReason, type Appearance, type CaseOptions, type Mount, type ScenarioName, type Surface } from './cases'
+import { SCENARIOS, SCENARIO_NAMES, caseKey, drawCases, type AmberReason, type Appearance, type CaseOptions, type Mount, type Scenario, type ScenarioName, type Surface } from './cases'
 
 export * from './cases'
 
@@ -25,10 +26,10 @@ const ALL_AMBER = 'lastMinute' satisfies ScenarioName
 export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({
   surface: 'terminal', columns: 120, maxRows: 13, isWorking: false, expanded: false, palette: DARK, now: 0,
   cache: {
-    requests: 1, msLeft: 52 * MIN, ttl: '1h', ttlPinned: true, window: 155_000, hitRatio: 0.96, misses: 0, reWarmUsd: 1.66,
+    requests: 1, msLeft: 52 * MIN, coldAt: null, ttl: '1h', ttlPinned: true, window: 155_000, hitRatio: 0.96, misses: 0, reWarmUsd: 1.66,
     savedUsd: 11.4, readShare: 0.05, fresh: true, recalled: false, idleMs: null, recovered: false, tokens: { sent: 18_000, back: 9_000, cached: 198_000 },
   },
-  costUsd: 3.19, lastTurnUsd: 0.21, history: { costs: [], context: [], fiveHour: [] },
+  costUsd: 3.19, lastTurnUsd: 0.21, history: { costs: [], context: [] },
   context: { tokens: 76_000, window: 200_000, percent: 38, compactAt: 190_000, autoCompactOff: false },
   fiveHour: { percentUsed: 4, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null },
   sevenDay: { percentUsed: 30, resetsAt: new Date(67 * HOUR).toISOString() },
@@ -39,18 +40,23 @@ export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({
 /** Actions for a draw outside a mount: one function each, so props compare equal. */
 export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide: async () => undefined }
 
-/** Every layout's words for each amber trigger. ` · ` reads `, ` in the ascii
- *  tier, and ` - ` in departures'. An other limit, open only, is the shared
- *  cards' LIMITS headline, marked as chips marks it: `spend 92%!`. */
+/** Every live layout's words for each amber trigger, and no others. An other
+ *  limit, open only, is chips' LIMITS card's headline, marked as chips marks
+ *  it: `spend 92%!`.
+ *  Departures' board says each in its capitals, its item then its cell:
+ *  `\W*` between them, since a terminal's flaps set their runs a gap apart,
+ *  which the text does not hold, and plain brackets each run. */
 const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
-  // Gauges' mark leads its gauge, its bar between the name and the figure;
-  // tiles' figure comes first, its reason beside it: `30s! cache`, `98%! context`.
-  cacheLastMinute: /! \d+s( left)?|! last call|! cooling( ·|,) \d+s left|! cache\W*\d+s|\d+s ?! cache/,
-  nearCompaction: /! context\W*\d+%|! ctx\W*\d+%|\d+% ?! context/,
-  contextNoCompaction: /! context\W*\d+%|! ctx\W*\d+%|\d+% ?! context/,
-  limit80: /! (last call [·-] )?5h/,
-  fiveHourAhead: /! (last call [·-] )?5h/,
-  otherLimit80: /! spend \d+%|spend \d+%!/,
+  // Chips' and pulse's mark leads the reading's words: `! 30s left`, `! ctx 94%`.
+  cacheLastMinute: /! \d+s( left)?|CACHE\W*(LAST CALL \d+S|! \d+S)/,
+  nearCompaction: /! context\W*\d+%|! ctx\W*\d+%|CONTEXT\W*! (COMPACTS IN ~\d+K|\d+%)/,
+  contextNoCompaction: /! context\W*\d+%|! ctx\W*\d+%|CONTEXT\W*! \d+%/,
+  // The board's short form keeps the mark and the value: `5H ! 82%`. The
+  // span after 5h's value stops at 7D's group, so 7D's amber is never 5h's.
+  limit80: /! 5h|5H\W*\d+%(?:(?!7D)[^!])*! (NEAR LIMIT|FULL ~\d\d:\d\d|FULL IN ~)|5H\W*! \d+%/,
+  fiveHourAhead: /! 5h|5H\W*\d+%(?:(?!7D)[^!])*! FULL (~\d\d:\d\d|IN ~)|5H\W*! \d+%/,
+  // The board's row for it, open only: its name, then its status.
+  otherLimit80: /! spend \d+%|spend \d+%!|SPEND LIMIT\W*! (NEAR LIMIT|\d+%)/,
 }
 /** Amber the collapsed part never shows: other limits are drawn only open (spec §2.7). */
 const OPEN_ONLY: ReadonlySet<AmberReason> = new Set(['otherLimit80'])
@@ -160,7 +166,7 @@ const UNMARKED = /re-warm \$|next message \$|full (in |at )?\d|on pace for \d/i
  *  East-Asian-Ambiguous, so the ascii tier never may (spec §3.2). */
 export const cutBySurface = (n: Node): boolean => n.type === 'Text' && typeof n.props?.wrap === 'string' && n.props.wrap !== 'wrap'
 
-/** The rows an open view of the shared cards takes at its floor, which a
+/** The rows chips' open view of its cards takes at its floor, which a
  *  band shorter than that scrolls: the rows its view declares, then what it
  *  opens with each card cut to its head and one body row, and the footer to
  *  its one row. Undefined without the cards. */
@@ -179,6 +185,38 @@ const cardsFloor = (tree: Node, declared: number, surface: Surface): number | un
   }
   const opened = { type: 'Box', props: { flexDirection: 'column' }, children: (tree.children ?? []).slice(1).map(atFloor) }
   return cards === 0 ? undefined : declared + visualRows(opened, surface)
+}
+
+/** The readings' one order on the collapsed row (spec §2.1). */
+const ONE_ORDER = ['cache', 'spend', 'context', '5h', '7d'] as const
+
+/** The one order's errors on a collapsed row: its readings' Box keys, in
+ *  document order, must be a subsequence of ONE_ORDER; the cache is always
+ *  there, and the 7d whenever it is reported. */
+export const orderErrors = (row: unknown, o: Readonly<{ has7d: boolean }>): string[] => {
+  const keys: string[] = []
+  walk(row, n => {
+    const key = n.props?.key
+    if (n.type === 'Box' && typeof key === 'string' && (ONE_ORDER as readonly string[]).includes(key)) keys.push(key)
+  })
+  const errors: string[] = []
+  for (let i = 1; i < keys.length; i++) {
+    const [a, b] = [keys[i - 1] ?? '', keys[i] ?? '']
+    if (ONE_ORDER.indexOf(a as (typeof ONE_ORDER)[number]) >= ONE_ORDER.indexOf(b as (typeof ONE_ORDER)[number])) errors.push(`order: ${a} before ${b}`)
+  }
+  if (!keys.includes('cache')) errors.push('order: no cache')
+  if (o.has7d && !keys.includes('7d')) errors.push('order: no 7d')
+  return errors
+}
+
+/** What a flap's alt never says: the board's capitals, or `↻`. */
+const BOARD_SAID = /↻|\b[A-Z]{2,}\b/
+/** Scenarios whose drive measures limits of its own, without a 7d. */
+const DRIVEN_WITHOUT_SEVEN_DAY: ReadonlySet<ScenarioName> = new Set(['fiveHourAhead'])
+/** Whether a scenario reports a 7d window, which the collapsed row then always shows. */
+const hasSevenDay = (scenario: ScenarioName): boolean => {
+  const s: Scenario = SCENARIOS[scenario]
+  return !DRIVEN_WITHOUT_SEVEN_DAY.has(scenario) && (s.usage ?? USAGE).rateLimits.some(l => l.kind === 'seven_day')
 }
 
 /** Each failed check as `<check>: <why>`; none when the tree keeps the spec
@@ -203,15 +241,28 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
     if (n.type === 'Button' && n.props?.label === mark) toggles++
   })
   if (toggles !== 1) fail('toggle', `${toggles} ${mark} in the collapsed part`)
+  // Pulse and departures pin ▵ at the row's end, where a clipped row still shows it.
+  if (ctx.layout !== 'chips') {
+    let last: Node | undefined
+    walk(collapsed, n => {
+      if (n.type === 'Text' || n.type === 'Button' || n.type === 'Svg') last = n
+    })
+    if (last?.type !== 'Button' || last.props?.label !== mark) fail('toggle', `${mark} is not the row's last piece`)
+  }
 
-  // All-amber below 60 columns clips by design, ▵ pinned at the end; a
-  // single amber reading still fits. On the terminal it fits the row less
-  // its slack, as each line is squeezed to; the desktop's estimate keeps the
-  // row's width, since pulse's costs hold its second row there.
-  const clipsByDesign = ctx.cols < 60 && ctx.scenario === ALL_AMBER
+  // Below 60 columns chips' all-amber row, which lastMinute stands for, may
+  // not fit: calm pieces go first, then amber turns short, and past that the
+  // row clips, ▵ pinned at its end (the old spec's §2.6). Pulse and
+  // departures never clip: once their calm pieces have gone and amber is
+  // short, the row fits, ▵ in view (departures draws chips below its 60
+  // columns). On the terminal it fits the row less its slack, as each line
+  // is squeezed to; the desktop's estimate keeps the row's width.
+  const clipsByDesign = ctx.cols < 60 && ctx.layout === 'chips' && ctx.scenario === ALL_AMBER
   const width = cellsOf(collapsed as RenderChildren, ctx.surface === 'desktop' ? DESKTOP : TERMINAL)
   const room = ctx.surface === 'terminal' ? ctx.cols - ROW_SLACK : ctx.cols
   if (!clipsByDesign && width > room) fail('width', `${width} columns at ${ctx.cols}`)
+
+  if (ctx.layout !== 'chips') for (const e of orderErrors(collapsed, { has7d: hasSevenDay(ctx.scenario) })) errors.push(e)
 
   let nodes = 0
   const svgs: Node[] = []
@@ -227,16 +278,19 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   if (!svgDraws && svgs.length > 0) fail('svgPlacement', `${svgs.length} Svg where none draws`)
   for (const s of svgs) {
     const alt = s.props?.alt
-    // The shared cards' bars stretch to their slot, which caps them: they alone have no width.
+    // Chips' cards' bars stretch to their slot, which caps them: they alone have no width.
     const stretched = /preserveAspectRatio="none"/.test(typeof s.props?.source === 'string' ? s.props.source : '')
     if (typeof alt !== 'string' || alt === '' || (typeof s.props?.width !== 'number' && !stretched)) fail('svgProps', 'an Svg without an alt or a width')
     if (s.props?.id !== undefined || SVG_BARRED.test(typeof s.props?.source === 'string' ? s.props.source : ''))
       fail('svgProps', 'an Svg with an id, a gradient, a pattern or a clipPath')
     if (typeof alt === 'string' && NOTHING.test(alt)) fail('empty', `an alt reads "${alt}"`)
     if (typeof alt === 'string' && MISSTATED.test(alt)) fail('alt', `an alt reads "${alt}"`)
+    // A flap's alt says its reading in words, never the board's capitals or ↻.
+    if (ctx.layout === 'departures' && typeof alt === 'string' && BOARD_SAID.test(alt.replace(/5h|7d/g, ''))) fail('alt', `an alt reads "${alt}"`)
   }
 
-  const text = shown(tree)
+  // A desktop board's words are its flaps' tiles, which no Text holds.
+  const text = `${shown(tree)} ${flapWords(tree)}`
   if (/send|keep (it )?warm/i.test(text)) fail('wording', 'suggests sending a message')
   for (const reason of amber)
     if ((ctx.expanded || !OPEN_ONLY.has(reason)) && !AMBER_WORDS[reason].test(text)) fail('amber', `no words for ${reason}`)
@@ -285,10 +339,12 @@ const rowsForBody = (layout: LayoutName, surface: Surface, bodyRows: number): nu
 const LONG_WALKS: ReadonlySet<ScenarioName> = new Set(['lastMinute', 'cold', 'coldLimit80'])
 export const ttlOf = (scenario: ScenarioName): Ttl => (LONG_WALKS.has(scenario) ? '5m' : '1h')
 
-/** The suite's 38 cases, one setup each: every scenario at 120 columns; calm
- *  and the last minute in light, plain and the ascii tier, and at every
- *  width; the other amber scenarios narrow; calm, the open-only amber and
- *  the empty states short of rows. */
+/** The suite's 101 cases, one setup each: every scenario at 120 columns,
+ *  and at 40 and 50 in dark, light and plain, and either side of a
+ *  layout's own fewest columns; calm and the last minute in
+ *  light, plain and the ascii tier, and at every width; the other amber
+ *  scenarios narrow; calm, the open-only amber and the empty states short
+ *  of rows. */
 export const suiteCases = (layout: LayoutName): SuiteCase[] => {
   const optionsOf = (scenario: ScenarioName, appearance: Appearance = 'dark', env?: Record<string, string>): CaseOptions =>
     ({ layout, scenario, appearance, ttl: ttlOf(scenario), env })
@@ -309,6 +365,14 @@ export const suiteCases = (layout: LayoutName): SuiteCase[] => {
       options: optionsOf(scenario),
       mounts: [40, 50, 60].flatMap(cols => bothSurfaces(cols)),
     })),
+    // Every scenario at its narrowest, in each appearance: once every calm
+    // piece has gone and amber is short, the row fits its room, ▵ in view.
+    // A layout with fewest columns of its own is drawn either side of them.
+    ...(['dark', 'light', 'plain'] as const).flatMap(appearance => SCENARIO_NAMES.map(scenario => ({
+      name: `${layout}: ${scenario}, narrow, ${appearance}`,
+      options: optionsOf(scenario, appearance),
+      mounts: [...new Set([40, 50, ...edgeOf(layout)])].flatMap(cols => bothSurfaces(cols)),
+    }))),
     { name: `${layout}: calm, short of rows`, options: optionsOf('calm'), mounts: [4, 8, 13, 40].flatMap(maxRows => bothSurfaces(120, maxRows)) },
     // The open-only amber short of rows, on both grids, from a body of one
     // row, which has no room under its titles, and of two, which keeps a fact
@@ -329,17 +393,56 @@ export const suiteCases = (layout: LayoutName): SuiteCase[] => {
   ]
 }
 
+/** A layout's own fewest columns, and the width just under them. */
+const edgeOf = (layout: LayoutName): number[] => {
+  const least = VIEWS[layout].minColumns
+  return least === undefined ? [] : [least - 1, least]
+}
+
+/** The mounts drawn again as chips, after `/usage-band layout chips`, each
+ *  shut and open as drawCases draws them; then the layout chosen again. */
+const drawnAsChips = async ($: Engine, layout: LayoutName, mounts: readonly Mount[], isWorking?: boolean): Promise<Readonly<Record<string, Node>>> => {
+  const run = (args: string) => $.command.run({ command: 'usage-band', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 110 } })
+  await run('layout chips')
+  const trees: Record<string, Node> = {}
+  for (const m of mounts) {
+    const ui = await mountBand($, m.surface, m.cols, { maxRows: m.maxRows, isWorking })
+    trees[caseKey(m, 'shut')] = (await ui.drawn()) as Node
+    await ui.press({ key: 'more' })
+    trees[caseKey(m, 'open')] = (await ui.drawn()) as Node
+    await ui.press({ key: 'more' })
+    await ui.unmount()
+  }
+  await run(`layout ${layout}`)
+  return trees
+}
+
+/** Whether two drawn trees are the same, each press's handle aside: every
+ *  mount hands its Buttons new ones. */
+const drawnAlike = (a: unknown, b: unknown): boolean => {
+  const bare = (n: unknown) => JSON.stringify(n, (k, v: unknown) => (k === 'handle' ? undefined : v))
+  return bare(a) === bare(b)
+}
+
 /** Registers one LONG test per case: one drawCases call, every tree checked
- *  shut and open, each failure named by its mount. */
+ *  shut and open, each failure named by its mount. Where the layout draws
+ *  chips (layoutAt), the tree must be chips' own on that mount. */
 export const viewSuite = (layout: LayoutName): void => {
   for (const c of suiteCases(layout)) {
     test(c.name, LONG, async ($, on) => {
       const trees = await drawCases($, on, c.options, c.mounts)
+      const asChips = c.mounts.filter(m => layoutAt(layout, m.cols) !== layout)
+      const chips = asChips.length === 0 ? {} : await drawnAsChips($, layout, asChips, (SCENARIOS[c.options.scenario] as Scenario).isWorking)
       const glyphs: Glyphs = c.options.env?.CC_BAND_GLYPHS === 'ascii' ? 'ascii' : 'unicode'
       for (const m of c.mounts) {
         for (const state of ['shut', 'open'] as const) {
           const key = caseKey(m, state)
           const tree = trees[key]
+          const chipsTree = chips[key]
+          if (chipsTree !== undefined) {
+            expect(`${key} ${drawnAlike(tree, chipsTree) ? 'chips' : 'not chips'}`).toBe(`${key} chips`)
+            continue
+          }
           const errors = tree === undefined
             ? ['missing: not drawn']
             : invariantErrors(tree, {

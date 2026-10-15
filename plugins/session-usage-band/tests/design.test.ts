@@ -75,20 +75,7 @@ for (const [name, p, hosts] of [
     expect(contrast(p.value, p.surface)).toBeGreaterThanOrEqual(4.5)
   })
 
-  test(`${name}: week's text cells, guessed and none left, are marks in their window's tint on every ground they sit on`, () => {
-    // The days sit in the 7d pill, amber or calm, and the hours in a card's head.
-    for (const [guess, spent, grounds] of [
-      [p.weekGuess, p.weekSpent, [p.weekBg, p.amberBg, p.cardBg]],
-      [p.fiveGuess, p.fiveSpent, [p.cardBg]],
-    ] as const) {
-      for (const bg of grounds) for (const mark of [guess, spent]) expect(contrast(mark, bg)).toBeGreaterThanOrEqual(3)
-      // Label grey means the notch alone.
-      expect([guess, spent]).not.toContain(p.label)
-      expect(guess).not.toBe(spent)
-    }
-  })
-
-  test(`${name}: a window's name holds as text on its own tint, as rings' pills say it`, () => {
+  test(`${name}: a window's name holds as text on its own tint and on the card`, () => {
     expect(contrast(p.fiveText, p.fiveBg)).toBeGreaterThanOrEqual(4.5)
     expect(contrast(p.weekText, p.weekBg)).toBeGreaterThanOrEqual(4.5)
     expect(contrast(p.weekText, p.cardBg)).toBeGreaterThanOrEqual(4.5)
@@ -100,6 +87,18 @@ for (const [name, p, hosts] of [
     expect(low.map(([role, ink]) => `${role} ${ink} ${contrast(p[ink], p.cardBg).toFixed(2)}`)).toEqual([])
   })
 }
+
+// ── the departures board ───────────────────────────────────────────────
+
+const BOARD_INKS = ['flapItemCache', 'flapItemSpend', 'flapItemContext', 'flapItem5h', 'flapItem7d', 'flapText', 'flapDim', 'flapAmber'] as const
+test('the board is dark in dark and light alike, and every ink reads on its tiles', () => {
+  for (const p of [DARK, LIGHT]) for (const ink of BOARD_INKS) expect(contrast(p[ink], p.flapBg)).toBeGreaterThanOrEqual(4.5)
+  for (const k of ['boardBg', 'flapBg', 'flapSeam', ...BOARD_INKS] as const) expect(LIGHT[k]).toBe(DARK[k])
+  // The seam is decoration (spec §5.1): it differs from the tile, with no contrast target.
+  expect(DARK.flapSeam).not.toBe(DARK.flapBg)
+  expect(DARK.flapItem5h).toBe(DARK.fiveAccent)
+  expect(DARK.flapItem7d).toBe(DARK.weekAccent)
+})
 
 // ── the chip row ───────────────────────────────────────────────────────
 

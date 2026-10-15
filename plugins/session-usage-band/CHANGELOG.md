@@ -5,6 +5,18 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.14.0] - 2026-10-12
+
+### Removed
+- Six layouts: gauges, ledger, rings, tiles, week and forecast. A saved one draws chips, and `/usage-band layout` says so. Week's day cells now live in pulse, and forecast's clock times in departures.
+
+### Changed
+- Pulse is rebuilt as the session's trace: each message a beat, a heartbeat for the cache (still, not animated), context and the 5h window over time, and the week by day. Open, it is a grid of chart bands.
+- Departures is rebuilt as a split-flap board. Open, each reading is a line: item, status, time and remarks. Below 60 columns it draws chips.
+- Pulse and departures draw their readings in one order: cache, spend, context, 5h, 7d. As the row narrows, spend, context and 5h give way; the cache and the 7d never do.
+- `/usage-band layout` lists the three: chips (at a glance), pulse (trends), departures (times).
+- Departures turns amber at the same moments as every layout. Its `LAST CALL`, ten minutes before an hour's cache goes cold, is calm; only the last minute is amber, and a limit has no last call.
+
 ## [0.13.2] - 2026-10-12
 
 ### Fixed

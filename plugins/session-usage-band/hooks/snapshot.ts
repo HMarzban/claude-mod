@@ -14,7 +14,7 @@ import type { Workspace } from './workspace'
 export type Glyphs = 'unicode' | 'ascii'
 
 /** Every layout the band can be drawn in. */
-export const LAYOUT_NAMES = ['chips', 'gauges', 'ledger', 'rings', 'pulse', 'tiles', 'week', 'departures', 'forecast'] as const
+export const LAYOUT_NAMES = ['chips', 'pulse', 'departures'] as const
 export type LayoutName = (typeof LAYOUT_NAMES)[number]
 /** The layout drawn until /usage-band layout chooses another. */
 export const DEFAULT_LAYOUT: LayoutName = 'chips'
@@ -34,6 +34,8 @@ export type BandSnapshot = Readonly<{
   cache: Readonly<{
     requests: number
     msLeft: number
+    /** When the cache goes or went cold, epoch ms; null when not known. */
+    coldAt: number | null
     ttl: Ttl
     /** The TTL is known, not assumed: pinned by the environment, or seen on
      *  the transcript's last cache write before this band's first reply. */
@@ -62,7 +64,7 @@ export type BandSnapshot = Readonly<{
   }>
   costUsd: number
   lastTurnUsd: number | null
-  /** This conversation's message costs and context, and the 5h trend. */
+  /** This conversation's message costs and context. */
   history: Trails
   context: Readonly<{
     tokens: number | undefined

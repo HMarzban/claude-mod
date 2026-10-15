@@ -12,6 +12,8 @@ const run = ($: Engine, args: string) =>
 /** What pulse draws on both surfaces: its shut trees' nodes and, open, its
  *  text and its charts' sources, which the cost or context trail past its cap
  *  would grow, and the charts' alts. */
+/** How pulse's 5h window chart's alt begins. */
+const WINDOW_ALT = '5h window from start to reset'
 const pulseSize = async ($: Engine) => {
   const size = { shutNodes: 0, text: 0, source: 0, alts: [] as string[] }
   for (const surface of ['terminal', 'desktop'] as const) {
@@ -20,7 +22,9 @@ const pulseSize = async ($: Engine) => {
     await ui.press({ key: 'more' })
     const open = await ui.drawn()
     size.text += shown(open).length
-    walk(open, n => { size.source += String(n.props?.source ?? '').length })
+    // The 5h window is drawn from its start to its reset, so its markup
+    // follows the window's phase, not a trail's cap: left out of the sum.
+    walk(open, n => { if (!String(n.props?.alt).startsWith(WINDOW_ALT)) size.source += String(n.props?.source ?? '').length })
     size.alts.push(...svgAlts(open))
     await ui.press({ key: 'more' })
     await ui.unmount()
@@ -84,8 +88,8 @@ test('six hours, a thousand turns, three clears: writes, size and trees stay bou
   expect(after.shutNodes).toBe(before.shutNodes)
   expect(after.text).toBeLessThanOrEqual(1.05 * before.text)
   expect(after.source).toBeLessThanOrEqual(1.05 * before.source)
-  // The measures fed the 5h trail the whole way.
-  expect(after.alts.some(alt => alt.startsWith('5h usage over the last hour'))).toBe(true)
+  // The measures fed the 5h window the whole way.
+  expect(after.alts.some(alt => alt.startsWith(WINDOW_ALT))).toBe(true)
 })
 
 test('a calm ten-minute walk repaints once a minute, not once a second', LONG, async ($, on) => {

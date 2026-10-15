@@ -127,22 +127,22 @@ These and three more play live, with a guided tour, on the
 [website](https://hmarzban.github.io/claude-mod/#live).
 
 Prefer another shape? `/usage-band layout <name>` draws the same readings
-in one of nine [layouts](plugins/session-usage-band/README.md#layouts),
-each asking one question of them in chips' language: `chips` (as above),
-`gauges` (bars), `ledger` (one sentence), `rings`, `pulse` (cost trends),
-`tiles`, `week` (day cells), `departures` (countdowns) or `forecast`
-(clock times).
+in one of three [layouts](plugins/session-usage-band/README.md#layouts),
+each asking one question of them: `chips` (as above, is anything wrong
+right now?), `pulse` (the session's trace: is my cost per message rising,
+and will a limit fill before it resets?) or `departures` (a split-flap
+board: when does the cache go cold, and when does each limit reset or
+fill?).
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/band-layouts-dark.png">
-  <img alt="The nine layouts on the desktop, one panel each, drawn twice from the band's own output, calm and in the cache's last minute: chips, gauges, ledger, rings, pulse, tiles, week, departures and forecast" src="docs/band-layouts-light.png">
+  <img alt="The three layouts on the desktop, one panel each, drawn twice from the band's own output, calm and in the cache's last minute: chips, pulse and departures" src="docs/band-layouts-light.png">
 </picture>
 
 In every layout a reading turns amber when it needs you: the cache's last
 minute, context near auto-compaction, a limit at 80% or a 5-hour pace that
-would run out before the reset. Nothing is ever red. On the desktop, hover
-any chip for a one-line explanation, in chips, rings, pulse, week or
-forecast.
+would run out before the reset. Nothing is ever red. In chips on the
+desktop, hover any chip for a one-line explanation.
 
 Resume or fork a session (`claude --resume`, `/resume`, or a past session
 in the desktop app) and the band picks up its cache and spend where they
@@ -150,7 +150,7 @@ were ([how it reads them](plugins/session-usage-band/README.md#reopening-an-old-
 
 Press `▵` to open every fact, under a line that says where you are: the
 project, its git branch or worktree, uncommitted changes and ahead/behind.
-Every layout opens the same four labelled cards.
+Chips opens into four labelled cards. Pulse opens into a grid of chart bands, and departures into an ITEM, STATUS, TIME and REMARKS board.
 
 ![The band expanded on the desktop: chips for the cache, cost, context and the 5h and 7d limits, then the Cache, Spend, Context and Limits cards, the project path and branch, and the Collapse and Hide band buttons](docs/band-expanded.png)
 
@@ -185,7 +185,7 @@ and no build step.
   A re-warm is then the whole context written to the cache again.
 - **It remembers across sessions:** the layout you chose, when each session
   last had a reply, the rate it solved for each model, and a week of 5-hour
-  and weekly readings for the week layout. A reopened session reads what it
+  and weekly readings for pulse's day cells. A reopened session reads what it
   spent from its transcript.
 - **It stays out of the way.** It never calls a model, never writes files
   and never sends anything anywhere. Besides two read-only git commands for
@@ -267,7 +267,7 @@ change live, the module map and the rules the code follows.
 ```
 .claude-plugin/marketplace.json     the marketplace index (named hossein-mods)
 plugins/session-usage-band/
-  hooks/                            the band: the hooks, the readings and the nine layouts
+  hooks/                            the band: the hooks, the readings and the three layouts
   tests/                            the test suite
   CHANGELOG.md                      what changed in each version
 docs/                               the website (GitHub Pages) and the images in this README

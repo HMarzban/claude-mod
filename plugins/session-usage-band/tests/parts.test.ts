@@ -1,24 +1,15 @@
-// The shared view helpers: lines and their squeeze, words, the layouts' cache pill and the battery.
+// The shared view helpers: lines and their squeeze, words, and a limit's accent.
 
 import { test, expect } from 'claude-code/testing'
 import { makeKit } from '../hooks/kit'
-import { DARK, PLAIN } from '../hooks/palette'
-import { readingsOf, type Readings } from '../hooks/reading'
-import { accentOf, amberFirst, batteryBar, beforeLast, cacheHover, fitLine, layoutCacheSpec, line, once, pill, words, type Keeps } from '../hooks/views/parts'
+import { DARK } from '../hooks/palette'
+import { accentOf, beforeLast, fitLine, line, words, type Keeps } from '../hooks/views/parts'
 import type { Amber } from '../hooks/words'
 import { byKey, fakeEl, shown, walk, type Node } from './helpers'
 import { snapOf } from './matrix'
 
 const kit = (columns = 120) => makeKit(fakeEl, snapOf({ columns }))
 const A: Amber = { long: '! 47s left · re-warm ~$1.66', short: '! 47s' }
-/** A cache with 47s left, amber on its last call. */
-const lastCall = { cache: { ...snapOf().cache, msLeft: 47_000 } }
-const amberOf = (read: Readings): Amber => {
-  if (read.cache.amber === undefined) throw new Error('the cache is calm')
-  return read.cache.amber
-}
-/** The layouts' amber cache pill, drawn. */
-const cachePill = (k: ReturnType<typeof kit>, read: Readings, short: boolean) => pill(k, layoutCacheSpec(k, read, amberOf(read), short))
 const said = (k: ReturnType<typeof kit>, room: number) =>
   shown(fitLine(k, ['extra', 'more'] as const, room, keeps => line(k, 'l', [
     words(k, 'a', [[keeps.amber(A), 'amber']]),
@@ -61,39 +52,4 @@ test("a limit's accent is its window's", () => {
   expect(accentOf(kit(), { key: '5h' })).toBe(DARK.fiveAccent)
   expect(accentOf(kit(), { key: '7d' })).toBe(DARK.weekAccent)
   expect(accentOf(kit(), { key: 'other' })).toBe(DARK.meterFill)
-})
-test("the layouts' amber cache pill speaks the readings' words, with chips' hover", () => {
-  const snap = snapOf(lastCall)
-  const k = makeKit(fakeEl, snap)
-  const read = readingsOf(snap)
-  const long = cachePill(k, read, false)
-  expect(shown(long)).toMatch(/^\s*! 47s left · re-warm ~\$1\.66/)
-  expect(shown(long)).not.toMatch(/\b0:\d\d/)
-  expect(shown(cachePill(k, read, true))).toMatch(/! 47s\s*$/)
-  expect(layoutCacheSpec(k, read, amberOf(read), false).hover).toBe(cacheHover(read))
-})
-test('in the ascii tier the cache pill draws its words in ascii', () => {
-  const snap = snapOf({ ...lastCall, glyphs: 'ascii' })
-  expect(shown(cachePill(makeKit(fakeEl, snap), readingsOf(snap), false))).toBe(' ! 47s left, re-warm ~$1.66 ')
-})
-test('off the terminal the ascii tier leaves the cache pill unmapped', () => {
-  const snap = snapOf({ ...lastCall, surface: 'mobile', glyphs: 'ascii' })
-  expect(shown(cachePill(makeKit(fakeEl, snap), readingsOf(snap), false))).toBe(' ! 47s left · re-warm ~$1.66 ')
-})
-test('what needs you comes first, each part in its order; a piece is built once', () => {
-  const items = [{ n: 1, amber: undefined }, { n: 2, amber: A }, { n: 3, amber: undefined }, { n: 4, amber: A }]
-  expect(amberFirst(items).map(i => i.n)).toEqual([2, 4, 1, 3])
-  let builds = 0
-  const piece = once(() => ++builds)
-  expect([piece(), piece(), builds]).toEqual([1, 1, 1])
-})
-test("a battery the length of a bar: its outline on the desktop, painted cells in a terminal, glyphs where there is no ground", () => {
-  const size = { px: 90, cells: 12 }
-  const desk = batteryBar(makeKit(fakeEl, snapOf({ surface: 'desktop' })), 0.5, 'calm', 'cache battery 50% left', size) as Node
-  expect([desk.type, desk.props?.width, desk.props?.alt]).toEqual(['Svg', 90, 'cache battery 50% left'])
-  expect(String(desk.props?.source)).toMatch(/<rect class="charge" x="2.5" y="2.5" width="41.5"/)
-  const cells = batteryBar(kit(), 0.5, 'calm', 'cache', size) as Node
-  expect([shown(cells), byKey(cells, 'charge', 'Text')?.props?.backgroundColor, byKey(cells, 'drained', 'Text')?.props?.backgroundColor]).toEqual([' '.repeat(12), DARK.warm, DARK.meterTrack])
-  expect(shown(byKey(cells, 'charge', 'Text'))).toBe(' '.repeat(6))
-  expect(shown(batteryBar(makeKit(fakeEl, snapOf({ palette: PLAIN })), 0.5, 'calm', 'cache', size))).toBe('██████░░░░░░')
 })

@@ -1,6 +1,6 @@
 import { test, expect } from 'claude-code/testing'
 import { msLeft, noteLoad, noteRecall, noteResume, recordResponse, resetCache, takeRebuilt } from '../hooks/cache'
-import { COST_TRAIL, CONTEXT_TRAIL, FIVE_HOUR_TRAIL, noteFiveHourTrail, pushContext, pushCost, resetConversationInsights, resetInsights, trails } from '../hooks/insights'
+import { COST_TRAIL, CONTEXT_TRAIL, pushContext, pushCost, resetConversationInsights, resetInsights, trails } from '../hooks/insights'
 import { asLimitSamples } from '../hooks/memory'
 import { HOUR, HOUR_1, LONG, MIN, START, USAGE, engine, resp, setup, turn, usage } from './helpers'
 
@@ -15,24 +15,12 @@ test('the context trail keeps the last 40 turns', () => {
   for (let i = 0; i < 50; i++) pushContext(i * 1000)
   expect(trails.context).toHaveLength(CONTEXT_TRAIL)
 })
-test('the 5h trail keeps one reading a minute, the latest, over 5 hours at most', () => {
-  resetInsights()
-  noteFiveHourTrail(0, 1)
-  noteFiveHourTrail(30_000, 2)
-  expect(trails.fiveHour).toEqual([{ at: 30_000, pct: 2 }])
-  for (let m = 1; m <= 400; m++) noteFiveHourTrail(m * MIN, m % 100)
-  expect(trails.fiveHour.length).toBeLessThanOrEqual(FIVE_HOUR_TRAIL)
-  expect(trails.fiveHour[0]?.at ?? 0).toBeGreaterThanOrEqual(400 * MIN - 5 * HOUR)
-})
-test('/clear empties the conversation trails and keeps the 5h one; a new session empties all', () => {
+test('/clear empties the conversation trails; a new session empties them too', () => {
   resetInsights()
   pushCost(1, false)
   pushContext(1000)
-  noteFiveHourTrail(0, 4)
   resetConversationInsights()
-  expect([trails.costs.length, trails.context.length, trails.fiveHour.length]).toEqual([0, 0, 1])
-  resetInsights()
-  expect(trails.fiveHour).toHaveLength(0)
+  expect([trails.costs.length, trails.context.length]).toEqual([0, 0])
 })
 test('a request after the TTL ran out rebuilt the cache, and the turn takes the mark once', () => {
   resetCache()

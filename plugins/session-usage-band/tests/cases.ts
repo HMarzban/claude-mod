@@ -33,7 +33,7 @@ const replied = async ($: Engine): Promise<void> => {
   await started($)
   await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
 }
-const withLimits = (five: number, seven: number, fiveResetH = 3, sevenResetH = 67): SessionUsage['rateLimits'] => [
+export const withLimits = (five: number, seven: number, fiveResetH = 3, sevenResetH = 67): SessionUsage['rateLimits'] => [
   { kind: 'five_hour', percentUsed: five, resetsAt: new Date(fiveResetH * HOUR).toISOString() },
   { kind: 'seven_day', percentUsed: seven, resetsAt: new Date(sevenResetH * HOUR).toISOString() },
 ]
@@ -111,6 +111,8 @@ export type CaseOptions = Readonly<{
   /** How far on the scenario starts, its clock and windows moved together:
    *  MODERN, for a case that reads the host's clock. */
   now?: number
+  /** The usage to start from, in place of the scenario's: a case's own limits. */
+  usage?: SessionUsage
 }>
 
 /** Where a drawn case was mounted, and whether it was open. */
@@ -130,7 +132,8 @@ export const drawCases = async ($: Engine, on: On, o: CaseOptions, mounts: reado
     ...o.env,
   }
   const store = { ...(s.store ?? {}), ...(o.layout === undefined ? {} : { layout: o.layout }) }
-  const usage = o.now === undefined ? s.usage : usageAt(o.now, s.usage)
+  const base = o.usage ?? s.usage
+  const usage = o.now === undefined ? base : usageAt(o.now, base)
   const clock = setup(on, { usage, store, env, now: o.now === undefined ? s.now : o.now + (s.now ?? 0) })
   s.prepare?.()
   await s.drive($, clock, TTL_MS[ttl])
@@ -150,7 +153,11 @@ export const drawCases = async ($: Engine, on: On, o: CaseOptions, mounts: reado
 /** Golden's grid: the 20 scenarios its capture froze (the one added since has
  *  no hashes), on two surfaces at three widths, each drawn shut and open, in
  *  dark and plain. 20 scenarios × 2 appearances × 6 mounts × 2 = 480 cases. */
-export const GOLDEN_SCENARIOS: readonly ScenarioName[] = SCENARIO_NAMES.filter(s => s !== 'coldLimit80')
+// Frozen: golden's capture holds these. A scenario added later is never golden.
+export const GOLDEN_SCENARIOS: readonly ScenarioName[] = [
+  'calm', 'unmeasured', 'warming', 'recalled', 'cold', 'lastMinute', 'working', 'nearCompaction', 'compactionOff', 'limit80',
+  'fiveHourAhead', 'sevenFullBeforeReset', 'noLimits', 'gatewaySpend', 'resetPassed', 'noWorkspace', 'notARepo', 'gitFails', 'emptyHistory', 'fullHistory',
+]
 export const GOLDEN_APPEARANCES: readonly Appearance[] = ['dark', 'plain']
 export const GOLDEN_MOUNTS: readonly Mount[] = (['terminal', 'desktop'] as const).flatMap(surface => [40, 95, 200].map(cols => ({ surface, cols })))
 export const goldenKey = (scenario: ScenarioName, appearance: Appearance, drawn: string): string => `${scenario}|${appearance}|${drawn}`

@@ -33,7 +33,7 @@ capture() {
   trap 'rm -rf "$SCRATCH"' EXIT
   find "$PLUGIN" -mindepth 1 -maxdepth 1 ! -name tests -exec cp -R {} "$SCRATCH/" \;
   mkdir -p "$SCRATCH/tests"
-  cp "$PLUGIN"/tests/{helpers.ts,globals.d.ts} capture/*.test.ts "$SCRATCH/tests/"
+  cp "$PLUGIN"/tests/{helpers.ts,globals.d.ts,cases.ts,matrix.ts} capture/*.test.ts "$SCRATCH/tests/"
   claude plugin test "$SCRATCH" > "$OUT/capture.log" 2>&1 || { tail -20 "$OUT/capture.log"; exit 1; }
   grep '^FRAME' "$OUT/capture.log" > "$OUT/frames.txt"
   grep '^FILM' "$OUT/capture.log" > "$OUT/film.txt"

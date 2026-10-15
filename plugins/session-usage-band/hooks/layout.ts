@@ -8,8 +8,6 @@ import type { RenderChildren, RenderElement } from 'claude-code'
 export const GIVES_WAY = [
   'tokens',
   'weekReset',
-  // Rings' pill labels, long to short: never past a piece a short row keeps.
-  'longLabels',
   'fiveReset',
   'contextMeter',
   'calmWeek',
@@ -17,8 +15,6 @@ export const GIVES_WAY = [
   'shortWording',
   'calmContext',
   'calmFive',
-  // Rings' cache ring: its words say what it draws.
-  'cacheRing',
   'amberWeekReset',
   'amberFiveReset',
 ] as const
@@ -74,6 +70,15 @@ export const CHIP_BAR: BarSize = { px: METER_PX, cells: METER_CELLS }
 type Measure = Readonly<{ text: number; pxPerCell: number }>
 export const TERMINAL: Measure = { text: 1, pxPerCell: 8 }
 export const DESKTOP: Measure = { text: 0.75, pxPerCell: 10 }
+/** On a proportional surface the board's capitals and digits take a full
+ *  column each: SF at 15 px draws a capital 9.9 px and a digit 8.8 against
+ *  a 10 px column, where the measure's 0.75 fits prose's lower case (7.7
+ *  px). Every other character keeps the measure's own: a bracket is 5.5 px,
+ *  a space 4.2, punctuation 7.0. Monospace counts every character as one. */
+const BOARD_CAPS = 1
+export const boardCells = (text: string, m: Measure): number =>
+  m.text >= 1 ? [...text].length * m.text : [...text].reduce((n, c) => n + (/[A-Z0-9]/.test(c) ? BOARD_CAPS : m.text), 0)
+
 /** Columns a desktop hover card's text takes a character: about 0.8, as
  *  measured on the desktop on 0.12.0's wording (its 57-character 7d card ran
  *  about 453px), a little over the measure's 0.75 so a card never cuts its

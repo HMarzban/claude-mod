@@ -1,4 +1,4 @@
-// Chips: a row of pills, and the shared cards beneath it when open. Its pill
+// Chips: a row of pills, and its four cards beneath it when open. Its pill
 // builders, their hover strings, LIMITS and its row are exported, so a layout
 // composes chips' pills, tints and icons rather than drawing its own. They
 // draw from the readings' words; only the context's pill and hover read
@@ -14,14 +14,15 @@ import type { Piece } from '../layout'
 import type { Palette } from '../palette'
 import type { LimitKey, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
+import { cardsView } from './cards'
 import { toggleButton } from './frame'
 import { batteryIcon, cacheHover, pill, resetClause, textBattery } from './parts'
 import type { PillSpec } from './parts'
-import { defineCardsView } from './view'
+import type { View } from './view'
 
 // ---- limits ---------------------------------------------------------------
 
-export type ChipKey = Exclude<LimitKey, 'other'>
+type ChipKey = Exclude<LimitKey, 'other'>
 type Tint = Readonly<{ bg: string; fg: string; accent: string }>
 type LimitSpec = Readonly<{
   icon: Icon
@@ -57,7 +58,7 @@ export const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
 
 /** Whether the row says the cache and context short at `squeeze`: always
  *  below `SHORT_BELOW` columns. */
-export const shortAt = (kit: Kit, squeeze: number): boolean => kit.columns < SHORT_BELOW || !keeps(squeeze, 'shortWording')
+const shortAt = (kit: Kit, squeeze: number): boolean => kit.columns < SHORT_BELOW || !keeps(squeeze, 'shortWording')
 
 /** The cache pill: a draining battery and its countdown, or its mood. A
  *  layout that bolds each reading's figure asks for the countdown `bold`;
@@ -105,7 +106,7 @@ export const cachePill = (kit: Kit, read: Readings, short: boolean, bold = false
 }
 
 /** The session's cost; its card names the last message's. */
-export const costPill = (kit: Kit, read: Readings): PillSpec => {
+const costPill = (kit: Kit, read: Readings): PillSpec => {
   const { Text, palette, icon } = kit
   const { totalText, lastText } = read.spend
   return {
@@ -117,7 +118,7 @@ export const costPill = (kit: Kit, read: Readings): PillSpec => {
 }
 
 /** The session's tokens; its card splits them by kind. */
-export const tokensPill = (kit: Kit, read: Readings): PillSpec => {
+const tokensPill = (kit: Kit, read: Readings): PillSpec => {
   const { Text, palette, icon } = kit
   return {
     key: 'tokens',
@@ -128,7 +129,7 @@ export const tokensPill = (kit: Kit, read: Readings): PillSpec => {
 }
 
 /** The context pill's hover card: how much of the window is used, and where it compacts. */
-export const contextHover = (read: Readings): string => {
+const contextHover = (read: Readings): string => {
   const ctx = read.chips.raw.context
   const { pct, toCompact } = read.context
   return ctx.compactAt === undefined || toCompact === undefined
@@ -137,7 +138,7 @@ export const contextHover = (read: Readings): string => {
 }
 
 /** The context's fill on a meter, counting down to compaction once near it. */
-export const contextPill = (kit: Kit, read: Readings, squeeze: number): PillSpec => {
+const contextPill = (kit: Kit, read: Readings, squeeze: number): PillSpec => {
   const { Text, palette, onTone, gap, icon } = kit
   const ctx = read.chips.raw.context
   const { frac, pct, toCompact, nearCompact, tone } = read.context
@@ -168,7 +169,7 @@ export const contextPill = (kit: Kit, read: Readings, squeeze: number): PillSpec
 /** A limit chip's hover card: once passed, that it has reset; else its
  *  reset first, the fact the chip had, so a short row's cut only takes the
  *  description. Undefined while the engine reports no such window. */
-export const limitHover = (read: Readings, key: ChipKey): string | undefined => {
+const limitHover = (read: Readings, key: ChipKey): string | undefined => {
   const w = key === '5h' ? read.fiveHour : read.sevenDay
   if (w === undefined) return undefined
   const { title } = LIMITS[key]
@@ -263,4 +264,7 @@ export const pillRow = (kit: Kit, read: Readings, act: BandActions, specs: reado
 const chipsRow = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
   squeezeToFit(squeeze => pillRow(kit, read, act, chipsPills(kit, read, squeeze)), GIVES_WAY.length, kit.columns - ROW_SLACK, kit.measure)
 
-export const chipsView = defineCardsView({ desktop: 1, terminal: 1 }, (kit, read, act) => ({ lines: [chipsRow(kit, read, act)] }))
+export const chipsView: View = {
+  rows: { desktop: 1, terminal: 1 },
+  draw: (kit, read, act) => cardsView(kit, read, act, [chipsRow(kit, read, act)], { collapsedRows: 1 }),
+}
