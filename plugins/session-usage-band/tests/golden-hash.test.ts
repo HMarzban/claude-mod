@@ -23,6 +23,15 @@ test("canon drops the engine's press handles, which renumber between tests", () 
   expect(treeHash(a)).toBe(treeHash(b))
 })
 
+test("canon drops the engine's own marks, which only some engine versions add", () => {
+  const a = { type: 'Box', props: { flexDirection: 'column' }, children: [{ type: 'Text', props: { bold: true }, children: ['$2.41'] }] }
+  const b = { ...a, part: { plugin: 'session-usage-band' }, children: [{ type: 'Text', props: { bold: true, weight: 'semibold' }, children: ['$2.41'] }] }
+  expect(treeHash(a)).toBe(treeHash(b))
+  // A weight the band asks for itself still counts.
+  const c = { type: 'Text', props: { weight: 'semibold' }, children: ['x'] }
+  expect(treeHash(c)).not.toBe(treeHash({ ...c, props: {} }))
+})
+
 test('canon reads every clock time alike, so a tree hashes the same in every zone', () => {
   const at = (when: string) => ({ type: 'Text', props: { key: 'when' }, children: [when, ' · full before reset'] })
   expect(treeHash(at('Sat 13:30'))).toBe(treeHash(at('02:00')))
