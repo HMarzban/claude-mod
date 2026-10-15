@@ -34,6 +34,13 @@ they're git-ignored. Neither `claude plugin test` nor `validate` writes
 them, and loading needs a signed-in session, so CI can't type-check: run it
 locally before you open a pull request.
 
+CI runs every check twice: on the latest Claude Code, and on a pinned
+version last known good (`matrix.claude-code` in `.github/workflows/ci.yml`).
+It also runs nightly, so a new release that breaks the band shows within a
+day. Red on latest alone means a Claude Code release changed something:
+fix the band or its tests for it, then bump the pin to that release. Red on
+both means the change itself.
+
 To see a change live, add your clone as the marketplace and install from
 it. From the clone's parent folder:
 
