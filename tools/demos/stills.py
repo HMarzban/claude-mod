@@ -7,13 +7,16 @@ The social card's chips come from demo.txt (beside site.txt unless given).
 """
 import json
 import os
+import re
 import sys
 
 from render_desk import BAND_CSS, node
 
 # The social card, 1280x640 shot at 2x: the page's dark counter and receipt
-# grammar, one big cache chip in its last minute, the rest of the row faded.
-# The chips are the real `chips amber` drawing from demo.txt, never typed.
+# grammar, one big cache chip in its last minute, the rest of the row beneath,
+# and the re-warm price as a receipt line. The chips and the price are the
+# real `chips amber` drawing from demo.txt, the version the plugin's manifest's;
+# never typed.
 SOCIAL = '''<!doctype html><html><head><meta charset="utf-8">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=block">
@@ -22,33 +25,56 @@ SOCIAL = '''<!doctype html><html><head><meta charset="utf-8">
 html,body{width:1280px;height:640px;overflow:hidden;background:#0f0f12}
 body{font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;color:#ececf2;position:relative}
 .mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
-.top{position:absolute;left:72px;right:72px;top:46px;padding-bottom:18px;border-bottom:1px dashed #34343c;font-size:24px;font-weight:600;letter-spacing:-.2px}
-h1{position:absolute;left:72px;right:72px;top:124px;font-size:76px;line-height:1.06;font-weight:600;letter-spacing:-2px}
+.top{position:absolute;left:72px;right:72px;top:46px;padding-bottom:18px;border-bottom:1px dashed #34343c;font-size:24px;font-weight:600;letter-spacing:-.2px;display:flex;justify-content:space-between;align-items:baseline}
+.top span{font-size:20px;font-weight:400;color:#9a9aa4}
+h1{position:absolute;left:72px;right:72px;top:118px;font-size:76px;line-height:1.06;font-weight:600;letter-spacing:-2px}
 .big,.rest{position:absolute;left:72px}
-.big{top:330px}
-.rest{top:450px;opacity:.38}
+.big{top:312px}
+.rest{top:418px;opacity:.65}
 .big>div{zoom:3}
 .rest>div{zoom:1.6}
 .big,.rest{font-size:15px;line-height:24px;white-space:pre;color:#ececf2;font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
-.foot{position:absolute;left:72px;right:72px;bottom:44px;padding-top:20px;border-top:1px dashed #34343c;font-size:26px;color:#9a9aa4}
+.line{position:absolute;left:72px;right:72px;top:492px;display:flex;align-items:baseline;gap:14px;font-size:26px;font-weight:600;letter-spacing:.5px;font-variant-numeric:tabular-nums}
+.line i{flex:1;border-bottom:3px dotted #5f5f69;transform:translateY(-7px)}
+.line b{font-weight:600;color:#f0c969}
+.foot{position:absolute;left:72px;right:72px;bottom:40px;padding-top:18px;border-top:1px dashed #34343c;font-size:26px;color:#9a9aa4}
 ''' + BAND_CSS + '''</style></head><body>
-<div class="top mono">session-usage-band</div>
+<div class="top mono">session-usage-band<span>v{version}</span></div>
 <h1>See the cold-cache bill<br>before you send it.</h1>
 <div class="big"><div>{chip}</div></div>
 <div class="rest"><div>{rest}</div></div>
+<div class="line mono">RE-WARM IF MISSED<i></i><b>{rewarm}</b></div>
 <div class="foot">Free Claude Code plugin · no tokens · terminal + desktop</div>
 </body></html>'''
 
 
+def words(n):
+    """The text a drawn tree shows."""
+    if isinstance(n, str):
+        return n
+    if isinstance(n, list):
+        return ''.join(words(c) for c in n)
+    if isinstance(n, dict):
+        return ''.join(words(c) for c in n.get('children') or [])
+    return ''
+
+
+def plugin_version():
+    here = os.path.dirname(os.path.abspath(__file__))
+    return json.load(open(os.path.join(here, '../../plugins/session-usage-band/.claude-plugin/plugin.json')))['version']
+
+
 def social(tree):
     """The social card from the chips layout's last-minute drawing: its cache
-    chip alone, and the row's other chips."""
+    chip alone, the row's other chips, and the chip's re-warm price."""
     row = next(c for c in tree['children'] if (c.get('props') or {}).get('key') == 'row')
     chips = {c['props']['key']: c for c in row['children'] if isinstance(c, dict) and (c.get('props') or {}).get('key')}
     assert 'left' in node(chips['cache']), 'the amber cache chip has no countdown'
     rest = {'type': 'Box', 'props': {'flexDirection': 'row', 'columnGap': 1},
             'children': [chips[k] for k in ('cost', 'ctx', '5h', '7d') if k in chips]}
-    return SOCIAL.replace('{chip}', node(chips['cache'])).replace('{rest}', node(rest))
+    rewarm = re.search(r're-warm (~\$[\d,.]+)', words(chips['cache'])).group(1)
+    return (SOCIAL.replace('{chip}', node(chips['cache'])).replace('{rest}', node(rest))
+            .replace('{rewarm}', rewarm).replace('{version}', plugin_version()))
 
 
 ANATOMY = '''<!doctype html><html><head><meta charset="utf-8"><style>
