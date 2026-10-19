@@ -152,6 +152,11 @@ export type CacheWords = Readonly<{
    *  cold, `next message`. */
   estimateLabel: string
   alt: string
+  /** Pulse's row tile: its figure after the name, `cache`: `textMarked` and
+   *  `textShortMarked` without it: `52m left`, `~40m left`, `cold · re-warm
+   *  ~$1.66`; short, `52m`, `~40m`, `cold ~$1.66`. */
+  figure: string
+  figureShort: string
 }>
 
 export type ContextWords = Readonly<{
@@ -310,6 +315,8 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
             : counting
               ? altOf('cache', fmtLeftSpoken(f.coldInMs), f.mood === 'expiring' ? 'cooling' : 'warm', f.mood === 'expiring' ? `re-warm about ${price}` : undefined)
               : altOf('cache', 'warm', 'Claude is working'),
+    figure: recalledTime ? `~${left}` : joined(say.filter(([text, role]) => !(text === 'cache ' && role === 'label'))),
+    figureShort: recalledTime ? `~${leftShort}` : joined(sayShort.filter(([text, role]) => !(text === 'cache ' && role === 'label'))),
   }
 }
 

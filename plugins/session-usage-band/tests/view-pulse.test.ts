@@ -39,9 +39,9 @@ test('collapsed terminal: every reading in words, in order, then ▵', () => {
   expect(shown(row)).toMatch(/cache[\s\S]*\$3\.19[\s\S]*context[\s\S]*5h[\s\S]*7d/)
   expect(byKey(row.children?.at(-1), 'more', 'Button')?.props?.label).toBe('▵')
 })
-test('no chips pill or battery: no group has a ground, and no battery alt', () => {
+test("each reading a tile on chips' grounds, the surface, 5h and 7d in their tints; no battery alt", () => {
   const row = rowOf({ surface: 'desktop', ...LIMITS })
-  expect(['cache', 'spend', 'context', '5h', '7d'].map(k => byKey(row, k, 'Box')?.props?.backgroundColor)).toEqual([undefined, undefined, undefined, undefined, undefined])
+  expect(['cache', 'spend', 'context', '5h', '7d'].map(k => byKey(row, k, 'Box')?.props?.backgroundColor)).toEqual([DARK.surface, DARK.surface, DARK.surface, DARK.fiveBg, DARK.weekBg])
   expect(svgAlts(row).some(a => /battery/.test(a))).toBe(false)
 })
 test('the beats: 14 wide, a path', () => {
@@ -72,10 +72,10 @@ test("no costs yet: the flat trace only beside `no costs yet`, while the total i
   for (const surface of ['desktop', 'terminal'] as const) {
     // A resumed conversation: its total known, no message's cost recorded.
     const resumed = byKey(rowOf({ surface, ...none }), 'spend', 'Box')
-    expect(shown(resumed)).toBe('$3.19')
+    expect(shown(resumed)).toMatch(/^spend ?\$3\.19$/)
     expect(svgsOf(resumed)).toHaveLength(0)
     const fresh = rowOf({ surface, ...none, costUsd: 0 })
-    expect(shown(byKey(fresh, 'spend', 'Box'))).toMatch(surface === 'desktop' ? /^\$0\.00 · no costs yet$/ : /^⣀{7} ?\$0\.00 · no costs yet$/)
+    expect(shown(byKey(fresh, 'spend', 'Box'))).toMatch(surface === 'desktop' ? /^spend\$0\.00 · no costs yet$/ : /^spend \$0\.00 · no costs yet ⣀{7}$/)
     // As the row narrows, no step leaves the trace without its word.
     for (let columns = 160; columns >= 40; columns--) {
       const spend = byKey(rowOf({ surface, columns, ...none, costUsd: 0 }), 'spend', 'Box')
@@ -93,7 +93,7 @@ test('no limits: no 5h or 7d; no samples: 5h and 7d in words only', () => {
   expect(shown(rowOf({ fiveHour: undefined, sevenDay: undefined }))).not.toMatch(/5h|7d/)
   const bare = rowOf({ surface: 'desktop', ...LIMITS, samples: [] })
   expect(svgAlts(bare).map(CLASS)).not.toContain('5h')
-  expect(shown(bare)).toMatch(/5h 26%[\s\S]*7d 41%/)
+  expect(shown(bare)).toMatch(/5h ?26%[\s\S]*7d ?41%/)
 })
 test('at 40 and 45 columns, full amber: the cache and the 7d stay, in order, ▵ last, and the row fits', async ($, on) => {
   const drawn = await drawCases($, on, { scenario: 'lastMinute', appearance: 'dark', layout: 'pulse', usage: { ...USAGE, rateLimits: withLimits(30, 82) } }, [40, 45].map(cols => ({ surface: 'terminal' as const, cols })))
@@ -120,7 +120,8 @@ test('narrow and calm, spend gives way, then context, then 5h; the cache and 7d 
   expect(keys(spend)).toEqual(['cache', 'context', '5h', '7d'])
   expect(keys(context)).toEqual(['cache', '5h', '7d'])
   for (const columns of widths) expect(cellsOf(rowOf({ columns, ...cold }) as unknown as RenderChildren, TERMINAL)).toBeLessThanOrEqual(columns - ROW_SLACK)
-  // The calm session of the other tests keeps 5h at 40: only what doesn't fit goes.
+  // The calm session of the other tests at 40: spend and context gone, the
+  // cache and the 7d kept (pulse-tiles tests where the 5h returns).
   const calm = rowOf({ columns: 40, ...LIMITS })
   expect(['spend', 'context'].map(k => byKey(calm, k, 'Box'))).toEqual([undefined, undefined])
   expect(shown(calm)).toMatch(/cache[\s\S]*7d/)
@@ -132,15 +133,15 @@ test('one cost, or every cost a re-warm: no NaN', () => {
     expect(src).not.toMatch(/NaN|Infinity/)
   }
 })
-test('terminal: braille beside the numbers', () => {
-  expect(shown(rowOf({ surface: 'terminal', ...LIMITS }))).toMatch(/[⠀-⣿]+ ?\$3\.19/)
+test('terminal: braille after the numbers, in their tile', () => {
+  expect(shown(rowOf({ surface: 'terminal', ...LIMITS }))).toMatch(/spend \$3\.19 · last \$0\.21 [⠀-⣿]+/)
 })
 test("terminal: the cache and the 7d in words alone, as spec §4.1's table draws them", () => {
   const row = rowOf({ surface: 'terminal', ...LIMITS })
   expect(shown(byKey(row, 'cache', 'Box'))).toMatch(/^cache 52m left$/)
   expect(shown(byKey(row, '7d', 'Box'))).toMatch(/^7d 41%$/)
 })
-test("no costs yet: the flat trace and its words in a label's ink, the total in a value's", () => {
+test("no costs yet: the name, the total in a value's ink, its words then the flat trace in a label's", () => {
   const spend = byKey(rowOf({ surface: 'terminal', history: { costs: [], context: [] }, costUsd: 0 }), 'spend', 'Box')
   const inks: string[] = []
   const visit = (x: unknown): void => {
@@ -151,7 +152,7 @@ test("no costs yet: the flat trace and its words in a label's ink, the total in 
     for (const k of node.children ?? []) visit(k)
   }
   visit(spend)
-  expect(inks).toEqual(['⣀⣀⣀⣀⣀⣀⣀|label', '$0.00|value', ` · ${EMPTY.costsShort}|label`])
+  expect(inks).toEqual(['spend|label', '$0.00|value', ` · ${EMPTY.costsShort}|label`, '⣀⣀⣀⣀⣀⣀⣀|label'])
 })
 test('an amber reading keeps its chart past the calm ones, until the amber step', () => {
   // SAMPLES' window, so its trail is drawn.
