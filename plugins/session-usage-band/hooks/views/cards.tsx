@@ -6,14 +6,15 @@ import { meter, splitBar } from '../charts'
 import type { SplitPart } from '../charts'
 import type { Icon } from '../icons'
 import type { Kit } from '../kit'
-import { CARD_TEXT, DESKTOP, ROW_SLACK } from '../layout'
+import { DESKTOP, ROW_SLACK } from '../layout'
 import type { BarSize } from '../layout'
 import type { LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { drawStrip } from '../strip'
 import { SPLIT_LABELS, type Say } from '../words'
 import { bodyRowsFor, footer, footerRoom } from './frame'
-import { ROLE_INK, accentOf } from './parts'
+import { accentOf } from './parts'
+import { cardBordered, cardEdge, cardInner, cardShell, cardsPerLine, factRow as sharedFactRow, headline } from './shell'
 
 /** The cards, in the order they are drawn. */
 const CARD_NAMES = ['cache', 'spend', 'context', 'limits'] as const
@@ -46,29 +47,10 @@ const tokenPartsOf = (kit: Kit, read: Readings): SplitPart[] => {
  *  hold their text, each as much of its body as the band has rows for; the
  *  workspace strip on top or in the footer; then Collapse and Hide band. */
 export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOptions): RenderChildren[] => {
-  const { Box, Text, Svg, palette, measure, columns, onTone, oneLine, icon } = kit
+  const { Box, Text, palette, measure, columns, onTone, oneLine } = kit
   const { cache, spend, context } = read
 
-  /** A label and its value at either end of a line; `swatch` keys a legend
-   *  in its part's colour and fill. A phrase's figures are in the card's
-   *  value ink, its other words in their roles'. */
-  const factRow = (label: string, value: string | Say, swatch?: SplitPart) => (
-      <Box key={`fact:${label}`} flexDirection="row" justifyContent="space-between" columnGap={2}>
-        <Text color={palette.label}>
-          {swatch === undefined ? null : <Text key="sw" color={swatch.color}>{`${swatch.mark} `}</Text>}
-          {label}
-        </Text>
-        <Text color={palette.cardValue}>
-          {typeof value === 'string'
-            ? value
-            : value.map(([text, role], i) => (
-                <Text key={String(i)} color={role === 'value' ? palette.cardValue : palette[ROLE_INK[role]]}>
-                  {text}
-                </Text>
-              ))}
-        </Text>
-      </Box>
-  )
+  const factRow = (label: string, value: string | Say, swatch?: SplitPart) => sharedFactRow(kit, label, value, swatch)
   /** A fact the readings may not know yet: nothing until they do. */
   const knownRow = (label: string, value: string | undefined) => (value === undefined ? null : factRow(label, value))
   const note = (text: string) => (
@@ -82,15 +64,13 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
   // cards align whatever their text and a line never wraps one away. A
   // desktop card has a visible edge; a terminal card is a fill, its border
   // would cost two columns. Lines keep a row of air between them.
-  const bordered = Svg !== undefined || !palette.filled
-  const edge = bordered ? 2 : 0
-  const minCard = Math.ceil(CARD_TEXT * measure.text) + 2 + edge
+  const bordered = cardBordered(kit)
+  const edge = cardEdge(kit)
   // The cards present, which the grid lays out.
   const hasCard: Readonly<Record<CardName, boolean>> = { cache: true, spend: true, context: context.known, limits: read.limits.length > 0 }
   const present = CARD_NAMES.filter(name => hasCard[name])
   const cardCount = present.length
-  const fits = (n: number) => n * minCard + (n - 1) <= columns
-  const perLine = [cardCount, Math.ceil(cardCount / 2)].find(fits) ?? 1
+  const perLine = cardsPerLine(kit, cardCount, edge)
   const lineCount = Math.ceil(cardCount / perLine)
   const lineGap = 1
   // The rows a card's body may take: the frame's, shared by the lines less
@@ -114,7 +94,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     cardsFit || bodyRowsFor(read.frame.maxRows, o.collapsedRows, 0) < 1
       ? []
       : read.limits.flatMap(l => (l.key === 'other' && l.amber !== undefined ? [l.amber.long] : []))
-  const inner = Math.max(4, Math.floor((columns - (perLine - 1)) / perLine) - 2 - edge)
+  const inner = cardInner(kit, perLine, edge)
   const cardBar: BarSize = { px: inner * measure.pxPerCell, cells: inner }
   /** As much of a card's body as the band has rows for, its facts listed
    *  most important first. Its bar repeats a chip's, so it shows only when
@@ -130,54 +110,9 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     context: ['context', palette.label],
     limits: ['limits', palette.fiveAccent],
   }
-  /** A headline: bold on its figure alone, its words in label ink, or
-   *  amber's; amber words make the figure amber too. */
-  const headline = (say: Say, tone: Tone) => {
-    const figure = onTone(say.some(([, role]) => role === 'amber') ? 'amber' : tone, palette.value)
-    return oneLine(
-      {},
-      say.map(([text, role], i) =>
-        role === 'value' ? (
-          <Text key={`say${i}`} color={figure} bold>
-            {text}
-          </Text>
-        ) : (
-          <Text key={`say${i}`} color={role === 'amber' ? palette.amberFg : palette.label}>
-            {text}
-          </Text>
-        ),
-      ),
-    )
-  }
   /** A card: its title and headline on one line, then its bar and its body. */
-  const card = (name: CardName, title: string, head: Readonly<{ say: Say; tone?: Tone }>, bar: RenderChildren, body: RenderChildren[]) => {
-    const say = headline(head.say, head.tone ?? 'calm')
-    const titled = (
-      <Box key="title" flexDirection="row" flexShrink={0}>
-        {/* Desktop alone: a terminal title stays plain text. */}
-        {Svg ? icon(...cardIcon[name]) : null}
-        <Text color={palette.label}>{title.toUpperCase()}</Text>
-      </Box>
-    )
-    return (
-      <Box
-        key={`card:${name}`}
-        flexDirection="column"
-        flexGrow={1}
-        width={0}
-        minWidth={0}
-        paddingX={1}
-        {...(palette.filled ? { backgroundColor: palette.cardBg } : {})}
-        {...(bordered ? { borderStyle: 'round', borderColor: palette.cardBorder } : {})}
-      >
-        <Box key="head" flexDirection="row" justifyContent="space-between" columnGap={1}>
-          {titled}
-          {say}
-        </Box>
-        {fitBody(bar, body)}
-      </Box>
-    )
-  }
+  const card = (name: CardName, title: string, head: Readonly<{ say: Say; tone?: Tone }>, bar: RenderChildren, body: RenderChildren[]) =>
+    cardShell(kit, { key: `card:${name}`, title, icon: cardIcon[name], head: headline(kit, head.say, head.tone ?? 'calm'), body: fitBody(bar, body), bordered })
 
   const cacheView = card(
     'cache',

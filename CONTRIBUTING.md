@@ -75,6 +75,7 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/views/view.ts` | `View` (the rows it declares and `draw`) and `rowsOf`. |
 | `hooks/views/index.ts` | `VIEWS`: every layout by name. |
 | `hooks/views/cards.tsx` | `cardsView`, chips' open view: its four cards. Chips' alone; pulse and departures import nothing from it. |
+| `hooks/views/shell.tsx` | The card shell chips' and pulse's open views share: a card's ground and edge, its title and headline, its fact rows, and how many cards a line holds. |
 | `hooks/views/frame.tsx` | What all three layouts share: the toggle, `bodyRowsFor` and the `footer` (Collapse, Hide band, the hint and the strip's place). |
 | `hooks/views/parts.tsx` | The pieces layouts draw: chips' pills, the cache's battery and hover string, and the lines a layout squeezes to fit (`line`, `fitLine`) and the words they're written in. |
 | `hooks/views/<name>.tsx` | One file per layout: `chips`, `pulse` and `departures`. Chips exports its pill builders, their hover strings, `LIMITS` and its pill row. |
