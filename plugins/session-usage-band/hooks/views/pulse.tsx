@@ -1,15 +1,16 @@
 // Pulse, the session's trace: each message a beat, the cache a heartbeat,
 // context and the 5h window as lines over time, the week by day, in the one
-// order. Open, a stack of charts with their words (pulse-open.tsx). The
-// charts are the desktop's and the unicode tier's; ascii draws the words.
+// order. Shut, each reading a tile: its name, its figure, then its chart.
+// Open, a stack of charts with their words (pulse-open.tsx). The charts are
+// the desktop's and the unicode tier's; ascii draws the words.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { barChart, dayCells, flatBeats, heartbeat, sparkline } from '../charts'
 import type { Kit } from '../kit'
-import { ROW_SLACK } from '../layout'
+import { ROW_SLACK, isDrawn } from '../layout'
 import type { Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
-import { EMPTY } from '../words'
+import { EMPTY, type Amber } from '../words'
 import { toggleButton } from './frame'
 import { beforeLast, fitLine, line, type Keeps } from './parts'
 import { openStack } from './pulse-open'
@@ -18,11 +19,14 @@ import type { View } from './view'
 /** What gives way as the row narrows, first to last (spec §4.1, §2.1),
  *  calm only: the last cost, the context trail, the trace from 14 beats to
  *  8, the 5h trail, the 7d cells, the trace; then whole readings, spend,
- *  context and 5h, so at 40 columns the row is the cache and the 7d; then
- *  their short forms. An amber reading keeps its group, its chart and its
- *  long words until fitLine's amber step, last of all. The cache and the 7d
+ *  context and 5h; then their short forms. Each step is taken only while
+ *  the row doesn't fit: at 40 columns a calm row of tiles is the cache and
+ *  the 7d, and a few columns wider the 5h is back. An amber reading keeps
+ *  its tile, its chart and its long words until the amber step; past it,
+ *  last of all, the tiles drop their padding (plain, its second column
+ *  between readings, each amber one led by its `!`). The cache and the 7d
  *  never go. */
-const ORDER = ['last', 'contextTrail', 'beats14', 'fiveTrail', 'sevenDays', 'beats', 'spend', 'context', 'five', 'short'] as const
+const ORDER = ['last', 'contextTrail', 'beats14', 'fiveTrail', 'sevenDays', 'beats', 'spend', 'context', 'five', 'short', 'amberShort', 'padding'] as const
 type Piece = (typeof ORDER)[number]
 /** The beats' width: 6 px a beat. */
 const BEATS_PX = { 14: 84, 8: 48 } as const
@@ -40,10 +44,33 @@ const said = (kit: Kit, key: string, text: string, amber: boolean): RenderElemen
   return <Text key={key} color={onTone(amber ? 'amber' : 'calm', palette.value)}>{text}</Text>
 }
 
-/** A reading as one keyed group: its chart, if kept, then its words. */
-const group = (kit: Kit, key: string, chart: RenderChildren, words: RenderChildren): RenderElement => {
-  const { Box } = kit
-  return <Box key={key} flexDirection="row" columnGap={1} flexShrink={0}>{chart}{words}</Box>
+/** A reading's name, in a label's ink, before its figure. */
+const named = (kit: Kit, name: string): RenderElement => {
+  const { Text, palette } = kit
+  return <Text key="name" color={palette.label}>{name}</Text>
+}
+
+/** A reading as one keyed tile, as chips' pieces sit: on its ground, the
+ *  surface or its window's tint (amber's own while amber), a column of
+ *  padding either side; plain draws no ground, and the row sets its tiles
+ *  two columns apart instead. Inside, its name, its figure, then its chart,
+ *  a column apart. An amber reading's words name it themselves, led by its
+ *  mark, so its tile draws no name of its own. */
+const tile = (kit: Kit, k: Keeps<Piece>, key: string, tone: Tone, ground: string, parts: readonly RenderChildren[]): RenderElement => {
+  const { Box, Text, palette, onTone, gap } = kit
+  const fill = palette.filled ? { backgroundColor: onTone(tone, ground, palette.amberBg), ...(k.has('padding') ? { paddingX: 1 } : {}) } : {}
+  const drawn = parts.filter(isDrawn)
+  // A text surface draws no bare string in a Box, so its column of air is a
+  // Text's space; the desktop's is the kit's empty Box.
+  const air = (at: string): RenderChildren => {
+    const g = gap(at)
+    return typeof g === 'string' ? <Text key={at}>{g}</Text> : g
+  }
+  return (
+    <Box key={key} flexDirection="row" flexShrink={0} {...fill}>
+      {drawn.flatMap((part, i) => (i === 0 ? [part] : [air(`g${i}`), part]))}
+    </Box>
+  )
 }
 
 /** Whether a reading's chart is kept: a calm one while its step holds, an
@@ -53,15 +80,21 @@ const chartKept = (k: Keeps<Piece>, piece: Piece, tone: Tone): boolean => k.has(
 /** A calm reading's words, long until the short step. */
 const calmWords = (k: Keeps<Piece>, long: string, short: string): string => (k.has('short') ? long : short)
 
+/** A reading's words on its tile: calm, its name then its figure; amber, its
+ *  amber words alone, long until the amber step. */
+const wordsOf = (kit: Kit, k: Keeps<Piece>, name: string, figure: string, amber: Amber | undefined): RenderChildren[] =>
+  amber === undefined ? [named(kit, name), said(kit, 'w', figure, false)] : [said(kit, 'w', k.amber(amber), true)]
+
 const collapsed = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
   fitLine(kit, ORDER, kit.columns - ROW_SLACK, k => {
     const { Svg, Text, palette } = kit
     const { cache, context, fiveHour, sevenDay, history: hist, week } = read
     const charts = read.frame.glyphs === 'unicode'
     const n = k.has('beats14') ? 14 : 8
-    const cacheGroup = group(kit, 'cache',
+    const cacheTile = tile(kit, k, 'cache', cache.tone, palette.surface, [
+      ...wordsOf(kit, k, cache.bandName, calmWords(k, cache.figure, cache.figureShort), cache.amber),
       heartbeat(kit, { key: 'beat', alt: cache.heartAlt, state: heartState(read), color: cache.tone === 'amber' ? palette.amberFg : palette.warm }),
-      said(kit, 'w', cache.amber === undefined ? calmWords(k, cache.textMarked, cache.textShortMarked) : k.amber(cache.amber), cache.amber !== undefined))
+    ])
     // No message's cost: the trace flat, in a label's ink, only beside `no
     // costs yet`, while the total is $0, and the two give way together;
     // alone it would read as $0 a message. A known total says itself alone.
@@ -71,25 +104,33 @@ const collapsed = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
       : barChart(kit, { key: 'beats', alt: hist.costsAltOf(n), values: hist.costValues.slice(-n), marked: hist.reWarms.slice(-n), color: palette.value, markColor: palette.value, px: BEATS_PX[n], height: 20, max: hist.beatsTop })
     const total = said(kit, 'w', k.has('last') && !hist.empty ? [read.spend.totalText, hist.numbersShort].join(' · ') : read.spend.totalText, false)
     // Spend is never amber: it gives way whole at its step.
-    const spendGroup = !k.has('spend') ? null : group(kit, 'spend', trace,
-      noted ? <Text key="w">{total}<Text key="none" color={palette.label}>{` · ${hist.costsNote}`}</Text></Text> : total)
-    const contextGroup = !k.calm('context', context.tone) ? null : group(kit, 'context',
+    const spendTile = !k.has('spend') ? null : tile(kit, k, 'spend', 'calm', palette.surface, [
+      named(kit, hist.spendBandName),
+      noted ? <Text key="w">{total}<Text key="none" color={palette.label}>{` · ${hist.costsNote}`}</Text></Text> : total,
+      trace,
+    ])
+    const contextTile = !k.calm('context', context.tone) ? null : tile(kit, k, 'context', context.tone, palette.surface, [
+      ...wordsOf(kit, k, context.bandName, context.valueText, context.amber),
       charts && chartKept(k, 'contextTrail', context.tone) && hist.context.length > 1
         ? sparkline(kit, { key: 'trail', alt: hist.contextTrailAlt, values: hist.context, color: palette.label, px: 36, height: 16, max: context.compactAt ?? context.window })
         : null,
-      said(kit, 'w', context.amber === undefined ? context.text : k.amber(context.amber), context.amber !== undefined))
-    const fiveGroup = fiveHour === undefined || !k.calm('five', fiveHour.tone) ? null : group(kit, '5h',
+    ])
+    const fiveTile = fiveHour === undefined || !k.calm('five', fiveHour.tone) ? null : tile(kit, k, '5h', fiveHour.tone, palette.fiveBg, [
+      ...wordsOf(kit, k, fiveHour.bandName, fiveHour.valueText, fiveHour.amber),
       charts && chartKept(k, 'fiveTrail', fiveHour.tone) && week.fiveHourWindow.values.length > 1
         ? sparkline(kit, { key: 'trail', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, from: week.fiveHourWindow.from, color: fiveHour.tone === 'amber' ? palette.amberFg : palette.fiveAccent, px: 48, height: 16, max: 100 })
         : null,
-      said(kit, 'w', fiveHour.amber === undefined ? fiveHour.text : k.amber(fiveHour.amber), fiveHour.amber !== undefined))
+    ])
     // The 7d's cells are the desktop's: in text it is words (spec §4.1).
-    const sevenGroup = sevenDay === undefined ? null : group(kit, '7d',
+    const sevenTile = sevenDay === undefined ? null : tile(kit, k, '7d', sevenDay.tone, palette.weekBg, [
+      ...wordsOf(kit, k, sevenDay.bandName, sevenDay.valueText, sevenDay.amber),
       Svg && chartKept(k, 'sevenDays', sevenDay.tone) && week.daysDrawn.measured
         ? dayCells(kit, { key: 'days', alt: week.daysAlt, values: week.daysDrawn.values, guess: week.daysDrawn.guess, today: week.daysDrawn.today, color: sevenDay.tone === 'amber' ? palette.amberFg : palette.weekAccent, cellPx: 4, height: 14, max: 100 })
         : null,
-      said(kit, 'w', sevenDay.amber === undefined ? sevenDay.text : k.amber(sevenDay.amber), sevenDay.amber !== undefined))
-    return line(kit, 'row', [cacheGroup, spendGroup, contextGroup, fiveGroup, sevenGroup], toggleButton(kit, read, act), 1)
+    ])
+    // Filled tiles sit a column apart, as chips' do; plain's, with no ground
+    // to part them, two, until the last step.
+    return line(kit, 'row', [cacheTile, spendTile, contextTile, fiveTile, sevenTile], toggleButton(kit, read, act), palette.filled || !k.has('padding') ? 1 : 2)
   })
 
 export const pulseView: View = {

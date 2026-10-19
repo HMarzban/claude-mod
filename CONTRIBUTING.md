@@ -74,15 +74,16 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/words.ts` | The phrasebook: every phrase a layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. It holds the departures board's words too: statuses, short forms, remarks and alt sentences. |
 | `hooks/views/view.ts` | `View` (the rows it declares and `draw`) and `rowsOf`. |
 | `hooks/views/index.ts` | `VIEWS`: every layout by name. |
-| `hooks/views/cards.tsx` | `cardsView`, chips' open view: its four cards. Chips' alone; pulse and departures import nothing from it. |
+| `hooks/views/cards.tsx` | `cardsView`, chips' open view: its four cards, on the shell in `shell.tsx`. Chips' alone; pulse and departures import nothing from it. |
+| `hooks/views/shell.tsx` | The card shell chips' and pulse's open views share: a card's ground and edge, its title and headline, its fact rows, and how many cards a line holds. |
 | `hooks/views/frame.tsx` | What all three layouts share: the toggle, `bodyRowsFor` and the `footer` (Collapse, Hide band, the hint and the strip's place). |
 | `hooks/views/parts.tsx` | The pieces layouts draw: chips' pills, the cache's battery and hover string, and the lines a layout squeezes to fit (`line`, `fitLine`) and the words they're written in. |
 | `hooks/views/<name>.tsx` | One file per layout: `chips`, `pulse` and `departures`. Chips exports its pill builders, their hover strings, `LIMITS` and its pill row. |
-| `hooks/views/pulse-open.tsx` | Pulse's open view: the grid of chart bands. |
+| `hooks/views/pulse-open.tsx` | Pulse's open view: four cards on the shared shell, each with its chart, and their give-way. |
 | `hooks/views/departures-board.tsx` | Departures' board: the ground, the header row, the rows and their give-way. |
 | `hooks/flaps.tsx` | The split-flap tiles departures draws: one Svg per reading on the desktop, a coloured run of text in the terminal. |
 | `hooks/strip.tsx` | The workspace strip: project, branch or worktree, changes, ahead/behind. |
-| `hooks/charts.tsx` | The charts: `meter`, `splitBar`, `sparkline`, `barChart`, `dayCells`, `heartbeat`, `braille`. Each is an Svg on the desktop and text elsewhere. |
+| `hooks/charts.tsx` | The charts: `meter`, `splitBar`, `sparkline`, `barChart`, `dayCells`, `heartbeat`, `track`, `braille`. Each is an Svg on the desktop and text elsewhere. |
 | `hooks/glyphs.ts` | The terminal's glyph tier (`CC_BAND_GLYPHS`, a CJK locale) and the ASCII mapping. |
 | `hooks/calendar.ts` | The day and hour cells pulse draws, read off the limit samples. |
 | `hooks/layout.ts` | Give-way orders, sizes, and how many columns a drawn tree takes. |

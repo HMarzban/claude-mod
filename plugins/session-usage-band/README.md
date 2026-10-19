@@ -168,7 +168,7 @@ shows the folder, branch and status as a header row of flaps.
 | Layout | Asks, and shows | Rows (desktop / terminal) |
 | --- | --- | --- |
 | `chips` | Is anything wrong right now? The row of chips above: the cache, the spend, the context and the limits at a glance; the default | 1 / 1 |
-| `pulse` | Is my cost per message rising, and will a limit fill before it resets? The session's trace: a heartbeat for the cache, each message's cost as a beat, the context and the 5h window over time, and the week by day. The heartbeat is still; only the words and its ink change. Open, a grid of chart bands, one per reading | 1 / 1 |
+| `pulse` | Is my cost per message rising, and will a limit fill before it resets? The session's trace, each reading on its own tile: its name, its figure, then its chart, a heartbeat for the cache, each message's cost as a beat, the context and the 5h window over time, and the week by day. The heartbeat is still; only the words and its ink change. Open, four cards like chips', Cache, Spend, Context and Limits, each with its chart: the cache's hour as a track, the beats over their average, the context under its compaction line, the 5h window and the 7d by day | 1 / 1 |
 | `departures` | When does the cache go cold, and when does each limit reset or fill? A split-flap board: each reading a line of flaps with its status, its time and a remark, such as `CACHE DEPARTS 17:24` or `7D 85% RESET SAT 13:30 ! NEAR LIMIT`. Open, a board of ITEM, STATUS, TIME and REMARKS. Below 60 columns it draws chips | 1 / 1 |
 
 ```
@@ -191,7 +191,9 @@ On the desktop with `CC_BAND_APPEARANCE=plain` there are no SVG charts,
 so a layout draws as text and takes its terminal rows.
 
 Pulse draws its charts in braille in the terminal, always beside their
-numbers. Its day cells for the week come from the 5h and 7d readings the
+numbers; its day cells are the desktop's alone. Open and short of rows, a
+card's chart steps down, two rows to one to none, before a card gives way,
+and an amber card never does. Its day cells for the week come from the 5h and 7d readings the
 band keeps in its store from every session, at most one per 15 minutes and
 no more than 672, a week's worth, so they cover the days before this
 session. As the row narrows, pulse and departures drop calm pieces first:

@@ -101,6 +101,16 @@ export const paceText = (p: Readonly<{ etaMs: number | null; projectedPct: numbe
 export const altOf = (name: string, value: string, state?: string, more?: string): string =>
   [`${name} ${value}`, state, more].filter((s): s is string => s !== undefined && s !== '').join(', ')
 
+/** The open cards' titles, in the order they are drawn. */
+export const CARD_TITLES = { cache: 'Cache', spend: 'Spend', context: 'Context', limits: 'Limits' } as const
+
+/** A card's headline, led by the amber mark while its reading is amber, so
+ *  colour is never the only signal. */
+export const markedHead = (say: Say, tone: Tone): Say => (tone === 'amber' ? [[AMBER_LEAD, 'amber'], ...say] : say)
+
+/** A card's fact: its label at one end, its value at the other. */
+export type Fact = Readonly<{ label: string; value: string }>
+
 // ---- the words of each section, from its facts ------------------------------
 
 export type CacheWords = Readonly<{
@@ -138,7 +148,15 @@ export type CacheWords = Readonly<{
   cardHead: Say
   /** The cache card's line while there is nothing to count. */
   cardNote: string | undefined
+  /** What a card names the re-warm estimate: `re-warm if cold`, or once
+   *  cold, `next message`. */
+  estimateLabel: string
   alt: string
+  /** Pulse's row tile: its figure after the name, `cache`: `textMarked` and
+   *  `textShortMarked` without it: `52m left`, `~40m left`, `cold · re-warm
+   *  ~$1.66`; short, `52m`, `~40m`, `cold ~$1.66`. */
+  figure: string
+  figureShort: string
 }>
 
 export type ContextWords = Readonly<{
@@ -161,6 +179,9 @@ export type ContextWords = Readonly<{
   windowText: string
   /** The context card's headline: `87% full`, marked past 80% when compaction is off. */
   cardHead: Say
+  /** Pulse's context card's fact: `in context`, then phrase by phrase
+   *  `76k of 200k` and `compacts at 190k`, or near it `compacts in ~10k`. */
+  fact: Readonly<{ label: string; values: readonly string[] }>
   alt: string
 }>
 
@@ -215,6 +236,10 @@ export type LimitWords = Readonly<{
   fullIn: string | undefined
   /** `! 5h 82%`, or with a measured fill, `! 5h full in ~40m` / `! 5h ~40m`. */
   amber: Amber | undefined
+  /** Pulse's limits card, under its chart: `5h resets` and `16:40`; with a
+   *  measured fill, `5h full in` and `~40m`; passed, `5h` and `reset`;
+   *  with no reset to come, its pace or its value. */
+  fact: Fact
   alt: string
 }>
 
@@ -277,6 +302,7 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
       : f.compacted ? 'Compacted while idle: next message writes the summary.'
       : f.idleCompactSoon ? 'Claude Code may compact it at ~54m idle, before it goes cold.'
       : undefined,
+    estimateLabel: f.mood === 'cold' ? 'next message' : 're-warm if cold',
     alt:
       f.mood === 'unmeasured'
         ? 'cache not measured yet'
@@ -289,6 +315,8 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
             : counting
               ? altOf('cache', fmtLeftSpoken(f.coldInMs), f.mood === 'expiring' ? 'cooling' : 'warm', f.mood === 'expiring' ? `re-warm about ${price}` : undefined)
               : altOf('cache', 'warm', 'Claude is working'),
+    figure: recalledTime ? `~${left}` : joined(say.filter(([text, role]) => !(text === 'cache ' && role === 'label'))),
+    figureShort: recalledTime ? `~${leftShort}` : joined(sayShort.filter(([text, role]) => !(text === 'cache ' && role === 'label'))),
   }
 }
 
@@ -369,6 +397,8 @@ export const contextWords = (f: ContextFacts): ContextWords => {
   const amber = f.tone !== 'amber' ? undefined : f.toCompact !== undefined ? AMBER.context(f.frac, f.toCompact) : AMBER.contextNoCompaction(f.frac)
   const cardHead: Say = [[`${f.pct}${f.compactAt === undefined ? severityMark(f.frac) : ''}`, 'value'], [' full', 'label']]
   const compactsAtText = f.compactAt === undefined ? undefined : fmtTokens(f.compactAt)
+  const toCompactText = f.toCompact === undefined ? undefined : `compacts in ~${fmtTokens(f.toCompact)}`
+  const inContext = f.known ? fmtTokens(f.used) : UNKNOWN
   return {
     valueText: value,
     text: joined(say),
@@ -385,6 +415,13 @@ export const contextWords = (f: ContextFacts): ContextWords => {
     ]),
     windowText: fmtTokens(f.window),
     cardHead,
+    fact: {
+      label: 'in context',
+      values: said([
+        `${inContext} of ${fmtTokens(f.window)}`,
+        amber !== undefined && toCompactText !== undefined ? toCompactText : compactsAtText === undefined ? undefined : `compacts at ${compactsAtText}`,
+      ]),
+    },
     alt: f.known
       ? altOf('context', `${Math.round(f.frac * 100)} percent ${towardText}`, f.tone === 'amber' ? 'near the limit' : 'fine')
       : altOf('context', EMPTY.context),
@@ -438,6 +475,11 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const fillAt = fillInMs === undefined ? undefined : zone !== undefined ? `~${fillDay(frame.now + fillInMs, zone, frame.now)}` : `in ${fmtEta(fillInMs)}`
   const resetAtGlyph = resetClock === undefined ? resetGlyph : `${resetMark} ${resetClock}`
   const amber = f.tone !== 'amber' ? undefined : fullIn !== undefined ? AMBER.limitPace(f.name, fullIn) : AMBER.limit(f.name, f.percentUsed)
+  const fact: Fact =
+    !live ? { label: f.name, value: valueText }
+    : amber !== undefined && fullIn !== undefined ? { label: `${f.name} full in`, value: fullIn }
+    : resetWhen !== undefined ? { label: `${f.name} resets`, value: resetWhen }
+    : { label: f.name, value: pace === '' ? valueText : pace }
   const cardResetLess = (): string | undefined => {
     if (span === undefined) return undefined
     return [`resets ${span}`, pace].filter(t => t !== '').join(' · ')
@@ -463,6 +505,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     ]),
     fullIn,
     amber,
+    fact,
     alt: altOf(
       `${f.name} limit`,
       live ? `${Math.round(f.percentUsed)} percent used` : 'reset',
@@ -498,6 +541,9 @@ export type HistoryWords = Readonly<{
    *  all: none recorded and a total of $0. A resumed conversation's total
    *  says there were costs. */
   costsNote: string | undefined
+  /** Pulse's spend card's fact: `last message · avg` and `$0.21 · ~$0.20`,
+   *  or before a warm cost `last message` alone; undefined before any cost. */
+  costFact: Fact | undefined
 }>
 
 /** A message above this many times the warm average is rising; below the average divided by it, falling. */
@@ -547,7 +593,18 @@ export const historyWords = (record: Trails, context: ContextFacts, spend: Reado
     spendBandName: 'spend',
     spendBandWords: said([spend.totalText, numbersShort, avgText]),
     costsNote: record.costs.length === 0 && !(spend.totalUsd > 0) ? EMPTY.costsShort : undefined,
+    costFact:
+      lastText === undefined ? undefined
+      : avg === undefined ? { label: 'last message', value: lastText }
+      : { label: 'last message · avg', value: `${lastText} · ${fmtEstimate(avg)}` },
   }
+}
+
+/** Pulse's limits card's headline: each window's name and value, `5h 26% ·
+ *  7d 41%`; with neither reported, the other windows'. */
+export const limitsHead = (limits: ReadonlyArray<Pick<LimitFacts, 'key' | 'name'> & Pick<LimitWords, 'valueText'>>): Say => {
+  const windows = limits.filter(l => l.key !== 'other')
+  return (windows.length > 0 ? windows : limits).flatMap((l, i): Say => [[`${i === 0 ? '' : ' · '}${l.name} `, 'label'], [l.valueText, 'value']])
 }
 
 /** What the week says of its slices as drawn, for a reader. */
