@@ -213,6 +213,24 @@ test("Sonnet 5.5 reads its cache at 0.05×, as Anthropic's pricing lists it ($0.
   expect(near(rateFromTranscript(jsonl(costState('claude-sonnet-5-5')), 'claude-sonnet-5-5'), 20 / 3_000_000)).toBe(true)
 })
 
+/** A Haiku 5.5 reply whose request sent `prompt` input tokens. */
+const haikuReply = (prompt: number) => ({
+  type: 'assistant',
+  timestamp: iso(1_000),
+  message: { role: 'assistant', model: 'claude-haiku-5-5', content: [], usage: { input_tokens: 1_000, cache_read_input_tokens: prompt - 1_000, cache_creation_input_tokens: 0, output_tokens: 500 } },
+})
+
+test('on Haiku 5.5, a session whose last prompt was over 100k counts its cost record at the upper tier, 5×', () => {
+  // 1M + 1.25 × 400k + 0.1 × 20M + 5 × 100k = 4M weighted tokens, at 5× the lower tier's rate
+  const transcript = jsonl(costState('claude-haiku-5-5'), haikuReply(150_000))
+  expect(near(rateFromTranscript(transcript, 'claude-haiku-5-5'), 20 / 4_000_000 / 5)).toBe(true)
+})
+
+test('on Haiku 5.5, a session whose last prompt was under 100k counts its cost record at the lower tier', () => {
+  const transcript = jsonl(costState('claude-haiku-5-5'), haikuReply(60_000))
+  expect(near(rateFromTranscript(transcript, 'claude-haiku-5-5'), 20 / 4_000_000)).toBe(true)
+})
+
 test('the last cost record is the one read', () => {
   const earlier = { ...costState(), modelUsage: { 'claude-opus-5-5': { inputTokens: 3_000_000, costUSD: 30 } } }
   const transcript = jsonl(earlier, reply(1_000), costState('claude-opus-5-5'))

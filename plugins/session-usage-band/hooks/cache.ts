@@ -46,6 +46,12 @@ type CacheState = {
   requests: number
   /** Every token since the conversation began, subagents included. */
   tokens: TokenCounts
+  /** What requests in an upper price tier weigh beyond their tokens at the
+   *  base rate, so the rate solved is still the lower tier's. */
+  premium: number
+  /** Cache reads counted at the lower tier's prices: an upper-tier request's
+   *  reads count `factor` times, so what reading saved is priced as billed. */
+  tieredReads: number
   /** Requests that missed a cache that should have been warm. */
   misses: number
   /** When the last main-loop request was sent. */
@@ -98,6 +104,8 @@ const INITIAL: Readonly<CacheState> = {
   ttlSeen: undefined,
   requests: 0,
   tokens: NO_TOKENS,
+  premium: 0,
+  tieredReads: 0,
   misses: 0,
   lastAt: 0,
   window: 0,
@@ -297,7 +305,12 @@ export const recordResponse = (
   // The session's bill includes every subagent, so their tokens count toward
   // the totals the rate is solved from. Their prefixes are their own, though:
   // they say nothing about the main conversation's cache or its countdown.
-  state.tokens = addTokens(state.tokens, { uncached: fresh, written, read: hit, output: usage.output_tokens })
+  const request = { uncached: fresh, written, read: hit, output: usage.output_tokens }
+  state.tokens = addTokens(state.tokens, request)
+  // A request is priced by its whole prompt, cache reads and writes included.
+  const factor = tierFactor(model, fresh + hit + written)
+  state.premium += (factor - 1) * weightedTokens(request, model)
+  state.tieredReads += factor * hit
   if (!isMain) return
 
   // Read as cold already: a resume the engine called expired, or a recalled
@@ -369,6 +382,21 @@ const DEFAULT_READ_MULT = 0.1
  *  suffix, `claude-opus-5-5[1m]`, and the cost record names the model alone. */
 export const modelName = (model: string): string => model.replace(/\[[^\]]*\]$/, '')
 
+/** Prices that rise with a request's prompt, by model: past `over` input
+ *  tokens, every price is `factor` times the lower tier's. Per Anthropic's
+ *  list prices as of 2026-10: Haiku 5.5 is $0.10 input up to 100,000 prompt
+ *  tokens and $0.50 over, the cache and output prices alike. */
+const TIERS_BY_MODEL: Readonly<Record<string, Readonly<{ over: number; factor: number }>>> = {
+  'claude-haiku-5-5': { over: 100_000, factor: 5 },
+}
+
+/** How many times the lower tier's prices a request with `prompt` input
+ *  tokens pays on `model`: 1 on a model with one tier. */
+export const tierFactor = (model: string | undefined, prompt: number): number => {
+  const tier = model === undefined ? undefined : TIERS_BY_MODEL[modelName(model)]
+  return tier !== undefined && prompt > tier.over ? tier.factor : 1
+}
+
 /** What a cache read costs against base input on `model`. */
 const readMultiplier = (model: string | undefined): number =>
   (model === undefined ? undefined : READ_MULT_BY_MODEL[modelName(model)]) ?? DEFAULT_READ_MULT
@@ -399,20 +427,24 @@ export const weightedTokens = (t: TokenCounts, model: string | undefined): numbe
  *  No pricing table is available to a mod, so the rate is solved from the
  *  session's own bill since its baseline, which leaves one unknown:
  *
- *    cost - costBase = r * weightedTokens(tokens)
+ *    cost - costBase = r * (weightedTokens(tokens) + premium)
+ *
+ *  where premium weighs each upper-tier request again, so r is the lower
+ *  tier's rate on a model with two.
  *
  *  It self-calibrates to whatever model and plan are in force, and it is an
  *  estimate on top of an estimate (the session cost is itself computed at list
  *  price), so what it prices is always shown with a "~". Call noteLedger first. */
 export const ratePerToken = (sessionCost: number | undefined): number | null => {
   if (sessionCost === undefined) return null
-  const weighted = weightedTokens(state.tokens, pricedModel())
+  const weighted = weightedTokens(state.tokens, pricedModel()) + state.premium
   const billed = sessionCost - state.costBase
   return weighted > 0 && billed > 0 ? billed / weighted : null
 }
 
-/** What writing `tokens` to the cache costs at a base `rate` per token. */
-const reWarmAt = (rate: number, tokens: number): number => rate * WRITE_MULT * tokens
+/** What writing `tokens` to the cache costs at a base `rate` per token: the
+ *  re-warm's prompt is the whole window, which sets its tier. */
+const reWarmAt = (rate: number, tokens: number): number => rate * WRITE_MULT * tokens * tierFactor(pricedModel(), tokens)
 
 /** When a measured cache goes or went cold: a lifetime after the last reply
  *  this band saw; none before one. */
@@ -467,7 +499,7 @@ export const cacheView = (now: number, sessionCost: number | undefined, contextT
     recalled,
     idleMs: recalled && lastAt !== undefined ? now - lastAt : null,
     // Every cache read saved the rest of the base rate against full input price.
-    savedUsd: rate === null || tokens.read <= 0 ? null : rate * (1 - share) * tokens.read,
+    savedUsd: rate === null || tokens.read <= 0 ? null : rate * (1 - share) * (state.tieredReads + (state.prior?.tokens.read ?? 0)),
     readShare: share,
     fresh: state.knownFresh,
     compacted: state.compactedAt !== undefined,
