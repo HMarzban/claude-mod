@@ -7,13 +7,13 @@ import { IDLE_COMPACT_MS, TTL_MS } from './cache'
 import { weekOf } from './calendar'
 import type { DayCell, HourCell, Week, WindowNow } from './calendar'
 import {
-  COMPACT_NEAR,
   FIVE_HOUR_MS,
   LAST_CALL_MS,
   SEVEN_DAY_MS,
   SOON_MS,
   WARN_AT,
   clamp01,
+  contextPressure,
   contextUsed,
   fixedZone,
   fmtEstimate,
@@ -64,9 +64,11 @@ const reWarmEstimate = (c: Cache): string => (c.reWarmUsd !== null ? fmtEstimate
  *  full means compacting, and no tick is needed to show where. */
 const contextReading = (ctx: BandSnapshot['context']) => {
   const used = contextUsed(ctx) ?? 0
-  const frac = clamp01(used / (ctx.compactAt ?? ctx.window))
-  const nearCompact = ctx.compactAt !== undefined && frac >= COMPACT_NEAR
-  const tone: Tone = nearCompact || (ctx.compactAt === undefined && frac >= WARN_AT) ? 'amber' : 'calm'
+  const pressure = contextPressure(used, ctx.window, ctx.compactAt)
+  const frac = clamp01(pressure.frac)
+  const amber = frac >= (pressure.levels[0] ?? 1)
+  const nearCompact = ctx.compactAt !== undefined && amber
+  const tone: Tone = amber ? 'amber' : 'calm'
   return {
     known: ctx.percent !== undefined || ctx.tokens !== undefined,
     used,

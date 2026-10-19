@@ -14,6 +14,13 @@ export const SEVERE_AT = 0.95
 /** Within this share of the compaction point, context counts down to it. */
 export const COMPACT_NEAR = 0.9
 
+/** How full the context is against where it runs out, and the levels it
+ *  escalates at there: toward compaction, where it is on and its point
+ *  known, near it; else toward the window, at the warning and severe lines.
+ *  Unclamped: a reading clamps it, a toast escalates on it as it is. */
+export const contextPressure = (used: number, window: number, compactAt: number | undefined): Readonly<{ frac: number; levels: readonly number[] }> =>
+  compactAt === undefined ? { frac: used / window, levels: [WARN_AT, SEVERE_AT] } : { frac: used / compactAt, levels: [COMPACT_NEAR] }
+
 export const clamp01 = (n: number): number => (n < 0 ? 0 : n > 1 ? 1 : n)
 
 /** A share as a whole percent: 0.38 is `38%`. */
