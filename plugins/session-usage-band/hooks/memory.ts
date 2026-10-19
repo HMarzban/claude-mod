@@ -7,7 +7,7 @@
 // long its cache was last written for, are read off its transcript, which
 // Claude Code keeps.
 
-import { NO_TOKENS, addTokens, modelName, weightedTokens } from './cache'
+import { NO_TOKENS, addTokens, modelName, tierFactor, weightedTokens } from './cache'
 import type { Spend, TokenCounts, Ttl } from './cache'
 import { MINUTE_MS, SEVEN_DAY_MS } from './format'
 import { LAYOUT_NAMES } from './snapshot'
@@ -219,14 +219,27 @@ const recordRate = (m: Record<string, unknown>, model: string): number | null =>
 /** What marks a cost record's line, for `grep -F` to find. */
 export const COST_RECORD = '"type":"cost-state"'
 
+/** The prompt the transcript's last reply sent: every input token, cache
+ *  reads and writes included, as a price tier counts it. */
+const lastPrompt = (transcript: string): number | undefined => {
+  for (const entry of fromEnd(transcript, REPLY_MARKER)) {
+    if (entry.type !== 'assistant' || !isRecord(entry.message) || !isRecord(entry.message.usage)) continue
+    const t = replyTokens(entry.message.usage)
+    return t.uncached + t.read + t.written
+  }
+  return undefined
+}
+
 /** The base rate per token on `model`, solved from the transcript's last
- *  cost record. */
+ *  cost record. The record can't say which requests passed a price tier, so
+ *  on a model with two the last reply's prompt stands for them all. */
 export const rateFromTranscript = (transcript: string, model: string): number | null => {
   for (const entry of fromEnd(transcript, COST_RECORD)) {
     if (entry.type !== 'cost-state') continue
     const usage = entry.modelUsage
     const m = isRecord(usage) ? usage[modelName(model)] : undefined
-    return isRecord(m) ? recordRate(m, model) : null
+    const rate = isRecord(m) ? recordRate(m, model) : null
+    return rate === null ? null : rate / tierFactor(model, lastPrompt(transcript) ?? 0)
   }
   return null
 }

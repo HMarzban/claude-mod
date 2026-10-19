@@ -5,6 +5,11 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.15.1] - 2026-10-19
+
+### Fixed
+- Claude Haiku 5.5's two price tiers. A Haiku request whose prompt is over 100,000 tokens pays 5× every price, so a session whose context grew past 100k solved one rate between the tiers, and its re-warm read low: ~$0.08 where 151k written at the upper tier costs ~$0.09. The band now weighs each request at its own tier, prices a re-warm over 100k at the upper one, and prices what the cache saved at the tier each read paid. A reopened Haiku session's rate follows its last reply's prompt, since its cost record doesn't say which requests crossed. Other models have one tier and read as before.
+
 ## [0.15.0] - 2026-10-19
 
 ### Added

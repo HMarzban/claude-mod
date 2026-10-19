@@ -308,6 +308,15 @@ always shown with `~`.
   is exact.
 - **After `/clear`, a resume or a reload,** the rate is solved from what
   the current conversation has spent, not the session's whole ledger.
+- **Claude Haiku 5.5 has two price tiers.** A request whose prompt (every
+  input token, cache reads and writes included) is over 100,000 tokens pays
+  5× every price
+  ([long context pricing](https://platform.claude.com/docs/en/about-claude/pricing#long-context-pricing)).
+  The band weighs each request at its own tier, so `r` is the lower tier's
+  rate, and it prices a re-warm of a conversation over 100k, and what the
+  cache saved, at the tier each request paid. A reopened session's cost
+  record doesn't say which requests crossed, so there the last reply's
+  prompt stands for them all.
 
 ## Your pace on the 5-hour limit
 
