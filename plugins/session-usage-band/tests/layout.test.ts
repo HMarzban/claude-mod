@@ -29,7 +29,7 @@ import {
 test('the collapsed band is one row', async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
 
   const ui = await mountBand($, 'terminal', 110)
   expect(rowCount(await ui.drawn())).toBe(1)
@@ -43,7 +43,7 @@ test('the collapsed band is one row', async ($, on) => {
 test('pills carry their own foreground and background, never one of each', async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
 
   const ui = await mountBand($, 'terminal', 110)
   let pills = 0
@@ -63,7 +63,7 @@ test('pills carry their own foreground and background, never one of each', async
 test('the calm band uses no amber', async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
 
   const ui = await mountBand($, 'terminal', 110)
   walk(await ui.drawn(), n => {
@@ -77,7 +77,7 @@ test('cost, tokens and context drop their labels; the expanded line keeps last $
   setup(on)
   await $.session.start(START)
   await turn($, 't1', 2.0, 2.41)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
 
   const ui = await mountBand($, 'terminal', 160)
   const tree = await ui.drawn()
@@ -92,7 +92,7 @@ test('cost, tokens and context drop their labels; the expanded line keeps last $
 test('a 30-column band fits one row with cache and cost', LONG, async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
   const ui = await mountBand($, 'terminal', 30)
   const row = firstRow(await ui.drawn())
   expect(widthOf(row)).toBeLessThanOrEqual(30)
@@ -106,7 +106,7 @@ for (const cols of [60, 70, 84]) {
     const clock = setup(on)
     await pacing($, clock)
     await $.turn.start({ text: 'hi', turnId: 't1' })
-    await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+    await respond($, resp(41_000, 0, 155_000, 12_000))
     usage.current = { ...usage.current, cost: { usd: 2.83 } }
     await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
 
@@ -128,7 +128,7 @@ for (const cols of [60, 70, 84]) {
     })
     await $.session.start(START)
     await $.turn.start({ text: 'hi', turnId: 't1' })
-    await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+    await respond($, resp(41_000, 0, 155_000, 12_000))
     usage.current = { ...usage.current, cost: { usd: 2.83 } }
     await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
     await clock.advance(60 * MIN - 30_000)
@@ -156,7 +156,7 @@ for (const cols of [60, 70]) {
       },
     })
     await $.session.start(START)
-    await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+    await respond($, resp(41_000, 0, 155_000, 12_000))
     await clock.advance(HOUR - 45_000) // the cache's last minute
 
     const ui = await mountBand($, 'terminal', cols)
@@ -172,7 +172,7 @@ for (const cols of [60, 70]) {
 test('as the band narrows, pieces give way in the agreed order', LONG, async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
 
   const pieces: Record<string, (t: unknown) => boolean> = {
     tokens: t => pillOf(t, 'tokens') !== undefined,
@@ -201,7 +201,7 @@ test('as the band narrows, pieces give way in the agreed order', LONG, async ($,
 test('the tokens chip shows whenever it fits, even below 100 columns', async ($, on) => {
   setup(on, { usage: { ...USAGE, rateLimits: [] } }) // room for it without the limit chips
   await $.session.start({ ...START, surface: 'desktop' })
-  await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
+  await respond($, resp(10_000, 0, 100_000, 2_000))
   for (const surface of ['desktop', 'terminal'] as const) {
     const ui = await mountBand($, surface, 95)
     expect(textOf(pillOf(await ui.drawn(), 'tokens'))).toMatch(/112k/)
@@ -212,7 +212,7 @@ test('the tokens chip shows whenever it fits, even below 100 columns', async ($,
 test('the tokens chip is the first to give way on a narrower band', async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
+  await respond($, resp(10_000, 0, 100_000, 2_000))
   const ui = await mountBand($, 'terminal', 62)
   expect(pillOf(await ui.drawn(), 'tokens')).toBeUndefined()
   expect(pillOf(await ui.drawn(), 'ctx')).toBeDefined()
@@ -223,7 +223,7 @@ test('the tokens chip is the first to give way on a narrower band', async ($, on
 test('a window whose reset has passed gives way like a calm one', LONG, async ($, on) => {
   const clock = setup(on, { usage: { ...USAGE, rateLimits: [{ kind: 'five_hour', percentUsed: 92, resetsAt: new Date(HOUR).toISOString() }] } })
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
   await clock.advance(2 * HOUR)
   const ui = await mountBand($, 'terminal', 30)
   expect(widthOf(firstRow(await ui.drawn()))).toBeLessThanOrEqual(30)

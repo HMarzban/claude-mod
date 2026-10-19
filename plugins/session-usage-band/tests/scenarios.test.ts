@@ -55,7 +55,7 @@ test('the fake engine counts store reads, store writes and invalidates', async (
   const clock = setup(on)
   await $.session.start(START)
   expect(engine.storeGets).toContain('sessions')
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
   await turn($, 't1', 2.41, 2.62)
   await clock.settle()
   expect(engine.storeSets).toContain('sessions')
@@ -65,7 +65,7 @@ test('a failing store refuses every write, and the band carries on', async ($, o
   const clock = setup(on)
   engine.storeFails = true
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
   await turn($, 't1', 2.41, 2.62)
   await clock.settle()
   expect(engine.storeSets).toContain('sessions')

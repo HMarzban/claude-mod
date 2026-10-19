@@ -29,7 +29,7 @@ import {
 test('the toggle opens the cards, and Hide hides the band', async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
 
   const ui = await mountBand($, 'terminal', 110)
   expect(rowCount(await ui.drawn())).toBe(1)
@@ -49,7 +49,7 @@ test('the toggle opens the cards, and Hide hides the band', async ($, on) => {
 test('/usage-band more, less, hide and show drive the band', async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
 
   const ui = await mountBand($, 'terminal', 110)
   const run = (args: string): Promise<unknown> =>
@@ -92,7 +92,7 @@ test('/usage-band with an unknown word says how to use it', async ($, on) => {
 test('the expanded view is four labelled cards', async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
   const ui = await mountBand($, 'terminal', 110)
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
@@ -106,8 +106,8 @@ test('the spend card: session total, last message and the token split', async ($
   setup(on)
   await $.session.start(START)
   await turn($, 't1', 2.0, 2.41)
-  await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
-  await respond(e => $.turn.step(e), resp(4_000, 100_000, 6_000, 3_000))
+  await respond($, resp(10_000, 0, 100_000, 2_000))
+  await respond($, resp(4_000, 100_000, 6_000, 3_000))
   const ui = await mountBand($, 'terminal', 110)
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
@@ -186,7 +186,7 @@ test('Collapse and Hide are real buttons with c and h hotkeys', async ($, on) =>
 test("the cache card's bar reads as the time left, as its battery does", async ($, on) => {
   setup(on)
   await $.session.start({ ...START, surface: 'desktop' })
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
   const ui = await mountBand($, 'desktop', 95)
   await ui.press({ key: 'more' })
   const alts = svgsOf(cardOf(await ui.drawn(), 'cache')).map(n => String(n.props?.alt))
@@ -198,7 +198,7 @@ test("the cache card's bar reads as the time left, as its battery does", async (
 test("a card's bar stretches across the card", async ($, on) => {
   setup(on)
   await $.session.start({ ...START, surface: 'desktop' })
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
   const ui = await mountBand($, 'desktop', 95)
   await ui.press({ key: 'more' })
   // no fixed width: the slot caps the drawing, so it spans whatever the card gets
@@ -217,8 +217,8 @@ test("a card's bar stretches across the card", async ($, on) => {
 test('the token split shows cache reads in the warm colour, so the bar never looks empty', async ($, on) => {
   setup(on)
   await $.session.start({ ...START, surface: 'desktop' })
-  await respond(e => $.turn.step(e), resp(1_000, 0, 10_000, 200))
-  await respond(e => $.turn.step(e), resp(500, 900_000, 1_000, 200)) // nearly all from cache
+  await respond($, resp(1_000, 0, 10_000, 200))
+  await respond($, resp(500, 900_000, 1_000, 200)) // nearly all from cache
   const ui = await mountBand($, 'desktop', 95)
   await ui.press({ key: 'more' })
   const split = svgsOf(cardOf(await ui.drawn(), 'spend')).find(n => /token split/.test(String(n.props?.alt)))

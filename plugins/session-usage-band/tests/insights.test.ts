@@ -117,7 +117,7 @@ test('the ETA rounds to 5 minutes under an hour and 15 from an hour', () => {
 test("a subagent's turn inside an open turn doesn't change what the last message cost", async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
   await startTurn($, 'main-1', 2.41)
   await endTurn($, 'sub-1', 2.5, { agentId: 'agent-1' })
   await endTurn($, 'main-1', 2.62)
@@ -130,7 +130,7 @@ test("a subagent's turn inside an open turn doesn't change what the last message
 test("a subagent's turn.start doesn't take over the open turn it runs in", async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
   await startTurn($, 'main-1', 2.41)
   // Since 2.1.299 a subagent's turn raises turn.start; this one shares its parent's turnId.
   await startTurn($, 'main-1', 2.5, 'agent-1')

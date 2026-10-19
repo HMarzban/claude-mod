@@ -3,15 +3,12 @@
 
 import type {
   ElementTable,
-  HookStream,
   ModelUsage,
   On,
   SessionCompactResult,
   SessionContextBreakdown,
   SessionUsage,
-  TurnStepChunk,
   TurnStepInput,
-  TurnStepResult,
   TurnStopReason,
 } from 'claude-code'
 import { mock, type Engine, type MockClock } from 'claude-code/testing'
@@ -291,21 +288,16 @@ export const resp = (input: number, read: number, write: number, output: number)
   cache_creation_input_tokens: write,
 })
 
-type Step = (e: TurnStepInput) => HookStream<TurnStepChunk, TurnStepResult>
-
-export const respond = async (step: Step, u: ModelUsage): Promise<void> => {
+/** One step of a main-loop turn on `$`, its reply billed as `u`; `over`
+ *  makes it a subagent's (`{ agentId }`) or another model's. */
+export const respond = async ($: Engine, u: ModelUsage, over: Partial<TurnStepInput> = {}): Promise<void> => {
   nextUsage = u
-  const stream = step({ turnId: 't', index: 0, model: 'claude-opus-5-5', messageCount: 1 })
+  const stream = $.turn.step({ turnId: 't', index: 0, model: 'claude-opus-5-5', messageCount: 1, ...over })
   for await (const _chunk of stream) {
     // drain so the hook's result settles
   }
   await stream.result
 }
-
-export const inAgent =
-  (step: Step): Step =>
-  e =>
-    step({ ...e, agentId: 'agent-1' })
 
 export type Node = {
   type?: string

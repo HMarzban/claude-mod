@@ -5,6 +5,9 @@ import { test, expect } from 'claude-code/testing'
 import { tierFactor } from '../hooks/cache'
 import { LONG, MIN, START, USAGE, engine, fact, mountBand, pillOf, resp, respond, setup, shown } from './helpers'
 
+/** A step billed on Haiku 5.5. */
+const HAIKU = { model: 'claude-haiku-5-5' } as const
+
 test("Haiku 5.5's upper tier starts past 100k prompt tokens; other models have one tier", () => {
   expect(tierFactor('claude-haiku-5-5', 100_000)).toBe(1)
   expect(tierFactor('claude-haiku-5-5', 100_001)).toBe(5)
@@ -19,9 +22,8 @@ test('a Haiku 5.5 session past 100k solves its lower-tier rate and prices the re
   const clock = setup(on, { usage: { ...USAGE, cost: { usd: 0.0886 }, context: { tokens: 151_000, window: 1_000_000, percent: 15 } } })
   engine.model = 'claude-haiku-5-5'
   await $.session.start(START)
-  const haiku = (e: Parameters<typeof $.turn.step>[0]) => $.turn.step({ ...e, model: 'claude-haiku-5-5' })
-  await respond(haiku, resp(2_000, 0, 18_000, 1_000))
-  await respond(haiku, resp(2_000, 18_000, 130_000, 1_000))
+  await respond($, resp(2_000, 0, 18_000, 1_000), HAIKU)
+  await respond($, resp(2_000, 18_000, 130_000, 1_000), HAIKU)
   await clock.advance(61 * MIN)
 
   // 151k written at the upper tier: 151k × 1.25 × $0.50 per million = $0.094.
@@ -37,9 +39,8 @@ test("on Haiku 5.5, what the cache saved is priced at each read's tier", LONG, a
   setup(on, { usage: { ...USAGE, cost: { usd: 0.107525 }, context: { tokens: 152_000, window: 1_000_000, percent: 15 } } })
   engine.model = 'claude-haiku-5-5'
   await $.session.start(START)
-  const haiku = (e: Parameters<typeof $.turn.step>[0]) => $.turn.step({ ...e, model: 'claude-haiku-5-5' })
-  await respond(haiku, resp(2_000, 0, 148_000, 1_000))
-  await respond(haiku, resp(2_000, 148_000, 1_000, 1_000))
+  await respond($, resp(2_000, 0, 148_000, 1_000), HAIKU)
+  await respond($, resp(2_000, 148_000, 1_000, 1_000), HAIKU)
 
   // 148k read at $0.05 per million instead of $0.50: 0.9 × 148k × $0.50 per million.
   // At the lower tier it would say ~$0.01.

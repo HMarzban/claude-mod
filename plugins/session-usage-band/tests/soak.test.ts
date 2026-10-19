@@ -49,7 +49,7 @@ const rising = (i: number, now: number): void => {
 test('six hours, a thousand turns, three clears: writes, size and trees stay bounded', { timeoutMs: 180_000 }, async ($, on) => {
   const clock = setup(on, { store: { limitSamples: STORED_WEEK } })
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
   let cost = 2.41
   /** Turn `i`, measured after it as the engine measures every main-loop turn, then a tick on. */
   const turnAt = async (i: number): Promise<void> => {
@@ -95,7 +95,7 @@ test('six hours, a thousand turns, three clears: writes, size and trees stay bou
 test('a calm ten-minute walk repaints once a minute, not once a second', LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
   const ui = await mountBand($, 'terminal', 120)
   await clock.settle()
   const before = engine.invalidates
@@ -107,7 +107,7 @@ test('a calm ten-minute walk repaints once a minute, not once a second', LONG, a
 test('with the cache cold, a reset countdown repaints as its minute turns', LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
   const ui = await mountBand($, 'terminal', 200)
   // Cold at 60 minutes; the 5h window resets at 3 hours.
   await clock.advance(61 * MIN)

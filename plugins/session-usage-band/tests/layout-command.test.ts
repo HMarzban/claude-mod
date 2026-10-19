@@ -108,7 +108,7 @@ test('a store that fails to write still switches the layout, and says until when
   )
   expect(await run($, 'layout')).toMatch(/^Usage band layout: pulse\./)
   // As it says: the next reply reads the store back, which holds none.
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
   await turn($, 'x', 2.41, 2.5)
   expect(await run($, 'layout')).toMatch(/^Usage band layout: chips\./)
 })
@@ -122,7 +122,7 @@ test('the usage line keeps its bracket and adds the layout hint', async ($, on) 
 })
 test("another session's layout is read after this session's next turn", async ($, on) => {
   setup(on); await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
   engine.storeGets.length = 0
   engine.store.layout = 'pulse'
   await turn($, 'x', 2.41, 2.5)
