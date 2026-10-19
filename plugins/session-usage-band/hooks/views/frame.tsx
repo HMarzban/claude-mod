@@ -8,6 +8,8 @@ import { HOTKEY_MARK, ROW_SLACK, cellsOf, isDrawn, keepsIn, squeezeToFit } from 
 import { BARE } from '../palette'
 import type { Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
+import { rowsOf } from './view'
+import type { View } from './view'
 import type { Amber } from '../words'
 
 /** The rows a body gets: the band's, less the collapsed rows, a row of air
@@ -36,6 +38,18 @@ export const toggleButton = (kit: Kit, read: Readings, act: BandActions): Render
         {...(Svg ? { variant: 'secondary' as const } : { plain: true as const })}
         onPress={act.toggleExpanded}
       />
+    </Box>
+  )
+}
+
+/** A view drawn: its collapsed row, the toggle at its end, and while open,
+ *  what opens beneath it, given the rows the view declares where it is drawn. */
+export const drawView = (view: View, kit: Kit, read: Readings, act: BandActions): RenderElement => {
+  const { Box } = kit
+  return (
+    <Box flexDirection="column">
+      {view.collapsed(kit, read, toggleButton(kit, read, act))}
+      {read.frame.expanded ? view.open(kit, read, act, rowsOf(view, kit)) : null}
     </Box>
   )
 }

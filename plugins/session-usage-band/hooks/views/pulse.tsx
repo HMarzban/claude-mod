@@ -9,9 +9,8 @@ import { barChart, dayCells, flatBeats, heartbeat, sparkline } from '../charts'
 import type { Kit } from '../kit'
 import { ROW_SLACK, isDrawn } from '../layout'
 import type { Readings, Tone } from '../reading'
-import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber } from '../words'
-import { fitLine, type Keeps, line, toggleButton } from './frame'
+import { fitLine, type Keeps, line } from './frame'
 import { openStack } from './pulse-open'
 import type { View } from './view'
 
@@ -78,7 +77,7 @@ const calmWords = (k: Keeps<Piece>, long: string, short: string): string => (k.h
 const wordsOf = (kit: Kit, k: Keeps<Piece>, name: string, figure: string, amber: Amber | undefined): RenderChildren[] =>
   amber === undefined ? [named(kit, name), said(kit, 'w', figure, false)] : [said(kit, 'w', k.amber(amber), true)]
 
-const collapsed = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
+const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderElement =>
   fitLine(kit, ORDER, kit.columns - ROW_SLACK, k => {
     const { Svg, Text, palette } = kit
     const { cache, context, fiveHour, sevenDay, history: hist, week } = read
@@ -123,18 +122,11 @@ const collapsed = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
     ])
     // Filled tiles sit a column apart, as chips' do; plain's, with no ground
     // to part them, two, until the last step.
-    return line(kit, 'row', [cacheTile, spendTile, contextTile, fiveTile, sevenTile], toggleButton(kit, read, act), palette.filled || !k.has('padding') ? 1 : 2)
+    return line(kit, 'row', [cacheTile, spendTile, contextTile, fiveTile, sevenTile], toggle, palette.filled || !k.has('padding') ? 1 : 2)
   })
 
 export const pulseView: View = {
   rows: { desktop: 1, terminal: 1 },
-  draw: (kit, read, act) => {
-    const { Box } = kit
-    return (
-      <Box flexDirection="column">
-        {collapsed(kit, read, act)}
-        {read.frame.expanded ? openStack(kit, read, act) : null}
-      </Box>
-    )
-  },
+  collapsed,
+  open: openStack,
 }

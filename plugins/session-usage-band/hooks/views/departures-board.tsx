@@ -183,11 +183,11 @@ const readingLine = (kit: Kit, l: Line, row: BoardRow, cols: Columns, remark: st
 
 /** The board, its lines fitted to the body's rows, on its dark ground;
  *  nothing when no line fits. */
-const board = (kit: Kit, read: Readings): RenderElement | null => {
+const board = (kit: Kit, read: Readings, collapsedRows: number): RenderElement | null => {
   const { Box, Svg, palette } = kit
   const inner = Math.max(0, kit.columns - ROW_SLACK - BOARD_PAD)
   const cols = columnsOf(kit, read.board.rows, inner)
-  const plan = fitPlan(kit, linesOf(read), cols, boardBudget(kit, bodyRowsFor(read.frame.maxRows, 1, 0)))
+  const plan = fitPlan(kit, linesOf(read), cols, boardBudget(kit, bodyRowsFor(read.frame.maxRows, collapsedRows, 0)))
   if (plan.lines.length === 0) return null
   const remarks = plan.remarks && cols.remarks > 0
   return (
@@ -211,8 +211,8 @@ const board = (kit: Kit, read: Readings): RenderElement | null => {
 
 /** Departures open: the board, then the footer every layout draws, the
  *  workspace strip in its row. */
-export const openBoard = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
+export const openBoard = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderElement[] => {
   const ws = read.workspace
   const strip = ws === undefined ? undefined : drawStrip(kit, ws, 'footer', 0, kit.columns - ROW_SLACK - footerRoom(kit))
-  return [board(kit, read), footer(kit, act, strip)].filter(e => e !== null)
+  return [board(kit, read, collapsedRows), footer(kit, act, strip)].filter(e => e !== null)
 }

@@ -19,11 +19,6 @@ import type { CardName } from './shell'
 export const accentOf = (kit: Kit, limit: Readonly<{ key: LimitKey }>): string =>
   limit.key === '5h' ? kit.palette.fiveAccent : limit.key === '7d' ? kit.palette.weekAccent : kit.palette.meterFill
 
-type OpenOptions = Readonly<{
-  /** The rows the collapsed row takes, so the cards take only what is left. */
-  collapsedRows: number
-}>
-
 const SPLIT_ALT = `token split: ${SPLIT_LABELS.join(', ')}`
 
 /** The session's tokens split by kind, in `SPLIT_LABELS`' order, each part
@@ -45,7 +40,7 @@ const tokenPartsOf = (kit: Kit, read: Readings): SplitPart[] => {
 /** What opens beneath a layout's collapsed lines: as many cards to a line as
  *  hold their text, each as much of its body as the band has rows for; the
  *  workspace strip on top or in the footer; then Collapse and Hide band. */
-export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOptions): RenderChildren[] => {
+export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderChildren[] => {
   const { Box, Text, palette, measure, columns, onTone, oneLine } = kit
   const { cache, spend, context } = read
 
@@ -76,7 +71,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
   // the row of air between them, less a card's edge and its header. A taller
   // band would scroll, hiding the buttons.
   const bodyFor = (strip: number) =>
-    Math.floor((bodyRowsFor(read.frame.maxRows, o.collapsedRows, strip) - lineGap * (lineCount - 1)) / lineCount) - edge - 1
+    Math.floor((bodyRowsFor(read.frame.maxRows, collapsedRows, strip) - lineGap * (lineCount - 1)) / lineCount) - edge - 1
   // The strip heads the view when every card still keeps a fact of its own;
   // short of that row it takes the footer's, in place of the hint.
   const ws = read.workspace
@@ -221,19 +216,8 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     stripPlace === 'top' ? strip : null,
     cardsFit ? cardGrid(kit, linesOf(cardViews, perLine), { marginTop: stripPlace === 'top' ? 0 : 1, align: 'flex-start' })
     // Without them, the other windows' alert, where the band has a row for it.
-    : bodyRowsFor(read.frame.maxRows, o.collapsedRows, 0) < 1 ? null
+    : bodyRowsFor(read.frame.maxRows, collapsedRows, 0) < 1 ? null
     : alertLine(kit, read),
     footer(kit, act, stripPlace === 'footer' && strip !== null ? strip : undefined),
   ]
-}
-
-/** The whole view: its collapsed lines, and the cards beneath them when open. */
-export const cardsView = (kit: Kit, read: Readings, act: BandActions, lines: readonly RenderElement[], o: OpenOptions): RenderElement => {
-  const { Box } = kit
-  return (
-    <Box flexDirection="column">
-      {lines}
-      {read.frame.expanded ? openBody(kit, read, act, o) : null}
-    </Box>
-  )
 }

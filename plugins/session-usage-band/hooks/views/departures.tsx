@@ -9,10 +9,9 @@ import { flaps } from '../flaps'
 import type { Kit } from '../kit'
 import { ROW_SLACK } from '../layout'
 import type { Readings } from '../reading'
-import type { BandActions } from '../snapshot'
 import type { BoardRow } from '../words'
 import { ITEM_INK, openBoard } from './departures-board'
-import { fitLine, type Keeps, line, toggleButton } from './frame'
+import { fitLine, type Keeps, line } from './frame'
 import type { View } from './view'
 
 /** What gives way as the row narrows, first to last (spec §5.2), calm only:
@@ -63,14 +62,14 @@ const keeps = (row: BoardRow, k: Keeps<Piece>): boolean =>
 
 /** Each kept reading's module, then its air: the row's own gap is none, so
  *  every column between modules is one the row draws and measures. */
-const collapsed = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
+const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderElement =>
   fitLine(kit, ORDER, kit.columns - ROW_SLACK, k => {
     const modules = read.board.rows.filter(r => keeps(r, k)).flatMap((r, i) => [moduleOf(kit, k, r, cellOf(r, k)), 
       // The band's own background between modules, and after the last, before
       // ▵: a column where modules have their ground, two in plain, which has none.
       kit.air(`air${i}`, kit.palette.filled ? 1 : 2),
     ])
-    return line(kit, 'row', modules, toggleButton(kit, read, act), 0)
+    return line(kit, 'row', modules, toggle, 0)
   })
 
 /** The board's tiles need room: below 60 columns the band draws chips. */
@@ -79,13 +78,6 @@ const MIN_COLUMNS = 60
 export const departuresView: View = {
   rows: { desktop: 1, terminal: 1 },
   minColumns: MIN_COLUMNS,
-  draw: (kit, read, act) => {
-    const { Box } = kit
-    return (
-      <Box flexDirection="column">
-        {collapsed(kit, read, act)}
-        {read.frame.expanded ? openBoard(kit, read, act) : null}
-      </Box>
-    )
-  },
+  collapsed,
+  open: openBoard,
 }

@@ -10,7 +10,7 @@ import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { openBody } from '../hooks/views/cards'
 import { cachePill, chipsPills, chipsView, limitPill, pillRow } from '../hooks/views/chips'
-import { cardsView } from '../hooks/views/cards'
+import { drawView, toggleButton } from '../hooks/views/frame'
 import type { View } from '../hooks/views/view'
 import { canon } from './golden/hash'
 import { BARE, DARK, PLAIN } from '../hooks/palette'
@@ -21,11 +21,13 @@ const text = (s: string) => ({ type: 'Text', props: {}, children: [s] }) as unkn
 /** Cards beneath `count` collapsed lines, as a layout of that many rows would draw them. */
 const linesView = (count: number): View => ({
   rows: { desktop: count, terminal: count },
-  draw: (kit, read, act) => cardsView(kit, read, act, Array.from({ length: count }, (_, i) => text(`LINE ${i}`)), { collapsedRows: count }),
+  collapsed: () => ({ type: 'Box', props: { flexDirection: 'column' }, children: Array.from({ length: count }, (_, i) => text(`LINE ${i}`)) }) as unknown as RenderElement,
+  open: openBody,
 })
+const drawn = (view: View, snap: BandSnapshot) => drawView(view, makeKit(fakeEl, snap), readingsOf(snap), NO_ACT)
 const opened = (over: Partial<BandSnapshot> = {}): Node => {
   const snap = snapOf({ expanded: true, maxRows: 40, ...over })
-  return { type: 'Box', props: {}, children: openBody(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT, { collapsedRows: 1 }) } as unknown as Node
+  return { type: 'Box', props: {}, children: openBody(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT, 1) } as unknown as Node
 }
 
 test("chips' open view is openBody's, with one collapsed row and nothing to skip", () => {
@@ -33,8 +35,8 @@ test("chips' open view is openBody's, with one collapsed row and nothing to skip
     const snap = snapOf({ expanded: true, surface })
     const kit = makeKit(fakeEl, snap)
     const read = readingsOf(snap)
-    const drawn = (chipsView.draw(kit, read, NO_ACT) as unknown as Node).children?.flat().slice(1)
-    expect(canon(drawn)).toEqual(canon(openBody(kit, read, NO_ACT, { collapsedRows: 1 }).filter(Boolean)))
+    const open = (drawView(chipsView, kit, read, NO_ACT) as unknown as Node).children?.flat().slice(1)
+    expect(canon(open)).toEqual(canon(openBody(kit, read, NO_ACT, 1).filter(Boolean)))
   }
 })
 test('the cards take only the rows the collapsed lines leave', () => {
@@ -46,7 +48,7 @@ test('the cards take only the rows the collapsed lines leave', () => {
       // leaves out, so each line of them adds two.
       for (const maxRows of [13, 14, 20, 40]) {
         const snap = snapOf({ surface, expanded: true, maxRows, workspace: { path: '/Users/me/workspace/claude-mod', git: undefined, repoName: undefined } })
-        const tree = view.draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT)
+        const tree = drawn(view, snap)
         const edges = surface === 'desktop' ? 2 * (byKey(tree, 'cards')?.children ?? []).length : 0
         // The desktop's two lines at 13 rows, the gauges board's case, leave
         // its two lines of cards no row of body. Each card keeps one anyway,
@@ -64,7 +66,7 @@ test('short of a row for a fact under each head, the cards give way whole, so th
   const view = linesView(2)
   for (const maxRows of [4, 6, 7]) {
     const snap = snapOf({ expanded: true, maxRows })
-    const tree = view.draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT)
+    const tree = drawn(view, snap)
     expect([maxRows, byKey(tree, 'cards'), visualRows(tree, 'terminal') <= maxRows, byKey(tree, 'hide', 'Button') !== undefined]).toEqual([maxRows, undefined, true, true])
   }
 })
@@ -73,7 +75,7 @@ test('with the cards given way, a window only they draw still says it needs you,
   const spend = { otherLimits: [{ kind: 'spend_limit' as const, percentUsed: 92, resetsAt: undefined }] }
   const draw = (maxRows: number, over = {}) => {
     const snap = snapOf({ expanded: true, maxRows, ...over })
-    return view.draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT)
+    return drawn(view, snap)
   }
   const tree = draw(6, spend)
   expect([shown(byKey(tree, 'alert', 'Box')), visualRows(tree, 'terminal')]).toEqual(['! spend 92%', 6])
@@ -83,16 +85,16 @@ test('with the cards given way, a window only they draw still says it needs you,
 })
 test('shut, a cards view draws its collapsed lines alone', () => {
   const snap = snapOf()
-  const tree = linesView(1).draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT)
+  const tree = drawn(linesView(1), snap)
   expect(shown(tree)).toBe('LINE 0')
 })
 test("a layout composes chips' pills: chips' row is its pills in a pill row", () => {
   const snap = snapOf({ columns: 200 })
   const kit = makeKit(fakeEl, snap)
   const read = readingsOf(snap)
-  const row = (chipsView.draw(kit, read, NO_ACT) as unknown as Node).children?.[0]
-  expect(canon(row)).toEqual(canon(pillRow(kit, read, NO_ACT, chipsPills(kit, read, 0))))
-  const mine = pillRow(kit, read, NO_ACT, [limitPill(kit, read, '7d', 0, false), cachePill(kit, read, true)].filter(p => p !== undefined))
+  const row = (drawView(chipsView, kit, read, NO_ACT) as unknown as Node).children?.[0]
+  expect(canon(row)).toEqual(canon(pillRow(kit, toggleButton(kit, read, NO_ACT), chipsPills(kit, read, 0))))
+  const mine = pillRow(kit, toggleButton(kit, read, NO_ACT), [limitPill(kit, read, '7d', 0, false), cachePill(kit, read, true)].filter(p => p !== undefined))
   expect(shown(mine)).toBe('7d ██░░░░ 30% │ ↻ 2d 19h ◷ cache 52m ')
   expect(byKey(mine, 'more', 'Button')?.props?.label).toBe('▵')
   expect(limitPill(kit, readingsOf(snapOf({ sevenDay: undefined })), '7d', 0, false)).toBeUndefined()

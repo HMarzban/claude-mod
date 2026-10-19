@@ -11,6 +11,7 @@ import { DEFAULT_LAYOUT } from './snapshot'
 import type { BandActions, BandSnapshot, LayoutName } from './snapshot'
 import { VIEWS } from './views/index'
 import type { View } from './views/index'
+import { drawView } from './views/frame'
 
 /** Below this, every layout draws chips (spec §1); a layout may need more. */
 const CHIPS_BELOW = 40
@@ -32,10 +33,10 @@ export const drawBand = (
   const view = views[layoutAt(snap.layout, snap.columns, views)]
   let tree: RenderElement
   try {
-    tree = view.draw(kit, read, act)
+    tree = drawView(view, kit, read, act)
   } catch {
     // A layout that throws never takes the band down: chips stands in.
-    tree = views[DEFAULT_LAYOUT].draw(kit, read, act)
+    tree = drawView(views[DEFAULT_LAYOUT], kit, read, act)
   }
   // Mapped last: the squeeze measured the row in the band's own glyphs, and
   // no mapping widens one.

@@ -17,9 +17,7 @@ import { GIVES_WAY, ROW_SLACK, SHORT_BELOW, cellsOf, keeps, spansOf, squeezeToFi
 import type { Piece } from '../layout'
 import type { Palette } from '../palette'
 import type { LimitKey, Readings, Tone } from '../reading'
-import type { BandActions } from '../snapshot'
-import { cardsView } from './cards'
-import { toggleButton } from './frame'
+import { openBody } from './cards'
 import type { View } from './view'
 
 // ---- the pill and the battery ----------------------------------------------
@@ -355,10 +353,9 @@ export const chipsPills = (kit: Kit, read: Readings, squeeze: number): PillSpec[
 
 /** Pills in a row, each revealing its card, then air and the toggle. A card
  *  ends short of ▵ and the gap before it, and covers whole pills. */
-export const pillRow = (kit: Kit, read: Readings, act: BandActions, specs: readonly PillSpec[]): RenderElement => {
+export const pillRow = (kit: Kit, toggle: RenderElement, specs: readonly PillSpec[]): RenderElement => {
   const { Box, measure, asDrawn, hoverCard } = kit
   const pills = specs.map(spec => pill(kit, spec))
-  const toggle = toggleButton(kit, read, act)
   const room = kit.columns - cellsOf(toggle, measure) - 1
   const pieces = spansOf(pills.map(asDrawn), 1, measure)
   return (
@@ -371,11 +368,10 @@ export const pillRow = (kit: Kit, read: Readings, act: BandActions, specs: reado
   )
 }
 
-/** Chips' one row, squeezed until it fits. */
-const chipsRow = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
-  squeezeToFit(squeeze => pillRow(kit, read, act, chipsPills(kit, read, squeeze)), GIVES_WAY.length, kit.columns - ROW_SLACK, kit.measure)
-
 export const chipsView: View = {
   rows: { desktop: 1, terminal: 1 },
-  draw: (kit, read, act) => cardsView(kit, read, act, [chipsRow(kit, read, act)], { collapsedRows: 1 }),
+  // Its one row, squeezed until it fits.
+  collapsed: (kit, read, toggle) =>
+    squeezeToFit(squeeze => pillRow(kit, toggle, chipsPills(kit, read, squeeze)), GIVES_WAY.length, kit.columns - ROW_SLACK, kit.measure),
+  open: openBody,
 }
