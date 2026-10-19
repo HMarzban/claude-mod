@@ -351,8 +351,7 @@ for (const [surface, glyphs] of [['terminal', 'unicode'], ['terminal', 'ascii'],
 
 test('in the footer, in every layout, the strip takes all the room the buttons leave, so its cards have the room they are given', () => {
   const workspace = { path: '~/workspace/claude-mod', repoName: 'claude-mod', git: { branch: 'main', commit: '1a2b3c4', worktree: undefined, changed: 3, ahead: 2, behind: 1 } }
-  // Departures has no strip: its board's header row draws the same facts.
-  for (const layout of LAYOUT_NAMES.filter(l => l !== 'departures')) {
+  for (const layout of LAYOUT_NAMES) {
     let footers = 0
     for (let maxRows = 4; maxRows <= 16; maxRows++) {
       const actions = byKey(drawBand(fakeEl, snapOf({ layout, expanded: true, maxRows, workspace }), NO_ACT), 'actions', 'Box')

@@ -1,7 +1,7 @@
 import { test, expect } from 'claude-code/testing'
 import { fixedZone } from '../hooks/format'
 import { readingsOf } from '../hooks/reading'
-import { BOARD_HEADINGS, boardColumns, boardLines, padTo, remarksFit, type BoardRow } from '../hooks/words'
+import { remarksFit } from '../hooks/words'
 import { HOUR, MIN } from './helpers'
 import { snapOf } from './matrix'
 
@@ -89,15 +89,6 @@ test('no board form draws ↻, which the flap face lacks: RESET says it', () => 
     for (const r of board({ ...pace, zone }).rows) for (const text of [r.status, r.time, r.remarks, r.cell, r.cellShort, r.cellNoReset ?? '']) expect(text).not.toMatch(/↻/)
   expect(row({ fiveHour: limit(26, 3) }, '5h')?.cell).toMatch(/^26% RESET 03:00/)
 })
-test("boardLines: REMARKS padded to its column, so every line is the room's width, folded or not", () => {
-  const at = (item: string, status: string, time: string, remarks: string): BoardRow =>
-    ({ key: 'cache', item, status, time, remarks, cell: '', cellShort: '', tone: 'calm', alt: '' })
-  const rows = [BOARD_HEADINGS, at('CACHE', 'DEPARTS', '17:24', 'IN 38 MIN · RE-WARM ~$0.57 IF MISSED'), at('SPEND', '$0.24', '-', ''), at('5H', '26%', 'SAT 13:30', 'ON PACE ~33%')]
-  for (const room of [34, 63, 120]) {
-    const widths = boardLines(rows, room).map(l => [l.item, l.status, ...(l.time === undefined ? [] : [l.time]), l.remarks].join(' ').length)
-    expect(`${room} ${widths.join(',')}`).toBe(`${room} ${widths.map(() => room).join(',')}`)
-  }
-})
 test('an unknown zone: no clock anywhere on the board, and no empty time', () => {
   for (const r of board({ zone: undefined, fiveHour: limit(26, 3), sevenDay: limit(85, 67) }).rows) {
     for (const text of [r.time, r.cell, r.remarks, r.alt]) expect(text).not.toMatch(CLOCK)
@@ -105,52 +96,13 @@ test('an unknown zone: no clock anywhere on the board, and no empty time', () =>
     expect(`${r.cell}${r.remarks}`).not.toMatch(/undefined|NaN/)
   }
 })
-test('no workspace leaves the header out; a workspace heads it in capitals', () => {
-  expect(board({ workspace: undefined }).header).toBeUndefined()
-  expect(board({ workspace: { path: '/u/claude-mod', git: { branch: 'main', changed: 0 } } }).header).toEqual(['CLAUDE-MOD', 'MAIN', 'CLEAN'])
-})
-test('remarksFit cuts with an ellipsis and leaves a short one whole; padTo pads', () => {
+test('remarksFit cuts with an ellipsis and leaves a short one whole', () => {
   expect(remarksFit('IN 38 MIN · RE-WARM', 6)).toBe('IN 38…')
   expect(remarksFit('IN 38 MIN', 40)).toBe('IN 38 MIN')
-  expect(padTo('5H', 4)).toBe('5H  ')
-  expect(padTo('CONTEXT', 4)).toBe('CONTEXT')
 })
 test('a calm context row\'s remarks name the room and where compaction falls', () => {
   const calm = row({ context: { ...snapOf().context, tokens: 76_000, window: 200_000, compactAt: 190_000 } }, 'context')
   expect(calm?.remarks).toMatch(/^~?\d+K LEFT · COMPACTS AT 190K$/)
-})
-test('boardColumns: ITEM, STATUS and TIME as wide as their longest text plus one; REMARKS the rest', () => {
-  const at = (item: string, status: string, time: string): BoardRow =>
-    ({ key: 'cache', item, status, time, remarks: '', cell: '', cellShort: '', tone: 'calm', alt: '' })
-  expect(boardColumns([at('CACHE', 'DEPARTS', '17:24'), at('5H', '26%', 'SAT 13:30')], 60)).toEqual({ item: 6, status: 8, time: 10, remarks: 36 })
-})
-test("boardLines: each row's four runs padded to their columns, REMARKS too, three blank tiles between them taken from the room", () => {
-  const at = (item: string, status: string, time: string, remarks: string): BoardRow =>
-    ({ key: 'cache', item, status, time, remarks, cell: '', cellShort: '', tone: 'calm', alt: '' })
-  const rows = [at('CACHE', 'DEPARTS', '17:24', 'IN 38 MIN · RE-WARM ~$0.57 IF MISSED'), at('5H', '26%', 'SAT 13:30', 'ON PACE ~33%')]
-  expect(boardLines(rows, 63)).toEqual([
-    { item: 'CACHE ', status: 'DEPARTS ', time: '17:24     ', remarks: 'IN 38 MIN · RE-WARM ~$0.57 IF MISSED' },
-    { item: '5H    ', status: '26%     ', time: 'SAT 13:30 ', remarks: 'ON PACE ~33%'.padEnd(36) },
-  ])
-  // REMARKS of fewer than 8 tiles: TIME's words lead them, and the TIME
-  // column, headings and all, goes.
-  const narrow = boardLines([BOARD_HEADINGS, ...rows], 34)
-  expect(narrow.map(l => l.time)).toEqual([undefined, undefined, undefined])
-  expect(narrow[1]?.remarks).toMatch(/^17:24 · IN/)
-  expect(narrow[0]?.remarks.trimEnd()).toBe('REMARKS')
-  for (const l of narrow) expect([l.item, l.status, l.remarks].join(' ').length).toBeLessThanOrEqual(34)
-})
-test('boardLines: past folding TIME, a STATUS too long for the room is cut, so no line overflows', () => {
-  const at = (item: string, status: string, time: string, remarks: string): BoardRow =>
-    ({ key: 'context', item, status, time, remarks, cell: '', cellShort: '', tone: 'amber', alt: '' })
-  const rows = [BOARD_HEADINGS, at('CONTEXT', '! COMPACTS IN ~10K', '-', '~24K LEFT · COMPACTS AT 190K')]
-  for (const room of [10, 20, 26, 34]) {
-    for (const l of boardLines(rows, room)) {
-      const runs = [l.item, l.status, ...(l.time === undefined ? [] : [l.time]), l.remarks].filter(r => r !== '')
-      expect(`${room} ${runs.join(' ').length <= room}`).toBe(`${room} true`)
-    }
-  }
-  expect(boardLines(rows, 34)[1]?.status.trim()).toBe('! COMPACTS IN ~10K')
 })
 test("an amber limit's short form keeps its mark: ! and its value; a calm one its value alone", () => {
   expect(row({ fiveHour: limit(82, 3) }, '5h')?.cellShort).toBe('! 82%')

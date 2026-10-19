@@ -8,9 +8,7 @@ import {
   homeRelative,
   parseGitState,
   splitPath,
-  stripWords,
   type GitState,
-  type Workspace,
 } from '../hooks/workspace'
 
 const OID = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678'
@@ -182,8 +180,3 @@ test('the summary reads a detached HEAD without a commit', () => {
   expect(gitSummary(state({ branch: undefined, commit: undefined }))).toBe('detached, clean')
 })
 
-test('stripWords: folder, branch, clean or changed; the folder alone without git', () => {
-  expect(stripWords({ path: '/Users/me/claude-mod', git: { branch: 'main', changed: 0 } } as Workspace)).toEqual(['claude-mod', 'main', 'clean'])
-  expect(stripWords({ path: '/Users/me/claude-mod', git: { branch: undefined, changed: 3 } } as Workspace)).toEqual(['claude-mod', 'detached', '3 changed'])
-  expect(stripWords({ path: '/Users/me/claude-mod', git: undefined } as Workspace)).toEqual(['claude-mod'])
-})

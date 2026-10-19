@@ -74,7 +74,9 @@ test("day cells: a measured day filled, an empty one a solid edge on the track",
 test('no chart the new layouts draw stretches: every Svg has its own width and keeps its aspect', () => {
   for (const layout of ['pulse', 'departures'] as const) for (const expanded of [false, true]) {
     const tree = drawBand(fakeEl, snapOf({ layout, surface: 'desktop', columns: 160, maxRows: 13, expanded }), NO_ACT)
-    for (const s of svgsOf(tree)) {
+    // The board's rules are no chart: a solid line a pixel high, which spans
+    // its board by stretching and has no marks to squash.
+    for (const s of svgsOf(tree).filter(s => !/class="rule"/.test(String(s.props?.source)))) {
       expect(typeof s.props?.width).toBe('number')
       expect(String(s.props?.source)).not.toMatch(/preserveAspectRatio="none"/)
     }

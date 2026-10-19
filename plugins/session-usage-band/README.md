@@ -157,8 +157,8 @@ Departures' board also says `LAST CALL`, calm, ten minutes before an
 hour's cache goes cold; only its last minute is amber. Pulse and
 departures draw their readings in one order: cache, spend, context, 5h,
 7d. On the desktop, chips explains each pill on hover with its own cards.
-Chips and pulse keep the workspace line, with its hover cards; departures
-shows the folder, branch and status as a header row of flaps.
+Every layout keeps the workspace line, with its hover cards, in the open
+view's footer beside `Collapse` and `Hide band`.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-layouts-dark.png">
@@ -169,7 +169,7 @@ shows the folder, branch and status as a header row of flaps.
 | --- | --- | --- |
 | `chips` | Is anything wrong right now? The row of chips above: the cache, the spend, the context and the limits at a glance; the default | 1 / 1 |
 | `pulse` | Is my cost per message rising, and will a limit fill before it resets? The session's trace, each reading on its own tile: its name, its figure, then its chart, a heartbeat for the cache, each message's cost as a beat, the context and the 5h window over time, and the week by day. The heartbeat is still; only the words and its ink change. Open, four cards like chips', Cache, Spend, Context and Limits, each with its chart: the cache's hour as a track, the beats over their average, the context under its compaction line, the 5h window and the 7d by day | 1 / 1 |
-| `departures` | When does the cache go cold, and when does each limit reset or fill? A split-flap board: each reading a line of flaps with its status, its time and a remark, such as `CACHE DEPARTS 17:24` or `7D 85% RESET SAT 13:30 ! NEAR LIMIT`. Open, a board of ITEM, STATUS, TIME and REMARKS. Below 60 columns it draws chips | 1 / 1 |
+| `departures` | When does the cache go cold, and when does each limit reset or fill? A split-flap board. Collapsed, each reading is its own module on the board's dark ground, its code in its own colour, then its status and time, such as `CACHE DEPARTS 17:24` or `7D 85% RESET SAT 13:30 ! NEAR LIMIT`, amber where it needs you; plain draws no ground. Open, one board headed `DEPARTURES` and the time now, `NOW 20:36`, with quiet ITEM, STATUS, TIME and REMARKS headings: ITEM, STATUS and TIME are flaps, tiles only where there are characters, and the remarks plain text. Short of rows, the remarks give way first on the desktop, then the lines; an amber line never does. Below 60 columns it draws chips | 1 / 1 |
 
 ```
 /usage-band layout pulse    # draw pulse; /usage-band layout chips goes back

@@ -65,13 +65,15 @@ test('at its fewest, 60 columns, calm with a cold cache: CACHE and 7D stay, the 
 test('an unknown zone: no clock time on the row or the board', () => {
   for (const expanded of [false, true]) expect(words(band({ surface: 'terminal', zone: undefined, expanded }))).not.toMatch(/\d\d:\d\d/)
 })
-test('open: the workspace header, ITEM STATUS TIME REMARKS, the rows in order, the footer off the board', () => {
+test('open: DEPARTURES and the time now head the board, then ITEM STATUS TIME REMARKS and the rows in order; the workspace in the footer, off the board', () => {
   const open = band({ surface: 'terminal', expanded: true, workspace: WS })
   // The board's own words: the collapsed row above it is already in order.
   const text = words(byKey(open, 'board', 'Box'))
-  expect(text).toMatch(/CLAUDE-MOD\s*MAIN\s*CLEAN/)
+  expect(text).toMatch(/^DEPARTURES\s*NOW\s*00:00/)
   expect(text).toMatch(/ITEM\s*STATUS\s*TIME\s*REMARKS/)
   expect(text).toMatch(/CACHE[\s\S]*SPEND[\s\S]*CONTEXT[\s\S]*5H[\s\S]*7D/)
+  expect(text).not.toMatch(/CLAUDE-MOD|claude-mod/)
+  expect(words(byKey(open, 'actions', 'Box'))).toMatch(/claude-mod[\s\S]*main[\s\S]*clean/)
   expect(byKey(byKey(open, 'board', 'Box'), 'collapse', 'Button')).toBeUndefined()
   expect(byKey(open, 'collapse', 'Button')).toBeDefined()
 })
@@ -140,25 +142,26 @@ test("every board line fits the board's room: 60, 80 and 200 columns, dark and p
           }
         }
 })
-test("the low case at 100 terminal columns: readings outrank remarks, so 5H's remark gives way and SPEND stays", async ($, on) => {
+test("the low case at 104 terminal columns: readings outrank remarks, so 5H's remark gives way and SPEND stays", async ($, on) => {
   const low = { scenario: 'calm', appearance: 'dark', layout: 'departures', usage: { ...USAGE, rateLimits: withLimits(3, 10) } } as const
-  const drawn = await drawCases($, on, low, [100, 102].map(cols => ({ surface: 'terminal' as const, cols })))
+  const drawn = await drawCases($, on, low, [104, 105].map(cols => ({ surface: 'terminal' as const, cols })))
   const rowAt = (cols: number) => firstRow(drawn[caseKey({ surface: 'terminal', cols }, 'shut')]) as Node
   const cells = (row: Node) => cellsOf(row as unknown as RenderChildren, TERMINAL)
-  // At 102 the room is 98: both resets gone, both remarks kept, every group
-  // and gap counted: CACHE 19, SPEND 11, CONTEXT 11, 5H 21, 7D 23, six gaps
-  // of 2 (the air before ▵ takes two), and ▵ 1.
-  const remarked = rowAt(102)
+  // At 105 the room is 101: both resets gone, both remarks kept, every
+  // module and its air counted: CACHE 21, SPEND 13, CONTEXT 13, 5H 23, 7D
+  // 25, each with a column of padding either side; a column of air after
+  // each, the last before ▵; and ▵ 1.
+  const remarked = rowAt(105)
   expect(words(remarked)).not.toMatch(/RESET/)
-  expect(['cache', 'spend', 'context', '5h', '7d'].map(k => cells(byKey(remarked, k, 'Box') as Node))).toEqual([19, 11, 11, 21, 23])
-  expect(cells(remarked)).toBe(98)
-  // At 100, past the 96 its room holds: 5H's remark, ` ON PACE FOR ~8%`,
-  // 16 cells, goes; SPEND and 7D's remark stay, 82 cells.
-  const at100 = rowAt(100)
-  expect(['cache', 'spend', 'context', '5h', '7d'].every(k => byKey(at100, k, 'Box') !== undefined)).toBe(true)
-  expect(words(byKey(at100, '5h', 'Box'))).not.toMatch(/ON PACE/)
-  expect(words(byKey(at100, '7d', 'Box'))).toMatch(/ON PACE/)
-  expect(cells(at100)).toBe(82)
+  expect(['cache', 'spend', 'context', '5h', '7d'].map(k => cells(byKey(remarked, k, 'Box') as Node))).toEqual([21, 13, 13, 23, 25])
+  expect(cells(remarked)).toBe(101)
+  // At 104, past the 100 its room holds: 5H's remark, ` ON PACE FOR ~8%`,
+  // 16 cells, goes; SPEND and 7D's remark stay, 85 cells.
+  const at104 = rowAt(104)
+  expect(['cache', 'spend', 'context', '5h', '7d'].every(k => byKey(at104, k, 'Box') !== undefined)).toBe(true)
+  expect(words(byKey(at104, '5h', 'Box'))).not.toMatch(/ON PACE/)
+  expect(words(byKey(at104, '7d', 'Box'))).toMatch(/ON PACE/)
+  expect(cells(at104)).toBe(85)
 })
 test("below its 60 columns departures draws exactly chips' tree; at 60, the board", () => {
   const NEAR = { tokens: 176_000, window: 200_000, percent: 88, compactAt: 190_000, autoCompactOff: false }
@@ -176,14 +179,19 @@ test("below its 60 columns departures draws exactly chips' tree; at 60, the boar
           expect(as('departures', 60)).not.toEqual(as('chips', 60))
         }
 })
-test('open: every board line is the same count of tiles, a clean rectangle; in plain on the terminal too, its header with them', () => {
+test("open: every reading line's ITEM, STATUS and TIME end where the next line's do, so REMARKS start in one column", () => {
   for (const [surface, palette] of [['desktop', DARK], ['terminal', DARK], ['terminal', PLAIN]] as const)
     for (const columns of [60, 94, 160]) {
       const board = byKey(band({ surface, palette, columns, expanded: true, workspace: WS, otherLimits: OTHER, maxRows: 40 }), 'board', 'Box')
-      const lines = ((board?.children ?? []) as Node[]).filter(l => String(l.props?.key).startsWith('row:'))
-      const tiles = lines.map(l => surface === 'desktop' ? Number(svgsOf(l)[0]?.props?.width) : cellsOf(l as unknown as RenderChildren, TERMINAL))
+      const lines = ((board?.children ?? []) as Node[]).filter(l => /^row:(cache|spend|context|5h|7d|other)/.test(String(l.props?.key)))
+      // The flaps, and TIME's dash where a line has none, before the remark.
+      const ends = lines.map(l => {
+        const line = byKey(l, 'line', 'Box')
+        const lead = ((line?.children ?? []) as Node[]).filter(k => k.props?.key !== 'remarks')
+        return cellsOf(lead as unknown as RenderChildren, surface === 'desktop' ? DESKTOP : TERMINAL)
+      })
       expect(lines.length).toBeGreaterThan(5)
-      expect(`${surface} ${columns} ${new Set(tiles).size}`).toBe(`${surface} ${columns} 1`)
+      expect(`${surface} ${columns} ${new Set(ends).size}`).toBe(`${surface} ${columns} 1`)
     }
 })
 test("desktop plain: the board's capitals measured as they draw, so a row the measure fits fits", () => {
