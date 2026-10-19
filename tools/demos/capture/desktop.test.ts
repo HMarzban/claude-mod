@@ -1,6 +1,7 @@
 // Demo capture, not a test: the band's real desktop output, for the film (every
 // minute of the hour, then the last minute in seconds), the site's live band,
-// its states, and every layout for the site's layouts section and gallery.
+// its states, every layout for the site's layouts section and gallery, and the
+// site's live demo: four states in every layout (DEMO lines).
 // tools/demos/build.sh runs it in a scratch copy of the plugin.
 import { test, type Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
@@ -95,61 +96,82 @@ test('capture: everything at once', async ($, on) => state($, on, 'all', { token
 /** A sample as the band stores one: both limits at `at`, with the resets that name their windows. */
 const sample = (at: number, five: number, seven: number, fiveResetAt: number, sevenResetAt: number) => ({ at, fivePct: five, sevenPct: seven, fiveResetAt, sevenResetAt })
 
+/** How a session some way in is shaped: its first write, the 5-hour limit
+ *  before it opened and over its replies, how far the weekly limit sits above
+ *  the calm session's, and the auto-compact threshold if it reports one. */
+type Lived = { firstWrite: number; fiveBefore: readonly number[]; five: readonly [number, number]; weekLift: number; threshold?: number }
+
+/** The calm session: 303k of context, the 5-hour limit at 27% and the week at 41%. */
+const LIVED: Lived = { firstWrite: 90_000, fiveBefore: [5, 9, 13, 15], five: [16, 27], weekLift: 0 }
+
 /** A session some way in: four days of the weekly limit and the 5-hour
  *  window's first hour in the store, as earlier sessions left them, then
  *  sixteen replies, each priced as Claude Code's ledger prices them: Opus
- *  5.5's $4 input, writes at 1.25×, reads at 0.05×, output at 5×. Drawn
- *  calm after the last reply, then in the cache's last minute, each
- *  collapsed and open. */
-async function livedIn($: Engine, on: On, layout: LayoutName) {
+ *  5.5's $4 input, writes at 1.25×, reads at 0.05×, output at 5×. Settled
+ *  just after the last reply; returns the clock. */
+async function lived($: Engine, on: On, layout: LayoutName, shape: Lived = LIVED) {
   // Sixteen replies five minutes apart, from 10:00 UTC, with these outputs.
   const OUTS = [4_000, 9_000, 2_500, 14_000, 6_000, 3_000, 22_000, 5_000, 8_000, 2_000, 11_000, 4_500, 16_000, 3_500, 7_000, 9_500]
   const N = OUTS.length, GAP = 5 * MIN, T0 = 10 * 60 * MIN, END = T0 + (N - 1) * GAP
   const fiveAt = END + 150 * MIN, sevenAt = END + 67 * 60 * MIN
+  const lift = shape.weekLift
   const limits = (five: number, seven: number) => [
     { kind: 'five_hour' as const, percentUsed: five, resetsAt: new Date(fiveAt).toISOString() },
     { kind: 'seven_day' as const, percentUsed: seven, resetsAt: new Date(sevenAt).toISOString() },
   ]
   // The weekly limit over the four days before: [hours before the session, %].
   const days: Array<[number, number]> = [[99, 1], [94, 4], [90, 7], [84, 8], [75, 8], [70, 12], [66, 16], [62, 19], [56, 20], [50, 20], [46, 22], [42, 24], [36, 25], [28, 25], [22, 29], [18, 33], [14, 36], [8, 37]]
+  const before = shape.fiveBefore
   const stored = [
-    ...days.map(([h, seven]) => sample(T0 - h * 60 * MIN, 50, seven, T0 - h * 60 * MIN + 3 * 60 * MIN, sevenAt)),
+    ...days.map(([h, seven]) => sample(T0 - h * 60 * MIN, 50, seven + lift, T0 - h * 60 * MIN + 3 * 60 * MIN, sevenAt)),
     // the 5-hour window's readings before the session opened
-    ...([[60, 5, 37], [40, 9, 38], [20, 13, 38], [5, 15, 38]] as const).map(([m, five, seven]) => sample(T0 - m * MIN, five, seven, fiveAt, sevenAt)),
+    ...([[60, before[0], 37], [40, before[1], 38], [20, before[2], 38], [5, before[3], 38]] as const).map(([m, five, seven]) => sample(T0 - m * MIN, five, seven + lift, fiveAt, sevenAt)),
   ]
   const clock = setup(on, {
-    usage: { startedAt: T0, context: { tokens: 0, window: 1_000_000, percent: 0 }, rateLimits: limits(15, 38), cost: { usd: 0 } },
+    usage: { startedAt: T0, context: { tokens: 0, window: 1_000_000, percent: 0 }, rateLimits: limits(before[3], 38 + lift), cost: { usd: 0 } },
     store: { layout, limitSamples: stored },
     env: { ...HOUR_1, CLAUDE_CODE_PROMPT_CACHE_TTL: '1h' },
     now: T0,
   })
   await $.session.start({ ...START, surface: 'desktop' })
   const RATE = 4 / 1e6
+  const [f0, f1] = shape.five
   let usd = 0, context = 0
   for (const [i, out] of OUTS.entries()) {
-    const write = i === 0 ? 90_000 : 6_000 + out
+    const write = i === 0 ? shape.firstWrite : 6_000 + out
     const read = context
     usage.current = { ...usage.current, cost: { usd } }
     await $.turn.start({ text: 'hi', turnId: `t${i}` })
     await respond(e => $.turn.step(e), resp(2_000, read, write, out))
     usd += RATE * (2_000 + 1.25 * write + 0.05 * read + 5 * out)
     context = read + write
-    const five = Math.round(16 + (11 * i) / (N - 1)), seven = 38 + Math.floor((3 * i) / (N - 1))
-    const ctx = { tokens: context, window: 1_000_000, percent: Math.round(context / 10_000) }
+    const five = Math.round(f0 + ((f1 - f0) * i) / (N - 1)), seven = 38 + lift + Math.floor((3 * i) / (N - 1))
+    const win = { tokens: context, window: 1_000_000, percent: Math.round(context / 10_000) }
+    const ctx = shape.threshold ? { ...win, breakdown: breakdown({ autoCompactThreshold: shape.threshold, isAutoCompactEnabled: true }) } : win
     usage.current = { ...usage.current, cost: { usd }, context: ctx, rateLimits: limits(five, seven) }
     await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: `t${i}`, reason: 'answer' })
     await $.session.measure({ context: ctx, rateLimits: usage.current.rateLimits, cost: usage.current.cost, changed: [] })
     if (i < N - 1) await clock.advance(GAP)
   }
   await clock.settle()
-  const draw = async (name: string) => {
-    const ui = await mountBand($, 'desktop', 94, { maxRows: 13 })
-    console.log('STATE ' + name + ' ' + JSON.stringify(await ui.drawn()))
-    await ui.press({ key: 'more' })
-    console.log('STATE ' + name + 'Open ' + JSON.stringify(await ui.drawn()))
-    await ui.press({ key: 'more' })
-    await ui.unmount()
-  }
+  return clock
+}
+
+/** Mount the band, print its tree shut and open under `tag`, and unmount it. */
+async function drawBoth($: Engine, tag: (open: boolean) => string) {
+  const ui = await mountBand($, 'desktop', 94, { maxRows: 13 })
+  console.log(tag(false) + ' ' + JSON.stringify(await ui.drawn()))
+  await ui.press({ key: 'more' })
+  console.log(tag(true) + ' ' + JSON.stringify(await ui.drawn()))
+  await ui.press({ key: 'more' })
+  await ui.unmount()
+}
+
+/** The calm session in `layout`, drawn after the last reply, then in the
+ *  cache's last minute, each collapsed and open. */
+async function livedIn($: Engine, on: On, layout: LayoutName) {
+  const clock = await lived($, on, layout)
+  const draw = (name: string) => drawBoth($, open => `STATE ${name}${open ? 'Open' : ''}`)
   await draw(`layout-${layout}`)
   await clock.advance(60 * MIN - 30_000)
   await draw(`layout-${layout}-amber`)
@@ -157,4 +179,32 @@ async function livedIn($: Engine, on: On, layout: LayoutName) {
 
 for (const layout of LAYOUT_NAMES) {
   test(`capture: the ${layout} layout, some way in`, { timeoutMs: 120_000 }, async ($, on) => livedIn($, on, layout))
+}
+
+// ---- the site's live band: four states, each drawn in every layout ----
+// Lines: DEMO <layout> <state> <shut|open> <tree>. A state's session and
+// clock are the same in every layout; only the store's `layout` differs, so
+// switching layout on the page never changes a figure.
+
+/** Near a limit: 880k of a 957k auto-compact threshold, the 5-hour limit
+ *  climbing 34% to 70% over the session (on pace to fill before its reset),
+ *  the week at 85%. */
+const NEAR_LIMIT: Lived = { firstWrite: 667_000, fiveBefore: [14, 20, 26, 31], five: [34, 70], weekLift: 44, threshold: 957_000 }
+
+/** Minutes after the last reply that the calm and near-a-limit states are drawn at. */
+const SETTLED = 6 * MIN
+
+const demo = (layout: LayoutName, state: string) => (open: boolean) => `DEMO ${layout} ${state} ${open ? 'open' : 'shut'}`
+
+for (const layout of LAYOUT_NAMES) {
+  test(`capture: the site's calm, last minute and cold states, ${layout}`, { timeoutMs: 120_000 }, async ($, on) => {
+    const clock = await lived($, on, layout)
+    await clock.advance(SETTLED); await drawBoth($, demo(layout, 'calm'))
+    await clock.advance(60 * MIN - 47_000 - SETTLED); await drawBoth($, demo(layout, 'amber'))
+    await clock.advance(47_000 + 60_000); await drawBoth($, demo(layout, 'cold'))
+  })
+  test(`capture: the site's near-a-limit state, ${layout}`, { timeoutMs: 120_000 }, async ($, on) => {
+    const clock = await lived($, on, layout, NEAR_LIMIT)
+    await clock.advance(SETTLED); await drawBoth($, demo(layout, 'limit'))
+  })
 }

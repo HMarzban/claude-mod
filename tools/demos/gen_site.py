@@ -1,7 +1,14 @@
 """Build docs/index.html: the site template with the band's real desktop
-states (live.txt, from the test kit) rendered in as the hero's live band."""
-import html
+output (from the test kit) rendered in as the hero's live band.
+
+    python3 gen_site.py out/site.txt site/template.html ../../docs/index.html [out/demo.txt]
+
+site.txt fills the legacy {{<state>}} placeholders; demo.txt (beside site.txt
+unless given) fills {{demo-chips-amber}}, the hero's first drawing, and
+{{demo-json}}, every drawing as {layout: {state: {shut, open}}} for
+<script type="application/json" id="demo-data">."""
 import json
+import os
 import sys
 
 from render_desk import node
@@ -57,7 +64,39 @@ def lift_hovers(tree):
     tag(tree)
 
 
+# The live demo's drawings: every state in every layout, from demo.txt.
+LAYOUTS = ('chips', 'pulse', 'departures')
+STATES = ('calm', 'amber', 'cold', 'limit')
+
+
+def demo_drawings(path):
+    """{layout: {state: {shut, open}}}: each DEMO line's tree, its hover cards
+    lifted onto their chips, drawn for the site. A countdown in the last
+    minute is wrapped in <span class=cd>; departures draws its countdown on
+    flap tiles inside an SVG, so its drawings carry none."""
+    demo = {layout: {state: {} for state in STATES} for layout in LAYOUTS}
+    for line in open(path):
+        _, layout, state, look, js = line.rstrip('\n').split(' ', 4)
+        tree = json.loads(js)
+        lift_hovers(tree)
+        demo[layout][state][look] = node(tree, site=True)
+    for layout in LAYOUTS:
+        for state in STATES:
+            for look in ('shut', 'open'):
+                body = demo[layout][state].get(look)
+                assert body, f'no {layout} {state} {look} drawing in {path}'
+                ticks = state == 'amber' and layout != 'departures'
+                assert ('<span class=cd>' in body) == ticks, f'{layout} {state} {look}: countdown span {"missing" if ticks else "unexpected"}'
+    return demo
+
+
+def script_json(data):
+    """JSON safe inside <script type="application/json">."""
+    return json.dumps(data, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/').replace('<!--', '<\\u0021--')
+
+
 src, template, out = sys.argv[1], sys.argv[2], sys.argv[3]
+demo_src = sys.argv[4] if len(sys.argv) > 4 else os.path.join(os.path.dirname(src), 'demo.txt')
 states = {}
 for line in open(src):
     _, name, js = line.split(' ', 2)
@@ -68,6 +107,10 @@ for line in open(src):
 page = open(template).read()
 for name, body in states.items():
     page = page.replace('{{' + name + '}}', body)
+if '{{demo-' in page:
+    demo = demo_drawings(demo_src)
+    page = page.replace('{{demo-chips-amber}}', demo['chips']['amber']['shut'])
+    page = page.replace('{{demo-json}}', script_json(demo))
 assert '{{' not in page, 'unfilled placeholder'
 open(out, 'w').write(page)
 print({k: len(v) for k, v in states.items()}, len(page))
