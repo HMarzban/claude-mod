@@ -3,7 +3,7 @@
 // from words.ts beside them. Pure, so readingsOf can be checked without
 // mounting the band.
 
-import { TTL_MS } from './cache'
+import { IDLE_COMPACT_MS, TTL_MS } from './cache'
 import { weekOf } from './calendar'
 import type { DayCell, HourCell, Week, WindowNow } from './calendar'
 import {
@@ -115,6 +115,12 @@ export type CacheFacts = Readonly<{
    *  to cold, or for the 5-minute cache its last minute. The board draws the
    *  last minute by its amber tone first, as every layout does. */
   lastCall: boolean
+  /** Cold because Claude Code compacted the conversation while it sat idle:
+   *  the next message writes the summary. */
+  compacted: boolean
+  /** Counting down on the hour's cache before the ~54-minute mark, where
+   *  Claude Code may compact the conversation instead of letting it go cold. */
+  idleCompactSoon: boolean
 }>
 
 export type ContextFacts = ReturnType<typeof contextReading> &
@@ -269,6 +275,8 @@ const cacheFacts = (snap: BandSnapshot): CacheFacts => {
     // A 5-minute cache is always under ten minutes from cold, so its last
     // call is its last minute, when chips turns amber too.
     lastCall: counting && (c.ttl === '5m' ? mood === 'expiring' : c.msLeft < LAST_CALL_MS),
+    compacted: mood === 'cold' && c.compacted,
+    idleCompactSoon: counting && c.idleCompacts && c.ttl === '1h' && c.msLeft > TTL_MS['1h'] - IDLE_COMPACT_MS,
   }
 }
 

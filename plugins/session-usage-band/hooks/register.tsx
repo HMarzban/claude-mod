@@ -5,10 +5,13 @@ import { atom, read, update } from 'claude-code'
 import type { ClassicEventOf, EngineInterface, ProcessRunResult, Register, SessionRateLimit, Timer } from 'claude-code'
 import { drawBand } from './band'
 import {
+  IDLE_GAP_MS,
   cache,
   cacheView,
   msLeft,
+  idleCompactFrom,
   noteCompaction,
+  noteIdleCompaction,
   noteConversationStart,
   noteLedger,
   noteLoad,
@@ -144,6 +147,11 @@ const band: {
   compactAt: number | undefined
   /** The breakdown said auto-compaction is off. */
   autoCompactOff: boolean
+  /** Idle compaction can run in this session, from this many tokens of
+   *  context; undefined when it can't. Read at session.start. */
+  idleCompactFrom: number | undefined
+  /** A main-loop turn is under way: a compaction then is no idle one. */
+  turnOpen: boolean
   /** Where the session is: its project, home-relative, and git there. Read
    *  between redraws, never while drawing, since git takes a process. */
   workspace: Workspace | undefined
@@ -168,6 +176,8 @@ const band: {
   glyphs: 'unicode',
   compactAt: undefined,
   autoCompactOff: false,
+  idleCompactFrom: undefined,
+  turnOpen: false,
   workspace: undefined,
   samples: [],
   reads: 0,
@@ -497,14 +507,23 @@ export const register: Register = on => {
       LC_CTYPE: await $.env.get('LC_CTYPE'),
       LANG: await $.env.get('LANG'),
     })
+    // Only two keys are kept: the settings also hold `env`, which may carry secrets.
+    const settings = await $.settings.read().catch(() => undefined)
     const pinned = resolveTtl({
       force5m: await $.env.get('FORCE_PROMPT_CACHING_5M'),
       chosen: await $.env.get('CLAUDE_CODE_PROMPT_CACHE_TTL'),
-      // Only this key is read: the settings also hold `env`, which may carry secrets.
-      setting: (await $.settings.read().catch(() => undefined))?.promptCacheTtl,
+      setting: settings?.promptCacheTtl,
       enable1h: await $.env.get('ENABLE_PROMPT_CACHING_1H'),
     })
     if (pinned !== undefined) pinTtl(pinned)
+    band.turnOpen = false
+    band.idleCompactFrom = idleCompactFrom({
+      terminal: e.surface === 'terminal' && e.isInteractive,
+      setting: settings?.idleCompaction,
+      disableAuto: await $.env.get('DISABLE_AUTO_COMPACT'),
+      disableAll: await $.env.get('DISABLE_COMPACT'),
+      minTokens: await $.env.get('CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS'),
+    })
 
     // One timer, repainting only when the drawing would differ: every minute
     // (the battery, the reset countdowns, the pace tick), and every second of
@@ -564,6 +583,7 @@ export const register: Register = on => {
     // (read through `in`: older engines' types don't declare it). Its run is
     // part of the main turn that spawned it, which keeps the start cost.
     if ('agentId' in e && e.agentId !== undefined) return next(e)
+    band.turnOpen = true
     // /model may have switched what the session's tokens are priced at.
     notePriceModel(await $.session.model().catch(() => undefined))
     const cost = await ledgerUsd($)
@@ -576,6 +596,7 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId === undefined) {
+      band.turnOpen = false
       const usage = await $.session.usage().catch(() => undefined)
       const cost = usage?.cost?.usd
       const spent = noteTurnEnd(e.turnId, cost)
@@ -617,7 +638,13 @@ export const register: Register = on => {
   on('session.compact', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId === undefined && e.trigger !== 'precompute' && result.skip === undefined) {
-      noteCompaction(result.tokensAfter)
+      const now = await $.clock.now()
+      // No turn under way, not /compact, and long after the last request:
+      // Claude Code compacting the conversation before its cache ran out.
+      // (The trigger it names isn't matched, so a new one still counts.)
+      const idle = !band.turnOpen && e.trigger !== 'manual' && cache.requests > 0 && now - cache.lastAt >= IDLE_GAP_MS
+      if (idle && result.tokensAfter !== undefined) noteIdleCompaction(now, result.tokensAfter)
+      else noteCompaction(result.tokensAfter)
       $.ui.invalidate('ui.render')
     }
     return result
@@ -719,7 +746,10 @@ export const register: Register = on => {
         layout: band.layout,
         glyphs: band.glyphs,
         now,
-        cache: cacheView(now, usage.cost?.usd, contextTokens),
+        cache: {
+          ...cacheView(now, usage.cost?.usd, contextTokens),
+          idleCompacts: band.idleCompactFrom !== undefined && !band.autoCompactOff && contextTokens >= band.idleCompactFrom,
+        },
         costUsd: spentUsd(usage.cost?.usd),
         lastTurnUsd: insights.lastTurnUsd,
         history: trails,

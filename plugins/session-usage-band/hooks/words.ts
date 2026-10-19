@@ -230,12 +230,16 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
   const price = c.reWarmUsd !== null ? fmtSmallCost(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`
   // The card counts down as chips' row always has: `1h 05m`, `0:47`.
   const countdown: Say = [[fmtCountdown(c.msLeft), 'value'], [' left', 'label']]
-  const value = counting ? left : f.mood === 'unmeasured' ? UNKNOWN : f.mood
+  const value = counting ? left : f.mood === 'unmeasured' ? UNKNOWN : f.compacted ? 'compacted' : f.mood
   const cardHead: Say = f.mood === 'unmeasured' ? [['not measured yet', 'value']] : counting ? countdown : [[value, 'value']]
   const say: Say =
-    f.mood === 'cold' ? [['cache ', 'label'], ['cold', 'value'], [' · re-warm ', 'label'], [f.estimate, 'value']] : [['cache ', 'label'], [value, 'value']]
+    f.compacted ? [['cache ', 'label'], ['compacted', 'value'], [' · next ', 'label'], [f.estimate, 'value']]
+    : f.mood === 'cold' ? [['cache ', 'label'], ['cold', 'value'], [' · re-warm ', 'label'], [f.estimate, 'value']]
+    : [['cache ', 'label'], [value, 'value']]
   const sayShort: Say =
-    f.mood === 'cold'
+    f.compacted
+      ? [['compacted ', 'label'], [f.estimate, 'value']]
+      : f.mood === 'cold'
       ? [['cold ', 'label'], [f.estimate, 'value']]
       : f.mood === 'warming'
         ? [['warming', 'value']]
@@ -247,13 +251,14 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     left,
     say,
     heartAlt:
-      f.mood === 'cold' ? 'cache cold' : f.mood === 'expiring' ? 'cache in its last minute' : f.mood === 'unmeasured' ? 'cache not measured yet' : f.mood === 'warming' ? 'cache warming' : 'cache warm',
+      f.compacted ? 'cache compacted' : f.mood === 'cold' ? 'cache cold' : f.mood === 'expiring' ? 'cache in its last minute' : f.mood === 'unmeasured' ? 'cache not measured yet' : f.mood === 'warming' ? 'cache warming' : 'cache warm',
     text: joined(say),
     textMarked: recalledTime ? `cache ~${left}` : joined(say),
     textShortMarked: recalledTime ? `cache ~${leftShort}` : joined(sayShort),
     bandName: 'cache',
     bandWords:
       f.mood === 'expiring' ? said([AMBER.cache(leftShort, f.estimate).long, coldAtClock === undefined ? undefined : `cold at ${coldAtClock}`])
+      : f.compacted ? said(['compacted while idle', `next ${f.estimate}`])
       : f.mood === 'cold' ? said(['cold', reWarm])
       : counting ? said([recalledTime ? `~${left}` : left, coldAtClock === undefined ? undefined : `cold at ${coldAtClock}`, reWarm])
       : f.mood === 'unmeasured' ? ['not measured yet']
@@ -267,12 +272,18 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame
     idleText: c.recalled && c.idleMs !== null ? fmtAgo(c.idleMs) : undefined,
     cardHead,
     cardNote:
-      f.mood === 'unmeasured' ? "Countdown starts with Claude's next reply." : f.mood === 'warming' ? 'First message builds the cache.' : undefined,
+      f.mood === 'unmeasured' ? "Countdown starts with Claude's next reply."
+      : f.mood === 'warming' ? 'First message builds the cache.'
+      : f.compacted ? 'Compacted while idle: next message writes the summary.'
+      : f.idleCompactSoon ? 'Claude Code may compact it at ~54m idle, before it goes cold.'
+      : undefined,
     alt:
       f.mood === 'unmeasured'
         ? 'cache not measured yet'
         : f.mood === 'warming'
           ? 'cache warming'
+          : f.compacted
+            ? altOf('cache', 'compacted while idle', `next message about ${price}`)
           : f.mood === 'cold'
             ? altOf('cache', 'cold', `re-warm about ${price}`)
             : counting
@@ -297,7 +308,9 @@ export const cacheCopy = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame)
   const readPct = `${+(c.readShare * 100).toFixed(1)}%`
   const left = fmtCountdown(c.msLeft)
   const battery = f.charge <= 0 ? 'cache battery empty' : `cache battery ${Math.round(clamp01(f.charge) * 100)}% left`
-  const warmHover = `${left} left; warm cache bills input at ${readPct}, expires ${c.ttl} after a request`
+  const warmHover = f.idleCompactSoon
+    ? `${left} left; may be compacted at ~54m idle, before it goes cold`
+    : `${left} left; warm cache bills input at ${readPct}, expires ${c.ttl} after a request`
   switch (f.mood) {
     case 'unmeasured':
       return {
@@ -321,6 +334,14 @@ export const cacheCopy = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame)
         alt: battery,
       }
     case 'cold':
+      if (f.compacted)
+        return {
+          // A summary to write, not a cache lost: as calm as cold.
+          pill: short => (short ? `compacted ${f.estimate}` : `cache compacted · next ${f.estimate}`),
+          figure: undefined,
+          hover: `Compacted while idle: next message writes the ${fmtTokens(c.window)} summary${c.reWarmUsd === null ? '' : ` (${f.estimate})`}`,
+          alt: 'cache compacted',
+        }
       return {
         // Cold is a price, not an error: neutral, no hue, no alarm.
         pill: short => (short ? `cold ${f.estimate}` : `cache cold · next message ${f.estimate}`),
@@ -614,6 +635,10 @@ const cacheBoard = (r: BoardFacts): BoardRow => {
   if (c.mood === 'unmeasured' || c.mood === 'warming') return at({ status: 'CHECK-IN', time: NONE, remarks: '', cell: 'CHECK-IN', cellShort: 'CHECK-IN', tone: 'calm' })
   if (r.frame.isWorking) return at({ status: 'BOARDING', time: NONE, remarks: '', cell: 'BOARDING', cellShort: 'BOARDING', tone: 'calm' })
   const clock = r.coldAt === null || zone === undefined ? undefined : `${c.measured ? '' : '~'}${fmtClock(r.coldAt, zone)}`
+  if (c.compacted) {
+    const next = `NEXT ${c.estimate}`
+    return at({ status: 'COMPACTED', time: clock ?? NONE, remarks: next, cell: clock === undefined ? `COMPACTED · ${next}` : `COMPACTED ${clock} · ${next}`, cellShort: next, tone: 'calm' })
+  }
   if (c.mood === 'cold')
     return at({ status: 'DEPARTED', time: clock ?? NONE, remarks: reWarm, cell: clock === undefined ? `DEPARTED · ${reWarm}` : `DEPARTED ${clock} · ${reWarm}`, cellShort: reWarm, tone: 'calm' })
   const left = c.coldInMs ?? 0

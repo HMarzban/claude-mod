@@ -357,6 +357,23 @@ Code does, the first match in this order:
 - `"promptCacheTtl": "5m"` or `"1h"` in your settings.json
 - `ENABLE_PROMPT_CACHING_1H=1`
 
+### Idle compaction
+
+In a terminal session on the hour's cache, Claude Code compacts a long
+conversation (200k tokens of context by default) that sits idle for about
+54 minutes, shortly before its cache would expire. Your next message then
+writes a summary instead of the whole conversation
+([Claude Code's docs](https://code.claude.com/docs/en/settings-reference#idlecompaction)).
+
+While that can happen, the cache's card says so until the 54-minute mark.
+The countdown and the re-warm price stay, since Claude Code also needs its
+feature flags and an awake computer to do it. Once it has compacted, the
+cache reads `compacted`, calm, with what the next message costs to write the
+summary; the next reply starts the countdown again. The band follows
+`"idleCompaction": false`, `DISABLE_AUTO_COMPACT`, `DISABLE_COMPACT` and
+`CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS` as Claude Code does. On the desktop,
+which doesn't compact while idle, neither shows.
+
 ## Developing
 
 See [CONTRIBUTING.md](https://github.com/HMarzban/claude-mod/blob/main/CONTRIBUTING.md)
