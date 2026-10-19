@@ -1,5 +1,5 @@
 import { test, expect } from 'claude-code/testing'
-import { barChart, braille, dayCells, dayCellsFit, flatBeats, heartbeat, meter, sparkline, stackGrid } from '../hooks/charts'
+import { barChart, braille, dayCells, dayCellsFit, flatBeats, heartbeat, meter, sparkline, track } from '../hooks/charts'
 import { makeKit } from '../hooks/kit'
 import { METER_CELLS } from '../hooks/layout'
 import { drawBand } from '../hooks/band'
@@ -234,21 +234,18 @@ test("the beats' empty state: a flat line on the beats' baseline, dim, in the in
   expect(textOf(text)).toBe('⣀'.repeat(7))
   expect((text as Node).props?.color).toBe('#9a9aa4')
 })
-test("the open stack's grid: one chart width for every band, fitted once to the room, and a name column as wide as the longest name", () => {
-  const names = ['cache', 'spend', 'context', '5h', '7d']
-  const at = (surface: 'desktop' | 'terminal', columns: number) => stackGrid(makeKit(fakeEl, snapOf({ surface, columns })), columns - 4, names, true)
-  // The desktop: up to 240 px, a third of the room or less; a whole column for 'context'.
-  expect(at('desktop', 160)).toEqual({ chart: { px: 240, cells: 24 }, name: 6, lead: 32 })
-  expect(at('desktop', 94).chart?.px).toBe(240)
-  expect(at('desktop', 60).chart?.px).toBeLessThan(240)
-  // In text, braille cells: twelve, two beats a cell.
-  expect(at('terminal', 100)).toEqual({ chart: { px: 96, cells: 12 }, name: 7, lead: 21 })
-  // The words keep 24 columns: narrower, the chart gives way to them, then goes.
-  expect(at('terminal', 46)).toEqual({ chart: { px: 72, cells: 9 }, name: 7, lead: 18 })
-  expect(at('terminal', 40).chart).toBeUndefined()
-  expect(at('desktop', 40).chart).toBeUndefined()
-  // No charts, as in the ascii tier: the name column alone.
-  expect(stackGrid(makeKit(fakeEl, snapOf({ columns: 100 })), 96, names, false)).toEqual({ chart: undefined, name: 7, lead: 8 })
+test("the cache's track: the hour gone filled from the left, now a rule across it, its own width; text braille, gone cells raised", () => {
+  const src = (frac: number) => svg(track(desk, { key: 't', alt: 'cache 52 minutes left, warm', frac, color: '#7fcf8a', px: 400, height: 40, air: 8, cells: 40 }))
+  const at = src(0.25)
+  expect([at.props.width, at.props.height, at.props.alt]).toEqual([400, 48, 'cache 52 minutes left, warm'])
+  expect(at.props.source).not.toMatch(/preserveAspectRatio/)
+  expect(Number(/<rect class="fill"[^>]* width="([\d.]+)"/.exec(at.props.source)?.[1])).toBe(100)
+  expect(Number(/<line class="now" x1="([\d.]+)"/.exec(at.props.source)?.[1])).toBe(100)
+  // Nothing gone, no fill; now's rule stays inside the chart at either end.
+  expect(src(0).props.source).not.toMatch(/class="fill"/)
+  expect(Number(/<line class="now" x1="([\d.]+)"/.exec(src(1).props.source)?.[1])).toBeLessThan(400)
+  const text = textOf(track(term, { key: 't', alt: 'a', frac: 0.25, color: '#7fcf8a', px: 80, height: 20, cells: 8 }))
+  expect(text).toBe('⣤⣤⣀⣀⣀⣀⣀⣀')
 })
 test("a line's headroom keeps its scale's top, and a level drawn there, below the chart's own top", () => {
   const src = svg(sparkline(desk, { key: 's', alt: 'context', values: [10, 20], color: '#888888', px: 90, height: 40, max: 20, level: 1, air: 8, headroom: 8 })).props.source

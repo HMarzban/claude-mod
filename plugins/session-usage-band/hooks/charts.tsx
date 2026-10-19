@@ -29,39 +29,6 @@ const svgOf = (width: number, height: number, marks: string, attrs = ''): string
 /** Marks set `air` px down, below the air above them. */
 const airOf = (marks: string, air: number): string => (air > 0 ? `<g transform="translate(0 ${air})">${marks}</g>` : marks)
 
-// ---- the open stack's grid --------------------------------------------------
-
-/** The least a chart is drawn at beside its words: under it, the words alone. */
-const CHART_MIN_PX = 48
-
-/** The open stack's widest chart, its share of the room, and in text its
- *  cells: two beats or turns a cell, the last 24. */
-const STACK_CHART_PX = 240
-const STACK_SHARE = 3
-const STACK_TEXT_CELLS = 12
-const STACK_TEXT_LEAST = 4
-/** The columns a band's words keep beside the grid: the chart gives way to them. */
-const STACK_WORDS_LEAST = 24
-
-/** The open stack's grid: one chart width for every band, fitted once to
- *  `room` and leaving the words their least, none where `charts` is off or
- *  that leaves too little; a name column
- *  as wide as the longest of `names`, in whole columns; and `lead`, the
- *  columns both take before a band's words, a column after each. */
-export type StackGrid = Readonly<{ chart: Readonly<{ px: number; cells: number }> | undefined; name: number; lead: number }>
-export const stackGrid = (kit: Kit, room: number, names: readonly string[], charts: boolean): StackGrid => {
-  const { Svg, measure } = kit
-  const name = Math.ceil(Math.max(0, ...names.map(n => [...n].length)) * measure.text)
-  // What the words leave the chart: the room less the name column, two gaps and the words' least.
-  const spare = room - name - 2 - STACK_WORDS_LEAST
-  // Whole columns, so a drawn chart is as wide as an empty cell.
-  const px = Math.floor(Math.min(STACK_CHART_PX, (room * measure.pxPerCell) / STACK_SHARE, spare * measure.pxPerCell) / measure.pxPerCell) * measure.pxPerCell
-  const cells = Svg ? px / measure.pxPerCell : Math.min(STACK_TEXT_CELLS, Math.floor(room / STACK_SHARE), spare)
-  const fits = charts && (Svg ? px >= CHART_MIN_PX : cells >= STACK_TEXT_LEAST)
-  const chart = !fits ? undefined : Svg ? { px, cells } : { px: cells * measure.pxPerCell, cells }
-  return { chart, name, lead: (chart === undefined ? 0 : chart.cells + 1) + name + 1 }
-}
-
 // ---- braille --------------------------------------------------------------
 
 /** Values as braille, two to a cell: the left column takes dots 7,3,2,1 from
@@ -355,6 +322,50 @@ export const heartbeat = (kit: Kit, o: Readonly<{ key: string; alt: string; stat
     : state === 'hollow' ? `<circle cx="6" cy="6" r="3.5" fill="none" stroke="${color}" stroke-width="1.2"/>`
     : `<circle cx="6" cy="6" r="3.5" fill="${color}"/>`
   return <Svg key={key} source={svgOf(12, 12, body)} alt={alt} width={12} height={12} />
+}
+
+// ---- track ----------------------------------------------------------------
+
+type TrackOptions = Readonly<{
+  key: string
+  alt: string
+  /** The share of the span gone, 0 to 1. */
+  frac: number
+  color: string
+  px: number
+  height: number
+  /** Px of air above the chart, inside its Svg. */
+  air?: number
+  /** Its length in text. */
+  cells: number
+}>
+
+/** A track's thickness, and how far now's rule stands past it either side. */
+const TRACK_PX = 6
+const NOW_REACH = 7
+
+/** A span of time as a track, its start at the left and its end at the
+ *  right, `frac` of it gone, filled in `color`, and a rule across it at now
+ *  in value ink: the cache's hour from its last reply to cold. Text draws
+ *  braille, a gone cell raised above the floor the rest keep. */
+export const track = (kit: Kit, o: TrackOptions): RenderChildren => {
+  const { Svg, palette } = kit
+  const { key, alt, frac, color, px, height, air = 0, cells } = o
+  const gone = clamp01(frac)
+  if (!Svg) {
+    const raised = Math.round(gone * cells)
+    const glyphs: Array<readonly [string, string]> = Array.from({ length: cells }, (_, i) => (i < raised ? ['⣤', color] : ['⣀', palette.meterTrack]))
+    return textRuns(kit, key, glyphs)
+  }
+  const y = tenth((height - TRACK_PX) / 2)
+  // A sliver under the track's thickness reads as nothing: any time gone shows as a nub.
+  const fill = gone > 0 ? `<rect class="fill" x="0" y="${y}" width="${tenth(Math.max(TRACK_PX, gone * px))}" height="${TRACK_PX}" rx="3" fill="${color}"/>` : ''
+  const now = tenth(Math.min(px - 1, Math.max(1, gone * px)))
+  const marks =
+    `<rect class="track" x="0.5" y="${tenth(y + 0.5)}" width="${px - 1}" height="${TRACK_PX - 1}" rx="2.5" fill="${palette.meterTrack}" stroke="${palette.trackStroke}"/>` +
+    fill +
+    `<line class="now" x1="${now}" y1="${tenth(y - NOW_REACH)}" x2="${now}" y2="${tenth(y + TRACK_PX + NOW_REACH)}" stroke="${palette.value}" stroke-width="1.5" stroke-linecap="round"/>`
+  return <Svg key={key} source={svgOf(px, height + air, airOf(marks, air))} alt={alt} width={px} height={height + air} />
 }
 
 // ---- day cells ------------------------------------------------------------

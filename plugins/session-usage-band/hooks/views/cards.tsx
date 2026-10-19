@@ -11,7 +11,7 @@ import type { BarSize } from '../layout'
 import type { LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { drawStrip } from '../strip'
-import { SPLIT_LABELS, type Say } from '../words'
+import { CARD_TITLES, SPLIT_LABELS, type Say } from '../words'
 import { bodyRowsFor, footer, footerRoom } from './frame'
 import { accentOf } from './parts'
 import { cardBordered, cardEdge, cardInner, cardShell, cardsPerLine, factRow as sharedFactRow, headline } from './shell'
@@ -116,12 +116,12 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
 
   const cacheView = card(
     'cache',
-    'Cache',
+    CARD_TITLES.cache,
     { say: cache.cardHead, tone: cache.tone },
     cache.known ? meter(kit, { label: 'cache', frac: cache.charge, tone: cache.tone, accent: palette.warm, size: cardBar, stretch: true, reads: 'left' }) : null,
     [
       cache.cardNote === undefined ? null : note(cache.cardNote),
-      cache.known ? factRow(cache.mood === 'cold' ? 'next message' : 're-warm if cold', cache.estimate) : null,
+      cache.known ? factRow(cache.estimateLabel, cache.estimate) : null,
       knownRow('idle for', cache.idleText),
       knownRow('unexpected rebuilds', cache.rebuildsText),
       knownRow('saved by cache', cache.savedText),
@@ -138,12 +138,12 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
   const tokenRows = splitShown
     ? spend.split.map((part, i) => factRow(part.label, part.text, tokenParts[i]))
     : [note('Breakdown counts from your next message.')]
-  const spendView = card('spend', 'Spend', { say: [[spend.totalText, 'value']] }, splitShown ? split(cardBar) : null, [lastRow, ...tokenRows])
+  const spendView = card('spend', CARD_TITLES.spend, { say: [[spend.totalText, 'value']] }, splitShown ? split(cardBar) : null, [lastRow, ...tokenRows])
 
   const contextView = context.known
     ? card(
         'context',
-        'Context',
+        CARD_TITLES.context,
         { say: context.cardHead, tone: context.tone },
         meter(kit, { label: 'context', frac: context.frac, tone: context.tone, accent: palette.meterFill, size: cardBar, stretch: true }),
         [
@@ -215,7 +215,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     read.limits.length > 0
       ? card(
           'limits',
-          'Limits',
+          CARD_TITLES.limits,
           {
             say: worst === undefined ? [['all reset', 'value']] : [[`${worst.name} `, 'label'], [worst.valueMarked, 'value']],
             tone: worst === undefined ? 'calm' : worst.tone,
