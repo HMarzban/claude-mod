@@ -5,6 +5,12 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.15.0] - 2026-10-19
+
+### Added
+- Idle compaction. In a terminal session on the hour's cache, Claude Code (2.1.290 and later) compacts a long conversation left idle about 54 minutes, before its cache expires. Until then, the cache's card says it may be compacted at ~54m idle. Once it is, the cache reads `compacted`, calm, with what the next message costs to write the summary: `cache compacted · next ~$0.20` in chips, `COMPACTED` on the departures board, a flat trace in pulse. Before, the band kept counting down to a cold cache that was already given up, and turned amber in its last minute.
+- The band follows `"idleCompaction": false`, `DISABLE_AUTO_COMPACT`, `DISABLE_COMPACT` and `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS` as Claude Code does. It keeps one more key from your settings, `idleCompaction`.
+
 ## [0.14.1] - 2026-10-19
 
 ### Fixed

@@ -7,7 +7,7 @@ import type { On, SessionUsage } from 'claude-code'
 import type { Engine, MockClock } from 'claude-code/testing'
 import { TTL_MS, type Ttl } from '../hooks/cache'
 import {
-  DEFAULT_MAX_ROWS, HOUR, HOUR_1, MIN, START, USAGE, FRESH, breakdown, engine, mountBand, pacing, resp, respond, setup, turn, usageAt, type Node,
+  DEFAULT_MAX_ROWS, HOUR, HOUR_1, MIN, START, SUMMARY, USAGE, FRESH, breakdown, engine, mountBand, pacing, resp, respond, setup, turn, usageAt, type Node,
 } from './helpers'
 
 export type Appearance = 'dark' | 'light' | 'plain'
@@ -56,6 +56,8 @@ const cooled = async ($: Engine, clock: MockClock, ttlMs: number): Promise<void>
 }
 const NEAR = contextAt(150_000, 160_000)
 const OFF = contextAt(170_000, undefined)
+/** A conversation past idle compaction's 200k threshold, on a 1M window. */
+const LONG_TALK: SessionUsage = { ...USAGE, context: { tokens: 250_000, window: 1_000_000, percent: 25 } }
 
 export const SCENARIOS = {
   calm: { drive: replied, amber: [] },
@@ -93,6 +95,18 @@ export const SCENARIOS = {
   },
   // Golden's capture predates this one: a cold cache's calm price beside an amber limit.
   coldLimit80: { usage: { ...USAGE, rateLimits: withLimits(82, 30) }, drive: cooled, amber: ['limit80'] },
+  // Idle on the hour's cache with a long conversation: Claude Code may compact it at ~54m.
+  idleCompactSoon: { usage: LONG_TALK, drive: async ($, clock) => { await replied($); await clock.advance(10 * MIN) }, amber: [] },
+  // Compacted while idle: the cache is given up, and the next message writes the summary.
+  compactedIdle: {
+    usage: LONG_TALK,
+    drive: async ($, clock) => {
+      await replied($)
+      await clock.advance(54 * MIN)
+      await $.session.compact({ trigger: 'auto', messages: SUMMARY })
+    },
+    amber: [],
+  },
 } as const satisfies Record<string, Scenario>
 
 export type ScenarioName = keyof typeof SCENARIOS

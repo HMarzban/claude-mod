@@ -10,11 +10,12 @@ it:
   limits), the clock, the session's project root and repository root, and
   these environment variables: `HOME`, `CC_BAND_APPEARANCE`, `NO_COLOR`,
   `CC_BAND_GLYPHS`, `LC_ALL`, `LC_CTYPE`, `LANG`,
-  `CLAUDE_CODE_PROMPT_CACHE_TTL`, `ENABLE_PROMPT_CACHING_1H` and
-  `FORCE_PROMPT_CACHING_5M`.
+  `CLAUDE_CODE_PROMPT_CACHE_TTL`, `ENABLE_PROMPT_CACHING_1H`,
+  `FORCE_PROMPT_CACHING_5M`, `DISABLE_AUTO_COMPACT`, `DISABLE_COMPACT` and
+  `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS`.
 - **Reads** your merged Claude Code settings once when a session starts,
-  and keeps one key from them, `promptCacheTtl`. Nothing else in them is
-  kept, stored, drawn or logged.
+  and keeps two keys from them, `promptCacheTtl` and `idleCompaction`.
+  Nothing else in them is kept, stored, drawn or logged.
 - **Runs** two read-only git commands in the project root, for the
   workspace strip, exactly:
   - `git -c core.fsmonitor=false --no-optional-locks status --porcelain=v2 --branch`

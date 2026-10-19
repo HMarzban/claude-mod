@@ -51,6 +51,13 @@ export type BandSnapshot = Readonly<{
     /** The conversation is known to start here; else, before its first
      *  reply, the band has not measured the cache yet. */
     fresh: boolean
+    /** Claude Code compacted the conversation while it sat idle: the cache
+     *  is gone, and the next message writes the summary. */
+    compacted: boolean
+    /** Claude Code may compact this conversation when it sits idle on the
+     *  hour's cache: a terminal session, idle compaction on, and the context
+     *  past its threshold. */
+    idleCompacts: boolean
     /** Before the first reply the band saw, the cache is as recalled: from
      *  the session's last reply, remembered or read off its transcript. */
     recalled: boolean

@@ -57,6 +57,9 @@ type CacheState = {
   cached: number
   /** The next request rebuilds the cache on purpose (a compaction). */
   rebuilding: boolean
+  /** When Claude Code compacted the conversation while it sat idle: the
+   *  cache it held is given up, and the next request writes the summary. */
+  compactedAt: number | undefined
   /** The model the last main-loop request ran on; a switch rebuilds the cache. */
   model: string | undefined
   /** Since takeRebuilt last read it, a main-loop request rebuilt a cache
@@ -100,6 +103,7 @@ const INITIAL: Readonly<CacheState> = {
   window: 0,
   cached: 0,
   rebuilding: false,
+  compactedAt: undefined,
   model: undefined,
   lastRebuilt: false,
   costBase: 0,
@@ -199,6 +203,33 @@ export const spentUsd = (ledgerNow: number | undefined): number => {
  *  with this process's. */
 const allTokens = (): TokenCounts => (state.prior === undefined ? state.tokens : addTokens(state.tokens, state.prior.tokens))
 
+/** Claude Code compacts a conversation left idle on the hour's cache about
+ *  this long after its last request, before the cache runs out. */
+export const IDLE_COMPACT_MS = 54 * 60_000
+/** A compaction this long after the last request, with no turn under way, is
+ *  an idle one: an auto-compaction comes as a turn starts, not half an hour on. */
+export const IDLE_GAP_MS = 30 * 60_000
+const IDLE_COMPACT_TOKENS = 200_000
+const IDLE_COMPACT_FLOOR = 100_000
+
+const truthy = (v: string | undefined): boolean => v !== undefined && ['1', 'true', 'yes', 'on'].includes(v.trim().toLowerCase())
+
+/** The context, in tokens, from which Claude Code compacts this session when
+ *  it sits idle; undefined when it never does: outside an interactive
+ *  terminal, `idleCompaction: false`, or compaction turned off. The threshold
+ *  takes a positive whole number, raised to 100k, as Claude Code does. */
+export const idleCompactFrom = (o: {
+  terminal: boolean
+  setting: unknown
+  disableAuto: string | undefined
+  disableAll: string | undefined
+  minTokens: string | undefined
+}): number | undefined => {
+  if (!o.terminal || o.setting === false || truthy(o.disableAuto) || truthy(o.disableAll)) return undefined
+  const min = o.minTokens !== undefined && /^\d+$/.test(o.minTokens.trim()) ? Number(o.minTokens.trim()) : 0
+  return min > 0 ? Math.max(IDLE_COMPACT_FLOOR, min) : IDLE_COMPACT_TOKENS
+}
+
 const asTtl = (v: unknown): Ttl | undefined => (v === '5m' || v === '1h' ? v : undefined)
 
 /** The TTL the environment or the settings pin, if they pin one, in Claude
@@ -231,6 +262,13 @@ export const noteCompaction = (sizeAfter: number | undefined): void => {
     state.window = sizeAfter
     state.cached = 0
   }
+}
+
+/** A compaction while the conversation sat idle, at `at`: its cache counts
+ *  as gone from then, at the summary's size. */
+export const noteIdleCompaction = (at: number, sizeAfter: number): void => {
+  noteCompaction(sizeAfter)
+  state.compactedAt = at
 }
 
 /** The engine may reset the ledger on /clear: once it reads below the
@@ -296,6 +334,7 @@ export const recordResponse = (
   state.cached = hit + written
   state.lastAt = sentAt
   state.rebuilding = false
+  state.compactedAt = undefined
   state.model = model ?? state.model
 }
 
@@ -382,6 +421,7 @@ const measuredColdAt = (): number | null => (state.requests > 0 ? state.lastAt +
 /** When the cache goes or went cold: measured from the last reply, else
  *  recalled; null with nothing to go by, or a resume the engine called expired. */
 const coldAtOf = (): number | null => {
+  if (state.compactedAt !== undefined) return state.compactedAt
   const measured = measuredColdAt()
   if (measured !== null) return measured
   if (state.resumedCache?.expired === true) return null
@@ -393,6 +433,7 @@ const coldAtOf = (): number | null => {
  *  it recalls, none if the engine called it expired; a full lifetime before
  *  either. */
 export const msLeft = (now: number): number => {
+  if (state.compactedAt !== undefined) return 0
   if (state.requests === 0 && state.resumedCache?.expired === true) return 0
   const at = coldAtOf()
   return at === null ? TTL_MS[effectiveTtl()] : Math.max(0, at - now)
@@ -401,7 +442,7 @@ export const msLeft = (now: number): number => {
 /** The cache as the band shows it, at `now`: measured once a reply has been
  *  seen, recalled before that. `contextTokens` is the context as it stands,
  *  which a recalled cold cache would rebuild. */
-export const cacheView = (now: number, sessionCost: number | undefined, contextTokens: number): CacheView => {
+export const cacheView = (now: number, sessionCost: number | undefined, contextTokens: number): Omit<CacheView, 'idleCompacts'> => {
   const recalled = isRecalled()
   const lastAt = recalledAt()
   const recallRate = state.recall?.rate ?? null
@@ -429,6 +470,7 @@ export const cacheView = (now: number, sessionCost: number | undefined, contextT
     savedUsd: rate === null || tokens.read <= 0 ? null : rate * (1 - share) * tokens.read,
     readShare: share,
     fresh: state.knownFresh,
+    compacted: state.compactedAt !== undefined,
     recovered: state.prior !== undefined,
     tokens: { sent: tokens.uncached + tokens.written, back: tokens.output, cached: tokens.read },
   }
