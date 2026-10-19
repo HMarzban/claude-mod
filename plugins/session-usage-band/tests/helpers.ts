@@ -558,10 +558,12 @@ export const textMeters = async (ui: {
 
 type TurnEnd = { agentId?: string; isAborted?: boolean; reason?: 'answer' | 'aborted' | 'error' }
 
-/** A main-loop turn's `turn.start`, with the ledger at `at`. */
-export const startTurn = async ($: Engine, id: string, at: number): Promise<void> => {
+/** A turn's `turn.start` (with `agentId`, a subagent's), with the ledger at `at`. */
+export const startTurn = async ($: Engine, id: string, at: number, agentId?: string): Promise<void> => {
   usage.current = { ...usage.current, cost: { usd: at } }
-  await $.turn.start({ text: 'hi', turnId: id })
+  // Since 2.1.299 a subagent's turn raises turn.start too, with its agentId.
+  const start = agentId === undefined ? { text: 'hi', turnId: id } : { text: 'hi', turnId: id, agentId }
+  await $.turn.start(start)
 }
 
 /** A turn's `turn.complete` (with `agentId`, a subagent's), with the ledger at `at`. */
@@ -570,10 +572,10 @@ export const endTurn = async ($: Engine, id: string, at: number, extra: TurnEnd 
   await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: id, reason: 'answer', ...extra })
 }
 
-/** One main-loop turn (or, with `agentId`, a subagent's, which raises no
- *  `turn.start`) that moves the ledger from `from` to `to`. */
+/** One main-loop turn (or, with `agentId`, a subagent's) that moves the
+ *  ledger from `from` to `to`. */
 export const turn = async ($: Engine, id: string, from: number, to: number, extra: TurnEnd = {}): Promise<void> => {
-  if (extra.agentId === undefined) await startTurn($, id, from)
+  await startTurn($, id, from, extra.agentId)
   await endTurn($, id, to, extra)
 }
 

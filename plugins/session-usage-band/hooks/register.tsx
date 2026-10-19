@@ -35,7 +35,6 @@ import { COMPACT_NEAR, MINUTE_MS, SEVERE_AT, WARN_AT, clipMiddle, contextUsed, f
 import { resolveGlyphs } from './glyphs'
 import {
   fiveHourEtaMs,
-  forgetTurn,
   insights,
   noteFiveHour,
   noteTurnEnd,
@@ -559,6 +558,10 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e)) // a failure here must never stop a session starting
 
   on('turn.start', async ($, e, next) => {
+    // Since 2.1.299 a subagent's turn raises turn.start too, with its agentId
+    // (read through `in`: older engines' types don't declare it). Its run is
+    // part of the main turn that spawned it, which keeps the start cost.
+    if ('agentId' in e && e.agentId !== undefined) return next(e)
     // /model may have switched what the session's tokens are priced at.
     notePriceModel(await $.session.model().catch(() => undefined))
     const cost = await ledgerUsd($)
@@ -568,7 +571,6 @@ export const register: Register = on => {
   })
 
   // Main-loop turns only: a subagent's run is part of the turn that spawned it.
-  // It raises no turn.start; forgetTurn guards against one that does.
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId === undefined) {
@@ -589,8 +591,6 @@ export const register: Register = on => {
       // A turn may have switched branch, committed or moved the session.
       void readWorkspace($)
       $.ui.invalidate('ui.render')
-    } else {
-      forgetTurn(e.turnId)
     }
     return result
   })
