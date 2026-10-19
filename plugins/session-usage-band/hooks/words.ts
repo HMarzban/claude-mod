@@ -223,7 +223,7 @@ export type LimitWords = Readonly<{
 }>
 
 /** The cache in words, from its facts: it counts down only while `coldInMs` is set. */
-export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame): CacheWords => {
+export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache']): CacheWords => {
   const counting = f.coldInMs !== undefined
   const left = counting ? fmtLeft(f.coldInMs) : ''
   const leftShort = counting ? fmtLeftShort(f.coldInMs) : ''

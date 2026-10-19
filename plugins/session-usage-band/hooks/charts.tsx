@@ -141,7 +141,7 @@ type SplitBarOptions = Readonly<{
 /** A bar split into parts, each its share of the whole, in its own colour
  *  and, in text, its own fill; nothing while the whole is none. */
 export const splitBar = (kit: Kit, o: SplitBarOptions): RenderChildren => {
-  const { Svg, Text, palette } = kit
+  const { Svg, Text } = kit
   const { key = 'split', alt, parts, size } = o
   const total = parts.reduce((sum, { n }) => sum + n, 0)
   if (total <= 0) return null

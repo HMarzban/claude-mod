@@ -135,6 +135,12 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
    *  its space. */
   const gap = (key: string): RenderChildren => (snap.surface === 'desktop' ? <Box key={key} width={1} flexShrink={0} /> : ' ')
 
+  /** `columns` of air that is always an element, for a Box whose children
+   *  are all elements: the desktop's an empty Box, a text surface's a Text of
+   *  spaces, since a text surface draws no bare string in a Box. */
+  const air = (key: string, columns = 1): RenderElement =>
+    snap.surface === 'desktop' ? <Box key={key} width={columns} flexShrink={0} /> : <Text key={key}>{' '.repeat(columns)}</Text>
+
   /** An icon and the gap after it: an Svg on desktop, a glyph elsewhere. */
   const icon = (name: Icon, color: string, alt: string = ALT[name]): RenderChildren[] => {
     if (Svg) {
@@ -144,7 +150,7 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
     return GLYPH[name] ? [<Text key={`i-${name}`} color={color}>{`${GLYPH[name]} `}</Text>] : []
   }
 
-  return { Box, Button, Text, Svg, palette, measure, columns: snap.columns, glyphs, asDrawn, onTone, oneLine, hoverable, hoverCard, gap, icon }
+  return { Box, Button, Text, Svg, palette, measure, columns: snap.columns, glyphs, asDrawn, onTone, oneLine, hoverable, hoverCard, gap, air, icon }
 }
 
 export type Kit = ReturnType<typeof makeKit>

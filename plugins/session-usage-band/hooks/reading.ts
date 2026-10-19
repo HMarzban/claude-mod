@@ -471,7 +471,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
   let history: HistoryReading | undefined
   let week: WeekReading | undefined
   let board: Board | undefined
-  const cacheRead = { ...cache, ...cacheWords(cache, c, frame) }
+  const cacheRead = { ...cache, ...cacheWords(cache, c) }
   const spendRead = { ...spend, ...spendSaid }
   const contextRead = { ...context, ...contextWords(context) }
   return {

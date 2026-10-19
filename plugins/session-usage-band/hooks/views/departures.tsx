@@ -4,7 +4,7 @@
 // modules. Open, the board itself (departures-board.tsx). The words are the
 // board's (words.ts boardWords); this file only lays tiles.
 
-import type { RenderChildren, RenderElement } from 'claude-code'
+import type { RenderElement } from 'claude-code'
 import { flaps } from '../flaps'
 import type { Kit } from '../kit'
 import { ROW_SLACK } from '../layout'
@@ -40,17 +40,6 @@ const moduleOf = (kit: Kit, k: Keeps<Piece>, row: BoardRow, cell: string): Rende
   )
 }
 
-/** The band's own background between modules, and after the last, before
- *  ▵: a column where modules have their ground, two in plain, which has
- *  none. A text surface draws no bare string in a Box, so its air is a
- *  Text's spaces; the desktop's, an empty Box. */
-const air = (kit: Kit, key: string): RenderChildren => {
-  const { Box, Text, palette, measure } = kit
-  const columns = palette.filled ? 1 : 2
-  return measure.text < 1
-    ? <Box key={key} width={columns} flexShrink={0} />
-    : <Text key={key}>{' '.repeat(columns)}</Text>
-}
 
 /** A row's cell as the squeeze keeps it, chosen among its forms, never cut.
  *  Amber: whole until the amber step, then short. A calm limit: its reset
@@ -76,7 +65,11 @@ const keeps = (row: BoardRow, k: Keeps<Piece>): boolean =>
  *  every column between modules is one the row draws and measures. */
 const collapsed = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
   fitLine(kit, ORDER, kit.columns - ROW_SLACK, k => {
-    const modules = read.board.rows.filter(r => keeps(r, k)).flatMap((r, i) => [moduleOf(kit, k, r, cellOf(r, k)), air(kit, `air${i}`)])
+    const modules = read.board.rows.filter(r => keeps(r, k)).flatMap((r, i) => [moduleOf(kit, k, r, cellOf(r, k)), 
+      // The band's own background between modules, and after the last, before
+      // ▵: a column where modules have their ground, two in plain, which has none.
+      kit.air(`air${i}`, kit.palette.filled ? 1 : 2),
+    ])
     return line(kit, 'row', modules, toggleButton(kit, read, act), 0)
   })
 
