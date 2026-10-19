@@ -128,6 +128,27 @@ test('a thin rule between lines on the desktop, under the header too; none in a 
   expect(svgsOf(boardOf(band({ surface: 'terminal' })))).toHaveLength(0)
 })
 
+test('each rule spans the board to its right edge, as the header does, at every width', LONG, () => {
+  for (let columns = 60; columns <= 200; columns++) {
+    const open = band({ surface: 'desktop', columns, otherLimits: OTHER, maxRows: 40 })
+    const board = boardOf(open)
+    // Nothing in the board narrows a line: its lines stretch across it.
+    expect(`${columns} ${board?.props?.alignItems ?? 'stretch'}`).toBe(`${columns} stretch`)
+    const inner = 10 * (columns - ROW_SLACK - 2)
+    for (const l of linesOf(open)) {
+      expect(l.props?.width).toBeUndefined()
+      for (const rule of svgsOf(l).filter(s => /class="rule"/.test(String(s.props?.source)))) {
+        const source = String(rule.props?.source)
+        const drawn = Number(source.match(/<svg[^>]* width="(\d+(?:\.\d+)?)"/)?.[1])
+        // No width of its own: drawn past the board's estimate, its slot caps
+        // it, so it ends where the board's inner width does.
+        const at = `${columns} ${l.props?.key}`
+        expect(`${at} ${rule.props?.width} ${/preserveAspectRatio="none"/.test(source)} ${drawn >= 2 * inner}`).toBe(`${at} undefined true true`)
+      }
+    }
+  }
+})
+
 test('the footer is the one every layout draws: the workspace strip, Collapse and Hide band; no hint, no workspace on the board', () => {
   for (const surface of SURFACES) {
     const open = band({ surface, workspace: WS })

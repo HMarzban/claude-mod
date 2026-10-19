@@ -509,7 +509,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
       return (week ??= weekFacts(snap, sevenDay, fiveHour))
     },
     get board() {
-      return (board ??= boardWords({ frame, cache: cacheRead, spend: spendRead, context: contextRead, limits, workspace: snap.workspace, coldAt: c.coldAt }))
+      return (board ??= boardWords({ frame, cache: cacheRead, spend: spendRead, context: contextRead, limits, coldAt: c.coldAt }))
     },
     chips: {
       raw: snap,

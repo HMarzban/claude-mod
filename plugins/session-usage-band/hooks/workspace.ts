@@ -113,14 +113,6 @@ export const splitPath = (path: string): Readonly<{ parent: string; name: string
   return { parent: p.slice(0, cut + 1), name: p.slice(cut + 1) }
 }
 
-/** The strip's facts as words, for a surface that draws them its own way:
- *  the folder, then the branch and whether anything changed. */
-export const stripWords = (ws: Workspace): readonly string[] => {
-  const { name } = splitPath(ws.path)
-  const git = ws.git
-  return git === undefined ? [name] : [name, git.branch ?? 'detached', git.changed ? `${git.changed} changed` : 'clean']
-}
-
 /** One plain line for a screen reader or a hover. */
 export const gitSummary = (g: GitState): string => {
   const parts = [

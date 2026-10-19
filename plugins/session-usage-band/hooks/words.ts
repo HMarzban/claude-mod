@@ -33,8 +33,6 @@ import type { CostEntry, Trails } from './insights'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
 import type { CacheFacts, ContextFacts, Frame, LimitFacts, LimitKey, SliceMark, SliceRow, SpendFacts, Tone } from './reading'
 import type { BandSnapshot } from './snapshot'
-import type { Workspace } from './workspace'
-import { stripWords } from './workspace'
 
 /** The colour a piece of a phrase is drawn in. */
 export type Role = 'label' | 'value' | 'amber' | 'accent5' | 'accent7'
@@ -662,9 +660,6 @@ export type BoardRow = Readonly<{
 /** What the board says for a reset: the flap face has no ↻. */
 const BOARD_RESET = 'RESET'
 export type Board = Readonly<{
-  header: readonly string[] | undefined
-  /** The header's facts in words, for its flaps' alt. */
-  headerAlt: string | undefined
   rows: readonly BoardRow[]
   /** The time now on the viewer's clock, `20:36`, for the open board's
    *  header; none where the zone isn't known. */
@@ -676,7 +671,6 @@ type BoardFacts = Readonly<{
   spend: SpendFacts & SpendWords
   context: ContextFacts & ContextWords
   limits: readonly (LimitFacts & LimitWords)[]
-  workspace: Workspace | undefined
   coldAt: number | null
 }>
 
@@ -763,8 +757,6 @@ const upRow = (row: BoardRow): BoardRow => ({
 export const boardWords = (r: BoardFacts): Board => {
   const of = (key: LimitKey) => r.limits.filter(l => l.key === key).map(l => limitBoard(r, l))
   return {
-    header: r.workspace === undefined ? undefined : stripWords(r.workspace).map(w => w.toUpperCase()),
-    headerAlt: r.workspace === undefined ? undefined : `workspace ${stripWords(r.workspace).join(', ')}`,
     rows: [cacheBoard(r), spendBoard(r), contextBoard(r), ...of('5h'), ...of('7d'), ...of('other')].map(upRow),
     now: r.frame.zone === undefined ? undefined : fmtClock(r.frame.now, r.frame.zone),
   }
@@ -774,62 +766,11 @@ export const boardWords = (r: BoardFacts): Board => {
 export const remarksFit = (remarks: string, tiles: number): string =>
   remarks.length <= tiles ? remarks : tiles <= 1 ? '' : `${remarks.slice(0, tiles - 1)}…`
 
-/** `text` padded with spaces to `n` characters; longer text is left whole. */
-export const padTo = (text: string, n: number): string => (text.length >= n ? text : text + ' '.repeat(n - text.length))
-
 /** What a board line says in its four columns. */
 type BoardText = Pick<BoardRow, 'item' | 'status' | 'time' | 'remarks'>
 
 /** The board's column headings, a line of their own. */
 export const BOARD_HEADINGS: BoardText = { item: 'ITEM', status: 'STATUS', time: 'TIME', remarks: 'REMARKS' }
-/** The headings' flaps' alt. */
-export const BOARD_HEADINGS_ALT = 'the board\'s columns: item, status, time and remarks'
-
-/** The longest of the rows' texts, plus one for the air after it. */
-const widestOf = (rows: readonly BoardText[], of: (r: BoardText) => string): number => Math.max(0, ...rows.map(r => of(r).length)) + 1
-
-/** The board's columns in characters: ITEM, STATUS and TIME each as wide as
- *  its longest text among `rows`, plus one; REMARKS what is left of `room`. */
-export const boardColumns = (rows: readonly BoardText[], room: number): Readonly<{ item: number; status: number; time: number; remarks: number }> => {
-  const item = widestOf(rows, r => r.item)
-  const status = widestOf(rows, r => r.status)
-  const time = widestOf(rows, r => r.time)
-  return { item, status, time, remarks: Math.max(0, room - item - status - time) }
-}
-
-/** A board line's runs: TIME none once its words lead REMARKS. */
-export type BoardLine = Readonly<{ item: string; status: string; time: string | undefined; remarks: string }>
-
-/** REMARKS narrower than this, and TIME's words lead them instead. */
-const REMARKS_LEAST = 8
-
-/** `text` cut to `n` characters, `…` last, then padded to them. */
-const fitTo = (text: string, n: number): string => padTo(remarksFit(text, n), n)
-
-/** The board's header line: the workspace's facts three tiles apart, cut
- *  and padded to the room, as wide as every other line. */
-export const boardHeaderLine = (header: readonly string[], room: number): string => fitTo(header.join('   '), room)
-
-/** The board's lines in `room` tiles, a blank tile between runs taken from
- *  it: ITEM, STATUS and TIME padded to their columns, REMARKS cut and padded
- *  to theirs, so every line is the room's width and the board a rectangle.
- *  Where REMARKS would have fewer than 8, TIME's words lead them and the
- *  TIME column goes (spec §5.3); past that, STATUS is cut, then ITEM, so no
- *  line is longer than the room. */
-export const boardLines = (rows: readonly BoardText[], room: number): readonly BoardLine[] => {
-  const whole = boardColumns(rows, room - 3)
-  if (whole.remarks >= REMARKS_LEAST)
-    return rows.map(r => ({ item: padTo(r.item, whole.item), status: padTo(r.status, whole.status), time: padTo(r.time, whole.time), remarks: fitTo(r.remarks, whole.remarks) }))
-  const lead = (r: BoardText): BoardText =>
-    r === BOARD_HEADINGS || r.time === NONE ? r : { ...r, remarks: r.remarks === '' ? r.time : `${r.time} · ${r.remarks}` }
-  const lines = rows.map(lead)
-  const inner = Math.max(0, room - 2)
-  const item = Math.min(widestOf(lines, r => r.item), inner)
-  const status = Math.min(widestOf(lines, r => r.status), inner - item)
-  const remarks = inner - item - status
-  return lines.map(r => ({ item: fitTo(r.item, item), status: fitTo(r.status, status), time: undefined, remarks: fitTo(r.remarks, remarks) }))
-}
-
 /** The open board's title, at its header's left. */
 export const BOARD_TITLE = 'DEPARTURES'
 /** What leads the time now, at the header's right: `NOW 20:36`. */
