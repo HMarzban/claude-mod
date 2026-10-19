@@ -5,6 +5,11 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.16.0] - 2026-10-19
+
+### Changed
+- Pulse's collapsed row puts each reading on its own tile, its name then its figure then its chart; pulse opens into four cards like chips', each with its chart. The tiles stand on chips' ground, 5h and 7d in their own tints, so the spend trace no longer reads as the cache's. Open, CACHE draws the hour from the last reply to cold as a track with now marked, and the re-warm price; SPEND each message's cost over their average, and the last message and the average; CONTEXT its trail under the compaction line, and how much is in context of the window and where it compacts; LIMITS the 5h window and the 7d by day side by side, and when each resets. Short of rows a card's chart steps down, two rows to one to none, before any card gives way; then the other limits, Context, Limits, the cache and Spend give way in that order, and an amber card never does.
+
 ## [0.15.1] - 2026-10-19
 
 ### Fixed
