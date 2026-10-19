@@ -297,7 +297,7 @@ export const cacheCopy = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame)
   const readPct = `${+(c.readShare * 100).toFixed(1)}%`
   const left = fmtCountdown(c.msLeft)
   const battery = f.charge <= 0 ? 'cache battery empty' : `cache battery ${Math.round(clamp01(f.charge) * 100)}% left`
-  const warmHover = `${left} left; warm cache bills input at ${readPct}, expires ${c.ttl} after a reply`
+  const warmHover = `${left} left; warm cache bills input at ${readPct}, expires ${c.ttl} after a request`
   switch (f.mood) {
     case 'unmeasured':
       return {

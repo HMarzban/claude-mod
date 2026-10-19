@@ -500,6 +500,8 @@ export const register: Register = on => {
     const pinned = resolveTtl({
       force5m: await $.env.get('FORCE_PROMPT_CACHING_5M'),
       chosen: await $.env.get('CLAUDE_CODE_PROMPT_CACHE_TTL'),
+      // Only this key is read: the settings also hold `env`, which may carry secrets.
+      setting: (await $.settings.read().catch(() => undefined))?.promptCacheTtl,
       enable1h: await $.env.get('ENABLE_PROMPT_CACHING_1H'),
     })
     if (pinned !== undefined) pinTtl(pinned)

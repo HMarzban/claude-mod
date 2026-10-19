@@ -199,14 +199,21 @@ export const spentUsd = (ledgerNow: number | undefined): number => {
  *  with this process's. */
 const allTokens = (): TokenCounts => (state.prior === undefined ? state.tokens : addTokens(state.tokens, state.prior.tokens))
 
-/** The TTL the environment pins, if it pins one. */
+const asTtl = (v: unknown): Ttl | undefined => (v === '5m' || v === '1h' ? v : undefined)
+
+/** The TTL the environment or the settings pin, if they pin one, in Claude
+ *  Code's order: forcing 5m, the main conversation's variable, then its
+ *  `promptCacheTtl` setting, then asking for 1h. Any other value is ignored,
+ *  as Claude Code ignores it. */
 export const resolveTtl = (env: {
   force5m: string | undefined
   chosen: string | undefined
+  setting: unknown
   enable1h: string | undefined
 }): Ttl | undefined => {
   if (env.force5m === '1') return '5m'
-  if (env.chosen === '5m' || env.chosen === '1h') return env.chosen
+  const chosen = asTtl(env.chosen) ?? asTtl(env.setting)
+  if (chosen !== undefined) return chosen
   if (env.enable1h === '1') return '1h'
   return undefined
 }

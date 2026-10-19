@@ -141,7 +141,7 @@ test('every pill explains itself on hover, on a card drawn over the row at its p
     for (const [, card] of found) expect(cardText(card).length).toBeLessThan(70)
     // Each leads with its value, then what changes, then what it means, so a
     // short row's cut only ever takes the description.
-    expect(cardText(found[0]?.[1])).toBe('1h 00m left; warm cache bills input at 5%, expires 1h after a reply')
+    expect(cardText(found[0]?.[1])).toBe('1h 00m left; warm cache bills input at 5%, expires 1h after a request')
     expect(cardText(found[1]?.[1])).toBe('$0.41 spent during your last message, subagents included')
     expect(cardText(found[2]?.[1])).toBe('76k of 200k (38%); older turns get summarized near full')
     expect(cardText(found[3]?.[1])).toBe('Resets in 3h 00m; 5-hour limit, all your Claude use')

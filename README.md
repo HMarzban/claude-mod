@@ -208,7 +208,8 @@ Anthropic bills a 1-hour cache write at 2×, so per-token API users on a
 your billing, so it assumes an hour and corrects itself to 5 minutes if it
 sees the cache rebuild sooner. On a resumed session, the transcript's last
 cache write says which until the band's first reply. Set
-`CLAUDE_CODE_PROMPT_CACHE_TTL=5m` or `1h` to remove the guess.
+`CLAUDE_CODE_PROMPT_CACHE_TTL=5m` or `1h`, or `"promptCacheTtl"` in
+settings.json, to remove the guess.
 
 **Does the 5-hour pace include my other sessions?** Yes. The limit is shared
 across all your Claude use, so the pace counts every session and device.

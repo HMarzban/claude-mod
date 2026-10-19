@@ -83,6 +83,9 @@ type GitAnswer = { status: string; dirs: string } | 'none' | 'fail'
  *  compaction returns, why a step stops, a gate that holds a step open, the
  *  project root, and git, with every command the plugin ran. */
 type EngineFake = {
+  /** What `$.settings.read()` answers, merged as the engine reads it. */
+  settings: Record<string, unknown>
+  settingsFails: boolean
   compact: SessionCompactResult
   stop: TurnStopReason
   gate: Promise<void> | undefined
@@ -129,6 +132,8 @@ type EngineFake = {
 /** Each test's engine, as `base` restores it: every default written once, so
  *  a field added to EngineFake can't be left out of the reset. */
 const ENGINE_INITIAL: Readonly<EngineFake> = {
+  settings: {},
+  settingsFails: false,
   store: {},
   storeGets: [],
   storeSets: [],
@@ -194,6 +199,10 @@ const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Record<stri
     return { value: engine.sessionId }
   })
   on('session.model', () => ({ value: engine.model }))
+  on('settings.read', () => {
+    if (engine.settingsFails) throw new Error('settings unavailable')
+    return { value: engine.settings }
+  })
   on('fs.stat', ($, e) => {
     engine.statted.push(e.path)
     if (engine.transcript === undefined) throw new Error(`ENOENT: ${e.path}`)

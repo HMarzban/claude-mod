@@ -51,6 +51,8 @@ uninstalling.
 | `FORCE_PROMPT_CACHING_5M=1` | The same, for 5 minutes |
 | `ENABLE_PROMPT_CACHING_1H=1` | The same, for an hour |
 
+The `promptCacheTtl` setting in settings.json pins the lifetime too; see [Cache lifetime](#cache-lifetime).
+
 Set them in the shell you start Claude Code from (`export CC_BAND_APPEARANCE=light`,
 then `claude`). The band reads them when a session starts.
 
@@ -348,9 +350,11 @@ same model, it corrects itself to `5m`. On a resumed session, the
 transcript's last cache write says which until the band's first reply (see
 [Reopening an old session](#reopening-an-old-session)).
 
-To remove the guess, set one of:
-- `CLAUDE_CODE_PROMPT_CACHE_TTL=5m` or `1h`
+To remove the guess, set one of these. The band reads them the way Claude
+Code does, the first match in this order:
 - `FORCE_PROMPT_CACHING_5M=1`
+- `CLAUDE_CODE_PROMPT_CACHE_TTL=5m` or `1h`
+- `"promptCacheTtl": "5m"` or `"1h"` in your settings.json
 - `ENABLE_PROMPT_CACHING_1H=1`
 
 ## Developing
