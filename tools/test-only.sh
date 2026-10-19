@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs only the tests whose names match the globs given, against a scratch
 # copy of the plugin: the red and green steps of a task. Every commit still
-# runs the whole suite. Usage: tools/test-only.sh golden-hash 'view-ledger'
+# runs the whole suite. Usage: tools/test-only.sh golden-hash 'view-*'
 set -euo pipefail
 if [ "$#" -eq 0 ]; then echo "no test globs given" >&2; exit 1; fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
