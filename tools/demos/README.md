@@ -18,15 +18,21 @@ It uses the first `python3` it finds that can import Pillow; set
 1. **Capture.** `capture/*.test.ts` are not tests. The build runs them in a
    scratch copy of the plugin with one `claude plugin test` and keeps what
    they print: the band's drawn tree at each moment, with the clock moved
-   forward and the session in a known shape.
+   forward and the session in a known shape. The site's live demo is its own
+   set (`DEMO <layout> <state> <shut|open> <tree>` lines, kept in
+   `out/demo.txt`): four states, each one session and clock drawn in all
+   three layouts, so switching layout never changes a figure.
 2. **Draw.** `render.py` turns a terminal tree into HTML on a monospace grid;
    `render_desk.py` turns a desktop tree into HTML laid out like the Code tab
    (10px per column, 24px per text row), with the band's real SVG icons.
 3. **Compose.** `film.py` builds the film frame by frame in a light and a
    dark theme; `term_themed.py` the terminal demo; `gen_site.py` fills
-   `site/template.html` with every layout and the live band's states;
-   `stills.py` the social card, the chip row's anatomy, the expanded band,
-   and the states and layouts galleries.
+   `site/template.html` with the live demo's drawings (`{{demo-chips-amber}}`
+   and `{{demo-json}}`, drawn with `node(tree, site=True)`: real buttons,
+   `alt=""` icons, the countdown in `<span class=cd>`); `stills.py` the
+   social card (from the real `chips amber` drawing), the chip row's anatomy,
+   the expanded band, and the states and layouts galleries. The build also
+   stamps `docs/sitemap.xml`'s `lastmod` with the build date (UTC).
 4. **Render.** `shoot.mjs` screenshots each frame through one headless Chrome
    over the DevTools protocol; ffmpeg turns frames into MP4 and GIF.
 

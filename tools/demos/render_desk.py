@@ -1,23 +1,36 @@
 """Render the band's real desktop trees (from the test kit) as HTML frames,
 laid out like the desktop app's Code tab. Metrics are calibrated against a
-real screenshot: 10px per column, 24px per text row, 12px per gap row."""
+real screenshot: 10px per column, 24px per text row, 12px per gap row.
+
+node(tree) draws a band for the film, the terminal demo and the stills;
+node(tree, site=True) draws it for the landing page's live band: the band's
+buttons are real <button>s, its icons have alt="", and a countdown in the
+cache's last minute (`0:40 left`, `40s left`) is wrapped in <span class=cd>
+so the page can tick it."""
 import base64
 import html
+import re
 
 COL, ROW, GAP = 10, 24, 12
 
 
-def esc(s):
-    return html.escape(s, quote=False)
+# A countdown in the cache's last minute, as the chips (`0:40 left`) and the
+# pulse (`40s left`) draw it; never a clock time (`cold at 15:45`) or `54m left`.
+COUNTDOWN = re.compile(r'(\d+:\d\d|\d+s)(?= left)')
 
 
-def node(n, parent_row=False):
+def esc(s, site=False):
+    s = html.escape(s, quote=False)
+    return COUNTDOWN.sub(r'<span class=cd>\1</span>', s) if site else s
+
+
+def node(n, parent_row=False, site=False):
     if n is None or isinstance(n, bool):
         return ''
     if isinstance(n, (str, int, float)):
-        return f"<span class=t>{esc(str(n))}</span>"
+        return f"<span class=t>{esc(str(n), site)}</span>"
     if isinstance(n, list):
-        return ''.join(node(c, parent_row) for c in n)
+        return ''.join(node(c, parent_row, site) for c in n)
     t, p, kids = n.get('type'), n.get('props') or {}, n.get('children') or []
     if p.get('position') == 'absolute' or p.get('display') == 'none':
         return ''
@@ -27,16 +40,21 @@ def node(n, parent_row=False):
         if p.get('backgroundColor'): st.append(f"background:{p['backgroundColor']}")
         if p.get('bold'): st.append('font-weight:600')
         if p.get('dimColor'): st.append('opacity:.55')
-        inner = ''.join(esc(c) if isinstance(c, str) else node(c) for c in kids)
+        inner = ''.join(esc(c, site) if isinstance(c, str) else node(c, site=site) for c in kids)
         return f"<span class=t style=\"{';'.join(st)}\">{inner}</span>"
     if t == 'Svg':
         src = base64.b64encode(p['source'].encode()).decode()
         h = p.get('height')
+        if site:
+            st = f"width:{p['width']}px;height:{h}px" if 'width' in p else f"flex:1;min-width:0;width:100%;height:{h}px"
+            return f"<img class=svg alt=\"\" src=\"data:image/svg+xml;base64,{src}\" style=\"{st}\">"
         if 'width' in p:
             return f"<img class=svg src=\"data:image/svg+xml;base64,{src}\" style=\"width:{p['width']}px;height:{h}px\">"
         return f"<img class=svg src=\"data:image/svg+xml;base64,{src}\" style=\"flex:1;min-width:0;width:100%;height:{h}px\">"
     if t == 'Button':
         label = esc(p.get('label', ''))
+        if site:
+            return site_button(p, label)
         if p.get('key') == 'more':
             return f"<span class=toggle data-key=more>{label}</span>"
         hk = p.get('hotkey')
@@ -68,7 +86,20 @@ def node(n, parent_row=False):
     if p.get('backgroundColor'): st.append(f"background:{p['backgroundColor']}")
     dk = f" data-key=\"{html.escape(str(p['key']))}\"" if p.get('key') else ''
     if p.get('tip'): dk += f" data-tip=\"{html.escape(p['tip'])}\""
-    return f"<div{dk} style=\"{';'.join(st)}\">{node(kids)}</div>"
+    return f"<div{dk} style=\"{';'.join(st)}\">{node(kids, site=site)}</div>"
+
+
+def site_button(p, label):
+    """A band button as a real <button>: the ▵/▿ toggle named for what it
+    does, with aria-expanded; any other by its label, its hotkey badge hidden."""
+    key = f" data-key=\"{html.escape(str(p['key']))}\"" if p.get('key') else ''
+    if p.get('key') == 'more':
+        shut = p.get('label') != '▿'  # ▵ while shut, ▿ while open
+        name, expanded = ('Show details', 'false') if shut else ('Hide details', 'true')
+        return f"<button type=button class=toggle{key} aria-label=\"{name}\" aria-expanded={expanded}>{label}</button>"
+    hk = p.get('hotkey')
+    badge = f"<span class=key aria-hidden=true>{esc(hk.upper())}</span>" if hk else ''
+    return f"<button type=button class=btn{key}>{label}{badge}</button>"
 
 
 # The CSS node()'s HTML is drawn with, for every page that shows a band.

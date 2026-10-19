@@ -38,7 +38,8 @@ capture() {
   grep '^FRAME' "$OUT/capture.log" > "$OUT/frames.txt"
   grep '^FILM' "$OUT/capture.log" > "$OUT/film.txt"
   grep -E '^(LIVE|STATE)' "$OUT/capture.log" > "$OUT/site.txt"
-  wc -l "$OUT"/frames.txt "$OUT"/film.txt "$OUT"/site.txt | tail -1
+  grep '^DEMO' "$OUT/capture.log" > "$OUT/demo.txt"
+  wc -l "$OUT"/frames.txt "$OUT"/film.txt "$OUT"/site.txt "$OUT"/demo.txt | tail -1
 }
 capture
 [ "${1:-}" = capture ] && exit 0
@@ -88,12 +89,14 @@ done
 
 # ---- 4. the landing page, with the live band and its states ----------------
 echo "site"
-"$PY" gen_site.py "$OUT/site.txt" site/template.html "$DOCS/index.html" >/dev/null
+"$PY" gen_site.py "$OUT/site.txt" site/template.html "$DOCS/index.html" "$OUT/demo.txt" >/dev/null
+# the sitemap's lastmod is the day the page was built (UTC)
+sed -i.bak -E "s#<lastmod>[^<]*</lastmod>#<lastmod>$(date -u +%Y-%m-%d)</lastmod>#" "$DOCS/sitemap.xml" && rm -f "$DOCS/sitemap.xml.bak"
 
 # ---- 5. the stills: social card, anatomy, expanded band, the galleries -------
 echo "stills"
 mkdir -p "$OUT/stills"
-"$PY" stills.py "$OUT/site.txt" "$OUT/stills" >/dev/null
+"$PY" stills.py "$OUT/site.txt" "$OUT/stills" "$OUT/demo.txt" >/dev/null
 shot 1280 640 "$OUT/stills/social.html" "$DOCS/social-preview.png"
 shot 1100 270 "$OUT/stills/anatomy.html" "$DOCS/band-anatomy.png"
 shot 1012 700 "$OUT/stills/expanded.html" "$DOCS/band-expanded.png"

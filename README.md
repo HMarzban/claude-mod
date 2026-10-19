@@ -2,11 +2,12 @@
 
 # claude-mod
 
-**Know what your next Claude Code message costs.**
+**The price of your next Claude Code message, before you send it.**
 
-A live band above the Claude Code prompt: the prompt-cache countdown, what a
-re-warm will cost, the session's spend, context fill, and your 5-hour and
-weekly limits.
+**session-usage-band** is a free Claude Code plugin that draws a live band
+above the prompt: the prompt-cache countdown, what a re-warm will cost, the
+session's spend, context fill, and your 5-hour and weekly limits. In the
+terminal and the desktop app; no tokens, no network calls.
 
 [![CI](https://github.com/HMarzban/claude-mod/actions/workflows/ci.yml/badge.svg)](https://github.com/HMarzban/claude-mod/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/HMarzban/claude-mod?display_name=release&label=release)](https://github.com/HMarzban/claude-mod/releases/latest)
@@ -23,15 +24,20 @@ weekly limits.
 
 ## Why
 
-Step away from Claude Code longer than its prompt cache lasts (5 minutes or
+While Claude Code's prompt cache is warm, each message re-reads the
+conversation on Anthropic's side at a fraction of the input price: 0.05× on
+Opus 5.5 and Sonnet 5.5. Step away longer than the cache lasts (5 minutes or
 an hour after the last request) and your next message writes the whole
-conversation to the cache again, at more than the full input price. On a
-long conversation that's a dollar or more, and nothing in Claude Code tells
-you it's coming. While the cache is warm, each message re-reads the
-conversation on Anthropic's side at a fraction of the input price.
+conversation to the cache again, at 1.25× as Claude Code's ledger counts it.
+That makes the context part ~25× the warm read on Opus 5.5 and Sonnet 5.5
+(~50× on Fable 5.1, ~12.5× on Haiku 5.5); output and new input cost the
+same either way. On Opus 5.5, 300k tokens of context is ~$1.50 to write
+against ~$0.06 to read.
 
 **session-usage-band** shows the countdown and the price, and keeps your
-spend and limits in view while you work.
+spend and limits in view while you work. When Claude Code compacts an idle
+session instead of letting its cache go cold, the band says so and prices
+the summary.
 
 ## Install
 
@@ -46,8 +52,8 @@ One command, in any terminal:
 claude plugin install session-usage-band --marketplace HMarzban/claude-mod
 ```
 
-Then start a new session, or run `/reload-plugins` in an open one. The band
-appears above the prompt. A new conversation reads `cache warming` until
+It loads in your next session, or run `/reload-plugins` in an open one. The
+band appears above the prompt. A new conversation reads `cache warming` until
 Claude's first reply, `cache warm` while Claude is replying, then counts
 down from `cache 1h 00m` (or `cache 5:00` on a five-minute cache). A session
 that was already open may read `cache –` until Claude's next reply. Hid it
@@ -112,7 +118,8 @@ claude plugin marketplace remove hossein-mods
 
 ![The chip row, labelled: the cache countdown and what a re-warm will cost, the session cost, context toward auto-compaction, the 5-hour limit with its pace, the weekly limit and its reset, and the toggle that opens the cards](docs/band-anatomy.png)
 
-- **Cache**: time until it goes cold, and the re-warm price in its last minute
+- **Cache**: time until it goes cold, and the re-warm price in its last
+  minute; `compacted` once Claude Code has compacted an idle session
 - **Cost**: the session's total
 - **Context**: how close auto-compaction is
 - **5h**: your 5-hour limit, and whether your pace runs out first
@@ -123,8 +130,8 @@ claude plugin marketplace remove hossein-mods
   <img alt="Four real states of the band: calm just after a reply; the cache's last minute with the re-warm price; near auto-compaction with the room left; and everything at once, with context, the 5-hour pace and the weekly limit all amber on one row" src="docs/band-states-light.png">
 </picture>
 
-These and three more play live, with a guided tour, on the
-[website](https://hmarzban.github.io/claude-mod/#live).
+They play live, with a guided tour, on the
+[website](https://hmarzban.github.io/claude-mod/).
 
 Prefer another shape? `/usage-band layout <name>` draws the same readings
 in one of three [layouts](plugins/session-usage-band/README.md#layouts),
@@ -169,8 +176,8 @@ card, command and setting.
 
 It's a **mod**: a Claude Code plugin written with the function-hooks API.
 A `ui.render` hook draws the band above the prompt, and the other hooks watch
-turns, steps and compactions. It's TypeScript and JSX, with no dependencies
-and no build step.
+turns, steps and compactions. It's TypeScript and JSX, with no dependencies,
+no build step and about 1,000 tests.
 
 - **The price comes from your own bill.** No pricing table is reachable from
   a mod, so the band solves the base rate from the session's cost and token
@@ -180,15 +187,19 @@ and no build step.
   cost = rate × (uncached + 1.25 × written + read share × read + 5 × output)
   ```
 
-  where read share is the cache-read multiple: 0.1, lower on some models.
+  where read share is the cache-read multiple: 0.1, or 0.05 on Opus 5.5 and
+  Sonnet 5.5 and 0.025 on Fable 5.1 and Mythos 5.1. Claude Haiku 5.5 pays
+  5× every price on a prompt over 100k tokens, so the band weighs each
+  request at its own tier.
 
-  A re-warm is then the whole context written to the cache again.
+  A re-warm is then the whole context written to the cache again, or the
+  summary after a compaction.
 - **It remembers across sessions:** the layout you chose, when each session
   last had a reply, the rate it solved for each model, and a week of 5-hour
   and weekly readings for pulse's day cells. A reopened session reads what it
   spent from its transcript.
-- **It stays out of the way.** It never calls a model, never writes files
-  and never sends anything anywhere. Besides two read-only git commands for
+- **It spends nothing and sends nothing.** It never calls a model, never
+  writes files and never sends anything anywhere. Besides two read-only git commands for
   the workspace line, it runs only `grep` and `tail`, to read an old
   session's transcript. [SECURITY.md](SECURITY.md) lists exactly what it
   reads.
@@ -210,6 +221,16 @@ sees the cache rebuild sooner. On a resumed session, the transcript's last
 cache write says which until the band's first reply. Set
 `CLAUDE_CODE_PROMPT_CACHE_TTL=5m` or `1h`, or `"promptCacheTtl"` in
 settings.json, to remove the guess.
+
+**What if Claude Code compacts while I'm away?** In a terminal session on
+the hour's cache, Claude Code compacts a long conversation left idle about
+54 minutes. The band warns that it may, then reads `compacted`, calm, with
+what the next message costs to write the summary.
+
+**How is it different from ccusage or a status line?** ccusage reports
+from past logs, and some status lines show a cache countdown. This band
+shows the re-warm price live, solved from the session's own bill, in the
+desktop app as well as the terminal, with no tokens and no network calls.
 
 **Does the 5-hour pace include my other sessions?** Yes. The limit is shared
 across all your Claude use, so the pace counts every session and device.
