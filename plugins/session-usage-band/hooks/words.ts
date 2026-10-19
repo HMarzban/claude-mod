@@ -666,6 +666,9 @@ export type Board = Readonly<{
   /** The header's facts in words, for its flaps' alt. */
   headerAlt: string | undefined
   rows: readonly BoardRow[]
+  /** The time now on the viewer's clock, `20:36`, for the open board's
+   *  header; none where the zone isn't known. */
+  now: string | undefined
 }>
 type BoardFacts = Readonly<{
   frame: Frame
@@ -763,6 +766,7 @@ export const boardWords = (r: BoardFacts): Board => {
     header: r.workspace === undefined ? undefined : stripWords(r.workspace).map(w => w.toUpperCase()),
     headerAlt: r.workspace === undefined ? undefined : `workspace ${stripWords(r.workspace).join(', ')}`,
     rows: [cacheBoard(r), spendBoard(r), contextBoard(r), ...of('5h'), ...of('7d'), ...of('other')].map(upRow),
+    now: r.frame.zone === undefined ? undefined : fmtClock(r.frame.now, r.frame.zone),
   }
 }
 
@@ -825,3 +829,14 @@ export const boardLines = (rows: readonly BoardText[], room: number): readonly B
   const remarks = inner - item - status
   return lines.map(r => ({ item: fitTo(r.item, item), status: fitTo(r.status, status), time: undefined, remarks: fitTo(r.remarks, remarks) }))
 }
+
+/** The open board's title, at its header's left. */
+export const BOARD_TITLE = 'DEPARTURES'
+/** What leads the time now, at the header's right: `NOW 20:36`. */
+export const BOARD_NOW = 'NOW'
+/** What TIME says, in plain text, on a line that has none. */
+export const BOARD_NO_TIME = '–'
+/** The alt of a rule between the board's lines. */
+export const BOARD_RULE_ALT = 'a rule between the board\'s lines'
+/** A row's TIME, none where it has no time. */
+export const boardTime = (row: Pick<BoardRow, 'time'>): string | undefined => (row.time === NONE ? undefined : row.time)
