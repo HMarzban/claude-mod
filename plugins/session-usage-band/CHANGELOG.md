@@ -8,7 +8,7 @@ version may change how the band reads.
 ## [0.17.1] - 2026-10-19
 
 ### Changed
-- No change to how the band reads: every layout draws what 0.17.0 draws, as chips' frozen trees and the demos' captured frames hold. Inside, each piece now lives in the module that owns it. `parts.tsx` is gone: chips draws its own pills and battery, and pulse and departures squeeze their rows with `frame.tsx`'s `fitLine`. A layout declares its collapsed row and what opens beneath it, and `drawView` puts them together. The kit builds every Svg. The cache model makes its own decisions about recall and idle compaction, and `/usage-band`'s words live in `command.ts`. The words read facts alone, never the raw snapshot, and the board has no placeholder dash. Readings no layout drew are dropped, among them the old open bands' words.
+- No change to how the band reads: every layout draws what 0.17.0 draws, as chips' frozen trees and the demos' captured frames hold. Inside, each piece now lives in the module that owns it. `parts.tsx` is gone: chips draws its own pills and battery, and pulse and departures squeeze their rows with `frame.tsx`'s `fitLine`. A layout declares its collapsed row and what opens beneath it, and `drawView` puts them together. The kit builds every Svg. The cache model makes its own decisions about recall and idle compaction, and `/usage-band`'s words live in `command.ts`. The words read facts alone, never the raw snapshot. Readings no layout drew are dropped, among them the old open bands' words.
 
 ## [0.17.0] - 2026-10-19
 
