@@ -52,12 +52,15 @@ const runsOf = (module: unknown): Array<[string, unknown]> => {
 /** A module's tiles on the desktop, each character and its fill, out of its Svg. */
 const tilesOf = (module: unknown): Array<[string, unknown]> =>
   [...String(svgsOf(module)[0]?.props?.source).matchAll(/fill="([^"]*)">([^<]*)<\/text>/g)].map(m => [m[2] ?? '', m[1]])
-/** The tiles runs draw: each run's characters, a blank tile in the next run's ink between them. */
+/** The tiles runs draw: each run's characters in its ink. */
 const tilesFor = (runs: ReadonlyArray<readonly [string | undefined, unknown]>): Array<[string, unknown]> =>
-  runs.flatMap(([text, ink], i) => [...(i === 0 ? [] : [[' ', ink] as [string, unknown]]), ...[...(text ?? '')].map(ch => [ch, ink] as [string, unknown])])
+  runs.flatMap(([text, ink]) => [...(text ?? '')].map(ch => [ch, ink] as [string, unknown]))
 /** What a module draws, in its inks: the desktop's tiles, a text surface's runs. */
-const inked = (surface: 'desktop' | 'terminal', module: unknown) => (surface === 'desktop' ? tilesOf(module) : runsOf(module))
-const want = (surface: 'desktop' | 'terminal', runs: ReadonlyArray<readonly [string | undefined, unknown]>) => (surface === 'desktop' ? tilesFor(runs) : runs)
+const inked = (surface: 'desktop' | 'terminal', module: unknown) => (surface === 'desktop' ? tilesOf(module).filter(([ch]) => ch !== ' ') : runsOf(module))
+/** What a module should draw: on the desktop, its characters' tiles, blanks
+ *  left out, which carry no reading's ink of their own. */
+const want = (surface: 'desktop' | 'terminal', runs: ReadonlyArray<readonly [string | undefined, unknown]>) =>
+  surface === 'desktop' ? tilesFor(runs).filter(([ch]) => ch !== ' ') : runs
 
 /** The row's pieces, as `line` wraps them, between the first module and the toggle's air. */
 const piecesOf = (row: Node): Node[] => ((row.children ?? []) as Node[]).filter(n => n?.type === 'Box' && n.props?.key !== 'air' && byKey(n, 'more', 'Button') === undefined)
@@ -142,7 +145,7 @@ test('plain: no ground and no padding anywhere on the row, and modules at least 
 test('the ascii tier: modules in ascii alone, a real space between them', () => {
   const row = rowOf({ surface: 'terminal', glyphs: 'ascii', ...EXPIRING })
   expect(shown(row)).toMatch(/^[\x20-\x7e]*$/)
-  expect(drawnText(row)).toMatch(/CACHELAST CALL \S+ SPEND/)
+  expect(drawnText(row)).toMatch(/CACHE\s*LAST CALL \S+ SPEND/)
 })
 
 // ---- give-way --------------------------------------------------------------
@@ -168,17 +171,30 @@ for (const surface of ['desktop', 'terminal'] as const)
     expect(['spend', 'context', '5h'].slice(0, gone.length)).toEqual(gone)
   })
 
+const AMBERS: ReadonlyArray<Partial<BandSnapshot>> = [
+  NEAR,
+  { ...EXPIRING, ...NEAR },
+  { ...EXPIRING, ...NEAR, fiveHour: { ...at(88, 3), etaMs: null }, sevenDay: at(85, 67) },
+]
 for (const surface of ['desktop', 'terminal'] as const)
   test(`${surface}: an amber reading keeps its module and its whole cell until every calm reading has gone`, LONG, () => {
-    const whole = boardRow(NEAR, 'context')?.cell
-    for (const columns of WIDTHS) {
-      const row = rowOf({ surface, columns, ...NEAR })
-      const context = moduleOf(row, 'context')
-      expect(`${columns} ${context !== undefined}`).toBe(`${columns} true`)
-      if (flapWords(context).includes(String(whole)) || shown(context).includes(String(whole))) continue
-      expect(`${columns} ${['spend', '5h'].filter(k => moduleOf(row, k) !== undefined)}`).toBe(`${columns} `)
+    let short = 0
+    for (const over of AMBERS) {
+      const calm = KEYS.filter(k => boardRow(over, k)?.tone !== 'amber')
+      const whole = boardRow(over, 'context')?.cell
+      expect(boardRow(over, 'context')?.tone).toBe('amber')
+      for (const columns of WIDTHS) {
+        const row = rowOf({ surface, columns, ...over })
+        const context = moduleOf(row, 'context')
+        expect(`${columns} ${context !== undefined}`).toBe(`${columns} true`)
+        if (`${flapWords(context)} ${shown(context)}`.includes(String(whole))) continue
+        short++
+        // Past the amber step only CACHE and 7D of the calm readings are left.
+        expect(`${columns} ${calm.filter(k => k !== 'cache' && k !== '7d' && moduleOf(row, k) !== undefined)}`).toBe(`${columns} `)
+      }
     }
-    expect(boardRow(NEAR, 'context')?.tone).toBe('amber')
+    // The amber step is reached at the narrowest widths.
+    expect(short).toBeGreaterThan(0)
   })
 
 const STATES: ReadonlyArray<readonly [string, Partial<BandSnapshot>]> = [
