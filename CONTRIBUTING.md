@@ -17,7 +17,7 @@ claude plugin validate plugins/session-usage-band
 claude plugin test plugins/session-usage-band
 
 # Run only some test files, by name glob (the red and green steps)
-tools/test-only.sh view-ledger 'golden-*'
+tools/test-only.sh view-pulse 'golden-*'
 
 # Type-check (after the engine has laid the types, see below)
 npx -y -p typescript@5 tsc -p plugins/session-usage-band

@@ -1,6 +1,7 @@
 // The cache pill: countdown, battery, cold price, wording.
 
 import { test, expect } from 'claude-code/testing'
+import { resolveTtl } from '../hooks/cache'
 import { DARK } from '../hooks/palette'
 import {
   LONG,
@@ -208,5 +209,41 @@ test('the cache lifetime runs from when the request was sent, not when its reply
 
   const ui = await mountBand($, 'terminal', 160)
   expect(shown(pillOf(await ui.drawn(), 'cache'))).toMatch(/cache cold/)
+  await ui.unmount()
+})
+
+test("the TTL follows Claude Code's order: forced 5m, the variable, the setting, then 1h asked", () => {
+  const none = { force5m: undefined, chosen: undefined, setting: undefined, enable1h: undefined }
+  expect(resolveTtl(none)).toBeUndefined()
+  expect(resolveTtl({ ...none, enable1h: '1', setting: '5m' })).toBe('5m')
+  expect(resolveTtl({ ...none, setting: '5m', chosen: '1h' })).toBe('1h')
+  expect(resolveTtl({ ...none, force5m: '1', chosen: '1h', setting: '1h' })).toBe('5m')
+  // Claude Code ignores any other value, so the next control decides.
+  expect(resolveTtl({ ...none, setting: '30m', enable1h: '1' })).toBe('1h')
+  expect(resolveTtl({ ...none, chosen: 'soon', setting: '5m' })).toBe('5m')
+  expect(resolveTtl({ ...none, setting: 5 })).toBeUndefined()
+})
+
+test('a promptCacheTtl setting of 5m beats ENABLE_PROMPT_CACHING_1H', LONG, async ($, on) => {
+  const clock = setup(on)
+  engine.settings = { promptCacheTtl: '5m' }
+  await $.session.start(START)
+  await respond(e => $.turn.step(e), resp(2_000, 0, 180_000, 5_000))
+  await clock.advance(10 * MIN)
+
+  const ui = await mountBand($, 'terminal', 110)
+  expect(await ui.find({ type: 'Text', text: /cache cold/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('settings that cannot be read leave the band to the environment', async ($, on) => {
+  const clock = setup(on)
+  engine.settingsFails = true
+  await $.session.start(START)
+  await respond(e => $.turn.step(e), resp(2_000, 0, 180_000, 5_000))
+  await clock.advance(10 * MIN)
+
+  const ui = await mountBand($, 'terminal', 110)
+  expect(await ui.find({ type: 'Text', text: /cache cold/ })).toBeUndefined()
   await ui.unmount()
 })

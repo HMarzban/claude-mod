@@ -83,6 +83,9 @@ type GitAnswer = { status: string; dirs: string } | 'none' | 'fail'
  *  compaction returns, why a step stops, a gate that holds a step open, the
  *  project root, and git, with every command the plugin ran. */
 type EngineFake = {
+  /** What `$.settings.read()` answers, merged as the engine reads it. */
+  settings: Record<string, unknown>
+  settingsFails: boolean
   compact: SessionCompactResult
   stop: TurnStopReason
   gate: Promise<void> | undefined
@@ -129,6 +132,8 @@ type EngineFake = {
 /** Each test's engine, as `base` restores it: every default written once, so
  *  a field added to EngineFake can't be left out of the reset. */
 const ENGINE_INITIAL: Readonly<EngineFake> = {
+  settings: {},
+  settingsFails: false,
   store: {},
   storeGets: [],
   storeSets: [],
@@ -194,6 +199,10 @@ const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Record<stri
     return { value: engine.sessionId }
   })
   on('session.model', () => ({ value: engine.model }))
+  on('settings.read', () => {
+    if (engine.settingsFails) throw new Error('settings unavailable')
+    return { value: engine.settings }
+  })
   on('fs.stat', ($, e) => {
     engine.statted.push(e.path)
     if (engine.transcript === undefined) throw new Error(`ENOENT: ${e.path}`)
@@ -558,10 +567,12 @@ export const textMeters = async (ui: {
 
 type TurnEnd = { agentId?: string; isAborted?: boolean; reason?: 'answer' | 'aborted' | 'error' }
 
-/** A main-loop turn's `turn.start`, with the ledger at `at`. */
-export const startTurn = async ($: Engine, id: string, at: number): Promise<void> => {
+/** A turn's `turn.start` (with `agentId`, a subagent's), with the ledger at `at`. */
+export const startTurn = async ($: Engine, id: string, at: number, agentId?: string): Promise<void> => {
   usage.current = { ...usage.current, cost: { usd: at } }
-  await $.turn.start({ text: 'hi', turnId: id })
+  // Since 2.1.299 a subagent's turn raises turn.start too, with its agentId.
+  const start = agentId === undefined ? { text: 'hi', turnId: id } : { text: 'hi', turnId: id, agentId }
+  await $.turn.start(start)
 }
 
 /** A turn's `turn.complete` (with `agentId`, a subagent's), with the ledger at `at`. */
@@ -570,10 +581,10 @@ export const endTurn = async ($: Engine, id: string, at: number, extra: TurnEnd 
   await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: id, reason: 'answer', ...extra })
 }
 
-/** One main-loop turn (or, with `agentId`, a subagent's, which raises no
- *  `turn.start`) that moves the ledger from `from` to `to`. */
+/** One main-loop turn (or, with `agentId`, a subagent's) that moves the
+ *  ledger from `from` to `to`. */
 export const turn = async ($: Engine, id: string, from: number, to: number, extra: TurnEnd = {}): Promise<void> => {
-  if (extra.agentId === undefined) await startTurn($, id, from)
+  await startTurn($, id, from, extra.agentId)
   await endTurn($, id, to, extra)
 }
 

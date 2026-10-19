@@ -24,7 +24,7 @@ jobs:
       matrix:
         # The pin is the last version known good. Bump it on purpose, once
         # latest is green, never to get a red run green.
-        claude-code: [latest, 2.1.296]
+        claude-code: [latest, 2.1.299]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

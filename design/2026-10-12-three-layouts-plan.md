@@ -4,6 +4,8 @@
 
 v2 · reviewed for code truth, spec coverage and architecture.
 
+Status: Implemented in 0.14.0. The boxes below were left unticked; the work shipped in PR #7.
+
 **Goal:** Cut the band's nine layouts to three (chips, pulse and departures). Each draws its own collapsed row and its own open view.
 
 **Architecture:** The layers don't change: `register → snapshot → reading/words → views`.

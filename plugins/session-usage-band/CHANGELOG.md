@@ -5,7 +5,14 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
-## [0.14.0] - 2026-10-12
+## [0.14.1] - 2026-10-19
+
+### Fixed
+- A subagent's turn no longer erases what your last message cost. Since Claude Code 2.1.299 a subagent's turn raises `turn.start` too; the band took it for a new turn, so the main turn's cost could go missing. It now skips a turn that carries an `agentId`.
+- The `promptCacheTtl` setting in settings.json pins the cache's lifetime, in Claude Code's order: after `FORCE_PROMPT_CACHING_5M` and `CLAUDE_CODE_PROMPT_CACHE_TTL`, before `ENABLE_PROMPT_CACHING_1H`. With `ENABLE_PROMPT_CACHING_1H=1` and `promptCacheTtl: "5m"`, the band counted an hour while Claude Code used five minutes. The band keeps that one key from your settings, nothing else.
+- The warm cache's card says it expires an hour (or five minutes) after a request, not after a reply: the lifetime runs from when the request is sent.
+
+## [0.14.0] - 2026-10-19
 
 ### Removed
 - Six layouts: gauges, ledger, rings, tiles, week and forecast. A saved one draws chips, and `/usage-band layout` says so. Week's day cells now live in pulse, and forecast's clock times in departures.
