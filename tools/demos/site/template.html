@@ -352,7 +352,7 @@
   .band :focus-visible { outline: 2px solid #ececf2; outline-offset: -2px; }
   .band .spot { outline: 2px solid #f0c969; outline-offset: -2px; }
   .band .spot:focus-visible { outline-color: #ececf2; }
-  .band-off { width: 964px; display: flex; align-items: center; gap: 16px; background: #212121; border-radius: 16px; padding: 14px 16px; color: #9a9aa4; font-size: 15px; }
+  .band-off { width: 964px; display: flex; align-items: center; gap: 16px; background: #212121; border-radius: var(--r); padding: 14px 16px; color: #9a9aa4; font-size: 15px; }
   .band-off button { font: 600 14px var(--mono); color: #ececf2; background: #2e2e31; border: 1px solid #6e6e78; border-radius: var(--r); padding: 4px 12px; cursor: pointer; }
   .band-off button:focus-visible { outline: 2px solid #ececf2; outline-offset: 2px; }
   @media (prefers-reduced-motion: no-preference) {
@@ -682,8 +682,8 @@
   const LEGEND = {
     calm: { cache: '54m left · re-warm if cold ~$1.57', spend: '$4.75 so far · last message $0.33', context: '303k of 1.0M · 30%', '5h': '27% used · resets in 2h 24m', '7d': '41% used · resets in 2d 18h' },
     amber: { cache: '<span class="cd" data-f="m">0:40</span> left · re-warm ~$1.57 if missed', spend: '$4.75 so far · last message $0.33', context: '303k of 1.0M · 30%', '5h': '27% used · resets in 1h 30m', '7d': '41% used · resets in 2d 18h' },
-    cold: { cache: 'cold · next message ~$1.57', spend: '$4.75 so far · last message $0.33', context: '303k of 1.0M · 30%', '5h': '27% used · resets in 1h 29m', '7d': '41% used · resets in 2d 18h' },
-    limit: { cache: '54m left · re-warm if cold ~$4.46', spend: '$9.37 so far · last message $0.45', context: '92% · auto-compacts in ~77k', '5h': '70% used · full in ~1h, before reset', '7d': '85% used ! · full before it resets' },
+    cold: { cache: 'cold · ~$1.57 to rebuild 315k', spend: '$4.75 so far · last message $0.33', context: '303k of 1.0M · 30%', '5h': '27% used · resets in 1h 29m', '7d': '41% used · resets in 2d 18h' },
+    limit: { cache: '54m left · re-warm if cold ~$4.46', spend: '$9.37 so far · last message $0.45', context: '92% · 880k of 957k · compacts in ~77k', '5h': '70% used · full in ~1h · resets in 2h 24m', '7d': '85% used ! · resets in 2d 18h' },
   }
   const NOTE = {
     calm: '<b>Calm.</b> You just got a reply: nothing is amber and nothing needs you.',
@@ -753,14 +753,15 @@
     for (const li of $$('li', legend)) li.querySelector('.v').innerHTML = LEGEND[D.state][li.dataset.k]
     note.innerHTML = NOTE[D.state]
   }
+  // the countdown ticks only where the drawing draws one: departures' flaps are a still picture
   function clock() {
     clearInterval(D.timer); D.timer = null
-    if (D.state === 'amber' && !reduce) D.timer = setInterval(tick, 1000)
+    if (D.state === 'amber' && !reduce && D.layout !== 'departures') D.timer = setInterval(tick, 1000)
   }
   function tick() {
     if (--D.secs > 0) return paintCountdown()
     // the minute ran out: the band goes cold, as it would, keeping focus where it was
-    const inBand = host.contains(document.activeElement) ? document.activeElement.dataset.key || null : null
+    const a = document.activeElement, inBand = host.contains(a) ? (a.id === 'band-back' ? 'back' : a.dataset.key || null) : null
     setState('cold', { focusKey: inBand, keepHidden: true })
   }
   function setState(state, { say = false, focusKey, keepHidden = false } = {}) {
@@ -785,7 +786,9 @@
   // layout
   const laycmd = $('#laycmd')
   for (const r of radios) r.addEventListener('change', () => {
-    pauseTour(); D.layout = r.value; D.hidden = false; render()
+    pauseTour(); D.layout = r.value; D.hidden = false
+    if (r.value === 'departures') { D.secs = START; paintText() }
+    render(); clock()
     laycmd.hidden = r.value === 'chips'
     $('#laycmd-text').textContent = $('#laycopy').dataset.copy = '/usage-band layout ' + r.value
   })
@@ -817,7 +820,7 @@
   host.addEventListener('mouseout', e => { if (tipFor && !tipFor.contains(e.relatedTarget) && e.relatedTarget !== tip) laterHide() })
   tip.addEventListener('mouseenter', () => clearTimeout(tipT))
   tip.addEventListener('mouseleave', laterHide)
-  host.addEventListener('focusin', e => { const el = e.target.closest('[data-tip]'); if (el) showTip(el) })
+  host.addEventListener('focusin', e => { const el = e.target.closest('[data-tip]'); if (el) showTip(el); else hideTip() })
   host.addEventListener('focusout', e => { if (!host.contains(e.relatedTarget)) hideTip() })
   host.addEventListener('click', e => {
     const el = e.target.closest('[data-tip]')
@@ -854,9 +857,10 @@
   tourBtn.addEventListener('click', () => T.on ? pauseTour() : playTour())
   const hold = on => { T.held = on; if (on) clearTimeout(T.timer); else schedule() }
   stage.addEventListener('pointerenter', () => hold(true))
-  stage.addEventListener('pointerleave', () => { if (!stage.contains(document.activeElement)) hold(false) })
-  stage.addEventListener('focusin', () => hold(true))
-  stage.addEventListener('focusout', e => { if (!stage.contains(e.relatedTarget) && !stage.matches(':hover')) hold(false) })
+  stage.addEventListener('pointerleave', () => { if (!demo.contains(document.activeElement) || document.activeElement === tourBtn) hold(false) })
+  const demo = $('#demo')
+  demo.addEventListener('focusin', e => { if (e.target !== tourBtn) hold(true) })
+  demo.addEventListener('focusout', e => { if ((!demo.contains(e.relatedTarget) || e.relatedTarget === tourBtn) && !stage.matches(':hover')) hold(false) })
   let touched = false
   for (const ev of ['pointerdown', 'keydown']) $('#demo').addEventListener(ev, () => { touched = true }, { once: true })
   function motion() {
