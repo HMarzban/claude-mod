@@ -5,6 +5,11 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.17.0] - 2026-10-19
+
+### Changed
+- Departures' collapsed row puts each reading on its own board module, its code in its own colour and then its status, so `CACHE DEPARTS 21:35` and `SPEND $121.34` no longer run together. Departures opens into one board with a title and the time now (`DEPARTURES … NOW 20:36`), quiet headings, flaps only where there are characters (no wall of empty tiles), plain remarks, a thin rule between lines on the desktop, and the footer every layout draws: the workspace strip, `Collapse` and `Hide band`. The workspace leaves the board. Short of rows, the remarks give way first on the desktop, then the lines in the board's order; an amber line never does.
+
 ## [0.16.0] - 2026-10-19
 
 ### Changed
