@@ -11,8 +11,7 @@ import { ROW_SLACK, isDrawn } from '../layout'
 import type { Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber } from '../words'
-import { toggleButton } from './frame'
-import { beforeLast, fitLine, line, type Keeps } from './parts'
+import { fitLine, type Keeps, line, toggleButton } from './frame'
 import { openStack } from './pulse-open'
 import type { View } from './view'
 
@@ -75,7 +74,7 @@ const tile = (kit: Kit, k: Keeps<Piece>, key: string, tone: Tone, ground: string
 
 /** Whether a reading's chart is kept: a calm one while its step holds, an
  *  amber one until the amber step. */
-const chartKept = (k: Keeps<Piece>, piece: Piece, tone: Tone): boolean => k.has(piece) || (tone === 'amber' && beforeLast(k))
+const chartKept = (k: Keeps<Piece>, piece: Piece, tone: Tone): boolean => k.has(piece) || (tone === 'amber' && k.has('amberShort'))
 
 /** A calm reading's words, long until the short step. */
 const calmWords = (k: Keeps<Piece>, long: string, short: string): string => (k.has('short') ? long : short)

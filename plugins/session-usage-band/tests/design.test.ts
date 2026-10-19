@@ -4,7 +4,7 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import { DARK, LIGHT } from '../hooks/palette'
-import { ROLE_INK } from '../hooks/views/parts'
+import { ROLE_INK } from '../hooks/views/shell'
 import {
   CLEAR,
   DARK_HOSTS,

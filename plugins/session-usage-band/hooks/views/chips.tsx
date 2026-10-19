@@ -1,24 +1,135 @@
 // Chips: a row of pills, and its four cards beneath it when open. Its pill
-// builders, their hover strings, LIMITS and its row are exported, so a layout
-// composes chips' pills, tints and icons rather than drawing its own. They
-// draw from the readings' words; only the context's pill and hover read
-// raw facts (`read.chips.raw`).
+// builders, their hover strings, LIMITS and its row are exported for its
+// tests; pulse and departures draw their own look. They draw from the
+// readings' words; only the context's pill and hover read raw facts
+// (`read.chips.raw`). The pill a chip sits in and the cache's battery, an
+// icon on the desktop and the pill itself in a terminal, are drawn here
+// alone.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { meter } from '../charts'
-import { fmtTokens, severityMark } from '../format'
+import { clamp01, fmtTokens, severityMark } from '../format'
+import { asciiText } from '../glyphs'
+import { GLYPH } from '../icons'
 import type { Icon } from '../icons'
 import type { Kit } from '../kit'
 import { GIVES_WAY, ROW_SLACK, SHORT_BELOW, cellsOf, keeps, spansOf, squeezeToFit } from '../layout'
 import type { Piece } from '../layout'
 import type { Palette } from '../palette'
-import type { LimitKey, Readings } from '../reading'
+import type { LimitKey, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { cardsView } from './cards'
 import { toggleButton } from './frame'
-import { batteryIcon, cacheHover, pill, resetClause, textBattery } from './parts'
-import type { PillSpec } from './parts'
 import type { View } from './view'
+
+// ---- the pill and the battery ----------------------------------------------
+
+export type PillSpec = Readonly<{
+  key: string
+  tone: Tone
+  body: RenderChildren[]
+  /** The one-line explanation shown while the pill is hovered, on a card
+   *  its row draws after every pill. */
+  hover?: string
+  /** The terminal battery paints its own background in its Texts. */
+  paintsOwnBg?: boolean
+  bg?: string
+}>
+
+/** A pill carries its own foreground and background, never one of each. It
+ *  reveals its card, drawn after every pill, through the hover scope they
+ *  share; one line, since a collapsed band is one row. Plain has no cards;
+ *  the expanded line says it all. A pill never shrinks: the squeeze drops
+ *  pieces instead, so its text never wraps. */
+export const pill = (kit: Kit, { key, tone, body, hover, paintsOwnBg, bg }: PillSpec): RenderElement => {
+  const { Box, Text, palette, onTone, hoverable } = kit
+  if (!palette.filled) {
+    const fg = onTone(tone, palette.value)
+    return (
+      <Box key={key} flexShrink={0}>
+        <Text color={fg}>[</Text>
+        {body}
+        <Text color={fg}>]</Text>
+      </Box>
+    )
+  }
+  const fill = paintsOwnBg ? {} : { backgroundColor: onTone(tone, bg ?? palette.surface, palette.amberBg), paddingX: 1 }
+  return (
+    <Box key={key} flexShrink={0} {...fill} {...(hover === undefined ? {} : hoverable(key))}>
+      {body}
+    </Box>
+  )
+}
+
+/** The desktop's battery: an outline, its cap, and the charge filling it,
+ *  `px` wide: an icon's 22, or a bar's length. */
+export const batteryIcon = (kit: Kit, charge: number, tone: Tone, alt: string, px = 22): RenderChildren => {
+  const { Svg, palette, onTone } = kit
+  if (!Svg) return null
+  const outline = onTone(tone, palette.label)
+  const fill = onTone(tone, palette.warm)
+  const width = Math.round(clamp01(charge) * (px - 7) * 10) / 10
+  const source =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="12" viewBox="0 0 ${px} 12">` +
+    `<rect x="0.75" y="0.75" width="${px - 3.5}" height="10.5" rx="3" fill="none" stroke="${outline}" stroke-width="1.5"/>` +
+    `<rect x="${px - 2.25}" y="4" width="1.75" height="4" rx="0.8" fill="${outline}"/>` +
+    `<rect class="charge" x="2.5" y="2.5" width="${width}" height="7" rx="1.5" fill="${fill}"/>` +
+    '</svg>'
+  return <Svg key="battery" source={source} alt={alt} width={px} height={12} />
+}
+
+/** Text in runs, each bold or not: a figure among its words. */
+type BoldRuns = ReadonlyArray<readonly [text: string, bold: boolean]>
+
+/** On a text surface the battery is the pill itself: its charge painted as
+ *  the background of the leading characters, draining right to left. In the
+ *  ascii tier `text` is mapped before the cut, so a dropped glyph neither
+ *  leaves a gap at the cut nor takes its cells from the charge; in runs, a
+ *  bold one stays bold either side of the cut. */
+export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string | BoldRuns): RenderChildren[] => {
+  const { Text, palette, onTone, glyphs } = kit
+  const given: BoldRuns = typeof text === 'string' ? [[text, false]] : text
+  const runs: BoldRuns = glyphs === 'ascii' ? given.map(([run, bold]) => [asciiText(run), bold]) : given
+  const pad = { ch: ' ', bold: false }
+  const chars = [pad, ...runs.flatMap(([run, bold]) => [...run].map(ch => ({ ch, bold }))), pad]
+  const cut = Math.round(clamp01(charge) * chars.length)
+  const fg = onTone(tone, palette.value)
+  /** One side of the cut: a Text for each run of one weight, or nothing. */
+  const side = (key: string, part: readonly (typeof pad)[], ground: string): RenderChildren[] => {
+    const pieces: Array<{ text: string; bold: boolean }> = []
+    for (const { ch, bold } of part) {
+      const last = pieces.at(-1)
+      if (last?.bold === bold) last.text += ch
+      else pieces.push({ text: ch, bold })
+    }
+    if (pieces.length === 0) return [null]
+    return pieces.map(({ text: run, bold }, i) => (
+      <Text key={i === 0 ? key : `${key}${i}`} color={fg} backgroundColor={ground} {...(bold ? { bold } : {})}>
+        {run}
+      </Text>
+    ))
+  }
+  return [
+    ...side('bf', chars.slice(0, cut), onTone(tone, palette.batteryFill, palette.batteryAmber)),
+    ...side('be', chars.slice(cut), onTone(tone, palette.surface, palette.amberBg)),
+  ]
+}
+
+/** A reset after its reading: the separator in label ink, then `↻` and
+ *  when, in `ink`. `↻` is a glyph on every surface, as the boards draw it,
+ *  never the clock icon; elsewhere it is the reset icon's own glyph. */
+export const resetClause = (kit: Kit, ink: string, when: string, separator = ' │ '): RenderElement[] => {
+  const { Text, palette } = kit
+  return [
+    <Text key="d" color={palette.label}>
+      {separator}
+    </Text>,
+    <Text key="i-reset" color={ink}>{`${GLYPH.reset} `}</Text>,
+    <Text key="r" color={ink}>
+      {when}
+    </Text>,
+  ]
+}
 
 // ---- limits ---------------------------------------------------------------
 
@@ -85,14 +196,14 @@ export const cachePill = (kit: Kit, read: Readings, short: boolean, bold = false
   if (Svg) {
     // A normal rounded pill led by a draining battery icon; the text-surface
     // battery would paint a square-cornered block here.
-    return { key: 'cache', tone, body: [batteryIcon(kit, charge, tone, copy.alt), ...words('c', ` ${text}`)], hover: cacheHover(read) }
+    return { key: 'cache', tone, body: [batteryIcon(kit, charge, tone, copy.alt), ...words('c', ` ${text}`)], hover: read.chips.reading.copy.hover }
   }
   if (palette.filled) {
     return {
       key: 'cache',
       tone,
       body: textBattery(kit, charge, tone, [[`◷ ${text.slice(0, text.length - figure.length)}`, false], [figure, true]]),
-      hover: cacheHover(read),
+      hover: read.chips.reading.copy.hover,
       paintsOwnBg: true,
     }
   }
@@ -101,7 +212,7 @@ export const cachePill = (kit: Kit, read: Readings, short: boolean, bold = false
     key: 'cache',
     tone,
     body: [tone === 'amber' ? null : <Text key="dot" color={dot}>{'● '}</Text>, ...words('c', tone === 'amber' ? `◷ ${text}` : text)],
-    hover: cacheHover(read),
+    hover: read.chips.reading.copy.hover,
   }
 }
 

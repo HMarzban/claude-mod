@@ -8,8 +8,17 @@ import type { Icon } from '../icons'
 import type { Kit } from '../kit'
 import { CARD_TEXT } from '../layout'
 import type { Tone } from '../reading'
-import type { Say } from '../words'
-import { ROLE_INK } from './parts'
+import type { Palette } from '../palette'
+import type { Role, Say } from '../words'
+
+/** Each role's ink: text on the card ground. */
+export const ROLE_INK: Readonly<Record<Role, Exclude<keyof Palette, 'filled'>>> = {
+  label: 'label',
+  value: 'value',
+  amber: 'amberFg',
+  accent5: 'fiveText',
+  accent7: 'weekText',
+}
 
 /** Whether a card draws its edge: the desktop's always, a terminal's only
  *  in plain, which has no fill to stand on; a terminal card with a fill

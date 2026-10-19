@@ -12,8 +12,7 @@ import type { Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import type { BoardRow } from '../words'
 import { ITEM_INK, openBoard } from './departures-board'
-import { toggleButton } from './frame'
-import { beforeLast, fitLine, line, type Keeps } from './parts'
+import { fitLine, type Keeps, line, toggleButton } from './frame'
 import type { View } from './view'
 
 /** What gives way as the row narrows, first to last (spec §5.2), calm only:
@@ -58,7 +57,7 @@ const air = (kit: Kit, key: string): RenderChildren => {
  *  while its step holds, then its remark while its own step holds, then its
  *  value. Any other: long, then short. */
 const cellOf = (row: BoardRow, k: Keeps<Piece>): string => {
-  if (row.tone === 'amber') return beforeLast(k) ? row.cell : row.cellShort
+  if (row.tone === 'amber') return k.has('amberShort') ? row.cell : row.cellShort
   if (row.key !== '5h' && row.key !== '7d') return k.has('long') ? row.cell : row.cellShort
   if (k.has(row.key === '5h' ? 'reset5h' : 'reset7d')) return row.cell
   return k.has(row.key === '5h' ? 'remark5h' : 'remark7d') ? (row.cellNoReset ?? row.cell) : row.cellShort

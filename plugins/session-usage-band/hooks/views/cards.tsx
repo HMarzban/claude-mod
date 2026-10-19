@@ -8,13 +8,16 @@ import type { Icon } from '../icons'
 import type { Kit } from '../kit'
 import { DESKTOP, ROW_SLACK } from '../layout'
 import type { BarSize } from '../layout'
-import type { LimitView, Readings, Tone } from '../reading'
+import type { LimitKey, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { drawStrip } from '../strip'
 import { CARD_TITLES, SPLIT_LABELS, type Say } from '../words'
 import { bodyRowsFor, footer, footerRoom } from './frame'
-import { accentOf } from './parts'
 import { cardBordered, cardEdge, cardInner, cardShell, cardsPerLine, factRow as sharedFactRow, headline } from './shell'
+
+/** A limit's accent: its window's, or the meter's for any other. */
+export const accentOf = (kit: Kit, limit: Readonly<{ key: LimitKey }>): string =>
+  limit.key === '5h' ? kit.palette.fiveAccent : limit.key === '7d' ? kit.palette.weekAccent : kit.palette.meterFill
 
 /** The cards, in the order they are drawn. */
 const CARD_NAMES = ['cache', 'spend', 'context', 'limits'] as const
