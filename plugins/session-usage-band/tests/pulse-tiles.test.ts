@@ -11,7 +11,7 @@ import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK, LIGHT, PLAIN, type Palette } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { HOUR, MIN, SAMPLES, byKey, fakeEl, firstRow, shown, svgsOf, walk, type Node } from './helpers'
+import { HOUR, LONG, MIN, SAMPLES, byKey, fakeEl, firstRow, shown, svgsOf, walk, type Node } from './helpers'
 import { NO_ACT, snapOf } from './matrix'
 
 const COSTS = Array.from({ length: 24 }, (_, i) => ({ usd: i === 23 ? 0.21 : i === 17 ? 0.84 : 0.2, reWarm: i === 17 }))
@@ -196,7 +196,7 @@ const AMBER = {
 } as const
 const ALL_AMBER = { ...AMBER.cache, ...AMBER.context, ...AMBER.five, ...AMBER.seven }
 
-test('no width overflows: the tiles\' padding measured, every width from 40 to 200, calm, cold and amber, every palette', () => {
+test('no width overflows: the tiles\' padding measured, every width from 40 to 200, calm, cold and amber, every palette', LONG, () => {
   const over: string[] = []
   const plainApart: string[] = []
   for (const surface of ['desktop', 'terminal'] as const)
