@@ -63,7 +63,7 @@ The band's own drawings keep their own colours (they're real output).
 3. No icon tiles; no icons above headings.
 4. No pill badges, no pill segmented tabs.
 5. No highlighter or wavy underlines.
-6. At most 2 border-radius values.
+6. At most 2 border-radius values (0 and 4px) in the page's own CSS. The `.band*` rules are exempt: they reproduce the product's real drawing.
 7. No feature card grids: rows, tables, line items.
 8. No gradients, glow, or shadows beyond a 1px rule.
 9. No centred body text.

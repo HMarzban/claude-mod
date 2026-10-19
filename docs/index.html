@@ -254,7 +254,8 @@
   /* a 12px square drawn inside a 24px target: the outline is the box, the content box the mark */
   .layouts input { appearance: none; -webkit-appearance: none; width: 24px; height: 24px; margin: 0 -6px; border: 6px solid transparent; border-radius: 0; padding: 2px; background-clip: content-box; outline: 1px solid var(--ink-2); outline-offset: -6px; cursor: pointer; }
   .layouts input:checked { background-color: var(--ink); outline-color: var(--ink); }
-  .layouts input:focus-visible { outline: 1px solid var(--ink); outline-offset: -6px; }
+  /* focus: a 2px ring round the whole 24px target, clear of the 12px box */
+  .layouts input:focus-visible { outline: 2px solid var(--ink); outline-offset: 0; }
   .layouts label:has(input:focus-visible) { outline: 2px solid var(--ink); outline-offset: 2px; }
   .tour { display: flex; align-items: center; gap: 8px; font: 400 13px var(--mono); color: var(--ink-2); }
   .tour button { min-height: 32px; padding: 0 12px; background: transparent; border: 1px solid var(--ink-2); border-radius: var(--r); color: var(--ink); cursor: pointer; }
@@ -607,7 +608,7 @@
     <h2 id="notes-h">The fine print</h2>
     <div class="notes">
       <div class="q"><h3>Why did one message cost so much more than the others?</h3><p>Most likely the prompt cache went cold. Claude Code caches your conversation for 5 minutes or an hour after each request; after that, the next message writes all of it again at 1.25× the input price, as Claude Code counts it. On Opus 5.5 that's 25× the warm read, for the context part.</p></div>
-      <div class="q"><h3>Is the re&#8209;warm price exact?</h3><p>It's an estimate, always shown with <code>~</code>. The band solves the per&#8209;token rate from the session's own bill, counting as Claude Code's ledger does: every cache write at 1.25×. The API bills a 1-hour write at 2×, so an API key on the hour's cache may pay up to 1.6× the estimate.</p></div>
+      <div class="q"><h3>Is the re-warm price exact?</h3><p>It's an estimate, always shown with <code>~</code>. The band solves the per&#8209;token rate from the session's own bill, counting as Claude Code's ledger does: every cache write at 1.25×. The API bills a 1-hour write at 2×, so an API key on the hour's cache may pay up to 1.6× the estimate.</p></div>
       <div class="q"><h3>How does it know whether my cache lasts 5 minutes or an hour?</h3><p>Claude Code uses the hour on a subscription within plan usage, and 5 minutes on an API key, usage credits or a cloud provider. The band assumes an hour and corrects itself if the cache rebuilds sooner. Set <code>CLAUDE_CODE_PROMPT_CACHE_TTL</code> or <code>promptCacheTtl</code> to remove the guess.</p></div>
       <div class="q"><h3>Does it work in the Claude desktop app?</h3><p>Yes. It draws in the desktop app's Code tab with icons and meters, and in the terminal as text. The one-line install needs Claude Code 2.1.292 or later.</p></div>
       <div class="q"><h3>What happens when Claude Code compacts an idle session, or I resume one?</h3><p>In the terminal, on the hour's cache, Claude Code can compact a conversation over 200k tokens (by default) left idle about 54 minutes; the band then reads <code>compacted</code>, with what the summary will cost. A resumed session keeps its idle time and its spend, from Claude Code and one read of the transcript.</p></div>
