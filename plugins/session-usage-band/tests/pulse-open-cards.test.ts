@@ -240,14 +240,31 @@ test('every card keeps to its share of the line: no fact or chart wider than the
         for (const line of lines) {
           const cards = (line.children ?? []) as Node[]
           const share = Math.floor((columns - (cards.length - 1)) / cards.length)
-          for (const card of cards)
-            for (const row of (card.children ?? []) as Node[]) {
+          for (const card of cards) {
+            const inner = share - (card.props?.borderStyle === undefined ? 0 : 2) - 2
+            const fits = (row: Node, room: number, key: string) => {
               const cells = cellsOf(row as unknown as RenderChildren, surface === 'desktop' ? DESKTOP : TERMINAL)
-              const edge = (card.props?.borderStyle === undefined ? 0 : 2) + 2
-              expect(`${surface} ${columns} ${String(card.props?.key)} ${String(row?.props?.key)} ${cells <= share - edge}`).toBe(`${surface} ${columns} ${String(card.props?.key)} ${String(row?.props?.key)} true`)
+              expect(`${surface} ${columns} ${String(card.props?.key)} ${key} ${cells <= room}`).toBe(`${surface} ${columns} ${String(card.props?.key)} ${key} true`)
             }
+            for (const row of (card.children ?? []) as Node[]) {
+              if (row?.props?.key !== 'halves') { fits(row, inner, String(row?.props?.key)); continue }
+              // Limits' halves: each in its own room, side by side or one over the other; never none wide.
+              const across = row.props?.flexDirection === 'row'
+              for (const half of (row.children ?? []) as Node[]) {
+                if (!across) expect(`${surface} ${columns} ${String(half.props?.key)} width ${String(half.props?.width)}`).not.toMatch(/width 0$/)
+                for (const part of (half.children ?? []) as Node[]) fits(part, across ? Math.floor((inner - 2) / 2) : inner, `${String(half.props?.key)}/${String(part?.props?.key)}`)
+              }
+            }
+          }
         }
       }
+})
+
+test('narrow, Limits stacks its halves, one over the other, each the card\'s width', () => {
+  const halves = byKey(cardOf(open({ surface: 'terminal', columns: 40, maxRows: 40, zone: fixedZone(0) }), 'limits'), 'halves', 'Box')
+  expect(halves?.props?.flexDirection).toBe('column')
+  expect(((halves?.children ?? []) as Node[]).map(h => h.props?.width)).toEqual([undefined, undefined])
+  expect(byKey(cardOf(open({ surface: 'terminal', maxRows: 40, zone: fixedZone(0) }), 'limits'), 'halves', 'Box')?.props?.flexDirection).toBe('row')
 })
 
 test('the terminal: cards are fills, not borders; plain draws no fill and borders them; braille for the charts, none in ascii', () => {

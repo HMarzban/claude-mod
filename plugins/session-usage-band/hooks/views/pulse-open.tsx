@@ -227,8 +227,9 @@ const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement =
     return card('context', markedHead(context.cardHead, context.tone), context.tone, [chart, fill(), fact(context.fact.label, context.fact.values)])
   }
 
-  /** A window's half of Limits: its chart, then its fact, `cells` wide. */
-  const half = (l: LimitView, cells: number): RenderElement => {
+  /** A window's half of Limits: its chart, then its fact, `cells` wide;
+   *  side by side the halves share the line, else each takes all of it. */
+  const half = (l: LimitView, cells: number, across: boolean): RenderElement => {
     const ink = l.tone === 'amber' ? palette.amberFg : l.key === '5h' ? palette.fiveAccent : palette.weekAccent
     const halfPx = cells * measure.pxPerCell
     let chart: RenderChildren = null
@@ -241,7 +242,7 @@ const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement =
         chart = dayCells(kit, { key: 'chart', alt: week.daysAlt, values: week.daysDrawn.values, guess: week.daysDrawn.guess, today: week.daysDrawn.today, color: ink, cellPx, ...daySize, max: 100 })
     }
     return (
-      <Box key={l.key} flexDirection="column" flexGrow={1} width={0} minWidth={0} justifyContent="flex-end">
+      <Box key={l.key} flexDirection="column" justifyContent="flex-end" {...(across ? { flexGrow: 1, width: 0, minWidth: 0 } : {})}>
         {chart}
         {factRow(kit, l.fact.label, l.fact.value)}
       </Box>
@@ -259,7 +260,7 @@ const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement =
     return card('limits', markedHead(limitsHead(shown), tone), tone, [
       windows.length === 0 ? null : (
         <Box key="halves" flexDirection={across ? 'row' : 'column'} alignItems="stretch" columnGap={HALF_GAP} flexGrow={1}>
-          {windows.map(l => half(l, cells))}
+          {windows.map(l => half(l, cells, across))}
         </Box>
       ),
       others.length === 0 ? null : (
