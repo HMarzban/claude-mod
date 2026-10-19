@@ -56,11 +56,17 @@ export const flaps = (kit: Kit, o: Readonly<{ key: string; alt: string; runs: re
     )
   }
   const width = flapsWidth(runs)
-  const marks = tilesOf(runs).map(([ch, ink], i) => tileAt(i * (TILE_PX + TILE_GAP), ch, ink, bg, seam))
-  return <Svg key={key} source={flapsSvg(width, marks)} alt={alt} width={width} height={FLAP_PX} />
+  const marks = tilesOf(runs).map(([ch, ink], i) => {
+    const x = i * (TILE_PX + TILE_GAP)
+    const glyph = `<text x="${x + TILE_PX / 2}" y="14.5" text-anchor="middle" xml:space="preserve" font-family="ui-monospace, monospace" font-size="12" font-weight="600" fill="${ink}">${escape(ch)}</text>`
+    return `<rect class="tile" x="${x}" y="0" width="${TILE_PX}" height="${FLAP_PX}" rx="1.5" fill="${bg}"/>${glyph}<rect class="seam" x="${x}" y="9.5" width="${TILE_PX}" height="1" fill="${seam}"/>`
+  })
+  const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${FLAP_PX}" viewBox="0 0 ${width} ${FLAP_PX}">${marks.join('')}</svg>`
+  return <Svg key={key} source={source} alt={alt} width={width} height={FLAP_PX} />
 }
 
-/** A tile at `x`: its face, its character in `ink`, the seam across it. */
+/** A tile at `x`, as `flaps` draws one: its face, its character in `ink`,
+ *  the seam across it. */
 const tileAt = (x: number, ch: string, ink: string, bg: string, seam: string): string => {
   const glyph = `<text x="${x + TILE_PX / 2}" y="14.5" text-anchor="middle" xml:space="preserve" font-family="ui-monospace, monospace" font-size="12" font-weight="600" fill="${ink}">${escape(ch)}</text>`
   return `<rect class="tile" x="${x}" y="0" width="${TILE_PX}" height="${FLAP_PX}" rx="1.5" fill="${bg}"/>${glyph}<rect class="seam" x="${x}" y="9.5" width="${TILE_PX}" height="1" fill="${seam}"/>`
