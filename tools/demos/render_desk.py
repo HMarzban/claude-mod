@@ -5,7 +5,7 @@ real screenshot: 10px per column, 24px per text row, 12px per gap row.
 node(tree) draws a band for the film, the terminal demo and the stills;
 node(tree, site=True) draws it for the landing page's live band: the band's
 buttons are real <button>s, its icons have alt="", and a countdown in the
-cache's last minute (`0:47 left`, `47s left`) is wrapped in <span class=cd>
+cache's last minute (`0:40 left`, `40s left`) is wrapped in <span class=cd>
 so the page can tick it."""
 import base64
 import html
@@ -14,8 +14,8 @@ import re
 COL, ROW, GAP = 10, 24, 12
 
 
-# A countdown in the cache's last minute, as the chips (`0:47 left`) and the
-# pulse (`47s left`) draw it; never a clock time (`cold at 15:45`) or `54m left`.
+# A countdown in the cache's last minute, as the chips (`0:40 left`) and the
+# pulse (`40s left`) draw it; never a clock time (`cold at 15:45`) or `54m left`.
 COUNTDOWN = re.compile(r'(\d+:\d\d|\d+s)(?= left)')
 
 

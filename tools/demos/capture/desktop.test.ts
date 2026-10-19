@@ -200,8 +200,8 @@ for (const layout of LAYOUT_NAMES) {
   test(`capture: the site's calm, last minute and cold states, ${layout}`, { timeoutMs: 120_000 }, async ($, on) => {
     const clock = await lived($, on, layout)
     await clock.advance(SETTLED); await drawBoth($, demo(layout, 'calm'))
-    await clock.advance(60 * MIN - 47_000 - SETTLED); await drawBoth($, demo(layout, 'amber'))
-    await clock.advance(47_000 + 60_000); await drawBoth($, demo(layout, 'cold'))
+    await clock.advance(60 * MIN - 40_000 - SETTLED); await drawBoth($, demo(layout, 'amber'))
+    await clock.advance(40_000 + 60_000); await drawBoth($, demo(layout, 'cold'))
   })
   test(`capture: the site's near-a-limit state, ${layout}`, { timeoutMs: 120_000 }, async ($, on) => {
     const clock = await lived($, on, layout, NEAR_LIMIT)
