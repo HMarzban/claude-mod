@@ -114,4 +114,8 @@ def crop(path, pad=48):
 for name in ['band-expanded.png'] + [f'band-{g}-{th}.png' for g in ('states', 'layouts') for th in ('light', 'dark')]:
     crop(f'{sys.argv[1]}/{name}')
 EOF
+# ---- 6. cache-bust: the page names each local asset with a hash of its
+# final bytes (the social card is drawn after the page), so a changed file
+# gets a new URL: browsers' favicon stores and link previews refetch it.
+"$PY" cachebust.py "$DOCS/index.html" "$DOCS"
 echo "done: docs/ is up to date"

@@ -35,9 +35,16 @@ It uses the first `python3` it finds that can import Pillow; set
    stamps `docs/sitemap.xml`'s `lastmod` with the build date (UTC).
 4. **Render.** `shoot.mjs` screenshots each frame through one headless Chrome
    over the DevTools protocol; ffmpeg turns frames into MP4 and GIF.
+5. **Cache-bust.** Last, `cachebust.py` gives every local asset
+   `docs/index.html` names (the icons, the social card in `og:image`,
+   `twitter:image` and the JSON-LD, the film and its posters) a `?v=` of its
+   SHA-256's first 10 hex digits, from the files as the build left them. A
+   changed file gets a new URL, so no cache keeps the old one: browsers'
+   long-lived favicon stores and link-preview caches included. Running it
+   again changes nothing.
 
 To change the landing page, edit `site/template.html` and run the build (or
 just `python3 gen_site.py out/site.txt site/template.html ../../docs/index.html`
-after a capture). Don't edit `docs/index.html` by hand; the build overwrites it.
+then `python3 cachebust.py ../../docs/index.html ../../docs` after a capture). Don't edit `docs/index.html` by hand; the build overwrites it.
 
 Scratch goes to `tools/demos/out/`, which git ignores.
