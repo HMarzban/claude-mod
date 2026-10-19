@@ -1,8 +1,10 @@
 # session-usage-band
 
-A calm band above the Claude Code prompt that answers: is my cache still
-warm, what is this session costing, and am I close to a limit? By default
-it is one row of chips:
+The price of your next Claude Code message, before you send it. This Claude
+Code plugin draws a calm band above the prompt that answers: is my cache
+still warm, what will the next message cost if it isn't, what is this
+session costing, and am I close to a limit? It spends no tokens and makes
+no network calls. By default it is one row of chips:
 
 ![The chip row, labelled: the cache countdown and what a re-warm will cost, the session cost, context toward auto-compaction, the 5-hour limit with its pace, the weekly limit and its reset, and the toggle that opens the cards](https://raw.githubusercontent.com/HMarzban/claude-mod/main/docs/band-anatomy.png)
 
@@ -18,7 +20,7 @@ something off? [Open an issue](https://github.com/HMarzban/claude-mod/issues/new
 claude plugin install session-usage-band --marketplace HMarzban/claude-mod
 ```
 
-Then start a new session, or run `/reload-plugins` in an open one.
+It loads in your next session, or run `/reload-plugins` in an open one.
 
 The band needs Claude Code with mods (function-hooks plugins), and was
 tested on 2.1.295 in the terminal and the desktop app's bundled 2.1.289. The
@@ -234,7 +236,12 @@ less, depending on the model (a twentieth on Opus 5.5 and Sonnet 5.5, a
 fortieth on Fable 5.1 and Mythos 5.1). It
 stays warm for a lifetime (5 minutes or an hour) counted from the last
 request. Go idle past that, and the next message rebuilds the whole
-conversation at the cache-write price.
+conversation at the cache-write price, 1.25× input as Claude Code's ledger
+counts it. The context part of that message then costs ~25× the warm read
+on Opus 5.5 and Sonnet 5.5, ~50× on Fable 5.1 and ~12.5× on Haiku 5.5;
+output and new input cost the same either way. In a terminal session on
+the hour's cache, Claude Code may compact the conversation first; see
+[Idle compaction](#idle-compaction).
 
 The band never suggests sending a message to keep the cache warm. That
 would mean burning tokens to avoid burning tokens.
@@ -310,7 +317,7 @@ always shown with `~`.
   the current conversation has spent, not the session's whole ledger.
 - **Claude Haiku 5.5 has two price tiers.** A request whose prompt (every
   input token, cache reads and writes included) is over 100,000 tokens pays
-  5× every price
+  5× every price ($0.50 per million input tokens rather than $0.10)
   ([long context pricing](https://platform.claude.com/docs/en/about-claude/pricing#long-context-pricing)).
   The band weighs each request at its own tier, so `r` is the lower tier's
   rate, and it prices a re-warm of a conversation over 100k, and what the
@@ -386,8 +393,8 @@ which doesn't compact while idle, neither shows.
 ## Developing
 
 See [CONTRIBUTING.md](https://github.com/HMarzban/claude-mod/blob/main/CONTRIBUTING.md)
-for the development loop, the gates, the module map and the rules the code
-follows.
+for the development loop, the gates (about 1,000 tests), the module map and
+the rules the code follows.
 
 ## Help make it better
 
