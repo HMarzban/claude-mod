@@ -121,10 +121,14 @@ export type CacheFacts = Readonly<{
   /** Counting down on the hour's cache before the ~54-minute mark, where
    *  Claude Code may compact the conversation instead of letting it go cold. */
   idleCompactSoon: boolean
-}>
+}> &
+  /** The snapshot's own facts its words say, as it measured them. */
+  Pick<Cache, 'recalled' | 'msLeft' | 'coldAt' | 'ttl' | 'ttlPinned' | 'window' | 'reWarmUsd' | 'savedUsd' | 'misses' | 'idleMs' | 'readShare'>
 
 export type ContextFacts = ReturnType<typeof contextReading> &
   Readonly<{
+    /** The tokens in context, as the engine reported them; undefined when it didn't. */
+    tokens: number | undefined
     compactAt: number | undefined
     autoCompactOff: boolean
     window: number
@@ -175,8 +179,6 @@ type SpendReading = SpendFacts & SpendWords
 export type LimitView = LimitFacts & LimitWords
 
 type ChipsReadings = Readonly<{
-  /** The snapshot itself, for the raw facts chips' pills read; no other view reads it. */
-  raw: BandSnapshot
   reading: Readonly<{ copy: CacheCopy; tokenBreakdown: string }>
 }>
 
@@ -269,6 +271,17 @@ const cacheFacts = (snap: BandSnapshot): CacheFacts => {
     lastCall: counting && (c.ttl === '5m' ? mood === 'expiring' : c.msLeft < LAST_CALL_MS),
     compacted: mood === 'cold' && c.compacted,
     idleCompactSoon: counting && c.idleCompacts && c.ttl === '1h' && c.msLeft > TTL_MS['1h'] - IDLE_COMPACT_MS,
+    recalled: c.recalled,
+    msLeft: c.msLeft,
+    coldAt: c.coldAt,
+    ttl: c.ttl,
+    ttlPinned: c.ttlPinned,
+    window: c.window,
+    reWarmUsd: c.reWarmUsd,
+    savedUsd: c.savedUsd,
+    misses: c.misses,
+    idleMs: c.idleMs,
+    readShare: c.readShare,
   }
 }
 
@@ -277,6 +290,7 @@ const contextFacts = (snap: BandSnapshot): ContextFacts => {
   const reading = contextReading(snap.context)
   return {
     ...reading,
+    tokens: snap.context.tokens,
     compactAt: snap.context.compactAt,
     autoCompactOff: snap.context.autoCompactOff,
     window: snap.context.window,
@@ -450,7 +464,6 @@ const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour
 /** Everything a view reads, built once per draw: the frame, each section's
  *  facts and words, and chips' own inputs. */
 export const readingsOf = (snap: BandSnapshot): Readings => {
-  const c = snap.cache
   const frame: Frame = {
     expanded: snap.expanded,
     maxRows: snap.maxRows,
@@ -473,7 +486,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
   let history: HistoryReading | undefined
   let week: WeekReading | undefined
   let board: Board | undefined
-  const cacheRead = { ...cache, ...cacheWords(cache, c) }
+  const cacheRead = { ...cache, ...cacheWords(cache) }
   const spendRead = { ...spend, ...spendSaid }
   const contextRead = { ...context, ...contextWords(context) }
   return {
@@ -493,12 +506,11 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
       return (week ??= weekFacts(snap, sevenDay, fiveHour))
     },
     get board() {
-      return (board ??= boardWords({ frame, cache: cacheRead, spend: spendRead, context: contextRead, limits, coldAt: c.coldAt }))
+      return (board ??= boardWords({ frame, cache: cacheRead, spend: spendRead, context: contextRead, limits }))
     },
     chips: {
-      raw: snap,
       reading: {
-        copy: cacheCopy(cache, c, frame),
+        copy: cacheCopy(cache, frame),
         tokenBreakdown: tokenBreakdownOf(spendSaid.split),
       },
     },

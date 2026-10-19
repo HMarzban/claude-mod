@@ -160,7 +160,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRo
     const { name, frac, tone } = w
     if (w.passed) return [factRow(name, 'reset'), null]
     const value = w.valueMarked
-    const reset = w.cardResetLess()
+    const reset = w.cardResetLess
     const room = Math.max(4, inner - [...name].length - [...value].length - 2)
     const size: BarSize = { px: room * measure.pxPerCell, cells: room }
     return [

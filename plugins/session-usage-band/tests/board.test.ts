@@ -1,7 +1,7 @@
 import { test, expect } from 'claude-code/testing'
 import { fixedZone } from '../hooks/format'
 import { readingsOf } from '../hooks/reading'
-import { remarksFit } from '../hooks/words'
+import { remarksFit } from '../hooks/views/departures-board'
 import { HOUR, MIN } from './helpers'
 import { snapOf } from './matrix'
 
@@ -86,12 +86,12 @@ test('a passed reset says RESET PASSED once, never RESET twice, zone known or no
 test('no board form draws ↻, which the flap face lacks: RESET says it', () => {
   const pace = { fiveHour: { ...limit(20, 3), etaMs: 40 * MIN }, sevenDay: limit(85, 67), otherLimits: [{ kind: 'spend_limit', percentUsed: 40, resetsAt: new Date(5 * HOUR).toISOString() }] }
   for (const zone of [UTC, undefined])
-    for (const r of board({ ...pace, zone }).rows) for (const text of [r.status, r.time, r.remarks, r.cell, r.cellShort, r.cellNoReset ?? '']) expect(text).not.toMatch(/↻/)
+    for (const r of board({ ...pace, zone }).rows) for (const text of [r.status, r.time ?? '', r.remarks, r.cell, r.cellShort, r.cellNoReset ?? '']) expect(text).not.toMatch(/↻/)
   expect(row({ fiveHour: limit(26, 3) }, '5h')?.cell).toMatch(/^26% RESET 03:00/)
 })
 test('an unknown zone: no clock anywhere on the board, and no empty time', () => {
   for (const r of board({ zone: undefined, fiveHour: limit(26, 3), sevenDay: limit(85, 67) }).rows) {
-    for (const text of [r.time, r.cell, r.remarks, r.alt]) expect(text).not.toMatch(CLOCK)
+    for (const text of [r.time ?? '', r.cell, r.remarks, r.alt]) expect(text).not.toMatch(CLOCK)
     expect(r.time).not.toBe('')
     expect(`${r.cell}${r.remarks}`).not.toMatch(/undefined|NaN/)
   }

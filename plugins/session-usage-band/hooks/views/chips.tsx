@@ -1,10 +1,10 @@
 // Chips: a row of pills, and its four cards beneath it when open. Its pill
 // builders, their hover strings, LIMITS and its row are exported for its
 // tests; pulse and departures draw their own look. They draw from the
-// readings' words; only the context's pill and hover read raw facts
-// (`read.chips.raw`). The pill a chip sits in and the cache's battery, an
-// icon on the desktop and the pill itself in a terminal, are drawn here
-// alone.
+// readings' words; only the context's pill and hover format its facts
+// themselves, which the views gate allows chips alone. The pill a chip sits
+// in and the cache's battery, an icon on the desktop and the pill itself in
+// a terminal, are drawn here alone.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { meter } from '../charts'
@@ -237,7 +237,7 @@ const tokensPill = (kit: Kit, read: Readings): PillSpec => {
 
 /** The context pill's hover card: how much of the window is used, and where it compacts. */
 const contextHover = (read: Readings): string => {
-  const ctx = read.chips.raw.context
+  const ctx = read.context
   const { pct, toCompact } = read.context
   return ctx.compactAt === undefined || toCompact === undefined
     ? `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.window)} (${pct}); older turns get summarized near full`
@@ -247,7 +247,7 @@ const contextHover = (read: Readings): string => {
 /** The context's fill on a meter, counting down to compaction once near it. */
 const contextPill = (kit: Kit, read: Readings, squeeze: number): PillSpec => {
   const { Text, palette, onTone, gap, icon } = kit
-  const ctx = read.chips.raw.context
+  const ctx = read.context
   const { frac, pct, toCompact, nearCompact, tone } = read.context
   const amount =
     ctx.compactAt !== undefined

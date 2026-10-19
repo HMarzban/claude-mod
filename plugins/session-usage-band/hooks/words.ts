@@ -32,7 +32,6 @@ import { warmAverageOf } from './insights'
 import type { CostEntry, Trails } from './insights'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
 import type { CacheFacts, ContextFacts, Frame, LimitFacts, LimitKey, SliceMark, SpendFacts, Tone } from './reading'
-import type { BandSnapshot } from './snapshot'
 
 /** The colour a piece of a phrase is drawn in. */
 export type Role = 'label' | 'value' | 'amber' | 'accent5' | 'accent7'
@@ -50,6 +49,8 @@ const AMBER_LEAD = '! '
 const joined = (say: Say): string => say.map(([text]) => text).join('')
 /** The phrases said, the missing and the empty left out. */
 const said = (parts: ReadonlyArray<string | undefined>): string[] => parts.filter((p): p is string => p !== undefined && p !== '')
+/** The phrases said, joined by `sep`. */
+const saidJoined = (parts: ReadonlyArray<string | undefined>, sep: string): string => said(parts).join(sep)
 
 const amberOf = (say: Say, sayShort: Say): Amber => ({ long: joined(say), short: joined(sayShort) })
 
@@ -97,7 +98,7 @@ export const paceText = (p: Readonly<{ etaMs: number | null; projectedPct: numbe
 /** What a screen reader hears for a drawn reading: `<name> <value>, <state>,
  *  <more>`, in words. A caller passes "about" and "resets in", never ~ or ↻. */
 export const altOf = (name: string, value: string, state?: string, more?: string): string =>
-  [`${name} ${value}`, state, more].filter((s): s is string => s !== undefined && s !== '').join(', ')
+  saidJoined([`${name} ${value}`, state, more], ', ')
 
 /** The open cards' titles, in the order they are drawn. */
 export const CARD_TITLES = { cache: 'Cache', spend: 'Spend', context: 'Context', limits: 'Limits' } as const
@@ -193,7 +194,7 @@ export type LimitWords = Readonly<{
   valueMarked: string
   /** A card's reset and pace, `resets 3h 00m · on pace for ~10%`; undefined
    *  without a reset to come. */
-  cardResetLess: () => string | undefined
+  cardResetLess: string | undefined
   /** When it resets, after `resets`: `16:40` or `Sat 13:30` once the offset
    *  is known, else `resetIn`; undefined without a reset to come. */
   resetWhen: string | undefined
@@ -223,16 +224,16 @@ export type LimitWords = Readonly<{
 }>
 
 /** The cache in words, from its facts: it counts down only while `coldInMs` is set. */
-export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache']): CacheWords => {
+export const cacheWords = (f: CacheFacts): CacheWords => {
   const counting = f.coldInMs !== undefined
   const left = counting ? fmtLeft(f.coldInMs) : ''
   const leftShort = counting ? fmtLeftShort(f.coldInMs) : ''
   // Recalled from the session's last reply, its time is an estimate until a reply measures it.
-  const recalledTime = counting && c.recalled && !f.measured
+  const recalledTime = counting && f.recalled && !f.measured
   // Spoken, a price is never marked ~: the alt says "about".
-  const price = c.reWarmUsd !== null ? fmtSmallCost(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`
+  const price = f.reWarmUsd !== null ? fmtSmallCost(f.reWarmUsd) : `${fmtTokens(f.window)} tokens`
   // The card counts down as chips' row always has: `1h 05m`, `0:47`.
-  const countdown: Say = [[fmtCountdown(c.msLeft), 'value'], [' left', 'label']]
+  const countdown: Say = [[fmtCountdown(f.msLeft), 'value'], [' left', 'label']]
   const value = counting ? left : f.mood === 'unmeasured' ? UNKNOWN : f.compacted ? 'compacted' : f.mood
   const cardHead: Say = f.mood === 'unmeasured' ? [['not measured yet', 'value']] : counting ? countdown : [[value, 'value']]
   const say: Say =
@@ -256,12 +257,12 @@ export const cacheWords = (f: CacheFacts, c: BandSnapshot['cache']): CacheWords 
     text: joined(say),
     bandName: 'cache',
     amber: f.mood === 'expiring' ? AMBER.cache(leftShort, f.estimate) : undefined,
-    savedText: f.measured && c.savedUsd !== null ? fmtEstimate(c.savedUsd) : undefined,
+    savedText: f.measured && f.savedUsd !== null ? fmtEstimate(f.savedUsd) : undefined,
     hitText: f.hitFrac === undefined ? undefined : fmtPct(f.hitFrac),
     // Inference only ever moves an assumed hour to 5m, so an unpinned hour is the guess.
-    lastsText: `${c.ttl} idle${!c.ttlPinned && c.ttl === '1h' ? ' · assumed' : ''}`,
-    rebuildsText: c.misses > 0 ? String(c.misses) : undefined,
-    idleText: c.recalled && c.idleMs !== null ? fmtAgo(c.idleMs) : undefined,
+    lastsText: `${f.ttl} idle${!f.ttlPinned && f.ttl === '1h' ? ' · assumed' : ''}`,
+    rebuildsText: f.misses > 0 ? String(f.misses) : undefined,
+    idleText: f.recalled && f.idleMs !== null ? fmtAgo(f.idleMs) : undefined,
     cardHead,
     cardNote:
       f.mood === 'unmeasured' ? "Countdown starts with Claude's next reply."
@@ -298,14 +299,14 @@ export type CacheCopy = Readonly<{
   alt: string
 }>
 
-export const cacheCopy = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame): CacheCopy => {
+export const cacheCopy = (f: CacheFacts, frame: Frame): CacheCopy => {
   // What a warm read costs against input on the model in force.
-  const readPct = `${+(c.readShare * 100).toFixed(1)}%`
-  const left = fmtCountdown(c.msLeft)
+  const readPct = `${+(f.readShare * 100).toFixed(1)}%`
+  const left = fmtCountdown(f.msLeft)
   const battery = f.charge <= 0 ? 'cache battery empty' : `cache battery ${Math.round(clamp01(f.charge) * 100)}% left`
   const warmHover = f.idleCompactSoon
     ? `${left} left; may be compacted at ~54m idle, before it goes cold`
-    : `${left} left; warm cache bills input at ${readPct}, expires ${c.ttl} after a request`
+    : `${left} left; warm cache bills input at ${readPct}, expires ${f.ttl} after a request`
   switch (f.mood) {
     case 'unmeasured':
       return {
@@ -334,14 +335,14 @@ export const cacheCopy = (f: CacheFacts, c: BandSnapshot['cache'], frame: Frame)
           // A summary to write, not a cache lost: as calm as cold.
           pill: short => (short ? `compacted ${f.estimate}` : `cache compacted · next ${f.estimate}`),
           figure: undefined,
-          hover: `Compacted while idle: next message writes the ${fmtTokens(c.window)} summary${c.reWarmUsd === null ? '' : ` (${f.estimate})`}`,
+          hover: `Compacted while idle: next message writes the ${fmtTokens(f.window)} summary${f.reWarmUsd === null ? '' : ` (${f.estimate})`}`,
           alt: 'cache compacted',
         }
       return {
         // Cold is a price, not an error: neutral, no hue, no alarm.
         pill: short => (short ? `cold ${f.estimate}` : `cache cold · next message ${f.estimate}`),
         figure: undefined,
-        hover: `Cold: next message rebuilds ${fmtTokens(c.window)} tokens${c.reWarmUsd === null ? '' : ` (${f.estimate})`}`,
+        hover: `Cold: next message rebuilds ${fmtTokens(f.window)} tokens${f.reWarmUsd === null ? '' : ` (${f.estimate})`}`,
         alt: battery,
       }
     case 'warm':
@@ -437,14 +438,10 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     : amber !== undefined && fullIn !== undefined ? { label: `${f.name} full in`, value: fullIn }
     : resetWhen !== undefined ? { label: `${f.name} resets`, value: resetWhen }
     : { label: f.name, value: pace === '' ? valueText : pace }
-  const cardResetLess = (): string | undefined => {
-    if (span === undefined) return undefined
-    return [`resets ${span}`, pace].filter(t => t !== '').join(' · ')
-  }
   return {
     valueText,
     valueMarked: `${f.value}${severityMark(f.frac)}`,
-    cardResetLess,
+    cardResetLess: span === undefined ? undefined : saidJoined([`resets ${span}`, pace], ' · '),
     resetWhen,
     text: joined(say),
     say,
@@ -516,15 +513,16 @@ export const historyWords = (record: Trails, context: ContextFacts, spend: Reado
     const drawn = record.costs.slice(-count)
     const drawnAvg = warmAverageOf(drawn)
     const max = drawn.reduce<CostEntry | undefined>((top, e) => (top === undefined || e.usd > top.usd ? e : top), undefined)
-    return [
-      `cost of ${drawn.length === 1 ? 'the last message' : `the last ${drawn.length} messages`}`,
-      trend,
-      drawnAvg === undefined ? '' : `average ${fmtSmallCost(drawnAvg)}`,
-      max === undefined ? '' : `max ${fmtSmallCost(max.usd)}${max.reWarm ? ' re-warm' : ''}`,
-      last?.reWarm ? 'the newest a re-warm' : '',
-    ]
-      .filter(s => s !== '')
-      .join(', ')
+    return saidJoined(
+      [
+        `cost of ${drawn.length === 1 ? 'the last message' : `the last ${drawn.length} messages`}`,
+        trend,
+        drawnAvg === undefined ? undefined : `average ${fmtSmallCost(drawnAvg)}`,
+        max === undefined ? undefined : `max ${fmtSmallCost(max.usd)}${max.reWarm ? ' re-warm' : ''}`,
+        last?.reWarm ? 'the newest a re-warm' : undefined,
+      ],
+      ', ',
+    )
   }
   const compactsAt = context.compactAt === undefined ? '' : `, compacts at ${fmtTokens(context.compactAt)}`
   const numbersShort = lastText === undefined ? '' : `last ${lastText}`
@@ -592,7 +590,7 @@ export type BoardRow = Readonly<{
   key: BoardKey
   item: string        // CACHE | SPEND | CONTEXT | 5H | 7D | an other limit's name, upper-case
   status: string      // DEPARTS | LAST CALL | DEPARTED | BOARDING | CHECK-IN | $0.24 | 8% USED | 26% | ! NEAR LIMIT
-  time: string        // 17:24 | SAT 13:30 | IN 38 MIN | IN 1H 04M | PASSED | -
+  time: string | undefined // 17:24 | SAT 13:30 | IN 38 MIN | IN 1H 04M | PASSED; none where it has no time
   remarks: string
   cell: string        // collapsed, long: DEPARTS 17:24 | 26% RESET 17:50 | 85% RESET SAT 13:30 ! NEAR LIMIT
   cellShort: string   // collapsed, short: 17:24 | ! 47S | 26%
@@ -615,10 +613,8 @@ type BoardFacts = Readonly<{
   spend: SpendFacts & SpendWords
   context: ContextFacts & ContextWords
   limits: readonly (LimitFacts & LimitWords)[]
-  coldAt: number | null
 }>
 
-const NONE = '-'
 /** A measured span on the board: `47S`, `38 MIN`, `1H 04M`. Never `38M`. */
 const boardSpan = (ms: number): string =>
   ms < MINUTE_MS ? `${secondsLeft(ms)}S` : ms < HOUR_MS ? `${minutesLeft(ms)} MIN` : fmtCountdown(ms)
@@ -630,19 +626,19 @@ const cacheBoard = (r: BoardFacts): BoardRow => {
   const zone = r.frame.zone
   const at = (cell: Omit<BoardRow, 'key' | 'item' | 'alt'>): BoardRow => ({ key: 'cache', item: 'CACHE', alt: c.alt, ...cell })
   const reWarm = `RE-WARM ${c.estimate}`
-  if (c.mood === 'unmeasured' || c.mood === 'warming') return at({ status: 'CHECK-IN', time: NONE, remarks: '', cell: 'CHECK-IN', cellShort: 'CHECK-IN', tone: 'calm' })
-  if (r.frame.isWorking) return at({ status: 'BOARDING', time: NONE, remarks: '', cell: 'BOARDING', cellShort: 'BOARDING', tone: 'calm' })
-  const clock = r.coldAt === null || zone === undefined ? undefined : `${c.measured ? '' : '~'}${fmtClock(r.coldAt, zone)}`
+  if (c.mood === 'unmeasured' || c.mood === 'warming') return at({ status: 'CHECK-IN', time: undefined, remarks: '', cell: 'CHECK-IN', cellShort: 'CHECK-IN', tone: 'calm' })
+  if (r.frame.isWorking) return at({ status: 'BOARDING', time: undefined, remarks: '', cell: 'BOARDING', cellShort: 'BOARDING', tone: 'calm' })
+  const clock = c.coldAt === null || zone === undefined ? undefined : `${c.measured ? '' : '~'}${fmtClock(c.coldAt, zone)}`
   if (c.compacted) {
     const next = `NEXT ${c.estimate}`
-    return at({ status: 'COMPACTED', time: clock ?? NONE, remarks: next, cell: clock === undefined ? `COMPACTED · ${next}` : `COMPACTED ${clock} · ${next}`, cellShort: next, tone: 'calm' })
+    return at({ status: 'COMPACTED', time: clock, remarks: next, cell: clock === undefined ? `COMPACTED · ${next}` : `COMPACTED ${clock} · ${next}`, cellShort: next, tone: 'calm' })
   }
   if (c.mood === 'cold')
-    return at({ status: 'DEPARTED', time: clock ?? NONE, remarks: reWarm, cell: clock === undefined ? `DEPARTED · ${reWarm}` : `DEPARTED ${clock} · ${reWarm}`, cellShort: reWarm, tone: 'calm' })
+    return at({ status: 'DEPARTED', time: clock, remarks: reWarm, cell: clock === undefined ? `DEPARTED · ${reWarm}` : `DEPARTED ${clock} · ${reWarm}`, cellShort: reWarm, tone: 'calm' })
   const left = c.coldInMs ?? 0
   if (c.tone === 'amber') {
     const secs = boardSpan(left)
-    return at({ status: 'LAST CALL', time: secs, remarks: reWarm, cell: `LAST CALL ${secs}`, cellShort: `! ${secs}`, tone: 'amber' })
+    return at({ status: 'LAST CALL', time: secs, remarks: reWarm, cell: `LAST CALL ${secs}`, cellShort: `${AMBER_LEAD}${secs}`, tone: 'amber' })
   }
   const status = c.lastCall ? 'LAST CALL' : 'DEPARTS'
   const countdown = `IN ${boardSpan(left)}`
@@ -651,21 +647,21 @@ const cacheBoard = (r: BoardFacts): BoardRow => {
 }
 
 const spendBoard = (r: BoardFacts): BoardRow => ({
-  key: 'spend', item: 'SPEND', status: r.spend.totalText, time: NONE,
+  key: 'spend', item: 'SPEND', status: r.spend.totalText, time: undefined,
   remarks: r.spend.lastText === undefined ? '' : `LAST ${r.spend.lastText}`,
   cell: r.spend.totalText, cellShort: r.spend.totalText, tone: 'calm', alt: `spent ${r.spend.totalText} this session`,
 })
 
 const contextBoard = (r: BoardFacts): BoardRow => {
   const x = r.context
-  const base = { key: 'context', item: 'CONTEXT', time: NONE, alt: x.alt } as const
+  const base = { key: 'context', item: 'CONTEXT', time: undefined, alt: x.alt } as const
   if (!x.known) return { ...base, status: 'NOT REPORTED', remarks: '', cell: 'NOT REPORTED', cellShort: 'NOT REPORTED', tone: 'calm' }
-  const remarks = [x.roomText === undefined ? '' : `${x.roomText} LEFT`, x.compactsAtText === undefined ? '' : `COMPACTS AT ${x.compactsAtText}`].filter(Boolean).join(' · ')
+  const remarks = saidJoined([x.roomText === undefined ? undefined : `${x.roomText} LEFT`, x.compactsAtText === undefined ? undefined : `COMPACTS AT ${x.compactsAtText}`], ' · ')
   if (x.tone === 'calm') return { ...base, status: `${x.valueText} USED`, remarks, cell: x.valueText, cellShort: x.valueText, tone: 'calm' }
   // Near compaction the board names the event; with compaction off, the
   // fill. The group's ITEM already says CONTEXT, so its cell never does.
-  const short = `! ${x.valueText}`
-  const long = x.toCompact === undefined ? short : `! COMPACTS IN ~${fmtTokens(x.toCompact)}`
+  const short = `${AMBER_LEAD}${x.valueText}`
+  const long = x.toCompact === undefined ? short : `${AMBER_LEAD}COMPACTS IN ~${fmtTokens(x.toCompact)}`
   return { ...base, status: long, remarks, cell: long, cellShort: short, tone: 'amber' }
 }
 
@@ -675,23 +671,23 @@ const limitBoard = (r: BoardFacts, l: LimitFacts & LimitWords): BoardRow => {
   const item = l.key !== 'other' ? l.key : /\blimit$/.test(l.name) ? l.name : `${l.name} limit`
   // Passed, its value is that it reset: RESET PASSED says it once, and the short forms the value.
   if (l.passed) return { key: l.key, item, status: l.valueText, time: 'PASSED', remarks: '', cell: `${BOARD_RESET} PASSED`, cellShort: l.valueText, cellNoReset: l.valueText, tone: l.tone, alt: l.alt }
-  const time = l.resetInMs === undefined ? NONE : zone === undefined ? `IN ${boardSpan(l.resetInMs)}` : fmtDayClock(now + l.resetInMs, zone, now)
+  const time = l.resetInMs === undefined ? undefined : zone === undefined ? `IN ${boardSpan(l.resetInMs)}` : fmtDayClock(now + l.resetInMs, zone, now)
   // Amber from the pace, not from crossing the warning line: say when it fills.
   const byPace = l.key === '5h' && l.tone === 'amber' && l.etaMs !== null && l.percentUsed < WARN_AT * 100
-  const amber = l.tone !== 'amber' ? undefined : byPace && l.etaMs !== null ? (zone === undefined ? `! FULL IN ${boardEta(l.etaMs)}` : `! FULL ~${fmtClock(now + l.etaMs, zone)}`) : '! NEAR LIMIT'
+  const amber = l.tone !== 'amber' ? undefined : byPace && l.etaMs !== null ? `${AMBER_LEAD}${zone === undefined ? `FULL IN ${boardEta(l.etaMs)}` : `FULL ~${fmtClock(now + l.etaMs, zone)}`}` : `${AMBER_LEAD}NEAR LIMIT`
   const calm = l.fillText ?? l.pace
   const tail = (amber ?? calm) === '' ? '' : ` ${amber ?? calm}`
   return {
     key: l.key, item, status: amber ?? l.valueText, time,
     // Amber from the pace, STATUS says the fill, so REMARKS doesn't again.
-    remarks: amber === undefined ? calm : [l.valueText, byPace ? '' : calm].filter(Boolean).join(' · '),
-    cell: `${l.valueText}${time === NONE ? '' : ` ${BOARD_RESET} ${time}`}${tail}`, cellShort: amber === undefined ? l.valueText : `! ${l.valueText}`, cellNoReset: `${l.valueText}${tail}`,
+    remarks: amber === undefined ? calm : saidJoined([l.valueText, byPace ? undefined : calm], ' · '),
+    cell: `${l.valueText}${time === undefined ? '' : ` ${BOARD_RESET} ${time}`}${tail}`, cellShort: amber === undefined ? l.valueText : `${AMBER_LEAD}${l.valueText}`, cellNoReset: `${l.valueText}${tail}`,
     tone: l.tone, alt: l.alt,
   }
 }
 
 const upRow = (row: BoardRow): BoardRow => ({
-  ...row, item: row.item.toUpperCase(), status: row.status.toUpperCase(), time: row.time.toUpperCase(),
+  ...row, item: row.item.toUpperCase(), status: row.status.toUpperCase(), time: row.time?.toUpperCase(),
   remarks: row.remarks.toUpperCase(), cell: row.cell.toUpperCase(), cellShort: row.cellShort.toUpperCase(),
   ...(row.cellNoReset === undefined ? {} : { cellNoReset: row.cellNoReset.toUpperCase() }),
 })
@@ -706,12 +702,8 @@ export const boardWords = (r: BoardFacts): Board => {
   }
 }
 
-/** REMARKS cut to `tiles` characters, `…` last where cut. */
-export const remarksFit = (remarks: string, tiles: number): string =>
-  remarks.length <= tiles ? remarks : tiles <= 1 ? '' : `${remarks.slice(0, tiles - 1)}…`
-
 /** What a board line says in its four columns. */
-type BoardText = Pick<BoardRow, 'item' | 'status' | 'time' | 'remarks'>
+type BoardText = Readonly<Record<'item' | 'status' | 'time' | 'remarks', string>>
 
 /** The board's column headings, a line of their own. */
 export const BOARD_HEADINGS: BoardText = { item: 'ITEM', status: 'STATUS', time: 'TIME', remarks: 'REMARKS' }
@@ -723,5 +715,3 @@ export const BOARD_NOW = 'NOW'
 export const BOARD_NO_TIME = '–'
 /** The alt of a rule between the board's lines. */
 export const BOARD_RULE_ALT = 'a rule between the board\'s lines'
-/** A row's TIME, none where it has no time. */
-export const boardTime = (row: Pick<BoardRow, 'time'>): string | undefined => (row.time === NONE ? undefined : row.time)
