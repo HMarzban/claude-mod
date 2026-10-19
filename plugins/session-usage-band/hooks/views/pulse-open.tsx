@@ -269,7 +269,7 @@ const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement =
           </Box>
         ),
         others.length === 0 ? null : (
-          <Box key="others">{oneLine({ color: onTone(othersAmber ? 'amber' : 'calm', palette.cardValue) }, others.flatMap(l => l.bandWords).join(DOT))}</Box>
+          <Box key="others">{oneLine({ color: onTone(othersAmber ? 'amber' : 'calm', palette.cardValue) }, others.map(l => l.line).join(DOT))}</Box>
         ),
       ])
     }

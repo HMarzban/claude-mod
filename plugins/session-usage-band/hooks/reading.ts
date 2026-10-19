@@ -15,12 +15,10 @@ import {
   WARN_AT,
   clamp01,
   contextUsed,
-  dayOf,
   fixedZone,
   fmtEstimate,
   fmtPct,
   fmtTokens,
-  midnightOf,
   resetIn,
 } from './format'
 import type { ResetIn, Zone } from './format'
@@ -153,14 +151,9 @@ export type LimitFacts = Readonly<{
   reset: ResetIn | undefined
   passed: boolean
   gone: number | undefined
-  /** Where a bar's notch sits: the share of the window gone, while any of
-   *  it is used; with none used, the window may not have begun. */
-  notch: number | undefined
   /** 100 when a 5h fill is measured; else the average's landing, once 5% of
    *  the window has gone and any of it is used. */
   projectedPct: number | undefined
-  /** `projectedPct` as a share, at most 1; undefined once passed. */
-  projectedFrac: number | undefined
   /** Time to the reset; undefined once it has passed. */
   resetInMs: number | undefined
   /** Time to full before the reset: a measured fill, else the average's,
@@ -216,17 +209,14 @@ export type SliceRow = Readonly<{ marks: readonly SliceMark[]; notch: number | u
 type WeekReading = Week &
   WeekWords &
   Readonly<{
-    /** The days and the hours as drawn, each guess stopped at the cap. */
-    dayRow: SliceRow
-    hourRow: SliceRow
     /** The 5h window's cumulative percent at the end of each hour slice, from
-     *  `hourRow`, its level at now's slice the window's `percentUsed`; empty
+     *  the hours as drawn, each guess stopped at the cap, its level at now's slice the window's `percentUsed`; empty
      *  where no slice is measured. `nowAt` is the slice now falls in (counted
      *  from 0), the last at the very end; undefined where not known or with no
      *  values. `from` is the first value drawn: those before it are hours
      *  before the first sample, whose level isn't known. */
     fiveHourWindow: Readonly<{ values: readonly number[]; nowAt: number | undefined; from: number }>
-    /** The 7d's days as day cells draw them, from `dayRow`'s capped marks,
+    /** The 7d's days as day cells draw them, from their capped marks,
      *  so the guesses never pass what is left: each value (undefined where
      *  unknown), whether it is a guess, and today's index. The day that fills
      *  the limit is a guess of what is left, or today, once a reading falls
@@ -324,7 +314,6 @@ const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
       etaMs,
       reset,
       gone,
-      notch: reading.percentUsed > 0 ? gone : undefined,
       percentUsed: reading.percentUsed,
       frac,
       // etaMs is set only for a measured fill that comes before the reset.
@@ -332,7 +321,6 @@ const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
       value: `${Math.round(reading.percentUsed)}%`,
       passed,
       projectedPct,
-      projectedFrac: passed || projectedPct === undefined ? undefined : clamp01(projectedPct / 100),
       resetInMs: reset?.kind === 'in' ? at - snap.now : undefined,
       fillInMs,
       fullInMs,
@@ -435,29 +423,23 @@ const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour
   const zone = snap.zone ?? fixedZone(0)
   const seven = windowOf(sevenDay, snap.now)
   const week = weekOf({ samples: snap.samples, seven, five: windowOf(fiveHour, snap.now), now: snap.now, zone })
-  // Now sits in today's cell as far in as today has gone, of its own length:
-  // 25 hours on the day the clocks go back.
   const today = week.days.findIndex(d => d.today)
-  const day = dayOf(snap.now, zone)
-  const todayGone = (snap.now - midnightOf(day, zone)) / (midnightOf(day + 1, zone) - midnightOf(day, zone))
   // The hours are an hour each up to the reset, so the share of the window
   // gone places now among them; at 0% the 5h has no notch.
   const hourNotch = fiveHour?.gone === undefined || fiveHour.percentUsed === 0 || week.hours.length === 0 ? undefined : fiveHour.gone * week.hours.length
-  const dayRow: SliceRow = { marks: cappedMarks(week.days, sevenDay?.percentUsed ?? 0), notch: today < 0 ? undefined : today + todayGone }
+  const dayMarks = cappedMarks(week.days, sevenDay?.percentUsed ?? 0)
   const hourRow: SliceRow = { marks: cappedMarks(week.hours, fiveHour?.percentUsed ?? 0), notch: hourNotch }
   const fiveHourWindow = fiveHourClimb(hourRow, week.hours, fiveHour?.percentUsed ?? 0)
   // Today's fill is its rise so far, measured; another day's, or today's
   // with no reading inside it yet, the guess of what is left, as the alt
   // says it: never a measured 0.
   const measuredFill = (i: number) => week.days[i]?.guess === false && week.days[i]?.pct !== undefined
-  const dayValues = dayRow.marks.map((m, i) => (m.kind === 'unknown' ? undefined : m.kind === 'fills' && measuredFill(i) ? (week.days[i]?.pct ?? 0) : m.pct))
-  const guess = dayRow.marks.map((m, i) => m.kind === 'guess' || m.kind === 'spent' || (m.kind === 'fills' && !measuredFill(i)))
+  const dayValues = dayMarks.map((m, i) => (m.kind === 'unknown' ? undefined : m.kind === 'fills' && measuredFill(i) ? (week.days[i]?.pct ?? 0) : m.pct))
+  const guess = dayMarks.map((m, i) => m.kind === 'guess' || m.kind === 'spent' || (m.kind === 'fills' && !measuredFill(i)))
   const daysDrawn = { values: dayValues, guess, today: today < 0 ? undefined : today, measured: dayValues.some((v, i) => v !== undefined && !guess[i]) }
   return {
     ...week,
-    ...weekWords(week, dayRow, fiveHour),
-    dayRow,
-    hourRow,
+    ...weekWords(week, dayMarks, fiveHour),
     fiveHourWindow,
     daysDrawn,
   }
