@@ -18,9 +18,9 @@
     if (t === 'dark' || t === 'light') d.dataset.theme = t
   })()
 </script>
-<link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="icon" href="icon-32.png" type="image/png" sizes="32x32">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon.svg?v=9478d46851" type="image/svg+xml">
+<link rel="icon" href="icon-32.png?v=19feccf2ef" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png?v=23dcae450f">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
@@ -31,7 +31,7 @@
 <meta property="og:title" content="See the cold-cache bill before you send it">
 <meta property="og:description" content="Free Claude Code plugin: a band above the prompt with the prompt-cache countdown, the re-warm price, session cost, context and 5-hour/weekly limits.">
 <meta property="og:url" content="https://hmarzban.github.io/claude-mod/">
-<meta property="og:image" content="https://hmarzban.github.io/claude-mod/social-preview.png">
+<meta property="og:image" content="https://hmarzban.github.io/claude-mod/social-preview.png?v=7ae5278d5f">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="2560">
 <meta property="og:image:height" content="1280">
@@ -39,7 +39,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="See the cold-cache bill before you send it">
 <meta name="twitter:description" content="A free Claude Code plugin: the prompt-cache countdown, the re-warm price, cost, context and 5-hour/weekly limits, above the prompt.">
-<meta name="twitter:image" content="https://hmarzban.github.io/claude-mod/social-preview.png">
+<meta name="twitter:image" content="https://hmarzban.github.io/claude-mod/social-preview.png?v=7ae5278d5f">
 <meta name="twitter:image:alt" content="See the cold-cache bill before you send it. The band's amber chip reads: 0:40 left, re-warm ~$1.57.">
 
 <script type="application/ld+json">
@@ -55,7 +55,7 @@
   "url": "https://hmarzban.github.io/claude-mod/",
   "downloadUrl": "https://github.com/HMarzban/claude-mod",
   "license": "https://opensource.org/licenses/MIT",
-  "image": "https://hmarzban.github.io/claude-mod/social-preview.png",
+  "image": "https://hmarzban.github.io/claude-mod/social-preview.png?v=7ae5278d5f",
   "author": { "@type": "Person", "name": "Hossein Marzban", "url": "https://github.com/HMarzban" },
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
 }
@@ -521,7 +521,7 @@
         <li class="ln" data-k="7d"><span class="k">7d</span><span class="lead" aria-hidden="true"></span><span class="v">41% used · resets in 2d 18h</span></li>
       </ul>
       <div class="demo-foot">
-        <a class="film-link" id="film-link" href="demo.mp4">Watch the 17-second film</a>
+        <a class="film-link" id="film-link" href="demo.mp4?v=fe2ba27cd6">Watch the 17-second film</a>
         <span class="laycmd js-only" id="laycmd" hidden><code id="laycmd-text">/usage-band layout pulse</code><button type="button" id="laycopy" data-copy="/usage-band layout pulse" aria-label="Copy layout command">Copy</button></span>
         <span class="clock">The band's real drawings from one recorded session; clock times are the recording's.</span>
       </div>
@@ -655,7 +655,7 @@
 
 <dialog class="film" id="film" aria-labelledby="film-h" aria-describedby="film-d">
   <div class="film-head"><h2 id="film-h">A lunch hour on the desktop app, sped up</h2><button type="button" id="film-close">Close</button></div>
-  <video id="video" controls muted playsinline preload="none" poster="demo-poster.png" width="1600" height="900"></video>
+  <video id="video" controls muted playsinline preload="none" poster="demo-poster.png?v=376085c58f" width="1600" height="900"></video>
   <p id="film-d">Seventeen seconds, no sound. Every frame is the plugin's own output with the clock moved forward: the cache counts down through the hour, turns amber in its last minute with the re&#8209;warm price, goes cold showing what the next message will cost, then opens its cards.</p>
 </dialog>
 <p class="sr-only" id="copy-status" role="status"></p>
@@ -719,8 +719,8 @@
   $('#film-link').addEventListener('click', e => {
     if (typeof film.showModal !== 'function') return
     e.preventDefault()
-    const dark = isDark(), src = dark ? 'demo-dark.mp4' : 'demo.mp4'
-    video.poster = dark ? 'demo-poster-dark.png' : 'demo-poster.png'
+    const dark = isDark(), src = dark ? 'demo-dark.mp4?v=505dfbd713' : 'demo.mp4?v=fe2ba27cd6'
+    video.poster = dark ? 'demo-poster-dark.png?v=3d012916ec' : 'demo-poster.png?v=376085c58f'
     if (video.getAttribute('src') !== src) video.src = src
     film.showModal()
     if (!reduce) video.play().catch(() => {})
