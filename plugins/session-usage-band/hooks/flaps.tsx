@@ -37,14 +37,8 @@ export const flaps = (kit: Kit, o: Readonly<{ key: string; alt: string; runs: re
       </Box>
     )
   }
-  const width = flapsWidth(runs)
-  const marks = tilesOf(runs).map(([ch, ink], i) => {
-    const x = i * (TILE_PX + TILE_GAP)
-    const glyph = `<text x="${x + TILE_PX / 2}" y="14.5" text-anchor="middle" xml:space="preserve" font-family="ui-monospace, monospace" font-size="12" font-weight="600" fill="${ink}">${escape(ch)}</text>`
-    return `<rect class="tile" x="${x}" y="0" width="${TILE_PX}" height="${FLAP_PX}" rx="1.5" fill="${bg}"/>${glyph}<rect class="seam" x="${x}" y="9.5" width="${TILE_PX}" height="1" fill="${seam}"/>`
-  })
-  const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${FLAP_PX}" viewBox="0 0 ${width} ${FLAP_PX}">${marks.join('')}</svg>`
-  return <Svg key={key} source={source} alt={alt} width={width} height={FLAP_PX} />
+  const marks = tilesOf(runs).map(([ch, ink], i) => tileAt(i * (TILE_PX + TILE_GAP), ch, ink, bg, seam))
+  return kit.svg({ key, alt, width: flapsWidth(runs), height: FLAP_PX }, marks.join(''))
 }
 
 /** A tile at `x`, as `flaps` draws one: its face, its character in `ink`,
@@ -55,8 +49,6 @@ const tileAt = (x: number, ch: string, ink: string, bg: string, seam: string): s
 }
 /** A blank at `x`: its glyph alone, no tile. */
 const blankAt = (x: number): string => `<text x="${x + TILE_PX / 2}" y="14.5" xml:space="preserve"> </text>`
-const flapsSvg = (width: number, marks: readonly string[]): string =>
-  `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${FLAP_PX}" viewBox="0 0 ${width} ${FLAP_PX}">${marks.join('')}</svg>`
 
 // ---- the open board's columns ------------------------------------------------
 
@@ -108,7 +100,7 @@ export const flapColumns = (kit: Kit, o: Readonly<{ key: string; alt: string; co
     })
     at += c.cells * measure.pxPerCell
   }
-  return <Svg key={key} source={flapsSvg(at, marks)} alt={alt} width={at} height={FLAP_PX} />
+  return kit.svg({ key, alt, width: at, height: FLAP_PX }, marks.join(''))
 }
 
 /** A thin rule across the board, on the desktop alone: a terminal's would
@@ -117,11 +109,8 @@ export const flapColumns = (kit: Kit, o: Readonly<{ key: string; alt: string; co
  *  it spans the board's inner width to the header's right edge, however
  *  wide the desktop draws a column. */
 export const boardRule = (kit: Kit, key: string, cells: number, color: string): RenderChildren => {
-  const { Svg, measure } = kit
-  if (!Svg) return null
-  const width = 2 * Math.max(1, cells) * measure.pxPerCell
-  const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${RULE_PX}" viewBox="0 0 ${width} ${RULE_PX}" preserveAspectRatio="none"><rect class="rule" x="0" y="0" width="${width}" height="${RULE_PX}" fill="${color}"/></svg>`
-  return <Svg key={key} source={source} alt={BOARD_RULE_ALT} height={RULE_PX} />
+  const width = 2 * Math.max(1, cells) * kit.measure.pxPerCell
+  return kit.svg({ key, alt: BOARD_RULE_ALT, width, height: RULE_PX, stretch: true }, `<rect class="rule" x="0" y="0" width="${width}" height="${RULE_PX}" fill="${color}"/>`)
 }
 
 /** A board line's height, in the units the board is fitted in: on the

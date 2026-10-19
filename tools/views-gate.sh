@@ -18,3 +18,9 @@ if [ "${#LOOK[@]}" -gt 0 ] && grep -nE "from '\./(cards|chips)'|[pP]ill\(|[bB]at
   echo "views-gate: pulse and departures draw their own look (see above)" >&2
   exit 1
 fi
+# Every Svg is built by the kit's `svg`, so its size, air and stretch are
+# written once: no other hook writes an <svg> root.
+if grep -rn '<svg xmlns' "$ROOT"/plugins/session-usage-band/hooks | grep -v '/hooks/kit\.tsx:'; then
+  echo "views-gate: build an Svg with kit.svg (see above)" >&2
+  exit 1
+fi

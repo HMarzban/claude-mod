@@ -62,18 +62,16 @@ export const pill = (kit: Kit, { key, tone, body, hover, paintsOwnBg, bg }: Pill
 /** The desktop's battery: an outline, its cap, and the charge filling it,
  *  `px` wide: an icon's 22, or a bar's length. */
 export const batteryIcon = (kit: Kit, charge: number, tone: Tone, alt: string, px = 22): RenderChildren => {
-  const { Svg, palette, onTone } = kit
-  if (!Svg) return null
+  const { palette, onTone, svg } = kit
   const outline = onTone(tone, palette.label)
   const fill = onTone(tone, palette.warm)
   const width = Math.round(clamp01(charge) * (px - 7) * 10) / 10
-  const source =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="12" viewBox="0 0 ${px} 12">` +
+  return svg(
+    { key: 'battery', alt, width: px, height: 12 },
     `<rect x="0.75" y="0.75" width="${px - 3.5}" height="10.5" rx="3" fill="none" stroke="${outline}" stroke-width="1.5"/>` +
-    `<rect x="${px - 2.25}" y="4" width="1.75" height="4" rx="0.8" fill="${outline}"/>` +
-    `<rect class="charge" x="2.5" y="2.5" width="${width}" height="7" rx="1.5" fill="${fill}"/>` +
-    '</svg>'
-  return <Svg key="battery" source={source} alt={alt} width={px} height={12} />
+      `<rect x="${px - 2.25}" y="4" width="1.75" height="4" rx="0.8" fill="${outline}"/>` +
+      `<rect class="charge" x="2.5" y="2.5" width="${width}" height="7" rx="1.5" fill="${fill}"/>`,
+  )
 }
 
 /** Text in runs, each bold or not: a figure among its words. */
