@@ -17,7 +17,7 @@ import type { BandActions } from '../snapshot'
 import { drawStrip } from '../strip'
 import { CARD_TITLES, EMPTY, limitsHead, markedHead } from '../words'
 import { bodyRowsFor, footer, footerRoom } from './frame'
-import { cardBordered, cardEdge, cardInner, cardShell, cardsPerLine, factRow, headline } from './shell'
+import { cardBordered, cardEdge, cardInner, cardInnerPx, cardShell, cardsPerLine, factRow, headline } from './shell'
 
 const DOT = ' · '
 
@@ -172,110 +172,116 @@ const planFor = (kit: Kit, f: Facts, body: number): Plan | undefined => {
 const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement => {
   const { Box, Svg, palette, measure, onTone, oneLine } = kit
   const { cache, context, history: hist, week } = read
-  const { lines, inner } = layoutOf(kit, f, p)
+  const { lines } = layoutOf(kit, f, p)
   const bordered = cardBordered(kit)
-  const px = inner * measure.pxPerCell
-  /** A chart's size on the desktop at this plan; in text, its line. */
-  const size = p.chart === 0 ? undefined : CHART_PX[p.chart]
-  const daySize = p.chart === 0 ? undefined : DAY_PX[p.chart]
-  /** A line of words in a label's ink, cut to its row. */
-  const note = (key: string, text: string) => <Box key={key}>{oneLine({ color: palette.label }, text)}</Box>
-  /** A fact, its value's phrases as many as fit beside its label. */
-  const fact = (label: string, values: readonly string[], room = inner) => factRow(kit, label, fitWords(kit, values, room - cellsIn(kit, label) - 2))
-  /** What fills a card's height past its chart, so its fact sits on the line's last row. */
-  const fill = () => <Box key="fill" flexGrow={1} />
-  const icons: Readonly<Record<CardName, readonly [Icon, string]>> = {
-    cache: ['cache', palette.warm],
-    spend: ['cost', palette.coin],
-    context: ['context', palette.label],
-    limits: ['limits', palette.fiveAccent],
-  }
-  const card = (name: CardName, say: Parameters<typeof headline>[1], tone: Tone, body: RenderChildren[]) =>
-    cardShell(kit, { key: `pulse:${name}`, title: CARD_TITLES[name], icon: icons[name], head: headline(kit, say, tone), body, bordered })
-
-  const cacheCard = (): RenderElement => {
-    // Inked by its mood: amber in its last minute, warm green while warm, a
-    // label's ink cold, the whole hour gone. Unmeasured or warming, its hour
-    // isn't known: no track, and its note says when it will be.
-    const ink = cache.tone === 'amber' ? palette.amberFg : cache.mood === 'warm' ? palette.warm : palette.label
-    const chart = size === undefined || !f.charted.cache ? null : track(kit, { key: 'chart', alt: cache.alt, frac: 1 - cache.charge, color: ink, px, ...size, cells: inner })
-    const unknown = cache.mood === 'unmeasured' || cache.mood === 'warming'
-    const said = unknown && cache.cardNote !== undefined ? note('fact', cache.cardNote) : fact(cache.estimateLabel, [cache.estimate])
-    return card('cache', markedHead(cache.cardHead, cache.tone), cache.tone, [chart, fill(), said])
-  }
-
-  const spendCard = (): RenderElement => {
-    // The beats over their average, the newest last; in text two to a cell.
-    // No cost yet: the trace flat and dim, beside the note that says when
-    // costs show, so it never reads as $0 a message.
-    const beats = Svg ? hist.costValues.length : Math.min(hist.costValues.length, 2 * inner)
-    const chart = size === undefined || !f.charted.spend ? null
-      : hist.empty ? flatBeats(kit, { key: 'chart', alt: EMPTY.costsAlt, beats: 2 * inner, color: palette.label, px, ...size })
-      : barChart(kit, { key: 'chart', alt: hist.costsAltOf(beats), values: hist.costValues.slice(-beats), marked: hist.reWarms.slice(-beats), level: hist.warmAvgUsd, color: palette.value, markColor: palette.value, px, ...size, max: hist.beatsTop })
-    const cost = hist.costFact
-    const said = cost === undefined ? note('fact', EMPTY.costs) : factRow(kit, cost.label, cost.value)
-    return card('spend', [[read.spend.totalText, 'value']], 'calm', [chart, fill(), said])
-  }
-
-  const contextCard = (): RenderElement => {
-    // Its trail under the compaction line; fewer than two turns, flat at its
-    // level now, which is known. In text two turns to a cell.
-    const turns = Svg ? hist.context.length : 2 * inner
-    const values = hist.context.length > 1 ? hist.context.slice(-turns) : Array.from({ length: Math.max(2, Svg ? 2 : turns) }, () => context.used)
-    const chart = size === undefined || p.chart === 0 || !f.charted.context ? null
-      : sparkline(kit, { key: 'chart', alt: hist.contextTrailAlt, values, color: onTone(context.tone, palette.label), px, ...size, headroom: HEADROOM_PX[p.chart], max: context.compactAt ?? context.window, level: context.compactAt === undefined ? undefined : 1 })
-    return card('context', markedHead(context.cardHead, context.tone), context.tone, [chart, fill(), fact(context.fact.label, context.fact.values)])
-  }
-
-  /** A window's half of Limits: its chart, then its fact, `cells` wide;
-   *  side by side the halves share the line, else each takes all of it. */
-  const half = (l: LimitView, cells: number, across: boolean): RenderElement => {
-    const ink = l.tone === 'amber' ? palette.amberFg : l.key === '5h' ? palette.fiveAccent : palette.weekAccent
-    const halfPx = cells * measure.pxPerCell
-    let chart: RenderChildren = null
-    if (size !== undefined && daySize !== undefined && f.charts) {
-      if (l.key === '5h' && week.fiveHourWindow.values.length > 1)
-        chart = sparkline(kit, { key: 'chart', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, from: week.fiveHourWindow.from, color: ink, px: halfPx, ...size, max: 100 })
-      // The day cells are the desktop's: in text the 7d's half is its fact.
-      const cellPx = dayCellsFit(halfPx, week.daysDrawn.values.length, DAY_CELL_PX)
-      if (l.key === '7d' && Svg && week.daysDrawn.measured && cellPx !== undefined)
-        chart = dayCells(kit, { key: 'chart', alt: week.daysAlt, values: week.daysDrawn.values, guess: week.daysDrawn.guess, today: week.daysDrawn.today, color: ink, cellPx, ...daySize, max: 100 })
+  /** The cards of a line of `count`: each `inner` columns inside, and on
+   *  the desktop `px`, so a chart spans its card to where its fact row ends. */
+  const cardsFor = (count: number): Readonly<Record<CardName, () => RenderElement>> => {
+    const inner = cardInner(kit, count, cardEdge(kit))
+    const px = cardInnerPx(kit, count)
+    /** A chart in its card: in text clipped to the card, the desktop's its own width. */
+    const plot = (chart: RenderChildren): RenderChildren => (chart === null || Svg ? chart : <Box key="plot" overflow="hidden">{chart}</Box>)
+    /** A chart's size on the desktop at this plan; in text, its line. */
+    const size = p.chart === 0 ? undefined : CHART_PX[p.chart]
+    const daySize = p.chart === 0 ? undefined : DAY_PX[p.chart]
+    /** A line of words in a label's ink, cut to its row. */
+    const note = (key: string, text: string) => <Box key={key}>{oneLine({ color: palette.label }, text)}</Box>
+    /** A fact, its value's phrases as many as fit beside its label. */
+    const fact = (label: string, values: readonly string[], room = inner) => factRow(kit, label, fitWords(kit, values, room - cellsIn(kit, label) - 2))
+    /** What fills a card's height past its chart, so its fact sits on the line's last row. */
+    const fill = () => <Box key="fill" flexGrow={1} />
+    const icons: Readonly<Record<CardName, readonly [Icon, string]>> = {
+      cache: ['cache', palette.warm],
+      spend: ['cost', palette.coin],
+      context: ['context', palette.label],
+      limits: ['limits', palette.fiveAccent],
     }
-    return (
-      <Box key={l.key} flexDirection="column" justifyContent="flex-end" {...(across ? { flexGrow: 1, width: 0, minWidth: 0 } : {})}>
-        {chart}
-        {factRow(kit, l.fact.label, l.fact.value)}
-      </Box>
-    )
-  }
+    const card = (name: CardName, say: Parameters<typeof headline>[1], tone: Tone, body: RenderChildren[]) =>
+      cardShell(kit, { key: `pulse:${name}`, title: CARD_TITLES[name], icon: icons[name], head: headline(kit, say, tone), body, bordered })
 
-  const limitsCard = (): RenderElement => {
-    const windows = p.kept.has('limits') ? f.windows : []
-    const across = halvesAcross(kit, f, inner)
-    const cells = windows.length > 1 && across ? Math.floor((inner - HALF_GAP) / 2) : inner
-    const others = p.kept.has('other') ? f.others : []
-    const shown = windows.length > 0 ? windows : others
-    const tone: Tone = shown.some(l => l.tone === 'amber') ? 'amber' : 'calm'
-    const othersAmber = others.some(l => l.tone === 'amber')
-    return card('limits', markedHead(limitsHead(shown), tone), tone, [
-      windows.length === 0 ? null : (
-        <Box key="halves" flexDirection={across ? 'row' : 'column'} alignItems="stretch" columnGap={HALF_GAP} flexGrow={1}>
-          {windows.map(l => half(l, cells, across))}
+    const cacheCard = (): RenderElement => {
+      // Inked by its mood: amber in its last minute, warm green while warm, a
+      // label's ink cold, the whole hour gone. Unmeasured or warming, its hour
+      // isn't known: no track, and its note says when it will be.
+      const ink = cache.tone === 'amber' ? palette.amberFg : cache.mood === 'warm' ? palette.warm : palette.label
+      const chart = size === undefined || !f.charted.cache ? null : track(kit, { key: 'chart', alt: cache.alt, frac: 1 - cache.charge, color: ink, px, ...size, cells: inner })
+      const unknown = cache.mood === 'unmeasured' || cache.mood === 'warming'
+      const said = unknown && cache.cardNote !== undefined ? note('fact', cache.cardNote) : fact(cache.estimateLabel, [cache.estimate])
+      return card('cache', markedHead(cache.cardHead, cache.tone), cache.tone, [plot(chart), fill(), said])
+    }
+
+    const spendCard = (): RenderElement => {
+      // The beats over their average, the newest last; in text two to a cell.
+      // No cost yet: the trace flat and dim, beside the note that says when
+      // costs show, so it never reads as $0 a message.
+      const beats = Svg ? hist.costValues.length : Math.min(hist.costValues.length, 2 * inner)
+      const chart = size === undefined || !f.charted.spend ? null
+        : hist.empty ? flatBeats(kit, { key: 'chart', alt: EMPTY.costsAlt, beats: 2 * inner, color: palette.label, px, ...size })
+        : barChart(kit, { key: 'chart', alt: hist.costsAltOf(beats), values: hist.costValues.slice(-beats), marked: hist.reWarms.slice(-beats), level: hist.warmAvgUsd, color: palette.value, markColor: palette.value, px, ...size, max: hist.beatsTop })
+      const cost = hist.costFact
+      const said = cost === undefined ? note('fact', EMPTY.costs) : factRow(kit, cost.label, cost.value)
+      return card('spend', [[read.spend.totalText, 'value']], 'calm', [plot(chart), fill(), said])
+    }
+
+    const contextCard = (): RenderElement => {
+      // Its trail under the compaction line; fewer than two turns, flat at its
+      // level now, which is known. In text two turns to a cell.
+      const turns = Svg ? hist.context.length : 2 * inner
+      const values = hist.context.length > 1 ? hist.context.slice(-turns) : Array.from({ length: Math.max(2, Svg ? 2 : turns) }, () => context.used)
+      const chart = size === undefined || p.chart === 0 || !f.charted.context ? null
+        : sparkline(kit, { key: 'chart', alt: hist.contextTrailAlt, values, color: onTone(context.tone, palette.label), px, ...size, headroom: HEADROOM_PX[p.chart], max: context.compactAt ?? context.window, level: context.compactAt === undefined ? undefined : 1 })
+      return card('context', markedHead(context.cardHead, context.tone), context.tone, [plot(chart), fill(), fact(context.fact.label, context.fact.values)])
+    }
+
+    /** A window's half of Limits: its chart, `halfPx` wide, then its fact;
+     *  side by side the halves share the line, else each takes all of it. */
+    const half = (l: LimitView, halfPx: number, across: boolean): RenderElement => {
+      const ink = l.tone === 'amber' ? palette.amberFg : l.key === '5h' ? palette.fiveAccent : palette.weekAccent
+      let chart: RenderChildren = null
+      if (size !== undefined && daySize !== undefined && f.charts) {
+        if (l.key === '5h' && week.fiveHourWindow.values.length > 1)
+          chart = sparkline(kit, { key: 'chart', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, from: week.fiveHourWindow.from, color: ink, px: halfPx, ...size, max: 100 })
+        // The day cells are the desktop's: in text the 7d's half is its fact.
+        const cellPx = dayCellsFit(halfPx, week.daysDrawn.values.length, DAY_CELL_PX)
+        if (l.key === '7d' && Svg && week.daysDrawn.measured && cellPx !== undefined)
+          chart = dayCells(kit, { key: 'chart', alt: week.daysAlt, values: week.daysDrawn.values, guess: week.daysDrawn.guess, today: week.daysDrawn.today, color: ink, cellPx, ...daySize, max: 100 })
+      }
+      return (
+        <Box key={l.key} flexDirection="column" justifyContent="flex-end" {...(across ? { flexGrow: 1, width: 0, minWidth: 0 } : {})}>
+          {plot(chart)}
+          {factRow(kit, l.fact.label, l.fact.value)}
         </Box>
-      ),
-      others.length === 0 ? null : (
-        <Box key="others">{oneLine({ color: onTone(othersAmber ? 'amber' : 'calm', palette.cardValue) }, others.flatMap(l => l.bandWords).join(DOT))}</Box>
-      ),
-    ])
-  }
+      )
+    }
 
-  const draw: Readonly<Record<CardName, () => RenderElement>> = { cache: cacheCard, spend: spendCard, context: contextCard, limits: limitsCard }
+    const limitsCard = (): RenderElement => {
+      const windows = p.kept.has('limits') ? f.windows : []
+      const across = halvesAcross(kit, f, inner)
+      const halfPx = windows.length > 1 && across ? Math.floor((px - HALF_GAP * measure.pxPerCell) / 2) : px
+      const others = p.kept.has('other') ? f.others : []
+      const shown = windows.length > 0 ? windows : others
+      const tone: Tone = shown.some(l => l.tone === 'amber') ? 'amber' : 'calm'
+      const othersAmber = others.some(l => l.tone === 'amber')
+      return card('limits', markedHead(limitsHead(shown), tone), tone, [
+        windows.length === 0 ? null : (
+          <Box key="halves" flexDirection={across ? 'row' : 'column'} alignItems="stretch" columnGap={HALF_GAP} flexGrow={1}>
+            {windows.map(l => half(l, halfPx, across))}
+          </Box>
+        ),
+        others.length === 0 ? null : (
+          <Box key="others">{oneLine({ color: onTone(othersAmber ? 'amber' : 'calm', palette.cardValue) }, others.flatMap(l => l.bandWords).join(DOT))}</Box>
+        ),
+      ])
+    }
+
+    return { cache: cacheCard, spend: spendCard, context: contextCard, limits: limitsCard }
+  }
   return (
     <Box key="cards" flexDirection="column" rowGap={1} marginTop={1}>
       {lines.map((line, i) => (
         // The cards of a line share its height, so their facts line up.
         <Box key={`cards:${i}`} flexDirection="row" alignItems="stretch" columnGap={1}>
-          {line.map(c => draw[c]())}
+          {(cards => line.map(c => cards[c]()))(cardsFor(line.length))}
         </Box>
       ))}
     </Box>

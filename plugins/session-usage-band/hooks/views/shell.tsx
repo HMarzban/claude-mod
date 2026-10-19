@@ -31,6 +31,17 @@ export const cardsPerLine = (kit: Kit, count: number, edge: number): number => {
 export const cardInner = (kit: Kit, perLine: number, edge: number): number =>
   Math.max(4, Math.floor((kit.columns - (perLine - 1)) / perLine) - 2 - edge)
 
+/** A desktop card's edge: a line of a pixel either side. */
+const DESKTOP_EDGE_PX = 2
+
+/** The px inside a desktop card, `perLine` to a line: its share of the
+ *  line's px, less its padding and its edge's lines, so a chart drawn this
+ *  wide ends where its fact row does. */
+export const cardInnerPx = (kit: Kit, perLine: number): number => {
+  const { columns, measure } = kit
+  return Math.floor(((columns - (perLine - 1)) * measure.pxPerCell) / perLine - 2 * measure.pxPerCell - (cardBordered(kit) ? DESKTOP_EDGE_PX : 0))
+}
+
 /** A label and its value at either end of a line; `swatch` keys a legend
  *  in its part's colour and fill. A phrase's figures are in the card's
  *  value ink, its other words in their roles'. */

@@ -75,9 +75,29 @@ test("the charts: the cache's track, the beats over their average, the context's
   expect(src('cache')).toMatch(/class="now"/)
   expect(src('spend')).toMatch(/<line class="level"[^>]*stroke-dasharray="1 2"/)
   expect(src('context')).toMatch(/<line class="level"/)
-  // Every chart its own width, a whole number of columns, as wide as its card.
-  for (const s of svgsOf(byKey(tree, 'cards', 'Box')).filter(n => n.props?.key === 'chart' && !/^weekly/.test(String(n.props?.alt)))) expect(Number(s.props?.width) % DESKTOP.pxPerCell).toBe(0)
-  expect(svgsOf(cardOf(tree, 'spend')).find(s => s.props?.key === 'chart')?.props?.width).toBe(420)
+})
+
+test('a chart spans its card, to where its fact row ends: on the desktop its px, in text its cells, clipped to the card', () => {
+  // The desktop: the card's share of the line's px, less 2 columns of padding and its edge's two 1 px lines.
+  const widths = (tree: Node, name: string) => svgsOf(cardOf(tree, name)).filter(s => s.props?.key === 'chart').map(s => Number(s.props?.width))
+  for (const [columns, perLine] of [[94, 2], [120, 2], [160, 4]] as const) {
+    const tree = open({ surface: 'desktop', columns, maxRows: 40 })
+    const px = Math.floor(((columns - (perLine - 1)) * DESKTOP.pxPerCell) / perLine - 2 * DESKTOP.pxPerCell - 2)
+    for (const name of ['cache', 'spend', 'context']) expect(`${columns} ${name} ${widths(tree, name).join()}`).toBe(`${columns} ${name} ${px}`)
+    // Limits: the 5h window in its half, the halves 2 columns apart.
+    expect(`${columns} 5h ${widths(tree, 'limits')[0]}`).toBe(`${columns} 5h ${Math.floor((px - 2 * DESKTOP.pxPerCell) / 2)}`)
+  }
+  expect(widths(open({ surface: 'desktop', columns: 94, maxRows: 40 }), 'spend')).toEqual([443])
+  // A line of one card, Limits gone, spans the whole line.
+  const three = open({ surface: 'desktop', columns: 94, maxRows: 40, fiveHour: undefined, sevenDay: undefined })
+  expect(widths(three, 'context')).toEqual([940 - 2 * DESKTOP.pxPerCell - 2])
+  // In text: the card's inner cells, inside a box that clips to the card.
+  for (const [columns, inner] of [[100, 47], [94, 44], [50, 48]] as const) {
+    const tree = open({ surface: 'terminal', columns, maxRows: 40 })
+    const card = cardOf(tree, 'cache')
+    expect(`${columns} ${shown(chartOf(card)).length}`).toBe(`${columns} ${inner}`)
+    expect(byKey(card, 'plot', 'Box')?.props?.overflow).toBe('hidden')
+  }
 })
 
 test("the cache's track is inked by its mood: warm green while warm, amber in its last minute, grey cold, none while unknown", () => {
@@ -242,9 +262,12 @@ test('every card keeps to its share of the line: no fact or chart wider than the
           const share = Math.floor((columns - (cards.length - 1)) / cards.length)
           for (const card of cards) {
             const inner = share - (card.props?.borderStyle === undefined ? 0 : 2) - 2
+            // The px inside a desktop card: its share of the line's px, less its padding and its edge's two 1 px lines.
+            const sharePx = ((columns - (cards.length - 1)) * DESKTOP.pxPerCell) / cards.length - 2 * DESKTOP.pxPerCell - 2
             const fits = (row: Node, room: number, key: string) => {
-              const cells = cellsOf(row as unknown as RenderChildren, surface === 'desktop' ? DESKTOP : TERMINAL)
-              expect(`${surface} ${columns} ${String(card.props?.key)} ${key} ${cells <= room}`).toBe(`${surface} ${columns} ${String(card.props?.key)} ${key} true`)
+              // A desktop chart in px: a desktop card's edge is a pixel's line either side, not a column.
+              const ok = row?.type === 'Svg' ? Number(row.props?.width) <= (room === inner ? sharePx : (sharePx - 2 * DESKTOP.pxPerCell) / 2) : cellsOf(row as unknown as RenderChildren, surface === 'desktop' ? DESKTOP : TERMINAL) <= room
+              expect(`${surface} ${columns} ${String(card.props?.key)} ${key} ${ok}`).toBe(`${surface} ${columns} ${String(card.props?.key)} ${key} true`)
             }
             for (const row of (card.children ?? []) as Node[]) {
               if (row?.props?.key !== 'halves') { fits(row, inner, String(row?.props?.key)); continue }
