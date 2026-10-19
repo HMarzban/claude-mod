@@ -80,8 +80,8 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/views/parts.tsx` | The pieces layouts draw: chips' pills, the cache's battery and hover string, and the lines a layout squeezes to fit (`line`, `fitLine`) and the words they're written in. |
 | `hooks/views/<name>.tsx` | One file per layout: `chips`, `pulse` and `departures`. Chips exports its pill builders, their hover strings, `LIMITS` and its pill row. |
 | `hooks/views/pulse-open.tsx` | Pulse's open view: four cards on the shared shell, each with its chart, and their give-way. |
-| `hooks/views/departures-board.tsx` | Departures' board: the ground, the header row, the rows and their give-way. |
-| `hooks/flaps.tsx` | The split-flap tiles departures draws: one Svg per reading on the desktop, a coloured run of text in the terminal. |
+| `hooks/views/departures-board.tsx` | Departures' open board: its ground, its header (`DEPARTURES` and the time now), the quiet headings, a line per reading in aligned columns, their give-way, and the footer every layout draws. |
+| `hooks/flaps.tsx` | The split-flap tiles departures draws: one Svg per reading on the desktop, a coloured run of text in the terminal; the open board's flap columns, its rules and the height its lines take. |
 | `hooks/strip.tsx` | The workspace strip: project, branch or worktree, changes, ahead/behind. |
 | `hooks/charts.tsx` | The charts: `meter`, `splitBar`, `sparkline`, `barChart`, `dayCells`, `heartbeat`, `track`, `braille`. Each is an Svg on the desktop and text elsewhere. |
 | `hooks/glyphs.ts` | The terminal's glyph tier (`CC_BAND_GLYPHS`, a CJK locale) and the ASCII mapping. |
@@ -92,7 +92,7 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/insights.ts` | Last message cost, the 5-hour pace, and the trails pulse draws. |
 | `hooks/format.ts` | Numbers, times, thresholds and escalation marks. |
 | `hooks/palette.ts` | The dark, light and plain palettes, and the colours for the band's bare ground. |
-| `hooks/workspace.ts` | The workspace strip's git state and path, parsed from git's output, and `stripWords`, its facts in words, which departures' header row draws. |
+| `hooks/workspace.ts` | The workspace strip's git state and path, parsed from git's output. |
 | `hooks/memory.ts` | What the band remembers across sessions (last replies, rates, the layout, the limit samples), and what it reads off a transcript. |
 | `types/index.d.ts` | The plugin's state contract. |
 | `tests/` | Tests, one file per area, with shared helpers in `helpers.ts`: `setup()` starts a test from a fresh engine, `mountBand()` draws the band, `byKey()` finds a node. |
