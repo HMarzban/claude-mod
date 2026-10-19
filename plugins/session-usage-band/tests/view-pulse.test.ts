@@ -148,7 +148,8 @@ test("no costs yet: the name, the total in a value's ink, its words then the fla
     const node = x as Node | null
     if (node === null || typeof node !== 'object') return
     const text = (node.children ?? []).every(k => typeof k === 'string') ? (node.children ?? []).join('') : ''
-    if (node.type === 'Text' && text !== '') inks.push(`${text}|${node.props?.color === DARK.label ? 'label' : node.props?.color === DARK.value ? 'value' : String(node.props?.color)}`)
+    // A text surface's column of air, a Text of one space, says nothing.
+    if (node.type === 'Text' && text.trim() !== '') inks.push(`${text}|${node.props?.color === DARK.label ? 'label' : node.props?.color === DARK.value ? 'value' : String(node.props?.color)}`)
     for (const k of node.children ?? []) visit(k)
   }
   visit(spend)

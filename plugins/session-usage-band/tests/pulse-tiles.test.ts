@@ -29,13 +29,14 @@ const rowOf = (over: Partial<BandSnapshot> = {}): Node =>
 const inkOf = (p: Readonly<Palette>, colour: unknown): string =>
   colour === p.label ? 'label' : colour === p.value ? 'value' : colour === p.amberFg ? 'amber' : String(colour)
 
-/** A tile's pieces in order: each leaf Text as `text|ink`, each Svg as `svg`. */
+/** A tile's pieces in order: each leaf Text as `text|ink`, each Svg as `svg`;
+ *  a text surface's column of air, a Text of one space, left out. */
 const piecesOf = (tile: unknown, p: Readonly<Palette> = DARK): string[] => {
   const out: string[] = []
   walk(tile, n => {
     if (n.type === 'Svg') out.push('svg')
     const kids = n.children ?? []
-    if (n.type === 'Text' && kids.length > 0 && kids.every(k => typeof k === 'string')) out.push(`${kids.join('')}|${inkOf(p, n.props?.color)}`)
+    if (n.type === 'Text' && kids.length > 0 && kids.every(k => typeof k === 'string') && kids.join('').trim() !== '') out.push(`${kids.join('')}|${inkOf(p, n.props?.color)}`)
   })
   return out
 }
@@ -107,6 +108,28 @@ test('the ascii tier: tiles in words alone, ascii only', () => {
   const row = rowOf({ surface: 'terminal', glyphs: 'ascii' })
   expect(shown(row)).toMatch(/^[\x20-\x7e]*$/)
   expect(KEYS.map(k => shown(byKey(row, k, 'Box')))).toEqual(['cache 52m left', 'spend $3.19, last $0.21', 'context 40%', '5h 26%', '7d 41%'])
+})
+
+/** What a text surface draws: Texts' strings alone, since it draws no bare string in a Box. */
+const drawnText = (n: unknown, inText = false): string => {
+  if (typeof n === 'string' || typeof n === 'number') return inText ? String(n) : ''
+  if (n === null || typeof n !== 'object') return ''
+  const node = n as Node
+  return (node.children ?? []).map(k => drawnText(k, inText || node.type === 'Text')).join('')
+}
+test('the terminal draws one column between a name and its figure, and between the figure and its chart, in every appearance and tier', () => {
+  for (const palette of [DARK, LIGHT, PLAIN])
+    for (const glyphs of ['unicode', 'ascii'] as const) {
+      const row = rowOf({ surface: 'terminal', palette, glyphs })
+      const said = drawnText(row)
+      for (const want of ['cache 52m left', 'spend $3.19', 'context 40%', '5h 26%', '7d 41%'])
+        expect(`${glyphs} ${said.includes(want)}`).toBe(`${glyphs} true`)
+      if (glyphs === 'unicode') for (const charted of [/\$0\.21 [⠀-⣿]+/, /context 40% [⠀-⣿]+/, /5h 26% [⠀-⣿]+/]) expect(said).toMatch(charted)
+      // No Box holds a bare string, which a text surface would drop.
+      walk(row, n => {
+        if (n.type === 'Box') expect((n.children ?? []).filter(k => typeof k === 'string')).toEqual([])
+      })
+    }
 })
 
 // ---- give-way --------------------------------------------------------------
