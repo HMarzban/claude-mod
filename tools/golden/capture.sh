@@ -2,10 +2,10 @@
 # Writes chips' golden trees to tests/golden/chips.ts; runs only on the hooks at its pin.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/../.." && pwd)"
-PLUGIN="$ROOT/plugins/session-usage-band"; OUT="$HERE/out"; mkdir -p "$OUT"
+PLUGIN="$ROOT/plugins/nextcost"; OUT="$HERE/out"; mkdir -p "$OUT"
 PIN=846e17d
 git -C "$ROOT" cat-file -e "$PIN^{commit}" 2>/dev/null || { echo "capture.sh: pin $PIN is not in this clone" >&2; exit 1; }
-if ! git -C "$ROOT" diff --quiet "$PIN" -- plugins/session-usage-band/hooks; then
+if ! git -C "$ROOT" diff --quiet "$PIN" -- plugins/nextcost/hooks; then
   echo "capture.sh: hooks/ differs from $PIN; the capture must come from the band as chips' 0.13 board draws it" >&2
   exit 1
 fi

@@ -39,7 +39,7 @@ h1{position:absolute;left:72px;right:72px;top:118px;font-size:76px;line-height:1
 .line b{font-weight:600;color:#f0c969}
 .foot{position:absolute;left:72px;right:72px;bottom:40px;padding-top:18px;border-top:1px dashed #34343c;font-size:26px;color:#9a9aa4}
 ''' + BAND_CSS + '''</style></head><body>
-<div class="top mono">session-usage-band<span>v{version}</span></div>
+<div class="top mono">nextcost<span>v{version}</span></div>
 <h1>See the cold-cache bill<br>before you send it.</h1>
 <div class="big"><div>{chip}</div></div>
 <div class="rest"><div>{rest}</div></div>
@@ -61,7 +61,7 @@ def words(n):
 
 def plugin_version():
     here = os.path.dirname(os.path.abspath(__file__))
-    return json.load(open(os.path.join(here, '../../plugins/session-usage-band/.claude-plugin/plugin.json')))['version']
+    return json.load(open(os.path.join(here, '../../plugins/nextcost/.claude-plugin/plugin.json')))['version']
 
 
 def social(tree):

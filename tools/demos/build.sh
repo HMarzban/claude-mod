@@ -12,7 +12,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
-PLUGIN="$ROOT/plugins/session-usage-band"
+PLUGIN="$ROOT/plugins/nextcost"
 OUT="$HERE/out"
 DOCS="$ROOT/docs"
 export CHROME="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"

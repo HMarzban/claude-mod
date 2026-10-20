@@ -37,9 +37,9 @@ jobs:
       - name: Validate the marketplace and the plugin
         run: |
           claude plugin validate .
-          claude plugin validate plugins/session-usage-band
+          claude plugin validate plugins/nextcost
       - name: Test
-        run: claude plugin test plugins/session-usage-band
+        run: claude plugin test plugins/nextcost
       - name: Views never format
         run: tools/views-gate.sh
       # No type check here: the engine writes its API types only when a

@@ -76,7 +76,7 @@ body{{font-family:-apple-system,system-ui,sans-serif;-webkit-font-smoothing:anti
 <div class="chat">  read price. Pricing tokens at the model each reply is billed under.</div>
 <div class="chat">⏺ Update(hooks/cache.ts)</div>
 <div class="chat">  ⎿  Updated hooks/cache.ts with 12 additions and 3 removals</div>
-<div class="chat">⏺ Bash(claude plugin test plugins/session-usage-band)</div>
+<div class="chat">⏺ Bash(claude plugin test plugins/nextcost)</div>
 <div class="chat">  ⎿  264 pass · 0 fail</div>
 <div class="chat" style="margin-top:{lh}em">⏺ Done. The tests pass, and the change is committed.</div>
 <div class="chat" style="margin-top:{lh}em">&gt; great, I'm grabbing lunch. back in an hour or so</div>

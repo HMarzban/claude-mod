@@ -7,8 +7,8 @@
   },
   "plugins": [
     {
-      "name": "session-usage-band",
-      "source": "./plugins/session-usage-band",
+      "name": "nextcost",
+      "source": "./plugins/nextcost",
       "description": "See what your next message costs: a live band above the prompt with the prompt-cache countdown, the re-warm price, session cost, context and your 5h/7d limits.",
       "category": "productivity"
     }

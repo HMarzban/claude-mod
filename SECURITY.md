@@ -2,14 +2,15 @@
 
 ## What the plugin can reach
 
-session-usage-band runs inside Claude Code's mod environment, with no DOM,
+nextcost runs inside Claude Code's mod environment, with no DOM,
 no Node and no network of its own. It only reaches what the engine hands
 it:
 
 - **Reads** the session's usage (cost, token counts, context fill and rate
   limits), the clock, the session's project root and repository root, and
-  these environment variables: `HOME`, `CC_BAND_APPEARANCE`, `NO_COLOR`,
-  `CC_BAND_GLYPHS`, `LC_ALL`, `LC_CTYPE`, `LANG`,
+  these environment variables: `HOME`, `NEXTCOST_APPEARANCE`, `NO_COLOR`,
+  `NEXTCOST_GLYPHS` (and their names before 0.18.0, `CC_BAND_APPEARANCE`
+  and `CC_BAND_GLYPHS`), `LC_ALL`, `LC_CTYPE`, `LANG`,
   `CLAUDE_CODE_PROMPT_CACHE_TTL`, `ENABLE_PROMPT_CACHING_1H`,
   `FORCE_PROMPT_CACHING_5M`, `DISABLE_AUTO_COMPACT`, `DISABLE_COMPACT` and
   `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS`.
@@ -57,7 +58,7 @@ it:
   times, at most one per 15 minutes).
 - **Never** writes files, calls a model, or sends anything anywhere.
 
-`claude plugin validate plugins/session-usage-band` lists every read and
+`claude plugin validate plugins/nextcost` lists every read and
 write the module makes, so you can check this yourself.
 
 ## Supported versions
@@ -67,6 +68,6 @@ Only the latest release gets fixes.
 ## Reporting a vulnerability
 
 Please don't open a public issue. Report it privately on the repository's
-[Security tab](https://github.com/HMarzban/claude-mod/security/advisories/new)
+[Security tab](https://github.com/HMarzban/nextcost/security/advisories/new)
 ("Report a vulnerability"). Include what you found, how to reproduce it, and the
 plugin and Claude Code versions. You'll get a reply within a week.

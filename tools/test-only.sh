@@ -5,7 +5,7 @@
 set -euo pipefail
 if [ "$#" -eq 0 ]; then echo "no test globs given" >&2; exit 1; fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PLUGIN="$ROOT/plugins/session-usage-band"
+PLUGIN="$ROOT/plugins/nextcost"
 SCRATCH="$(mktemp -d)"
 trap 'rm -rf "$SCRATCH"' EXIT
 # Everything but the tests, hidden folders (the manifest, the types) included.
