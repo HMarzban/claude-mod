@@ -11,7 +11,6 @@ import {
   MIN,
   resp,
   respond,
-  inAgent,
   pillOf,
   shown,
   rebuilds,
@@ -25,9 +24,9 @@ import {
 test('an assumed hour is corrected to 5m when a gap past 5m rebuilt the cache', LONG, async ($, on) => {
   const clock = setup(on, { env: {} })
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
+  await respond($, resp(2_000, 0, 80_000, 500))
   await clock.advance(12 * MIN)
-  await respond(e => $.turn.step(e), resp(82_500, 0, 82_500, 300))
+  await respond($, resp(82_500, 0, 82_500, 300))
 
   const ui = await mountBand($, 'terminal', 110)
   await ui.press({ key: 'more' })
@@ -40,9 +39,9 @@ test('an assumed hour is corrected to 5m when a gap past 5m rebuilt the cache', 
 test('a prefix the cache should have served but did not is an unexpected rebuild', async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
+  await respond($, resp(2_000, 0, 80_000, 500))
   await clock.advance(30_000)
-  await respond(e => $.turn.step(e), resp(82_500, 0, 82_500, 300))
+  await respond($, resp(82_500, 0, 82_500, 300))
 
   const ui = await mountBand($, 'terminal', 110)
   await ui.press({ key: 'more' })
@@ -53,9 +52,9 @@ test('a prefix the cache should have served but did not is an unexpected rebuild
 test('a warm follow-up to a long answer is not a rebuild', async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 5_000))
+  await respond($, resp(2_000, 0, 80_000, 5_000))
   await clock.advance(30_000)
-  await respond(e => $.turn.step(e), resp(300, 80_000, 7_000, 400))
+  await respond($, resp(300, 80_000, 7_000, 400))
 
   const ui = await mountBand($, 'terminal', 110)
   await ui.press({ key: 'more' })
@@ -68,9 +67,9 @@ test('a warm follow-up to a long answer is not a rebuild', async ($, on) => {
 test("a subagent's steps leave the main countdown and window alone", LONG, async ($, on) => {
   const clock = setup(on, { usage: { ...USAGE, cost: { usd: 0 } } }) // no ledger: the pill names the window in tokens
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(2_000, 0, 150_000, 1_000))
+  await respond($, resp(2_000, 0, 150_000, 1_000))
   await clock.advance(50 * MIN)
-  await respond(inAgent(e => $.turn.step(e)), resp(500, 0, 12_000, 800))
+  await respond($, resp(500, 0, 12_000, 800), { agentId: 'agent-1' })
   await clock.advance(9 * MIN + 30_000)
 
   const ui = await mountBand($, 'terminal', 110)
@@ -83,8 +82,8 @@ test("a subagent's steps leave the main countdown and window alone", LONG, async
 test("a subagent's tokens still count toward the rate the re-warm is solved from", LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
-  await respond(inAgent(e => $.turn.step(e)), resp(3_000, 20_000, 10_000, 4_000))
+  await respond($, resp(10_000, 0, 100_000, 2_000))
+  await respond($, resp(3_000, 20_000, 10_000, 4_000), { agentId: 'agent-1' })
   await clock.advance(61 * MIN)
 
   // reads at Opus 5.5's 0.05×: weighted = 13k + 1.25*110k + 0.05*20k + 5*6k = 181.5k;
@@ -97,9 +96,9 @@ test("a subagent's tokens still count toward the rate the re-warm is solved from
 test("the re-warm estimate is solved from every response's tokens", LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
-  await respond(e => $.turn.step(e), resp(4_000, 100_000, 6_000, 3_000))
-  await respond(e => $.turn.step(e), resp(1_000, 110_000, 2_000, 1_000))
+  await respond($, resp(10_000, 0, 100_000, 2_000))
+  await respond($, resp(4_000, 100_000, 6_000, 3_000))
+  await respond($, resp(1_000, 110_000, 2_000, 1_000))
   await clock.advance(61 * MIN)
 
   // reads at Opus 5.5's 0.05×: weighted = 15k + 1.25*108k + 0.05*210k + 5*6k = 190.5k;
@@ -112,9 +111,9 @@ test("the re-warm estimate is solved from every response's tokens", LONG, async 
 test('a compaction is an expected rebuild', async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(2_000, 0, 150_000, 1_000))
+  await respond($, resp(2_000, 0, 150_000, 1_000))
   await $.session.compact({ trigger: 'manual', messages: SUMMARY })
-  await respond(e => $.turn.step(e), resp(500, 0, 20_000, 300)) // reads nothing: the prefix changed
+  await respond($, resp(500, 0, 20_000, 300)) // reads nothing: the prefix changed
 
   const ui = await mountBand($, 'terminal', 160)
   await ui.press({ key: 'more' })
@@ -127,7 +126,7 @@ test('a compaction is an expected rebuild', async ($, on) => {
 test('after a compaction the cold price is for the compacted size', LONG, async ($, on) => {
   const clock = setup(on, { usage: { ...USAGE, cost: { usd: 0 } } }) // no ledger: the pill names tokens
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(2_000, 0, 150_000, 1_000))
+  await respond($, resp(2_000, 0, 150_000, 1_000))
   await $.session.compact({ trigger: 'auto', messages: SUMMARY })
   await clock.advance(61 * MIN)
 
@@ -139,9 +138,9 @@ test('after a compaction the cold price is for the compacted size', LONG, async 
 test('a model switch is an expected rebuild and keeps the assumed hour', async ($, on) => {
   const clock = setup(on, { env: {} }) // TTL unpinned
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
+  await respond($, resp(2_000, 0, 80_000, 500))
   await clock.advance(6 * MIN)
-  await respond(e => $.turn.step({ ...e, model: 'claude-sonnet-5-5' }), resp(82_500, 0, 82_500, 300))
+  await respond($, resp(82_500, 0, 82_500, 300), { model: 'claude-sonnet-5-5' })
 
   const ui = await mountBand($, 'terminal', 160)
   await ui.press({ key: 'more' })
@@ -159,9 +158,9 @@ const rebuildsAfterCompaction = async (
   compact: { trigger?: 'manual' | 'auto' | 'precompute'; agentId?: string } = {},
 ): Promise<number> => {
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(2_000, 0, 150_000, 1_000))
+  await respond($, resp(2_000, 0, 150_000, 1_000))
   await $.session.compact({ trigger: 'manual', messages: SUMMARY, ...compact })
-  await respond(e => $.turn.step(e), resp(500, 0, 20_000, 300))
+  await respond($, resp(500, 0, 20_000, 300))
   const ui = await mountBand($, 'terminal', 160)
   await ui.press({ key: 'more' })
   const n = rebuilds(await ui.drawn())
@@ -195,9 +194,9 @@ test('a step that stops for compaction makes the next rebuild expected', async (
   setup(on)
   await $.session.start(START)
   engine.stop = 'compaction'
-  await respond(e => $.turn.step(e), resp(2_000, 0, 150_000, 1_000))
+  await respond($, resp(2_000, 0, 150_000, 1_000))
   engine.stop = 'end_turn'
-  await respond(e => $.turn.step(e), resp(500, 0, 20_000, 300))
+  await respond($, resp(500, 0, 20_000, 300))
   const ui = await mountBand($, 'terminal', 160)
   await ui.press({ key: 'more' })
   expect(rebuilds(await ui.drawn())).toBe(0)
@@ -207,11 +206,11 @@ test('a step that stops for compaction makes the next rebuild expected', async (
 test('switching model and back within a pinned hour is no miss', async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
+  await respond($, resp(2_000, 0, 80_000, 500))
   await clock.advance(30_000)
-  await respond(e => $.turn.step({ ...e, model: 'claude-sonnet-5-5' }), resp(82_500, 0, 82_500, 300))
+  await respond($, resp(82_500, 0, 82_500, 300), { model: 'claude-sonnet-5-5' })
   await clock.advance(30_000)
-  await respond(e => $.turn.step(e), resp(500, 82_500, 1_000, 300))
+  await respond($, resp(500, 82_500, 1_000, 300))
   const ui = await mountBand($, 'terminal', 160)
   await ui.press({ key: 'more' })
   expect(rebuilds(await ui.drawn())).toBe(0)

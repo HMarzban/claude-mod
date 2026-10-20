@@ -9,15 +9,15 @@
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { barChart, dayCells, dayCellsFit, flatBeats, sparkline, track } from '../charts'
-import type { Icon } from '../icons'
 import type { Kit } from '../kit'
 import { DESKTOP, ROW_SLACK } from '../layout'
 import type { LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { drawStrip } from '../strip'
-import { CARD_TITLES, EMPTY, limitsHead, markedHead } from '../words'
+import { EMPTY, limitsHead, markedHead } from '../words'
 import { bodyRowsFor, footer, footerRoom } from './frame'
-import { cardBordered, cardEdge, cardInner, cardInnerPx, cardShell, cardsPerLine, factRow, headline } from './shell'
+import { CARD_NAMES, alertLine, cardBordered, cardEdge, cardGrid, cardInner, cardInnerPx, cardShell, cardsPerLine, cardsPresent, factRow, headline, linesOf } from './shell'
+import type { CardName } from './shell'
 
 const DOT = ' · '
 
@@ -31,7 +31,6 @@ const UNITS: readonly Unit[] = ['cache', 'spend', 'context', 'limits', 'other']
 const SHED: readonly Unit[] = ['other', 'context', 'limits', 'cache', 'spend']
 const AMBER_SHED: readonly Unit[] = ['other', 'context', 'limits', 'cache']
 
-type CardName = 'cache' | 'spend' | 'context' | 'limits'
 /** A chart's rows: on the desktop two, then one, then none; in text one line. */
 type ChartRows = 0 | 1 | 2
 const CHART_STEPS: readonly ChartRows[] = [2, 1, 0]
@@ -82,7 +81,7 @@ type Facts = Readonly<{
 
 const factsOf = (kit: Kit, read: Readings): Facts => {
   const { Svg, measure } = kit
-  const { cache, context, history: hist, week } = read
+  const { cache, context, week } = read
   const charts = read.frame.glyphs === 'unicode'
   const bordered = cardBordered(kit)
   const windows = [read.fiveHour, read.sevenDay].filter((l): l is LimitView => l !== undefined)
@@ -100,7 +99,7 @@ const factsOf = (kit: Kit, read: Readings): Facts => {
     windows,
     others,
     amber,
-    has: { cache: true, spend: true, context: context.known, limits: read.limits.length > 0 },
+    has: cardsPresent(read),
     charted: {
       cache: charts && !unknownCache,
       spend: charts,
@@ -116,7 +115,7 @@ type Plan = Readonly<{ kept: ReadonlySet<Unit>; chart: ChartRows }>
 /** The cards a plan's units draw, in the one order. */
 const cardsOf = (f: Facts, kept: ReadonlySet<Unit>): CardName[] => {
   const limits = (kept.has('limits') && f.windows.length > 0) || (kept.has('other') && f.others.length > 0)
-  return (['cache', 'spend', 'context', 'limits'] as const).filter(c => f.has[c] && (c === 'limits' ? limits : kept.has(c)))
+  return CARD_NAMES.filter(c => f.has[c] && (c === 'limits' ? limits : kept.has(c)))
 }
 
 /** Whether Limits' two halves sit side by side in `room`, each fact in its half. */
@@ -143,7 +142,7 @@ const layoutOf = (kit: Kit, f: Facts, p: Plan) => {
   const edge = cardEdge(kit)
   const perLine = cardsPerLine(kit, cards.length, edge)
   const inner = cardInner(kit, perLine, edge)
-  const lines = Array.from({ length: Math.ceil(cards.length / perLine) }, (_, i) => cards.slice(i * perLine, (i + 1) * perLine))
+  const lines = linesOf(cards, perLine)
   const rows = lines.reduce((n, line) => n + Math.max(...line.map(c => cardRows(kit, f, c, p, inner))), 0) + Math.max(0, lines.length - 1)
   return { lines, inner, rows }
 }
@@ -190,14 +189,8 @@ const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement =
     const fact = (label: string, values: readonly string[], room = inner) => factRow(kit, label, fitWords(kit, values, room - cellsIn(kit, label) - 2))
     /** What fills a card's height past its chart, so its fact sits on the line's last row. */
     const fill = () => <Box key="fill" flexGrow={1} />
-    const icons: Readonly<Record<CardName, readonly [Icon, string]>> = {
-      cache: ['cache', palette.warm],
-      spend: ['cost', palette.coin],
-      context: ['context', palette.label],
-      limits: ['limits', palette.fiveAccent],
-    }
     const card = (name: CardName, say: Parameters<typeof headline>[1], tone: Tone, body: RenderChildren[]) =>
-      cardShell(kit, { key: `pulse:${name}`, title: CARD_TITLES[name], icon: icons[name], head: headline(kit, say, tone), body, bordered })
+      cardShell(kit, { key: `pulse:${name}`, name, head: headline(kit, say, tone), body, bordered })
 
     const cacheCard = (): RenderElement => {
       // Inked by its mood: amber in its last minute, warm green while warm, a
@@ -269,41 +262,27 @@ const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement =
           </Box>
         ),
         others.length === 0 ? null : (
-          <Box key="others">{oneLine({ color: onTone(othersAmber ? 'amber' : 'calm', palette.cardValue) }, others.flatMap(l => l.bandWords).join(DOT))}</Box>
+          <Box key="others">{oneLine({ color: onTone(othersAmber ? 'amber' : 'calm', palette.cardValue) }, others.map(l => l.line).join(DOT))}</Box>
         ),
       ])
     }
 
     return { cache: cacheCard, spend: spendCard, context: contextCard, limits: limitsCard }
   }
-  return (
-    <Box key="cards" flexDirection="column" rowGap={1} marginTop={1}>
-      {lines.map((line, i) => (
-        // The cards of a line share its height, so their facts line up.
-        <Box key={`cards:${i}`} flexDirection="row" alignItems="stretch" columnGap={1}>
-          {(cards => line.map(c => cards[c]()))(cardsFor(line.length))}
-        </Box>
-      ))}
-    </Box>
-  )
+  return cardGrid(kit, lines.map(line => (cards => line.map(c => cards[c]()))(cardsFor(line.length))), { marginTop: 1, align: 'stretch' })
 }
 
 /** Pulse open: the cards, fitted to the body's rows, then the footer, the
  *  strip in its row. Short of a row for any card, an amber window only the
  *  cards draw (the row never draws the other limits) still says it needs
  *  you, on the row they would have started on. */
-export const openStack = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
-  const { Box, palette, oneLine } = kit
+export const openStack = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderElement[] => {
   const ws = read.workspace
   const room = kit.columns - ROW_SLACK
   const strip = ws === undefined ? undefined : drawStrip(kit, ws, 'footer', 0, room - footerRoom(kit))
-  const body = bodyRowsFor(read.frame.maxRows, 1, 0)
+  const body = bodyRowsFor(read.frame.maxRows, collapsedRows, 0)
   const f = factsOf(kit, read)
   const p = planFor(kit, f, body)
-  const alerts = p !== undefined || body < 1 ? [] : f.others.flatMap(l => (l.amber === undefined ? [] : [l.amber.long]))
-  const cards =
-    p !== undefined ? drawCards(kit, read, f, p)
-    : alerts.length > 0 ? <Box key="alert" marginTop={1}>{oneLine({ key: 'alert', color: palette.amberFg }, alerts.join(DOT))}</Box>
-    : null
+  const cards = p !== undefined ? drawCards(kit, read, f, p) : body < 1 ? null : alertLine(kit, read)
   return [cards, footer(kit, act, strip)].filter(e => e !== null)
 }

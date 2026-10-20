@@ -9,10 +9,8 @@ import { barChart, dayCells, flatBeats, heartbeat, sparkline } from '../charts'
 import type { Kit } from '../kit'
 import { ROW_SLACK, isDrawn } from '../layout'
 import type { Readings, Tone } from '../reading'
-import type { BandActions } from '../snapshot'
 import { EMPTY, type Amber } from '../words'
-import { toggleButton } from './frame'
-import { beforeLast, fitLine, line, type Keeps } from './parts'
+import { fitLine, type Keeps, line } from './frame'
 import { openStack } from './pulse-open'
 import type { View } from './view'
 
@@ -57,25 +55,19 @@ const named = (kit: Kit, name: string): RenderElement => {
  *  a column apart. An amber reading's words name it themselves, led by its
  *  mark, so its tile draws no name of its own. */
 const tile = (kit: Kit, k: Keeps<Piece>, key: string, tone: Tone, ground: string, parts: readonly RenderChildren[]): RenderElement => {
-  const { Box, Text, palette, onTone, gap } = kit
+  const { Box, palette, onTone } = kit
   const fill = palette.filled ? { backgroundColor: onTone(tone, ground, palette.amberBg), ...(k.has('padding') ? { paddingX: 1 } : {}) } : {}
   const drawn = parts.filter(isDrawn)
-  // A text surface draws no bare string in a Box, so its column of air is a
-  // Text's space; the desktop's is the kit's empty Box.
-  const air = (at: string): RenderChildren => {
-    const g = gap(at)
-    return typeof g === 'string' ? <Text key={at}>{g}</Text> : g
-  }
   return (
     <Box key={key} flexDirection="row" flexShrink={0} {...fill}>
-      {drawn.flatMap((part, i) => (i === 0 ? [part] : [air(`g${i}`), part]))}
+      {drawn.flatMap((part, i) => (i === 0 ? [part] : [kit.air(`g${i}`), part]))}
     </Box>
   )
 }
 
 /** Whether a reading's chart is kept: a calm one while its step holds, an
  *  amber one until the amber step. */
-const chartKept = (k: Keeps<Piece>, piece: Piece, tone: Tone): boolean => k.has(piece) || (tone === 'amber' && beforeLast(k))
+const chartKept = (k: Keeps<Piece>, piece: Piece, tone: Tone): boolean => k.has(piece) || (tone === 'amber' && k.has('amberShort'))
 
 /** A calm reading's words, long until the short step. */
 const calmWords = (k: Keeps<Piece>, long: string, short: string): string => (k.has('short') ? long : short)
@@ -85,7 +77,7 @@ const calmWords = (k: Keeps<Piece>, long: string, short: string): string => (k.h
 const wordsOf = (kit: Kit, k: Keeps<Piece>, name: string, figure: string, amber: Amber | undefined): RenderChildren[] =>
   amber === undefined ? [named(kit, name), said(kit, 'w', figure, false)] : [said(kit, 'w', k.amber(amber), true)]
 
-const collapsed = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
+const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderElement =>
   fitLine(kit, ORDER, kit.columns - ROW_SLACK, k => {
     const { Svg, Text, palette } = kit
     const { cache, context, fiveHour, sevenDay, history: hist, week } = read
@@ -130,18 +122,11 @@ const collapsed = (kit: Kit, read: Readings, act: BandActions): RenderElement =>
     ])
     // Filled tiles sit a column apart, as chips' do; plain's, with no ground
     // to part them, two, until the last step.
-    return line(kit, 'row', [cacheTile, spendTile, contextTile, fiveTile, sevenTile], toggleButton(kit, read, act), palette.filled || !k.has('padding') ? 1 : 2)
+    return line(kit, 'row', [cacheTile, spendTile, contextTile, fiveTile, sevenTile], toggle, palette.filled || !k.has('padding') ? 1 : 2)
   })
 
 export const pulseView: View = {
   rows: { desktop: 1, terminal: 1 },
-  draw: (kit, read, act) => {
-    const { Box } = kit
-    return (
-      <Box flexDirection="column">
-        {collapsed(kit, read, act)}
-        {read.frame.expanded ? openStack(kit, read, act) : null}
-      </Box>
-    )
-  },
+  collapsed,
+  open: openStack,
 }

@@ -103,7 +103,7 @@ const lowHistory = (layout: LayoutName): void => {
   test(`signoff: ${layout} low with history`, { timeoutMs: 120_000 }, async ($, on) => {
     const clock = setup(on, { usage: limited(3, 10), env: HOUR_1, store: { layout } })
     await $.session.start(START)
-    await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+    await respond($, resp(41_000, 0, 155_000, 12_000))
     let ledger = USAGE.cost.usd
     for (const [i, usd] of LOW_COSTS.entries()) {
       await clock.advance(2 * MIN)

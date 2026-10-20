@@ -15,8 +15,12 @@ import type { Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import type { Palette } from '../palette'
 import { drawStrip } from '../strip'
-import { BOARD_HEADINGS, BOARD_NOW, BOARD_NO_TIME, BOARD_TITLE, boardTime, remarksFit, type BoardKey, type BoardRow } from '../words'
+import { BOARD_HEADINGS, BOARD_NOW, BOARD_NO_TIME, BOARD_TITLE, type BoardKey, type BoardRow } from '../words'
 import { bodyRowsFor, footer, footerRoom } from './frame'
+
+/** REMARKS cut to `tiles` characters, `…` last where cut. */
+export const remarksFit = (remarks: string, tiles: number): string =>
+  remarks.length <= tiles ? remarks : tiles <= 1 ? '' : `${remarks.slice(0, tiles - 1)}…`
 
 /** Each reading's ITEM ink: its own, as an airline's code has its colour. */
 export const ITEM_INK: Readonly<Record<BoardKey, Exclude<keyof Palette, 'filled'>>> = {
@@ -68,7 +72,7 @@ const kept = (cols: Pick<Columns, 'keep'>, key: FlapKey, text: string): string =
  *  widest is cut a character at a time; REMARKS take what is left. */
 const columnsOf = (kit: Kit, rows: readonly BoardRow[], room: number): Columns => {
   const texts: Readonly<Record<FlapKey, readonly string[]>> = {
-    item: rows.map(r => r.item), status: rows.map(r => r.status), time: rows.flatMap(r => boardTime(r) ?? []),
+    item: rows.map(r => r.item), status: rows.map(r => r.status), time: rows.flatMap(r => r.time ?? []),
   }
   const keep = { item: 0, status: 0, time: 0 }
   for (const k of FLAP_KEYS) keep[k] = Math.max(0, ...texts[k].map(t => [...t].length))
@@ -95,7 +99,7 @@ const remarkOf = (row: BoardRow, cols: Columns, plan: Plan): string =>
 const heightOf = (kit: Kit, plan: Plan, cols: Columns): number =>
   plan.lines.reduce((sum, l, i) => {
     const rule = i < plan.lines.length - 1 && l.name !== 'headings'
-    const text = l.row === undefined || boardTime(l.row) === undefined || remarkOf(l.row, cols, plan) !== ''
+    const text = l.row === undefined || l.row.time === undefined || remarkOf(l.row, cols, plan) !== ''
     return sum + boardLineHeight(kit, { text, rule })
   }, 0)
 
@@ -159,7 +163,7 @@ const headingsLine = (kit: Kit, cols: Columns, remarks: boolean): RenderElement 
  *  remark in plain dim text; a rule under it on the desktop. */
 const readingLine = (kit: Kit, l: Line, row: BoardRow, cols: Columns, remark: string, inner: number, rule: boolean): RenderElement => {
   const { Box, Text, palette, oneLine } = kit
-  const time = boardTime(row)
+  const time = row.time
   const flapsOf: FlapColumn[] = [
     { text: kept(cols, 'item', row.item), ink: palette[ITEM_INK[row.key]], cells: cols.item },
     { text: kept(cols, 'status', row.status), ink: row.tone === 'amber' ? palette.flapAmber : palette.flapText, cells: cols.status },
@@ -183,11 +187,11 @@ const readingLine = (kit: Kit, l: Line, row: BoardRow, cols: Columns, remark: st
 
 /** The board, its lines fitted to the body's rows, on its dark ground;
  *  nothing when no line fits. */
-const board = (kit: Kit, read: Readings): RenderElement | null => {
+const board = (kit: Kit, read: Readings, collapsedRows: number): RenderElement | null => {
   const { Box, Svg, palette } = kit
   const inner = Math.max(0, kit.columns - ROW_SLACK - BOARD_PAD)
   const cols = columnsOf(kit, read.board.rows, inner)
-  const plan = fitPlan(kit, linesOf(read), cols, boardBudget(kit, bodyRowsFor(read.frame.maxRows, 1, 0)))
+  const plan = fitPlan(kit, linesOf(read), cols, boardBudget(kit, bodyRowsFor(read.frame.maxRows, collapsedRows, 0)))
   if (plan.lines.length === 0) return null
   const remarks = plan.remarks && cols.remarks > 0
   return (
@@ -211,8 +215,8 @@ const board = (kit: Kit, read: Readings): RenderElement | null => {
 
 /** Departures open: the board, then the footer every layout draws, the
  *  workspace strip in its row. */
-export const openBoard = (kit: Kit, read: Readings, act: BandActions): RenderElement[] => {
+export const openBoard = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderElement[] => {
   const ws = read.workspace
   const strip = ws === undefined ? undefined : drawStrip(kit, ws, 'footer', 0, kit.columns - ROW_SLACK - footerRoom(kit))
-  return [board(kit, read), footer(kit, act, strip)].filter(e => e !== null)
+  return [board(kit, read, collapsedRows), footer(kit, act, strip)].filter(e => e !== null)
 }

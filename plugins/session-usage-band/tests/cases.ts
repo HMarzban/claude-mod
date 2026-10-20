@@ -31,7 +31,7 @@ export type Scenario = Readonly<{
 const started = async ($: Engine): Promise<void> => { await $.session.start(START) }
 const replied = async ($: Engine): Promise<void> => {
   await started($)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
 }
 export const withLimits = (five: number, seven: number, fiveResetH = 3, sevenResetH = 67): SessionUsage['rateLimits'] => [
   { kind: 'five_hour', percentUsed: five, resetsAt: new Date(fiveResetH * HOUR).toISOString() },

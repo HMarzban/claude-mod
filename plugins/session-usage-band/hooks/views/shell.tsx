@@ -1,15 +1,76 @@
 // The card shell chips' and pulse's open views share, so their cards read as
-// one family: a card's ground and edge, its title and headline, its fact
-// rows, and how many cards a line holds.
+// one family: which cards there are and their marks, a card's ground and
+// edge, its title and headline, its fact rows, how many cards a line holds,
+// the grid they sit in, and the alert drawn where none fits.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import type { SplitPart } from '../charts'
 import type { Icon } from '../icons'
 import type { Kit } from '../kit'
 import { CARD_TEXT } from '../layout'
-import type { Tone } from '../reading'
-import type { Say } from '../words'
-import { ROLE_INK } from './parts'
+import type { Readings, Tone } from '../reading'
+import type { Palette } from '../palette'
+import { CARD_TITLES } from '../words'
+import type { Role, Say } from '../words'
+
+/** Each role's ink: text on the card ground. */
+export const ROLE_INK: Readonly<Record<Role, Exclude<keyof Palette, 'filled'>>> = {
+  label: 'label',
+  value: 'value',
+  amber: 'amberFg',
+  accent5: 'fiveText',
+  accent7: 'weekText',
+}
+
+/** The cards, in the order they are drawn. */
+export const CARD_NAMES = ['cache', 'spend', 'context', 'limits'] as const
+export type CardName = (typeof CARD_NAMES)[number]
+
+/** Each card's mark: the chips' own icons, so the band speaks one language. */
+const CARD_ICONS: Readonly<Record<CardName, readonly [Icon, Exclude<keyof Palette, 'filled'>]>> = {
+  cache: ['cache', 'warm'],
+  spend: ['cost', 'coin'],
+  context: ['context', 'label'],
+  limits: ['limits', 'fiveAccent'],
+}
+
+/** The cards the readings have something for: the context once it is
+ *  reported, the limits once any window is. */
+export const cardsPresent = (read: Readings): Readonly<Record<CardName, boolean>> => ({
+  cache: true,
+  spend: true,
+  context: read.context.known,
+  limits: read.limits.length > 0,
+})
+
+/** `items`, `perLine` to a line. */
+export const linesOf = <T,>(items: readonly T[], perLine: number): T[][] =>
+  Array.from({ length: Math.ceil(items.length / perLine) }, (_, i) => items.slice(i * perLine, (i + 1) * perLine))
+
+/** The cards, line by line, a row of air between lines. Chips aligns a
+ *  line's cards to one top edge, as a grid's, so their heads line up; pulse
+ *  stretches them to the line's height, so their facts line up. */
+export const cardGrid = (kit: Kit, lines: ReadonlyArray<readonly RenderChildren[]>, o: Readonly<{ marginTop: number; align: 'flex-start' | 'stretch' }>): RenderElement => {
+  const { Box } = kit
+  return (
+    <Box key="cards" flexDirection="column" rowGap={1} marginTop={o.marginTop}>
+      {lines.map((line, i) => (
+        <Box key={`cards:${i}`} flexDirection="row" alignItems={o.align} columnGap={1}>
+          {line}
+        </Box>
+      ))}
+    </Box>
+  )
+}
+
+/** Where no card fits, an amber window only the cards draw (the collapsed
+ *  lines never draw the engine's other windows) still says it needs you, on
+ *  the row they would have started on; null when none is amber. */
+export const alertLine = (kit: Kit, read: Readings): RenderElement | null => {
+  const { Box, palette, oneLine } = kit
+  const alerts = read.limits.flatMap(l => (l.key === 'other' && l.amber !== undefined ? [l.amber.long] : []))
+  return alerts.length === 0 ? null : <Box key="alert" marginTop={1}>{oneLine({ key: 'alert', color: palette.amberFg }, alerts.join(' · '))}</Box>
+}
 
 /** Whether a card draws its edge: the desktop's always, a terminal's only
  *  in plain, which has no fill to stand on; a terminal card with a fill
@@ -90,9 +151,8 @@ export const headline = (kit: Kit, say: Say, tone: Tone): RenderElement => {
 export type CardSpec = Readonly<{
   /** The card's key, `card:cache`. */
   key: string
-  title: string
-  /** Its mark, the chips' own icon, drawn on the desktop alone. */
-  icon: readonly [Icon, string]
+  /** Which card: its title, and its mark, drawn on the desktop alone. */
+  name: CardName
   /** Its headline, at the head's other end. */
   head: RenderElement
   /** What follows the head, line by line. */
@@ -102,12 +162,14 @@ export type CardSpec = Readonly<{
 
 /** A card: its title and headline on one line, then its body. Each grows
  *  alike from no width, so the cards of a line share it equally. */
-export const cardShell = (kit: Kit, { key, title, icon: [mark, ink], head, body, bordered }: CardSpec): RenderElement => {
+export const cardShell = (kit: Kit, { key, name, head, body, bordered }: CardSpec): RenderElement => {
   const { Box, Text, Svg, palette, icon } = kit
+  const title = CARD_TITLES[name]
+  const [mark, ink] = CARD_ICONS[name]
   const titled = (
     <Box key="title" flexDirection="row" flexShrink={0}>
       {/* Desktop alone: a terminal title stays plain text. */}
-      {Svg ? icon(mark, ink) : null}
+      {Svg ? icon(mark, palette[ink]) : null}
       <Text color={palette.label}>{title.toUpperCase()}</Text>
     </Box>
   )

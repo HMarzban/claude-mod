@@ -30,7 +30,7 @@ import {
 test('the 5h and 7d chips show usage on a fill with no thumb, and the reset countdown', async ($, on) => {
   setup(on) // 5h 4%, resets in 3h; 7d 30%, resets in 67h
   await $.session.start({ ...START, surface: 'desktop' })
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
 
   const ui = await mountBand($, 'desktop', 160)
   const tree = await ui.drawn()
@@ -112,7 +112,7 @@ test('the 5h pill shows your pace once there is enough evidence, and drops it wh
 test('reset countdowns keep moving while the cache is cold', LONG, async ($, on) => {
   const clock = setup(on) // 5h resets at 3h
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
+  await respond($, resp(2_000, 0, 80_000, 500))
   await clock.advance(70 * MIN) // cold
 
   const ui = await mountBand($, 'terminal', 160)
@@ -173,7 +173,7 @@ test('a failing breakdown read keeps the 5h toast', async ($, on) => {
 test('no rate limits: the band draws without the 5h pill or limit facts', async ($, on) => {
   setup(on, { usage: { ...USAGE, rateLimits: [] } })
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
 
   const ui = await mountBand($, 'terminal', 110)
   expect(await ui.find({ type: 'Text', text: /^5h/ })).toBeUndefined()

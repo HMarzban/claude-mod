@@ -21,14 +21,6 @@ const KEEP_STROKE = ' vector-effect="non-scaling-stroke"'
 /** The largest value, 0 for none: the top of a chart's scale. */
 const topOf = (values: ReadonlyArray<number | undefined>): number => Math.max(0, ...values.filter(v => v !== undefined))
 
-/** Marks wrapped in an Svg of this size, one unit to a pixel; `attrs` adds
- *  to the root tag. */
-const svgOf = (width: number, height: number, marks: string, attrs = ''): string =>
-  `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"${attrs}>${marks}</svg>`
-
-/** Marks set `air` px down, below the air above them. */
-const airOf = (marks: string, air: number): string => (air > 0 ? `<g transform="translate(0 ${air})">${marks}</g>` : marks)
-
 // ---- braille --------------------------------------------------------------
 
 /** Values as braille, two to a cell: the left column takes dots 7,3,2,1 from
@@ -89,7 +81,7 @@ type MeterOptions = Readonly<{
  *  says what the fill is. A stretched bar has no width of its own: drawn
  *  wider than any slot, the slot caps it, so it spans its card. */
 export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
-  const { Svg, Text, palette, onTone } = kit
+  const { Svg, svg, Text, palette, onTone } = kit
   const { key = 'meter', label, frac, tone, accent, size = CHIP_BAR, stretch = false, reads = 'used' } = o
   const fill = onTone(tone, accent)
   const alt = `${label} ${Math.round(clamp01(frac) * 100)}% ${reads}`
@@ -108,12 +100,7 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
     const marks =
       `<rect x="${0.5 * k}" y="1.5" width="${width - k}" height="5" rx="${2.5 * k}" ry="2.5" fill="${palette.meterTrack}" stroke="${palette.trackStroke}"${keep}/>` +
       (fillWidth > 0 ? `<rect class="fill" y="1" width="${fillWidth}" height="6" rx="${3 * k}" ry="3" fill="${fill}"/>` : '')
-    const source = svgOf(width, tall, marks, stretch ? ' preserveAspectRatio="none"' : '')
-    return stretch ? (
-      <Svg key={key} source={source} alt={alt} height={tall} />
-    ) : (
-      <Svg key={key} source={source} alt={alt} width={width} height={tall} />
-    )
+    return svg({ key, alt, width, height: tall, stretch }, marks)
   }
   // Two glyphs only: partial blocks jitter across fonts and read as noise to
   // a screen reader. The number beside a meter carries the value.
@@ -141,7 +128,7 @@ type SplitBarOptions = Readonly<{
 /** A bar split into parts, each its share of the whole, in its own colour
  *  and, in text, its own fill; nothing while the whole is none. */
 export const splitBar = (kit: Kit, o: SplitBarOptions): RenderChildren => {
-  const { Svg, Text, palette } = kit
+  const { Svg, svg, Text } = kit
   const { key = 'split', alt, parts, size } = o
   const total = parts.reduce((sum, { n }) => sum + n, 0)
   if (total <= 0) return null
@@ -168,7 +155,7 @@ export const splitBar = (kit: Kit, o: SplitBarOptions): RenderChildren => {
         ? `<path d="M${f(x0 + R)} 1H${f(x1)}V7H${f(x0 + R)}A${R} 3 0 0 1 ${f(x0 + R)} 1Z" fill="${color}"/>`
         : `<path d="M${f(x0)} 1H${f(x1 - R)}A${R} 3 0 0 1 ${f(x1 - R)} 7H${f(x0)}Z" fill="${color}"/>`
     })
-    return <Svg key={key} source={svgOf(width, 8, segments.join(''), ' preserveAspectRatio="none"')} alt={alt} height={8} />
+    return svg({ key, alt, width, height: 8, stretch: true }, segments.join(''))
   }
   let used = 0
   return (
@@ -219,7 +206,7 @@ const SPARK_AIR = 2
 /** A line over time, ending bare at its newest point. Text draws it in
  *  braille on its floor, on one line that a row too narrow cuts. */
 export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
-  const { Svg, palette, oneLine } = kit
+  const { Svg, svg, palette, oneLine } = kit
   const { key, alt, values, color, px, height, max, nowAt, level, air = 0, headroom = 0, from = 0 } = o
   const top = max ?? topOf(values)
   if (!Svg) return oneLine({ key, color }, braille(values.map((v, i) => (i < from ? undefined : v)), top, 1))
@@ -237,7 +224,7 @@ export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
     marks += `<line class="now" x1="${x(nowAt)}" y1="0" x2="${x(nowAt)}" y2="${height}" stroke="${palette.label}" stroke-width="1"/>`
   }
   if (level !== undefined) marks += `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1" ${PROJECTION_DASH}/>`
-  return <Svg key={key} source={svgOf(px, height + air, airOf(marks, air))} alt={alt} width={px} height={height + air} />
+  return svg({ key, alt, width: px, height, air }, marks)
 }
 
 // ---- bar chart ------------------------------------------------------------
@@ -268,7 +255,7 @@ const CAP_ROOM = 3
  *  across its peak. Text draws bars in braille, two to a cell, a cell
  *  holding a marked one in the mark's colour. */
 export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
-  const { Svg, palette } = kit
+  const { Svg, svg, palette } = kit
   const { key, alt, values, marked, color, markColor, px, height, max, level, air = 0 } = o
   const top = max ?? topOf(values)
   if (!Svg) {
@@ -293,19 +280,19 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
   }).join('')
   const rule = level === undefined ? '' : `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1" stroke-dasharray="1 2"/>`
   const beats = `<path class="beats" d="${d}" fill="none" stroke="${color}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>`
-  return <Svg key={key} source={svgOf(px, height + air, airOf(rule + beats, air))} alt={alt} width={px} height={height + air} />
+  return svg({ key, alt, width: px, height, air }, rule + beats)
 }
 
 /** The beats' empty state, before a cost: a flat line on the baseline
  *  every beat starts and ends on, `beats` wide, dim, in `color`. Text draws
  *  braille's floor, a cell for two beats. */
 export const flatBeats = (kit: Kit, o: Readonly<{ key: string; alt: string; beats: number; color: string; px: number; height: number; air?: number }>): RenderChildren => {
-  const { Svg, oneLine } = kit
+  const { Svg, svg, oneLine } = kit
   const { key, alt, beats, color, px, height, air = 0 } = o
   if (!Svg) return oneLine({ key, color }, braille(Array.from({ length: beats }, () => 0), 1, 1))
   const base = height - 4
   const flat = `<line class="flat" x1="1" y1="${base}" x2="${px - 1}" y2="${base}" stroke="${color}" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>`
-  return <Svg key={key} source={svgOf(px, height + air, airOf(flat, air))} alt={alt} width={px} height={height + air} />
+  return svg({ key, alt, width: px, height, air }, flat)
 }
 
 // ---- heartbeat ------------------------------------------------------------
@@ -314,14 +301,14 @@ export const flatBeats = (kit: Kit, o: Readonly<{ key: string; alt: string; beat
  *  flat line when cold, hollow before it's measured. It stays still: its
  *  source changes only with its state, so its frame never reloads per tick. */
 export const heartbeat = (kit: Kit, o: Readonly<{ key: string; alt: string; state: 'still' | 'beat' | 'flat' | 'hollow'; color: string }>): RenderChildren => {
-  const { Svg, palette } = kit
+  const { Svg, svg, palette } = kit
   if (!Svg) return null
   const { key, alt, state, color } = o
   const body =
     state === 'flat' ? `<line x1="0" y1="6" x2="12" y2="6" stroke="${palette.label}" stroke-width="1.4" stroke-linecap="round"/>`
     : state === 'hollow' ? `<circle cx="6" cy="6" r="3.5" fill="none" stroke="${color}" stroke-width="1.2"/>`
     : `<circle cx="6" cy="6" r="3.5" fill="${color}"/>`
-  return <Svg key={key} source={svgOf(12, 12, body)} alt={alt} width={12} height={12} />
+  return svg({ key, alt, width: 12, height: 12 }, body)
 }
 
 // ---- track ----------------------------------------------------------------
@@ -349,7 +336,7 @@ const NOW_REACH = 7
  *  in value ink: the cache's hour from its last reply to cold. Text draws
  *  braille, a gone cell raised above the floor the rest keep. */
 export const track = (kit: Kit, o: TrackOptions): RenderChildren => {
-  const { Svg, palette } = kit
+  const { Svg, svg, palette } = kit
   const { key, alt, frac, color, px, height, air = 0, cells } = o
   const gone = clamp01(frac)
   if (!Svg) {
@@ -365,7 +352,7 @@ export const track = (kit: Kit, o: TrackOptions): RenderChildren => {
     `<rect class="track" x="0.5" y="${tenth(y + 0.5)}" width="${px - 1}" height="${TRACK_PX - 1}" rx="2.5" fill="${palette.meterTrack}" stroke="${palette.trackStroke}"/>` +
     fill +
     `<line class="now" x1="${now}" y1="${tenth(y - NOW_REACH)}" x2="${now}" y2="${tenth(y + TRACK_PX + NOW_REACH)}" stroke="${palette.value}" stroke-width="1.5" stroke-linecap="round"/>`
-  return <Svg key={key} source={svgOf(px, height + air, airOf(marks, air))} alt={alt} width={px} height={height + air} />
+  return svg({ key, alt, width: px, height, air }, marks)
 }
 
 // ---- day cells ------------------------------------------------------------
@@ -412,7 +399,7 @@ const TODAY_DASH = 'stroke-dasharray="2 1.6"'
  *  dim on the track; one with nothing yet a plain edge in the track's grey.
  *  Text draws a braille height per cell. */
 export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
-  const { Svg, Text, palette } = kit
+  const { Svg, svg, Text, palette } = kit
   const { key, alt, values, guess = [], today, color, cellPx, height, max, air = 0, px } = o
   const top = max ?? topOf(values)
   const isGuess = (i: number) => guess[i] === true
@@ -454,5 +441,5 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
     const edge = `<rect class="edge" x="${x + 0.5}" y="${DAY_EDGE + 0.5}" width="${cellPx - 1}" height="${height - 1}" rx="3" fill="none" stroke="${stroke}"${dash}/>`
     return ground + filled + edge
   })
-  return <Svg key={key} source={svgOf(width, tall + air, airOf(marks.join(''), air))} alt={alt} width={width} height={tall + air} />
+  return svg({ key, alt, width, height: tall, air }, marks.join(''))
 }

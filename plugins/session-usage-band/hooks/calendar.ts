@@ -7,16 +7,12 @@ import type { Zone } from './format'
 import type { Sample } from './memory'
 
 export type DayCell = Readonly<{
-  /** 'T' */
-  initial: string
   /** 'Tuesday' */
   name: string
   /** The day of the month: '6' */
   date: string
   /** The day's rise in points, or its guess; undefined when unknown. */
   pct: number | undefined
-  /** '6%' | '~7%' (a guess) | '' (unknown) */
-  text: string
   guess: boolean
   today: boolean
   future: boolean
@@ -25,12 +21,9 @@ export type DayCell = Readonly<{
 }>
 
 export type HourCell = Readonly<{
-  /** The local clock hour it starts in: '08' */
-  label: string
   /** The local time it starts at, as the 5h reset sets it: '08:40' */
   startClock: string
   pct: number | undefined
-  text: string
   guess: boolean
   now: boolean
   future: boolean
@@ -47,13 +40,7 @@ export type Week = Readonly<{
   days: readonly DayCell[]
   /** The five hours before the 5h reset; empty without one. */
   hours: readonly HourCell[]
-  /** The short name of the known day that rose most: 'Thu'; undefined when none drew above 0%. */
-  busiest: string | undefined
 }>
-
-type Known<C> = C & Readonly<{ pct: number }>
-/** A cell measured: neither a guess nor unknown. */
-const isKnown = <C extends DayCell | HourCell>(c: C): c is Known<C> => !c.guess && c.pct !== undefined
 
 /** How a window is cut: what a sample says of it, and its slices' edges,
  *  oldest first. */
@@ -89,7 +76,7 @@ const BY_DAY: Cut = { pct: s => s.sevenPct, reset: s => s.sevenResetAt, bounds: 
 const BY_HOUR: Cut = { pct: s => s.fivePct, reset: s => s.fiveResetAt, bounds: resetAt => Array.from({ length: 6 }, (_, i) => resetAt - (5 - i) * HOUR_MS) }
 
 /** A slice of a window, before it is named as a day or an hour. */
-type Slice = Readonly<{ start: number; end: number; pct: number | undefined; text: string; guess: boolean; current: boolean; future: boolean; fullMark: boolean }>
+type Slice = Readonly<{ start: number; end: number; pct: number | undefined; guess: boolean; current: boolean; future: boolean; fullMark: boolean }>
 
 /** Each slice's rise, from the window's own samples; undefined where unknown or ahead. */
 const risesOf = (samples: readonly Sample[], cut: Cut, resetAt: number, bounds: readonly number[], now: number): Array<number | undefined> => {
@@ -133,7 +120,6 @@ const slicesOf = (samples: readonly Sample[], w: WindowNow | undefined, cut: Cut
       start,
       end: bounds[i + 1] ?? start,
       pct,
-      text: pct === undefined ? '' : `${guess ? '~' : ''}${Math.round(pct)}%`,
       guess,
       current: i === current,
       future,
@@ -163,13 +149,9 @@ export const weekOf = (o: Readonly<{ samples: readonly Sample[]; seven: WindowNo
     // A local day read through the UTC getters.
     const at = new Date(wholeDayOf(start, end, o.zone) * DAY_MS)
     const name = WEEKDAYS[at.getUTCDay()] ?? ''
-    return { ...slice, initial: name.slice(0, 1), name, date: String(at.getUTCDate()), today: current }
+    return { ...slice, name, date: String(at.getUTCDate()), today: current }
   })
   // An hour each in absolute time, so a fall back names its hour twice and a spring forward skips one.
-  const hours = slicesOf(o.samples, o.five, BY_HOUR, o.now, o.zone).map(({ start, end: _end, current, ...slice }): HourCell => {
-    const startClock = fmtClock(start, o.zone)
-    return { ...slice, label: startClock.slice(0, 2), startClock, now: current }
-  })
-  const busiest = days.filter(isKnown).filter(d => Math.round(d.pct) > 0).reduce<Known<DayCell> | undefined>((top, d) => (top === undefined || d.pct > top.pct ? d : top), undefined)
-  return { days, hours, busiest: busiest?.name.slice(0, 3) }
+  const hours = slicesOf(o.samples, o.five, BY_HOUR, o.now, o.zone).map(({ start, end: _end, current, ...slice }): HourCell => ({ ...slice, startClock: fmtClock(start, o.zone), now: current }))
+  return { days, hours }
 }

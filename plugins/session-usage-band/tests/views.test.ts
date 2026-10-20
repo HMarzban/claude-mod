@@ -9,14 +9,15 @@ import { makeKit } from '../hooks/kit'
 import { DARK, PLAIN } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
 import { LAYOUT_NAMES } from '../hooks/snapshot'
+import { drawView } from '../hooks/views/frame'
 import { VIEWS } from '../hooks/views/index'
 import { rowsOf, type View } from '../hooks/views/view'
 import { EMPTY } from '../hooks/words'
 import { byKey, fakeEl, shown, walk } from './helpers'
 import { NO_ACT, snapOf } from './matrix'
 
-const marker: View = { rows: { desktop: 1, terminal: 1 }, draw: () => ({ type: 'Text', props: {}, children: ['PULSE'] }) as unknown as RenderElement }
-const boom: View = { ...marker, draw: () => { throw new Error('boom') } }
+const marker: View = { rows: { desktop: 1, terminal: 1 }, collapsed: () => ({ type: 'Text', props: {}, children: ['PULSE'] }) as unknown as RenderElement, open: () => null }
+const boom: View = { ...marker, collapsed: () => { throw new Error('boom') } }
 
 test('every layout name has a view', () => {
   expect(Object.keys(VIEWS).sort()).toEqual([...LAYOUT_NAMES].sort())
@@ -74,7 +75,7 @@ test('every layout that says an empty state draws it in a label\'s ink', () => {
             context: { tokens: undefined, window: 200_000, percent: undefined, compactAt: undefined, autoCompactOff: false },
             fiveHour: undefined, sevenDay: undefined,
           })
-          walk(VIEWS[layout].draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT), n => {
+          walk(drawView(VIEWS[layout], makeKit(fakeEl, snap), readingsOf(snap), NO_ACT), n => {
             const text = (n.children ?? []).every(k => typeof k === 'string') ? (n.children ?? []).join('') : ''
             if (n.type === 'Text' && phrases.some(e => text.includes(e))) inks.push(`${layout} ${surface} ${columns}${expanded ? ' open' : ''} "${text}" ${String(n.props?.color === DARK.label ? 'label' : n.props?.color)}`)
           })

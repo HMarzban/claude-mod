@@ -96,8 +96,8 @@ test('with auto-compaction off the context toast says the conversation will run 
 test('the tokens chip totals every token and breaks them down', async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(10_000, 0, 100_000, 2_000))
-  await respond(e => $.turn.step(e), resp(4_000, 100_000, 6_000, 3_000))
+  await respond($, resp(10_000, 0, 100_000, 2_000))
+  await respond($, resp(4_000, 100_000, 6_000, 3_000))
 
   const ui = await mountBand($, 'terminal', 140)
   const drawn = await ui.drawn()

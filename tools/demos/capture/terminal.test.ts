@@ -7,7 +7,7 @@ test('capture: terminal frames', LONG, async ($, on) => {
   const clock = setup(on, { usage: FRESH, env: { ...HOUR_1, CLAUDE_CODE_PROMPT_CACHE_TTL: '1h' } })
   await $.session.start(START)
   await $.turn.start({ text: 'hi', turnId: 't1' })
-  await respond(e => $.turn.step(e), resp(2_000, 0, 298_000, 3_000))
+  await respond($, resp(2_000, 0, 298_000, 3_000))
   usage.current = {
     ...usage.current,
     cost: { usd: 1.56 },

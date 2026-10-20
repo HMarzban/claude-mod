@@ -1,13 +1,16 @@
 // What every layout's frame shares: the toggle on the row nearest the
-// prompt, the rows an open view is given beneath the collapsed lines, and
-// the footer.
+// prompt, the rows an open view is given beneath the collapsed lines, the
+// footer, and the one-line rows pulse and departures squeeze to fit.
 
-import type { RenderElement } from 'claude-code'
+import type { RenderChildren, RenderElement } from 'claude-code'
 import type { Kit } from '../kit'
-import { HOTKEY_MARK, ROW_SLACK, cellsOf } from '../layout'
+import { HOTKEY_MARK, ROW_SLACK, cellsOf, isDrawn, keepsIn, squeezeToFit } from '../layout'
 import { BARE } from '../palette'
-import type { Readings } from '../reading'
+import type { Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
+import { rowsOf } from './view'
+import type { View } from './view'
+import type { Amber } from '../words'
 
 /** The rows a body gets: the band's, less the collapsed rows, a row of air
  *  above the body and above the buttons, the buttons, and the strip. */
@@ -35,6 +38,18 @@ export const toggleButton = (kit: Kit, read: Readings, act: BandActions): Render
         {...(Svg ? { variant: 'secondary' as const } : { plain: true as const })}
         onPress={act.toggleExpanded}
       />
+    </Box>
+  )
+}
+
+/** A view drawn: its collapsed row, the toggle at its end, and while open,
+ *  what opens beneath it, given the rows the view declares where it is drawn. */
+export const drawView = (view: View, kit: Kit, read: Readings, act: BandActions): RenderElement => {
+  const { Box } = kit
+  return (
+    <Box flexDirection="column">
+      {view.collapsed(kit, read, toggleButton(kit, read, act))}
+      {read.frame.expanded ? view.open(kit, read, act, rowsOf(view, kit)) : null}
     </Box>
   )
 }
@@ -71,5 +86,52 @@ export const footer = (kit: Kit, act: BandActions, strip?: RenderElement): Rende
       {strip === undefined ? <Box flexGrow={1} /> : null}
       {buttons}
     </Box>
+  )
+}
+
+// ---- the rows pulse and departures squeeze -----------------------------------
+
+/** What a line's build may ask at its squeeze. */
+export type Keeps<P extends string> = Readonly<{
+  /** Whether a calm, optional piece is still kept. */
+  has: (p: P) => boolean
+  /** Whether a piece of this tone is kept: an amber one always is. */
+  calm: (p: P, tone: Tone) => boolean
+  /** An amber reading's words: long until the `amberShort` step, then short. */
+  amber: (a: Amber) => string
+}>
+
+/** One collapsed line: its pieces, each kept whole, then air, then the toggle
+ *  or nothing. Never wraps; past its room it clips, as chips' row does. */
+export const line = (kit: Kit, key: string, pieces: readonly RenderChildren[], end?: RenderChildren, gap = 2): RenderElement => {
+  const { Box } = kit
+  return (
+    <Box key={key} flexDirection="row" flexWrap="nowrap" overflow="hidden" columnGap={gap}>
+      {pieces.filter(isDrawn).map((piece, i) => (
+        <Box key={`p${i}`} flexShrink={0}>
+          {piece}
+        </Box>
+      ))}
+      <Box key="air" flexGrow={1} />
+      {end ?? null}
+    </Box>
+  )
+}
+
+/** A line squeezed by its give-way order to the smallest squeeze at which it
+ *  fits. Every order names `amberShort`, where amber turns short, so amber
+ *  shortens only once every calm piece before it has gone. */
+export const fitLine = <P extends string>(kit: Kit, order: readonly P[], room: number, build: (keeps: Keeps<P>) => RenderElement): RenderElement => {
+  const at = keepsIn(order)
+  return squeezeToFit(
+    squeeze =>
+      build({
+        has: p => at(squeeze, p),
+        calm: (p, tone) => tone === 'amber' || at(squeeze, p),
+        amber: a => (at(squeeze, 'amberShort' as P) ? a.long : a.short),
+      }),
+    order.length,
+    room,
+    kit.measure,
   )
 }

@@ -59,7 +59,7 @@ test('the threshold takes a positive whole number, raised to 100k', () => {
 test('idle on the hour with a long conversation, the card says it may be compacted, until the 54-minute mark', async ($, on) => {
   const clock = setup(on, { usage: LONG_TALK })
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(2_000, 0, 240_000, 5_000))
+  await respond($, resp(2_000, 0, 240_000, 5_000))
   await clock.advance(10 * MIN)
   expect(await cacheCard($)).toBe('50m left; may be compacted at ~54m idle, before it goes cold')
 
@@ -79,7 +79,7 @@ for (const [name, usage, surface, settings] of [
     const clock = setup(on, { usage })
     engine.settings = settings
     await $.session.start({ ...START, surface })
-    await respond(e => $.turn.step(e), resp(2_000, 0, 240_000, 5_000))
+    await respond($, resp(2_000, 0, 240_000, 5_000))
     await clock.advance(10 * MIN)
     expect(await cacheCard($, surface)).toMatch(WARM_CARD)
   })
@@ -87,7 +87,7 @@ for (const [name, usage, surface, settings] of [
 test('compacted while idle, the cache reads compacted at the summary, calm, until the next reply', async ($, on) => {
   const clock = setup(on, { usage: LONG_TALK })
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(2_000, 0, 240_000, 5_000))
+  await respond($, resp(2_000, 0, 240_000, 5_000))
   await clock.advance(54 * MIN)
   await $.session.compact({ trigger: 'auto', messages: SUMMARY })
 
@@ -101,14 +101,14 @@ test('compacted while idle, the cache reads compacted at the summary, calm, unti
   await clock.advance(5 * MIN + 30_000)
   expect(await drawnText($)).not.toContain('left')
 
-  await respond(e => $.turn.step(e), resp(500, 0, 20_000, 300))
+  await respond($, resp(500, 0, 20_000, 300))
   expect(await cacheCard($)).toMatch(/^1h 00m left/)
 })
 
 /** A reply, then 54 minutes on, `compact`: what the band then says. */
 const afterIdle = async ($: Engine, clock: MockClock, compact: ($: Engine) => Promise<unknown>, wait = 54 * MIN): Promise<string> => {
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(2_000, 0, 240_000, 5_000))
+  await respond($, resp(2_000, 0, 240_000, 5_000))
   await clock.advance(wait)
   await compact($)
   return drawnText($)

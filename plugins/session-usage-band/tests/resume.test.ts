@@ -110,7 +110,7 @@ test('after each turn the band remembers the reply and the rate it solved', asyn
   await $.session.start(START)
   await clock.advance(5 * MIN)
   await $.turn.start({ text: 'hi', turnId: 't1' })
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
   usage.current = { ...usage.current, cost: { usd: 2.83 } } // the turn cost $0.42
   await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
   await clock.settle()
@@ -125,7 +125,7 @@ test('a rate solved on a 1M-context session is remembered under the model, for a
   engine.model = `${MODEL}[1m]`
   await $.session.start(START)
   await $.turn.start({ text: 'hi', turnId: 't1' })
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
   usage.current = { ...usage.current, cost: { usd: 2.83 } }
   await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
   await clock.settle()
@@ -137,7 +137,7 @@ test('a rate solved on a session named by an alias is remembered under the bille
   engine.model = 'opus[1m]'
   await $.session.start(START)
   await $.turn.start({ text: 'hi', turnId: 't1' })
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
   usage.current = { ...usage.current, cost: { usd: 2.83 } }
   await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
   await clock.settle()
@@ -150,7 +150,7 @@ test('the band remembers at most 50 sessions, the oldest replies going first', a
   await $.session.start(START)
   await clock.advance(MIN)
   await $.turn.start({ text: 'hi', turnId: 't1' })
-  await respond(e => $.turn.step(e), resp(41_000, 0, 155_000, 12_000))
+  await respond($, resp(41_000, 0, 155_000, 12_000))
   await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
   await clock.settle()
   const kept = Object.keys(engine.store.sessions as Record<string, unknown>)

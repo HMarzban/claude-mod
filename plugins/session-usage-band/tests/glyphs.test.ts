@@ -69,7 +69,7 @@ test('chips in the ascii tier draws only ASCII, within the row, shut and open', 
 test('the ascii battery drops its glyph before the cut, so its charge and spacing hold', LONG, async ($, on) => {
   const clock = setup(on, { env: { ...HOUR_1, CC_BAND_GLYPHS: 'ascii' } })
   await $.session.start(START)
-  await respond(e => $.turn.step(e), resp(2_000, 0, 80_000, 500))
+  await respond($, resp(2_000, 0, 80_000, 500))
   await clock.advance(52 * MIN) // 8 of the hour's 60 minutes left
 
   const ui = await mountBand($, 'terminal', 110)

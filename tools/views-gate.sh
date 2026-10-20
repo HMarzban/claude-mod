@@ -3,7 +3,7 @@
 # raw fact. Prints each offending line and fails if there is one.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-if grep -nE '\.raw\b|\.reading\.|Date\.parse|\.replace\(|Math\.round|from '\''\.\./format'\''' "$ROOT"/plugins/session-usage-band/hooks/views/*.tsx | grep -vE '/(chips|parts|frame)\.tsx:'; then
+if grep -nE '\.raw\b|\.reading\.|Date\.parse|\.replace\(|Math\.round|from '\''\.\./format'\''' "$ROOT"/plugins/session-usage-band/hooks/views/*.tsx | grep -vE '/chips\.tsx:'; then
   echo "views-gate: a view formats or reads a raw fact (see above)" >&2
   exit 1
 fi
@@ -16,5 +16,11 @@ for f in departures departures-board pulse pulse-open; do
 done
 if [ "${#LOOK[@]}" -gt 0 ] && grep -nE "from '\./(cards|chips)'|[pP]ill\(|[bB]attery|meter\(" "${LOOK[@]}"; then
   echo "views-gate: pulse and departures draw their own look (see above)" >&2
+  exit 1
+fi
+# Every Svg is built by the kit's `svg`, so its size, air and stretch are
+# written once: no other hook writes an <svg> root.
+if grep -rn '<svg xmlns' "$ROOT"/plugins/session-usage-band/hooks | grep -v '/hooks/kit\.tsx:'; then
+  echo "views-gate: build an Svg with kit.svg (see above)" >&2
   exit 1
 fi

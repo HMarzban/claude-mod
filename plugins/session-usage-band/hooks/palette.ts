@@ -64,6 +64,26 @@ export type Palette = {
   flapAmber: string
 }
 
+/** Dark's 5-hour and 7-day accents, which the board's tiles wear too. */
+const DARK_FIVE = '#7fcf8a'
+const DARK_WEEK = '#a99cf0'
+
+/** The departures board, dark in dark and light alike: its case, its tiles
+ *  and their inks, the 5h and 7d ones dark's accents. */
+const BOARD = {
+  boardBg: '#141414',
+  flapBg: '#262626',
+  flapSeam: '#0E0E0E',
+  flapItemCache: '#7FD48A',
+  flapItemSpend: '#E8C25A',
+  flapItemContext: '#9DB4D0',
+  flapItem5h: DARK_FIVE,
+  flapItem7d: DARK_WEEK,
+  flapText: '#F2EEE3',
+  flapDim: '#B9B4A8',
+  flapAmber: '#F5B14C',
+}
+
 export const DARK: Readonly<Palette> = {
   filled: true,
   surface: '#2b2b33',
@@ -86,23 +106,13 @@ export const DARK: Readonly<Palette> = {
   coin: '#c9a54a',
   fiveBg: '#1e3324',
   fiveFg: '#cfe8d3',
-  fiveAccent: '#7fcf8a',
-  fiveText: '#7fcf8a',
+  fiveAccent: DARK_FIVE,
+  fiveText: DARK_FIVE,
   weekBg: '#2a2540',
   weekFg: '#d9d3f5',
-  weekAccent: '#a99cf0',
-  weekText: '#a99cf0',
-  boardBg: '#141414',
-  flapBg: '#262626',
-  flapSeam: '#0E0E0E',
-  flapItemCache: '#7FD48A',
-  flapItemSpend: '#E8C25A',
-  flapItemContext: '#9DB4D0',
-  flapItem5h: '#7fcf8a',
-  flapItem7d: '#a99cf0',
-  flapText: '#F2EEE3',
-  flapDim: '#B9B4A8',
-  flapAmber: '#F5B14C',
+  weekAccent: DARK_WEEK,
+  weekText: DARK_WEEK,
+  ...BOARD,
 }
 
 export const LIGHT: Readonly<Palette> = {
@@ -133,17 +143,7 @@ export const LIGHT: Readonly<Palette> = {
   weekFg: '#3c3489',
   weekAccent: '#6b5fd3',
   weekText: '#5a4ec4',
-  boardBg: '#141414',
-  flapBg: '#262626',
-  flapSeam: '#0E0E0E',
-  flapItemCache: '#7FD48A',
-  flapItemSpend: '#E8C25A',
-  flapItemContext: '#9DB4D0',
-  flapItem5h: '#7fcf8a',
-  flapItem7d: '#a99cf0',
-  flapText: '#F2EEE3',
-  flapDim: '#B9B4A8',
-  flapAmber: '#F5B14C',
+  ...BOARD,
 }
 
 // No backgrounds at all: every colour is a theme key, so it follows whatever

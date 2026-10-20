@@ -5,20 +5,18 @@ import { atom, read, update } from 'claude-code'
 import type { ClassicEventOf, EngineInterface, ProcessRunResult, Register, SessionRateLimit, Timer } from 'claude-code'
 import { drawBand } from './band'
 import {
-  IDLE_GAP_MS,
   cache,
   cacheView,
   msLeft,
   idleCompactFrom,
+  noteCompact,
   noteCompaction,
-  noteIdleCompaction,
   noteConversationStart,
   noteLedger,
   noteLoad,
-  notePrior,
-  noteRecall,
+  noteRecalled,
   noteResume,
-  noteTtlSeen,
+  noteTranscript,
   modelName,
   noteBilledModel,
   notePriceModel,
@@ -32,9 +30,11 @@ import {
   resolveTtl,
   spentUsd,
   takeRebuilt,
+  wantsRecall,
 } from './cache'
-import type { ResumedCache, Spend, Ttl } from './cache'
-import { COMPACT_NEAR, MINUTE_MS, SEVERE_AT, WARN_AT, clipMiddle, contextUsed, fmtCountdown, fmtEta, fmtTokens, hostZone, readableZone } from './format'
+import type { RecalledReply, ResumedCache, Spend, TranscriptFacts } from './cache'
+import { LAYOUT_LIST, REPLY, UNSAVED, layoutReply, parseCommand } from './command'
+import { MINUTE_MS, SEVERE_AT, WARN_AT, clipMiddle, contextPressure, contextUsed, fmtCountdown, fmtEta, fmtTokens, hostZone, readableZone } from './format'
 import { resolveGlyphs } from './glyphs'
 import {
   fiveHourEtaMs,
@@ -59,7 +59,6 @@ import {
   RATES_KEY,
   READ_LIMIT,
   SESSIONS_KEY,
-  SEVEN_DAY,
   addSample,
   asLayoutName,
   REMOVED_IN,
@@ -77,11 +76,12 @@ import {
   sampleOf,
   samplesUpTo,
   sessionCostRecord,
+  splitLimits,
   transcriptPath,
   transcriptSpend,
 } from './memory'
 import type { Sample } from './memory'
-import { DEFAULT_LAYOUT, LAYOUT_NAMES } from './snapshot'
+import { DEFAULT_LAYOUT } from './snapshot'
 import type { Glyphs, LayoutName, LimitReading } from './snapshot'
 import { GIT_DIRS_ARGV, GIT_STATUS_ARGV, homeRelative, parseGitState, splitPath } from './workspace'
 import type { Workspace } from './workspace'
@@ -101,25 +101,6 @@ const PROCESS_TIMEOUT_MS = 3000
 /** Runs `argv`, in `cwd` when given; undefined where it can't run or times out. */
 const runProcess = ($: EngineInterface, argv: readonly string[], cwd?: string): Promise<ProcessRunResult | undefined> =>
   $.process.run(argv, { cwd, timeoutMs: PROCESS_TIMEOUT_MS }).catch(() => undefined)
-
-/** What /usage-band answers. */
-const REPLY = {
-  shown: 'Usage band shown.',
-  shownFirst: 'Usage band shown. /usage-band more shows every fact.',
-  hidden: 'Usage band hidden. /usage-band shows it again.',
-  expanded: 'Usage band expanded.',
-  collapsed: 'Usage band collapsed.',
-  usage: 'Usage: /usage-band [more | less | show | hide] · /usage-band layout <name>',
-} as const
-
-/** What a resumed conversation's transcript shows: its spend before this
- *  process, and the TTL of its last cache write. */
-type TranscriptFacts = Readonly<{ spend: Spend | undefined; ttl: Ttl | undefined }>
-
-/** What the band recalls of a conversation's last reply, before its own:
- *  when it was, the base rate per token on its model, and the model it was
- *  billed under, where its transcript names one. */
-type RecalledReply = Readonly<{ lastAt: number | undefined; rate: number | null; billed: string | undefined }>
 
 /** A conversation the engine said it resumed: its session, when the engine
  *  said so, what it said of its cache, where its transcript is, and once
@@ -143,7 +124,7 @@ const band: {
   /** The terminal's glyph tier, read from the environment at session.start. */
   glyphs: Glyphs
   /** Where auto-compaction runs, as the context breakdown last said; read
-   *  after each turn, not on every redraw. Undefined when off or unknown. */
+   *  at each measure, not on every redraw. Undefined when off or unknown. */
   compactAt: number | undefined
   /** The breakdown said auto-compaction is off. */
   autoCompactOff: boolean
@@ -266,20 +247,6 @@ const recallLastReply = async (
   } catch {
     return undefined // nothing to recall
   }
-}
-
-/** What the band recalls of the last reply, noted in the cache model until
- *  this band's first reply, which speaks for itself. */
-const noteRecalled = (recalled: RecalledReply | undefined): void => {
-  if (cache.requests > 0) return
-  if (recalled?.billed !== undefined) noteBilledModel(recalled.billed)
-  if (recalled?.lastAt !== undefined) noteRecall(recalled.lastAt, recalled.rate)
-}
-
-/** What a resumed conversation's transcript shows, noted in the cache model. */
-const noteTranscript = (facts: TranscriptFacts): void => {
-  if (facts.spend !== undefined) notePrior(facts.spend)
-  if (facts.ttl !== undefined) noteTtlSeen(facts.ttl)
 }
 
 /** A resume, applied to the cache model: the engine's word on its cache, and
@@ -412,14 +379,6 @@ const noteSample = async ($: EngineInterface, sample: Sample): Promise<void> => 
 const ledgerUsd = async ($: EngineInterface): Promise<number | undefined> =>
   (await $.session.usage().catch(() => undefined))?.cost?.usd
 
-type BandCommand = 'toggle' | 'more' | 'less' | 'show' | 'hide'
-
-const parseCommand = (args: string): BandCommand | undefined => {
-  const word = args.trim().toLowerCase()
-  if (word === '') return 'toggle'
-  return word === 'more' || word === 'less' || word === 'show' || word === 'hide' ? word : undefined
-}
-
 /** The stored layout, or chips: a name this version doesn't know, or a value
  *  that isn't a name, draws chips. A read that fails keeps the layout drawn.
  *  Never throws. */
@@ -428,21 +387,10 @@ const readLayout = async ($: EngineInterface): Promise<void> => {
     stored => ({ stored }),
     () => undefined,
   )
-  if (read !== undefined) band.layout = asLayoutName(read.stored) ?? DEFAULT_LAYOUT
-  if (read !== undefined) band.removed = removedLayoutOf(read.stored)
+  if (read === undefined) return
+  band.layout = asLayoutName(read.stored) ?? DEFAULT_LAYOUT
+  band.removed = removedLayoutOf(read.stored)
 }
-
-/** The layouts /usage-band layout offers. */
-const LAYOUT_PURPOSE: Readonly<Record<LayoutName, string>> = { chips: 'at a glance', pulse: 'trends', departures: 'times' }
-const LAYOUT_LIST = `Choose one: ${LAYOUT_NAMES.map(n => `${n} (${LAYOUT_PURPOSE[n]})`).join(', ')}.`
-/** `layout`, then what follows it, if anything. */
-const LAYOUT_ARG = /^\s*layout(?:\s+(.*))?$/i
-
-/** What a layout reply adds when the store couldn't keep it. */
-const UNSAVED = "It couldn't be saved, so it lasts until Claude's next reply."
-/** The reply naming the layout the band draws in. */
-const layoutReply = (name: LayoutName, removed?: string): string =>
-  `Usage band layout: ${name}${removed === undefined ? '' : ` (${removed} was removed in ${REMOVED_IN})`}.`
 
 /** `/usage-band layout [name]`: lists, or switches and remembers. Only this writes the layout. */
 const chooseLayout = async ($: EngineInterface, arg: string): Promise<string> => {
@@ -491,7 +439,7 @@ export const register: Register = on => {
     void readWorkspace($)
     // Loaded mid-conversation, the band has seen no reply: recall the last,
     // unless the engine said when it was.
-    if (id !== undefined && !cache.knownFresh && cache.resumedCache === undefined) {
+    if (id !== undefined && wantsRecall()) {
       const path = band.resume?.path
       const readEnd = async () => {
         const file = await transcriptFile($, id, path)
@@ -500,6 +448,7 @@ export const register: Register = on => {
       noteRecalled(await recallLastReply($, id, readEnd))
     }
 
+    // One literal name a read: the engine lists the variables a module reads.
     band.palette = resolvePalette((await $.env.get('CC_BAND_APPEARANCE'))?.toLowerCase(), await $.env.get('NO_COLOR'))
     band.glyphs = resolveGlyphs({
       CC_BAND_GLYPHS: await $.env.get('CC_BAND_GLYPHS'),
@@ -638,13 +587,7 @@ export const register: Register = on => {
   on('session.compact', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId === undefined && e.trigger !== 'precompute' && result.skip === undefined) {
-      const now = await $.clock.now()
-      // No turn under way, not /compact, and long after the last request:
-      // Claude Code compacting the conversation before its cache ran out.
-      // (The trigger it names isn't matched, so a new one still counts.)
-      const idle = !band.turnOpen && e.trigger !== 'manual' && cache.requests > 0 && now - cache.lastAt >= IDLE_GAP_MS
-      if (idle && result.tokensAfter !== undefined) noteIdleCompaction(now, result.tokensAfter)
-      else noteCompaction(result.tokensAfter)
+      noteCompact({ now: await $.clock.now(), turnOpen: band.turnOpen, trigger: e.trigger, sizeAfter: result.tokensAfter })
       $.ui.invalidate('ui.render')
     }
     return result
@@ -676,20 +619,16 @@ export const register: Register = on => {
       // keep the last known setting
     }
 
-    // The context toast speaks where the context pill turns amber.
+    // The context toast speaks where the context pill turns amber: by the same rule.
     const used = contextUsed(e.context)
     if (used !== undefined) {
       const at = band.compactAt
-      if (at !== undefined) {
-        note(CONTEXT_WARN, used / at, [COMPACT_NEAR], () => `Auto-compaction in ~${fmtTokens(Math.max(0, at - used))} tokens.`)
-      } else {
-        const off = band.autoCompactOff
-        note(CONTEXT_WARN, used / e.context.window, [WARN_AT, SEVERE_AT], pct =>
-          off
-            ? `Context is ${pct}% full and auto-compaction is off, so the conversation will run out of room.`
-            : `Context is ${pct}% full.`,
-        )
-      }
+      const { frac, levels } = contextPressure(used, e.context.window, at)
+      note(CONTEXT_WARN, frac, levels, pct =>
+        at !== undefined ? `Auto-compaction in ~${fmtTokens(Math.max(0, at - used))} tokens.`
+        : band.autoCompactOff ? `Context is ${pct}% full and auto-compaction is off, so the conversation will run out of room.`
+        : `Context is ${pct}% full.`,
+      )
     }
 
     $.ui.invalidate('ui.render')
@@ -697,9 +636,8 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'usage-band' }, async ($, e, next) => {
-    const chosen = LAYOUT_ARG.exec(e.args)
-    if (chosen) return { text: await chooseLayout($, chosen[1] ?? '') }
     const command = parseCommand(e.args)
+    if (typeof command === 'object') return { text: await chooseLayout($, command.layout) }
     switch (command) {
       case 'more':
       case 'less':
@@ -728,8 +666,7 @@ export const register: Register = on => {
     const usage = await $.session.usage().catch(() => undefined)
     if (usage === undefined) return next(e)
     const now = await $.clock.now()
-    const five = usage.rateLimits.find(l => l.kind === FIVE_HOUR)
-    const seven = usage.rateLimits.find(l => l.kind === SEVEN_DAY)
+    const { five, seven, others } = splitLimits(usage.rateLimits)
     if (usage.cost !== undefined) noteLedger(usage.cost.usd)
     const contextTokens = contextUsed(usage.context) ?? 0
     const limitOf = (l: SessionRateLimit): LimitReading => ({ percentUsed: l.percentUsed, resetsAt: l.resetsAt })
@@ -746,10 +683,7 @@ export const register: Register = on => {
         layout: band.layout,
         glyphs: band.glyphs,
         now,
-        cache: {
-          ...cacheView(now, usage.cost?.usd, contextTokens),
-          idleCompacts: band.idleCompactFrom !== undefined && !band.autoCompactOff && contextTokens >= band.idleCompactFrom,
-        },
+        cache: cacheView(now, usage.cost?.usd, contextTokens, { from: band.idleCompactFrom, autoCompactOff: band.autoCompactOff }),
         costUsd: spentUsd(usage.cost?.usd),
         lastTurnUsd: insights.lastTurnUsd,
         history: trails,
@@ -767,9 +701,7 @@ export const register: Register = on => {
         // Read at each instant drawn, so a daylight-saving change shows by
         // the next minute's repaint, with no reply needed.
         zone: readableZone(hostZone, now),
-        otherLimits: usage.rateLimits
-          .filter(l => l.kind !== FIVE_HOUR && l.kind !== SEVEN_DAY)
-          .map(l => ({ kind: l.kind, ...limitOf(l) })),
+        otherLimits: others.map(l => ({ kind: l.kind, ...limitOf(l) })),
       },
       {
         toggleExpanded: async () => {

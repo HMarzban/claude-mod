@@ -118,10 +118,16 @@ const isSample = (v: unknown): v is Sample => isRecord(v) && SAMPLE_FIELDS.every
 /** The store's samples, keeping only well-formed ones, one per bucket, sorted. */
 export const asLimitSamples = (v: unknown): Sample[] => (Array.isArray(v) ? mergeSamples([], v.filter(isSample)) : [])
 
+/** The 5-hour and 7-day windows the engine reports, and every other one. */
+export const splitLimits = <L extends Readonly<{ kind: string }>>(limits: readonly L[]): Readonly<{ five: L | undefined; seven: L | undefined; others: L[] }> => ({
+  five: limits.find(l => l.kind === FIVE_HOUR),
+  seven: limits.find(l => l.kind === SEVEN_DAY),
+  others: limits.filter(l => l.kind !== FIVE_HOUR && l.kind !== SEVEN_DAY),
+})
+
 /** Both limits now, as one sample; undefined unless each is reported with a readable reset. */
 export const sampleOf = (now: number, limits: ReadonlyArray<Readonly<{ kind: string; percentUsed: number; resetsAt?: string }>>): Sample | undefined => {
-  const five = limits.find(l => l.kind === FIVE_HOUR)
-  const seven = limits.find(l => l.kind === SEVEN_DAY)
+  const { five, seven } = splitLimits(limits)
   const fiveResetAt = Date.parse(five?.resetsAt ?? '')
   const sevenResetAt = Date.parse(seven?.resetsAt ?? '')
   if (five === undefined || seven === undefined || !Number.isFinite(fiveResetAt) || !Number.isFinite(sevenResetAt)) return undefined

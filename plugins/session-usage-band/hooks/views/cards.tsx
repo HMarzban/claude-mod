@@ -4,26 +4,20 @@
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { meter, splitBar } from '../charts'
 import type { SplitPart } from '../charts'
-import type { Icon } from '../icons'
 import type { Kit } from '../kit'
 import { DESKTOP, ROW_SLACK } from '../layout'
 import type { BarSize } from '../layout'
-import type { LimitView, Readings, Tone } from '../reading'
+import type { LimitKey, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { drawStrip } from '../strip'
-import { CARD_TITLES, SPLIT_LABELS, type Say } from '../words'
+import { SPLIT_LABELS, type Say } from '../words'
 import { bodyRowsFor, footer, footerRoom } from './frame'
-import { accentOf } from './parts'
-import { cardBordered, cardEdge, cardInner, cardShell, cardsPerLine, factRow as sharedFactRow, headline } from './shell'
+import { CARD_NAMES, alertLine, cardBordered, cardEdge, cardGrid, cardInner, cardShell, cardsPerLine, cardsPresent, factRow as sharedFactRow, headline, linesOf } from './shell'
+import type { CardName } from './shell'
 
-/** The cards, in the order they are drawn. */
-const CARD_NAMES = ['cache', 'spend', 'context', 'limits'] as const
-type CardName = (typeof CARD_NAMES)[number]
-
-type OpenOptions = Readonly<{
-  /** The rows the collapsed row takes, so the cards take only what is left. */
-  collapsedRows: number
-}>
+/** A limit's accent: its window's, or the meter's for any other. */
+export const accentOf = (kit: Kit, limit: Readonly<{ key: LimitKey }>): string =>
+  limit.key === '5h' ? kit.palette.fiveAccent : limit.key === '7d' ? kit.palette.weekAccent : kit.palette.meterFill
 
 const SPLIT_ALT = `token split: ${SPLIT_LABELS.join(', ')}`
 
@@ -46,7 +40,7 @@ const tokenPartsOf = (kit: Kit, read: Readings): SplitPart[] => {
 /** What opens beneath a layout's collapsed lines: as many cards to a line as
  *  hold their text, each as much of its body as the band has rows for; the
  *  workspace strip on top or in the footer; then Collapse and Hide band. */
-export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOptions): RenderChildren[] => {
+export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderChildren[] => {
   const { Box, Text, palette, measure, columns, onTone, oneLine } = kit
   const { cache, spend, context } = read
 
@@ -67,7 +61,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
   const bordered = cardBordered(kit)
   const edge = cardEdge(kit)
   // The cards present, which the grid lays out.
-  const hasCard: Readonly<Record<CardName, boolean>> = { cache: true, spend: true, context: context.known, limits: read.limits.length > 0 }
+  const hasCard = cardsPresent(read)
   const present = CARD_NAMES.filter(name => hasCard[name])
   const cardCount = present.length
   const perLine = cardsPerLine(kit, cardCount, edge)
@@ -77,7 +71,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
   // the row of air between them, less a card's edge and its header. A taller
   // band would scroll, hiding the buttons.
   const bodyFor = (strip: number) =>
-    Math.floor((bodyRowsFor(read.frame.maxRows, o.collapsedRows, strip) - lineGap * (lineCount - 1)) / lineCount) - edge - 1
+    Math.floor((bodyRowsFor(read.frame.maxRows, collapsedRows, strip) - lineGap * (lineCount - 1)) / lineCount) - edge - 1
   // The strip heads the view when every card still keeps a fact of its own;
   // short of that row it takes the footer's, in place of the hint.
   const ws = read.workspace
@@ -87,13 +81,6 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
   // desktop draws a card's edge as a line of pixels, so there it never
   // counts as the row a fact needs.
   const cardsFit = bodyFor(0) + (measure === DESKTOP ? edge : 0) >= 1
-  // Without them, a window only the cards draw (the collapsed lines never
-  // draw the engine's other windows) still says it needs you, on the row
-  // they would have started on, where the band has one.
-  const alerts =
-    cardsFit || bodyRowsFor(read.frame.maxRows, o.collapsedRows, 0) < 1
-      ? []
-      : read.limits.flatMap(l => (l.key === 'other' && l.amber !== undefined ? [l.amber.long] : []))
   const inner = cardInner(kit, perLine, edge)
   const cardBar: BarSize = { px: inner * measure.pxPerCell, cells: inner }
   /** As much of a card's body as the band has rows for, its facts listed
@@ -103,20 +90,12 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     const facts = body.filter(part => part !== null && part !== undefined)
     return bar !== null && facts.length < bodyRows ? [bar, ...facts] : facts.slice(0, bodyRows)
   }
-  // Each card's mark: the chips' own icons, so the band speaks one language.
-  const cardIcon: Readonly<Record<CardName, readonly [Icon, string]>> = {
-    cache: ['cache', palette.warm],
-    spend: ['cost', palette.coin],
-    context: ['context', palette.label],
-    limits: ['limits', palette.fiveAccent],
-  }
   /** A card: its title and headline on one line, then its bar and its body. */
-  const card = (name: CardName, title: string, head: Readonly<{ say: Say; tone?: Tone }>, bar: RenderChildren, body: RenderChildren[]) =>
-    cardShell(kit, { key: `card:${name}`, title, icon: cardIcon[name], head: headline(kit, head.say, head.tone ?? 'calm'), body: fitBody(bar, body), bordered })
+  const card = (name: CardName, head: Readonly<{ say: Say; tone?: Tone }>, bar: RenderChildren, body: RenderChildren[]) =>
+    cardShell(kit, { key: `card:${name}`, name, head: headline(kit, head.say, head.tone ?? 'calm'), body: fitBody(bar, body), bordered })
 
   const cacheView = card(
     'cache',
-    CARD_TITLES.cache,
     { say: cache.cardHead, tone: cache.tone },
     cache.known ? meter(kit, { label: 'cache', frac: cache.charge, tone: cache.tone, accent: palette.warm, size: cardBar, stretch: true, reads: 'left' }) : null,
     [
@@ -138,12 +117,11 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
   const tokenRows = splitShown
     ? spend.split.map((part, i) => factRow(part.label, part.text, tokenParts[i]))
     : [note('Breakdown counts from your next message.')]
-  const spendView = card('spend', CARD_TITLES.spend, { say: [[spend.totalText, 'value']] }, splitShown ? split(cardBar) : null, [lastRow, ...tokenRows])
+  const spendView = card('spend', { say: [[spend.totalText, 'value']] }, splitShown ? split(cardBar) : null, [lastRow, ...tokenRows])
 
   const contextView = context.known
     ? card(
         'context',
-        CARD_TITLES.context,
         { say: context.cardHead, tone: context.tone },
         meter(kit, { label: 'context', frac: context.frac, tone: context.tone, accent: palette.meterFill, size: cardBar, stretch: true }),
         [
@@ -182,7 +160,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     const { name, frac, tone } = w
     if (w.passed) return [factRow(name, 'reset'), null]
     const value = w.valueMarked
-    const reset = w.cardResetLess()
+    const reset = w.cardResetLess
     const room = Math.max(4, inner - [...name].length - [...value].length - 2)
     const size: BarSize = { px: room * measure.pxPerCell, cells: room }
     return [
@@ -215,7 +193,6 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
     read.limits.length > 0
       ? card(
           'limits',
-          CARD_TITLES.limits,
           {
             say: worst === undefined ? [['all reset', 'value']] : [[`${worst.name} `, 'label'], [worst.valueMarked, 'value']],
             tone: worst === undefined ? 'calm' : worst.tone,
@@ -237,31 +214,10 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, o: OpenOpti
 
   return [
     stripPlace === 'top' ? strip : null,
-    cardsFit ? (
-      <Box key="cards" flexDirection="column" rowGap={lineGap} marginTop={stripPlace === 'top' ? 0 : 1}>
-        {Array.from({ length: lineCount }, (_, i) => (
-          // One top edge for every card of a line, as a grid's, so their heads line up.
-          <Box key={`cards:${i}`} flexDirection="row" alignItems="flex-start" columnGap={1}>
-            {cardViews.slice(i * perLine, (i + 1) * perLine)}
-          </Box>
-        ))}
-      </Box>
-    ) : alerts.length > 0 ? (
-      <Box key="alert" marginTop={1}>
-        {oneLine({ key: 'alert', color: palette.amberFg }, alerts.join(' · '))}
-      </Box>
-    ) : null,
+    cardsFit ? cardGrid(kit, linesOf(cardViews, perLine), { marginTop: stripPlace === 'top' ? 0 : 1, align: 'flex-start' })
+    // Without them, the other windows' alert, where the band has a row for it.
+    : bodyRowsFor(read.frame.maxRows, collapsedRows, 0) < 1 ? null
+    : alertLine(kit, read),
     footer(kit, act, stripPlace === 'footer' && strip !== null ? strip : undefined),
   ]
-}
-
-/** The whole view: its collapsed lines, and the cards beneath them when open. */
-export const cardsView = (kit: Kit, read: Readings, act: BandActions, lines: readonly RenderElement[], o: OpenOptions): RenderElement => {
-  const { Box } = kit
-  return (
-    <Box flexDirection="column">
-      {lines}
-      {read.frame.expanded ? openBody(kit, read, act, o) : null}
-    </Box>
-  )
 }

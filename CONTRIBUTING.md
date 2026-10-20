@@ -67,18 +67,18 @@ Run `/reload-plugins` in your session afterwards.
 | File | Role |
 | --- | --- |
 | `hooks/register.tsx` | The hooks. The only module that touches the engine (`$`). |
+| `hooks/command.ts` | What `/usage-band` answers and how it reads its arguments. Pure: `register.tsx` runs it. |
 | `hooks/snapshot.ts` | The snapshot and actions: the one contract between `register.tsx` and the drawing. |
 | `hooks/band.tsx` | `drawBand(elements, snapshot, actions)`: a pure function from a snapshot to a tree. It builds the kit and the readings, draws the chosen layout, and falls back to chips. |
-| `hooks/kit.tsx` | The drawing kit made once per draw: elements, the Svg gate, palette, measure, hover cards, gaps, icons. |
+| `hooks/kit.tsx` | The drawing kit made once per draw: elements, the Svg gate, palette, measure, hover cards, gaps and air, icons, and `svg`, which builds every Svg. |
 | `hooks/reading.ts` | `readingsOf`: everything a view reads, built once per draw. Each section's facts, with its words from `words.ts`. |
 | `hooks/words.ts` | The phrasebook: every phrase a layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. It holds the departures board's words too: statuses, short forms, remarks and alt sentences. |
-| `hooks/views/view.ts` | `View` (the rows it declares and `draw`) and `rowsOf`. |
+| `hooks/views/view.ts` | `View` (the rows it declares, its `collapsed` row and what it `open`s) and `rowsOf`. |
 | `hooks/views/index.ts` | `VIEWS`: every layout by name. |
-| `hooks/views/cards.tsx` | `cardsView`, chips' open view: its four cards, on the shell in `shell.tsx`. Chips' alone; pulse and departures import nothing from it. |
-| `hooks/views/shell.tsx` | The card shell chips' and pulse's open views share: a card's ground and edge, its title and headline, its fact rows, and how many cards a line holds. |
-| `hooks/views/frame.tsx` | What all three layouts share: the toggle, `bodyRowsFor` and the `footer` (Collapse, Hide band, the hint and the strip's place). |
-| `hooks/views/parts.tsx` | The pieces layouts draw: chips' pills, the cache's battery and hover string, and the lines a layout squeezes to fit (`line`, `fitLine`) and the words they're written in. |
-| `hooks/views/<name>.tsx` | One file per layout: `chips`, `pulse` and `departures`. Chips exports its pill builders, their hover strings, `LIMITS` and its pill row. |
+| `hooks/views/cards.tsx` | `openBody`, chips' open view: its four cards, on the shell in `shell.tsx`. Chips' alone; pulse and departures import nothing from it. |
+| `hooks/views/shell.tsx` | The card family chips' and pulse's open views share: which cards there are and their marks, a card's ground and edge, its title and headline, its fact rows, how many cards a line holds, their grid, and the alert drawn where none fits. |
+| `hooks/views/frame.tsx` | What all three layouts share: `drawView` (a view's collapsed row with the toggle, and while open what opens beneath it), `bodyRowsFor`, the `footer` (Collapse, Hide band, the hint and the strip's place), and the lines pulse and departures squeeze to fit (`line`, `fitLine`). |
+| `hooks/views/<name>.tsx` | One file per layout: `chips`, `pulse` and `departures`. Chips draws its pills and the cache's battery, and exports its pill builders, their hover strings, `LIMITS` and its pill row for its tests. |
 | `hooks/views/pulse-open.tsx` | Pulse's open view: four cards on the shared shell, each with its chart, and their give-way. |
 | `hooks/views/departures-board.tsx` | Departures' open board: its ground, its header (`DEPARTURES` and the time now), the quiet headings, a line per reading in aligned columns, their give-way, and the footer every layout draws. |
 | `hooks/flaps.tsx` | The split-flap tiles departures draws: one Svg per reading on the desktop, a coloured run of text in the terminal; the open board's flap columns, its rules and the height its lines take. |
@@ -99,13 +99,16 @@ Run `/reload-plugins` in your session afterwards.
 | `tests/cases.ts`, `tests/matrix.ts` | The states every layout is drawn in and `drawCases`, which draws them; `snapOf` for pure tests, the invariant checks, and `viewSuite`, which every layout's test file runs. |
 | `tools/golden/capture.sh`, `tests/golden/` | Chips' frozen trees and the tests that hold chips to them; see the rule below. |
 | `tools/test-only.sh` | Runs only the tests whose names match the globs given, against a scratch copy of the plugin. |
-| `tools/views-gate.sh` | The views gate, run in CI: fails when a layout's view formats or reads a raw fact. |
+| `tools/views-gate.sh` | The views gate, run in CI: fails when a layout's view formats or reads a raw fact, or a hook other than `kit.tsx` writes an `<svg>` root. |
 | `tools/demos/build.sh` | Rebuilds every demo and the site from the band's own output; see `tools/demos/README.md`. |
 
 ## Rules the code follows
 
 - **`$` stays in `register.tsx`.** The engine refuses it anywhere else.
-  Everything the band shows reaches `band.tsx` through the snapshot.
+  Everything the band shows reaches `band.tsx` through the snapshot. Each
+  call is spelled out at its site with literal names, `$.env.get('LANG')`,
+  never through a helper that loops over names: the engine reads the calls
+  to list what a module touches, and refuses to load one it can't.
 - **Never name a local variable `h`.** JSX compiles to the global `h()`.
 - **No whitespace-only string children on the desktop.** It drops them, so
   a gap there is a spacer `Box`. Text surfaces keep their spaces.
@@ -135,10 +138,10 @@ Run `/reload-plugins` in your session afterwards.
   `!` / `!!`. Text meets WCAG AA contrast (4.5:1) and edges and tracks meet
   3:1, in every palette. The design tests check both, over every palette.
 - **A new layout** is: its name in `LAYOUT_NAMES` (`hooks/snapshot.ts`);
-  `hooks/views/<name>.tsx`, which draws its own collapsed row and open view, and shares only `views/frame.tsx` (the toggle, `bodyRowsFor` and `footer`); an entry in `VIEWS`
+  `hooks/views/<name>.tsx`, which declares its `collapsed` row and what it `open`s, and shares only `views/frame.tsx` (`drawView` puts the two together; `bodyRowsFor`, `footer`, `line` and `fitLine`) and, for cards, `views/shell.tsx`; an entry in `VIEWS`
   (`hooks/views/index.ts`); and `tests/view-<name>.test.ts`, which calls
   `viewSuite('<name>')`. It draws only words from `read`: outside
-  `chips.tsx`, `parts.tsx` and `frame.tsx`, no `.tsx` file in `views/`
+  `chips.tsx`, no `.tsx` file in `views/`
   contains `.raw`, `.reading.`, `Date.parse`, `.replace(`, `Math.round` or
   an import of `../format`. `tools/views-gate.sh` checks, and also that a pulse or departures file
   imports nothing from `./cards` or `./chips` and draws no pill, battery or

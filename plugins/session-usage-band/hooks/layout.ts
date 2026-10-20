@@ -143,15 +143,12 @@ export const spansOf = (pieces: readonly RenderChildren[], gap: number, m: Measu
   })
 }
 
-/** The first squeeze at which `build` fits `room` columns, or the last tried,
- *  and its line: a line drops its pieces in the order its give-way table names them. */
-export const fitSqueeze = (build: (squeeze: number) => RenderElement, steps: number, room: number, m: Measure): Readonly<{ line: RenderElement; squeeze: number }> => {
+/** The line `build` draws at the first squeeze that fits `room` columns, or
+ *  at the last tried: a line drops its pieces in the order its give-way table
+ *  names them. */
+export const squeezeToFit = (build: (squeeze: number) => RenderElement, steps: number, room: number, m: Measure): RenderElement => {
   let squeeze = 0
   let line = build(squeeze)
   while (squeeze < steps && cellsOf(line, m) > room) line = build(++squeeze)
-  return { line, squeeze }
+  return line
 }
-
-/** `fitSqueeze`'s line alone. */
-export const squeezeToFit = (build: (squeeze: number) => RenderElement, steps: number, room: number, m: Measure): RenderElement =>
-  fitSqueeze(build, steps, room, m).line

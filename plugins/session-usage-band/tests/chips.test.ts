@@ -7,12 +7,13 @@ import { DARK } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { chipsView } from '../hooks/views/chips'
+import { drawView } from '../hooks/views/frame'
 import { MIN, boldOf, byKey, fakeEl, firstRow, pillKeys, shown, type Node } from './helpers'
 import { NO_ACT, snapOf } from './matrix'
 
 const rowOf = (over: Partial<BandSnapshot> = {}): Node => {
   const snap = snapOf({ columns: 200, ...over })
-  return firstRow(chipsView.draw(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT)) as Node
+  return firstRow(drawView(chipsView, makeKit(fakeEl, snap), readingsOf(snap), NO_ACT)) as Node
 }
 
 test('the pills run cache, cost, context, 5h and 7d, then the tokens, first to give way', () => {

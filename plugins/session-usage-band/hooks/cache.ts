@@ -153,6 +153,23 @@ export const noteRecall = (lastAt: number, rate: number | null): void => {
   state.recall = { lastAt, rate }
 }
 
+/** What the band recalls of a conversation's last reply, before its own:
+ *  when it was, the base rate per token on its model, and the model it was
+ *  billed under, where its transcript names one. */
+export type RecalledReply = Readonly<{ lastAt: number | undefined; rate: number | null; billed: string | undefined }>
+
+/** Whether to recall the last reply: the engine said neither that the
+ *  conversation starts here nor when its last reply was. */
+export const wantsRecall = (): boolean => !state.knownFresh && state.resumedCache === undefined
+
+/** What the band recalls of the last reply, noted until this band's first
+ *  reply, which speaks for itself. */
+export const noteRecalled = (recalled: RecalledReply | undefined): void => {
+  if (state.requests > 0) return
+  if (recalled?.billed !== undefined) noteBilledModel(recalled.billed)
+  if (recalled?.lastAt !== undefined) noteRecall(recalled.lastAt, recalled.rate)
+}
+
 /** When the conversation's last reply was, before this band's own: as the
  *  engine said on a resume, else as recalled. */
 const recalledAt = (): number | undefined => state.resumedCache?.lastAt ?? state.recall?.lastAt
@@ -187,6 +204,16 @@ export const notePrior = (spend: Spend): void => {
  *  the cache until this band's first reply. */
 export const noteTtlSeen = (ttl: Ttl): void => {
   if (state.requests === 0) state.ttlSeen = ttl
+}
+
+/** What a resumed conversation's transcript shows: its spend before this
+ *  process, and the TTL of its last cache write. */
+export type TranscriptFacts = Readonly<{ spend: Spend | undefined; ttl: Ttl | undefined }>
+
+/** What a resumed conversation's transcript shows, noted. */
+export const noteTranscript = (facts: TranscriptFacts): void => {
+  if (facts.spend !== undefined) notePrior(facts.spend)
+  if (facts.ttl !== undefined) noteTtlSeen(facts.ttl)
 }
 
 /** The TTL the cache stands at: the pin, else one seen on the transcript,
@@ -277,6 +304,17 @@ export const noteCompaction = (sizeAfter: number | undefined): void => {
 export const noteIdleCompaction = (at: number, sizeAfter: number): void => {
   noteCompaction(sizeAfter)
   state.compactedAt = at
+}
+
+/** The main conversation compacted at `now`, to `sizeAfter` tokens. With no
+ *  turn under way, not /compact, and long after the last request, it is
+ *  Claude Code compacting the conversation before its cache ran out (the
+ *  trigger it names isn't matched, so a new one still counts); else the
+ *  cache is rebuilt on purpose. */
+export const noteCompact = (o: Readonly<{ now: number; turnOpen: boolean; trigger: string; sizeAfter: number | undefined }>): void => {
+  const idle = !o.turnOpen && o.trigger !== 'manual' && state.requests > 0 && o.now - state.lastAt >= IDLE_GAP_MS
+  if (idle && o.sizeAfter !== undefined) noteIdleCompaction(o.now, o.sizeAfter)
+  else noteCompaction(o.sizeAfter)
 }
 
 /** The engine may reset the ledger on /clear: once it reads below the
@@ -471,10 +509,14 @@ export const msLeft = (now: number): number => {
   return at === null ? TTL_MS[effectiveTtl()] : Math.max(0, at - now)
 }
 
+/** Where idle compaction stands: the context it runs from, undefined where
+ *  it never does (idleCompactFrom), and whether auto-compaction is off. */
+export type IdleCompaction = Readonly<{ from: number | undefined; autoCompactOff: boolean }>
+
 /** The cache as the band shows it, at `now`: measured once a reply has been
  *  seen, recalled before that. `contextTokens` is the context as it stands,
  *  which a recalled cold cache would rebuild. */
-export const cacheView = (now: number, sessionCost: number | undefined, contextTokens: number): Omit<CacheView, 'idleCompacts'> => {
+export const cacheView = (now: number, sessionCost: number | undefined, contextTokens: number, idle: IdleCompaction): CacheView => {
   const recalled = isRecalled()
   const lastAt = recalledAt()
   const recallRate = state.recall?.rate ?? null
@@ -503,6 +545,7 @@ export const cacheView = (now: number, sessionCost: number | undefined, contextT
     readShare: share,
     fresh: state.knownFresh,
     compacted: state.compactedAt !== undefined,
+    idleCompacts: idle.from !== undefined && !idle.autoCompactOff && contextTokens >= idle.from,
     recovered: state.prior !== undefined,
     tokens: { sent: tokens.uncached + tokens.written, back: tokens.output, cached: tokens.read },
   }

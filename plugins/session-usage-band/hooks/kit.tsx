@@ -42,6 +42,9 @@ const cardSpan = (place: CardPlace, cells: number) => {
   return 'right' in place ? { right: near, ...span } : { left: near, ...span }
 }
 
+/** An Svg's size and how it sits: see the kit's `svg`. */
+type SvgSpec = Readonly<{ key: string; alt: string; width: number; height: number; air?: number; stretch?: boolean }>
+
 export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
   const { Box, Button, Text } = el
   const palette = snap.palette
@@ -135,16 +138,34 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
    *  its space. */
   const gap = (key: string): RenderChildren => (snap.surface === 'desktop' ? <Box key={key} width={1} flexShrink={0} /> : ' ')
 
+  /** `columns` of air that is always an element, for a Box whose children
+   *  are all elements: the desktop's an empty Box, a text surface's a Text of
+   *  spaces, since a text surface draws no bare string in a Box. */
+  const air = (key: string, columns = 1): RenderElement =>
+    snap.surface === 'desktop' ? <Box key={key} width={columns} flexShrink={0} /> : <Text key={key}>{' '.repeat(columns)}</Text>
+
+  /** Marks in an Svg `width` by `height` px, one unit to a pixel: the one
+   *  place an Svg is built. `air` sets the marks that many px down, under the
+   *  air above them, and adds it to the height. A `stretch` Svg has no width
+   *  of its own and a free aspect, so drawn wider than its slot it is capped
+   *  by it and spans it. Null where Svg doesn't draw. */
+  const svg = (o: SvgSpec, marks: string): RenderChildren => {
+    if (!Svg) return null
+    const { key, alt, width, air = 0, stretch = false } = o
+    const height = o.height + air
+    const source =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"${stretch ? ' preserveAspectRatio="none"' : ''}>` +
+      `${air > 0 ? `<g transform="translate(0 ${air})">${marks}</g>` : marks}</svg>`
+    return stretch ? <Svg key={key} source={source} alt={alt} height={height} /> : <Svg key={key} source={source} alt={alt} width={width} height={height} />
+  }
+
   /** An icon and the gap after it: an Svg on desktop, a glyph elsewhere. */
   const icon = (name: Icon, color: string, alt: string = ALT[name]): RenderChildren[] => {
-    if (Svg) {
-      const source = `<svg xmlns="http://www.w3.org/2000/svg" width="${ICON_PX}" height="${ICON_PX}" viewBox="0 0 16 16">${ICON_PATHS[name](color)}</svg>`
-      return [<Svg key={`i-${name}`} source={source} alt={alt} width={ICON_PX} height={ICON_PX} />, gap(`g-${name}`)]
-    }
+    if (Svg) return [svg({ key: `i-${name}`, alt, width: ICON_PX, height: ICON_PX }, ICON_PATHS[name](color)), gap(`g-${name}`)]
     return GLYPH[name] ? [<Text key={`i-${name}`} color={color}>{`${GLYPH[name]} `}</Text>] : []
   }
 
-  return { Box, Button, Text, Svg, palette, measure, columns: snap.columns, glyphs, asDrawn, onTone, oneLine, hoverable, hoverCard, gap, icon }
+  return { Box, Button, Text, Svg, palette, measure, columns: snap.columns, glyphs, asDrawn, onTone, oneLine, hoverable, hoverCard, gap, air, svg, icon }
 }
 
 export type Kit = ReturnType<typeof makeKit>
