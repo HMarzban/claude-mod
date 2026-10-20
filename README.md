@@ -42,8 +42,9 @@ the summary.
 ## Install
 
 **Needs** Claude Code with mods (function-hooks plugins), outside WSL, which
-doesn't load plugins. Tested on 2.1.295 in the terminal and the desktop app's
-bundled 2.1.289. The one-line install below needs 2.1.292 or later
+doesn't load plugins. CI tests every change, in the terminal's engine, on
+Claude Code 2.1.299 and the latest release (2.1.303 at 0.18.2). The one-line
+install below needs 2.1.292 or later
 (`claude --version`); on an older one, use the two steps underneath.
 
 One command, in any terminal:
@@ -213,8 +214,10 @@ no build step and about 1,000 tests.
 - **It spends nothing and sends nothing.** It never calls a model, never
   writes files and never sends anything anywhere. Besides two read-only git commands for
   the workspace line, it runs only `grep` and `tail`, to read an old
-  session's transcript. [SECURITY.md](SECURITY.md) lists exactly what it
-  reads.
+  session's transcript. The plugin README's
+  [What it runs, reads and sends](plugins/nextcost/README.md#what-it-runs-reads-and-sends)
+  names each command and what each hook does, and [SECURITY.md](SECURITY.md)
+  lists exactly what it reads.
 
 ## FAQ
 

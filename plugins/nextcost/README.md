@@ -22,8 +22,8 @@ claude plugin install nextcost --marketplace HMarzban/nextcost
 
 It loads in your next session, or run `/reload-plugins` in an open one.
 
-The band needs Claude Code with mods (function-hooks plugins), and was
-tested on 2.1.295 in the terminal and the desktop app's bundled 2.1.289. The
+The band needs Claude Code with mods (function-hooks plugins). CI tests
+every change on 2.1.299 and the latest release (2.1.303 at 0.18.2). The
 one-line form needs Claude Code 2.1.292 or later; on an older one, add the
 marketplace first (`claude plugin marketplace add HMarzban/nextcost`),
 then `claude plugin install nextcost@hossein-mods`.
@@ -89,7 +89,7 @@ explanation that covers it, so it leads with the chip's figure (`Resets in
 It starts with a line that says where you are:
 
 ```
-~/workspace/claude-mod · on main                              3 changed · ↑2 ↓1
+~/workspace/nextcost · on main                                3 changed · ↑2 ↓1
 ```
 
 | Piece | Shows |
