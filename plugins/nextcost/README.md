@@ -398,7 +398,11 @@ which doesn't compact while idle, neither shows.
 **It sends nothing.** nextcost makes no network calls, never calls a model,
 and writes no files. The only web address in its code is the SVG namespace,
 `http://www.w3.org/2000/svg`, which every SVG icon it draws declares; nothing
-is fetched from it.
+is fetched from it. The one way out a scanner can see is that it starts
+programs (`$.process.run`), since a program could reach anywhere. The four
+commands below start only `git`, `tail` and `grep`, each reading a local file
+or repository and handing its output to the band. None of them is a shell, none is given a
+script, and none touches the network.
 
 **It runs four read-only commands**, each named in full where the code calls
 it, each given 3 seconds, and never while the band draws:
@@ -416,7 +420,13 @@ repository root, two keys of your Claude Code settings (`promptCacheTtl` and
 `idleCompaction`), and the environment variables in [Settings](#settings),
 plus `HOME` to find a transcript and the locale (`LC_ALL`, `LC_CTYPE`, `LANG`)
 for the glyph tier. None of these is a key or a token, and none leaves your
-machine.
+machine. Claude Code hands a mod its settings whole (`$.settings.read`), so
+the call takes those two keys where it is made and drops the rest, `env` and
+any key or helper in it included. It never reads `~/.claude.json`, your
+login, or any credential file; the only file it reads itself is a session's
+own transcript, as above. `hooks/kit.tsx` and `hooks/strip.tsx` only draw the
+band, and `plugin.json` only names the listing's links: none of them reads a
+credential.
 
 **It keeps**, on your machine in the plugin's own store: each session's last
 reply time (the newest 50), the price per token it solved for each model, the

@@ -53,7 +53,7 @@ const FLAP_KEYS: readonly FlapKey[] = ['item', 'status', 'time']
 /** The lines the board would draw with every row: each named by what gives
  *  way with it. */
 const linesOf = (read: Readings): readonly Line[] => {
-  const { rows } = read.board
+  const { rows } = read.board()
   const named = (key: BoardKey) => rows.filter(r => r.key === key).map(row => ({ name: key, row, key: `row:${key}` }))
   return [
     { name: 'header', key: 'row:header' },
@@ -126,7 +126,7 @@ const fitPlan = (kit: Kit, lines: readonly Line[], cols: Columns, budget: number
  *  zone is known; a rule under it on the desktop. */
 const headerLine = (kit: Kit, read: Readings, inner: number, rule: boolean): RenderElement => {
   const { Box, Text, palette } = kit
-  const now = read.board.now
+  const now = read.board().now
   return (
     <Box key="row:header" flexDirection="column" flexShrink={0}>
       <Box key="line" flexDirection="row" justifyContent="space-between" columnGap={1}>
@@ -190,7 +190,7 @@ const readingLine = (kit: Kit, l: Line, row: BoardRow, cols: Columns, remark: st
 const board = (kit: Kit, read: Readings, collapsedRows: number): RenderElement | null => {
   const { Box, Svg, palette } = kit
   const inner = Math.max(0, kit.columns - ROW_SLACK - BOARD_PAD)
-  const cols = columnsOf(kit, read.board.rows, inner)
+  const cols = columnsOf(kit, read.board().rows, inner)
   const plan = fitPlan(kit, linesOf(read), cols, boardBudget(kit, bodyRowsFor(read.frame.maxRows, collapsedRows, 0)))
   if (plan.lines.length === 0) return null
   const remarks = plan.remarks && cols.remarks > 0

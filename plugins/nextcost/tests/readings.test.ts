@@ -200,7 +200,7 @@ test('spend splits its tokens, each with its share', () => {
 })
 test('the history speaks its numbers and its trend', () => {
   const history = { costs: [{ usd: 0.2, reWarm: false }, { usd: 0.2, reWarm: false }, { usd: 0.84, reWarm: true }], context: [] }
-  const hist = readingsOf(snapOf({ history })).history
+  const hist = readingsOf(snapOf({ history })).history()
   expect(hist.numbersShort).toBe('last $0.84')
   expect(hist.warmAvgUsd).toBe(0.2)
   expect(hist.costsAltOf(3)).toBe('cost of the last 3 messages, rising, average $0.20, max $0.84 re-warm, the newest a re-warm')
@@ -208,20 +208,22 @@ test('the history speaks its numbers and its trend', () => {
   // A re-warm alone has no warm average.
   expect(hist.costsAltOf(1)).toBe('cost of the last message, rising, max $0.84 re-warm, the newest a re-warm')
   expect(hist.costsAltOf(14)).toBe(hist.costsAltOf(3))
-  expect([hist.empty, readingsOf(snapOf()).history.empty]).toEqual([false, true])
+  expect([hist.empty, readingsOf(snapOf()).history().empty]).toEqual([false, true])
 })
 test('the context trail is spoken with where it compacts, when compaction is on', () => {
   const history = { costs: [], context: [60_000, 50_000, 76_000] }
-  expect(readingsOf(snapOf({ history })).history.contextTrailAlt).toBe('context over the conversation, rising, compacts at 190k')
-  const off = readingsOf(snapOf({ history: { ...history, context: [90_000, 76_000] }, context: { tokens: 76_000, window: 200_000, percent: 38, compactAt: undefined, autoCompactOff: true } })).history
+  expect(readingsOf(snapOf({ history })).history().contextTrailAlt).toBe('context over the conversation, rising, compacts at 190k')
+  const off = readingsOf(snapOf({ history: { ...history, context: [90_000, 76_000] }, context: { tokens: 76_000, window: 200_000, percent: 38, compactAt: undefined, autoCompactOff: true } })).history()
   expect(off.contextTrailAlt).toBe('context over the conversation, falling')
-  expect(readingsOf(snapOf()).history.contextTrailAlt).toBe('context over the conversation, steady, compacts at 190k')
+  expect(readingsOf(snapOf()).history().contextTrailAlt).toBe('context over the conversation, steady, compacts at 190k')
 })
-test('the history is read only when a view asks for it', () => {
-  expect(typeof Object.getOwnPropertyDescriptor(readingsOf(snapOf()), 'history')?.get).toBe('function')
-})
-test('the week is read only when a view asks for it', () => {
-  expect(typeof Object.getOwnPropertyDescriptor(readingsOf(snapOf()), 'week')?.get).toBe('function')
+test('the history, week and board are built only when a view calls for them, then kept', () => {
+  const r = readingsOf(snapOf())
+  for (const key of ['history', 'week', 'board'] as const) {
+    // A plain data property, never a getter: reading it runs nothing.
+    expect(Object.getOwnPropertyDescriptor(r, key)?.get).toBeUndefined()
+    expect(r[key]()).toBe(r[key]())
+  }
 })
 test('the week names its cells in words, for a reader', () => {
   const now = 77 * HOUR
@@ -231,14 +233,14 @@ test('the week names its cells in words, for a reader', () => {
     samples: [T(0, 0), T(15, 6), T(39, 15), T(63, 26), T(75.5, 28, 4), T(76.5, 29, 12), T(77, 30, 12)],
     sevenDay: { percentUsed: 30, resetsAt: new Date(168 * HOUR).toISOString() },
     fiveHour: { percentUsed: 12, resetsAt: new Date(80 * HOUR).toISOString(), etaMs: null },
-  })).week
+  })).week()
   expect(wk.daysAlt).toMatch(/^weekly limit by day: \w+day 6%, \w+day 9%/)
   expect(wk.daysAlt).toMatch(/Monday about \d+%/)
   expect(wk.daysAlt).not.toMatch(/[~↻]/)
 })
 test('with no samples and no pace yet, the week is not known yet', () => {
   // An hour into the window: too early for a landing, so no day is guessed either.
-  const wk = readingsOf(snapOf({ now: HOUR, sevenDay: { percentUsed: 1, resetsAt: new Date(168 * HOUR).toISOString() } })).week
+  const wk = readingsOf(snapOf({ now: HOUR, sevenDay: { percentUsed: 1, resetsAt: new Date(168 * HOUR).toISOString() } })).week()
   expect(wk.daysAlt).toBe('weekly limit by day: not known yet')
 })
 
@@ -253,7 +255,7 @@ const boardWeek = (percentUsed = 66) => readingsOf(snapOf({
   samples: [boardSample(SAT_RESET - 168 * HOUR, 0), boardSample(SUN - MIN, percentUsed)],
   sevenDay: { percentUsed, resetsAt: new Date(SAT_RESET).toISOString() },
   fiveHour: { percentUsed: 0, resetsAt: new Date(FIVE_RESET).toISOString(), etaMs: null },
-})).week
+})).week()
 test('week stops its guess at the cap: the fill day takes what is left, and none is left after it', () => {
   const wk = boardWeek()
   expect(cappedMarks(wk.days, 66).map(m => `${m.kind} ${Math.round(m.pct)}`)).toEqual(['measured 66', 'fills 34', 'spent 0', 'spent 0', 'spent 0', 'spent 0', 'spent 0'])
@@ -308,7 +310,7 @@ test('the cache counts down to cold; under 10 minutes it is its last call, a 5-m
   expect(cache({ msLeft: 10 * MIN }).lastCall).toBe(false)
   expect([cache({ ttl: '5m', msLeft: 4 * MIN }).lastCall, cache({ ttl: '5m', msLeft: 59_000 }).lastCall]).toEqual([false, true])
 })
-const costs = (list: Array<[number, boolean]>) => readingsOf(snapOf({ history: { costs: list.map(([usd, reWarm]) => ({ usd, reWarm })), context: [] } })).history
+const costs = (list: Array<[number, boolean]>) => readingsOf(snapOf({ history: { costs: list.map(([usd, reWarm]) => ({ usd, reWarm })), context: [] } })).history()
 const FIVE = { percentUsed: 4, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null }
 
 test('the cost fact says the warm average, as an estimate; none before a cost', () => {
@@ -322,14 +324,14 @@ test('beatsTop is never 0 and leaves re-warms out', () => {
   expect(costs([[0.9, true]]).beatsTop).toBe(0.9)
 })
 test('fiveHourWindow climbs slice by slice and marks now', () => {
-  const w = readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0) })).week.fiveHourWindow
+  const w = readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0) })).week().fiveHourWindow
   expect(w.values.length).toBe(5)
   expect(w.nowAt).toBeGreaterThanOrEqual(0)
   for (let i = 1; i < w.values.length; i++) expect(w.values[i]).toBeGreaterThanOrEqual(w.values[i - 1] ?? 0)
 })
 test('fiveHourWindow is empty with no 5h window, or no slice measured', () => {
-  expect(readingsOf(snapOf({ samples: [] })).week.fiveHourWindow.values).toEqual([])
-  expect(readingsOf(snapOf({ samples: [], zone: fixedZone(0) })).week.fiveHourWindow.values).toEqual([])
+  expect(readingsOf(snapOf({ samples: [] })).week().fiveHourWindow.values).toEqual([])
+  expect(readingsOf(snapOf({ samples: [], zone: fixedZone(0) })).week().fiveHourWindow.values).toEqual([])
 })
 test("fiveHourWindow's now stays on the chart: at the window's very end it is the last slice, and with no slice none", () => {
   expect(windowNowAt(5, 5)).toBe(4)
@@ -339,10 +341,10 @@ test("fiveHourWindow's now stays on the chart: at the window's very end it is th
   expect(windowNowAt(undefined, 5)).toBeUndefined()
 })
 test('windowAlt speaks the whole window, not the last hour: its use, its pace as about, no ~; nothing once passed', () => {
-  const alt = readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0) })).week.windowAlt
+  const alt = readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0) })).week().windowAlt
   expect(alt).toBe('5h window from start to reset, 4% used, on pace for about 10%')
   expect(alt).not.toMatch(/~/)
-  expect(readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0), now: 4 * HOUR })).week.windowAlt).toBe('')
+  expect(readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0), now: 4 * HOUR })).week().windowAlt).toBe('')
 })
 // A 5h window from 0 to 5h, its samples only from `from` on, as when the
 // window opened on another device or the band came mid-window.
@@ -355,7 +357,7 @@ const fiveFrom = (samples: ReadonlyArray<readonly [number, number]>, percentUsed
 test("fiveHourWindow's level now is the window's percentUsed, so the line and its words agree", () => {
   // Samples since 2h: the window was at 20% before the band saw it.
   const r = fiveFrom([[2.2 * HOUR, 20], [3.2 * HOUR, 26]], 26, 3.5 * HOUR)
-  const w = r.week.fiveHourWindow
+  const w = r.week().fiveHourWindow
   expect(w.nowAt).toBe(3)
   expect(w.values[w.nowAt ?? -1]).toBe(26)
   // The dashed run lands where the words' pace does.
@@ -364,7 +366,7 @@ test("fiveHourWindow's level now is the window's percentUsed, so the line and it
 test('fiveHourWindow leaves the hours before its first sample undrawn: their level is not known', () => {
   // The first sample in hour 3, at 26%; then 30% in hour 4. Hours 0 to 2
   // are not known, and hour 3 is drawn from its end, where 26% stood.
-  const w = fiveFrom([[3.2 * HOUR, 26], [4.2 * HOUR, 30]], 30, 4.5 * HOUR).week.fiveHourWindow
+  const w = fiveFrom([[3.2 * HOUR, 26], [4.2 * HOUR, 30]], 30, 4.5 * HOUR).week().fiveHourWindow
   expect(w.nowAt).toBe(4)
   expect(w.from).toBe(3)
   expect(w.values[4]).toBe(30)
@@ -372,7 +374,7 @@ test('fiveHourWindow leaves the hours before its first sample undrawn: their lev
 })
 test('fiveHourWindow, measured from the window start, is drawn whole, and a later reading lifts now, not the past', () => {
   // From the window start: hour 0 rises 5, hour 1 to 12; now in hour 2, the reading says 14.
-  const w = fiveFrom([[0.5 * HOUR, 5], [1.5 * HOUR, 12]], 14, 2.5 * HOUR).week.fiveHourWindow
+  const w = fiveFrom([[0.5 * HOUR, 5], [1.5 * HOUR, 12]], 14, 2.5 * HOUR).week().fiveHourWindow
   expect(w.from).toBe(0)
   expect(w.values.slice(0, 3)).toEqual([5, 12, 14])
 })
@@ -384,18 +386,18 @@ test("a recalled cache's time is marked ~ in pulse's words, until a reply measur
 })
 test("at the 5h window's very end, now is its last slice", () => {
   // A minute before the reset, as the samples' window ends.
-  const w = readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0), fiveHour: FIVE, now: 3 * HOUR - MIN })).week.fiveHourWindow
+  const w = readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0), fiveHour: FIVE, now: 3 * HOUR - MIN })).week().fiveHourWindow
   expect(w.values.length).toBeGreaterThan(1)
   expect(w.nowAt).toBe(w.values.length - 1)
 })
 test("pulse's tiles are named, and another window's line says its name among its words", () => {
   const calm = readingsOf(snapOf({ zone: fixedZone(0) }))
-  expect([calm.cache.bandName, calm.history.spendBandName, calm.context.bandName, calm.fiveHour?.bandName, calm.sevenDay?.bandName]).toEqual(['cache', 'spend', 'context', '5h', '7d'])
+  expect([calm.cache.bandName, calm.history().spendBandName, calm.context.bandName, calm.fiveHour?.bandName, calm.sevenDay?.bandName]).toEqual(['cache', 'spend', 'context', '5h', '7d'])
   const other = (percentUsed: number) => readingsOf(snapOf({ otherLimits: [{ kind: 'spend_limit', percentUsed, resetsAt: undefined }] })).limits.find(l => l.key === 'other')?.line
   expect([other(40), other(85)]).toEqual(['spend 40%', '! spend 85%'])
 })
 test("the 7d's days as drawn: capped, so the guesses never pass what is left; today kept", () => {
-  const week = readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0), sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() } })).week
+  const week = readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0), sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() } })).week()
   const d = week.daysDrawn
   expect(d.values.reduce<number>((n, v, i) => n + (d.guess[i] ? (v ?? 0) : 0), 0)).toBeLessThanOrEqual(15 + 1e-9)
   expect(d.today).toBe(week.days.findIndex(day => day.today))
@@ -406,7 +408,7 @@ test("today's fill with no reading inside today yet is a guess of what is left, 
   // before today, and no day before it has a reading at its start.
   const at = (m: number, sevenPct: number) => ({ at: m * MIN, fivePct: 0, sevenPct, fiveResetAt: 3 * HOUR, sevenResetAt: 67 * HOUR })
   const weekOf = (samples: ReturnType<typeof at>[]) =>
-    readingsOf(snapOf({ zone: undefined, sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() }, samples })).week
+    readingsOf(snapOf({ zone: undefined, sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() }, samples })).week()
   const late = [at(-120, 70), at(-90, 74), at(-60, 78), at(-30, 82), at(-5, 85)]
   for (const week of [weekOf(late), weekOf([at(-30 * 60, 60), ...late])]) {
     const today = week.daysDrawn.today ?? -1
@@ -421,7 +423,7 @@ test("today's fill with no reading inside today yet is a guess of what is left, 
 })
 test("`no costs yet` is said only while there is no cost at all: no message's and a total of $0", () => {
   const none = { history: { costs: [], context: [] } }
-  expect(readingsOf(snapOf({ ...none, costUsd: 0 })).history.costsNote).toBe('no costs yet')
-  expect(readingsOf(snapOf({ ...none, costUsd: 2.41 })).history.costsNote).toBeUndefined()
-  expect(readingsOf(snapOf({ costUsd: 0, history: { costs: [{ usd: 0.2, reWarm: false }], context: [] } })).history.costsNote).toBeUndefined()
+  expect(readingsOf(snapOf({ ...none, costUsd: 0 })).history().costsNote).toBe('no costs yet')
+  expect(readingsOf(snapOf({ ...none, costUsd: 2.41 })).history().costsNote).toBeUndefined()
+  expect(readingsOf(snapOf({ costUsd: 0, history: { costs: [{ usd: 0.2, reWarm: false }], context: [] } })).history().costsNote).toBeUndefined()
 })

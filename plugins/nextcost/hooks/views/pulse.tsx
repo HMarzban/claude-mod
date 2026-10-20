@@ -80,7 +80,9 @@ const wordsOf = (kit: Kit, k: Keeps<Piece>, name: string, figure: string, amber:
 const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderElement =>
   fitLine(kit, ORDER, kit.columns - ROW_SLACK, k => {
     const { Svg, Text, palette } = kit
-    const { cache, context, fiveHour, sevenDay, history: hist, week } = read
+    const { cache, context, fiveHour, sevenDay } = read
+    const hist = read.history()
+    const week = read.week()
     const charts = read.frame.glyphs === 'unicode'
     const n = k.has('beats14') ? 14 : 8
     const cacheTile = tile(kit, k, 'cache', cache.tone, palette.surface, [

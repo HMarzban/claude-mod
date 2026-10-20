@@ -250,12 +250,12 @@ export type Readings = Readonly<{
   limits: readonly LimitView[]
   worstLimit: LimitView | undefined
   workspace: BandSnapshot['workspace']
-  /** Built the first time a view reads it, so chips never pays for it. */
-  history: HistoryReading
-  /** The week's day and hour cells; built, like history, the first time a view reads it. */
-  week: WeekReading
-  /** The departures board's rows, in its capitals; built, like history, the first time a view reads it. */
-  board: Board
+  /** Built the first time a view calls it, then kept, so chips never pays for it. */
+  history: () => HistoryReading
+  /** The week's day and hour cells; built, like history, the first time a view calls it. */
+  week: () => WeekReading
+  /** The departures board's rows, in its capitals; built, like history, the first time a view calls it. */
+  board: () => Board
   chips: ChipsReadings
 }>
 
@@ -518,15 +518,10 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     limits,
     worstLimit,
     workspace: snap.workspace,
-    get history() {
-      return (history ??= historyFacts(snap.history, context, spendRead))
-    },
-    get week() {
-      return (week ??= weekFacts(snap, sevenDay, fiveHour))
-    },
-    get board() {
-      return (board ??= boardWords({ frame, cache: cacheRead, spend: spendRead, context: contextRead, limits }))
-    },
+    // Plain functions, not getters: reading a property never runs code.
+    history: () => (history ??= historyFacts(snap.history, context, spendRead)),
+    week: () => (week ??= weekFacts(snap, sevenDay, fiveHour)),
+    board: () => (board ??= boardWords({ frame, cache: cacheRead, spend: spendRead, context: contextRead, limits })),
     chips: {
       reading: {
         copy: cacheCopy(cache, frame),

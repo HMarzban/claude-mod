@@ -81,7 +81,8 @@ type Facts = Readonly<{
 
 const factsOf = (kit: Kit, read: Readings): Facts => {
   const { Svg, measure } = kit
-  const { cache, context, week } = read
+  const { cache, context } = read
+  const week = read.week()
   const charts = read.frame.glyphs === 'unicode'
   const bordered = cardBordered(kit)
   const windows = [read.fiveHour, read.sevenDay].filter((l): l is LimitView => l !== undefined)
@@ -170,7 +171,9 @@ const planFor = (kit: Kit, f: Facts, body: number): Plan | undefined => {
 /** The cards drawn at a plan, line by line. */
 const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement => {
   const { Box, Svg, palette, measure, onTone, oneLine } = kit
-  const { cache, context, history: hist, week } = read
+  const { cache, context } = read
+  const hist = read.history()
+  const week = read.week()
   const { lines } = layoutOf(kit, f, p)
   const bordered = cardBordered(kit)
   /** The cards of a line of `count`: each `inner` columns inside, and on
