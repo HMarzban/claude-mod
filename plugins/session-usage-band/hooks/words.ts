@@ -414,12 +414,13 @@ export const cacheCopy = (f: CacheFacts, frame: Frame): CacheCopy => {
 export const contextWords = (f: ContextFacts): ContextWords => {
   const value = f.known ? f.pct : UNKNOWN
   const towardText = f.compactAt !== undefined ? 'toward compaction' : 'of the window'
-  const roomText = !f.known || f.toCompact === undefined ? undefined : `~${fmtTokens(f.toCompact)}`
+  const roomText = !f.known || f.compactAt === undefined ? undefined : `~${fmtTokens(f.toCompact)}`
   const say: Say = [['context ', 'label'], [value, 'value']]
-  const amber = f.tone !== 'amber' ? undefined : f.toCompact !== undefined ? AMBER.context(f.frac, f.toCompact) : AMBER.contextNoCompaction(f.frac)
+  const amber = f.tone !== 'amber' ? undefined : f.compactAt !== undefined ? AMBER.context(f.frac, f.toCompact) : AMBER.contextNoCompaction(f.frac)
   const cardHead: Say = [[`${f.pct}${f.compactAt === undefined ? severityMark(f.frac) : ''}`, 'value'], [' full', 'label']]
   const compactsAtText = f.compactAt === undefined ? undefined : fmtTokens(f.compactAt)
-  const toCompactText = f.toCompact === undefined ? undefined : `compacts in ~${fmtTokens(f.toCompact)}`
+  // Near compaction, the room before it; else where it compacts.
+  const compaction = f.compactAt === undefined ? undefined : amber !== undefined ? `compacts in ~${fmtTokens(f.toCompact)}` : `compacts at ${fmtTokens(f.compactAt)}`
   const inContext = f.known ? fmtTokens(f.used) : UNKNOWN
   return {
     valueText: value,
@@ -434,10 +435,7 @@ export const contextWords = (f: ContextFacts): ContextWords => {
     cardHead,
     fact: {
       label: 'in context',
-      values: said([
-        `${inContext} of ${fmtTokens(f.window)}`,
-        amber !== undefined && toCompactText !== undefined ? toCompactText : compactsAtText === undefined ? undefined : `compacts at ${compactsAtText}`,
-      ]),
+      values: said([`${inContext} of ${fmtTokens(f.window)}`, compaction]),
     },
     alt: f.known
       ? altOf('context', `${Math.round(f.frac * 100)} percent ${towardText}`, f.tone === 'amber' ? 'near the limit' : 'fine')

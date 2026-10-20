@@ -238,17 +238,16 @@ const tokensPill = (kit: Kit, read: Readings): PillSpec => {
 /** The context pill's hover card: how much of the window is used, and where it compacts. */
 const contextHover = (read: Readings): string => {
   const ctx = read.context
-  const { pct, toCompact } = read.context
-  return ctx.compactAt === undefined || toCompact === undefined
-    ? `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.window)} (${pct}); older turns get summarized near full`
-    : `${fmtTokens(read.context.used)} of ${fmtTokens(ctx.compactAt)} (${pct}); auto-compacts in ~${fmtTokens(toCompact)}`
+  return ctx.compactAt === undefined
+    ? `${fmtTokens(ctx.used)} of ${fmtTokens(ctx.window)} (${ctx.pct}); older turns get summarized near full`
+    : `${fmtTokens(ctx.used)} of ${fmtTokens(ctx.compactAt)} (${ctx.pct}); auto-compacts in ~${fmtTokens(ctx.toCompact)}`
 }
 
 /** The context's fill on a meter, counting down to compaction once near it. */
 const contextPill = (kit: Kit, read: Readings, squeeze: number): PillSpec => {
   const { Text, palette, onTone, gap, icon } = kit
   const ctx = read.context
-  const { frac, pct, toCompact, nearCompact, tone } = read.context
+  const { frac, pct, tone } = read.context
   const amount =
     ctx.compactAt !== undefined
       ? keeps(squeeze, 'shortWording')
@@ -258,7 +257,7 @@ const contextPill = (kit: Kit, read: Readings, squeeze: number): PillSpec => {
         ? pct
         : `${fmtTokens(ctx.tokens)} / ${fmtTokens(ctx.window)}`
   const mark = ctx.compactAt === undefined ? severityMark(frac) : ''
-  const countdown = nearCompact && toCompact !== undefined ? ` · compacts in ~${fmtTokens(toCompact)}` : ''
+  const countdown = ctx.nearCompact ? ` · compacts in ~${fmtTokens(ctx.toCompact)}` : ''
   return {
     key: 'ctx',
     tone,

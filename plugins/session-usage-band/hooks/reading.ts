@@ -62,28 +62,6 @@ const cacheCharge = (c: Cache, mood: CacheMood, isWorking: boolean): number =>
  *  known, else the tokens it writes. */
 const reWarmEstimate = (c: Cache): string => (c.reWarmUsd !== null ? fmtEstimate(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`)
 
-// ---- the context ------------------------------------------------------------
-
-/** The context's fill, measured toward auto-compaction when it is known:
- *  full means compacting, and no tick is needed to show where. */
-const contextReading = (ctx: BandSnapshot['context']) => {
-  const used = contextUsed(ctx) ?? 0
-  const pressure = contextPressure(used, ctx.window, ctx.compactAt)
-  const frac = clamp01(pressure.frac)
-  const amber = frac >= (pressure.levels[0] ?? 1)
-  const nearCompact = ctx.compactAt !== undefined && amber
-  const tone: Tone = amber ? 'amber' : 'calm'
-  return {
-    known: ctx.percent !== undefined || ctx.tokens !== undefined,
-    used,
-    frac,
-    pct: fmtPct(frac),
-    toCompact: ctx.compactAt === undefined ? undefined : Math.max(0, ctx.compactAt - used),
-    nearCompact,
-    tone,
-  }
-}
-
 // ---- the limits -------------------------------------------------------------
 
 /** The share of a window gone, from its length and its reset at `at`, NaN when unknown. */
@@ -126,14 +104,27 @@ export type CacheFacts = Readonly<{
   /** The snapshot's own facts its words say, as it measured them. */
   Pick<Cache, 'recalled' | 'msLeft' | 'coldAt' | 'ttl' | 'ttlPinned' | 'window' | 'reWarmUsd' | 'savedUsd' | 'misses' | 'idleMs' | 'readShare'>
 
-export type ContextFacts = ReturnType<typeof contextReading> &
-  Readonly<{
-    /** The tokens in context, as the engine reported them; undefined when it didn't. */
-    tokens: number | undefined
-    compactAt: number | undefined
-    autoCompactOff: boolean
-    window: number
-  }>
+/** The context's fill, read alike whether or not it compacts. */
+type ContextFill = Readonly<{
+  known: boolean
+  used: number
+  frac: number
+  pct: string
+  tone: Tone
+  /** The tokens in context, as the engine reported them; undefined when it didn't. */
+  tokens: number | undefined
+  autoCompactOff: boolean
+  window: number
+}>
+
+/** The context toward auto-compaction, with the room left before it and
+ *  whether it is near; or, with compaction off or not reported yet, against
+ *  the window alone. */
+export type ContextFacts = ContextFill &
+  (
+    | Readonly<{ compactAt: number; toCompact: number; nearCompact: boolean }>
+    | Readonly<{ compactAt: undefined; toCompact: undefined; nearCompact: false }>
+  )
 
 export type SpendFacts = Readonly<{
   totalUsd: number
@@ -285,16 +276,28 @@ const cacheFacts = (snap: BandSnapshot): CacheFacts => {
   }
 }
 
-/** The context's fill, with the compaction point and the model window it is read against. */
+/** The context's fill, measured toward auto-compaction when it is known:
+ *  full means compacting, and no tick is needed to show where. Else it is
+ *  measured against the model window. */
 const contextFacts = (snap: BandSnapshot): ContextFacts => {
-  const reading = contextReading(snap.context)
-  return {
-    ...reading,
-    tokens: snap.context.tokens,
-    compactAt: snap.context.compactAt,
-    autoCompactOff: snap.context.autoCompactOff,
-    window: snap.context.window,
+  const ctx = snap.context
+  const used = contextUsed(ctx) ?? 0
+  const pressure = contextPressure(used, ctx.window, ctx.compactAt)
+  const frac = clamp01(pressure.frac)
+  const amber = frac >= (pressure.levels[0] ?? 1)
+  const fill: ContextFill = {
+    known: ctx.percent !== undefined || ctx.tokens !== undefined,
+    used,
+    frac,
+    pct: fmtPct(frac),
+    tone: amber ? 'amber' : 'calm',
+    tokens: ctx.tokens,
+    autoCompactOff: ctx.autoCompactOff,
+    window: ctx.window,
   }
+  return ctx.compactAt === undefined
+    ? { ...fill, compactAt: undefined, toCompact: undefined, nearCompact: false }
+    : { ...fill, compactAt: ctx.compactAt, toCompact: Math.max(0, ctx.compactAt - used), nearCompact: amber }
 }
 
 /** The session's cost and its tokens: sent, back, read from cache, and their total. */
