@@ -7,6 +7,7 @@ site.txt fills the legacy {{<state>}} placeholders; demo.txt (beside site.txt
 unless given) fills {{demo-chips-amber}}, the hero's first drawing, and
 {{demo-json}}, every drawing as {layout: {state: {shut, open}}} for
 <script type="application/json" id="demo-data">."""
+import datetime
 import json
 import os
 import sys
@@ -105,6 +106,11 @@ for line in open(src):
     states[name] = node(tree).replace('0:47', '<span class=cd>0:47</span>')
 
 page = open(template).read()
+# The release the page describes is the manifest's, and it is dated the day
+# it was built (UTC), as the sitemap is: neither is typed into the template.
+manifest = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../plugins/session-usage-band/.claude-plugin/plugin.json')
+page = page.replace('{{version}}', json.load(open(manifest))['version'])
+page = page.replace('{{built}}', datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))
 for name, body in states.items():
     page = page.replace('{{' + name + '}}', body)
 if '{{demo-' in page:
