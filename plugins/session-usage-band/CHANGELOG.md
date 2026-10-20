@@ -5,6 +5,11 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.17.2] - 2026-10-20
+
+### Changed
+- No change to how the band reads: every layout draws what 0.17.1 draws, as chips' frozen trees and the demos' captured frames hold. Inside, the readings' types say what each state has. A cache compacted while idle is a mood of its own beside cold, not a flag every phrase tests first, and the cache's words are one table by mood. The context is read either toward compaction, with where it compacts and the room left, or against the window alone. A limit is live or passed, and a passed one carries no pace, reset or fill, so its words need not mask them.
+
 ## [0.17.1] - 2026-10-19
 
 ### Changed
