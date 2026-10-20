@@ -18,29 +18,6 @@ export type GitState = Readonly<{
  *  linked worktree, its main repository's folder name. */
 export type Workspace = Readonly<{ path: string; git: GitState | undefined; repoName: string | undefined }>
 
-/** Status without the index lock, so the band never blocks a commit, and
- *  without a repository's own fsmonitor, a program its config could name.
- *  Untracked files follow the user's own setting. */
-export const GIT_STATUS_ARGV: readonly string[] = [
-  'git',
-  '-c',
-  'core.fsmonitor=false',
-  '--no-optional-locks',
-  'status',
-  '--porcelain=v2',
-  '--branch',
-]
-
-/** Three lines: git-dir, common-dir, toplevel. */
-export const GIT_DIRS_ARGV: readonly string[] = [
-  'git',
-  'rev-parse',
-  '--path-format=absolute',
-  '--git-dir',
-  '--git-common-dir',
-  '--show-toplevel',
-]
-
 const lines = (text: string): string[] => text.split(/\r?\n/).map(line => line.replace(/\r$/, ''))
 
 /** A path without its trailing slashes. */

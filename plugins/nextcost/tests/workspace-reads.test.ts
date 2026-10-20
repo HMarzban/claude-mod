@@ -3,17 +3,16 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
-import { GIT_DIRS_ARGV, GIT_STATUS_ARGV } from '../hooks/workspace'
 import { CLEAR, GIT_CLEAN, GIT_MAIN_TREE, START, byKey, engine, shown, turn, setup, mountBand } from './helpers'
 
 const gitRuns = () => engine.ran.filter(argv => argv[0] === 'git').length
 
-test('at start the band asks git twice: its status, and where its folders are', async ($, on) => {
+test("at start the band asks git twice, by fixed commands: its status, never taking the index lock or running a repo's fsmonitor, and where its folders are", async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
   await clock.settle()
-  expect(engine.ran).toContainEqual([...GIT_STATUS_ARGV])
-  expect(engine.ran).toContainEqual([...GIT_DIRS_ARGV])
+  expect(engine.ran).toContainEqual(['git', '-c', 'core.fsmonitor=false', '--no-optional-locks', 'status', '--porcelain=v2', '--branch'])
+  expect(engine.ran).toContainEqual(['git', 'rev-parse', '--path-format=absolute', '--git-dir', '--git-common-dir', '--show-toplevel'])
 })
 
 test('drawing never runs git', async ($, on) => {

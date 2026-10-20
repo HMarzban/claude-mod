@@ -393,6 +393,53 @@ summary; the next reply starts the countdown again. The band follows
 `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS` as Claude Code does. On the desktop,
 which doesn't compact while idle, neither shows.
 
+## What it runs, reads and sends
+
+**It sends nothing.** nextcost makes no network calls, never calls a model,
+and writes no files. The only web address in its code is the SVG namespace,
+`http://www.w3.org/2000/svg`, which every SVG icon it draws declares; nothing
+is fetched from it.
+
+**It runs four read-only commands**, each named in full where the code calls
+it, each given 3 seconds, and never while the band draws:
+
+| Command | Where | Why |
+| --- | --- | --- |
+| `git -c core.fsmonitor=false --no-optional-locks status --porcelain=v2 --branch` | the session's project folder | the workspace line: branch, changes, ahead and behind. It never takes git's index lock or runs a repository's own fsmonitor. |
+| `git rev-parse --path-format=absolute --git-dir --git-common-dir --show-toplevel` | the same | whether the folder is a linked worktree, and of which repository |
+| `tail -c 1048576 <transcript>` | that session's own transcript under `~/.claude/projects` | only when a conversation is resumed or reopened: when its last reply was, so the cache countdown starts from it |
+| `grep -a -b -F '"type":"cost-state"' <transcript>`, then `tail -c +<offset> <transcript>` | the same | only then too: what the conversation spent before this process, so the session's cost includes it |
+
+**It reads** the session's usage from Claude Code (cost, token counts,
+context fill and rate-limit percentages), the clock, the project's folder and
+repository root, two keys of your Claude Code settings (`promptCacheTtl` and
+`idleCompaction`), and the environment variables in [Settings](#settings),
+plus `HOME` to find a transcript and the locale (`LC_ALL`, `LC_CTYPE`, `LANG`)
+for the glyph tier. None of these is a key or a token, and none leaves your
+machine.
+
+**It keeps**, on your machine in the plugin's own store: each session's last
+reply time (the newest 50), the price per token it solved for each model, the
+layout you chose, and a week of your 5-hour and weekly limit readings, at most
+one per 15 minutes. In the session's own state it keeps whether the band is
+hidden or open. [SECURITY.md](https://github.com/HMarzban/nextcost/blob/main/SECURITY.md)
+lists the same.
+
+**What each hook does.** Every hook passes Claude Code's event on unchanged;
+none edits a message, a setting, a tool call or a result.
+
+| Hook | What it does |
+| --- | --- |
+| `session.start` | Resets the band, reads its settings, stored layout and limit readings, starts a once-a-second timer that repaints only when the drawing would change, and registers `/nextcost` (and its old name, `/usage-band`). |
+| `session.end` | On `/clear` or a resume, starts the next conversation's count. |
+| `classic.SessionStart` | On a resume or fork, notes that the conversation isn't new and reads its transcript as above. |
+| `turn.start`, `turn.complete` | Note the session's cost as each main turn starts and ends, the turn's cost, the context, and a limit reading; then read the layout and git again. A subagent's turn is left alone. |
+| `turn.step` | Reads each response's token counts, for the cache model and the price per token. |
+| `session.compact` | Notes that the conversation was compacted, so the cache counts as rebuilt at the summary's size. |
+| `session.measure` | Reads where auto-compaction runs, and shows a toast as the context or the 5-hour limit crosses its warning levels. |
+| `command.run` | Answers `/nextcost` and `/usage-band`, and no other command. |
+| `ui.render` (above the prompt) | Draws the band; steps aside while a survey holds the space or the band is hidden. |
+
 ## Developing
 
 See [CONTRIBUTING.md](https://github.com/HMarzban/nextcost/blob/main/CONTRIBUTING.md)
