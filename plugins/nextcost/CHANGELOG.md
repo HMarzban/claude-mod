@@ -5,6 +5,11 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.18.2] - 2026-10-20
+
+### Changed
+- The plugin's listing reads as nextcost, lowercase, and links where it should: its homepage is the site, its documentation the plugin README, and its privacy policy SECURITY.md, which lists everything nextcost reads and keeps. Nothing the band does changes.
+
 ## [0.18.1] - 2026-10-20
 
 ### Added
