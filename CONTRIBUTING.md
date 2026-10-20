@@ -206,6 +206,13 @@ subject says what changed. The body, when there is one, says why.
 After merge, the maintainer tags the release with
 `claude plugin tag plugins/nextcost`.
 
+nextcost is submitted to Anthropic's plugin directory, which follows
+`main`: GitHub tells it of each push, and it scans what it finds. Since
+nextcost is a mod, every new version waits for an Anthropic reviewer before
+it goes live there, so a release reaches the directory later than the
+marketplace install. A change to what the band runs, reads or hooks without
+the README saying so holds that version back.
+
 ## Pull requests
 
 Keep a pull request to one change, and fill in the template's checklist.

@@ -1,9 +1,9 @@
 # Changelog
 
-Every notable change to session-usage-band. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions
-follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
-version may change how the band reads.
+Every notable change to nextcost (session-usage-band before 0.18.0). The
+format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and versions follow [Semantic Versioning](https://semver.org/). Before
+1.0.0, a minor version may change how the band reads.
 
 ## [0.18.2] - 2026-10-20
 
