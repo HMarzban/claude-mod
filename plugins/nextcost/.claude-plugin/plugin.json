@@ -1,14 +1,17 @@
 {
   "name": "nextcost",
-  "version": "0.18.1",
+  "displayName": "nextcost",
+  "version": "0.18.2",
   "description": "See what your next message costs: a live band above the prompt with the prompt-cache countdown, the re-warm price, session cost, context and your 5h/7d limits.",
   "types": "./types/index.d.ts",
   "author": {
     "name": "Hossein Marzban",
     "url": "https://github.com/HMarzban"
   },
-  "homepage": "https://github.com/HMarzban/nextcost/tree/main/plugins/nextcost",
+  "homepage": "https://hmarzban.github.io/nextcost/",
   "repository": "https://github.com/HMarzban/nextcost",
+  "documentationUrl": "https://github.com/HMarzban/nextcost/blob/main/plugins/nextcost/README.md",
+  "privacyPolicyUrl": "https://github.com/HMarzban/nextcost/blob/main/SECURITY.md",
   "license": "MIT",
   "keywords": [
     "usage",
