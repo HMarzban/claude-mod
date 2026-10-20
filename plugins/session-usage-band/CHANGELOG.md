@@ -5,6 +5,11 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.17.2] - 2026-10-20
+
+### Fixed
+- The departures board says when the 5-hour window fills at 80% and over too, as chips, pulse and the cards do. With a measured fill, a 5h at 84% read `! NEAR LIMIT` on the board while every other layout said `! 5h full in ~40m`; the board now says `! FULL ~14:20` (`! FULL IN ~40 MIN` where the time zone isn't known), its value in REMARKS. Without a measured fill it still says `! NEAR LIMIT`.
+
 ## [0.17.1] - 2026-10-19
 
 ### Changed
