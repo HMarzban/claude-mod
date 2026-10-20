@@ -192,7 +192,7 @@ test("an expiring cache's heartbeat is drawn in amber", () => {
 test("7d at 85% on a fast pace: the guessed days, drawn, never pass what is left of the week", () => {
   const snap = { surface: 'desktop' as const, fiveHour: LIMITS.fiveHour, sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() } }
   // The raw guesses would pass the 15 points left.
-  const days = readingsOf(snapOf({ layout: 'pulse', samples: SAMPLES, ...snap })).week.days
+  const days = readingsOf(snapOf({ layout: 'pulse', samples: SAMPLES, ...snap })).week().days
   expect(days.filter(d => d.guess).reduce((n, d) => n + (d.pct ?? 0), 0)).toBeGreaterThan(15)
   for (const expanded of [false, true]) {
     const cells = svgsOf(band({ ...snap, expanded })).filter(s => /^weekly limit by day/.test(String(s.props?.alt)))

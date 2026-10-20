@@ -45,7 +45,7 @@ const readAt = (now: string, zone: Zone, over: Partial<BandSnapshot> & { fiveAt?
 }
 /** The clock the board says the cache goes cold at, 52 minutes on from `now`. */
 const coldClock = (now: string, zone: Zone, over: Parameters<typeof readAt>[2] = {}): string | undefined =>
-  readAt(now, zone, { ...over, cache: { ...snapOf().cache, coldAt: at(now) + 52 * MIN } }).board.rows.find(row => row.key === 'cache')?.time
+  readAt(now, zone, { ...over, cache: { ...snapOf().cache, coldAt: at(now) + 52 * MIN } }).board().rows.find(row => row.key === 'cache')?.time
 const initial = (d: Readonly<{ name: string }>): string => d.name.slice(0, 1)
 
 // ---- the zone matrix ---------------------------------------------------------
@@ -71,7 +71,7 @@ for (const [offset, five, seven, cold, firstHour, today, days] of MATRIX) {
   test(`at UTC${offset < 0 ? '' : '+'}${offset / 60}, each clock and day reads as it does there`, () => {
     const r = readAt(NOON, fixedZone(offset), { fiveAt: '2026-10-08T15:00Z', sevenAt: '2026-10-11T07:00Z' })
     expect([r.fiveHour?.resetWhen, r.sevenDay?.resetWhen, coldClock(NOON, fixedZone(offset), { fiveAt: '2026-10-08T15:00Z', sevenAt: '2026-10-11T07:00Z' })]).toEqual([five, seven, cold])
-    const wk = r.week
+    const wk = r.week()
     expect(wk.hours[0]?.startClock).toBe(firstHour)
     expect(wk.days.filter(d => d.today).map(d => `${d.name} ${d.date}`)).toEqual([today])
     expect(`${wk.days[0] && initial(wk.days[0])}${wk.days[0]?.date}…${wk.days[6] && initial(wk.days[6])}${wk.days[6]?.date}`).toBe(days)
@@ -133,7 +133,7 @@ test("each day's rise sits in that day's own cell, the 25-hour day whole, the sa
 })
 test('the 25-hour day holds its own date among the days', () => {
   // Sun Nov 1 12:00 EST.
-  const wk = readingsOf(snapOf({ now: at('2026-11-01T17:00Z'), zone: NEW_YORK, sevenDay: { percentUsed: 14, resetsAt: new Date(FALL_RESET).toISOString() } })).week
+  const wk = readingsOf(snapOf({ now: at('2026-11-01T17:00Z'), zone: NEW_YORK, sevenDay: { percentUsed: 14, resetsAt: new Date(FALL_RESET).toISOString() } })).week()
   expect(wk.days.map(d => d.date)).toEqual(['28', '29', '30', '31', '1', '2', '3'])
 })
 test('a week spring forward holds nine slices, folds to seven, and keeps each date in its cell', () => {
@@ -217,7 +217,7 @@ test("the week's fill day is the forecast's, today included", () => {
   // UTC-8, Sat 09:30, 9 hours into the window at 60%: the average fills it today at 15:30.
   const today = readAt('2026-10-17T17:30Z', fixedZone(-480), { sevenAt: '2026-10-24T08:30Z', seven: 60 })
   expect(today.sevenDay?.fillText).toBe('full ~15:30')
-  expect(cappedMarks(today.week.days, 60)[0]?.kind).toBe('fills')
+  expect(cappedMarks(today.week().days, 60)[0]?.kind).toBe('fills')
   // UTC, Wed noon, a fill at Sat 01:30 in the Friday cell Saturday's morning folds into.
   const folded = readAt('2026-10-21T12:00Z', fixedZone(0), { sevenAt: '2026-10-24T06:00Z', seven: 62.4 })
   expect(folded.sevenDay?.fillText).toBe('full ~Sat')

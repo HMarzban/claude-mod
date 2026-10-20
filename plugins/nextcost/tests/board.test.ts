@@ -7,7 +7,7 @@ import { snapOf } from './matrix'
 
 const UTC = fixedZone(0)
 const cacheAt = (over: object) => ({ ...snapOf().cache, ...over })
-const board = (over: object = {}) => readingsOf(snapOf({ zone: UTC, ...over })).board
+const board = (over: object = {}) => readingsOf(snapOf({ zone: UTC, ...over })).board()
 const row = (over: object, key: string) => board(over).rows.find(r => r.key === key)
 const limit = (pct: number, resetH: number) => ({ percentUsed: pct, resetsAt: new Date(resetH * HOUR).toISOString(), etaMs: null })
 const CLOCK = /\d\d:\d\d/

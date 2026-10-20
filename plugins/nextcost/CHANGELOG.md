@@ -5,6 +5,12 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/). Before
 1.0.0, a minor version may change how the band reads.
 
+## [Unreleased]
+
+### Changed
+- Each command the band runs is now fixed text at its call, but for the transcript's path and the offset it reads from: `tail -c 1048576` and `grep -a -b -F '"type":"cost-state"'` are written out where they run. The settings read keeps `promptCacheTtl` and `idleCompaction` at the call and drops the rest there, `env` included. The README says how nextcost can and can't send anything out, and that it reads no credential. Nothing the band runs or draws changes.
+- A view now calls for the history, week and board (`read.week()`) rather than reading a getter, so reading a property never runs code. Each is still built only when a view asks, and once.
+
 ## [0.18.2] - 2026-10-20
 
 ### Changed

@@ -65,7 +65,7 @@ const keeps = (row: BoardRow, k: Keeps<Piece>): boolean =>
  *  every column between modules is one the row draws and measures. */
 const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderElement =>
   fitLine(kit, ORDER, kit.columns - ROW_SLACK, k => {
-    const modules = read.board.rows.filter(r => keeps(r, k)).flatMap((r, i) => [moduleOf(kit, k, r, cellOf(r, k)), 
+    const modules = read.board().rows.filter(r => keeps(r, k)).flatMap((r, i) => [moduleOf(kit, k, r, cellOf(r, k)), 
       // The band's own background between modules, and after the last, before
       // ▵: a column where modules have their ground; in plain, which has none,
       // two until its last step.

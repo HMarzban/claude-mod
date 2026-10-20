@@ -31,7 +31,7 @@ const snap = (over: Partial<BandSnapshot> = {}): BandSnapshot =>
 const rowOf = (over: Partial<BandSnapshot> = {}): Node => firstRow(drawBand(fakeEl, snap(over), NO_ACT)) as Node
 const moduleOf = (row: unknown, key: string): Node | undefined => byKey(row, key, 'Box')
 /** The board's rows the row draws from, by key. */
-const boardRow = (over: Partial<BandSnapshot>, key: string) => readingsOf(snap(over)).board.rows.find(r => r.key === key)
+const boardRow = (over: Partial<BandSnapshot>, key: string) => readingsOf(snap(over)).board().rows.find(r => r.key === key)
 
 /** What a text surface draws: Texts' strings alone, since it draws no bare string in a Box. */
 const drawnText = (n: unknown, inText = false): string => {

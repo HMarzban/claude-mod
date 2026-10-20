@@ -52,7 +52,6 @@ import {
 import { DARK, resolvePalette } from './palette'
 import type { Palette } from './palette'
 import {
-  COST_RECORD,
   FIVE_HOUR,
   LAYOUT_KEY,
   LIMIT_SAMPLES_KEY,
@@ -90,9 +89,6 @@ const isHidden = atom({ plugin: 'nextcost', key: 'isHidden' } as const, false)
 const isExpanded = atom({ plugin: 'nextcost', key: 'isExpanded' } as const, false)
 
 const CONTEXT_WARN = 'context'
-
-/** How much of a transcript's end to read: room for a long last reply. */
-const TAIL_BYTES = 1024 * 1024
 
 /** Long enough for a large repository's status or a transcript's tail,
  *  short enough that a hung command never holds a read open for long. */
@@ -189,7 +185,9 @@ const readWhole = async ($: EngineInterface, path: string): Promise<string | und
  *  megabyte by `tail`, whatever its size; failing that, the whole file if it
  *  is small enough to read. */
 const transcriptEnd = async ($: EngineInterface, path: string): Promise<string | undefined> => {
-  const tail = await settled($.process.run(['tail', '-c', String(TAIL_BYTES), path], { timeoutMs: PROCESS_TIMEOUT_MS }))
+  // Each argument but the path is written out, so a reader sees the whole
+  // command here: 1048576 bytes is a megabyte, room for a long last reply.
+  const tail = await settled($.process.run(['tail', '-c', '1048576', path], { timeoutMs: PROCESS_TIMEOUT_MS }))
   return tail?.exitCode === 0 ? tail.stdout : readWhole($, path)
 }
 
@@ -201,7 +199,8 @@ const transcriptEnd = async ($: EngineInterface, path: string): Promise<string |
 const spendBefore = async ($: EngineInterface, path: string, sessionId: string, before: number): Promise<Spend | undefined> => {
   // `-a`: a line cut mid-character would otherwise make the file binary to
   // grep, which then prints no lines and still exits 0.
-  const found = await settled($.process.run(['grep', '-a', '-b', '-F', COST_RECORD, path], { timeoutMs: PROCESS_TIMEOUT_MS }))
+  // The pattern is COST_RECORD, written out for the same reason.
+  const found = await settled($.process.run(['grep', '-a', '-b', '-F', '"type":"cost-state"', path], { timeoutMs: PROCESS_TIMEOUT_MS }))
   // grep exits 1 when nothing matches, 2 when it fails.
   if (found?.exitCode === 1) return undefined
   if (found?.exitCode !== 0) {
@@ -488,19 +487,19 @@ export const register: Register = on => {
       LC_CTYPE: await $.env.get('LC_CTYPE'),
       LANG: await $.env.get('LANG'),
     })
-    // Only two keys are kept: the settings also hold `env`, which may carry secrets.
-    const settings = await $.settings.read().catch(() => undefined)
+    // Only these two keys are taken; the rest, `env` included, is dropped here.
+    const { promptCacheTtl, idleCompaction } = (await $.settings.read().catch(() => undefined)) ?? {}
     const pinned = resolveTtl({
       force5m: await $.env.get('FORCE_PROMPT_CACHING_5M'),
       chosen: await $.env.get('CLAUDE_CODE_PROMPT_CACHE_TTL'),
-      setting: settings?.promptCacheTtl,
+      setting: promptCacheTtl,
       enable1h: await $.env.get('ENABLE_PROMPT_CACHING_1H'),
     })
     if (pinned !== undefined) pinTtl(pinned)
     band.turnOpen = false
     band.idleCompactFrom = idleCompactFrom({
       terminal: e.surface === 'terminal' && e.isInteractive,
-      setting: settings?.idleCompaction,
+      setting: idleCompaction,
       disableAuto: await $.env.get('DISABLE_AUTO_COMPACT'),
       disableAll: await $.env.get('DISABLE_COMPACT'),
       minTokens: await $.env.get('CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS'),
