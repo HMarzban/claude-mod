@@ -1,19 +1,19 @@
 <div align="center">
 
-# claude-mod
+# nextcost
 
 **The price of your next Claude Code message, before you send it.**
 
-**session-usage-band** is a free Claude Code plugin that draws a live band
+**nextcost** is a free Claude Code plugin that draws a live band
 above the prompt: the prompt-cache countdown, what a re-warm will cost, the
 session's spend, context fill, and your 5-hour and weekly limits. In the
 terminal and the desktop app; no tokens, no network calls.
 
-[![CI](https://github.com/HMarzban/claude-mod/actions/workflows/ci.yml/badge.svg)](https://github.com/HMarzban/claude-mod/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/HMarzban/claude-mod?display_name=release&label=release)](https://github.com/HMarzban/claude-mod/releases/latest)
-[![License: MIT](https://img.shields.io/github/license/HMarzban/claude-mod)](LICENSE)
+[![CI](https://github.com/HMarzban/nextcost/actions/workflows/ci.yml/badge.svg)](https://github.com/HMarzban/nextcost/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/HMarzban/nextcost?display_name=release&label=release)](https://github.com/HMarzban/nextcost/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/HMarzban/nextcost)](LICENSE)
 
-[Website](https://hmarzban.github.io/claude-mod/) · [Install](#install) · [What it shows](#what-it-shows) · [How it works](#how-it-works) · [FAQ](#faq) · [Contributing](#contributing)
+[Website](https://hmarzban.github.io/nextcost/) · [Install](#install) · [What it shows](#what-it-shows) · [How it works](#how-it-works) · [FAQ](#faq) · [Contributing](#contributing)
 
 </div>
 
@@ -34,7 +34,7 @@ That makes the context part ~25× the warm read on Opus 5.5 and Sonnet 5.5
 same either way. On Opus 5.5, 300k tokens of context is ~$1.50 to write
 against ~$0.06 to read.
 
-**session-usage-band** shows the countdown and the price, and keeps your
+**nextcost** shows the countdown and the price, and keeps your
 spend and limits in view while you work. When Claude Code compacts an idle
 session instead of letting its cache go cold, the band says so and prices
 the summary.
@@ -49,7 +49,7 @@ bundled 2.1.289. The one-line install below needs 2.1.292 or later
 One command, in any terminal:
 
 ```bash
-claude plugin install session-usage-band --marketplace HMarzban/claude-mod
+claude plugin install nextcost --marketplace HMarzban/nextcost
 ```
 
 It loads in your next session, or run `/reload-plugins` in an open one. The
@@ -57,12 +57,24 @@ band appears above the prompt. A new conversation reads `cache warming` until
 Claude's first reply, `cache warm` while Claude is replying, then counts
 down from `cache 1h 00m` (or `cache 5:00` on a five-minute cache). A session
 that was already open may read `cache –` until Claude's next reply. Hid it
-(`Hide band`, key `h`)? `/usage-band` brings it back. Nothing above the
+(`Hide band`, key `h`)? `/nextcost` brings it back. Nothing above the
 prompt? Check the Needs line above (mods, and WSL), or
-[open a bug report](https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml).
+[open a bug report](https://github.com/HMarzban/nextcost/issues/new?template=bug_report.yml).
 
 The band draws in the terminal and in the desktop app's Code tab, and a
 plugin installed from either is available in the other.
+
+**Had `session-usage-band`?** That was nextcost's name before 0.18.0, and
+this repository was `claude-mod`. Swap the old plugin for the new one:
+
+```bash
+claude plugin uninstall session-usage-band@hossein-mods
+claude plugin marketplace update hossein-mods
+claude plugin install nextcost@hossein-mods
+```
+
+`/usage-band` and the `CC_BAND_*` settings still work. Your chosen layout
+and the week of limit readings start afresh.
 
 <details>
 <summary>Inside a session, on an older Claude Code, or for a whole team</summary>
@@ -72,14 +84,14 @@ confirm adding the marketplace, then opens the plugin's details, where you
 pick a scope:
 
 ```
-/plugin install session-usage-band --marketplace HMarzban/claude-mod
+/plugin install nextcost --marketplace HMarzban/nextcost
 ```
 
 **Before Claude Code 2.1.292**, the one-line form isn't there. Use two steps:
 
 ```bash
-claude plugin marketplace add HMarzban/claude-mod
-claude plugin install session-usage-band@hossein-mods
+claude plugin marketplace add HMarzban/nextcost
+claude plugin install nextcost@hossein-mods
 ```
 
 **For a team**, commit this to the repository's `.claude/settings.json`.
@@ -91,9 +103,9 @@ loads straight from the marketplace. If it isn't showing yet, run
 ```json
 {
   "extraKnownMarketplaces": {
-    "hossein-mods": { "source": { "source": "github", "repo": "HMarzban/claude-mod" } }
+    "hossein-mods": { "source": { "source": "github", "repo": "HMarzban/nextcost" } }
   },
-  "enabledPlugins": { "session-usage-band@hossein-mods": true }
+  "enabledPlugins": { "nextcost@hossein-mods": true }
 }
 ```
 
@@ -105,10 +117,10 @@ loads straight from the marketplace. If it isn't showing yet, run
 ```bash
 # update, then /reload-plugins
 claude plugin marketplace update hossein-mods
-claude plugin update session-usage-band@hossein-mods
+claude plugin update nextcost@hossein-mods
 
 # uninstall
-claude plugin uninstall session-usage-band@hossein-mods
+claude plugin uninstall nextcost@hossein-mods
 claude plugin marketplace remove hossein-mods
 ```
 
@@ -131,10 +143,10 @@ claude plugin marketplace remove hossein-mods
 </picture>
 
 They play live, with a guided tour, on the
-[website](https://hmarzban.github.io/claude-mod/).
+[website](https://hmarzban.github.io/nextcost/).
 
-Prefer another shape? `/usage-band layout <name>` draws the same readings
-in one of three [layouts](plugins/session-usage-band/README.md#layouts),
+Prefer another shape? `/nextcost layout <name>` draws the same readings
+in one of three [layouts](plugins/nextcost/README.md#layouts),
 each asking one question of them: `chips` (as above, is anything wrong
 right now?), `pulse` (the session's trace: is my cost per message rising,
 and will a limit fill before it resets?) or `departures` (a split-flap
@@ -153,7 +165,7 @@ desktop, hover any chip for a one-line explanation.
 
 Resume or fork a session (`claude --resume`, `/resume`, or a past session
 in the desktop app) and the band picks up its cache and spend where they
-were ([how it reads them](plugins/session-usage-band/README.md#reopening-an-old-session)).
+were ([how it reads them](plugins/nextcost/README.md#reopening-an-old-session)).
 
 Press `▵` to open every fact, under a line that says where you are: the
 project, its git branch or worktree, uncommitted changes and ahead/behind.
@@ -169,7 +181,7 @@ window narrows:
   <img alt="The same story in a terminal: the countdown, the amber last minute, the cold cache and the cards, as text" src="docs/band-demo-terminal-light.gif">
 </picture>
 
-The [plugin's README](plugins/session-usage-band/README.md) covers every chip,
+The [plugin's README](plugins/nextcost/README.md) covers every chip,
 card, command and setting.
 
 ## How it works
@@ -235,15 +247,15 @@ desktop app as well as the terminal, with no tokens and no network calls.
 **Does the 5-hour pace include my other sessions?** Yes. The limit is shared
 across all your Claude use, so the pace counts every session and device.
 
-**Does it work on light themes?** Yes. Set `CC_BAND_APPEARANCE=light`, or
+**Does it work on light themes?** Yes. Set `NEXTCOST_APPEARANCE=light`, or
 `plain` for theme colours only. `NO_COLOR` is respected. Set it in the
-shell you start Claude Code from (`export CC_BAND_APPEARANCE=light`, then
+shell you start Claude Code from (`export NEXTCOST_APPEARANCE=light`, then
 `claude`); the band reads it when a session starts.
 
 **The row runs past the edge of my terminal.** Some terminals draw the
 band's glyphs (`█ │ · Σ`) two columns wide. In a Japanese, Chinese or
 Korean locale the band draws ASCII by itself; otherwise set
-`CC_BAND_GLYPHS=ascii`, which also suits a screen reader.
+`NEXTCOST_GLYPHS=ascii`, which also suits a screen reader.
 
 ## Contributing
 
@@ -252,10 +264,10 @@ see in your own sessions.
 
 - **Something looks wrong**, such as a price that seems off, a chip that
   wraps or a band that doesn't draw:
-  [open a bug report](https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml).
+  [open a bug report](https://github.com/HMarzban/nextcost/issues/new?template=bug_report.yml).
   A screenshot of the band helps most.
 - **Something you wish it showed:**
-  [suggest a feature](https://github.com/HMarzban/claude-mod/issues/new?template=feature_request.yml).
+  [suggest a feature](https://github.com/HMarzban/nextcost/issues/new?template=feature_request.yml).
 - **You'd like to build it:** pull requests are welcome.
 
 ### Good places to start
@@ -276,8 +288,8 @@ see in your own sessions.
 ### Development loop
 
 ```bash
-git clone https://github.com/HMarzban/claude-mod.git
-cd claude-mod
+git clone https://github.com/HMarzban/nextcost.git
+cd nextcost
 ```
 
 [CONTRIBUTING.md](CONTRIBUTING.md) has the gates, the loop for seeing a
@@ -288,7 +300,7 @@ change live, the module map and the rules the code follows.
 
 ```
 .claude-plugin/marketplace.json     the marketplace index (named hossein-mods)
-plugins/session-usage-band/
+plugins/nextcost/
   hooks/                            the band: the hooks, the readings and the three layouts
   tests/                            the test suite
   CHANGELOG.md                      what changed in each version

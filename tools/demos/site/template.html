@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Claude Code plugin: prompt-cache countdown, cost and limits</title>
 <meta name="description" content="Free Claude Code plugin: a band above the prompt with the prompt-cache countdown, the re-warm price, session cost, context and 5-hour/weekly limits.">
-<link rel="canonical" href="https://hmarzban.github.io/claude-mod/">
+<link rel="canonical" href="https://hmarzban.github.io/nextcost/">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#fbfaf7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#1d1d22" media="(prefers-color-scheme: dark)">
@@ -26,12 +26,12 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
 
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="session-usage-band">
+<meta property="og:site_name" content="nextcost">
 <meta property="og:locale" content="en_US">
 <meta property="og:title" content="See the cold-cache bill before you send it">
 <meta property="og:description" content="Free Claude Code plugin: a band above the prompt with the prompt-cache countdown, the re-warm price, session cost, context and 5-hour/weekly limits.">
-<meta property="og:url" content="https://hmarzban.github.io/claude-mod/">
-<meta property="og:image" content="https://hmarzban.github.io/claude-mod/social-preview.png">
+<meta property="og:url" content="https://hmarzban.github.io/nextcost/">
+<meta property="og:image" content="https://hmarzban.github.io/nextcost/social-preview.png">
 <meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="2560">
 <meta property="og:image:height" content="1280">
@@ -39,23 +39,23 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="See the cold-cache bill before you send it">
 <meta name="twitter:description" content="A free Claude Code plugin: the prompt-cache countdown, the re-warm price, cost, context and 5-hour/weekly limits, above the prompt.">
-<meta name="twitter:image" content="https://hmarzban.github.io/claude-mod/social-preview.png">
+<meta name="twitter:image" content="https://hmarzban.github.io/nextcost/social-preview.png">
 <meta name="twitter:image:alt" content="See the cold-cache bill before you send it. The band's amber chip reads: 0:40 left, re-warm ~$1.57.">
 
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  "name": "session-usage-band",
+  "name": "nextcost",
   "description": "A Claude Code plugin that draws the prompt-cache countdown, the re-warm price, session cost, context and the 5-hour and weekly usage limits above the prompt.",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "macOS, Linux, Windows",
   "softwareVersion": "{{version}}",
   "dateModified": "{{built}}",
-  "url": "https://hmarzban.github.io/claude-mod/",
-  "downloadUrl": "https://github.com/HMarzban/claude-mod",
+  "url": "https://hmarzban.github.io/nextcost/",
+  "downloadUrl": "https://github.com/HMarzban/nextcost",
   "license": "https://opensource.org/licenses/MIT",
-  "image": "https://hmarzban.github.io/claude-mod/social-preview.png",
+  "image": "https://hmarzban.github.io/nextcost/social-preview.png",
   "author": { "@type": "Person", "name": "Hossein Marzban", "url": "https://github.com/HMarzban" },
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
 }
@@ -64,8 +64,8 @@
 {
   "@context": "https://schema.org",
   "@type": "SoftwareSourceCode",
-  "name": "claude-mod",
-  "codeRepository": "https://github.com/HMarzban/claude-mod",
+  "name": "nextcost",
+  "codeRepository": "https://github.com/HMarzban/nextcost",
   "programmingLanguage": "TypeScript",
   "license": "https://opensource.org/licenses/MIT",
   "author": { "@type": "Person", "name": "Hossein Marzban", "url": "https://github.com/HMarzban" }
@@ -456,29 +456,29 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="site">
   <nav aria-label="Site">
-    <a class="wordmark" href="./">session-usage-band</a>
+    <a class="wordmark" href="./">nextcost</a>
     <ul>
       <li><a href="#demo">Demo</a></li>
       <li><a href="#cost">Cost</a></li>
       <li><a href="#notes">Notes</a></li>
-      <li><a href="https://github.com/HMarzban/claude-mod">GitHub</a></li>
+      <li><a href="https://github.com/HMarzban/nextcost">GitHub</a></li>
     </ul>
     <button class="tbtn js-only" id="theme" type="button" aria-pressed="false" aria-label="Dark theme"><span class="box" aria-hidden="true"></span>Dark</button>
-    <button class="hcopy js-only" id="hcopy" type="button" hidden data-copy="claude plugin install session-usage-band --marketplace HMarzban/claude-mod" aria-label="Copy install command">Copy install</button>
+    <button class="hcopy js-only" id="hcopy" type="button" hidden data-copy="claude plugin install nextcost --marketplace HMarzban/nextcost" aria-label="Copy install command">Copy install</button>
   </nav>
 </header>
 
 <main id="main" class="sheet">
   <section class="hero" aria-labelledby="h1">
-    <p class="rhead"><b>SESSION-USAGE-BAND</b><span aria-hidden="true">·</span><a href="https://github.com/HMarzban/claude-mod/blob/main/plugins/session-usage-band/CHANGELOG.md">v{{version}}</a><span aria-hidden="true">·</span><span>{{built}}</span><span class="tail">claude-mod/main</span></p>
+    <p class="rhead"><b>NEXTCOST</b><span aria-hidden="true">·</span><a href="https://github.com/HMarzban/nextcost/blob/main/plugins/nextcost/CHANGELOG.md">v{{version}}</a><span aria-hidden="true">·</span><span>{{built}}</span><span class="tail">nextcost/main</span></p>
     <h1 id="h1">See the cold&#8209;cache bill before you send it.</h1>
     <div class="hero-grid">
       <p class="lede">A Claude&nbsp;Code plugin that draws the prompt cache's countdown and the re&#8209;warm price above the prompt. Step away too long and the cache goes cold: your next message writes the whole conversation again.</p>
       <div id="install">
         <div class="term">
-          <pre><code><span class="ps" aria-hidden="true">$ </span>claude plugin install session-usage-band \
-    --marketplace HMarzban/claude-mod</code></pre>
-          <button class="copy js-only" type="button" data-copy="claude plugin install session-usage-band --marketplace HMarzban/claude-mod" aria-label="Copy install command">Copy</button>
+          <pre><code><span class="ps" aria-hidden="true">$ </span>claude plugin install nextcost \
+    --marketplace HMarzban/nextcost</code></pre>
+          <button class="copy js-only" type="button" data-copy="claude plugin install nextcost --marketplace HMarzban/nextcost" aria-label="Copy install command">Copy</button>
         </div>
         <p class="after">It loads in your next session, or run <code>/reload-plugins</code> in an open one. The one-line install needs Claude Code 2.1.292 or later.</p>
         <p class="spec">free · MIT · no network · no tokens · terminal + desktop app</p>
@@ -522,7 +522,7 @@
       </ul>
       <div class="demo-foot">
         <a class="film-link" id="film-link" href="demo.mp4">Watch the 17-second film</a>
-        <span class="laycmd js-only" id="laycmd" hidden><code id="laycmd-text">/usage-band layout pulse</code><button type="button" id="laycopy" data-copy="/usage-band layout pulse" aria-label="Copy layout command">Copy</button></span>
+        <span class="laycmd js-only" id="laycmd" hidden><code id="laycmd-text">/nextcost layout pulse</code><button type="button" id="laycopy" data-copy="/nextcost layout pulse" aria-label="Copy layout command">Copy</button></span>
         <span class="clock">The band's real drawings from one recorded session; clock times are the recording's.</span>
       </div>
     </div>
@@ -600,7 +600,7 @@
         </ul>
       </div>
     </div>
-    <p class="ledger-foot">About 1,000 tests · MIT · every read and command, exactly, in <a href="https://github.com/HMarzban/claude-mod/blob/main/SECURITY.md">SECURITY.md</a>; <code>claude plugin validate</code> lists every API call and environment read.</p>
+    <p class="ledger-foot">About 1,000 tests · MIT · every read and command, exactly, in <a href="https://github.com/HMarzban/nextcost/blob/main/SECURITY.md">SECURITY.md</a>; <code>claude plugin validate</code> lists every API call and environment read.</p>
   </section>
 
   <section id="notes" aria-labelledby="notes-h">
@@ -613,7 +613,7 @@
       <div class="q"><h3>Does it work in the Claude desktop app?</h3><p>Yes. It draws in the desktop app's Code tab with icons and meters, and in the terminal as text. The one-line install needs Claude Code 2.1.292 or later.</p></div>
       <div class="q"><h3>What happens when Claude Code compacts an idle session, or I resume one?</h3><p>In the terminal, on the hour's cache, Claude Code can compact a conversation over 200k tokens (by default) left idle about 54 minutes; the band then reads <code>compacted</code>, with what the summary will cost. A resumed session keeps its idle time and its spend, from Claude Code and one read of the transcript.</p></div>
       <div class="q"><h3>How is it different from ccusage or a status line?</h3><p>ccusage reports what you spent, from past logs. A status line can show a cache countdown. This band shows the re&#8209;warm price from the session's own bill, live above the prompt, in the desktop app too, with your 5-hour and weekly pace beside it.</p></div>
-      <div class="q"><h3>Does it send my data anywhere, or spend tokens?</h3><p>No. It makes no network calls, never calls a model and writes no files. It never suggests a message to keep the cache warm either: that would be burning tokens to avoid burning tokens. <a href="https://github.com/HMarzban/claude-mod/blob/main/SECURITY.md">SECURITY.md</a> lists everything it reads.</p></div>
+      <div class="q"><h3>Does it send my data anywhere, or spend tokens?</h3><p>No. It makes no network calls, never calls a model and writes no files. It never suggests a message to keep the cache warm either: that would be burning tokens to avoid burning tokens. <a href="https://github.com/HMarzban/nextcost/blob/main/SECURITY.md">SECURITY.md</a> lists everything it reads.</p></div>
       <div class="q"><h3>How does it show my 5-hour and weekly limits?</h3><p><code>/usage</code> shows them when you ask. The band keeps them on screen: each chip turns amber at 80%, the 7d with a <code>!</code>, and the 5h says when your pace would fill it before it resets.</p></div>
     </div>
   </section>
@@ -623,18 +623,18 @@
     <h2 id="total-h">The whole bill comes to $0.00</h2>
     <div class="total-grid">
       <ul class="bill">
-        <li class="ln"><span>session-usage-band {{version}}, MIT</span><span class="lead" aria-hidden="true"></span><span class="v">$0.00</span></li>
+        <li class="ln"><span>nextcost {{version}}, MIT</span><span class="lead" aria-hidden="true"></span><span class="v">$0.00</span></li>
         <li class="ln"><span>Tokens it spends to watch your cache</span><span class="lead" aria-hidden="true"></span><span class="v">0</span></li>
         <li class="tot ln sum"><span>Total</span><span class="lead" aria-hidden="true"></span><span class="v">$0.00</span></li>
         <li class="ln paid" id="paid" hidden><span>Paid</span><span class="lead" aria-hidden="true"></span><span class="v">$0.00</span></li>
       </ul>
       <div>
         <div class="term" id="install-2">
-          <pre><code><span class="ps" aria-hidden="true">$ </span>claude plugin install session-usage-band \
-    --marketplace HMarzban/claude-mod</code></pre>
-          <button class="copy js-only" type="button" id="copy-total" data-copy="claude plugin install session-usage-band --marketplace HMarzban/claude-mod" aria-label="Copy install command">Copy</button>
+          <pre><code><span class="ps" aria-hidden="true">$ </span>claude plugin install nextcost \
+    --marketplace HMarzban/nextcost</code></pre>
+          <button class="copy js-only" type="button" id="copy-total" data-copy="claude plugin install nextcost --marketplace HMarzban/nextcost" aria-label="Copy install command">Copy</button>
         </div>
-        <p class="after">It loads in your next session, or run <code>/reload-plugins</code> in an open one. The one-line install needs Claude Code 2.1.292 or later. <code class="nb">/usage-band layout &lt;name&gt;</code> picks chips, pulse or departures.</p>
+        <p class="after">It loads in your next session, or run <code>/reload-plugins</code> in an open one. The one-line install needs Claude Code 2.1.292 or later. <code class="nb">/nextcost layout &lt;name&gt;</code> picks chips, pulse or departures.</p>
       </div>
     </div>
   </section>
@@ -643,12 +643,12 @@
 
 <footer>
   <ul>
-    <li><a href="https://github.com/HMarzban/claude-mod/issues/new?template=bug_report.yml">A price looks off? Report it.</a></li>
-    <li><a href="https://github.com/HMarzban/claude-mod/releases">Releases</a></li>
-    <li><a href="https://github.com/HMarzban/claude-mod/blob/main/plugins/session-usage-band/CHANGELOG.md">Changelog</a></li>
-    <li><a href="https://github.com/HMarzban/claude-mod/blob/main/SECURITY.md">Security</a></li>
-    <li><a href="https://github.com/HMarzban/claude-mod/blob/main/LICENSE">License</a></li>
-    <li><a href="https://github.com/HMarzban/claude-mod">GitHub</a></li>
+    <li><a href="https://github.com/HMarzban/nextcost/issues/new?template=bug_report.yml">A price looks off? Report it.</a></li>
+    <li><a href="https://github.com/HMarzban/nextcost/releases">Releases</a></li>
+    <li><a href="https://github.com/HMarzban/nextcost/blob/main/plugins/nextcost/CHANGELOG.md">Changelog</a></li>
+    <li><a href="https://github.com/HMarzban/nextcost/blob/main/SECURITY.md">Security</a></li>
+    <li><a href="https://github.com/HMarzban/nextcost/blob/main/LICENSE">License</a></li>
+    <li><a href="https://github.com/HMarzban/nextcost">GitHub</a></li>
   </ul>
   <p>MIT © Hossein Marzban. An independent project, not affiliated with Anthropic.</p>
 </footer>
@@ -792,7 +792,7 @@
   function render(focusKey) {
     hideTip()
     if (D.hidden) {
-      host.innerHTML = '<div class="band-off"><span>Band hidden. It comes back with</span><button type="button" id="band-back">/usage-band</button></div>'
+      host.innerHTML = '<div class="band-off"><span>Band hidden. It comes back with</span><button type="button" id="band-back">/nextcost</button></div>'
     } else {
       host.innerHTML = `<div class="band${focusKey === undefined ? ' enter' : ''}">${data()[D.layout][D.state][D.open ? 'open' : 'shut']}</div>`
       decorate()
@@ -844,7 +844,7 @@
     if (r.value === 'departures') { D.secs = START; paintText() }
     render(); clock()
     laycmd.hidden = r.value === 'chips'
-    $('#laycmd-text').textContent = $('#laycopy').dataset.copy = '/usage-band layout ' + r.value
+    $('#laycmd-text').textContent = $('#laycopy').dataset.copy = '/nextcost layout ' + r.value
   })
   // the band's own buttons: open, collapse, hide, and back
   host.addEventListener('click', e => {

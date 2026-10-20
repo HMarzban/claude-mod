@@ -14,7 +14,7 @@ import os
 import re
 import sys
 
-SITE = 'https://hmarzban.github.io/claude-mod/'
+SITE = 'https://hmarzban.github.io/nextcost/'
 NAME = re.compile(r"""(["'])((?:%s)?)([A-Za-z0-9._-]+\.(?:png|svg|mp4|gif|jpg|webp|ico))(?:\?v=[0-9a-f]+)?\1""" % re.escape(SITE))
 
 page, docs = sys.argv[1], sys.argv[2]

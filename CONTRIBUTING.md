@@ -11,25 +11,25 @@ run locally; nothing here needs network access or an API key.
 ```bash
 # Check the marketplace index and the plugin
 claude plugin validate .
-claude plugin validate plugins/session-usage-band
+claude plugin validate plugins/nextcost
 
 # Run the tests
-claude plugin test plugins/session-usage-band
+claude plugin test plugins/nextcost
 
 # Run only some test files, by name glob (the red and green steps)
 tools/test-only.sh view-pulse 'golden-*'
 
 # Type-check (after the engine has laid the types, see below)
-npx -y -p typescript@5 tsc -p plugins/session-usage-band
+npx -y -p typescript@5 tsc -p plugins/nextcost
 
 # The views gate: no layout but chips formats or reads a raw fact
 tools/views-gate.sh
 ```
 
 The type check reads the engine's API types from
-`plugins/session-usage-band/.claude-plugin/types/`. The engine writes them
+`plugins/nextcost/.claude-plugin/types/`. The engine writes them
 the first time it loads the plugin from its folder, for example with
-`claude --plugin-dir plugins/session-usage-band`. They're generated, so
+`claude --plugin-dir plugins/nextcost`. They're generated, so
 they're git-ignored. Neither `claude plugin test` nor `validate` writes
 them, and loading needs a signed-in session, so CI can't type-check: run it
 locally before you open a pull request.
@@ -45,19 +45,19 @@ To see a change live, add your clone as the marketplace and install from
 it. From the clone's parent folder:
 
 ```bash
-claude plugin marketplace add ./claude-mod
-claude plugin install session-usage-band@hossein-mods
+claude plugin marketplace add ./nextcost
+claude plugin install nextcost@hossein-mods
 ```
 
 Then, after each edit, bump `version` in
-`plugins/session-usage-band/.claude-plugin/plugin.json`; an update at the
+`plugins/nextcost/.claude-plugin/plugin.json`; an update at the
 same version doesn't reinstall. Any higher number works locally; set the
 real one ([step 1](#before-you-open-a-pull-request)) before you open the
 pull request. After each bump, run:
 
 ```bash
 claude plugin marketplace update hossein-mods
-claude plugin update session-usage-band@hossein-mods
+claude plugin update nextcost@hossein-mods
 ```
 
 Run `/reload-plugins` in your session afterwards.
@@ -67,7 +67,7 @@ Run `/reload-plugins` in your session afterwards.
 | File | Role |
 | --- | --- |
 | `hooks/register.tsx` | The hooks. The only module that touches the engine (`$`). |
-| `hooks/command.ts` | What `/usage-band` answers and how it reads its arguments. Pure: `register.tsx` runs it. |
+| `hooks/command.ts` | What `/nextcost` answers and how it reads its arguments. Pure: `register.tsx` runs it. |
 | `hooks/snapshot.ts` | The snapshot and actions: the one contract between `register.tsx` and the drawing. |
 | `hooks/band.tsx` | `drawBand(elements, snapshot, actions)`: a pure function from a snapshot to a tree. It builds the kit and the readings, draws the chosen layout, and falls back to chips. |
 | `hooks/kit.tsx` | The drawing kit made once per draw: elements, the Svg gate, palette, measure, hover cards, gaps and air, icons, and `svg`, which builds every Svg. |
@@ -84,7 +84,7 @@ Run `/reload-plugins` in your session afterwards.
 | `hooks/flaps.tsx` | The split-flap tiles departures draws: one Svg per reading on the desktop, a coloured run of text in the terminal; the open board's flap columns, its rules and the height its lines take. |
 | `hooks/strip.tsx` | The workspace strip: project, branch or worktree, changes, ahead/behind. |
 | `hooks/charts.tsx` | The charts: `meter`, `splitBar`, `sparkline`, `barChart`, `dayCells`, `heartbeat`, `track`, `braille`. Each is an Svg on the desktop and text elsewhere. |
-| `hooks/glyphs.ts` | The terminal's glyph tier (`CC_BAND_GLYPHS`, a CJK locale) and the ASCII mapping. |
+| `hooks/glyphs.ts` | The terminal's glyph tier (`NEXTCOST_GLYPHS`, a CJK locale) and the ASCII mapping. |
 | `hooks/calendar.ts` | The day and hour cells pulse draws, read off the limit samples. |
 | `hooks/layout.ts` | Give-way orders, sizes, and how many columns a drawn tree takes. |
 | `hooks/icons.ts` | The icons' SVG bodies, glyphs and names. |
@@ -188,14 +188,14 @@ subject says what changed. The body, when there is one, says why.
 
 ## Before you open a pull request
 
-1. Bump `version` in `plugins/session-usage-band/.claude-plugin/plugin.json`,
+1. Bump `version` in `plugins/nextcost/.claude-plugin/plugin.json`,
    following [Semantic Versioning](https://semver.org/).
-2. Add an entry to `plugins/session-usage-band/CHANGELOG.md`.
+2. Add an entry to `plugins/nextcost/CHANGELOG.md`.
 3. Update the plugin's README if the band reads differently.
 4. Make sure validate, test, the type check and the views gate all pass.
 
 After merge, the maintainer tags the release with
-`claude plugin tag plugins/session-usage-band`.
+`claude plugin tag plugins/nextcost`.
 
 ## Pull requests
 

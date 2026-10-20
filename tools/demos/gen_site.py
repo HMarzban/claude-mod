@@ -108,7 +108,7 @@ for line in open(src):
 page = open(template).read()
 # The release the page describes is the manifest's, and it is dated the day
 # it was built (UTC), as the sitemap is: neither is typed into the template.
-manifest = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../plugins/session-usage-band/.claude-plugin/plugin.json')
+manifest = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../plugins/nextcost/.claude-plugin/plugin.json')
 page = page.replace('{{version}}', json.load(open(manifest))['version'])
 page = page.replace('{{built}}', datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))
 for name, body in states.items():
