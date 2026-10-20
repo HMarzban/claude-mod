@@ -20,20 +20,26 @@ const tilesOf = (runs: readonly Run[]): Array<readonly [string, string]> =>
 /** The px the runs' tiles take: a flaps Svg's width. */
 export const flapsWidth = (runs: readonly Run[]): number => tilesOf(runs).length * (TILE_PX + TILE_GAP) - TILE_GAP
 
-export const flaps = (kit: Kit, o: Readonly<{ key: string; alt: string; runs: readonly Run[]; bg: string; seam: string }>): RenderChildren => {
+/** `packed`: plain brackets the runs once, `[CACHE ! 30S]`, where it would
+ *  bracket each, `[CACHE][! 30S]`: a row's last step, as filled drops its
+ *  padding. Filled draws the same either way. */
+export const flaps = (kit: Kit, o: Readonly<{ key: string; alt: string; runs: readonly Run[]; bg: string; seam: string; packed?: boolean }>): RenderChildren => {
   const { Svg, Text, Box, palette } = kit
   const { key, alt, runs, bg, seam } = o
   if (!Svg) {
+    const packed = o.packed === true && !palette.filled
     // On the desktop, in plain, text set in a proportional face: its
     // capitals are measured as they draw, so the row is fitted to them.
-    const said = runs.map(([text]) => (palette.filled ? text : `[${text}]`))
-    const width = kit.measure.text < 1 ? Math.ceil(said.reduce((n, t) => n + boardCells(t, kit.measure), 0) + runs.length - 1) : undefined
+    const said = packed ? [`[${runs.map(([text]) => text).join(' ')}]`] : runs.map(([text]) => (palette.filled ? text : `[${text}]`))
+    const width = kit.measure.text < 1 ? Math.ceil(said.reduce((n, t) => n + boardCells(t, kit.measure), 0) + said.length - 1) : undefined
     return (
       <Box key={key} flexDirection="row" columnGap={1} {...(width === undefined ? {} : { width })}>
-        {runs.map(([text, ink], i) =>
-          palette.filled
-            ? <Text key={String(i)} color={ink} backgroundColor={bg}>{text}</Text>
-            : <Text key={String(i)} color={palette.value}>{`[${text}]`}</Text>)}
+        {packed
+          ? <Text key="0" color={palette.value}>{said[0]}</Text>
+          : runs.map(([text, ink], i) =>
+              palette.filled
+                ? <Text key={String(i)} color={ink} backgroundColor={bg}>{text}</Text>
+                : <Text key={String(i)} color={palette.value}>{`[${text}]`}</Text>)}
       </Box>
     )
   }

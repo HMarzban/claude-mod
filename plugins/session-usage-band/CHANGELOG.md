@@ -5,6 +5,11 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.17.4] - 2026-10-20
+
+### Fixed
+- Departures' collapsed row fits at every width it draws in, in the plain appearance too. With all four readings amber below 80 columns, plain ran up to nine columns past the band's edge: `[CACHE][! 30S]  [CONTEXT][! 95%]  [5H][! 85%]  [7D][! 90%]` takes 65 columns where a 60-column terminal leaves 56, and filled's last step, dropping the modules' padding, gave plain nothing, since it has no ground. Plain now has a last step of its own: each reading is bracketed once and the readings sit a column apart, `[CACHE ! 30S] [CONTEXT ! 95%] [5H ! 85%] [7D ! 90%]`, each still led by its `!`. Wider rows read as before. The width tests now sweep every width from 60 to 200 in dark, light and plain, on both surfaces and glyph tiers, with or without the time zone.
+
 ## [0.17.3] - 2026-10-20
 
 ### Changed
