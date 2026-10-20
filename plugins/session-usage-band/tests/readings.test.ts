@@ -81,6 +81,13 @@ test('the cache facts carry its mood, tone, charge and price', () => {
   expect(r.spend.total).toBe(225_000)
 })
 
+test('a cache compacted while idle is its own mood: empty, calm, its estimate the next message\'s', () => {
+  const c = readingsOf(snapOf({ cache: { ...cacheAt(0), compacted: true } })).cache
+  expect([c.mood, c.charge, c.tone, c.estimateLabel]).toEqual(['compacted', 0, 'calm', 'next message'])
+  expect([c.value, c.figure, c.figureShort, c.heartAlt]).toEqual(['compacted', 'compacted · next ~$1.66', 'compacted ~$1.66', 'cache compacted'])
+  expect(readingsOf(snapOf({ cache: cacheAt(0) })).cache.mood).toBe('cold')
+})
+
 test('the cache speaks in words', () => {
   const c = readingsOf(snapOf()).cache
   expect(c.text).toBe('cache 52m left')

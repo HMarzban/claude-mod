@@ -194,8 +194,8 @@ const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement =
 
     const cacheCard = (): RenderElement => {
       // Inked by its mood: amber in its last minute, warm green while warm, a
-      // label's ink cold, the whole hour gone. Unmeasured or warming, its hour
-      // isn't known: no track, and its note says when it will be.
+      // label's ink cold or compacted, the whole hour gone. Unmeasured or
+      // warming, its hour isn't known: no track, and its note says when it will be.
       const ink = cache.tone === 'amber' ? palette.amberFg : cache.mood === 'warm' ? palette.warm : palette.label
       const chart = size === undefined || !f.charted.cache ? null : track(kit, { key: 'chart', alt: cache.alt, frac: 1 - cache.charge, color: ink, px, ...size, cells: inner })
       const unknown = cache.mood === 'unmeasured' || cache.mood === 'warming'

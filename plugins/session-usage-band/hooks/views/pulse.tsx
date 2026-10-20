@@ -31,7 +31,7 @@ const BEATS_PX = { 14: 84, 8: 48 } as const
 
 /** The heartbeat's state for the cache's mood. */
 const heartState = (read: Readings): 'still' | 'beat' | 'flat' | 'hollow' =>
-  read.cache.mood === 'cold' ? 'flat'
+  read.cache.mood === 'cold' || read.cache.mood === 'compacted' ? 'flat'
   : read.cache.mood === 'unmeasured' || read.cache.mood === 'warming' ? 'hollow'
   : read.cache.tone === 'amber' ? 'beat'
   : 'still'

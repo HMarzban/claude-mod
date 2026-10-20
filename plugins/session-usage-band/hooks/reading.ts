@@ -35,8 +35,10 @@ export type Tone = 'calm' | 'amber'
 
 type Cache = BandSnapshot['cache']
 
-/** Unmeasured: loaded mid-conversation, before its next reply. */
-type CacheMood = 'unmeasured' | 'warming' | 'warm' | 'expiring' | 'cold'
+/** Unmeasured: loaded mid-conversation, before its next reply. Compacted:
+ *  cold because Claude Code compacted the conversation while it sat idle, so
+ *  the next message writes the summary. */
+type CacheMood = 'unmeasured' | 'warming' | 'warm' | 'expiring' | 'cold' | 'compacted'
 
 const cacheMood = (c: Cache): CacheMood =>
   c.requests === 0 && !c.recalled
@@ -44,7 +46,9 @@ const cacheMood = (c: Cache): CacheMood =>
       ? 'warming'
       : 'unmeasured'
     : c.msLeft <= 0
-      ? 'cold'
+      ? c.compacted
+        ? 'compacted'
+        : 'cold'
       : c.msLeft <= SOON_MS
         ? 'expiring'
         : 'warm'
@@ -52,33 +56,11 @@ const cacheMood = (c: Cache): CacheMood =>
 /** The battery's charge: the share of the lifetime left, full while Claude
  *  works, empty when there is nothing to count. */
 const cacheCharge = (c: Cache, mood: CacheMood, isWorking: boolean): number =>
-  mood === 'unmeasured' || mood === 'warming' || mood === 'cold' ? 0 : mood === 'warm' && isWorking ? 1 : c.msLeft / TTL_MS[c.ttl]
+  mood === 'unmeasured' || mood === 'warming' || mood === 'cold' || mood === 'compacted' ? 0 : mood === 'warm' && isWorking ? 1 : c.msLeft / TTL_MS[c.ttl]
 
 /** What the next message costs to rebuild the cache: dollars when a rate is
  *  known, else the tokens it writes. */
 const reWarmEstimate = (c: Cache): string => (c.reWarmUsd !== null ? fmtEstimate(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`)
-
-// ---- the context ------------------------------------------------------------
-
-/** The context's fill, measured toward auto-compaction when it is known:
- *  full means compacting, and no tick is needed to show where. */
-const contextReading = (ctx: BandSnapshot['context']) => {
-  const used = contextUsed(ctx) ?? 0
-  const pressure = contextPressure(used, ctx.window, ctx.compactAt)
-  const frac = clamp01(pressure.frac)
-  const amber = frac >= (pressure.levels[0] ?? 1)
-  const nearCompact = ctx.compactAt !== undefined && amber
-  const tone: Tone = amber ? 'amber' : 'calm'
-  return {
-    known: ctx.percent !== undefined || ctx.tokens !== undefined,
-    used,
-    frac,
-    pct: fmtPct(frac),
-    toCompact: ctx.compactAt === undefined ? undefined : Math.max(0, ctx.compactAt - used),
-    nearCompact,
-    tone,
-  }
-}
 
 // ---- the limits -------------------------------------------------------------
 
@@ -115,9 +97,6 @@ export type CacheFacts = Readonly<{
    *  to cold, or for the 5-minute cache its last minute. The board draws the
    *  last minute by its amber tone first, as every layout does. */
   lastCall: boolean
-  /** Cold because Claude Code compacted the conversation while it sat idle:
-   *  the next message writes the summary. */
-  compacted: boolean
   /** Counting down on the hour's cache before the ~54-minute mark, where
    *  Claude Code may compact the conversation instead of letting it go cold. */
   idleCompactSoon: boolean
@@ -125,14 +104,27 @@ export type CacheFacts = Readonly<{
   /** The snapshot's own facts its words say, as it measured them. */
   Pick<Cache, 'recalled' | 'msLeft' | 'coldAt' | 'ttl' | 'ttlPinned' | 'window' | 'reWarmUsd' | 'savedUsd' | 'misses' | 'idleMs' | 'readShare'>
 
-export type ContextFacts = ReturnType<typeof contextReading> &
-  Readonly<{
-    /** The tokens in context, as the engine reported them; undefined when it didn't. */
-    tokens: number | undefined
-    compactAt: number | undefined
-    autoCompactOff: boolean
-    window: number
-  }>
+/** The context's fill, read alike whether or not it compacts. */
+type ContextFill = Readonly<{
+  known: boolean
+  used: number
+  frac: number
+  pct: string
+  tone: Tone
+  /** The tokens in context, as the engine reported them; undefined when it didn't. */
+  tokens: number | undefined
+  autoCompactOff: boolean
+  window: number
+}>
+
+/** The context toward auto-compaction, with the room left before it and
+ *  whether it is near; or, with compaction off or not reported yet, against
+ *  the window alone. */
+export type ContextFacts = ContextFill &
+  (
+    | Readonly<{ compactAt: number; toCompact: number; nearCompact: boolean }>
+    | Readonly<{ compactAt: undefined; toCompact: undefined; nearCompact: false }>
+  )
 
 export type SpendFacts = Readonly<{
   totalUsd: number
@@ -145,30 +137,49 @@ export type SpendFacts = Readonly<{
 
 export type LimitKey = '5h' | '7d' | 'other'
 
-export type LimitFacts = Readonly<{
+/** What a window says whether or not it has passed. */
+type LimitBase = Readonly<{
   name: string
   key: LimitKey
   percentUsed: number
   frac: number
-  tone: Tone
   /** `82%`, with no severity mark: chips adds its own. */
   value: string
-  etaMs: number | null
   reset: ResetIn | undefined
-  passed: boolean
   gone: number | undefined
-  /** 100 when a 5h fill is measured; else the average's landing, once 5% of
-   *  the window has gone and any of it is used. */
-  projectedPct: number | undefined
-  /** Time to the reset; undefined once it has passed. */
-  resetInMs: number | undefined
-  /** Time to full before the reset: a measured fill, else the average's,
-   *  once it lands at 100% or more; undefined while it lands short. */
-  fillInMs: number | undefined
-  /** `fillInMs` while there is something left to fill: undefined once
-   *  passed, or full. */
-  fullInMs: number | undefined
 }>
+
+/** A window still to reset: its tone, its pace and when it fills. */
+export type LiveLimit = LimitBase &
+  Readonly<{
+    passed: false
+    tone: Tone
+    etaMs: number | null
+    /** 100 when a 5h fill is measured; else the average's landing, once 5% of
+     *  the window has gone and any of it is used. */
+    projectedPct: number | undefined
+    /** Time to the reset. */
+    resetInMs: number | undefined
+    /** Time to full before the reset: a measured fill, else the average's,
+     *  once it lands at 100% or more; undefined while it lands short. */
+    fillInMs: number | undefined
+    /** `fillInMs` while there is something left to fill: undefined once full. */
+    fullInMs: number | undefined
+  }>
+
+/** A window whose reset has passed: calm, with no pace, reset or fill to say. */
+export type PassedLimit = LimitBase &
+  Readonly<{
+    passed: true
+    tone: 'calm'
+    etaMs: null
+    projectedPct: undefined
+    resetInMs: undefined
+    fillInMs: undefined
+    fullInMs: undefined
+  }>
+
+export type LimitFacts = LiveLimit | PassedLimit
 
 // What the views read: each section's facts, and its words beside them.
 type CacheReading = CacheFacts & CacheWords
@@ -269,7 +280,6 @@ const cacheFacts = (snap: BandSnapshot): CacheFacts => {
     // A 5-minute cache is always under ten minutes from cold, so its last
     // call is its last minute, when chips turns amber too.
     lastCall: counting && (c.ttl === '5m' ? mood === 'expiring' : c.msLeft < LAST_CALL_MS),
-    compacted: mood === 'cold' && c.compacted,
     idleCompactSoon: counting && c.idleCompacts && c.ttl === '1h' && c.msLeft > TTL_MS['1h'] - IDLE_COMPACT_MS,
     recalled: c.recalled,
     msLeft: c.msLeft,
@@ -285,16 +295,28 @@ const cacheFacts = (snap: BandSnapshot): CacheFacts => {
   }
 }
 
-/** The context's fill, with the compaction point and the model window it is read against. */
+/** The context's fill, measured toward auto-compaction when it is known:
+ *  full means compacting, and no tick is needed to show where. Else it is
+ *  measured against the model window. */
 const contextFacts = (snap: BandSnapshot): ContextFacts => {
-  const reading = contextReading(snap.context)
-  return {
-    ...reading,
-    tokens: snap.context.tokens,
-    compactAt: snap.context.compactAt,
-    autoCompactOff: snap.context.autoCompactOff,
-    window: snap.context.window,
+  const ctx = snap.context
+  const used = contextUsed(ctx) ?? 0
+  const pressure = contextPressure(used, ctx.window, ctx.compactAt)
+  const frac = clamp01(pressure.frac)
+  const amber = frac >= (pressure.levels[0] ?? 1)
+  const fill: ContextFill = {
+    known: ctx.percent !== undefined || ctx.tokens !== undefined,
+    used,
+    frac,
+    pct: fmtPct(frac),
+    tone: amber ? 'amber' : 'calm',
+    tokens: ctx.tokens,
+    autoCompactOff: ctx.autoCompactOff,
+    window: ctx.window,
   }
+  return ctx.compactAt === undefined
+    ? { ...fill, compactAt: undefined, toCompact: undefined, nearCompact: false }
+    : { ...fill, compactAt: ctx.compactAt, toCompact: Math.max(0, ctx.compactAt - used), nearCompact: amber }
 }
 
 /** The session's cost and its tokens: sent, back, read from cache, and their total. */
@@ -307,10 +329,13 @@ const spendFacts = (snap: BandSnapshot): SpendFacts => {
 const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
   const one = (name: string, key: LimitKey, reading: LimitReading, windowMs: number | undefined, etaMs: number | null): LimitFacts => {
     const reset = resetIn(reading.resetsAt, snap.now)
-    const passed = reset?.kind === 'passed'
     const frac = clamp01(reading.percentUsed / 100)
     const at = Date.parse(reading.resetsAt ?? '')
     const gone = windowGone(at, windowMs, snap.now)
+    const base: LimitBase = { name, key, reset, gone, percentUsed: reading.percentUsed, frac, value: `${Math.round(reading.percentUsed)}%` }
+    // Passed, the window that reset has no pace, reset or fill to say.
+    if (reset?.kind === 'passed')
+      return { ...base, passed: true, tone: 'calm', etaMs: null, projectedPct: undefined, resetInMs: undefined, fillInMs: undefined, fullInMs: undefined }
     // A measured fill lands it at 100, so the words and the amber agree; else
     // the average's landing, once 5% of the window has gone and any of it is
     // used: with none, the window may not have begun.
@@ -323,19 +348,13 @@ const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
         : (Math.max(0, 100 - reading.percentUsed) / reading.percentUsed) * gone * windowMs
     const fillInMs = etaMs ?? averageFill
     // A full window has nothing left to fill: it says its percent, and its reset.
-    const fullInMs = passed || reading.percentUsed >= 100 ? undefined : fillInMs
+    const fullInMs = reading.percentUsed >= 100 ? undefined : fillInMs
     return {
-      name,
-      key,
+      ...base,
+      passed: false,
       etaMs,
-      reset,
-      gone,
-      percentUsed: reading.percentUsed,
-      frac,
       // etaMs is set only for a measured fill that comes before the reset.
-      tone: !passed && (frac >= WARN_AT || etaMs !== null) ? 'amber' : 'calm',
-      value: `${Math.round(reading.percentUsed)}%`,
-      passed,
+      tone: frac >= WARN_AT || etaMs !== null ? 'amber' : 'calm',
       projectedPct,
       resetInMs: reset?.kind === 'in' ? at - snap.now : undefined,
       fillInMs,
