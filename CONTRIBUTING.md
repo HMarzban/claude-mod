@@ -132,6 +132,13 @@ Run `/reload-plugins` in your session afterwards.
   row instead.
 - **A Button holds text alone.** It has no icon prop and no children but its
   label, so a button's icon is a glyph.
+- **Every program the band runs is named in full where it runs.** Each
+  `$.process.run` call spells out its command as a fixed list, never an
+  argv handed through a helper, so a reader and the plugin directory's checks
+  see the program at its call. A new command, or a new hook, goes in the
+  plugin README's *What it runs, reads and sends* and in `SECURITY.md` in the
+  same pull request: the directory holds a mod for review until its README
+  says what it runs and what each hook does.
 - **Atoms are declared in `register.tsx`.** They are the band's state in the
   engine's store, and they belong with the hooks that read and write them.
 - **Colour is never the only signal.** Escalation also adds words or
@@ -191,7 +198,9 @@ subject says what changed. The body, when there is one, says why.
 1. Bump `version` in `plugins/nextcost/.claude-plugin/plugin.json`,
    following [Semantic Versioning](https://semver.org/).
 2. Add an entry to `plugins/nextcost/CHANGELOG.md`.
-3. Update the plugin's README if the band reads differently.
+3. Update the plugin's README if the band reads differently, and its *What
+   it runs, reads and sends* and `SECURITY.md` if it runs, reads or hooks
+   anything new.
 4. Make sure validate, test, the type check and the views gate all pass.
 
 After merge, the maintainer tags the release with
