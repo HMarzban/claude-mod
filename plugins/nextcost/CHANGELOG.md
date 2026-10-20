@@ -5,6 +5,15 @@ Every notable change to session-usage-band. The format follows
 follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a minor
 version may change how the band reads.
 
+## [0.18.1] - 2026-10-20
+
+### Added
+- An icon, the site's amber trace on its dark ground, for the plugin's listing.
+- The README says what nextcost runs, reads and sends, and what each of its hooks does: four read-only commands (two of git's, and `tail` and `grep` on a resumed session's own transcript), nothing sent anywhere.
+
+### Changed
+- Each command the band runs is named in full where it runs it, so a reader, or a directory's checks, sees every program at its call. Nothing the band runs or draws changes.
+
 ## [0.18.0] - 2026-10-20
 
 ### Changed

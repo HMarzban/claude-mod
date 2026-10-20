@@ -83,7 +83,7 @@ import {
 import type { Sample } from './memory'
 import { DEFAULT_LAYOUT } from './snapshot'
 import type { Glyphs, LayoutName, LimitReading } from './snapshot'
-import { GIT_DIRS_ARGV, GIT_STATUS_ARGV, homeRelative, parseGitState, splitPath } from './workspace'
+import { homeRelative, parseGitState, splitPath } from './workspace'
 import type { Workspace } from './workspace'
 
 const isHidden = atom({ plugin: 'nextcost', key: 'isHidden' } as const, false)
@@ -98,9 +98,10 @@ const TAIL_BYTES = 1024 * 1024
  *  short enough that a hung command never holds a read open for long. */
 const PROCESS_TIMEOUT_MS = 3000
 
-/** Runs `argv`, in `cwd` when given; undefined where it can't run or times out. */
-const runProcess = ($: EngineInterface, argv: readonly string[], cwd?: string): Promise<ProcessRunResult | undefined> =>
-  $.process.run(argv, { cwd, timeoutMs: PROCESS_TIMEOUT_MS }).catch(() => undefined)
+/** A program's run, or undefined where it couldn't run or timed out. Each
+ *  call names its whole command as fixed text, so a reader (and the
+ *  directory's checks) sees every program the band runs where it runs it. */
+const settled = (run: Promise<ProcessRunResult>): Promise<ProcessRunResult | undefined> => run.catch(() => undefined)
 
 /** A conversation the engine said it resumed: its session, when the engine
  *  said so, what it said of its cache, where its transcript is, and once
@@ -188,7 +189,7 @@ const readWhole = async ($: EngineInterface, path: string): Promise<string | und
  *  megabyte by `tail`, whatever its size; failing that, the whole file if it
  *  is small enough to read. */
 const transcriptEnd = async ($: EngineInterface, path: string): Promise<string | undefined> => {
-  const tail = await runProcess($, ['tail', '-c', String(TAIL_BYTES), path])
+  const tail = await settled($.process.run(['tail', '-c', String(TAIL_BYTES), path], { timeoutMs: PROCESS_TIMEOUT_MS }))
   return tail?.exitCode === 0 ? tail.stdout : readWhole($, path)
 }
 
@@ -200,7 +201,7 @@ const transcriptEnd = async ($: EngineInterface, path: string): Promise<string |
 const spendBefore = async ($: EngineInterface, path: string, sessionId: string, before: number): Promise<Spend | undefined> => {
   // `-a`: a line cut mid-character would otherwise make the file binary to
   // grep, which then prints no lines and still exits 0.
-  const found = await runProcess($, ['grep', '-a', '-b', '-F', COST_RECORD, path])
+  const found = await settled($.process.run(['grep', '-a', '-b', '-F', COST_RECORD, path], { timeoutMs: PROCESS_TIMEOUT_MS }))
   // grep exits 1 when nothing matches, 2 when it fails.
   if (found?.exitCode === 1) return undefined
   if (found?.exitCode !== 0) {
@@ -209,7 +210,7 @@ const spendBefore = async ($: EngineInterface, path: string, sessionId: string, 
   }
   const record = found.isStdoutTruncated ? undefined : sessionCostRecord(found.stdout, sessionId)
   if (record === undefined) return undefined
-  const rest = await runProcess($, ['tail', '-c', `+${record.offset + 1}`, path])
+  const rest = await settled($.process.run(['tail', '-c', `+${record.offset + 1}`, path], { timeoutMs: PROCESS_TIMEOUT_MS }))
   // Replies past what one read holds are left out rather than half-read; the record still counts.
   const tail = rest?.exitCode === 0 && !rest.isStdoutTruncated ? rest.stdout : ''
   // The record is grep's own line and the replies follow its end, so a grep
@@ -328,13 +329,17 @@ const readWorkspace = async ($: EngineInterface): Promise<void> => {
   try {
     const root = await $.session.root()
     const home = await $.env.get('HOME')
-    const run = async (argv: readonly string[]): Promise<string | undefined> => {
-      const r = await runProcess($, argv, root)
+    const stdoutOf = async (run: Promise<ProcessRunResult>): Promise<string | undefined> => {
+      const r = await settled(run)
       return r?.exitCode === 0 ? r.stdout : undefined
     }
     const [status, dirs, repo] = await Promise.all([
-      run(GIT_STATUS_ARGV),
-      run(GIT_DIRS_ARGV),
+      // Status without the index lock, so the band never blocks a commit,
+      // and without a repository's own fsmonitor, a program its config could
+      // name. Untracked files follow the user's own setting.
+      stdoutOf($.process.run(['git', '-c', 'core.fsmonitor=false', '--no-optional-locks', 'status', '--porcelain=v2', '--branch'], { cwd: root, timeoutMs: PROCESS_TIMEOUT_MS })),
+      // Three lines: git-dir, common-dir, toplevel.
+      stdoutOf($.process.run(['git', 'rev-parse', '--path-format=absolute', '--git-dir', '--git-common-dir', '--show-toplevel'], { cwd: root, timeoutMs: PROCESS_TIMEOUT_MS })),
       $.session.repo().catch(() => null),
     ])
     if (mine !== band.reads) return

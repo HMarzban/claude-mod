@@ -2,8 +2,6 @@
 
 import { test, expect } from 'claude-code/testing'
 import {
-  GIT_DIRS_ARGV,
-  GIT_STATUS_ARGV,
   gitSummary,
   homeRelative,
   parseGitState,
@@ -30,11 +28,6 @@ const state = (over: Partial<GitState> = {}): GitState => ({
   ahead: undefined,
   behind: undefined,
   ...over,
-})
-
-test("the commands are fixed argv: status never takes the index lock, never runs a repo's fsmonitor, and keeps the user's untracked setting", () => {
-  expect(GIT_STATUS_ARGV).toEqual(['git', '-c', 'core.fsmonitor=false', '--no-optional-locks', 'status', '--porcelain=v2', '--branch'])
-  expect(GIT_DIRS_ARGV).toEqual(['git', 'rev-parse', '--path-format=absolute', '--git-dir', '--git-common-dir', '--show-toplevel'])
 })
 
 test('a clean branch in sync with its upstream', () => {
