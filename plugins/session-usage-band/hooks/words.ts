@@ -461,32 +461,30 @@ export const spendWords = (f: SpendFacts): SpendWords => {
 /** The tokens by kind as chips' hover says them: `input 41k · output 12k · cache reads 155k`. */
 export const tokenBreakdownOf = (split: readonly SpendSplit[]): string => split.map(s => `${s.label} ${s.text}`).join(' · ')
 
-/** A limit window in words; once it has passed, only that it reset. */
+/** A limit window in words; once it has passed, only that it reset: its
+ *  facts carry no pace, reset or fill to say. */
 export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   const zone = frame.zone
   // The time to the reset, while one is to come.
   const span = f.reset?.kind === 'in' ? f.reset.text : undefined
-  const live = !f.passed
-  const projected = live ? f.projectedPct : undefined
+  const projected = f.projectedPct
   const fills = projected !== undefined && fillsBeforeReset(projected)
   const lands = projected !== undefined && !fills
   const landing = lands ? `about ${Math.round(projected)} percent at its reset` : undefined
-  const etaMs = live ? f.etaMs : null
-  const fullIn = etaMs !== null ? fmtEta(etaMs) : undefined
-  const valueText = live ? f.value : 'reset'
+  const fullIn = f.etaMs !== null ? fmtEta(f.etaMs) : undefined
+  const valueText = f.passed ? 'reset' : f.value
   const say: Say = [[`${f.name} `, 'label'], [valueText, 'value']]
   const resetAt = f.resetInMs === undefined ? undefined : frame.now + f.resetInMs
   const resetClock = resetAt !== undefined && zone !== undefined ? fmtDayClock(resetAt, zone, frame.now) : undefined
-  const pace = live ? paceText(f) : ''
+  const pace = paceText(f)
   const resetIn = span === undefined ? undefined : `in ${span}`
   const resetWhen = resetClock ?? resetIn
-  const fillInMs = live ? f.fillInMs : undefined
   // A day's window says the fill's day; a shorter one its clock too, as its reset does.
   const fillDay = f.key === '7d' ? fmtDay : fmtDayClock
-  const fillAt = fillInMs === undefined ? undefined : zone !== undefined ? `~${fillDay(frame.now + fillInMs, zone, frame.now)}` : `in ${fmtEta(fillInMs)}`
+  const fillAt = f.fillInMs === undefined ? undefined : zone !== undefined ? `~${fillDay(frame.now + f.fillInMs, zone, frame.now)}` : `in ${fmtEta(f.fillInMs)}`
   const amber = f.tone !== 'amber' ? undefined : fullIn !== undefined ? AMBER.limitPace(f.name, fullIn) : AMBER.limit(f.name, f.percentUsed)
   const fact: Fact =
-    !live ? { label: f.name, value: valueText }
+    f.passed ? { label: f.name, value: valueText }
     : amber !== undefined && fullIn !== undefined ? { label: `${f.name} full in`, value: fullIn }
     : resetWhen !== undefined ? { label: `${f.name} resets`, value: resetWhen }
     : { label: f.name, value: pace === '' ? valueText : pace }
@@ -506,10 +504,10 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
     fact,
     alt: altOf(
       `${f.name} limit`,
-      live ? `${Math.round(f.percentUsed)} percent used` : 'reset',
+      f.passed ? 'reset' : `${Math.round(f.percentUsed)} percent used`,
       f.tone === 'amber' ? 'needs attention' : 'fine',
-      etaMs !== null
-        ? `full in ${fmtEtaSpoken(etaMs)}`
+      f.etaMs !== null
+        ? `full in ${fmtEtaSpoken(f.etaMs)}`
         : fills
           ? 'full before its reset'
           : landing,

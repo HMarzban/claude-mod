@@ -137,30 +137,49 @@ export type SpendFacts = Readonly<{
 
 export type LimitKey = '5h' | '7d' | 'other'
 
-export type LimitFacts = Readonly<{
+/** What a window says whether or not it has passed. */
+type LimitBase = Readonly<{
   name: string
   key: LimitKey
   percentUsed: number
   frac: number
-  tone: Tone
   /** `82%`, with no severity mark: chips adds its own. */
   value: string
-  etaMs: number | null
   reset: ResetIn | undefined
-  passed: boolean
   gone: number | undefined
-  /** 100 when a 5h fill is measured; else the average's landing, once 5% of
-   *  the window has gone and any of it is used. */
-  projectedPct: number | undefined
-  /** Time to the reset; undefined once it has passed. */
-  resetInMs: number | undefined
-  /** Time to full before the reset: a measured fill, else the average's,
-   *  once it lands at 100% or more; undefined while it lands short. */
-  fillInMs: number | undefined
-  /** `fillInMs` while there is something left to fill: undefined once
-   *  passed, or full. */
-  fullInMs: number | undefined
 }>
+
+/** A window still to reset: its tone, its pace and when it fills. */
+export type LiveLimit = LimitBase &
+  Readonly<{
+    passed: false
+    tone: Tone
+    etaMs: number | null
+    /** 100 when a 5h fill is measured; else the average's landing, once 5% of
+     *  the window has gone and any of it is used. */
+    projectedPct: number | undefined
+    /** Time to the reset. */
+    resetInMs: number | undefined
+    /** Time to full before the reset: a measured fill, else the average's,
+     *  once it lands at 100% or more; undefined while it lands short. */
+    fillInMs: number | undefined
+    /** `fillInMs` while there is something left to fill: undefined once full. */
+    fullInMs: number | undefined
+  }>
+
+/** A window whose reset has passed: calm, with no pace, reset or fill to say. */
+export type PassedLimit = LimitBase &
+  Readonly<{
+    passed: true
+    tone: 'calm'
+    etaMs: null
+    projectedPct: undefined
+    resetInMs: undefined
+    fillInMs: undefined
+    fullInMs: undefined
+  }>
+
+export type LimitFacts = LiveLimit | PassedLimit
 
 // What the views read: each section's facts, and its words beside them.
 type CacheReading = CacheFacts & CacheWords
@@ -310,10 +329,13 @@ const spendFacts = (snap: BandSnapshot): SpendFacts => {
 const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
   const one = (name: string, key: LimitKey, reading: LimitReading, windowMs: number | undefined, etaMs: number | null): LimitFacts => {
     const reset = resetIn(reading.resetsAt, snap.now)
-    const passed = reset?.kind === 'passed'
     const frac = clamp01(reading.percentUsed / 100)
     const at = Date.parse(reading.resetsAt ?? '')
     const gone = windowGone(at, windowMs, snap.now)
+    const base: LimitBase = { name, key, reset, gone, percentUsed: reading.percentUsed, frac, value: `${Math.round(reading.percentUsed)}%` }
+    // Passed, the window that reset has no pace, reset or fill to say.
+    if (reset?.kind === 'passed')
+      return { ...base, passed: true, tone: 'calm', etaMs: null, projectedPct: undefined, resetInMs: undefined, fillInMs: undefined, fullInMs: undefined }
     // A measured fill lands it at 100, so the words and the amber agree; else
     // the average's landing, once 5% of the window has gone and any of it is
     // used: with none, the window may not have begun.
@@ -326,19 +348,13 @@ const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
         : (Math.max(0, 100 - reading.percentUsed) / reading.percentUsed) * gone * windowMs
     const fillInMs = etaMs ?? averageFill
     // A full window has nothing left to fill: it says its percent, and its reset.
-    const fullInMs = passed || reading.percentUsed >= 100 ? undefined : fillInMs
+    const fullInMs = reading.percentUsed >= 100 ? undefined : fillInMs
     return {
-      name,
-      key,
+      ...base,
+      passed: false,
       etaMs,
-      reset,
-      gone,
-      percentUsed: reading.percentUsed,
-      frac,
       // etaMs is set only for a measured fill that comes before the reset.
-      tone: !passed && (frac >= WARN_AT || etaMs !== null) ? 'amber' : 'calm',
-      value: `${Math.round(reading.percentUsed)}%`,
-      passed,
+      tone: frac >= WARN_AT || etaMs !== null ? 'amber' : 'calm',
       projectedPct,
       resetInMs: reset?.kind === 'in' ? at - snap.now : undefined,
       fillInMs,
