@@ -405,7 +405,7 @@ it, each given 3 seconds, and never while the band draws:
 
 | Command | Where | Why |
 | --- | --- | --- |
-| `git -c core.fsmonitor=false --no-optional-locks status --porcelain=v2 --branch` | the session's project folder | the workspace line: branch, changes, ahead and behind. It never takes git's index lock or runs a repository's own fsmonitor. |
+| `git -c core.fsmonitor=false --no-optional-locks status --porcelain=v2 --branch` | the session's project folder | the workspace line: branch, changes, ahead and behind. It never takes git's index lock. `-c core.fsmonitor=false` is git's own option for setting one value for this run: it stops a repository's config from making git start its fsmonitor program. It starts no shell. |
 | `git rev-parse --path-format=absolute --git-dir --git-common-dir --show-toplevel` | the same | whether the folder is a linked worktree, and of which repository |
 | `tail -c 1048576 <transcript>` | that session's own transcript under `~/.claude/projects` | only when a conversation is resumed or reopened: when its last reply was, so the cache countdown starts from it |
 | `grep -a -b -F '"type":"cost-state"' <transcript>`, then `tail -c +<offset> <transcript>` | the same | only then too: what the conversation spent before this process, so the session's cost includes it |
