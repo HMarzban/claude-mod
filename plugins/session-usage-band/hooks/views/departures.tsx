@@ -19,8 +19,9 @@ import type { View } from './view'
  *  remark, SPEND, CONTEXT, then 5H itself, so the narrowest row is CACHE and
  *  7D alone, then the short forms. An amber reading keeps its whole cell,
  *  RESET too, until the amber step. Past it, last of all, the modules drop
- *  their padding, keeping their ground: four amber readings at 60 columns.
- *  CACHE and 7D never go. */
+ *  their padding, keeping their ground; plain, which has none, brackets each
+ *  reading once and sets them a column apart: four amber readings at 60
+ *  columns in every palette. CACHE and 7D never go. */
 const ORDER = ['reset5h', 'reset7d', 'remark5h', 'remark7d', 'spend', 'context', 'five', 'long', 'amberShort', 'padding'] as const
 type Piece = (typeof ORDER)[number]
 
@@ -34,7 +35,7 @@ const moduleOf = (kit: Kit, k: Keeps<Piece>, row: BoardRow, cell: string): Rende
   const ground = palette.filled ? { backgroundColor: palette.boardBg, ...(k.has('padding') ? { paddingX: 1 } : {}) } : {}
   return (
     <Box key={row.key} flexShrink={0} {...ground}>
-      {flaps(kit, { key: 'flaps', alt: row.alt, runs: [[row.item, palette[ITEM_INK[row.key]]], [cell, ink]], bg: palette.flapBg, seam: palette.flapSeam })}
+      {flaps(kit, { key: 'flaps', alt: row.alt, runs: [[row.item, palette[ITEM_INK[row.key]]], [cell, ink]], bg: palette.flapBg, seam: palette.flapSeam, packed: !k.has('padding') })}
     </Box>
   )
 }
@@ -66,8 +67,9 @@ const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderEleme
   fitLine(kit, ORDER, kit.columns - ROW_SLACK, k => {
     const modules = read.board.rows.filter(r => keeps(r, k)).flatMap((r, i) => [moduleOf(kit, k, r, cellOf(r, k)), 
       // The band's own background between modules, and after the last, before
-      // ▵: a column where modules have their ground, two in plain, which has none.
-      kit.air(`air${i}`, kit.palette.filled ? 1 : 2),
+      // ▵: a column where modules have their ground; in plain, which has none,
+      // two until its last step.
+      kit.air(`air${i}`, kit.palette.filled || !k.has('padding') ? 1 : 2),
     ])
     return line(kit, 'row', modules, toggle, 0)
   })

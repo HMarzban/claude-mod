@@ -3,8 +3,9 @@
 // ITEM in its own ink and then its cell, white or amber; the band's own
 // background between modules, a real space on a text surface. Plain draws no
 // ground and sets them two columns apart. As the row narrows, the give-way
-// is the one it always was, the padding going last of all, and nothing
-// overflows.
+// is the one it always was, the padding going last of all (in plain, its
+// second column of air and the brackets between a reading's runs), and
+// nothing overflows at any width the board draws in.
 
 import type { RenderChildren } from 'claude-code'
 import { test, expect } from 'claude-code/testing'
@@ -205,19 +206,19 @@ const STATES: ReadonlyArray<readonly [string, Partial<BandSnapshot>]> = [
   ['two amber', { ...EXPIRING, ...NEAR }],
   ['limits amber', { fiveHour: { ...at(88, 3), etaMs: null }, sevenDay: at(85, 67) }],
   ['all amber', { ...EXPIRING, ...NEAR, fiveHour: { ...at(88, 3), etaMs: null }, sevenDay: at(85, 67) }],
+  ['all amber, filling', { ...EXPIRING, ...NEAR, fiveHour: { ...at(88, 3), etaMs: 20 * 60_000 }, sevenDay: at(85, 67) }],
+  ['all amber, no zone', { ...EXPIRING, ...NEAR, fiveHour: { ...at(88, 3), etaMs: null }, sevenDay: at(85, 67), zone: undefined }],
+  ['all amber, compaction off', { ...EXPIRING, context: { tokens: 180_000, window: 200_000, percent: 90, compactAt: undefined, autoCompactOff: true }, fiveHour: { ...at(88, 3), etaMs: null }, sevenDay: at(85, 67) }],
+  ['calm, a large spend', { costUsd: 1234.56 }],
+  ['all amber, other limits', { ...EXPIRING, ...NEAR, fiveHour: { ...at(88, 3), etaMs: null }, sevenDay: at(85, 67), otherLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: undefined }] }],
 ]
-/** Plain's brackets can't seat four amber readings below 80: `[CACHE]
- *  [! 40S]` and the rest take 56 columns before the air between them, as
- *  they did before the modules. Filled seats them at 60 once its modules
- *  have dropped their padding, last of all. */
-const seats = (name: string, filled: boolean): boolean => filled || name !== 'all amber'
 
-test('no overflow from 200 columns to 60: every state, both surfaces, dark and plain, unicode and ascii; ▵ at the end', LONG, () => {
+test('no overflow from 200 columns to 60: every state, both surfaces, every palette, unicode and ascii; ▵ at the end', LONG, () => {
   for (const [name, over] of STATES)
     for (const surface of ['desktop', 'terminal'] as const)
-      for (const palette of [DARK, PLAIN])
+      for (const palette of [DARK, LIGHT, PLAIN])
         for (const glyphs of surface === 'terminal' ? (['unicode', 'ascii'] as const) : (['unicode'] as const))
-          for (const columns of WIDTHS.filter(c => c >= 80 || seats(name, palette.filled))) {
+          for (const columns of WIDTHS) {
             const row = rowOf({ surface, palette, glyphs, columns, ...over })
             const cells = cellsOf(row as unknown as RenderChildren, surface === 'desktop' ? DESKTOP : TERMINAL)
             const said = `${name} ${surface} ${palette.filled ? 'filled' : 'plain'} ${glyphs} ${columns}`
@@ -226,6 +227,18 @@ test('no overflow from 200 columns to 60: every state, both surfaces, dark and p
             expect(`${said} ${cells <= (surface === 'terminal' ? columns - ROW_SLACK : columns)}`).toBe(`${said} true`)
             expect(`${said} ${byKey(row, 'more', 'Button') !== undefined}`).toBe(`${said} true`)
           }
+})
+test("plain's last step: four amber readings at 60 each bracketed once, a column apart and led by its !, where wider each run has its own", () => {
+  const all = Object.fromEntries(STATES)['all amber'] as Partial<BandSnapshot>
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const m = surface === 'desktop' ? DESKTOP : TERMINAL
+    const narrow = rowOf({ surface, palette: PLAIN, columns: 60, ...all })
+    expect(KEYS.map(k => moduleOf(narrow, k) === undefined ? '-' : drawnText(moduleOf(narrow, k)))).toEqual(['[CACHE ! 40S]', '-', '[CONTEXT ! 93%]', '[5H ! 88%]', '[7D ! 85%]'])
+    for (const air of piecesOf(narrow).filter(p => !isModule(p))) expect(cellsOf(air as unknown as RenderChildren, m)).toBe(1)
+    const wide = rowOf({ surface, palette: PLAIN, columns: 200, ...all })
+    expect(drawnText(moduleOf(wide, 'cache'))).toMatch(/^\[CACHE\]\[/)
+    for (const air of piecesOf(wide).filter(p => !isModule(p))) expect(cellsOf(air as unknown as RenderChildren, m)).toBeGreaterThanOrEqual(2)
+  }
 })
 test('four amber readings at 60 on the desktop: past the amber step the modules drop their padding, keeping their ground, and the row fits', () => {
   const all = Object.fromEntries(STATES)['all amber'] as Partial<BandSnapshot>
