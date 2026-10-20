@@ -26,7 +26,6 @@ import {
   minutesLeft,
   secondsLeft,
   severityMark,
-  WARN_AT,
 } from './format'
 import { warmAverageOf } from './insights'
 import type { CostEntry, Trails } from './insights'
@@ -722,8 +721,9 @@ const limitBoard = (r: BoardFacts, l: LimitFacts & LimitWords): BoardRow => {
   // Passed, its value is that it reset: RESET PASSED says it once, and the short forms the value.
   if (l.passed) return { key: l.key, item, status: l.valueText, time: 'PASSED', remarks: '', cell: `${BOARD_RESET} PASSED`, cellShort: l.valueText, cellNoReset: l.valueText, tone: l.tone, alt: l.alt }
   const time = l.resetInMs === undefined ? undefined : zone === undefined ? `IN ${boardSpan(l.resetInMs)}` : fmtDayClock(now + l.resetInMs, zone, now)
-  // Amber from the pace, not from crossing the warning line: say when it fills.
-  const byPace = l.key === '5h' && l.tone === 'amber' && l.etaMs !== null && l.percentUsed < WARN_AT * 100
+  // A measured fill says when it fills, past the warning line too, as every
+  // layout's amber words do; amber without one, that it is near.
+  const byPace = l.key === '5h' && l.tone === 'amber' && l.etaMs !== null
   const amber = l.tone !== 'amber' ? undefined : byPace && l.etaMs !== null ? `${AMBER_LEAD}${zone === undefined ? `FULL IN ${boardEta(l.etaMs)}` : `FULL ~${fmtClock(now + l.etaMs, zone)}`}` : `${AMBER_LEAD}NEAR LIMIT`
   const calm = l.fillText ?? l.pace
   const tail = (amber ?? calm) === '' ? '' : ` ${amber ?? calm}`

@@ -62,6 +62,16 @@ test('a 5h pace that fills says when, by clock or, with no zone, by countdown', 
   expect(row(pace, '5h')?.cell).toMatch(/! FULL ~\d\d:\d\d$/)
   expect(row({ ...pace, zone: undefined }, '5h')?.cell).toMatch(/! FULL IN ~40 MIN$/)
 })
+test('a 5h past 80% with a measured fill says when, as every layout does; without one, that it is near', () => {
+  const pace = { fiveHour: { ...limit(84, 3), etaMs: 40 * MIN } }
+  for (const zone of [UTC, undefined]) {
+    const r = row({ ...pace, zone }, '5h')
+    expect(r?.status).toMatch(/^! FULL (~\d\d:\d\d|IN ~40 MIN)$/)
+    expect(r?.remarks).toBe('84%')
+    expect(r?.cellShort).toBe('! 84%')
+  }
+  expect(row({ fiveHour: limit(84, 3) }, '5h')?.status).toBe('! NEAR LIMIT')
+})
 test('a 5h amber from its pace says the fill once: STATUS has it, REMARKS keeps the value alone', () => {
   const pace = { fiveHour: { ...limit(20, 3), etaMs: 40 * MIN } }
   for (const zone of [UTC, undefined]) {
