@@ -35,8 +35,10 @@ export type Tone = 'calm' | 'amber'
 
 type Cache = BandSnapshot['cache']
 
-/** Unmeasured: loaded mid-conversation, before its next reply. */
-type CacheMood = 'unmeasured' | 'warming' | 'warm' | 'expiring' | 'cold'
+/** Unmeasured: loaded mid-conversation, before its next reply. Compacted:
+ *  cold because Claude Code compacted the conversation while it sat idle, so
+ *  the next message writes the summary. */
+type CacheMood = 'unmeasured' | 'warming' | 'warm' | 'expiring' | 'cold' | 'compacted'
 
 const cacheMood = (c: Cache): CacheMood =>
   c.requests === 0 && !c.recalled
@@ -44,7 +46,9 @@ const cacheMood = (c: Cache): CacheMood =>
       ? 'warming'
       : 'unmeasured'
     : c.msLeft <= 0
-      ? 'cold'
+      ? c.compacted
+        ? 'compacted'
+        : 'cold'
       : c.msLeft <= SOON_MS
         ? 'expiring'
         : 'warm'
@@ -52,7 +56,7 @@ const cacheMood = (c: Cache): CacheMood =>
 /** The battery's charge: the share of the lifetime left, full while Claude
  *  works, empty when there is nothing to count. */
 const cacheCharge = (c: Cache, mood: CacheMood, isWorking: boolean): number =>
-  mood === 'unmeasured' || mood === 'warming' || mood === 'cold' ? 0 : mood === 'warm' && isWorking ? 1 : c.msLeft / TTL_MS[c.ttl]
+  mood === 'unmeasured' || mood === 'warming' || mood === 'cold' || mood === 'compacted' ? 0 : mood === 'warm' && isWorking ? 1 : c.msLeft / TTL_MS[c.ttl]
 
 /** What the next message costs to rebuild the cache: dollars when a rate is
  *  known, else the tokens it writes. */
@@ -115,9 +119,6 @@ export type CacheFacts = Readonly<{
    *  to cold, or for the 5-minute cache its last minute. The board draws the
    *  last minute by its amber tone first, as every layout does. */
   lastCall: boolean
-  /** Cold because Claude Code compacted the conversation while it sat idle:
-   *  the next message writes the summary. */
-  compacted: boolean
   /** Counting down on the hour's cache before the ~54-minute mark, where
    *  Claude Code may compact the conversation instead of letting it go cold. */
   idleCompactSoon: boolean
@@ -269,7 +270,6 @@ const cacheFacts = (snap: BandSnapshot): CacheFacts => {
     // A 5-minute cache is always under ten minutes from cold, so its last
     // call is its last minute, when chips turns amber too.
     lastCall: counting && (c.ttl === '5m' ? mood === 'expiring' : c.msLeft < LAST_CALL_MS),
-    compacted: mood === 'cold' && c.compacted,
     idleCompactSoon: counting && c.idleCompacts && c.ttl === '1h' && c.msLeft > TTL_MS['1h'] - IDLE_COMPACT_MS,
     recalled: c.recalled,
     msLeft: c.msLeft,
