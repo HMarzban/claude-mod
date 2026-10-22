@@ -2,7 +2,7 @@
 // reply has been seen, recalled before that, and one rule between the two.
 
 import { test, expect } from 'claude-code/testing'
-import { cacheView, noteLoad, noteResume, notePriceModel, noteRecall, recordResponse, resetCache, resetConversation } from '../hooks/cache'
+import { cacheView, noteLoad, noteResume, notePriceModel, noteRecall, recordResponse, resetCache, resetConversation, wantsRecall } from '../hooks/cache'
 import { MIN } from './helpers'
 
 const RATE = 0.00001
@@ -72,4 +72,15 @@ test('coldAt: null before a reply, the reply plus the lifetime after, null once 
   noteResume({ lastAt: 0, expired: true, reWarmUsd: 0.5 })
   expect(cacheView(MIN, undefined, 0, NO_IDLE).coldAt).toBeNull()
   expect(cacheView(MIN, undefined, 0, NO_IDLE).msLeft).toBe(0)
+})
+
+test("a ledger that has spent nothing is a new conversation; one that can't be read is not known to be", () => {
+  resetCache()
+  noteLoad(0)
+  expect(cacheView(0, 0, 0, NO_IDLE).fresh).toBe(true)
+  expect(wantsRecall()).toBe(false)
+  resetCache()
+  noteLoad(undefined)
+  expect(cacheView(0, undefined, 0, NO_IDLE).fresh).toBe(false)
+  expect(wantsRecall()).toBe(true)
 })

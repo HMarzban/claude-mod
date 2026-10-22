@@ -179,9 +179,10 @@ const recalledAt = (): number | undefined => state.resumedCache?.lastAt ?? state
 const isRecalled = (): boolean => state.requests === 0 && !state.knownFresh && recalledAt() !== undefined
 
 /** At load: a ledger that has spent nothing is a new conversation, unless
- *  the engine has already said it resumed one. */
+ *  the engine has already said it resumed one. A ledger that can't be read
+ *  says neither, so the band recalls the last reply. */
 export const noteLoad = (costNow: number | undefined): void => {
-  if (!state.resumed) state.knownFresh = !costNow
+  if (!state.resumed) state.knownFresh = costNow === 0
 }
 
 /** A resumed conversation didn't start here, whatever the ledger says; what
