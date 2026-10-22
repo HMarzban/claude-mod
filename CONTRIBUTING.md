@@ -97,7 +97,7 @@ Run `/reload-plugins` in your session afterwards.
 | `types/index.d.ts` | The plugin's state contract. |
 | `tests/` | Tests, one file per area, with shared helpers in `helpers.ts`: `setup()` starts a test from a fresh engine, `mountBand()` draws the band, `byKey()` finds a node. |
 | `tests/cases.ts`, `tests/matrix.ts` | The states every layout is drawn in and `drawCases`, which draws them; `snapOf` for pure tests, the invariant checks, and `viewSuite`, which every layout's test file runs. |
-| `tools/golden/capture.sh`, `tests/golden/` | Chips' frozen trees and the tests that hold chips to them; see the rule below. |
+| `tests/golden/` | Chips' frozen trees and the tests that hold chips to them; see the rule below. |
 | `tools/test-only.sh` | Runs only the tests whose names match the globs given, against a scratch copy of the plugin. |
 | `tools/views-gate.sh` | The views gate, run in CI: fails when a layout's view formats or reads a raw fact, or a hook other than `kit.tsx` writes an `<svg>` root. |
 | `tools/demos/build.sh` | Rebuilds every demo and the site from the band's own output; see `tools/demos/README.md`. |
@@ -171,13 +171,12 @@ Run `/reload-plugins` in your session afterwards.
   columns, shut and open; and every frame's hover cards to whole pieces.
   A clock time is the host's zone's, which the kit can't pin, so the hash
   reads every clock time alike (`tests/golden/hash.ts`); the readings' tests
-  hold each to its zone. `tools/golden/capture.sh` runs only on the hooks at
-  `846e17d`, so it can't recapture a fix. If your change is meant to alter
-  what chips draws, update the failing keys in `tests/golden/chips.ts` to
-  the hashes the failures print. For a key also held in `GOLDEN_TREES`,
-  replace its whole tree too: log `JSON.stringify(canon(tree))` for that
-  key in `tests/golden/suite.ts`, paste the output in, and drop the log.
-  Say why in the pull request.
+  hold each to its zone. No tool recaptures the trees, so a change meant to
+  alter what chips draws re-freezes them by hand: update the failing keys
+  in `tests/golden/chips.ts` to the hashes the failures print. For a key
+  also held in `GOLDEN_TREES`, replace its whole tree too: log
+  `JSON.stringify(canon(tree))` for that key in `tests/golden/suite.ts`,
+  paste the output in, and drop the log. Say why in the pull request.
 
 ## Demos and the website
 

@@ -308,7 +308,7 @@ plugins/nextcost/
   tests/                            the test suite
   CHANGELOG.md                      what changed in each version
 docs/                               the website (GitHub Pages) and the images in this README
-tools/                              the demo builder, the golden capture, the views gate, a single-test runner
+tools/                              the demo builder, the views gate, a single-test runner
 .github/                            issue and pull request templates, CI
 ```
 
