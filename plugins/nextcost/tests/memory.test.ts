@@ -12,17 +12,14 @@ import {
   asRates,
   asSessions,
   fromStore,
-  lastReplyAt,
-  lastReplyModel,
   mergeSamples,
   needsTranscript,
-  rateFromTranscript,
   recallOf,
   rememberRate,
   rememberReply,
   sampleOf,
-  transcriptPath,
 } from '../hooks/memory'
+import { lastReplyAt, lastReplyModel, rateFromTranscript, transcriptPath } from '../hooks/transcript'
 import { HOUR } from './helpers'
 
 const iso = (ms: number): string => new Date(ms).toISOString()

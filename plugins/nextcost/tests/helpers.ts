@@ -15,7 +15,7 @@ import { mock, type Engine, type MockClock } from 'claude-code/testing'
 import type { Sample } from '../hooks/memory'
 import { CHIP_BAR } from '../hooks/views/chips'
 import { textCells } from '../hooks/layout'
-import { READ_LIMIT } from '../hooks/memory'
+import { READ_LIMIT } from '../hooks/transcript'
 import { DARK } from '../hooks/palette'
 
 export const PLUGIN = 'nextcost'
