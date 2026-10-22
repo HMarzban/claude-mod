@@ -197,13 +197,13 @@ export const noteResume = (said: ResumedCache | undefined): void => {
 }
 
 /** What a resumed conversation spent before this process. */
-export const notePrior = (spend: Spend): void => {
+const notePrior = (spend: Spend): void => {
   state.prior = spend
 }
 
 /** The TTL the transcript's last cache write was made at: it speaks for
  *  the cache until this band's first reply. */
-export const noteTtlSeen = (ttl: Ttl): void => {
+const noteTtlSeen = (ttl: Ttl): void => {
   if (state.requests === 0) state.ttlSeen = ttl
 }
 
@@ -244,7 +244,7 @@ const allTokens = (): TokenCounts => (state.prior === undefined ? state.tokens :
 export const IDLE_COMPACT_MS = 54 * 60_000
 /** A compaction this long after the last request, with no turn under way, is
  *  an idle one: an auto-compaction comes as a turn starts, not half an hour on. */
-export const IDLE_GAP_MS = 30 * 60_000
+const IDLE_GAP_MS = 30 * 60_000
 const IDLE_COMPACT_TOKENS = 200_000
 const IDLE_COMPACT_FLOOR = 100_000
 
@@ -302,7 +302,7 @@ export const noteCompaction = (sizeAfter: number | undefined): void => {
 
 /** A compaction while the conversation sat idle, at `at`: its cache counts
  *  as gone from then, at the summary's size. */
-export const noteIdleCompaction = (at: number, sizeAfter: number): void => {
+const noteIdleCompaction = (at: number, sizeAfter: number): void => {
   noteCompaction(sizeAfter)
   state.compactedAt = at
 }
@@ -516,7 +516,7 @@ export const msLeft = (now: number): number => {
 
 /** Where idle compaction stands: the context it runs from, undefined where
  *  it never does (idleCompactFrom), and whether auto-compaction is off. */
-export type IdleCompaction = Readonly<{ from: number | undefined; autoCompactOff: boolean }>
+type IdleCompaction = Readonly<{ from: number | undefined; autoCompactOff: boolean }>
 
 /** The cache as the band shows it, at `now`: measured once a reply has been
  *  seen, recalled before that. `contextTokens` is the context as it stands,

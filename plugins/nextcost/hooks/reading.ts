@@ -65,7 +65,7 @@ const reWarmEstimate = (c: Cache): string => (c.reWarmUsd !== null ? fmtEstimate
 
 // ---- the limits -------------------------------------------------------------
 
-/** The share of a window gone, from its length and its reset at `at`, NaN when unknown. */
+/** The share of a window gone, from its length and its reset at `at`; undefined when unknown. */
 const windowGone = (at: number | undefined, windowMs: number | undefined, now: number): number | undefined =>
   windowMs === undefined || at === undefined || at <= now ? undefined : clamp01(1 - (at - now) / windowMs)
 
@@ -153,7 +153,7 @@ type LimitBase = Readonly<{
 }>
 
 /** A window still to reset: its tone, its pace and when it fills. */
-export type LiveLimit = LimitBase &
+type LiveLimit = LimitBase &
   Readonly<{
     passed: false
     tone: Tone
@@ -171,7 +171,7 @@ export type LiveLimit = LimitBase &
   }>
 
 /** A window whose reset has passed: calm, with no pace, reset or fill to say. */
-export type PassedLimit = LimitBase &
+type PassedLimit = LimitBase &
   Readonly<{
     passed: true
     tone: 'calm'
@@ -221,7 +221,7 @@ type SliceKind = 'measured' | 'guess' | 'fills' | 'spent' | 'unknown'
 export type SliceMark = Readonly<{ kind: SliceKind; pct: number }>
 /** A window's slices as drawn, and where now falls among them, counted in
  *  slices: 0.5 is halfway through the first. Undefined where not known. */
-export type SliceRow = Readonly<{ marks: readonly SliceMark[]; notch: number | undefined }>
+type SliceRow = Readonly<{ marks: readonly SliceMark[]; notch: number | undefined }>
 
 /** The week's day and hour cells, as calendar.ts reads them and as drawn, with their words. */
 type WeekReading = Week &
@@ -372,20 +372,23 @@ const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
 }
 
 /** The conversation's trails with their words and the series a chart draws. */
-const historyFacts = (trails: Trails, context: ContextFacts, spend: Readonly<{ totalText: string; totalUsd: number }>): HistoryReading => ({
-  ...trails,
-  ...historyWords(trails, context, spend),
-  empty: trails.costs.length === 0,
-  costValues: trails.costs.map(e => e.usd),
-  reWarms: trails.costs.map(e => e.reWarm),
-  warmAvgUsd: warmAverageOf(trails.costs),
-  beatsTop: beatsTopOf(trails.costs),
-})
+const historyFacts = (trails: Trails, context: ContextFacts, spend: Readonly<{ totalText: string; totalUsd: number }>): HistoryReading => {
+  // Worked out once: the words, the scale and the chart's rule read it.
+  const warmAvgUsd = warmAverageOf(trails.costs)
+  return {
+    ...trails,
+    ...historyWords(trails, context, spend, warmAvgUsd),
+    empty: trails.costs.length === 0,
+    costValues: trails.costs.map(e => e.usd),
+    reWarms: trails.costs.map(e => e.reWarm),
+    warmAvgUsd,
+    beatsTop: beatsTopOf(trails.costs, warmAvgUsd),
+  }
+}
 
-/** A chart's cost scale: the larger of twice the warm average and the largest
- *  warm cost, else the largest cost; 1 where that would be 0. */
-const beatsTopOf = (costs: readonly CostEntry[]): number => {
-  const avg = warmAverageOf(costs)
+/** A chart's cost scale: the larger of twice the warm average `avg` and the
+ *  largest warm cost, else the largest cost; 1 where that would be 0. */
+const beatsTopOf = (costs: readonly CostEntry[], avg: number | undefined): number => {
   const top = Math.max(...(avg === undefined ? costs : costs.filter(e => !e.reWarm)).map(e => e.usd), 0)
   const scale = avg === undefined ? top : Math.max(2 * avg, top)
   return scale > 0 ? scale : 1

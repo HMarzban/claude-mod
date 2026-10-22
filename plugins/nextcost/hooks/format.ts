@@ -23,7 +23,7 @@ export const WARN_AT = 0.8
 /** At this share the mark becomes `!!`, and a toast speaks again. */
 export const SEVERE_AT = 0.95
 /** Within this share of the compaction point, context counts down to it. */
-export const COMPACT_NEAR = 0.9
+const COMPACT_NEAR = 0.9
 
 /** How full the context is against where it runs out, and the levels it
  *  escalates at there: toward compaction, where it is on and its point

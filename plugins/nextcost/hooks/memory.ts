@@ -1,9 +1,9 @@
 // What the band remembers across sessions, in the plugin's own store: when
 // each session last had a reply, what a token costs on each model, the
-// layout the band draws in, and a week of limit samples. With the first two a
-// reopened session, or a reload, says whether its cache is cold and what the
-// next message costs, before any reply of its own, and with the samples the
-// week shows the days before this session. What a session has spent, and how
+// layout the band draws in, and a week's worth of limit samples. With the
+// first two a reopened session, or a reload, says whether its cache is cold
+// and what the next message costs, before any reply of its own, and with the
+// samples the week shows the days before this session. What a session has spent, and how
 // long its cache was last written for, are read off its transcript, which
 // Claude Code keeps.
 
@@ -86,7 +86,7 @@ export const rememberReply = (sessions: Sessions, id: string, lastAt: number): S
 
 /** The engine's names for the two limits a sample holds. */
 export const FIVE_HOUR = 'five_hour'
-export const SEVEN_DAY = 'seven_day'
+const SEVEN_DAY = 'seven_day'
 
 /** Both limits at one moment, with the resets that name their windows (epoch ms). */
 export type Sample = Readonly<{ at: number; fivePct: number; sevenPct: number; fiveResetAt: number; sevenResetAt: number }>

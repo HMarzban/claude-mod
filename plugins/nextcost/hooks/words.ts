@@ -115,7 +115,7 @@ export const CARD_TITLES = { cache: 'Cache', spend: 'Spend', context: 'Context',
 export const markedHead = (say: Say, tone: Tone): Say => (tone === 'amber' ? [[AMBER_LEAD, 'amber'], ...say] : say)
 
 /** A card's fact: its label at one end, its value at the other. */
-export type Fact = Readonly<{ label: string; value: string }>
+type Fact = Readonly<{ label: string; value: string }>
 
 // ---- the words of each section, from its facts ------------------------------
 
@@ -554,9 +554,9 @@ const contextTrendOf = (tokens: readonly number[]): 'rising' | 'falling' | 'stea
   return first === undefined || last === undefined || last === first ? 'steady' : last > first ? 'rising' : 'falling'
 }
 
-export const historyWords = (record: Trails, context: ContextFacts, spend: Readonly<{ totalUsd: number }>): HistoryWords => {
+/** What the history says, from its trails and `avg`, their warm average. */
+export const historyWords = (record: Trails, context: ContextFacts, spend: Readonly<{ totalUsd: number }>, avg: number | undefined): HistoryWords => {
   const last = record.costs[record.costs.length - 1]
-  const avg = warmAverageOf(record.costs)
   const lastText = last === undefined ? undefined : fmtSmallCost(last.usd)
   const trend =
     last === undefined || avg === undefined

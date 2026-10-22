@@ -106,8 +106,9 @@ type Resume = Readonly<{
   transcript: TranscriptFacts | undefined
 }>
 
-/** Everything the band keeps between hooks, in one place. A reload starts it
- *  over with the module; session.start resets the rest. */
+/** What the band keeps between hooks, beside the cache model's and the
+ *  insights' own state. A reload starts it over with the module;
+ *  session.start resets the rest. */
 const band: {
   palette: Readonly<Palette>
   /** The layout the band draws in. */
@@ -129,8 +130,9 @@ const band: {
   /** Where the session is: its project, home-relative, and git there. Read
    *  between redraws, never while drawing, since git takes a process. */
   workspace: Workspace | undefined
-  /** The limit samples of the last week, every session's: read from the store
-   *  at load and at each new 15-minute bucket, written once per bucket. */
+  /** The newest limit samples, a week's worth of buckets, every session's:
+   *  read from the store at load and at each new 15-minute bucket, written
+   *  once per bucket. */
   samples: Sample[]
   /** Reads begun, so one that ends after a newer one never overwrites it. */
   reads: number
