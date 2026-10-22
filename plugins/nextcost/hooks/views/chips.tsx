@@ -26,7 +26,8 @@ const ORDER = {
 } as const
 type Piece = PieceOf<typeof ORDER>
 
-/** Below this, the cache and context wording turns short whatever the squeeze. */
+/** Below this, the cache's wording and a limit's pace turn short whatever
+ *  the squeeze. */
 const SHORT_BELOW = 68
 /** A chip's bar: 44 px on the desktop, 6 cells elsewhere. */
 export const CHIP_BAR: BarSize = { px: 44, cells: 6 }
@@ -118,8 +119,9 @@ const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
 
 // ---- the pills --------------------------------------------------------------
 
-/** Whether the row says the cache and context short at its squeeze: always
- *  below `SHORT_BELOW` columns. */
+/** Whether the row says the cache and a limit's pace short at its squeeze:
+ *  always below `SHORT_BELOW` columns. The context's amount turns short at
+ *  the `shortWording` step alone, as chips' frozen trees draw it. */
 const shortAt = (kit: Kit, k: Keeps<Piece>): boolean => kit.columns < SHORT_BELOW || !k.has('shortWording')
 
 /** The cache pill: a draining battery and its countdown, or its mood. */

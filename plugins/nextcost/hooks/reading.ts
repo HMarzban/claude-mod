@@ -298,6 +298,9 @@ const weekReading = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHo
   return { ...week, ...weekWords(week, fiveHour) }
 }
 
+/** A section's facts with its words beside them: what a view reads of it. */
+const withWords = <F, W>(facts: F, words: (f: F) => W): F & W => ({ ...facts, ...words(facts) })
+
 /** Everything a view reads, built once per draw: the frame, each section's
  *  facts and words, and chips' own inputs. */
 export const readingsOf = (snap: BandSnapshot): Readings => {
@@ -309,11 +312,10 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     glyphs: drawnTier(snap),
     zone: snap.zone,
   }
-  const cache = cacheFactsOf(snap.cache, snap.isWorking)
-  const spend = spendFacts(snap)
-  const spendSaid = spendWords(spend)
-  const context = contextFacts(snap)
-  const limits = limitFacts(snap).map((f): LimitView => ({ ...f, ...limitWords(f, frame) }))
+  const cache: CacheReading = withWords(cacheFactsOf(snap.cache, snap.isWorking), cacheWords)
+  const spend: SpendReading = withWords(spendFacts(snap), spendWords)
+  const context: ContextReading = withWords(contextFacts(snap), contextWords)
+  const limits = limitFacts(snap).map((f): LimitView => withWords(f, l => limitWords(l, frame)))
   // The headline is the window closest to its limit.
   const worstLimit = limits
     .filter(l => !l.passed)
@@ -323,23 +325,20 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
   let history: HistoryReading | undefined
   let week: WeekReading | undefined
   let board: Board | undefined
-  const cacheRead = { ...cache, ...cacheWords(cache) }
-  const spendRead = { ...spend, ...spendSaid }
-  const contextRead = { ...context, ...contextWords(context) }
   return {
     frame,
-    cache: cacheRead,
-    spend: spendRead,
-    context: contextRead,
+    cache,
+    spend,
+    context,
     fiveHour,
     sevenDay,
     limits,
     worstLimit,
     workspace: snap.workspace,
     // Plain functions, not getters: reading a property never runs code.
-    history: () => (history ??= historyReading(snap.history, context, spendRead)),
+    history: () => (history ??= historyReading(snap.history, context, spend)),
     week: () => (week ??= weekReading(snap, sevenDay, fiveHour)),
-    board: () => (board ??= boardWords({ frame, cache: cacheRead, spend: spendRead, context: contextRead, limits })),
-    chips: chipsWords({ frame, cache, spend: spendSaid, context, limits }),
+    board: () => (board ??= boardWords({ frame, cache, spend, context, limits })),
+    chips: chipsWords({ frame, cache, spend, context, limits }),
   }
 }
