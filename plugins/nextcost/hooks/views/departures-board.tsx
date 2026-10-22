@@ -232,6 +232,5 @@ const board = (kit: Kit, read: Readings, collapsedRows: number): RenderElement |
 
 /** Departures open: the board, then the footer every layout draws, the
  *  workspace strip in its row. */
-export const openBoard = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderElement[] => {
-  return [board(kit, read, collapsedRows), footer(kit, act, read.workspace)].filter(e => e !== null)
-}
+export const openBoard = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderElement[] =>
+  [board(kit, read, collapsedRows), footer(kit, act, read.workspace)].filter(e => e !== null)

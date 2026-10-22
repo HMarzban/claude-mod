@@ -25,7 +25,9 @@ const tilesPx = (count: number): number => count * TILE_PITCH - TILE_GAP
 /** The px the runs' tiles take: a flaps Svg's width. */
 export const flapsWidth = (runs: readonly Run[]): number => tilesPx(tilesOf(runs).length)
 
-/** `packed`: plain brackets the runs once, `[CACHE ! 30S]`, where it would
+/** The runs as split-flap tiles, each run in its ink, a blank tile between
+ *  runs: one Svg on the desktop, a run of text on its ground elsewhere.
+ *  `packed`: plain brackets the runs once, `[CACHE ! 30S]`, where it would
  *  bracket each, `[CACHE][! 30S]`: a row's last step, as filled drops its
  *  padding. Filled draws the same either way. */
 export const flaps = (kit: Kit, o: Readonly<{ key: string; alt: string; runs: readonly Run[]; bg: string; seam: string; packed?: boolean }>): RenderChildren => {

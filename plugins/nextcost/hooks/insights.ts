@@ -26,7 +26,9 @@ const state: InsightState = {
   resetsAt: undefined,
 }
 
+/** The newest messages' costs the cost trail keeps. */
 export const COST_TRAIL = 24
+/** The newest turns' context the context trail keeps. */
 export const CONTEXT_TRAIL = 40
 
 /** What a main-loop message cost, and whether its turn rebuilt the cache. */

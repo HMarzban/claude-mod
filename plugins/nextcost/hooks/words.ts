@@ -297,7 +297,7 @@ const moodWords = (f: CacheFacts, left: string, leftShort: string, price: string
         figureShort: f.coldInMs !== undefined ? leftShort : value,
         amber: expiring ? AMBER.cache(leftShort, f.estimate) : undefined,
         // The card counts down as chips' row always has: `1h 05m`, `0:47`.
-        cardHead: f.coldInMs !== undefined ? [[fmtCountdown(f.leftMs), 'value'], [' left', 'label']] : [[value, 'value']],
+        cardHead: f.coldInMs !== undefined ? [[fmtCountdown(f.coldInMs), 'value'], [' left', 'label']] : [[value, 'value']],
         cardNote: f.idleCompactSoon ? `Claude Code may compact it ${IDLE_COMPACT_AT}.` : undefined,
         estimateLabel: 're-warm if cold',
         alt:

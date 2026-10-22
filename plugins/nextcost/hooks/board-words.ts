@@ -14,16 +14,22 @@ import type { CacheWords, ContextWords, LimitWords, SpendWords } from './words'
 export type BoardKey = 'cache' | 'spend' | 'context' | '5h' | '7d' | 'other'
 export type BoardRow = Readonly<{
   key: BoardKey
-  item: string        // CACHE | SPEND | CONTEXT | 5H | 7D | an other limit's name, upper-case
-  status: string      // DEPARTS | LAST CALL | DEPARTED | BOARDING | CHECK-IN | $0.24 | 8% USED | 26% | ! NEAR LIMIT
-  time: string | undefined // 17:24 | SAT 13:30 | IN 38 MIN | IN 1H 04M | PASSED; none where it has no time
+  /** `CACHE`, `SPEND`, `CONTEXT`, `5H`, `7D`, or an other limit's name, upper-case. */
+  item: string
+  /** `DEPARTS`, `LAST CALL`, `DEPARTED`, `BOARDING`, `CHECK-IN`, `$0.24`, `8% USED`, `26%`, `! NEAR LIMIT`. */
+  status: string
+  /** `17:24`, `SAT 13:30`, `IN 38 MIN`, `IN 1H 04M`, `PASSED`; none where it has no time. */
+  time: string | undefined
   remarks: string
-  cell: string        // collapsed, long: DEPARTS 17:24 | 26% RESET 17:50 | 85% RESET SAT 13:30 ! NEAR LIMIT
-  cellShort: string   // collapsed, short: 17:24 | ! 47S | 26%
+  /** Collapsed, long: `DEPARTS 17:24`, `26% RESET 17:50`, `85% RESET SAT 13:30 ! NEAR LIMIT`. */
+  cell: string
+  /** Collapsed, short: `17:24`, `! 47S`, `26%`. */
+  cellShort: string
   /** Limits only: the cell without its reset. */
   cellNoReset?: string
   tone: Tone
-  alt: string         // in words, never capitals or ↻: the reading's existing alt
+  /** The reading's own alt, in words, never capitals or ↻. */
+  alt: string
 }>
 /** What the board says for a reset: the flap face has no ↻. */
 const BOARD_RESET = 'RESET'

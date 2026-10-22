@@ -40,7 +40,7 @@ const tokenPartsOf = (kit: Kit, read: Readings): SplitPart[] => {
 /** Where chips' cards sit: how many to a line and the columns of a card's
  *  edge; where the workspace strip goes, on top or in the footer; whether
  *  the cards fit at all; and what each card is built at. */
-type Layout = Readonly<{ perLine: number; edge: number; stripPlace: 'top' | 'footer' | undefined; cardsFit: boolean; fit: Fit }>
+type Grid = Readonly<{ perLine: number; edge: number; stripPlace: 'top' | 'footer' | undefined; cardsFit: boolean; fit: Fit }>
 
 /** What a card is built at: the columns inside it, the rows its body may
  *  take, and its bar's size. */
@@ -51,7 +51,7 @@ type Fit = Readonly<{ inner: number; bodyRows: number; bar: BarSize }>
  *  cards align whatever their text and a line never wraps one away. A
  *  desktop card has a visible edge; a terminal card is a fill, its border
  *  would cost two columns. Lines keep a row of air between them. */
-const layoutOf = (kit: Kit, read: Readings, collapsedRows: number): Layout => {
+const layoutOf = (kit: Kit, read: Readings, collapsedRows: number): Grid => {
   const hasCard = cardsPresent(read)
   const cardCount = CARD_NAMES.filter(name => hasCard[name]).length
   const { perLine, inner, edge, pxEdge } = cardLine(kit, cardCount)

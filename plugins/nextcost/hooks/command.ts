@@ -35,6 +35,9 @@ export const parseCommand = (args: string): BandCommand | undefined => {
 const LAYOUT_PURPOSE: Readonly<Record<LayoutName, string>> = { chips: 'at a glance', pulse: 'trends', departures: 'times' }
 const LAYOUT_LIST = `Choose one: ${LAYOUT_NAMES.map(n => `${n} (${LAYOUT_PURPOSE[n]})`).join(', ')}.`
 
+/** The most of an unknown layout's name a reply echoes, in columns. */
+const ECHOED_NAME = 20
+
 /** What a layout reply adds when the store couldn't keep it. */
 const UNSAVED = "It couldn't be saved, so it lasts until Claude's next reply."
 /** That a layout is gone, and since when. */
@@ -65,7 +68,7 @@ const layoutPlan = (arg: string, state: CommandState): CommandPlan => {
   const name = asLayoutName(arg)
   const gone = removedLayoutOf(arg)
   if (gone !== undefined) return { reply: `${removedNote(gone)}. ${LAYOUT_LIST}`, readWorkspace: false }
-  if (name === undefined) return { reply: `Unknown layout "${clipMiddle(arg.trim(), 20)}". ${LAYOUT_LIST}`, readWorkspace: false }
+  if (name === undefined) return { reply: `Unknown layout "${clipMiddle(arg.trim(), ECHOED_NAME)}". ${LAYOUT_LIST}`, readWorkspace: false }
   const reply = name === DEFAULT_LAYOUT ? layoutReply(name) : `${layoutReply(name)} /nextcost layout ${DEFAULT_LAYOUT} goes back.`
   return { reply, layout: { name, unsaved: `${reply} ${UNSAVED}` }, hidden: false, readWorkspace: false }
 }
