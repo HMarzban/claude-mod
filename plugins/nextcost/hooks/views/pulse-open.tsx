@@ -10,13 +10,12 @@
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { barChart, dayCells, dayCellsFit, flatBeats, sparkline, track } from '../charts'
 import type { Kit } from '../kit'
-import { DESKTOP } from '../layout'
 import type { LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, limitsHead, markedHead } from '../words'
 import { bodyRowsFor, footer } from './frame'
-import { CARD_NAMES, alertLine, cardBordered, cardEdge, cardGrid, cardInner, cardInnerPx, cardShell, cardsPerLine, cardsPresent, factRow, headline, linesOf } from './shell'
-import type { CardName } from './shell'
+import { CARD_NAMES, alertLine, cardGrid, cardLine, cardShell, cardsPresent, factRow, headline, linesOf } from './shell'
+import type { CardLine, CardName } from './shell'
 
 const DOT = ' · '
 
@@ -67,9 +66,6 @@ const factFits = (kit: Kit, label: string, value: string, room: number): boolean
 type Facts = Readonly<{
   /** Whether charts draw here: the desktop's, and the unicode tier's braille. */
   charts: boolean
-  /** The rows a card's edge takes: a terminal's border two, the desktop's
-   *  line and its padding one, a terminal fill none. */
-  edgeRows: number
   windows: readonly LimitView[]
   others: readonly LimitView[]
   amber: ReadonlySet<Unit>
@@ -79,11 +75,10 @@ type Facts = Readonly<{
 }>
 
 const factsOf = (kit: Kit, read: Readings): Facts => {
-  const { Svg, measure } = kit
+  const { Svg } = kit
   const { cache, context } = read
   const week = read.week()
   const charts = read.frame.glyphs === 'unicode'
-  const bordered = cardBordered(kit)
   const windows = [read.fiveHour, read.sevenDay].filter((l): l is LimitView => l !== undefined)
   const others = read.limits.filter(l => l.key === 'other')
   const unknownCache = cache.mood === 'unmeasured' || cache.mood === 'warming'
@@ -95,7 +90,6 @@ const factsOf = (kit: Kit, read: Readings): Facts => {
   ])
   return {
     charts,
-    edgeRows: !bordered ? 0 : measure === DESKTOP ? 1 : 2,
     windows,
     others,
     amber,
@@ -124,27 +118,25 @@ const halvesAcross = (kit: Kit, f: Facts, room: number): boolean => {
   return f.windows.every(l => factFits(kit, l.fact.label, l.fact.value, half))
 }
 
-/** The rows a card takes at a plan: its edge, its head, its chart and its facts. */
-const cardRows = (kit: Kit, f: Facts, card: CardName, p: Plan, inner: number): number => {
+/** The rows a card on `line` takes at a plan: its edge, its head, its chart and its facts. */
+const cardRows = (kit: Kit, f: Facts, card: CardName, p: Plan, line: CardLine): number => {
   const chartRows = p.chart === 0 || !f.charted[card] ? 0 : kit.Svg ? p.chart : 1
-  if (card !== 'limits') return f.edgeRows + 1 + chartRows + 1
+  if (card !== 'limits') return line.edgeRows + 1 + chartRows + 1
   const halves = p.kept.has('limits') ? f.windows.length : 0
-  const across = halvesAcross(kit, f, inner)
+  const across = halvesAcross(kit, f, line.inner)
   // Side by side, one chart and one fact row; else one over the other.
   const halfRows = halves === 0 ? 0 : across ? chartRows + 1 : halves * (chartRows + 1)
-  return f.edgeRows + 1 + halfRows + (p.kept.has('other') && f.others.length > 0 ? 1 : 0)
+  return line.edgeRows + 1 + halfRows + (p.kept.has('other') && f.others.length > 0 ? 1 : 0)
 }
 
 /** The lines of cards a plan draws, `perLine` to a line, and its rows: each
  *  line its tallest card's, a row of air between lines. */
 const layoutOf = (kit: Kit, f: Facts, p: Plan) => {
   const cards = cardsOf(f, p.kept)
-  const edge = cardEdge(kit)
-  const perLine = cardsPerLine(kit, cards.length, edge)
-  const inner = cardInner(kit, perLine, edge)
-  const lines = linesOf(cards, perLine)
-  const rows = lines.reduce((n, line) => n + Math.max(...line.map(c => cardRows(kit, f, c, p, inner))), 0) + Math.max(0, lines.length - 1)
-  return { lines, inner, rows }
+  const geometry = cardLine(kit, cards.length)
+  const lines = linesOf(cards, geometry.perLine)
+  const rows = lines.reduce((n, line) => n + Math.max(...line.map(c => cardRows(kit, f, c, p, geometry))), 0) + Math.max(0, lines.length - 1)
+  return { lines, rows }
 }
 
 /** The first plan whose cards fit `body` rows: every unit with charts of
@@ -174,12 +166,10 @@ const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement =
   const hist = read.history()
   const week = read.week()
   const { lines } = layoutOf(kit, f, p)
-  const bordered = cardBordered(kit)
   /** The cards of a line of `count`: each `inner` columns inside, and on
    *  the desktop `px`, so a chart spans its card to where its fact row ends. */
   const cardsFor = (count: number): Readonly<Record<CardName, () => RenderElement>> => {
-    const inner = cardInner(kit, count, cardEdge(kit))
-    const px = cardInnerPx(kit, count)
+    const { inner, innerPx: px } = cardLine(kit, count)
     /** A chart in its card: in text clipped to the card, the desktop's its own width. */
     const plot = (chart: RenderChildren): RenderChildren => (chart === null || Svg ? chart : <Box key="plot" overflow="hidden">{chart}</Box>)
     /** A chart's size on the desktop at this plan; in text, its line. */
@@ -192,7 +182,7 @@ const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement =
     /** What fills a card's height past its chart, so its fact sits on the line's last row. */
     const fill = () => <Box key="fill" flexGrow={1} />
     const card = (name: CardName, say: Parameters<typeof headline>[1], tone: Tone, body: RenderChildren[]) =>
-      cardShell(kit, { key: `pulse:${name}`, name, head: headline(kit, say, tone), body, bordered })
+      cardShell(kit, { key: `pulse:${name}`, name, head: headline(kit, say, tone), body })
 
     const cacheCard = (): RenderElement => {
       // Inked by its mood: amber in its last minute, warm green while warm, a

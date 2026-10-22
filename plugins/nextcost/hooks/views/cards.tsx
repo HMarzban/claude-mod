@@ -5,13 +5,12 @@ import type { RenderChildren } from 'claude-code'
 import { meter, splitBar } from '../charts'
 import type { SplitPart } from '../charts'
 import type { Kit } from '../kit'
-import { DESKTOP } from '../layout'
 import type { BarSize } from '../layout'
 import type { LimitKey, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { SPLIT_LABELS, type Say } from '../words'
 import { bodyRowsFor, footer, topStrip } from './frame'
-import { CARD_NAMES, alertLine, cardBordered, cardEdge, cardGrid, cardInner, cardShell, cardsPerLine, cardsPresent, factRow as sharedFactRow, headline, linesOf } from './shell'
+import { CARD_NAMES, alertLine, cardGrid, cardLine, cardShell, cardsPresent, factRow as sharedFactRow, headline, linesOf } from './shell'
 import type { CardName } from './shell'
 
 /** A limit's accent: its window's, or the meter's for any other. */
@@ -57,13 +56,11 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRo
   // cards align whatever their text and a line never wraps one away. A
   // desktop card has a visible edge; a terminal card is a fill, its border
   // would cost two columns. Lines keep a row of air between them.
-  const bordered = cardBordered(kit)
-  const edge = cardEdge(kit)
   // The cards present, which the grid lays out.
   const hasCard = cardsPresent(read)
   const present = CARD_NAMES.filter(name => hasCard[name])
   const cardCount = present.length
-  const perLine = cardsPerLine(kit, cardCount, edge)
+  const { perLine, inner, edge, pxEdge } = cardLine(kit, cardCount)
   const lineCount = Math.ceil(cardCount / perLine)
   const lineGap = 1
   // The rows a card's body may take: the frame's, shared by the lines less
@@ -79,8 +76,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRo
   // Short of a row under each head for a fact, the cards give way whole. The
   // desktop draws a card's edge as a line of pixels, so there it never
   // counts as the row a fact needs.
-  const cardsFit = bodyFor(0) + (measure === DESKTOP ? edge : 0) >= 1
-  const inner = cardInner(kit, perLine, edge)
+  const cardsFit = bodyFor(0) + (pxEdge ? edge : 0) >= 1
   const cardBar: BarSize = { px: inner * measure.pxPerCell, cells: inner }
   /** As much of a card's body as the band has rows for, its facts listed
    *  most important first. Its bar repeats a chip's, so it shows only when
@@ -91,7 +87,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRo
   }
   /** A card: its title and headline on one line, then its bar and its body. */
   const card = (name: CardName, head: Readonly<{ say: Say; tone?: Tone }>, bar: RenderChildren, body: RenderChildren[]) =>
-    cardShell(kit, { key: `card:${name}`, name, head: headline(kit, head.say, head.tone ?? 'calm'), body: fitBody(bar, body), bordered })
+    cardShell(kit, { key: `card:${name}`, name, head: headline(kit, head.say, head.tone ?? 'calm'), body: fitBody(bar, body) })
 
   const cacheView = card(
     'cache',
