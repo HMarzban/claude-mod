@@ -1,8 +1,7 @@
 // The prompt cache, as the band models it from each response's token counts,
 // and what it means for the band: its mood, its charge, its last call. One
 // model per session, made at session.start and fed each hook's facts in that
-// hook's own shape; the order they must be applied in is kept here. What a
-// token costs is prices.ts's; what the settings pin, cache-settings.ts's.
+// hook's own shape; the order they must be applied in is kept here.
 
 import type { ModelUsage } from 'claude-code'
 import type { Tone } from './facts'
@@ -412,16 +411,9 @@ const measureCache = (s: CacheState, usage: Response, sentAt: number): void => {
   s.model = model ?? s.model
 }
 
-/** A response's tokens, sent at `sentAt`: every response's toward the bill,
- *  and a main-loop one's as a measure of the cache. */
-const recordResponse = (s: CacheState, usage: Response, sentAt: number, isMain: boolean): void => {
-  billResponse(s, usage)
-  if (isMain) measureCache(s, usage, sentAt)
-}
-
 // ---- the model --------------------------------------------------------------
 
-/** A main-loop response, as turn.step has it. */
+/** A response, as turn.step has it. */
 type Response = Pick<ModelUsage, 'input_tokens' | 'output_tokens' | 'cache_read_input_tokens' | 'cache_creation_input_tokens'> &
   Readonly<{ model?: string }>
 
@@ -518,7 +510,10 @@ export const newCache = (): CacheModel => {
         s.baselined = true
       }
     },
-    responded: (usage, sentAt, isMain) => recordResponse(s, usage, sentAt, isMain),
+    responded: (usage, sentAt, isMain) => {
+      billResponse(s, usage)
+      if (isMain) measureCache(s, usage, sentAt)
+    },
     ledgerRead: ledger => noteLedger(s, ledger),
     compacted: ({ now, sizeAfter, manual = false }) => {
       const idle = !s.turnOpen && !manual && s.requests > 0 && now - s.lastAt >= IDLE_GAP_MS
