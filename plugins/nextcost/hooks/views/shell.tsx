@@ -35,7 +35,7 @@ const CARD_ICONS: Readonly<Record<CardName, readonly [Icon, Exclude<keyof Palett
   limits: ['limits', 'fiveAccent'],
 }
 
-/** A limit's accent: its window's, or the meter's for any other. */
+/** A limit's accent: its window's, or `meterFill` for any other. */
 export const limitAccent = (palette: Palette, key: LimitKey): string =>
   key === '5h' ? palette.fiveAccent : key === '7d' ? palette.weekAccent : palette.meterFill
 
