@@ -1,14 +1,14 @@
 // What the band reads off its snapshot before it draws anything: the cache's
 // meaning as cache.ts reads it, the context's fill, each limit's tone and
-// pace, with their words from words.ts beside them, and the board's from
-// board-words.ts. Pure, so readingsOf can be checked without mounting the
-// band.
+// pace, with their words from words.ts beside them, the board's from
+// board-words.ts and chips' from chips-words.ts. Pure, so readingsOf can be
+// checked without mounting the band.
 
 import { cacheFactsOf } from './cache'
 import type { CacheFacts } from './cache'
-import type { ContextFacts, ContextFill, Frame, LimitBase, LimitFacts, LimitKey, SpendFacts } from './facts'
 import { drawnWeekOf } from './calendar'
 import type { DrawnWeek, WindowNow } from './calendar'
+import type { ContextFacts, ContextFill, Frame, LimitBase, LimitFacts, LimitKey, SpendFacts } from './facts'
 import {
   FIVE_HOUR_MS,
   SEVEN_DAY_MS,
@@ -27,8 +27,10 @@ import type { CostEntry, Trails } from './insights'
 import type { BandSnapshot, LimitReading } from './snapshot'
 import { boardWords } from './board-words'
 import type { Board } from './board-words'
-import { cacheWords, chipsWords, contextWords, historyWords, limitWords, spendWords, weekWords } from './words'
-import type { CacheWords, ChipsWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
+import { chipsWords } from './chips-words'
+import type { ChipsWords } from './chips-words'
+import { cacheWords, contextWords, historyWords, limitWords, spendWords, weekWords } from './words'
+import type { CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
 
 // ---- the limits -------------------------------------------------------------
 
