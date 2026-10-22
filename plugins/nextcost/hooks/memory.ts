@@ -166,27 +166,30 @@ function* fromEnd(transcript: string, marker: string): Generator<Record<string, 
 /** What marks a reply's line. */
 const REPLY_MARKER = '"assistant"'
 
+/** Whether a transcript line is a main-loop reply: a subagent's says nothing
+ *  of the main loop's cache, its model or its prompt. */
+const isMainReply = (entry: Record<string, unknown>): boolean => entry.type === 'assistant' && entry.isSidechain !== true
+
 /** When a transcript line was logged; undefined where it doesn't say. */
 const loggedAt = (entry: Record<string, unknown>): number | undefined => {
   const at = typeof entry.timestamp === 'string' ? Date.parse(entry.timestamp) : NaN
   return Number.isFinite(at) ? at : undefined
 }
 
-/** When a transcript's last main-loop reply was: a subagent's says nothing
- *  of the main loop's cache. Its file time won't do: Claude Code writes a
- *  cost line each time it opens a session. */
+/** When a transcript's last main-loop reply was. Its file time won't do:
+ *  Claude Code writes a cost line each time it opens a session. */
 export const lastReplyAt = (transcript: string): number | undefined => {
   for (const entry of fromEnd(transcript, REPLY_MARKER)) {
-    const at = entry.type === 'assistant' && entry.isSidechain !== true ? loggedAt(entry) : undefined
+    const at = isMainReply(entry) ? loggedAt(entry) : undefined
     if (at !== undefined) return at
   }
   return undefined
 }
 
-/** The model the transcript's last reply was billed under, as the API names it. */
+/** The model the transcript's last main-loop reply was billed under, as the API names it. */
 export const lastReplyModel = (transcript: string): string | undefined => {
   for (const entry of fromEnd(transcript, REPLY_MARKER)) {
-    if (entry.type !== 'assistant' || !isRecord(entry.message)) continue
+    if (!isMainReply(entry) || !isRecord(entry.message)) continue
     const model = entry.message.model
     if (typeof model === 'string' && model !== '') return model
   }
@@ -258,11 +261,11 @@ const recordRate = (m: Record<string, unknown>, model: string): number | null =>
 /** What marks a cost record's line, for `grep -F` to find. */
 export const COST_RECORD = '"type":"cost-state"'
 
-/** The prompt the transcript's last reply sent: every input token, cache
- *  reads and writes included, as a price tier counts it. */
+/** The prompt the transcript's last main-loop reply sent: every input
+ *  token, cache reads and writes included, as a price tier counts it. */
 const lastPrompt = (transcript: string): number | undefined => {
   for (const entry of fromEnd(transcript, REPLY_MARKER)) {
-    if (entry.type !== 'assistant' || !isRecord(entry.message) || !isRecord(entry.message.usage)) continue
+    if (!isMainReply(entry) || !isRecord(entry.message) || !isRecord(entry.message.usage)) continue
     const t = replyTokens(entry.message.usage)
     return t.uncached + t.read + t.written
   }
@@ -284,11 +287,10 @@ export const rateFromTranscript = (transcript: string, model: string): number | 
 }
 
 /** The TTL the transcript's last main-loop cache write was made at: an hour
- *  if it wrote any for an hour, else five minutes if it wrote any. A
- *  subagent's reply says nothing of the main loop's cache. */
+ *  if it wrote any for an hour, else five minutes if it wrote any. */
 export const lastWriteTtl = (transcript: string): Ttl | undefined => {
   for (const entry of fromEnd(transcript, '"cache_creation"')) {
-    if (entry.type !== 'assistant' || entry.isSidechain === true || !isRecord(entry.message)) continue
+    if (!isMainReply(entry) || !isRecord(entry.message)) continue
     const usage = entry.message.usage
     const written = isRecord(usage) ? usage.cache_creation : undefined
     if (!isRecord(written)) continue
