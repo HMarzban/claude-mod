@@ -158,8 +158,9 @@ Departures' board also says `LAST CALL`, calm, ten minutes before an
 hour's cache goes cold; only its last minute is amber. Pulse and
 departures draw their readings in one order: cache, spend, context, 5h,
 7d. On the desktop, chips explains each pill on hover with its own cards.
-Every layout keeps the workspace line, with its hover cards, in the open
-view's footer beside `Collapse` and `Hide band`.
+Open, chips puts the workspace line, with its hover cards, above its cards
+when the band has the rows, else in the footer beside `Collapse` and
+`Hide band`; pulse and departures keep it in the footer.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/HMarzban/nextcost/main/docs/band-layouts-dark.png">
@@ -281,11 +282,12 @@ facts:
 Where Claude Code doesn't say, or the band reloaded, it recalls when the
 session's last reply was and what a token costs on its model:
 
-- from its own memory, which keeps each session's last reply (the newest 50)
-  and the price per token it solved for each model
+- from its own memory, which keeps each session's last reply and the model
+  it was billed under (the newest 50), and the price per token it solved
+  for each model
 - for a session from before the band, from the end of that session's
-  transcript, read once: the last reply's time and the cost record's
-  dollars and tokens
+  transcript, read once: the last reply's time and model, and the cost
+  record's dollars and tokens
 
 Past the cache's lifetime it shows `cache cold · next message ~$2.34`, the
 cost of writing the whole context to the cache again. Within it, the
@@ -400,39 +402,46 @@ which doesn't compact while idle, neither shows.
 and writes no files. The only web address in its code is the SVG namespace,
 `http://www.w3.org/2000/svg`, which every SVG icon it draws declares; nothing
 is fetched from it. The one way out a scanner can see is that it starts
-programs (`$.process.run`), since a program could reach anywhere. The four
+programs (`$.process.run`), since a program could reach anywhere. The five
 commands below start only `git`, `tail` and `grep`, each reading a local file
 or repository and handing its output to the band. None of them is a shell, none is given a
 script, and none touches the network.
 
-**It runs four read-only commands**, each named in full where the code calls
+**It runs five read-only commands**, each named in full where the code calls
 it, each given 3 seconds, and never while the band draws:
 
 | Command | Where | Why |
 | --- | --- | --- |
 | `git -c core.fsmonitor=false --no-optional-locks status --porcelain=v2 --branch` | the session's project folder | the workspace line: branch, changes, ahead and behind. It never takes git's index lock. `-c core.fsmonitor=false` is git's own option for setting one value for this run: it stops a repository's config from making git start its fsmonitor program. It starts no shell. |
 | `git rev-parse --path-format=absolute --git-dir --git-common-dir --show-toplevel` | the same | whether the folder is a linked worktree, and of which repository |
-| `tail -c 1048576 <transcript>` | that session's own transcript under `~/.claude/projects` | only when a conversation is resumed, or the band loads into one it can't tell is new and its own store doesn't know the last reply's time or its model's rate: when that reply was, so the cache countdown starts from it, and the rate its cost record solves to; on a resume, also how long its cache was written for |
+| `tail -c 1048576 <transcript>` | that session's own transcript: at the path Claude Code gave when it said the session was resumed, else `~/.claude/projects/<project>/<session id>.jsonl`, `<project>` being the project's path with every character but a letter or digit a dash | only when a conversation is resumed, or the band loads into one it can't tell is new and its own store doesn't know the last reply's time or its model's rate: when that reply was, so the cache countdown starts from it, the model it was billed under, and the rate its cost record solves to; on a resume, also how long its cache was written for |
 | `grep -a -b -F '"type":"cost-state"' <transcript>`, then `tail -c +<offset> <transcript>` | the same | only when a conversation is resumed: what it spent before this process, so the session's cost includes it |
 
-**It reads** the session's usage from Claude Code (cost, token counts,
-context fill and rate-limit percentages), the clock, the project's folder and
-repository root, two keys of your Claude Code settings (`promptCacheTtl` and
-`idleCompaction`), and the environment variables in [Settings](#settings),
-plus `HOME` to find a transcript and the locale (`LC_ALL`, `LC_CTYPE`, `LANG`)
+**It reads** the session's id, model and usage from Claude Code (cost, token
+counts, context fill and rate-limit percentages), the clock, the project's
+folder and repository root, two keys of your Claude Code settings
+(`promptCacheTtl` and `idleCompaction`), and these environment variables:
+`NEXTCOST_APPEARANCE` and `NEXTCOST_GLYPHS`, with their names before 0.18.0
+(`CC_BAND_APPEARANCE`, `CC_BAND_GLYPHS`), and `NO_COLOR`, for how it draws;
+`CLAUDE_CODE_PROMPT_CACHE_TTL`, `FORCE_PROMPT_CACHING_5M` and
+`ENABLE_PROMPT_CACHING_1H` for the cache's lifetime; `DISABLE_AUTO_COMPACT`,
+`DISABLE_COMPACT` and `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS` for
+[idle compaction](#idle-compaction); `HOME`, to find a transcript and write
+the project's path from `~`; and the locale (`LC_ALL`, `LC_CTYPE`, `LANG`)
 for the glyph tier. None of these is a key or a token, and none leaves your
 machine. Claude Code hands a mod its settings whole (`$.settings.read`), so
 the call takes those two keys where it is made and drops the rest, `env` and
 any key or helper in it included. It never reads `~/.claude.json`, your
-login, or any credential file; the only file it reads itself is a session's
-own transcript, as above. `hooks/kit.tsx` and `hooks/strip.tsx` only draw the
-band, and `plugin.json` only names the listing's links: none of them reads a
-credential.
+login, or any credential file. The only file it reads itself is a session's
+own transcript, as above, and where `tail` or `grep` can't run, it reads
+that file whole through Claude Code (`$.fs`) if it is 4 MiB or smaller.
+`hooks/kit.tsx` and `hooks/strip.tsx` only draw the band, and `plugin.json`
+only names the listing's links: none of them reads a credential.
 
 **It keeps**, on your machine in the plugin's own store: each session's last
-reply time (the newest 50), the price per token it solved for each model, the
-layout you chose, and a week of your 5-hour and weekly limit readings, at most
-one per 15 minutes. In the session's own state it keeps whether the band is
+reply time and the name of the model it was billed under (the newest 50),
+the price per token it solved for each model, the layout you chose, and a
+week of your 5-hour and weekly limit readings, at most one per 15 minutes. In the session's own state it keeps whether the band is
 hidden or open. [SECURITY.md](https://github.com/HMarzban/nextcost/blob/main/SECURITY.md)
 lists the same.
 
@@ -441,15 +450,15 @@ none edits a message, a setting, a tool call or a result.
 
 | Hook | What it does |
 | --- | --- |
-| `session.start` | Starts a once-a-second timer that repaints only when the drawing would change and registers `/nextcost` (and its old name, `/usage-band`), then resets the band and reads its settings, stored layout and limit readings. Loaded into a conversation it can't tell is new, it recalls the last reply, from its store or the transcript's end as above. |
-| `session.end` | On `/clear` or a resume, starts the next conversation's count. |
+| `session.start` | Starts a once-a-second timer that repaints only when the drawing would change and registers `/nextcost` (and its old name, `/usage-band`), then resets the band, reads its stored limit readings and layout, then its settings, and git. Loaded into a conversation it can't tell is new, it recalls the last reply, from its store or the transcript's end as above. |
+| `session.end` | On `/clear` or a resume, starts the next conversation's count and reads git again. |
 | `classic.SessionStart` | On a resume or fork, notes that the conversation isn't new and reads its transcript as above. |
 | `turn.start`, `turn.complete` | Note the session's cost as each main turn starts and ends, the turn's cost, the context, and a limit reading; then read the layout and git again. A subagent's turn is left alone. |
 | `turn.step` | Reads each response's token counts, for the cache model and the price per token. |
 | `session.compact` | Notes that the conversation was compacted, so the cache counts as rebuilt at the summary's size. |
 | `session.measure` | Reads where auto-compaction runs, and shows a toast as the context or the 5-hour limit crosses its warning levels. |
-| `command.run` | Answers `/nextcost` and `/usage-band`, and no other command. |
-| `ui.render` (above the prompt) | Draws the band; steps aside while a survey holds the space or the band is hidden. |
+| `command.run` | Answers `/nextcost` and `/usage-band`, and no other command; `/nextcost more` reads git. |
+| `ui.render` (above the prompt) | Draws the band; steps aside while a survey holds the space or the band is hidden. Opening the cards with `▵` reads git. |
 
 ## Developing
 
