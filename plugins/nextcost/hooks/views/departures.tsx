@@ -43,7 +43,6 @@ const moduleOf = (kit: Kit, k: Keeps<Piece>, row: BoardRow, cell: string): Rende
   )
 }
 
-
 /** A row's cell as the squeeze keeps it, chosen among its forms, never cut.
  *  Amber: whole until the amber step, then short. A calm limit: its reset
  *  while its step holds, then its remark while its own step holds, then its
@@ -68,7 +67,8 @@ const keeps = (row: BoardRow, k: Keeps<Piece>): boolean =>
  *  every column between modules is one the row draws and measures. */
 const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderElement =>
   fitLine(kit, ORDER, k => {
-    const modules = read.board().rows.filter(r => keeps(r, k)).flatMap((r, i) => [moduleOf(kit, k, r, cellOf(r, k)), 
+    const modules = read.board().rows.filter(r => keeps(r, k)).flatMap((r, i) => [
+      moduleOf(kit, k, r, cellOf(r, k)),
       // The band's own background between modules, and after the last, before
       // ▵: a column where modules have their ground; in plain, which has none,
       // two until its last step.

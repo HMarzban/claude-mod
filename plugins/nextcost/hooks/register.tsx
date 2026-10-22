@@ -44,8 +44,8 @@ import type { Sample } from './memory'
 import { DEFAULT_LAYOUT, FIVE_HOUR, asLayoutName, limitOf, removedLayoutOf, resetsOf, snapshotOf } from './snapshot'
 import type { Glyphs, LayoutName } from './snapshot'
 import { NO_WARNINGS, contextToasts, forgetConversation, limitToasts } from './toast'
-import { READ_LIMIT, lastWriteTtl, sessionCostRecord, transcriptPath, transcriptSpend } from './transcript'
 import type { Warned } from './toast'
+import { READ_LIMIT, lastWriteTtl, sessionCostRecord, transcriptPath, transcriptSpend } from './transcript'
 import { homeRelative, parseGitState, splitPath } from './workspace'
 import type { Workspace } from './workspace'
 
@@ -366,7 +366,6 @@ const runCommand = async ($: EngineInterface, args: string): Promise<{ text: str
 }
 
 export const register: Register = on => {
-
   on('session.start', async ($, e, next) => {
     // One timer, repainting only when the drawing would differ: every minute
     // (the clocks, the battery, the average's pace), and as each countdown
