@@ -364,12 +364,18 @@ const leftMsOf = (s: CacheState, now: number): number => {
   return at === null ? TTL_MS[effectiveTtl(s)] : Math.max(0, at - now)
 }
 
+/** How long the recalled reply has sat idle at `now`; null unless the
+ *  cache stands as recalled. */
+const idleMsOf = (s: CacheState, now: number): number | null => {
+  const lastAt = recalledAt(s)
+  return isRecalled(s) && lastAt !== undefined ? now - lastAt : null
+}
+
 /** The cache as the band shows it, at `now`: measured once a reply has been
  *  seen, recalled before that. `contextTokens` is the context as it stands,
  *  which a recalled cold cache would rebuild. */
 const viewOf = (s: CacheState, now: number, sessionCost: number | undefined, contextTokens: number, autoCompactOff: boolean): CacheView => {
   const recalled = isRecalled(s)
-  const lastAt = recalledAt(s)
   const recallRate = s.recall?.rate ?? null
   // A resume's price is the engine's own; else it is solved from the rate recalled.
   const recalledPrice = s.resumedCache?.reWarmUsd ?? (recallRate === null ? null : reWarmAt(s, recallRate, contextTokens))
@@ -390,7 +396,7 @@ const viewOf = (s: CacheState, now: number, sessionCost: number | undefined, con
     // A measured cold cache rebuilds with a cache write of the whole window.
     reWarmUsd: recalled ? recalledPrice : rate === null ? null : reWarmAt(s, rate, s.window),
     recalled,
-    idleMs: recalled && lastAt !== undefined ? now - lastAt : null,
+    idleMs: idleMsOf(s, now),
     // Every cache read saved the rest of the base rate against full input price.
     savedUsd: rate === null || tokens.read <= 0 ? null : rate * (1 - share) * (s.tieredReads + (s.prior?.tokens.read ?? 0)),
     readShare: share,
@@ -569,6 +575,9 @@ export type CacheModel = Readonly<{
   view: (o: Readonly<{ now: number; ledger: number | undefined; contextTokens: number; autoCompactOff: boolean }>) => Readonly<{ cache: CacheView; costUsd: number }>
   /** The cache's time left at `now`, for the timer's repaint. */
   leftMs: (now: number) => number
+  /** How long a recalled cache has sat idle at `now`, for the timer's
+   *  repaint; null unless it stands as recalled. */
+  idleMs: (now: number) => number | null
 }>
 
 /** A session's cache model, before anything is known of it. */
@@ -633,6 +642,7 @@ export const newCache = (): CacheModel => {
       return { cache: viewOf(s, now, ledger, contextTokens, autoCompactOff), costUsd: spentUsd(s, ledger) }
     },
     leftMs: now => leftMsOf(s, now),
+    idleMs: now => idleMsOf(s, now),
   }
 }
 

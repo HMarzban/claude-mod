@@ -312,15 +312,21 @@ const resetSpans = (left: number, zone: Zone | undefined): string =>
 
 /** Every phrase the clock alone moves, as one key, so the 1-second tick
  *  repaints only when one would read differently: the minute (the clocks,
- *  the battery and the average's pace), the cache's countdown, the 5-hour fill's projection,
- *  and each reset's countdown, which turns on the reset's own minute. The
- *  minute turns just past the boundary, as the countdowns to a time on the
- *  minute do: on it, they still read the minute before. */
-export const paintKey = (now: number, t: Readonly<{ cacheLeft: number; etaMs: number | null; resets: readonly number[]; zone: Zone | undefined }>): string =>
+ *  the battery and the average's pace), the cache's countdown, how long a
+ *  recalled cache has sat idle (null when none is drawn), which turns on its
+ *  last reply's minute, the 5-hour fill's projection, and each reset's
+ *  countdown, which turns on the reset's own minute. The minute turns just
+ *  past the boundary, as the countdowns to a time on the minute do: on it,
+ *  they still read the minute before. */
+export const paintKey = (
+  now: number,
+  t: Readonly<{ cacheLeft: number; idleMs: number | null; etaMs: number | null; resets: readonly number[]; zone: Zone | undefined }>,
+): string =>
   [
     Math.ceil(now / MINUTE_MS),
     fmtCountdown(t.cacheLeft),
     t.cacheLeft > 0,
+    t.idleMs === null ? '-' : fmtAgo(t.idleMs),
     t.etaMs === null ? '-' : fmtEta(t.etaMs),
     ...t.resets.map(at => resetSpans(at - now, t.zone)),
   ].join('|')

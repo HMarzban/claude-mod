@@ -30,6 +30,13 @@ test('recalled, the cache counts down from the last reply and prices the whole c
   expect(view.idleMs).toBe(10 * MIN)
 })
 
+test("the timer reads the recalled cache's time left and idle time as its view does", () => {
+  const c = recalledAt0(2.41, RATE)
+  expect([c.leftMs(10 * MIN), c.idleMs(10 * MIN)]).toEqual([50 * MIN, 10 * MIN])
+  c.responded({ input_tokens: 1_000, output_tokens: 500, cache_read_input_tokens: 0, cache_creation_input_tokens: 80_000 }, 15 * MIN, true)
+  expect(c.idleMs(20 * MIN)).toBeNull()
+})
+
 test('with no rate recalled, the re-warm price is unknown, not guessed', () => {
   expect(viewAt(recalledAt0(2.41, null), 10 * MIN, 2.41, 76_000).reWarmUsd).toBeNull()
 })
