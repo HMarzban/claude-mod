@@ -182,8 +182,18 @@ test('with room for one character the name is an ellipsis, and with none it is e
   expect(clipMiddle('abcdef', -1)).toBe('')
 })
 
-test('a name is clipped by characters, never through one', () => {
-  expect(clipMiddle('😀😀😀😀', 3)).toBe('😀…😀')
+test('a name is clipped by the columns it takes, never through a character: a wide one takes two', () => {
+  expect(clipMiddle('😀😀😀😀', 5)).toBe('😀…😀')
+  // A column the head can't use goes to the end.
+  expect(clipMiddle('😀😀😀😀', 3)).toBe('…😀')
+  expect(clipMiddle('日本語のブランチ名', 9)).toBe('日本…チ名')
+  expect(clipMiddle('日本語', 6)).toBe('日本語')
+})
+
+test('a line too long is cut by the columns it takes, a wide character two', () => {
+  expect(clipWords('日本語 の ブランチ', 8)).toBe('日本語.')
+  expect(clipWords('こんにちは世界', 6)).toBe('こん.')
+  expect(clipWords('日本語', 6)).toBe('日本語')
 })
 
 test('the context in use prefers its token count, even a zero, to the percent', () => {
