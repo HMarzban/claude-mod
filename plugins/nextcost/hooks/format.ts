@@ -86,7 +86,7 @@ export const fmtCountdown = (ms: number): string => {
 export type ResetIn = { kind: 'in'; text: string } | { kind: 'passed' }
 
 /** A span coarsely, to the minute: `2d 4h`, `3h 05m`, `12m`, `<1m`. */
-const fmtSpan = (ms: number): string => {
+export const fmtSpan = (ms: number): string => {
   const mins = Math.floor(Math.max(0, ms) / MINUTE_MS)
   const hours = Math.floor(mins / 60)
   const days = Math.floor(hours / 24)

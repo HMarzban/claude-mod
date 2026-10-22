@@ -2,7 +2,8 @@
 // key the 1-second tick compares has changed too.
 
 import { test, expect } from 'claude-code/testing'
-import { grainOf } from '../hooks/format'
+import { fixedZone, grainOf } from '../hooks/format'
+import type { Zone } from '../hooks/format'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { paintKey } from '../hooks/words'
@@ -49,5 +50,25 @@ test("the key moves whenever the cache's countdown does, to cold and past it", (
     const snap = snapOf({ now, fiveHour: undefined, sevenDay: undefined })
     return { ...snap, cache: { ...snap.cache, coldAt, msLeft: Math.max(0, coldAt - now) } }
   }
-  expect(missed(0, 13 * MIN, snapAt, now => paintKey(now, Math.max(0, coldAt - now), null))).toEqual([])
+  expect(missed(0, 13 * MIN, snapAt, now => paintKey(now, { cacheLeft: Math.max(0, coldAt - now), etaMs: null, resets: [], zone: undefined }))).toEqual([])
+})
+
+/** A 5-hour reset half a minute off the minute, so its countdown never
+ *  turns with the clock's, and the cache cold, so its countdown never moves
+ *  the key: the instants walked past it where the key stayed. */
+const resetMisses = (zone: Zone | undefined): number[] => {
+  const resetsAt = 12 * MIN + 30 * SEC
+  const snapAt = (now: number): BandSnapshot => {
+    const snap = snapOf({ now, fiveHour: { percentUsed: 4, resetsAt: new Date(resetsAt).toISOString(), etaMs: null }, sevenDay: undefined, zone })
+    return { ...snap, cache: { ...snap.cache, coldAt: 0, msLeft: 0 } }
+  }
+  return missed(0, 13 * MIN, snapAt, now => paintKey(now, { cacheLeft: 0, etaMs: null, resets: [resetsAt], zone }))
+}
+
+test("with no zone known, the key moves whenever a limit's reset countdown does, its last minute's seconds too", () => {
+  expect(resetMisses(undefined)).toEqual([])
+})
+
+test("with a zone known, the key moves whenever a card's reset span does", () => {
+  expect(resetMisses(fixedZone(0))).toEqual([])
 })

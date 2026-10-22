@@ -143,6 +143,9 @@ const band: {
   resume: Resume | undefined
   /** What the band last drew, so the timer repaints only when it would change. */
   lastPaintKey: string
+  /** The limits' resets the band last drew, epoch ms, so the timer repaints
+   *  as their countdowns turn. */
+  resets: readonly number[]
   /** Each toast's level reached, so it speaks once per crossing. */
   warned: Warned
   tick: Timer | undefined
@@ -160,6 +163,7 @@ const band: {
   reads: 0,
   resume: undefined,
   lastPaintKey: '',
+  resets: [],
   warned: NO_WARNINGS,
   tick: undefined,
 }
@@ -431,6 +435,7 @@ export const register: Register = on => {
     resetInsights()
     band.warned = NO_WARNINGS
     band.lastPaintKey = ''
+    band.resets = []
     band.workspace = undefined
     const now = await $.clock.now()
     band.samples = samplesUpTo((await storedSamples($)) ?? [], now)
@@ -484,13 +489,13 @@ export const register: Register = on => {
     })
 
     // One timer, repainting only when the drawing would differ: every minute
-    // (the battery, the reset countdowns, the pace tick), and every second of
-    // the cache's last ten minutes, when its countdown shows seconds.
+    // (the clocks, the battery, the pace tick), and as each countdown turns,
+    // every second where it shows seconds.
     band.tick?.cancel()
     band.tick = $.clock.every(1000, () => {
       void (async () => {
         const now = await $.clock.now()
-        const key = paintKey(now, msLeft(now), fiveHourEtaMs(now))
+        const key = paintKey(now, { cacheLeft: msLeft(now), etaMs: fiveHourEtaMs(now), resets: band.resets, zone: readableZone(hostZone, now) })
         if (key !== band.lastPaintKey) {
           band.lastPaintKey = key
           $.ui.invalidate('ui.render')
@@ -644,6 +649,10 @@ export const register: Register = on => {
     if (usage.cost !== undefined) noteLedger(usage.cost.usd)
     const contextTokens = contextUsed(usage.context) ?? 0
     const limitOf = (l: SessionRateLimit): LimitReading => ({ percentUsed: l.percentUsed, resetsAt: l.resetsAt })
+    band.resets = usage.rateLimits.flatMap(l => {
+      const at = Date.parse(l.resetsAt ?? '')
+      return Number.isNaN(at) ? [] : [at]
+    })
 
     return drawBand(
       $.ui.resolve(e),

@@ -3,6 +3,7 @@
 // amber, pace, resets, empty states and alt text read the same everywhere.
 
 import type { Week } from './calendar'
+import type { Zone } from './format'
 import {
   clamp01,
   etaMinutes,
@@ -20,6 +21,7 @@ import {
   fmtLeftSpoken,
   fmtPct,
   fmtSmallCost,
+  fmtSpan,
   fmtTokens,
   grainOf,
   HOUR_MS,
@@ -760,14 +762,26 @@ export const boardWords = (r: BoardFacts): Board => {
 
 // ---- the clock ---------------------------------------------------------------
 
+/** A reset's countdown as every layout says it: the span a card and, with
+ *  no zone known, a limit's words say, and the board's, which with no zone
+ *  counts its last minute's seconds; with a zone the board says a clock. */
+const resetSpans = (left: number, zone: Zone | undefined): string =>
+  left <= 0 ? 'passed' : zone === undefined ? `${fmtSpan(left)} ${boardSpan(left)}` : fmtSpan(left)
+
 /** Every phrase the clock alone moves, as one key, so the 1-second tick
- *  repaints only when one would read differently: the minute (the clocks,
- *  the reset countdowns, the pace tick), the cache's countdown at its grain,
- *  and the 5-hour fill's projection. The minute turns just past the
- *  boundary, as the countdowns to a time on the minute do: on it, they
- *  still read the minute before. */
-export const paintKey = (now: number, cacheLeft: number, etaMs: number | null): string =>
-  `${Math.ceil(now / MINUTE_MS)}|${fmtCountdown(cacheLeft)}|${cacheLeft > 0}|${etaMs === null ? '-' : fmtEta(etaMs)}`
+ *  repaints only when one would read differently: the minute (the clocks
+ *  and the battery), the cache's countdown, the 5-hour fill's projection,
+ *  and each reset's countdown, which turns on the reset's own minute. The
+ *  minute turns just past the boundary, as the countdowns to a time on the
+ *  minute do: on it, they still read the minute before. */
+export const paintKey = (now: number, t: Readonly<{ cacheLeft: number; etaMs: number | null; resets: readonly number[]; zone: Zone | undefined }>): string =>
+  [
+    Math.ceil(now / MINUTE_MS),
+    fmtCountdown(t.cacheLeft),
+    t.cacheLeft > 0,
+    t.etaMs === null ? '-' : fmtEta(t.etaMs),
+    ...t.resets.map(at => resetSpans(at - now, t.zone)),
+  ].join('|')
 
 /** What a board line says in its four columns. */
 type BoardText = Readonly<Record<'item' | 'status' | 'time' | 'remarks', string>>
