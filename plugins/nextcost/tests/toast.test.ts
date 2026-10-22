@@ -64,3 +64,21 @@ test("a conversation's end forgets the context's level, not the 5-hour limit's",
   expect(contextSays([{ used: 170_000 }], forgot)).toEqual([['Context is 85% full.']])
   expect(fiveHourSays([86], forgot)).toEqual([[]])
 })
+
+test('a warning toward the window leaves the warning toward compaction to speak', () => {
+  expect(contextSays([{ used: 170_000 }, { used: 172_000, compactAt: 190_000 }])).toEqual([['Context is 85% full.'], ['Auto-compaction in ~18k tokens.']])
+})
+
+test('each change of scale starts the warnings on the new one afresh', () => {
+  expect(
+    contextSays([
+      { used: 176_000, compactAt: 190_000 },
+      { used: 180_000, autoCompactOff: true },
+      { used: 180_000, compactAt: 190_000 },
+    ]),
+  ).toEqual([
+    ['Auto-compaction in ~14k tokens.'],
+    ['Context is 90% full and auto-compaction is off, so the conversation will run out of room.'],
+    ['Auto-compaction in ~10k tokens.'],
+  ])
+})

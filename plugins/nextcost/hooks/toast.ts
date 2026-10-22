@@ -14,7 +14,9 @@ export type Toasts = Readonly<{ warned: Warned; say: readonly string[] }>
 /** No toast has spoken. */
 export const NO_WARNINGS: Warned = new Map()
 
-const CONTEXT = 'context'
+/** The context's keys, one per scale it is measured on: its levels toward
+ *  the window and toward compaction are not one count. */
+const CONTEXT = { window: 'context', compaction: 'context toward compaction' } as const
 
 /** A toast re-arms once its figure falls back below this share. */
 const TOAST_REARM_BELOW = 0.75
@@ -53,12 +55,17 @@ export const limitToasts = (warned: Warned, limits: ReadonlyArray<Readonly<{ kin
  *  on and known, and whether it is off. */
 export type ContextNow = Readonly<{ used: number | undefined; window: number; compactAt: number | undefined; autoCompactOff: boolean }>
 
-/** The context's toast. It speaks where the context pill turns amber: by the same rule. */
+/** The context's toast. It speaks where the context pill turns amber: by the
+ *  same rule. A level counts on the scale it was reached on, so a change of
+ *  scale forgets the other's and the new one starts at none. */
 export const contextToasts = (warned: Warned, c: ContextNow): Toasts => {
   const { used, compactAt } = c
   if (used === undefined) return { warned, say: [] }
   const { frac, levels } = contextPressure(used, c.window, compactAt)
-  return note(warned, CONTEXT, frac, levels, pct =>
+  const [key, other] = compactAt === undefined ? [CONTEXT.window, CONTEXT.compaction] : [CONTEXT.compaction, CONTEXT.window]
+  const rebased = new Map(warned)
+  rebased.delete(other)
+  return note(rebased, key, frac, levels, pct =>
     compactAt !== undefined ? `Auto-compaction in ${roomOf(toCompaction(used, compactAt))} tokens.`
     : c.autoCompactOff ? `Context is ${pct}% full and auto-compaction is off, so the conversation will run out of room.`
     : `Context is ${pct}% full.`,
@@ -69,6 +76,7 @@ export const contextToasts = (warned: Warned, c: ContextNow): Toasts => {
  *  5-hour limit is the account's, and /clear changes nothing about it. */
 export const forgetConversation = (warned: Warned): Warned => {
   const kept = new Map(warned)
-  kept.delete(CONTEXT)
+  kept.delete(CONTEXT.window)
+  kept.delete(CONTEXT.compaction)
   return kept
 }
