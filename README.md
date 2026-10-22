@@ -213,8 +213,8 @@ no build step and about 1,000 tests.
   spent from its transcript.
 - **It spends nothing and sends nothing.** It never calls a model, never
   writes files and never sends anything anywhere. Besides two read-only git commands for
-  the workspace line, it runs only `grep` and `tail`, to read an old
-  session's transcript. The plugin README's
+  the workspace line, it runs only `grep` and `tail`, to read a
+  session's own transcript. The plugin README's
   [What it runs, reads and sends](plugins/nextcost/README.md#what-it-runs-reads-and-sends)
   names each command and what each hook does, and [SECURITY.md](SECURITY.md)
   lists exactly what it reads.
@@ -276,7 +276,7 @@ see in your own sessions.
 ### Good places to start
 
 - **The tokens chip hides too early on the desktop.** Chips' row fits by
-  `squeezeToFit` against `columns - ROW_SLACK` (`hooks/views/chips.tsx`).
+  `fitLine` (`hooks/views/frame.tsx`) against `columns - ROW_SLACK`.
   `DESKTOP` (`hooks/layout.ts`) estimates text width roughly, so the row
   keeps `ROW_SLACK` spare and the tokens chip, first to give way, drops
   before it has to. Calibrating that estimate from screenshots would let it
