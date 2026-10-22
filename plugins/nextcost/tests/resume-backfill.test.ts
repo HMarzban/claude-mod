@@ -119,6 +119,18 @@ test("without the engine's idle time, the band's own memory of the last reply st
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 50m/)
 })
 
+test("without the engine's idle time, a session named by an alias is priced at the model its remembered reply was billed under", async ($, on) => {
+  // Haiku 5.5's 151k context re-warms at its upper tier: 151k × 1.25 × $0.50 per million.
+  const haiku = { ...RESUMED, context: { tokens: 151_000, window: 1_000_000, percent: 15 } }
+  const store = { sessions: { s1: { lastAt: HOUR, billed: 'claude-haiku-5-5' } }, rates: { 'claude-haiku-5-5': 0.0000001 } }
+  const clock = setup(on, { usage: haiku, env: ENV, store, now: 3 * HOUR })
+  engine.model = 'haiku'
+  await $.session.start(START)
+  await $.classic.SessionStart({ source: 'resume', session_id: 's1', transcript_path: PATH })
+  await clock.settle()
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold · next message ~\$0\.09\b/)
+})
+
 test("a resumed session's spend and tokens start from its last cost record, each later reply counted once", async ($, on) => {
   const clock = setup(on, { usage: RESUMED, env: ENV, now: 3 * HOUR })
   engine.transcript = TRANSCRIPT

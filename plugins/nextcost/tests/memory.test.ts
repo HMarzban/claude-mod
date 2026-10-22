@@ -80,13 +80,17 @@ test('a stored record past the cap is written back as its newest sessions, malfo
   expect([kept.new, kept.s451, kept.s450, kept.infinite, kept.text]).toEqual([{ lastAt: 1_000 }, { lastAt: 451 }, undefined, undefined, undefined])
 })
 
-test('the sessions kept stay under 4,000 bytes of JSON, at UUIDs and 13-digit times', () => {
+test('a reply billed under a model it names is remembered with that name', () => {
+  expect(rememberReply({}, 'a', 9, 'claude-haiku-5-5')).toEqual({ a: { lastAt: 9, billed: 'claude-haiku-5-5' } })
+})
+
+test('the sessions kept stay under 6,000 bytes of JSON, at UUIDs, 13-digit times and the longest model name', () => {
   const at = Date.UTC(2026, 9, 6)
   const uuid = (i: number) => `${String(i).padStart(8, '0')}-0000-4000-8000-000000000000`
   let kept = {}
-  for (let i = 0; i < 2 * MAX_SESSIONS; i++) kept = rememberReply(kept, uuid(i), at + i)
+  for (let i = 0; i < 2 * MAX_SESSIONS; i++) kept = rememberReply(kept, uuid(i), at + i, 'claude-sonnet-5-5')
   expect(Object.keys(kept)).toHaveLength(MAX_SESSIONS)
-  expect(JSON.stringify(kept).length).toBeLessThan(4_000)
+  expect(JSON.stringify(kept).length).toBeLessThan(6_000)
 })
 
 // ── the limit samples kept ─────────────────────────────────────────────
@@ -143,6 +147,20 @@ test('the store recalls a session\'s last reply and the rate under the model /mo
   const stored = fromStore({ sessions: { s1: { lastAt: 5_000 } }, rates: { 'claude-opus-5-5': OPUS_RATE } }, 's1', 'claude-opus-5-5[1m]')
   expect(needsTranscript(stored)).toBe(false)
   expect(recallOf(stored, undefined)).toEqual({ lastAt: 5_000, rate: OPUS_RATE, billed: undefined })
+})
+
+test("a session's record names the model its reply was billed under, and the rate kept under that name", () => {
+  const stored = fromStore({ sessions: { s1: { lastAt: 5_000, billed: 'claude-haiku-5-5' } }, rates: { 'claude-haiku-5-5': OPUS_RATE, haiku: 1 } }, 's1', 'haiku')
+  expect(needsTranscript(stored)).toBe(false)
+  expect(recallOf(stored, undefined)).toEqual({ lastAt: 5_000, rate: OPUS_RATE, billed: 'claude-haiku-5-5' })
+})
+
+test("a record's billed model that isn't a name is unknown, so the transcript says it", () => {
+  for (const billed of [42, '', null]) {
+    const stored = fromStore({ sessions: { s1: { lastAt: 5_000, billed } }, rates: {} }, 's1', 'opus')
+    expect(needsTranscript(stored)).toBe(true)
+    expect(recallOf(stored, jsonl(replyLine(7_000), costRecord('claude-opus-5-5'))).billed).toBe('claude-opus-5-5')
+  }
 })
 
 test('what the store leaves unknown, the transcript gives: its last reply, and the rate stored for the model it was billed under', () => {

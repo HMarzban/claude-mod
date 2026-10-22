@@ -1,11 +1,14 @@
 // The prompt cache, as the band models it from each response's token counts,
 // and what it means for the band: its mood, its charge, its last call. One
 // model per session, made at session.start and fed each hook's facts in that
-// hook's own shape; the order they must be applied in is kept here.
+// hook's own shape; the order they must be applied in is kept here. What a
+// token costs is prices.ts's; what the settings pin, cache-settings.ts's.
 
 import type { ModelUsage } from 'claude-code'
 import type { Tone } from './facts'
 import { LAST_CALL_MS, MINUTE_MS, SOON_MS, fmtEstimate, fmtTokens } from './format'
+import { NO_TOKENS, WRITE_MULT, addTokens, modelName, readMultiplier, tierFactor, weightedTokens } from './prices'
+import type { TokenCounts } from './prices'
 
 export type Ttl = '5m' | '1h'
 export const TTL_MS: Readonly<Record<Ttl, number>> = { '5m': 5 * MINUTE_MS, '1h': 60 * MINUTE_MS }
@@ -15,17 +18,12 @@ export const TTL_MS: Readonly<Record<Ttl, number>> = { '5m': 5 * MINUTE_MS, '1h'
 const MISS_MIN_TOKENS = 2000
 const MISS_MIN_SHARE = 0.05
 
-/** Tokens by kind, as a bill counts them. */
-export type TokenCounts = Readonly<{ uncached: number; written: number; read: number; output: number }>
-
-export const NO_TOKENS: TokenCounts = { uncached: 0, written: 0, read: 0, output: 0 }
-
-export const addTokens = (a: TokenCounts, b: TokenCounts): TokenCounts => ({
-  uncached: a.uncached + b.uncached,
-  written: a.written + b.written,
-  read: a.read + b.read,
-  output: a.output + b.output,
-})
+/** Claude Code compacts a conversation left idle on the hour's cache about
+ *  this long after its last request, before the cache runs out. */
+export const IDLE_COMPACT_MS = 54 * MINUTE_MS
+/** A compaction this long after the last request, with no turn under way, is
+ *  an idle one: an auto-compaction comes as a turn starts, not half an hour on. */
+const IDLE_GAP_MS = 30 * MINUTE_MS
 
 /** What a conversation has spent: its dollars and its tokens. */
 export type Spend = Readonly<{ usd: number; tokens: TokenCounts }>
@@ -183,101 +181,6 @@ const INITIAL: Readonly<CacheState> = {
   billedModel: undefined,
 }
 
-// ---- the prices -------------------------------------------------------------
-
-// The price of each kind of token against base input. Writes and output hold
-// one ratio across Anthropic's models; reads do not. Claude Code's own ledger
-// prices every cache write at 1.25×, whatever its lifetime, so the band does
-// too, to agree with the cost it shows.
-const WRITE_MULT = 1.25
-const OUTPUT_MULT = 5
-/** A cache read against base input, by model; 0.1× elsewhere. Per Anthropic's
- *  list prices as of 2026-10: Opus 5.5 reads at $0.20 on $4.00 input, Sonnet
- *  5.5 at $0.10 on $2.00, Fable and Mythos 5.1 at $0.25 on $10.00. */
-const READ_MULT_BY_MODEL: Readonly<Record<string, number>> = {
-  'claude-opus-5-5': 0.05,
-  'claude-sonnet-5-5': 0.05,
-  'claude-fable-5-1': 0.025,
-  'claude-mythos-5-1': 0.025,
-}
-const DEFAULT_READ_MULT = 0.1
-
-/** The model a name bills as. `/model` names a 1M context window with a
- *  suffix, `claude-opus-5-5[1m]`, and the cost record names the model alone. */
-export const modelName = (model: string): string => model.replace(/\[[^\]]*\]$/, '')
-
-/** Prices that rise with a request's prompt, by model: past `over` input
- *  tokens, every price is `factor` times the lower tier's. Per Anthropic's
- *  list prices as of 2026-10: Haiku 5.5 is $0.10 input up to 100,000 prompt
- *  tokens and $0.50 over, the cache and output prices alike. */
-const TIERS_BY_MODEL: Readonly<Record<string, Readonly<{ over: number; factor: number }>>> = {
-  'claude-haiku-5-5': { over: 100_000, factor: 5 },
-}
-
-/** How many times the lower tier's prices a request with `prompt` input
- *  tokens pays on `model`: 1 on a model with one tier. */
-export const tierFactor = (model: string | undefined, prompt: number): number => {
-  const tier = model === undefined ? undefined : TIERS_BY_MODEL[modelName(model)]
-  return tier !== undefined && prompt > tier.over ? tier.factor : 1
-}
-
-/** What a cache read costs against base input on `model`. */
-const readMultiplier = (model: string | undefined): number =>
-  (model === undefined ? undefined : READ_MULT_BY_MODEL[modelName(model)]) ?? DEFAULT_READ_MULT
-
-/** Tokens weighted by their price against base input on `model`: the one
- *  unknown left is the base rate itself. */
-export const weightedTokens = (t: TokenCounts, model: string | undefined): number =>
-  t.uncached + WRITE_MULT * t.written + readMultiplier(model) * t.read + OUTPUT_MULT * t.output
-
-// ---- what the session's settings say ----------------------------------------
-
-/** Claude Code compacts a conversation left idle on the hour's cache about
- *  this long after its last request, before the cache runs out. */
-export const IDLE_COMPACT_MS = 54 * MINUTE_MS
-/** A compaction this long after the last request, with no turn under way, is
- *  an idle one: an auto-compaction comes as a turn starts, not half an hour on. */
-const IDLE_GAP_MS = 30 * MINUTE_MS
-const IDLE_COMPACT_TOKENS = 200_000
-const IDLE_COMPACT_FLOOR = 100_000
-
-const truthy = (v: string | undefined): boolean => v !== undefined && ['1', 'true', 'yes', 'on'].includes(v.trim().toLowerCase())
-
-/** The context, in tokens, from which Claude Code compacts this session when
- *  it sits idle; undefined when it never does: outside an interactive
- *  terminal, `idleCompaction: false`, or compaction turned off. The threshold
- *  takes a positive whole number, raised to 100k, as Claude Code does. */
-export const idleCompactFrom = (o: {
-  terminal: boolean
-  setting: unknown
-  disableAuto: string | undefined
-  disableAll: string | undefined
-  minTokens: string | undefined
-}): number | undefined => {
-  if (!o.terminal || o.setting === false || truthy(o.disableAuto) || truthy(o.disableAll)) return undefined
-  const min = o.minTokens !== undefined && /^\d+$/.test(o.minTokens.trim()) ? Number(o.minTokens.trim()) : 0
-  return min > 0 ? Math.max(IDLE_COMPACT_FLOOR, min) : IDLE_COMPACT_TOKENS
-}
-
-const asTtl = (v: unknown): Ttl | undefined => (v === '5m' || v === '1h' ? v : undefined)
-
-/** The TTL the environment or the settings pin, if they pin one, in Claude
- *  Code's order: forcing 5m, the main conversation's variable, then its
- *  `promptCacheTtl` setting, then asking for 1h. Any other value is ignored,
- *  as Claude Code ignores it. */
-export const resolveTtl = (env: {
-  force5m: string | undefined
-  chosen: string | undefined
-  setting: unknown
-  enable1h: string | undefined
-}): Ttl | undefined => {
-  if (env.force5m === '1') return '5m'
-  const chosen = asTtl(env.chosen) ?? asTtl(env.setting)
-  if (chosen !== undefined) return chosen
-  if (env.enable1h === '1') return '1h'
-  return undefined
-}
-
 // ---- what the state says ----------------------------------------------------
 
 /** When the conversation's last reply was, before this band's own: as the
@@ -363,12 +266,18 @@ const leftMsOf = (s: CacheState, now: number): number => {
   return at === null ? TTL_MS[effectiveTtl(s)] : Math.max(0, at - now)
 }
 
+/** How long the recalled reply has sat idle at `now`; null unless the
+ *  cache stands as recalled. */
+const idleMsOf = (s: CacheState, now: number): number | null => {
+  const lastAt = recalledAt(s)
+  return isRecalled(s) && lastAt !== undefined ? now - lastAt : null
+}
+
 /** The cache as the band shows it, at `now`: measured once a reply has been
  *  seen, recalled before that. `contextTokens` is the context as it stands,
  *  which a recalled cold cache would rebuild. */
 const viewOf = (s: CacheState, now: number, sessionCost: number | undefined, contextTokens: number, autoCompactOff: boolean): CacheView => {
   const recalled = isRecalled(s)
-  const lastAt = recalledAt(s)
   const recallRate = s.recall?.rate ?? null
   // A resume's price is the engine's own; else it is solved from the rate recalled.
   const recalledPrice = s.resumedCache?.reWarmUsd ?? (recallRate === null ? null : reWarmAt(s, recallRate, contextTokens))
@@ -389,7 +298,7 @@ const viewOf = (s: CacheState, now: number, sessionCost: number | undefined, con
     // A measured cold cache rebuilds with a cache write of the whole window.
     reWarmUsd: recalled ? recalledPrice : rate === null ? null : reWarmAt(s, rate, s.window),
     recalled,
-    idleMs: recalled && lastAt !== undefined ? now - lastAt : null,
+    idleMs: idleMsOf(s, now),
     // Every cache read saved the rest of the base rate against full input price.
     savedUsd: rate === null || tokens.read <= 0 ? null : rate * (1 - share) * (s.tieredReads + (s.prior?.tokens.read ?? 0)),
     readShare: share,
@@ -517,9 +426,9 @@ type Response = Pick<ModelUsage, 'input_tokens' | 'output_tokens' | 'cache_read_
   Readonly<{ model?: string }>
 
 /** What a session remembers of a turn, for when it is reopened or the band
- *  reloads: when its last reply was sent, the rate its bill solves to, and
- *  the model /model names. */
-export type Remembered = Readonly<{ lastAt: number; rate: number | null; priceModel: string | undefined }>
+ *  reloads: when its last reply was sent, the rate its bill solves to, the
+ *  model that reply was billed under, and the model /model names. */
+export type Remembered = Readonly<{ lastAt: number; rate: number | null; billed: string | undefined; priceModel: string | undefined }>
 
 /** One session's cache model. Each entry is a hook's facts, in its shape,
  *  and each that is handed the ledger notes it before it reads it. */
@@ -568,6 +477,9 @@ export type CacheModel = Readonly<{
   view: (o: Readonly<{ now: number; ledger: number | undefined; contextTokens: number; autoCompactOff: boolean }>) => Readonly<{ cache: CacheView; costUsd: number }>
   /** The cache's time left at `now`, for the timer's repaint. */
   leftMs: (now: number) => number
+  /** How long a recalled cache has sat idle at `now`, for the timer's
+   *  repaint; null unless it stands as recalled. */
+  idleMs: (now: number) => number | null
 }>
 
 /** A session's cache model, before anything is known of it. */
@@ -618,7 +530,7 @@ export const newCache = (): CacheModel => {
       s.turnOpen = false
       const rebuilt = s.lastRebuilt
       s.lastRebuilt = false
-      return { rebuilt, remember: s.requests === 0 ? undefined : { lastAt: s.lastAt, rate: ratePerToken(s, ledger), priceModel: s.priceModel } }
+      return { rebuilt, remember: s.requests === 0 ? undefined : { lastAt: s.lastAt, rate: ratePerToken(s, ledger), billed: s.billedModel, priceModel: s.priceModel } }
     },
     conversationEnded: (ledger, resumed) => {
       // The billing mode, its TTL and the session's settings carry over;
@@ -632,6 +544,7 @@ export const newCache = (): CacheModel => {
       return { cache: viewOf(s, now, ledger, contextTokens, autoCompactOff), costUsd: spentUsd(s, ledger) }
     },
     leftMs: now => leftMsOf(s, now),
+    idleMs: now => idleMsOf(s, now),
   }
 }
 

@@ -56,16 +56,15 @@ export const limitToasts = (warned: Warned, limits: ReadonlyArray<Readonly<{ kin
 export type ContextNow = Readonly<{ used: number | undefined; window: number; compactAt: number | undefined; autoCompactOff: boolean }>
 
 /** The context's toast. It speaks where the context pill turns amber: by the
- *  same rule. A level counts on the scale it was reached on, so a change of
- *  scale forgets the other's and the new one starts at none. */
+ *  same rule. A level counts on the scale it was reached on, and each scale
+ *  keeps its own: the one measured escalates and re-arms on its figure, and
+ *  the other holds, so a compaction point the engine gives and drops by
+ *  turns never speaks the same warning twice. */
 export const contextToasts = (warned: Warned, c: ContextNow): Toasts => {
   const { used, compactAt } = c
   if (used === undefined) return { warned, say: [] }
   const { frac, levels } = contextPressure(used, c.window, compactAt)
-  const [key, other] = compactAt === undefined ? [CONTEXT.window, CONTEXT.compaction] : [CONTEXT.compaction, CONTEXT.window]
-  const rebased = new Map(warned)
-  rebased.delete(other)
-  return note(rebased, key, frac, levels, pct =>
+  return note(warned, compactAt === undefined ? CONTEXT.window : CONTEXT.compaction, frac, levels, pct =>
     compactAt !== undefined ? `Auto-compaction in ${roomOf(toCompaction(used, compactAt))} tokens.`
     : c.autoCompactOff ? `Context is ${pct} full and auto-compaction is off, so the conversation will run out of room.`
     : `Context is ${pct} full.`,

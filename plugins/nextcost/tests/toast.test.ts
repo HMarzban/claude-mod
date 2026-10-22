@@ -69,18 +69,27 @@ test('a warning toward the window leaves the warning toward compaction to speak'
   expect(contextSays([{ used: 170_000 }, { used: 172_000, compactAt: 190_000 }])).toEqual([['Context is 85% full.'], ['Auto-compaction in ~18k tokens.']])
 })
 
-test('each change of scale starts the warnings on the new one afresh', () => {
+test('each scale keeps its own level across a change of scale, and re-arms only while it is the one measured', () => {
   expect(
     contextSays([
       { used: 176_000, compactAt: 190_000 },
       { used: 180_000, autoCompactOff: true },
       { used: 180_000, compactAt: 190_000 },
+      { used: 120_000, compactAt: 190_000 },
+      { used: 176_000, compactAt: 190_000 },
     ]),
   ).toEqual([
     ['Auto-compaction in ~14k tokens.'],
     ['Context is 90% full and auto-compaction is off, so the conversation will run out of room.'],
-    ['Auto-compaction in ~10k tokens.'],
+    [],
+    [],
+    ['Auto-compaction in ~14k tokens.'],
   ])
+})
+
+test('a compaction point the engine gives and drops by turns, at 85% of the window, speaks once', () => {
+  const flips = Array.from({ length: 6 }, (_, i) => (i % 2 === 0 ? { used: 170_000 } : { used: 170_000, compactAt: 190_000 }))
+  expect(contextSays(flips).flat()).toEqual(['Context is 85% full.'])
 })
 
 test('a window of 0 speaks no toast, never an Infinity%', () => {
