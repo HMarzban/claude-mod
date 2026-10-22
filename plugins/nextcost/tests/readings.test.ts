@@ -201,10 +201,6 @@ test('context not reported reads as unknown, never 0%', () => {
   expect([x.valueText, x.inContextText, x.roomText]).toEqual(['–', '–', undefined])
   expect(x.alt).toBe('context not reported')
 })
-test('the ascii tier is drawn on a terminal alone', () => {
-  expect(readingsOf(snapOf({ glyphs: 'ascii' })).frame.glyphs).toBe('ascii')
-  for (const surface of ['desktop', 'mobile', 'vscode'] as const) expect(readingsOf(snapOf({ surface, glyphs: 'ascii' })).frame.glyphs).toBe('unicode')
-})
 test('spend splits its tokens, each with its share', () => {
   const s = readingsOf(snapOf({ history: { costs: [{ usd: 0.21, reWarm: false }], context: [] } })).spend
   expect([s.totalText, s.lastText, s.tokensText]).toEqual(['$3.19', '$0.21', '225k'])

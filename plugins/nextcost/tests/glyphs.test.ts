@@ -4,7 +4,7 @@ import { test, expect } from 'claude-code/testing'
 import { ASCII_MAP, asciiText, resolveGlyphs } from '../hooks/glyphs'
 import { ROW_SLACK } from '../hooks/layout'
 import { LAYOUT_NAMES } from '../hooks/snapshot'
-import { ASCII_TIER, caseKey, cutBySurface, drawCases, type Mount } from './matrix'
+import { ASCII_TIER, caseKey, cutBySurface, drawCases, kitOf, type Mount } from './matrix'
 import {
   BUILD_80K,
   HOUR_1,
@@ -33,6 +33,10 @@ test('unicode by default, ascii on request or in a CJK locale', () => {
 test('LC_CTYPE alone picks the ascii tier', () => {
   expect(resolveGlyphs({ LANG: 'C', LC_CTYPE: 'ko_KR.UTF-8' })).toBe('ascii')
   expect(resolveGlyphs({ LC_ALL: 'en_US.UTF-8', LC_CTYPE: 'ja_JP.UTF-8' })).toBe('unicode') // LC_ALL wins
+})
+test('the ascii tier is drawn on a terminal alone', () => {
+  expect(kitOf({ glyphs: 'ascii' }).glyphs).toBe('ascii')
+  for (const surface of ['desktop', 'mobile', 'vscode'] as const) expect(kitOf({ surface, glyphs: 'ascii' }).glyphs).toBe('unicode')
 })
 test('the ascii tier never makes a row wider', () => {
   for (const [from, to] of Object.entries(ASCII_MAP)) expect([...to].length).toBeLessThanOrEqual([...from].length)

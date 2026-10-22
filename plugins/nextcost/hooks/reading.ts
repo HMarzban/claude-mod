@@ -22,10 +22,9 @@ import {
   toCompaction,
 } from './format'
 import type { ResetIn, Zone } from './format'
-import { drawnTier } from './glyphs'
 import { lastCostOf, warmAverageOf } from './insights'
 import type { CostEntry, Trails } from './insights'
-import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
+import type { BandSnapshot, LimitReading } from './snapshot'
 import { boardWords } from './board-words'
 import type { Board } from './board-words'
 import { cacheWords, chipsWords, contextWords, historyWords, limitWords, spendWords, weekWords } from './words'
@@ -47,9 +46,6 @@ export type Frame = Readonly<{
   maxRows: number
   now: number
   isWorking: boolean
-  /** The tier drawn in: the session's on a terminal, where ambiguous-width
-   *  glyphs can draw wide; the band's own glyphs on every other surface. */
-  glyphs: Glyphs
   zone: Zone | undefined
 }>
 
@@ -309,7 +305,6 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     maxRows: snap.maxRows,
     now: snap.now,
     isWorking: snap.isWorking,
-    glyphs: drawnTier(snap),
     zone: snap.zone,
   }
   const cache: CacheReading = withWords(cacheFactsOf(snap.cache, snap.isWorking), cacheWords)
