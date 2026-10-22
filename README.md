@@ -308,8 +308,9 @@ plugins/nextcost/
   tests/                            the test suite
   CHANGELOG.md                      what changed in each version
 docs/                               the website (GitHub Pages) and the images in this README
+design/                             the layout specs the code cites; finished plans in design/archive/
 tools/                              the demo builder, the views gate, a single-test runner
-.github/                            issue and pull request templates, CI
+.github/                            issue and pull request templates, CI, Dependabot
 ```
 
 Every module, test helper and tool is in
