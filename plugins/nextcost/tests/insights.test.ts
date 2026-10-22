@@ -1,19 +1,44 @@
-// The insights' pure logic: last turn's cost and the 5h pace ETA.
+// The insights' pure logic: the conversation's trails, last turn's cost and
+// the 5h pace ETA.
 
 import { test, expect } from 'claude-code/testing'
 import { fmtEta } from '../hooks/format'
 import {
+  COST_TRAIL,
+  CONTEXT_TRAIL,
   fiveHourEtaMs,
   noteFiveHour,
   noteTurnEnd,
   noteTurnStart,
+  pushContext,
+  pushCost,
+  resetConversationInsights,
   resetInsights,
+  trails,
 } from '../hooks/insights'
 import { MIN, endTurn, fact, mountBand, resp, respond, setup, START, startTurn, turn } from './helpers'
 
 const cents = (n: number | null): number | null => (n === null ? null : Math.round(n * 100))
 const RESET_IN_3H = 3 * 60 * MIN
 
+test('the cost trail keeps the last 24 messages', () => {
+  resetInsights()
+  for (let i = 0; i < 30; i++) pushCost(i, false)
+  expect(trails.costs).toHaveLength(COST_TRAIL)
+  expect([trails.costs[0]?.usd, trails.costs.at(-1)?.usd]).toEqual([6, 29])
+})
+test('the context trail keeps the last 40 turns', () => {
+  resetInsights()
+  for (let i = 0; i < 50; i++) pushContext(i * 1000)
+  expect(trails.context).toHaveLength(CONTEXT_TRAIL)
+})
+test('/clear empties the conversation trails; a new session empties them too', () => {
+  resetInsights()
+  pushCost(1, false)
+  pushContext(1000)
+  resetConversationInsights()
+  expect([trails.costs.length, trails.context.length]).toEqual([0, 0])
+})
 test("last turn's cost is the ledger's rise across one turn", () => {
   resetInsights()
   noteTurnStart('t1', 2.0)

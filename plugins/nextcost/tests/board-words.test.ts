@@ -1,3 +1,6 @@
+// The departures board's words, read through the readings: each row's
+// STATUS, TIME, cell and REMARKS, in each state, zone known or not.
+
 import { test, expect } from 'claude-code/testing'
 import { fixedZone } from '../hooks/format'
 import { readingsOf } from '../hooks/reading'

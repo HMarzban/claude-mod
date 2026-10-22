@@ -69,9 +69,9 @@ test("day cells: a measured day filled, an empty one a solid edge on the track",
   const xs = [...cells.props.source.matchAll(/class="edge" x="([\d.]+)"/g)].map(([, x]) => Number(x))
   expect([xs[1]! - xs[0]!, /class="edge"[^>]* rx="3"/.test(cells.props.source)]).toEqual([23, true])
 })
-// Pulse's SPEND sliver (Task 0): a card lens drawn stretched has no width of its own, so the host
-// squashes its bars into whatever slot it gets. Pulse and departures draw none.
-test('no chart the new layouts draw stretches: every Svg has its own width and keeps its aspect', () => {
+// A chart drawn stretched has no width of its own, so the host squashes its
+// marks into whatever slot it gets. Pulse and departures draw none.
+test('no chart pulse or departures draws stretches: every Svg has its own width and keeps its aspect', () => {
   for (const layout of ['pulse', 'departures'] as const) for (const expanded of [false, true]) {
     const tree = drawBand(fakeEl, snapOf({ layout, surface: 'desktop', columns: 160, maxRows: 13, expanded }), NO_ACT)
     // The board's rules are no chart: a solid line a pixel high, which spans

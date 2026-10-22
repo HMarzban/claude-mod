@@ -139,7 +139,7 @@ test("no costs yet: the name, the total in a value's ink, its words then the fla
   visit(spend)
   expect(inks).toEqual(['spend|label', '$0.00|value', ` · ${EMPTY.costsShort}|label`, '⣀⣀⣀⣀⣀⣀⣀|label'])
 })
-// ---- review round 1 -------------------------------------------------------
+// ---- the amber cache, and where the 5h and 7d charts start and stop ------
 
 test("a 5h window first seen mid-window: its chart, shut and open, starts at the first hour it knows, its level now the window's", () => {
   // Samples from hour 3 on, as when the window opened on another device.
@@ -177,8 +177,6 @@ test("7d at 85% on a fast pace: the guessed days, drawn, never pass what is left
     }
   }
 })
-
-// ---- sign-off fixes -------------------------------------------------------
 
 test("today's fill, with no reading inside today yet, draws as the alt says it: a guess of what is left, else the 7d in words", () => {
   const at = (m: number, sevenPct: number) => ({ at: m * MIN, fivePct: 0, sevenPct, fiveResetAt: 3 * HOUR, sevenResetAt: 67 * HOUR })
