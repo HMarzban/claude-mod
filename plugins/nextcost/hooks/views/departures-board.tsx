@@ -14,7 +14,7 @@ import { boardCells, charCells, textCells } from '../layout'
 import type { Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import type { Palette } from '../palette'
-import { BOARD_HEADINGS, BOARD_NOW, BOARD_NO_TIME, BOARD_TITLE, type BoardKey, type BoardRow } from '../words'
+import { BOARD_HEADINGS, BOARD_NOW, BOARD_NO_TIME, BOARD_TITLE, type BoardKey, type BoardRow } from '../board-words'
 import { bodyRowsFor, footer, rowRoom } from './frame'
 
 /** REMARKS cut to `tiles` columns, `…` last where cut, a wide character

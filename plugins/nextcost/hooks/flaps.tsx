@@ -6,7 +6,7 @@
 import type { RenderChildren } from 'claude-code'
 import type { Kit } from './kit'
 import { boardCells } from './layout'
-import { BOARD_RULE_ALT } from './words'
+import { BOARD_RULE_ALT } from './board-words'
 
 type Run = readonly [text: string, ink: string]
 const TILE_PX = 10

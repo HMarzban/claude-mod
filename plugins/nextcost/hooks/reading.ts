@@ -27,8 +27,10 @@ import { drawnTier } from './glyphs'
 import { warmAverageOf } from './insights'
 import type { CostEntry, Trails } from './insights'
 import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
-import { boardWords, cacheWords, chipsWords, contextWords, historyWords, limitWords, spendWords, weekWords } from './words'
-import type { Board, CacheWords, ChipsWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
+import { boardWords } from './board-words'
+import type { Board } from './board-words'
+import { cacheWords, chipsWords, contextWords, historyWords, limitWords, spendWords, weekWords } from './words'
+import type { CacheWords, ChipsWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
 
 export type Tone = 'calm' | 'amber'
 
