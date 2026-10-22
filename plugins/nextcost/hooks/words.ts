@@ -31,7 +31,7 @@ import {
 } from './format'
 import { IDLE_COMPACT_MS } from './cache'
 import type { CacheFacts } from './cache'
-import { warmAverageOf } from './insights'
+import { lastCostOf, warmAverageOf } from './insights'
 import type { CostEntry, Trails } from './insights'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
 import type { ContextFacts, Frame, LimitFacts, SpendFacts, Tone } from './reading'
@@ -590,14 +590,14 @@ const contextTrendOf = (tokens: readonly number[]): 'rising' | 'falling' | 'stea
 
 /** What the history says, from its trails and `avg`, their warm average. */
 export const historyWords = (record: Trails, context: ContextFacts, spend: Readonly<{ totalUsd: number }>, avg: number | undefined): HistoryWords => {
-  const last = record.costs[record.costs.length - 1]
-  const lastText = last === undefined ? undefined : fmtSmallCost(last.usd)
+  const last = lastCostOf(record)
+  const lastText = last === null ? undefined : fmtSmallCost(last)
   const trend =
-    last === undefined || avg === undefined
+    last === null || avg === undefined
       ? 'steady'
-      : last.usd > avg * TREND_FACTOR
+      : last > avg * TREND_FACTOR
         ? 'rising'
-        : last.usd < avg / TREND_FACTOR
+        : last < avg / TREND_FACTOR
           ? 'falling'
           : 'steady'
   const costsAltOf = (count: number): string => {
@@ -610,7 +610,7 @@ export const historyWords = (record: Trails, context: ContextFacts, spend: Reado
         trend,
         drawnAvg === undefined ? undefined : `average ${fmtSmallCost(drawnAvg)}`,
         max === undefined ? undefined : `max ${fmtSmallCost(max.usd)}${max.reWarm ? ' re-warm' : ''}`,
-        last?.reWarm ? 'the newest a re-warm' : undefined,
+        drawn.at(-1)?.reWarm ? 'the newest a re-warm' : undefined,
       ],
       ', ',
     )

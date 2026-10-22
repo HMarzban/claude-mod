@@ -2,7 +2,7 @@
 // context's, each once per threshold crossed. Pure: register.tsx speaks the
 // texts and keeps the levels reached.
 
-import { SEVERE_AT, WARN_AT, contextPressure, toCompaction } from './format'
+import { SEVERE_AT, WARN_AT, contextPressure, fmtPct, toCompaction } from './format'
 import { FIVE_HOUR } from './snapshot'
 import { roomOf } from './words'
 
@@ -32,10 +32,10 @@ const escalate = (prev: number, frac: number, levels: readonly number[]): Readon
 }
 
 /** One toast's figure `frac` against its `levels`, under `key`: the level
- *  it reaches, and its text when it speaks. */
-const note = (warned: Warned, key: string, frac: number, levels: readonly number[], text: (pct: number) => string): Toasts => {
+ *  it reaches, and its text, given the figure as a percent, when it speaks. */
+const note = (warned: Warned, key: string, frac: number, levels: readonly number[], text: (pct: string) => string): Toasts => {
   const { level, speak } = escalate(warned.get(key) ?? 0, frac, levels)
-  return { warned: new Map(warned).set(key, level), say: speak ? [text(Math.round(frac * 100))] : [] }
+  return { warned: new Map(warned).set(key, level), say: speak ? [text(fmtPct(frac))] : [] }
 }
 
 /** The 5-hour limit's toasts, from the windows the engine reports. */
@@ -44,7 +44,7 @@ export const limitToasts = (warned: Warned, limits: ReadonlyArray<Readonly<{ kin
     .filter(l => l.kind === FIVE_HOUR)
     .reduce<Toasts>(
       (t, l) => {
-        const next = note(t.warned, FIVE_HOUR, l.percentUsed / 100, [WARN_AT, SEVERE_AT], pct => `You've used ${pct}% of your 5-hour limit.`)
+        const next = note(t.warned, FIVE_HOUR, l.percentUsed / 100, [WARN_AT, SEVERE_AT], pct => `You've used ${pct} of your 5-hour limit.`)
         return { warned: next.warned, say: [...t.say, ...next.say] }
       },
       { warned, say: [] },
@@ -67,8 +67,8 @@ export const contextToasts = (warned: Warned, c: ContextNow): Toasts => {
   rebased.delete(other)
   return note(rebased, key, frac, levels, pct =>
     compactAt !== undefined ? `Auto-compaction in ${roomOf(toCompaction(used, compactAt))} tokens.`
-    : c.autoCompactOff ? `Context is ${pct}% full and auto-compaction is off, so the conversation will run out of room.`
-    : `Context is ${pct}% full.`,
+    : c.autoCompactOff ? `Context is ${pct} full and auto-compaction is off, so the conversation will run out of room.`
+    : `Context is ${pct} full.`,
   )
 }
 
