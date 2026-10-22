@@ -10,7 +10,7 @@ import type { Kit } from '../kit'
 import type { Readings } from '../reading'
 import type { BoardRow } from '../board-words'
 import { ITEM_INK, openBoard } from './departures-board'
-import { fitLine, type Keeps, line, type PieceOf } from './frame'
+import { fitLine, groundOf, type Keeps, line, pieceGap, type PieceOf } from './frame'
 import type { View } from './view'
 
 /** What gives way as the row narrows, first to last (three-layouts spec
@@ -35,7 +35,7 @@ type Piece = PieceOf<typeof ORDER>
 const moduleOf = (kit: Kit, k: Keeps<Piece>, row: BoardRow, cell: string): RenderElement => {
   const { Box, palette, onTone } = kit
   const ink = onTone(row.tone, palette.flapText, palette.flapAmber)
-  const ground = palette.filled ? { backgroundColor: palette.boardBg, ...(k.has('padding') ? { paddingX: 1 } : {}) } : {}
+  const ground = groundOf(kit, k, palette.boardBg)
   return (
     <Box key={row.key} flexShrink={0} {...ground}>
       {flaps(kit, { key: 'flaps', alt: row.alt, runs: [[row.item, palette[ITEM_INK[row.key]]], [cell, ink]], bg: palette.flapBg, seam: palette.flapSeam, packed: !k.has('padding') })}
@@ -69,10 +69,8 @@ const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderEleme
   fitLine(kit, ORDER, k => {
     const modules = read.board().rows.filter(r => keeps(r, k)).flatMap((r, i) => [
       moduleOf(kit, k, r, cellOf(r, k)),
-      // The band's own background between modules, and after the last, before
-      // ▵: a column where modules have their ground; in plain, which has none,
-      // two until its last step.
-      kit.air(`air${i}`, kit.palette.filled || !k.has('padding') ? 1 : 2),
+      // The band's own background between modules, and after the last, before ▵.
+      kit.air(`air${i}`, pieceGap(kit, k)),
     ])
     return line(kit, modules, toggle, 0)
   })

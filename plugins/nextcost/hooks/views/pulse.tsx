@@ -10,7 +10,7 @@ import type { Kit } from '../kit'
 import { isDrawn } from '../layout'
 import type { Readings, Tone } from '../reading'
 import { EMPTY, type Amber } from '../words'
-import { fitLine, type Keeps, line, type PieceOf } from './frame'
+import { fitLine, groundOf, type Keeps, line, pieceGap, type PieceOf } from './frame'
 import { chartsDraw, openStack } from './pulse-open'
 import type { View } from './view'
 
@@ -59,7 +59,7 @@ const named = (kit: Kit, name: string): RenderElement => {
  *  mark, so its tile draws no name of its own. */
 const tile = (kit: Kit, k: Keeps<Piece>, key: string, tone: Tone, ground: string, parts: readonly RenderChildren[]): RenderElement => {
   const { Box, palette, onTone } = kit
-  const fill = palette.filled ? { backgroundColor: onTone(tone, ground, palette.amberBg), ...(k.has('padding') ? { paddingX: 1 } : {}) } : {}
+  const fill = groundOf(kit, k, onTone(tone, ground, palette.amberBg))
   const drawn = parts.filter(isDrawn)
   return (
     <Box key={key} flexDirection="row" flexShrink={0} {...fill}>
@@ -121,9 +121,8 @@ const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderEleme
         ? dayCells(kit, { key: 'days', alt: week.daysAlt, values: week.daysDrawn.values, guess: week.daysDrawn.guess, today: week.daysDrawn.today, color: onTone(sevenDay.tone, palette.weekAccent), cellPx: 4, height: 14, max: 100 })
         : null,
     ])
-    // Filled tiles sit a column apart, as chips' do; plain's, with no ground
-    // to part them, two, until the last step.
-    return line(kit, [cacheTile, spendTile, contextTile, fiveTile, sevenTile], toggle, palette.filled || !k.has('padding') ? 1 : 2)
+    // Tiles sit a column apart, as chips' do; plain's two, until the last step.
+    return line(kit, [cacheTile, spendTile, contextTile, fiveTile, sevenTile], toggle, pieceGap(kit, k))
   })
 
 export const pulseView: View = {
