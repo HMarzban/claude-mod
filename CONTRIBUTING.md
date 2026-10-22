@@ -23,7 +23,7 @@ tools/test-only.sh view-pulse 'golden-*'
 npx -y -p typescript@5 tsc -p plugins/nextcost
 npx -y -p typescript@5 tsc -p tools/demos
 
-# The views gate: no layout but chips formats or reads a raw fact
+# The views gate: no view formats or reads a raw fact
 tools/views-gate.sh
 
 # Lint the tools' shell scripts and Python, as CI does
@@ -80,41 +80,45 @@ Run `/reload-plugins` in your session afterwards.
 
 | File | Role |
 | --- | --- |
-| `hooks/register.tsx` | The hooks. The only module that touches the engine (`$`). |
-| `hooks/command.ts` | What `/nextcost` answers and how it reads its arguments. Pure: `register.tsx` runs it. |
-| `hooks/snapshot.ts` | The snapshot and actions: the one contract between `register.tsx` and the drawing. |
-| `hooks/band.tsx` | `drawBand(elements, snapshot, actions)`: a pure function from a snapshot to a tree. It builds the kit and the readings, draws the chosen layout, and falls back to chips. |
+| `hooks/register.tsx` | The hooks. The only module that touches the engine (`$`): it reads what the engine knows into the pure modules and carries out what they decide. |
+| `hooks/command.ts` | What `/nextcost` answers and changes, and how it reads its arguments. Pure: `commandPlan` makes a plan (the reply, the layout to save, the atoms' new values, whether to read the workspace), and `register.tsx` carries it out. |
+| `hooks/toast.ts` | When the band speaks a toast, and what it says: the 5-hour limit's and the context's, once per threshold crossed, one level kept per scale. Pure: `register.tsx` speaks the texts and keeps the levels. |
+| `hooks/snapshot.ts` | The snapshot and actions: the one contract between `register.tsx` and the drawing, and `snapshotOf`, the one pure builder of it, which the tests build by too. With it, the layouts' names (`LAYOUT_NAMES`), the removed ones a stored layout or the command may still name, and the limits as the engine reports them (`limitOf`, `splitLimits`). |
+| `hooks/band.tsx` | `drawBand(elements, snapshot, actions)`: a pure function from a snapshot to a tree. It builds the kit and the readings and draws the chosen layout, all inside one fallback: whatever throws, chips is drawn in its place, and where chips throws too, the hook steps aside. |
 | `hooks/kit.tsx` | The drawing kit made once per draw: elements, the Svg gate, palette, measure, hover cards, gaps and air, icons, and `svg`, which builds every Svg. |
-| `hooks/reading.ts` | `readingsOf`: everything a view reads, built once per draw. Each section's facts, with its words from `words.ts`. |
-| `hooks/words.ts` | The phrasebook: every phrase a layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. It holds the departures board's words too: statuses, short forms, remarks and alt sentences. |
+| `hooks/reading.ts` | `readingsOf`: everything a view reads, built once per draw. Each section's facts, with its words from `words.ts`; the history, the week and the board's rows (`board-words.ts`) are built the first time a view calls for them. |
+| `hooks/words.ts` | The phrasebook: every phrase a layout draws, built from the facts, so amber, pace, resets, empty states and alt text read the same everywhere. `chipsWords` holds chips' own: its hover cards, its context amount and its limit titles. |
+| `hooks/board-words.ts` | The departures board's words: a row per reading in the board's capitals, its statuses, short forms, remarks and alt sentences, and its headings and header. Built with the phrasebook's primitives, so the board says what every layout says. |
 | `hooks/views/view.ts` | `View` (the rows it declares, its `collapsed` row and what it `open`s) and `rowsOf`. |
 | `hooks/views/index.ts` | `VIEWS`: every layout by name. |
-| `hooks/views/cards.tsx` | `openBody`, chips' open view: its four cards, on the shell in `shell.tsx`. Chips' alone; pulse and departures import nothing from it. |
-| `hooks/views/shell.tsx` | The card family chips' and pulse's open views share: which cards there are and their marks, a card's ground and edge, its title and headline, its fact rows, how many cards a line holds, their grid, and the alert drawn where none fits. |
-| `hooks/views/frame.tsx` | What all three layouts share: `drawView` (a view's collapsed row with the toggle, and while open what opens beneath it), `bodyRowsFor`, the `footer` (Collapse, Hide band, the hint and the strip's place), and the lines pulse and departures squeeze to fit (`line`, `fitLine`). |
-| `hooks/views/<name>.tsx` | One file per layout: `chips`, `pulse` and `departures`. Chips draws its pills and the cache's battery, and exports its pill builders, their hover strings, `LIMITS` and its pill row for its tests. |
+| `hooks/views/cards.tsx` | `openBody`, chips' open view: its four cards, on the shell in `shell.tsx`, and its footer. Chips' alone; pulse and departures import nothing from it. |
+| `hooks/views/shell.tsx` | The card family chips' and pulse's open views share: which cards there are and their marks, a card's ground and edge, its title and headline, its fact rows, a line of cards' geometry (`cardLine`: how many a line holds, the room inside each and its edge), their grid, and the alert drawn where none fits. |
+| `hooks/views/frame.tsx` | What all three layouts share: `drawView` (a view's collapsed row with the toggle, and while open what opens beneath it), `bodyRowsFor`, `rowRoom`, `topStrip`, the `footer` (the workspace strip in the room the buttons leave, else the hint, then Collapse and Hide band), and the one give-way engine: `fitLine` squeezes a collapsed row by its view's order, telling its build what it `Keeps`, and `line` lays pulse's and departures' pieces. |
+| `hooks/views/<name>.tsx` | One file per layout: `chips`, `pulse` and `departures`. Chips draws its pills, the cache's led by the battery from `charts.tsx`, and exports its pill builders, its row and `CHIP_BAR` for its tests. |
 | `hooks/views/pulse-open.tsx` | Pulse's open view: four cards on the shared shell, each with its chart, and their give-way. |
 | `hooks/views/departures-board.tsx` | Departures' open board: its ground, its header (`DEPARTURES` and the time now), the quiet headings, a line per reading in aligned columns, their give-way, and the footer every layout draws. |
 | `hooks/flaps.tsx` | The split-flap tiles departures draws: one Svg per reading on the desktop, a coloured run of text in the terminal; the open board's flap columns, its rules and the height its lines take. |
 | `hooks/strip.tsx` | The workspace strip: project, branch or worktree, changes, ahead/behind. |
-| `hooks/charts.tsx` | The charts: `meter`, `splitBar`, `sparkline`, `barChart`, `dayCells`, `heartbeat`, `track`, `braille`. Each is an Svg on the desktop and text elsewhere. |
-| `hooks/glyphs.ts` | The terminal's glyph tier (`NEXTCOST_GLYPHS`, a CJK locale) and the ASCII mapping. |
-| `hooks/calendar.ts` | The day and hour cells pulse draws, read off the limit samples. |
-| `hooks/layout.ts` | Give-way orders, sizes, and how many columns a drawn tree takes. |
+| `hooks/charts.tsx` | The charts: `meter`, `splitBar`, `sparkline`, `barChart`, `dayCells`, `heartbeat`, `track`, `braille`, and chips' cache battery (`batteryIcon`, `textBattery`). Each is an Svg on the desktop and text elsewhere. |
+| `hooks/glyphs.ts` | The terminal's glyph tier (`NEXTCOST_GLYPHS`, a CJK locale) and the ASCII mapping. The ascii tier keeps a wide character, such as a Japanese name's, and every tier measures it two columns. |
+| `hooks/calendar.ts` | The day and hour cells pulse draws, read off the limit samples, and the week's cells as drawn, each guess stopped at the cap (`drawnWeekOf`). |
+| `hooks/layout.ts` | How the band measures a line: the one width rule (`charCells`, `textCells`: a wide character takes two columns), how many columns a drawn tree takes on each surface, the sizes it lays out by, and `squeezeToFit`, which `fitLine` runs. Each view names its own give-way order. |
 | `hooks/icons.ts` | The icons' SVG bodies, glyphs and names. |
-| `hooks/cache.ts` | The prompt-cache model: TTL, misses, recall, a resume, re-warm and savings estimates, and the cache's view for the band. |
-| `hooks/insights.ts` | Last message cost, the 5-hour pace, and the trails pulse draws. |
-| `hooks/format.ts` | Numbers, times, thresholds and escalation marks. |
+| `hooks/cache.ts` | The prompt-cache model, one per session (`newCache`), fed each hook's facts in that hook's own shape: TTL, misses, recall, a resume, re-warm and savings estimates, and the cache's view for the band. `cacheFactsOf` says what the view means: its mood, its charge, its last call, whether idle compaction is near. |
+| `hooks/insights.ts` | The trails pulse draws, each message's cost and the context; the last message's cost, the cost trail's newest entry (`lastCostOf`); and the 5-hour pace. |
+| `hooks/format.ts` | Numbers, times, thresholds and escalation marks, as the band words them: `grainOf`, the one rule for how finely a countdown is said; `parseReset`, the one place a reset is parsed; clips that measure the columns a line takes; and `paintKey`, every phrase the clock alone moves, as one key. |
 | `hooks/palette.ts` | The dark, light and plain palettes, and the colours for the band's bare ground. |
 | `hooks/workspace.ts` | The workspace strip's git state and path, parsed from git's output. |
-| `hooks/memory.ts` | What the band remembers across sessions (last replies, rates, the layout, the limit samples), and what it reads off a transcript. |
+| `hooks/memory.ts` | What the band keeps in its own store across sessions (last replies, rates, the layout, the limit samples), and how a recall weighs the store against a transcript: the store first, a rate kept under the model as `/model` names it. |
+| `hooks/transcript.ts` | What the band reads off a session's transcript: where it is, its last main-loop reply, the rate its cost record solves to, how long its cache was last written for, and what the session had spent. Every line is untrusted data, parsed on its own. |
 | `types/index.d.ts` | The plugin's state contract. |
-| `tests/` | Tests, one file per area, with shared helpers in `helpers.ts`: `setup()` starts a test from a fresh engine, `mountBand()` draws the band, `byKey()` finds a node. |
-| `tests/cases.ts`, `tests/matrix.ts` | The states every layout is drawn in and `drawCases`, which draws them; `snapOf` for pure tests, the invariant checks, and `viewSuite`, which every layout's test file runs. |
-| `tests/golden/` | Chips' frozen trees and the tests that hold chips to them; see the rule below. |
+| `tests/` | Tests, one file per behaviour, named for it, with shared helpers in `helpers.ts`: `setup()` starts a test from a fresh engine, `mountBand()` draws the band, `runCommand()` types a command, `byKey()` finds a node, `wordsOf()` reads a tree's words, and the transcript fixtures (`jsonl`, `replyLine`, `costRecord`, `transcriptOf`). |
+| `tests/cases.ts`, `tests/matrix.ts` | The states every layout is drawn in and `drawCases`, which draws them; `SNAP_PARTS` and `snapOf`, which builds a pure test's snapshot through `snapshotOf`, `bandOf`, which draws it, and the snapshot fixtures the tests share; the invariant checks, and `viewSuite`, which each layout's `view-<name>` test file runs (chips' trees are golden's). |
+| `tests/cover.ts` | `partCovered`, the whole-pieces check: in a frame a hover card shows in, every piece of its row is covered whole or left whole. |
+| `tests/golden/` | Chips' frozen trees and the suite that holds chips to them; see the rule below. |
 | `tools/test-only.sh` | Runs only the tests whose names match the globs given, against a scratch copy of the plugin. |
 | `tools/scratch.sh` | `scratch_plugin`, which `test-only.sh` and the demo build source: a scratch copy of the plugin without its tests. |
-| `tools/views-gate.sh` | The views gate, run in CI: fails when a layout's view formats or reads a raw fact, or a hook other than `kit.tsx` writes an `<svg>` root. |
+| `tools/views-gate.sh` | The views gate, run in CI: fails when any view formats or reads a raw fact, when pulse's or departures' files borrow chips' look, or when a hook other than `kit.tsx` writes an `<svg>` root. |
 | `tools/demos/build.sh` | Rebuilds every demo and the site from the band's own output; see `tools/demos/README.md`. |
 
 ## Rules the code follows
@@ -157,17 +161,27 @@ Run `/reload-plugins` in your session afterwards.
 - **Atoms are declared in `register.tsx`.** They are the band's state in the
   engine's store, and they belong with the hooks that read and write them.
 - **Colour is never the only signal.** Escalation also adds words or
-  `!` / `!!`. Text meets WCAG AA contrast (4.5:1) and edges and tracks meet
-  3:1, in every palette. The design tests check both, over every palette.
+  `!` / `!!`. In the dark and light palettes, text meets WCAG AA contrast
+  (4.5:1) and edges and tracks meet 3:1. A text track's empty cells take
+  `trackInk`, which meets 3:1 on every ground they sit on.
+  `tests/contrast.test.ts` checks both palettes; plain takes the theme's own
+  colours.
 - **A new layout** is: its name in `LAYOUT_NAMES` (`hooks/snapshot.ts`);
-  `hooks/views/<name>.tsx`, which declares its `collapsed` row and what it `open`s, and shares only `views/frame.tsx` (`drawView` puts the two together; `bodyRowsFor`, `footer`, `line` and `fitLine`) and, for cards, `views/shell.tsx`; an entry in `VIEWS`
-  (`hooks/views/index.ts`); and `tests/view-<name>.test.ts`, which calls
-  `viewSuite('<name>')`. It draws only words from `read`: outside
-  `chips.tsx`, no `.tsx` file in `views/`
-  contains `.raw`, `.reading.`, `Date.parse`, `.replace(`, `Math.round` or
-  an import of `../format`. `tools/views-gate.sh` checks, and also that a pulse or departures file
-  imports nothing from `./cards` or `./chips` and draws no pill, battery or
-  meter, since those layouts keep their own look. Then add it to the
+  `hooks/views/<name>.tsx`, which declares its `collapsed` row and what it
+  `open`s, and shares only `views/frame.tsx` (`drawView` puts the two
+  together; `bodyRowsFor`, `rowRoom`, `footer`, `line` and `fitLine`) and,
+  for cards, `views/shell.tsx`; its entry in `VIEWS` (`hooks/views/index.ts`),
+  imported as `import { <name>View } from './<name>'` and held as
+  `<name>: <name>View,`; and `tests/view-<name>.test.ts`, which calls
+  `viewSuite('<name>')`. It draws only words from `read`: no `.tsx` file in
+  `views/` contains `.raw`, `.reading.`, `Date.parse`, `.replace(`,
+  `Math.round`, `.toFixed(`, `.toLocaleString(` or `Intl.`, or imports
+  `../format` in any quoting. `tools/views-gate.sh` checks every view, chips
+  included. It reads the layouts off `index.ts` in the form above, and fails
+  if a layout `VIEWS` holds is imported any other way. Every layout's files
+  but chips', its `<name>.tsx` and each `<name>-*.tsx`, keep their own look:
+  they import nothing from `./cards` or `./chips` and draw no pill, battery or
+  meter. Then add it to the
   Layouts table in the plugin README, add it to the layout names and count
   in both READMEs (and the gallery's alt text) and to the list of layouts
   in this file's table, and rebuild the
@@ -181,9 +195,12 @@ Run `/reload-plugins` in your session afterwards.
   `LONG` budget from `helpers.ts`: the band ticks every second, and CI
   runners are several times slower than a laptop.
 - **Chips' trees are frozen.** `golden-a` and `golden-b` hold chips to the
-  trees it draws as its 0.13 board does, its open view the cards every
-  layout shares: dark and plain, desktop and terminal, at 40, 95 and 200
-  columns, shut and open; and every frame's hover cards to whole pieces.
+  trees it draws as its 0.13 board does, its open view its four cards: dark
+  and plain, desktop and terminal, at 40, 95 and 200 columns, shut and open;
+  and every dark frame's hover cards to whole pieces (`tests/cover.ts`).
+  They are the two halves of `GOLDEN_SCENARIOS` (`tests/cases.ts`), which
+  `goldenSuite(0)` and `goldenSuite(1)` (`tests/golden/suite.ts`) split
+  between them, so neither file names a scenario.
   A clock time is the host's zone's, which the kit can't pin, so the hash
   reads every clock time alike (`tests/golden/hash.ts`); the readings' tests
   hold each to its zone. No tool recaptures the trees, so a change meant to
