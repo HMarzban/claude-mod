@@ -20,7 +20,7 @@ import { SCENARIOS, SCENARIO_NAMES, caseKey, drawCases, drawMounts, type AmberRe
 
 export * from './cases'
 
-/** Spec §7's all-amber: no scenario raises every reason at once, so the
+/** The band-layouts spec §7's all-amber: no scenario raises every reason at once, so the
  *  last minute stands for it. */
 const ALL_AMBER = 'lastMinute' satisfies ScenarioName
 
@@ -110,7 +110,7 @@ const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
   // The board's row for it, open only: its name, then its status.
   otherLimit80: /! spend \d+%|spend \d+%!|SPEND LIMIT\W*! (NEAR LIMIT|\d+%)/,
 }
-/** Amber the collapsed part never shows: other limits are drawn only open (spec §2.7). */
+/** Amber the collapsed part never shows: other limits are drawn only open (the band-layouts spec §2.7). */
 const OPEN_ONLY: ReadonlySet<AmberReason> = new Set(['otherLimit80'])
 
 /** A row's height on the desktop. */
@@ -140,7 +140,7 @@ const heightOf = (n: unknown, px: boolean): number => {
 export const visualRows = (tree: unknown, surface: Surface): number =>
   surface === 'desktop' ? Math.round(heightOf(tree, true) / ROW_PX) : heightOf(tree, false)
 
-/** The most nodes a band may draw, shut and open (spec §9). */
+/** The most nodes a band may draw, shut and open (the band-layouts spec §9). */
 export const NODE_BUDGET = { shut: 400, open: 1500 } as const
 
 export type InvariantContext = Readonly<{
@@ -201,21 +201,21 @@ const coloursOf = (n: Node): string[] => {
   return [...colourProps(n.props ?? {}), ...[...source.matchAll(SVG_PAINT)].map(m => m[1] ?? '')]
 }
 
-/** What each glyph tier may draw (spec §3.2): the unicode tier's glyphs, rings' quarters and braille, or ASCII alone. */
+/** What each glyph tier may draw (the band-layouts spec §3.2): the unicode tier's glyphs, rings' quarters and braille, or ASCII alone. */
 const UNICODE_TIER = /^[\x20-\x7e▁▂▃▄▅▆▇█▓░▒│╌╸▏·›↻Σ◷○◔◑◕▿▵…±●■–↑↓\u2800-\u28ff]*$/
 const ASCII_TIER = /^[\x20-\x7e]*$/
-/** What a value missing from a phrase leaves drawn (spec §2.8), in any case. */
+/** What a value missing from a phrase leaves drawn (the band-layouts spec §2.8), in any case. */
 const NOTHING = /\b(NaN|undefined|null)\b/i
-/** What spec §2.9 bars from any Svg's markup: an id, a gradient, a pattern, a clipPath. */
+/** What the band-layouts spec §2.9 bars from any Svg's markup: an id, a gradient, a pattern, a clipPath. */
 const SVG_BARRED = /<(linearGradient|radialGradient|pattern|clipPath)\b|\bid=/
-/** An alt that misstates its reading (spec §2.13): a share said as used or
+/** An alt that misstates its reading (the band-layouts spec §2.13): a share said as used or
  *  left, or a landing without its figure. */
 const MISSTATED = new RegExp(`\\b(hit rate|${SPLIT_LABELS.join('|')}) \\d+% (used|left)|(?<!\\d percent) at its reset`)
-/** A price or a fill time drawn without its `~` (spec §2.4). */
+/** A price or a fill time drawn without its `~` (the band-layouts spec §2.4). */
 const UNMARKED = /re-warm \$|next message \$|full (in |at )?\d|on pace for \d/i
 
 /** Whether a Text leaves its cut to the surface, which ends it with `…`:
- *  East-Asian-Ambiguous, so the ascii tier never may (spec §3.2). */
+ *  East-Asian-Ambiguous, so the ascii tier never may (the band-layouts spec §3.2). */
 export const cutBySurface = (n: Node): boolean => n.type === 'Text' && typeof n.props?.wrap === 'string' && n.props.wrap !== 'wrap'
 
 /** The rows chips' open view of its cards takes at its floor, which a
@@ -239,7 +239,7 @@ const cardsFloor = (tree: Node, declared: number, surface: Surface): number | un
   return cards === 0 ? undefined : declared + visualRows(opened, surface)
 }
 
-/** The readings' one order on the collapsed row (spec §2.1). */
+/** The readings' one order on the collapsed row (the three-layouts spec §2.1). */
 const ONE_ORDER = ['cache', 'spend', 'context', '5h', '7d'] as const
 
 /** The one order's errors on a collapsed row: its readings' Box keys, in
@@ -271,8 +271,9 @@ const hasSevenDay = (scenario: ScenarioName): boolean => {
   return !DRIVEN_WITHOUT_SEVEN_DAY.has(scenario) && (s.usage ?? USAGE).rateLimits.some(l => l.kind === 'seven_day')
 }
 
-/** Each failed check as `<check>: <why>`; none when the tree keeps the spec
- *  §2 contract: the checks spec §7 lists, §9's node budget and §2.6's open height. */
+/** Each failed check as `<check>: <why>`; none when the tree keeps the
+ *  band-layouts spec's §2 contract: the checks its §7 lists, §9's node budget
+ *  and §2.6's open height. */
 export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => {
   const errors: string[] = []
   const fail = (check: string, why: string): void => {
@@ -304,7 +305,7 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
 
   // Below 60 columns chips' all-amber row, which lastMinute stands for, may
   // not fit: calm pieces go first, then amber turns short, and past that the
-  // row clips, ▵ pinned at its end (the old spec's §2.6). Pulse and
+  // row clips, ▵ pinned at its end (the band-layouts spec's §2.6). Pulse and
   // departures never clip: once their calm pieces have gone and amber is
   // short, the row fits, ▵ in view (departures draws chips below its 60
   // columns). On the terminal it fits the row less its slack, as each line
@@ -347,7 +348,7 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   for (const reason of amber)
     if ((ctx.expanded || !OPEN_ONLY.has(reason)) && !AMBER_WORDS[reason].test(text)) fail('amber', `no words for ${reason}`)
   if (UNMARKED.test(text)) fail('estimate', 'an estimate without ~')
-  // A landing of 100% or more says `full before reset` (spec §2.1).
+  // A landing of 100% or more says `full before reset` (the band-layouts spec §2.1).
   if (/~\d{3,}%/.test(text)) fail('projection', 'a landing of 100% or more')
   // No scenario holds an empty context, so 0% is only ever an unreported one.
   if (/\b(context|ctx) 0%/i.test(text)) fail('unknown', 'context 0% where it is unknown')

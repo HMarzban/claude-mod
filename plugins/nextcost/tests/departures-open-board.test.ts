@@ -166,7 +166,7 @@ test('the footer is the one every layout draws: the workspace strip, Collapse an
   }
 })
 
-test('short of rows, the remarks go first on the desktop, then the lines in the spec order; an amber line never goes', LONG, () => {
+test("short of rows, the remarks go first on the desktop, then the lines in the three-layouts spec's order; an amber line never goes", LONG, () => {
   const ORDER = ['row:other:0', 'row:headings', 'row:spend', 'row:context', 'row:header', 'row:5h']
   for (const surface of SURFACES) {
     let gone = 0

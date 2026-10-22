@@ -120,7 +120,7 @@ test('one cost, or every cost a re-warm: no NaN', () => {
 test('terminal: braille after the numbers, in their tile', () => {
   expect(shown(rowOf({ surface: 'terminal', ...CALM_LIMITS }))).toMatch(/spend \$3\.19 · last \$0\.21 [⠀-⣿]+/)
 })
-test("terminal: the cache and the 7d in words alone, as spec §4.1's table draws them", () => {
+test("terminal: the cache and the 7d in words alone, as the three-layouts spec §4.1's table draws them", () => {
   const row = rowOf({ surface: 'terminal', ...CALM_LIMITS })
   expect(shown(byKey(row, 'cache', 'Box'))).toMatch(/^cache 52m left$/)
   expect(shown(byKey(row, '7d', 'Box'))).toMatch(/^7d 41%$/)

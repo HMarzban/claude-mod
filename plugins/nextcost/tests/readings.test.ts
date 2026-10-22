@@ -413,7 +413,7 @@ test("today's fill with no reading inside today yet is a guess of what is left, 
     expect(week.daysAlt).toMatch(/Thursday about 15% and fills it/)
     expect([week.daysDrawn.values[today], week.daysDrawn.guess[today]]).toEqual([15, true])
   }
-  // No day measured: the cells aren't drawn, the 7d is words (spec §4.1).
+  // No day measured: the cells aren't drawn, the 7d is words (the three-layouts spec §4.1).
   expect(weekOf(late).daysDrawn.measured).toBe(false)
   // Wednesday measured from a reading before its start: the cells are drawn.
   expect(weekOf([at(-30 * 60, 60), ...late]).daysDrawn.measured).toBe(true)

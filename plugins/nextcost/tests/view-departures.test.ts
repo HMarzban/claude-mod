@@ -83,7 +83,7 @@ test('open at 13 rows with the other limits: the band takes all 13 on the termin
 
 /** A reading's group on the collapsed row, as its words read. */
 const groupOf = (row: unknown, key: string) => wordsOf(byKey(row, key, 'Box')).trim()
-/** The calm row at each width, 160 down to its fewest, 60: spec §3's scenario, 7D amber at 85%. */
+/** The calm row at each width, 160 down to its fewest, 60: the three-layouts spec §3's scenario, 7D amber at 85%. */
 const NARROWING = Array.from({ length: 101 }, (_, i) => 160 - i)
 
 test("a calm 5H's remark gives way before 5H does: there is a width where it reads 5H 26% alone", () => {

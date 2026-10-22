@@ -63,7 +63,7 @@ const BOARD_INKS = ['flapItemCache', 'flapItemSpend', 'flapItemContext', 'flapIt
 test('the board is dark in dark and light alike, and every ink reads on its tiles', () => {
   for (const p of [DARK, LIGHT]) for (const ink of BOARD_INKS) expect(contrast(p[ink], p.flapBg)).toBeGreaterThanOrEqual(4.5)
   for (const k of ['boardBg', 'flapBg', 'flapSeam', ...BOARD_INKS] as const) expect(LIGHT[k]).toBe(DARK[k])
-  // The seam is decoration (spec §5.1): it differs from the tile, with no contrast target.
+  // The seam is decoration (the three-layouts spec §5.1): it differs from the tile, with no contrast target.
   expect(DARK.flapSeam).not.toBe(DARK.flapBg)
   expect(DARK.flapItem5h).toBe(DARK.fiveAccent)
   expect(DARK.flapItem7d).toBe(DARK.weekAccent)
