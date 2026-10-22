@@ -10,16 +10,28 @@
 import type { RenderElement } from 'claude-code'
 import { boardBudget, boardLineHeight, boardRule, flapCells, flapColumns, type FlapColumn } from '../flaps'
 import type { Kit } from '../kit'
-import { boardCells } from '../layout'
+import { boardCells, isWide, textCells } from '../layout'
 import type { Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import type { Palette } from '../palette'
 import { BOARD_HEADINGS, BOARD_NOW, BOARD_NO_TIME, BOARD_TITLE, type BoardKey, type BoardRow } from '../words'
 import { bodyRowsFor, footer, rowRoom } from './frame'
 
-/** REMARKS cut to `tiles` characters, `…` last where cut. */
-export const remarksFit = (remarks: string, tiles: number): string =>
-  remarks.length <= tiles ? remarks : tiles <= 1 ? '' : `${remarks.slice(0, tiles - 1)}…`
+/** REMARKS cut to `tiles` columns, `…` last where cut, a wide character
+ *  never split. */
+export const remarksFit = (remarks: string, tiles: number): string => {
+  if (textCells(remarks) <= tiles) return remarks
+  if (tiles <= 1) return ''
+  let kept = ''
+  let cells = 0
+  for (const ch of remarks) {
+    const width = isWide(ch) ? 2 : 1
+    if (cells + width > tiles - 1) break
+    kept += ch
+    cells += width
+  }
+  return `${kept}…`
+}
 
 /** Each reading's ITEM ink: its own, as an airline's code has its colour. */
 export const ITEM_INK: Readonly<Record<BoardKey, Exclude<keyof Palette, 'filled'>>> = {
@@ -77,7 +89,7 @@ const columnsOf = (kit: Kit, rows: readonly BoardRow[], room: number): Columns =
     item: rows.map(r => r.item), status: rows.map(r => r.status), time: rows.flatMap(r => r.time ?? []),
   }
   const keep = { item: 0, status: 0, time: 0 }
-  for (const k of FLAP_KEYS) keep[k] = Math.max(0, ...texts[k].map(t => [...t].length))
+  for (const k of FLAP_KEYS) keep[k] = Math.max(0, ...texts[k].map(textCells))
   const widthOf = (k: FlapKey): number =>
     Math.max(Math.ceil(boardCells(BOARD_HEADINGS[k], kit.measure)), ...texts[k].map(t => flapCells(kit, remarksFit(t, keep[k])))) + COLUMN_GAP
   const total = () => FLAP_KEYS.reduce((n, k) => n + widthOf(k), 0)

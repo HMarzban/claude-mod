@@ -30,13 +30,28 @@ export const DESKTOP: Measure = { text: 0.75, pxPerCell: 10 }
  *  a space 4.2, punctuation 7.0. Monospace counts every character as one. */
 const BOARD_CAPS = 1
 export const boardCells = (text: string, m: Measure): number =>
-  m.text >= 1 ? [...text].length * m.text : [...text].reduce((n, c) => n + (/[A-Z0-9]/.test(c) ? BOARD_CAPS : m.text), 0)
+  m.text >= 1 ? textCells(text) * m.text : [...text].reduce((n, c) => n + (/[A-Z0-9]/.test(c) ? BOARD_CAPS : textCells(c) * m.text), 0)
 
 /** Columns a desktop hover card's text takes a character: about 0.8, as
  *  measured on the desktop on 0.12.0's wording (its 57-character 7d card ran
  *  about 453px), a little over the measure's 0.75 so a card never cuts its
  *  own words. */
 export const DESKTOP_CARD_TEXT = 0.8
+
+/** East Asian Wide and Fullwidth: Hangul Jamo, CJK and its punctuation, kana,
+ *  Hangul syllables, CJK compatibility forms, the fullwidth forms, the
+ *  ideographs' supplementary planes, and the emoji blocks, which draw two
+ *  columns in every terminal. Ambiguous glyphs (█ · … │) are not here: a
+ *  terminal draws them one column wide unless a CJK locale widens them, which
+ *  the ascii tier answers. Unicode EastAsianWidth-18.0.0, checked 2026-10-22. */
+const WIDE = /[\u1100-\u115f\u231a\u231b\u2329\u232a\u2e80-\u303e\u3041-\u33ff\u3400-\u4dbf\u4e00-\u9fff\ua000-\ua4cf\ua960-\ua97f\uac00-\ud7a3\uf900-\ufaff\ufe10-\ufe19\ufe30-\ufe6f\uff00-\uff60\uffe0-\uffe6\u{16fe0}-\u{16fe4}\u{17000}-\u{18aff}\u{1b000}-\u{1b2ff}\u{1f300}-\u{1f64f}\u{1f680}-\u{1f6ff}\u{1f900}-\u{1f9ff}\u{20000}-\u{3fffd}]/u
+
+/** Whether a character draws two columns wide. */
+export const isWide = (ch: string): boolean => WIDE.test(ch)
+
+/** The columns `text` takes in a monospace cell grid: a wide character two,
+ *  any other one. */
+export const textCells = (text: string): number => [...text].reduce((n, ch) => n + (isWide(ch) ? 2 : 1), 0)
 
 export const isList = (n: RenderChildren): n is readonly RenderChildren[] => Array.isArray(n)
 
@@ -47,17 +62,18 @@ export const isDrawn = (child: unknown): boolean => child !== null && child !== 
 const isPlaced = (n: RenderChildren): boolean =>
   typeof n === 'object' && n !== null && !isList(n) && n.type === 'Box' && n.props?.position === 'absolute'
 
-/** Columns a drawn tree takes: text, padding, gaps and Button labels. A
- *  column Box takes its widest row; hidden cards take none, nor a gap; an
- *  Svg takes its width in columns, rounded up. */
+/** Columns a drawn tree takes: text, padding, gaps and Button labels, a
+ *  wide character twice a narrow one's. A column Box takes its widest row;
+ *  hidden cards take none, nor a gap; an Svg takes its width in columns,
+ *  rounded up. */
 export const cellsOf = (n: RenderChildren, m: Measure): number => {
   if (n === null || n === undefined || typeof n === 'boolean') return 0
-  if (typeof n === 'string' || typeof n === 'number') return [...String(n)].length * m.text
+  if (typeof n === 'string' || typeof n === 'number') return textCells(String(n)) * m.text
   if (isList(n)) return n.reduce((sum: number, k: RenderChildren) => sum + cellsOf(k, m), 0)
   switch (n.type) {
     case 'Button':
       // A framed button's chrome: its padding and edges either side.
-      return [...(n.props.label ?? '')].length * m.text + (n.props.variant === undefined ? 0 : BUTTON_CHROME)
+      return textCells(n.props.label ?? '') * m.text + (n.props.variant === undefined ? 0 : BUTTON_CHROME)
     case 'Svg':
       return Math.ceil((n.props.width ?? 64) / m.pxPerCell)
     case 'Box':

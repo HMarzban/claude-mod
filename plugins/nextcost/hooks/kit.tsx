@@ -7,7 +7,7 @@ import { clipWords } from './format'
 import { asciiText, asciiTree, drawnTier } from './glyphs'
 import { ALT, GLYPH, ICON_PATHS, ICON_PX } from './icons'
 import type { Icon } from './icons'
-import { DESKTOP, DESKTOP_CARD_TEXT, TERMINAL } from './layout'
+import { DESKTOP, DESKTOP_CARD_TEXT, TERMINAL, textCells } from './layout'
 import type { Span } from './layout'
 import type { Tone } from './reading'
 import type { BandSnapshot } from './snapshot'
@@ -104,7 +104,7 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
     // Sized in the glyphs it is drawn in: the ascii tier's are narrower.
     const shown = glyphs === 'ascii' ? asciiText(text) : text
     // A text surface counts a cell a character; the desktop sizes by its font.
-    const cells = (capped ? shown.length : Math.ceil(shown.length * DESKTOP_CARD_TEXT)) + chrome
+    const cells = (capped ? textCells(shown) : Math.ceil(textCells(shown) * DESKTOP_CARD_TEXT)) + chrome
     const span = cardSpan(place, cells)
     if (span.width < chrome + 1) return null
     const shell = { position: 'absolute', top: 0, ...span, display: 'none', hover: { display: 'flex', scope: scopeOf(key) } } as const

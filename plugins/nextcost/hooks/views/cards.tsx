@@ -5,6 +5,7 @@ import type { RenderChildren } from 'claude-code'
 import { meter, splitBar } from '../charts'
 import type { SplitPart } from '../charts'
 import type { Kit } from '../kit'
+import { textCells } from '../layout'
 import type { BarSize } from '../layout'
 import type { LimitKey, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
@@ -155,7 +156,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRo
     if (w.passed) return [factRow(kit, name, 'reset'), null]
     const value = w.valueMarked
     const reset = w.cardResetLess
-    const room = Math.max(4, inner - [...name].length - [...value].length - 2)
+    const room = Math.max(4, inner - textCells(name) - textCells(value) - 2)
     const size: BarSize = { px: room * measure.pxPerCell, cells: room }
     return [
       <Box key={`fact:${name}`} flexDirection="row" columnGap={1}>
