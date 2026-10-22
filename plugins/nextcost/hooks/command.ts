@@ -50,7 +50,7 @@ export type CommandState = Readonly<{ layout: LayoutName; removed: string | unde
 /** What /nextcost does: its reply, the layout it switches to and saves, with
  *  the reply should the save fail, the atoms' new values, and whether it
  *  reads the workspace. Undefined is unchanged. */
-export type CommandPlan = Readonly<{
+type CommandPlan = Readonly<{
   reply: string
   layout?: Readonly<{ name: LayoutName; unsaved: string }>
   expanded?: boolean

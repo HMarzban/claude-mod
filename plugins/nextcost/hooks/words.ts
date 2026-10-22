@@ -63,7 +63,8 @@ const amberOf = (say: Say, sayShort: Say): Amber => ({ long: joined(say), short:
 const contextFill = (frac: number): Say => [[`${AMBER_LEAD}context `, 'amber'], [fmtPct(frac), 'value']]
 const contextFillShort = (frac: number): Say => [[`${AMBER_LEAD}ctx `, 'amber'], [fmtPct(frac), 'value']]
 
-/** What an amber reading says, long and short, always led by one `AMBER_LEAD`. */
+/** What an amber reading says, long and short, always led by one
+ *  `AMBER_LEAD`. Exported for its tests. */
 export const AMBER = {
   cache: (leftShort: string, estimate: string): Amber =>
     amberOf([[AMBER_LEAD, 'amber'], [leftShort, 'value'], [` left · re-warm ${estimate}`, 'amber']], [[AMBER_LEAD, 'amber'], [leftShort, 'value']]),
@@ -90,7 +91,8 @@ export const EMPTY = {
 /** A landing at or over 100% is none: the window fills before it resets. */
 const fillsBeforeReset = (projectedPct: number): boolean => projectedPct >= 100
 
-/** A window's pace in words: a measured fill first, then the average's landing. */
+/** A window's pace in words: a measured fill first, then the average's
+ *  landing. Exported for its tests. */
 export const paceText = (p: Readonly<{ etaMs: number | null; projectedPct: number | undefined }>): string =>
   p.etaMs !== null
     ? `full in ${fmtEta(p.etaMs)}`
@@ -101,7 +103,8 @@ export const paceText = (p: Readonly<{ etaMs: number | null; projectedPct: numbe
         : `on pace for ~${fmtPercent(p.projectedPct)}`
 
 /** What a screen reader hears for a drawn reading: `<name> <value>, <state>,
- *  <more>`, in words. A caller passes "about" and "resets in", never ~ or ↻. */
+ *  <more>`, in words. A caller passes "about" and "resets in", never ~ or ↻.
+ *  Exported for its tests. */
 export const altOf = (name: string, value: string, state?: string, more?: string): string =>
   saidJoined([`${name} ${value}`, state, more], ', ')
 

@@ -18,7 +18,8 @@ import { drawView } from './views/frame'
 const CHIPS_BELOW = 40
 
 /** The layout the band draws at `columns`: the one chosen, or chips below
- *  CHIPS_BELOW or the chosen view's own fewest columns. */
+ *  CHIPS_BELOW or the chosen view's own fewest columns. Exported for its
+ *  tests. */
 export const layoutAt = (layout: LayoutName, columns: number, views: Readonly<Record<LayoutName, View>> = VIEWS): LayoutName =>
   columns < Math.max(CHIPS_BELOW, views[layout].minColumns ?? 0) ? DEFAULT_LAYOUT : layout
 

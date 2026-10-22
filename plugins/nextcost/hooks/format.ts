@@ -106,7 +106,7 @@ const fmtSpan = (ms: number): string => {
 
 /** The time to a reset `ms` off: coarsely, and while close in whole minutes
  *  rounded up, as every close countdown counts. */
-export const fmtResetSpan = (ms: number): string => (grainOf(ms) === 'close' ? `${minutesLeft(ms)}m` : fmtSpan(ms))
+const fmtResetSpan = (ms: number): string => (grainOf(ms) === 'close' ? `${minutesLeft(ms)}m` : fmtSpan(ms))
 
 /** When a reset the engine names in ISO time comes, epoch ms; undefined
  *  without a readable time. The one place a reset is parsed. */
@@ -264,10 +264,10 @@ export const fmtDayClock = (ms: number, zone: Zone, now: number): string =>
 export const fmtDay = (ms: number, zone: Zone, now: number): string => (isToday(ms, zone, now) ? fmtClock(ms, zone) : weekdayOf(ms, zone, now))
 
 /** Whole seconds left, never 0 while any remain. */
-export const secondsLeft = (ms: number): number => Math.max(1, Math.ceil(ms / 1000))
+const secondsLeft = (ms: number): number => Math.max(1, Math.ceil(ms / 1000))
 /** Whole minutes left: rounded up while close, then as `fmtCountdown`
  *  counts them. */
-export const minutesLeft = (ms: number): number => (grainOf(ms) === 'minutes' ? Math.floor(wholeSeconds(ms) / 60) : Math.ceil(ms / MINUTE_MS))
+const minutesLeft = (ms: number): number => (grainOf(ms) === 'minutes' ? Math.floor(wholeSeconds(ms) / 60) : Math.ceil(ms / MINUTE_MS))
 
 /** The countdown alone, for a tile or a pill: `1h 00m`, `52m`, `10m`, `47s`. */
 export const fmtLeftShort = (ms: number): string => {

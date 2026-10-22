@@ -14,7 +14,8 @@ import { bodyRowsFor, footer, topStrip } from './frame'
 import { CARD_NAMES, alertLine, cardGrid, cardLine, cardShell, cardsPresent, factRow, headline, linesOf } from './shell'
 import type { CardName } from './shell'
 
-/** A limit's accent: its window's, or the meter's for any other. */
+/** A limit's accent: its window's, or the meter's for any other. Exported
+ *  for its tests. */
 export const accentOf = (kit: Kit, limit: Readonly<{ key: LimitKey }>): string =>
   limit.key === '5h' ? kit.palette.fiveAccent : limit.key === '7d' ? kit.palette.weekAccent : kit.palette.meterFill
 

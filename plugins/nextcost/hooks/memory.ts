@@ -113,7 +113,7 @@ export const sampleOf = (now: number, limits: readonly ReportedLimit[]): Sample 
 /** What the band's own store recalls of a session's last reply: when it
  *  was, and the rate on the model /model names, under the name that keys
  *  it; with every rate stored, for the model a transcript names. */
-export type StoreRecall = Readonly<{ rates: Rates; model: string; lastAt: number | undefined; rate: number | null }>
+type StoreRecall = Readonly<{ rates: Rates; model: string; lastAt: number | undefined; rate: number | null }>
 
 /** What the store recalls of `sessionId`'s last reply, on `model` as /model names it. */
 export const fromStore = (stored: Readonly<{ sessions: unknown; rates: unknown }>, sessionId: string, model: string): StoreRecall => {

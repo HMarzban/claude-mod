@@ -25,7 +25,8 @@ export const bodyRowsFor = (maxRows: number, collapsedRows: number, stripRows: n
  *  prompt and grows upward when it opens, so in every layout it sits on the
  *  row nearest the prompt, the bottom of its line. It comes after the row's
  *  hover cards and, placed relative, stacks over them on the desktop too, so
- *  it stays pressable where the measure sets a card long. */
+ *  it stays pressable where the measure sets a card long. Exported for its
+ *  tests. */
 export const toggleButton = (kit: Kit, read: Readings, act: BandActions): RenderElement => {
   const { Box, Button, Svg } = kit
   return (
@@ -107,7 +108,7 @@ export const footer = (kit: Kit, act: BandActions, ws?: Workspace): RenderElemen
 /** A collapsed row's give-way order, first to last: its calm steps, then
  *  amber's, then any after them. Amber never gives way before calm: its
  *  steps come once every calm one is taken. */
-export type GiveWay<P extends string> = Readonly<{ calm: readonly P[]; amber: readonly P[]; last?: readonly P[] }>
+type GiveWay<P extends string> = Readonly<{ calm: readonly P[]; amber: readonly P[]; last?: readonly P[] }>
 /** The pieces an order names. */
 export type PieceOf<G> = G extends GiveWay<infer P> ? P : never
 

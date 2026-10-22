@@ -500,7 +500,7 @@ const recordResponse = (s: CacheState, usage: Response, sentAt: number, isMain: 
 // ---- the model --------------------------------------------------------------
 
 /** A main-loop response, as turn.step has it. */
-export type Response = Pick<ModelUsage, 'input_tokens' | 'output_tokens' | 'cache_read_input_tokens' | 'cache_creation_input_tokens'> &
+type Response = Pick<ModelUsage, 'input_tokens' | 'output_tokens' | 'cache_read_input_tokens' | 'cache_creation_input_tokens'> &
   Readonly<{ model?: string }>
 
 /** What a session remembers of a turn, for when it is reopened or the band

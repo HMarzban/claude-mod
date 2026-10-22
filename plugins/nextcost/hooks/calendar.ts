@@ -7,7 +7,7 @@ import { DAY_MS, HOUR_MS, WEEKDAYS, dayOf, fmtClock, midnightOf, sameReset } fro
 import type { Zone } from './format'
 import type { Sample } from './memory'
 
-export type DayCell = Readonly<{
+type DayCell = Readonly<{
   /** 'Tuesday' */
   name: string
   /** The day of the month: '6' */
@@ -37,7 +37,7 @@ export type HourCell = Readonly<{
  *  it gone, where known. */
 export type WindowNow = Readonly<{ percentUsed: number; projectedPct: number | undefined; resetsAt: number | undefined; fullAt?: number; gone?: number }>
 
-export type Week = Readonly<{
+type Week = Readonly<{
   /** The 7d window's seven days, oldest first; empty without a reset. */
   days: readonly DayCell[]
   /** The five hours before the 5h reset; empty without one. */
@@ -145,7 +145,8 @@ const wholeDayOf = (start: number, end: number, zone: Zone): number => {
 }
 
 /** The week's day and hour cells, each named in the offset in force at it.
- *  `samples` are sorted by time, as mergeSamples keeps them. */
+ *  `samples` are sorted by time, as mergeSamples keeps them. Exported for
+ *  its tests. */
 export const weekOf = (o: Readonly<{ samples: readonly Sample[]; seven: WindowNow | undefined; five: WindowNow | undefined; now: number; zone: Zone }>): Week => {
   const days = slicesOf(o.samples, o.seven, BY_DAY, o.now, o.zone).map(({ start, end, current, ...slice }): DayCell => {
     // A local day read through the UTC getters.
@@ -192,7 +193,7 @@ export type DrawnWeek = Week &
 /** A window's slices with each guess stopped at the cap: the slice marked
  *  full takes what is left, today's on top of its rise so far, and none is
  *  left after it, so the cells and their words agree. weekOf keeps every
- *  slice's guess. */
+ *  slice's guess. Exported for its tests. */
 export const cappedMarks = (cells: ReadonlyArray<DayCell | HourCell>, percentUsed: number): SliceMark[] => {
   const full = cells.findIndex(c => c.fullMark)
   let left = Math.max(0, 100 - percentUsed)
@@ -211,7 +212,8 @@ export const cappedMarks = (cells: ReadonlyArray<DayCell | HourCell>, percentUse
 
 /** Now's slice among `count`, from its notch counted in slices: the slice
  *  it falls in, the last one at the window's very end, so a now rule never
- *  falls past the chart; undefined with no notch or no slice. */
+ *  falls past the chart; undefined with no notch or no slice. Exported for
+ *  its tests. */
 export const windowNowAt = (notch: number | undefined, count: number): number | undefined =>
   notch === undefined || count === 0 ? undefined : Math.min(Math.floor(notch), count - 1)
 

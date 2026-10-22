@@ -20,7 +20,7 @@ import { bodyRowsFor, footer, rowRoom } from './frame'
 
 /** A line's text cut to `tiles` columns, `…` last where cut, a wide
  *  character never split: REMARKS, and a flap column's text where the room
- *  can't hold its widest. */
+ *  can't hold its widest. Exported for its tests. */
 export const remarksFit = (text: string, tiles: number): string => {
   if (textCells(text) <= tiles) return text
   if (tiles <= 1) return ''
