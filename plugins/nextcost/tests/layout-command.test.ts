@@ -3,7 +3,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import { asLayoutName, removedLayoutOf } from '../hooks/memory'
+import { asLayoutName, removedLayoutOf } from '../hooks/snapshot'
 import { START, engine, mountBand, resp, respond, setup, shown, turn } from './helpers'
 
 const run = async ($: Engine, args: string): Promise<string> => {

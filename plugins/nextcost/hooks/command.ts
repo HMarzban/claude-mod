@@ -3,8 +3,7 @@
 // against the engine and the store.
 
 import { clipMiddle } from './format'
-import { REMOVED_IN, asLayoutName, removedLayoutOf } from './memory'
-import { DEFAULT_LAYOUT, LAYOUT_NAMES } from './snapshot'
+import { DEFAULT_LAYOUT, LAYOUT_NAMES, REMOVED_IN, asLayoutName, removedLayoutOf } from './snapshot'
 import type { LayoutName } from './snapshot'
 
 /** What /nextcost answers. */

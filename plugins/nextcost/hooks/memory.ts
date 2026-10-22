@@ -9,8 +9,7 @@
 import { modelName } from './cache'
 import type { RecalledReply } from './cache'
 import { MINUTE_MS, SEVEN_DAY_MS } from './format'
-import { LAYOUT_NAMES, splitLimits } from './snapshot'
-import type { LayoutName } from './snapshot'
+import { splitLimits } from './snapshot'
 import { isRecord, lastReplyAt, lastReplyModel, rateFromTranscript } from './transcript'
 
 /** Store keys. */
@@ -46,24 +45,6 @@ export const asRates = (v: unknown): Rates =>
         Object.entries(v).filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]) && entry[1] > 0),
       )
     : {}
-
-/** A layout's name from the store or the command: trimmed, any case; anything
- *  else, a name from a newer version included, is undefined. */
-export const asLayoutName = (v: unknown): LayoutName | undefined => {
-  if (typeof v !== 'string') return undefined
-  const word = v.trim().toLowerCase()
-  return (LAYOUT_NAMES as readonly string[]).includes(word) ? (word as LayoutName) : undefined
-}
-
-/** Layouts this version removed: a stored one draws chips, and the command names it. */
-const REMOVED_LAYOUTS = ['gauges', 'ledger', 'rings', 'tiles', 'week', 'forecast'] as const
-export const REMOVED_IN = '0.14.0'
-/** A removed layout's name, from the store or the command, trimmed and lowercased; else undefined. */
-export const removedLayoutOf = (v: unknown): string | undefined => {
-  if (typeof v !== 'string') return undefined
-  const word = v.trim().toLowerCase()
-  return (REMOVED_LAYOUTS as readonly string[]).includes(word) ? word : undefined
-}
 
 /** The one key a rate is kept and found under: the model as /model names
  *  it, perhaps an alias, its window aside. A reload knows it before any

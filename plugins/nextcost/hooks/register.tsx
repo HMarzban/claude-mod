@@ -28,8 +28,6 @@ import {
   RATES_KEY,
   SESSIONS_KEY,
   addSample,
-  asLayoutName,
-  removedLayoutOf,
   asLimitSamples,
   asSessions,
   fromStore,
@@ -43,7 +41,7 @@ import {
   samplesUpTo,
 } from './memory'
 import type { Sample } from './memory'
-import { DEFAULT_LAYOUT, FIVE_HOUR, limitOf, resetsOf, snapshotOf } from './snapshot'
+import { DEFAULT_LAYOUT, FIVE_HOUR, asLayoutName, limitOf, removedLayoutOf, resetsOf, snapshotOf } from './snapshot'
 import type { Glyphs, LayoutName } from './snapshot'
 import { NO_WARNINGS, contextToasts, forgetConversation, limitToasts } from './toast'
 import { READ_LIMIT, lastWriteTtl, sessionCostRecord, transcriptPath, transcriptSpend } from './transcript'
