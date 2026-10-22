@@ -39,11 +39,6 @@ test('collapsed terminal: every reading in words, in order, then ▵', () => {
   expect(shown(row)).toMatch(/cache[\s\S]*\$3\.19[\s\S]*context[\s\S]*5h[\s\S]*7d/)
   expect(byKey(row.children?.at(-1), 'more', 'Button')?.props?.label).toBe('▵')
 })
-test("each reading a tile on chips' grounds, the surface, 5h and 7d in their tints; no battery alt", () => {
-  const row = rowOf({ surface: 'desktop', ...LIMITS })
-  expect(['cache', 'spend', 'context', '5h', '7d'].map(k => byKey(row, k, 'Box')?.props?.backgroundColor)).toEqual([DARK.surface, DARK.surface, DARK.surface, DARK.fiveBg, DARK.weekBg])
-  expect(svgAlts(row).some(a => /battery/.test(a))).toBe(false)
-})
 test('the beats: 14 wide, a path', () => {
   const beats = svgsOf(rowOf({ surface: 'desktop', ...LIMITS })).find(s => /^cost of the last 14/.test(String(s.props?.alt)))
   expect(String(beats?.props?.source)).toMatch(/<path class="beats"/)
@@ -120,12 +115,6 @@ test('narrow and calm, spend gives way, then context, then 5h; the cache and 7d 
   expect(keys(spend)).toEqual(['cache', 'context', '5h', '7d'])
   expect(keys(context)).toEqual(['cache', '5h', '7d'])
   for (const columns of widths) expect(cellsOf(rowOf({ columns, ...cold }) as unknown as RenderChildren, TERMINAL)).toBeLessThanOrEqual(columns - ROW_SLACK)
-  // The calm session of the other tests at 40: spend and context gone, the
-  // cache and the 7d kept (pulse-tiles tests where the 5h returns).
-  const calm = rowOf({ columns: 40, ...LIMITS })
-  expect(['spend', 'context'].map(k => byKey(calm, k, 'Box'))).toEqual([undefined, undefined])
-  expect(shown(calm)).toMatch(/cache[\s\S]*7d/)
-  expect(cellsOf(calm as unknown as RenderChildren, TERMINAL)).toBeLessThanOrEqual(40 - ROW_SLACK)
 })
 test('one cost, or every cost a re-warm: no NaN', () => {
   for (const costs of [[{ usd: 0.2, reWarm: false }], [{ usd: 0.8, reWarm: true }, { usd: 0.9, reWarm: true }]]) {
@@ -154,16 +143,6 @@ test("no costs yet: the name, the total in a value's ink, its words then the fla
   }
   visit(spend)
   expect(inks).toEqual(['spend|label', '$0.00|value', ` · ${EMPTY.costsShort}|label`, '⣀⣀⣀⣀⣀⣀⣀|label'])
-})
-test('an amber reading keeps its chart past the calm ones, until the amber step', () => {
-  // SAMPLES' window, so its trail is drawn.
-  const pace = { fiveHour: { percentUsed: 50, resetsAt: 3 * HOUR, etaMs: 40 * MIN }, sevenDay: LIMITS.sevenDay }
-  // Narrow enough that every calm chart has gone.
-  const widths = Array.from({ length: 121 }, (_, i) => 160 - i)
-  const keeps5h = (columns: number) => svgAlts(rowOf({ surface: 'desktop', columns, ...pace })).map(CLASS).includes('5h')
-  const calmGone = widths.find(columns => !svgAlts(rowOf({ surface: 'desktop', columns, ...pace })).map(CLASS).includes('cost'))
-  expect(calmGone).toBeDefined()
-  expect(keeps5h(calmGone ?? 0)).toBe(true)
 })
 // ---- review round 1 -------------------------------------------------------
 

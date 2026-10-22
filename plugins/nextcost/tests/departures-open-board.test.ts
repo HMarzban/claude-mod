@@ -100,18 +100,25 @@ test("no TIME is a dim dash in plain text, in TIME's column", () => {
   }
 })
 
-test("the columns line up: each line's ITEM, STATUS and TIME as wide as the headings'", () => {
-  for (const [surface, palette] of [['terminal', DARK], ['terminal', PLAIN], ['desktop', PLAIN]] as const)
+test("the columns line up: each line's ITEM, STATUS and TIME as wide as the headings', so REMARKS start in one column", () => {
+  for (const [surface, palette] of [['terminal', DARK], ['terminal', PLAIN], ['desktop', PLAIN], ['desktop', DARK]] as const)
     for (const columns of [60, 94, 160]) {
       const open = band({ surface, palette, columns, otherLimits: OTHER, maxRows: 40 })
+      const at = `${surface} ${palette.filled ? 'filled' : 'plain'} ${columns}`
       const widths = (n: Node | undefined) => ((n?.children ?? []) as Node[]).map(c => c.props?.width)
       const headings = widths(byKey(boardOf(open), 'row:headings', 'Box')).filter(w => w !== undefined)
       expect(headings).toHaveLength(3)
-      for (const line of readingLines(open)) {
+      const lines = readingLines(open)
+      expect(lines.length).toBeGreaterThan(5)
+      // The desktop's flaps are one Svg a line, its width checked below.
+      if (surface === 'terminal' || !palette.filled) for (const line of lines) {
         const flaps = widths(byKey(line, 'flaps', 'Box'))
         const time = byKey(line, 'time', 'Box')?.props?.width
-        expect(`${surface} ${columns} ${line.props?.key} ${[...flaps, ...(time === undefined ? [] : [time])]}`).toBe(`${surface} ${columns} ${line.props?.key} ${headings}`)
+        expect(`${at} ${line.props?.key} ${[...flaps, ...(time === undefined ? [] : [time])]}`).toBe(`${at} ${line.props?.key} ${headings}`)
       }
+      // As drawn: the flaps, and TIME's dash where a line has none, end in one column.
+      const ends = lines.map(l => cellsOf(((byKey(l, 'line', 'Box')?.children ?? []) as Node[]).filter(k => k.props?.key !== 'remarks') as unknown as RenderChildren, surface === 'desktop' ? DESKTOP : TERMINAL))
+      expect(`${at} ${new Set(ends).size}`).toBe(`${at} 1`)
     }
   // The desktop's Svg spans its columns at 10 px each.
   const open = band({ surface: 'desktop', columns: 94 })

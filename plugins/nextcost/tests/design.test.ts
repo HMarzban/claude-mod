@@ -279,20 +279,6 @@ test('on the desktop each part of the token split ends a pixel short of the next
   await ui.unmount()
 })
 
-test('the spend card names its split like a legend: input, output, cache reads', async ($, on) => {
-  setup(on)
-  await $.session.start(START)
-  await respond($, resp(10_000, 0, 100_000, 2_000))
-  await respond($, resp(4_000, 100_000, 6_000, 3_000))
-  const ui = await mountBand($, 'terminal', 140)
-  await ui.press({ key: 'more' })
-  const tree = await ui.drawn()
-  expect(fact(tree, 'input')).toBe('120k')
-  expect(fact(tree, 'output')).toBe('5.0k')
-  expect(fact(tree, 'cache reads')).toBe('100k')
-  await ui.unmount()
-})
-
 test('the limits card puts each value beside its bar and says the pace in words', async ($, on) => {
   setup(on, { usage: usageAt(MODERN), now: MODERN }) // 5h 4%, 2h of 5h gone; 7d 30%, 101h of 168h gone
   await $.session.start(START)
@@ -375,20 +361,6 @@ test('desktop cards have a visible rounded border; terminal cards a fill only', 
   expect(t?.props?.borderStyle).toBeUndefined()
   expect(t?.props?.backgroundColor).toBe(DARK.cardBg)
   await term.unmount()
-})
-
-test('the buttons: Collapse without a Ctrl-like glyph, Hide band, and how to bring it back', async ($, on) => {
-  setup(on)
-  await $.session.start(START)
-  const ui = await mountBand($, 'desktop', 110)
-  await ui.press({ key: 'more' })
-  const labels: string[] = []
-  walk(await ui.drawn(), n => {
-    if (n.type === 'Button' && (n.props?.key === 'collapse' || n.props?.key === 'hide')) labels.push(String(n.props?.label))
-  })
-  expect(labels).toEqual(['Collapse', 'Hide band'])
-  expect(shown(await ui.drawn())).toMatch(/Bring it back with \/nextcost/)
-  await ui.unmount()
 })
 
 test('the desktop gets no whitespace-only strings, which it drops, so every gap is a spacer', async ($, on) => {

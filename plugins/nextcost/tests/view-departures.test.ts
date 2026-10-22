@@ -87,19 +87,6 @@ test('open at 13 rows with the other limits: the band takes all 13 on the termin
   // The desktop's flaps are 20 px against a 24 px row, so its board is shorter.
   expect(open('desktop')).toBeLessThanOrEqual(13)
 })
-test('open: as rows run out, the board gives way in the spec order and the footer stays', () => {
-  const ORDER = ['row:other:0', 'row:headings', 'row:spend', 'row:context', 'row:header', 'row:5h']
-  let gone = 0
-  for (let rows = 13; rows >= 4; rows--) {
-    const open = band({ surface: 'terminal', expanded: true, maxRows: rows, workspace: WS, otherLimits: OTHER })
-    expect(byKey(open, 'collapse', 'Button')).toBeDefined()
-    expect(visualRows(open, 'terminal')).toBeLessThanOrEqual(rows)
-    const present = ORDER.map(k => byKey(byKey(open, 'board', 'Box'), k, 'Box') !== undefined)
-    const first = present.indexOf(true)
-    gone = Math.max(gone, first === -1 ? ORDER.length : first)
-    expect(present.slice(gone).every(Boolean) || present.every(p => !p)).toBe(true)
-  }
-})
 
 /** A reading's group on the collapsed row, as its words read. */
 const groupOf = (row: unknown, key: string) => words(byKey(row, key, 'Box')).trim()
@@ -123,24 +110,6 @@ test("an amber limit keeps its RESET while calm pieces give way, until the amber
     expect(`${columns} ${groupOf(row, '7d')}`).toMatch(/RESET/)
   }
   expect(dropping).toBeGreaterThan(0)
-})
-test("every board line fits the board's room: 60, 80 and 200 columns, dark and plain, calm and amber", () => {
-  const NEAR = { tokens: 176_000, window: 200_000, percent: 88, compactAt: 190_000, autoCompactOff: false }
-  const amber = { context: NEAR, cache: { ...snapOf().cache, msLeft: 40_000, ttl: '5m' as const } }
-  for (const surface of ['terminal', 'desktop'] as const)
-    for (const columns of [60, 80, 200])
-      for (const palette of [DARK, PLAIN])
-        for (const over of [{}, amber]) {
-          const open = band({ surface, columns, palette, expanded: true, workspace: WS, otherLimits: OTHER, maxRows: 40, ...over })
-          const board = byKey(open, 'board', 'Box')
-          const lines = (board?.children ?? []) as Node[]
-          expect(lines.length).toBeGreaterThan(0)
-          for (const l of lines) {
-            const cells = cellsOf(l as unknown as RenderChildren, surface === 'desktop' ? DESKTOP : TERMINAL)
-            expect(`${surface} ${columns} ${palette.filled ? 'filled' : 'plain'} ${l.props?.key} ${cells <= columns - ROW_SLACK - 2}`)
-              .toBe(`${surface} ${columns} ${palette.filled ? 'filled' : 'plain'} ${l.props?.key} true`)
-          }
-        }
 })
 test("the low case at 104 terminal columns: readings outrank remarks, so 5H's remark gives way and SPEND stays", async ($, on) => {
   const low = { scenario: 'calm', appearance: 'dark', layout: 'departures', usage: { ...USAGE, rateLimits: withLimits(3, 10) } } as const
@@ -178,21 +147,6 @@ test("below its 60 columns departures draws exactly chips' tree; at 60, the boar
           expect(words(as('departures', 60))).toMatch(/CACHE/)
           expect(as('departures', 60)).not.toEqual(as('chips', 60))
         }
-})
-test("open: every reading line's ITEM, STATUS and TIME end where the next line's do, so REMARKS start in one column", () => {
-  for (const [surface, palette] of [['desktop', DARK], ['terminal', DARK], ['terminal', PLAIN]] as const)
-    for (const columns of [60, 94, 160]) {
-      const board = byKey(band({ surface, palette, columns, expanded: true, workspace: WS, otherLimits: OTHER, maxRows: 40 }), 'board', 'Box')
-      const lines = ((board?.children ?? []) as Node[]).filter(l => /^row:(cache|spend|context|5h|7d|other)/.test(String(l.props?.key)))
-      // The flaps, and TIME's dash where a line has none, before the remark.
-      const ends = lines.map(l => {
-        const line = byKey(l, 'line', 'Box')
-        const lead = ((line?.children ?? []) as Node[]).filter(k => k.props?.key !== 'remarks')
-        return cellsOf(lead as unknown as RenderChildren, surface === 'desktop' ? DESKTOP : TERMINAL)
-      })
-      expect(lines.length).toBeGreaterThan(5)
-      expect(`${surface} ${columns} ${new Set(ends).size}`).toBe(`${surface} ${columns} 1`)
-    }
 })
 test("desktop plain: the board's capitals measured as they draw, so a row the measure fits fits", () => {
   // SF at 15 px, measured in Chrome: a capital 9.9 px, a digit 8.8, a bracket

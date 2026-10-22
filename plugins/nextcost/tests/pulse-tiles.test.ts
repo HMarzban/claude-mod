@@ -11,7 +11,7 @@ import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK, LIGHT, PLAIN, type Palette } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { HOUR, LONG, MIN, SAMPLES, byKey, fakeEl, firstRow, shown, svgsOf, walk, type Node } from './helpers'
+import { HOUR, LONG, MIN, SAMPLES, byKey, fakeEl, firstRow, shown, svgAlts, svgsOf, walk, type Node } from './helpers'
 import { NO_ACT, snapOf } from './matrix'
 
 const COSTS = Array.from({ length: 24 }, (_, i) => ({ usd: i === 23 ? 0.21 : i === 17 ? 0.84 : 0.2, reWarm: i === 17 }))
@@ -76,7 +76,7 @@ test('an amber tile is led by its amber words, which name it, in amber; its char
 })
 for (const [name, p] of [['dark', DARK], ['light', LIGHT]] as const)
   for (const surface of ['desktop', 'terminal'] as const) {
-    test(`${name} ${surface}: tiles on chips' grounds, the surface, 5h and 7d in their tints, a column of padding each side`, () => {
+    test(`${name} ${surface}: tiles on chips' grounds, the surface, 5h and 7d in their tints, a column of padding each side, no battery`, () => {
       const row = rowOf({ surface, palette: p })
       expect(KEYS.map(k => byKey(row, k, 'Box')?.props?.backgroundColor)).toEqual([p.surface, p.surface, p.surface, p.fiveBg, p.weekBg])
       expect(KEYS.map(k => byKey(row, k, 'Box')?.props?.paddingX)).toEqual([1, 1, 1, 1, 1])
@@ -84,6 +84,8 @@ for (const [name, p] of [['dark', DARK], ['light', LIGHT]] as const)
       expect(byKey(rowOf({ surface, palette: p, cache: EXPIRING }), 'cache', 'Box')?.props?.backgroundColor).toBe(p.amberBg)
       // Tiles sit a column apart, as chips' pills do.
       expect(row.props?.columnGap).toBe(1)
+      // The cache's tile is its heartbeat, never chips' battery.
+      expect(svgAlts(row).some(a => /battery/.test(a))).toBe(false)
     })
   }
 test('plain: no ground anywhere, the name before each figure, readings two columns apart', () => {

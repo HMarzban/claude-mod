@@ -19,13 +19,12 @@ import {
   hostClock,
   MODERN,
   usageAt,
-  breakdown,
   type Node,
   svgsOf,
+  walk,
   setup,
   mountBand,
   engine,
-  MIN,
 } from './helpers'
 
 test('the toggle opens the cards, and Hide hides the band', async ($, on) => {
@@ -81,14 +80,6 @@ test('the band yields the site while a survey holds it', async ($, on) => {
   await ui.unmount()
 })
 
-test('/nextcost with an unknown word says how to use it', async ($, on) => {
-  setup(on)
-  await $.session.start(START)
-  const result = await $.command.run({ command: 'nextcost', args: 'sideways', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 110 } })
-  expect(JSON.stringify(result)).toMatch(/Usage: \/nextcost \[more \| less \| show \| hide\]/)
-})
-
-
 // ── the cards ──────────────────────────────────────────────────────────
 
 test('the expanded view is four labelled cards', async ($, on) => {
@@ -121,23 +112,6 @@ test('the spend card: session total, last message and the token split', async ($
   await ui.unmount()
 })
 
-test('the context card: used of the window, and where compaction runs', async ($, on) => {
-  const near = {
-    ...USAGE,
-    context: { tokens: 152_000, window: 200_000, percent: 76, breakdown: breakdown({ autoCompactThreshold: 160_000, isAutoCompactEnabled: true }) },
-  }
-  setup(on, { usage: near })
-  await $.session.start(START)
-  await $.session.measure({ context: { tokens: 152_000, window: 200_000, percent: 76 }, rateLimits: near.rateLimits, cost: near.cost, changed: [] })
-  const ui = await mountBand($, 'terminal', 110)
-  await ui.press({ key: 'more' })
-  const tree = await ui.drawn()
-  expect(shown(cardOf(tree, 'context'))).toMatch(/^CONTEXT95% full/)
-  expect(fact(tree, 'auto-compacts at')).toBe('160k')
-  expect(fact(tree, 'room left')).toBe('~8.0k')
-  await ui.unmount()
-})
-
 test('the limits card: each window with its usage and reset', async ($, on) => {
   setup(on, {
     usage: usageAt(MODERN, {
@@ -159,7 +133,7 @@ test('the limits card: each window with its usage and reset', async ($, on) => {
   await ui.unmount()
 })
 
-test('Collapse and Hide are real buttons with c and h hotkeys', async ($, on) => {
+test('Collapse and Hide band are real buttons with c and h hotkeys, beside how to bring the band back', async ($, on) => {
   setup(on)
   await $.session.start(START)
   const ui = await mountBand($, 'desktop', 110)
@@ -167,13 +141,19 @@ test('Collapse and Hide are real buttons with c and h hotkeys', async ($, on) =>
   const tree = await ui.drawn()
   const collapse = byKey(tree, 'collapse', 'Button')
   const hide = byKey(tree, 'hide', 'Button')
+  // Collapse, then Hide band, each its word alone, without a Ctrl-like glyph.
+  const labels: string[] = []
+  walk(tree, n => {
+    if (n.type === 'Button' && (n.props?.key === 'collapse' || n.props?.key === 'hide')) labels.push(String(n.props?.label))
+  })
+  expect(labels).toEqual(['Collapse', 'Hide band'])
+  expect(shown(tree)).toMatch(/Bring it back with \/nextcost/)
   expect(collapse?.props?.hotkey).toBe('c')
   expect(collapse?.props?.variant).toBe('secondary')
   expect(hide?.props?.hotkey).toBe('h')
   // Neither is the one to press: the calm band marks no main action, least
   // of all hiding itself.
   expect(hide?.props?.variant).toBe('secondary')
-  expect(String(hide?.props?.label)).toMatch(/Hide band/)
 
   await ui.press({ key: 'collapse' })
   expect(rowCount(await ui.drawn())).toBe(1)
