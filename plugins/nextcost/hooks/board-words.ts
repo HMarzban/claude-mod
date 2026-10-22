@@ -49,10 +49,10 @@ const cacheBoard = (r: BoardFacts): BoardRow => {
   const zone = r.frame.zone
   const at = (cell: Omit<BoardRow, 'key' | 'item' | 'alt'>): BoardRow => ({ key: 'cache', item: 'CACHE', alt: c.alt, ...cell })
   /** A row with no time to show: its status alone, in every column. */
-  const timeless = (status: string): BoardRow => at({ status, time: undefined, remarks: '', cell: status, cellShort: status, tone: 'calm' })
+  const statusOnly = (status: string): BoardRow => at({ status, time: undefined, remarks: '', cell: status, cellShort: status, tone: 'calm' })
   const reWarm = `RE-WARM ${c.estimate}`
-  if (c.untimed) return timeless('CHECK-IN')
-  if (r.frame.isWorking) return timeless('BOARDING')
+  if (c.untimed) return statusOnly('CHECK-IN')
+  if (r.frame.isWorking) return statusOnly('BOARDING')
   const clock = c.coldAt === null || zone === undefined ? undefined : `${c.measured ? '' : '~'}${fmtClock(c.coldAt, zone)}`
   /** A cache gone: when it went, where the clock is known, and what the next message costs. */
   const gone = (status: string, remarks: string): BoardRow =>
