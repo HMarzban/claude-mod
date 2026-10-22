@@ -1,11 +1,12 @@
 // Departures open: one board on its dark ground under the collapsed row. Its
 // header says DEPARTURES and the time now; quiet column headings follow, then
-// a line per reading in the one order, the other limits after 7D (spec §5.3).
-// ITEM, STATUS and TIME are flaps, tiles only where there are characters,
-// each in a column of its own width so the lines align; REMARKS are plain
-// dim text. The footer is the one every layout draws: the workspace strip,
-// then Collapse and Hide band. Short of rows, the remarks give way first,
-// then the lines in the spec's order; an amber line never does.
+// a line per reading in the one order, the other limits after 7D
+// (three-layouts spec §5.3). ITEM, STATUS and TIME are flaps, tiles only
+// where there are characters, each in a column of its own width so the lines
+// align; REMARKS are plain dim text. The footer is the one every layout
+// draws: the workspace strip, then Collapse and Hide band. Short of rows, the
+// remarks give way first, then the lines in that spec's order; an amber line
+// never does.
 
 import type { RenderElement } from 'claude-code'
 import { boardBudget, boardLineHeight, boardRule, flapCells, flapColumns, type FlapColumn } from '../flaps'
@@ -41,10 +42,11 @@ export const ITEM_INK: Readonly<Record<BoardKey, Exclude<keyof Palette, 'filled'
 /** What a line is named by: the header, the headings, or its reading. */
 type LineName = 'header' | 'headings' | BoardKey
 
-/** What gives way as rows run out, first to last (spec §5.3), CACHE and 7D
- *  together as the body's last step, after the remarks where leaving them
- *  out saves height. Calm lines alone give way (spec §2.1): an amber
- *  reading's line stays, as chips' cards leave their alert. */
+/** What gives way as rows run out, first to last (three-layouts spec §5.3),
+ *  CACHE and 7D together as the body's last step, after the remarks where
+ *  leaving them out saves height. Calm lines alone give way (three-layouts
+ *  spec §2.1): an amber reading's line stays, as chips' cards leave their
+ *  alert. */
 const GIVE_WAY: ReadonlyArray<readonly LineName[]> = [['other'], ['headings'], ['spend'], ['context'], ['header'], ['5h'], ['cache', '7d']]
 
 /** The columns of air after ITEM, STATUS and TIME. */

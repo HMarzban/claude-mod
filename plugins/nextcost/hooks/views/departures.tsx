@@ -13,10 +13,10 @@ import { ITEM_INK, openBoard } from './departures-board'
 import { fitLine, type Keeps, line, type PieceOf } from './frame'
 import type { View } from './view'
 
-/** What gives way as the row narrows, first to last (spec §5.2), calm only:
- *  readings outrank calm remarks. 5h's RESET, 7d's RESET, 5h's remark, 7d's
- *  remark, SPEND, CONTEXT, then 5H itself, so the narrowest row is CACHE and
- *  7D alone, then the short forms. An amber reading keeps its whole cell,
+/** What gives way as the row narrows, first to last (three-layouts spec
+ *  §5.2), calm only: readings outrank calm remarks. 5h's RESET, 7d's RESET,
+ *  5h's remark, 7d's remark, SPEND, CONTEXT, then 5H itself, so the
+ *  narrowest row is CACHE and 7D alone, then the short forms. An amber reading keeps its whole cell,
  *  RESET too, until the amber step. Past it, last of all, the modules drop
  *  their padding, keeping their ground; plain, which has none, brackets each
  *  reading once and sets them a column apart: four amber readings at 60
