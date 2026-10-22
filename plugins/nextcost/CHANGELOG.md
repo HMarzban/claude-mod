@@ -9,7 +9,7 @@ and versions follow [Semantic Versioning](https://semver.org/). Before
 
 ### Fixed
 - The auto-compaction toast speaks after a context warning too. The window's warnings and the ones toward compaction each keep their own level, so a toast at 85% of the window no longer silences `Auto-compaction in ~14k tokens` until the context falls under 75%.
-- A reset's countdown turns on time. The band repaints as each reset's minute turns, and the departures board's last minute, `IN 47S`, counts every second; before, either could lag up to a minute.
+- A reset's countdown turns on time. The band repaints as each reset's minute turns, and where the time zone isn't known, the departures board's last minute, `IN 47S`, counts every second; before, either could lag up to a minute.
 - A reset under ten minutes off reads in whole minutes rounded up, as the board counts it: `in 5m` at 4:30, where chips, pulse and the cards said `in 4m`.
 - A reloaded session on a model alias, such as `opus[1m]`, finds its rate in the band's store, which keeps each rate under the model as `/model` names it. A reload no longer re-reads the transcript for it, and prices a cold cache's re-warm in dollars even where the transcript can't be read.
 - A reopened session counts its cache down from the main conversation's last reply, and prices its re-warm at the main conversation's model. A subagent's reply logged last no longer stands in for either.

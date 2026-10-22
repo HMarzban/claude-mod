@@ -412,7 +412,7 @@ it, each given 3 seconds, and never while the band draws:
 | --- | --- | --- |
 | `git -c core.fsmonitor=false --no-optional-locks status --porcelain=v2 --branch` | the session's project folder | the workspace line: branch, changes, ahead and behind. It never takes git's index lock. `-c core.fsmonitor=false` is git's own option for setting one value for this run: it stops a repository's config from making git start its fsmonitor program. It starts no shell. |
 | `git rev-parse --path-format=absolute --git-dir --git-common-dir --show-toplevel` | the same | whether the folder is a linked worktree, and of which repository |
-| `tail -c 1048576 <transcript>` | that session's own transcript under `~/.claude/projects` | only when a conversation is resumed, or the band loads into one it can't tell is new and its own store doesn't know the last reply: when that reply was, so the cache countdown starts from it, and how long its cache was written for |
+| `tail -c 1048576 <transcript>` | that session's own transcript under `~/.claude/projects` | only when a conversation is resumed, or the band loads into one it can't tell is new and its own store doesn't know the last reply's time or its model's rate: when that reply was, so the cache countdown starts from it, and the rate its cost record solves to; on a resume, also how long its cache was written for |
 | `grep -a -b -F '"type":"cost-state"' <transcript>`, then `tail -c +<offset> <transcript>` | the same | only when a conversation is resumed: what it spent before this process, so the session's cost includes it |
 
 **It reads** the session's usage from Claude Code (cost, token counts,
