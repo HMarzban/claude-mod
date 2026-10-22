@@ -33,8 +33,8 @@ import {
   wantsRecall,
 } from './cache'
 import type { RecalledReply, ResumedCache, Spend, TranscriptFacts } from './cache'
-import { LAYOUT_LIST, REPLY, UNSAVED, layoutReply, parseCommand } from './command'
-import { MINUTE_MS, SEVERE_AT, WARN_AT, clipMiddle, contextPressure, contextUsed, fmtCountdown, fmtEta, fmtTokens, hostZone, readableZone } from './format'
+import { commandPlan, parseCommand } from './command'
+import { MINUTE_MS, SEVERE_AT, WARN_AT, contextPressure, contextUsed, fmtCountdown, fmtEta, fmtTokens, hostZone, readableZone } from './format'
 import { resolveGlyphs } from './glyphs'
 import {
   fiveHourEtaMs,
@@ -60,7 +60,6 @@ import {
   SESSIONS_KEY,
   addSample,
   asLayoutName,
-  REMOVED_IN,
   removedLayoutOf,
   asLimitSamples,
   asRates,
@@ -396,50 +395,29 @@ const readLayout = async ($: EngineInterface): Promise<void> => {
   band.removed = removedLayoutOf(read.stored)
 }
 
-/** `/nextcost layout [name]`: lists, or switches and remembers. Only this writes the layout. */
-const chooseLayout = async ($: EngineInterface, arg: string): Promise<string> => {
-  if (arg.trim() === '') return `${layoutReply(band.layout, band.removed)} ${LAYOUT_LIST}`
-  const name = asLayoutName(arg)
-  const gone = removedLayoutOf(arg)
-  if (gone !== undefined) return `${gone} was removed in ${REMOVED_IN}. ${LAYOUT_LIST}`
-  if (name === undefined) return `Unknown layout "${clipMiddle(arg.trim(), 20)}". ${LAYOUT_LIST}`
-  band.layout = name
-  band.removed = undefined
-  // Remembered for the next session. A store that fails leaves this one
-  // switched until the next turn reads the store back, and the reply says so.
-  const saved = await $.store.set(LAYOUT_KEY, name).then(
-    () => true,
-    () => false,
-  )
-  await update($, isHidden, () => false)
-  $.ui.invalidate('ui.render')
-  const reply = name === DEFAULT_LAYOUT ? layoutReply(name) : `${layoutReply(name)} /nextcost layout ${DEFAULT_LAYOUT} goes back.`
-  return saved ? reply : `${reply} ${UNSAVED}`
-}
-
-/** What /nextcost, or its old name /usage-band, does with `args`, and what it answers. */
+/** What /nextcost, or its old name /usage-band, does with `args`: the plan
+ *  command.ts makes of it, carried out, and what it answers. */
 const runCommand = async ($: EngineInterface, args: string): Promise<{ text: string }> => {
-  const command = parseCommand(args)
-  if (typeof command === 'object') return { text: await chooseLayout($, command.layout) }
-  switch (command) {
-    case 'more':
-    case 'less':
-      await update($, isExpanded, () => command === 'more')
-      await update($, isHidden, () => false)
-      if (command === 'more') void readWorkspace($)
-      return { text: command === 'more' ? REPLY.expanded : REPLY.collapsed }
-    case 'show':
-    case 'hide':
-      await update($, isHidden, () => command === 'hide')
-      return { text: command === 'hide' ? REPLY.hidden : REPLY.shown }
-    case 'toggle': {
-      const wasHidden = await read($, isHidden)
-      await update($, isHidden, () => !wasHidden)
-      return { text: wasHidden ? REPLY.shownFirst : REPLY.hidden }
-    }
-    case undefined:
-      return { text: REPLY.usage }
+  const plan = commandPlan(parseCommand(args), { layout: band.layout, removed: band.removed, hidden: await read($, isHidden) })
+  let text = plan.reply
+  if (plan.layout !== undefined) {
+    const { name } = plan.layout
+    band.layout = name
+    band.removed = undefined
+    // Remembered for the next session. A store that fails leaves this one
+    // switched until the next turn reads the store back, and the reply says so.
+    const saved = await $.store.set(LAYOUT_KEY, name).then(
+      () => true,
+      () => false,
+    )
+    if (!saved) text = plan.layout.unsaved
   }
+  const { expanded, hidden } = plan
+  if (expanded !== undefined) await update($, isExpanded, () => expanded)
+  if (hidden !== undefined) await update($, isHidden, () => hidden)
+  if (plan.layout !== undefined) $.ui.invalidate('ui.render')
+  if (plan.readWorkspace) void readWorkspace($)
+  return { text }
 }
 
 export const register: Register = on => {
