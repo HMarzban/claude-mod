@@ -1,17 +1,16 @@
 // Chips' open view: its four cards, CACHE, SPEND, CONTEXT and LIMITS, and its
 // footer of the workspace strip and the buttons.
 
-import type { RenderChildren, RenderElement } from 'claude-code'
+import type { RenderChildren } from 'claude-code'
 import { meter, splitBar } from '../charts'
 import type { SplitPart } from '../charts'
 import type { Kit } from '../kit'
-import { DESKTOP, ROW_SLACK } from '../layout'
+import { DESKTOP } from '../layout'
 import type { BarSize } from '../layout'
 import type { LimitKey, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
-import { drawStrip } from '../strip'
 import { SPLIT_LABELS, type Say } from '../words'
-import { bodyRowsFor, footer, footerRoom } from './frame'
+import { bodyRowsFor, footer, topStrip } from './frame'
 import { CARD_NAMES, alertLine, cardBordered, cardEdge, cardGrid, cardInner, cardShell, cardsPerLine, cardsPresent, factRow as sharedFactRow, headline, linesOf } from './shell'
 import type { CardName } from './shell'
 
@@ -41,7 +40,7 @@ const tokenPartsOf = (kit: Kit, read: Readings): SplitPart[] => {
  *  hold their text, each as much of its body as the band has rows for; the
  *  workspace strip on top or in the footer; then Collapse and Hide band. */
 export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderChildren[] => {
-  const { Box, Text, palette, measure, columns, onTone, oneLine } = kit
+  const { Box, Text, palette, measure, onTone, oneLine } = kit
   const { cache, spend, context } = read
 
   const factRow = (label: string, value: string | Say, swatch?: SplitPart) => sharedFactRow(kit, label, value, swatch)
@@ -205,19 +204,12 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRo
 
   const cardViews = [cacheView, spendView, contextView, limitsView].filter(view => view !== null)
 
-  let strip: RenderElement | null = null
-  if (stripPlace !== undefined && ws !== undefined) {
-    // In the footer it shares the line with the buttons and their hotkey marks.
-    const room = columns - ROW_SLACK - (stripPlace === 'footer' ? footerRoom(kit) : 0)
-    strip = drawStrip(kit, ws, stripPlace, edge, room)
-  }
-
   return [
-    stripPlace === 'top' ? strip : null,
+    stripPlace === 'top' && ws !== undefined ? topStrip(kit, ws, edge) : null,
     cardsFit ? cardGrid(kit, linesOf(cardViews, perLine), { marginTop: stripPlace === 'top' ? 0 : 1, align: 'flex-start' })
     // Without them, the other windows' alert, where the band has a row for it.
     : bodyRowsFor(read.frame.maxRows, collapsedRows, 0) < 1 ? null
     : alertLine(kit, read),
-    footer(kit, act, stripPlace === 'footer' && strip !== null ? strip : undefined),
+    footer(kit, act, stripPlace === 'footer' ? ws : undefined),
   ]
 }

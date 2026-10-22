@@ -9,9 +9,11 @@ import { HOTKEY_MARK, ROW_SLACK, cellsOf, isDrawn, squeezeToFit } from '../layou
 import { BARE } from '../palette'
 import type { Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
+import { drawStrip } from '../strip'
 import { rowsOf } from './view'
 import type { View } from './view'
 import type { Amber } from '../words'
+import type { Workspace } from '../workspace'
 
 /** The rows a body gets: the band's, less the collapsed rows, a row of air
  *  above the body and above the buttons, the buttons, and the strip. */
@@ -55,8 +57,6 @@ export const drawView = (view: View, kit: Kit, read: Readings, act: BandActions)
   )
 }
 
-const NO_PRESS: BandActions = { toggleExpanded: async () => undefined, hide: async () => undefined }
-
 const buttonsOf = (kit: Kit, act: BandActions): RenderElement[] => {
   const { Button } = kit
   return [
@@ -65,22 +65,34 @@ const buttonsOf = (kit: Kit, act: BandActions): RenderElement[] => {
   ]
 }
 
-/** The columns the buttons take with their hotkey marks and gaps: what a
- *  strip in the footer leaves out of its room. */
-export const footerRoom = (kit: Kit): number => cellsOf(buttonsOf(kit, NO_PRESS), kit.measure) + 2 * HOTKEY_MARK + 2
+/** The columns a row may take: the band's, less its slack. */
+export const rowRoom = (kit: Kit): number => kit.columns - ROW_SLACK
 
-/** The open view's last row: the strip, given one, else the hint while it
- *  fits; air; then Collapse and Hide band. */
-export const footer = (kit: Kit, act: BandActions, strip?: RenderElement): RenderElement => {
-  const { Box, Text, Svg, measure, columns, icon } = kit
+/** The columns the buttons take with their hotkey marks: what the footer's
+ *  row gives them before the strip or the hint. */
+const buttonsRoom = (kit: Kit, buttons: readonly RenderElement[]): number => cellsOf(buttons, kit.measure) + 2 * HOTKEY_MARK
+
+/** The workspace strip heading an open view, its text lined up with cards
+ *  whose edge is `edge` columns. */
+export const topStrip = (kit: Kit, ws: Workspace, edge: number): RenderElement => drawStrip(kit, ws, 'top', edge, rowRoom(kit))
+
+/** The open view's last row: the workspace strip, given one, in the room the
+ *  buttons leave, else the hint while it fits; air; then Collapse and Hide
+ *  band. A column of gap parts each of the row's pieces. */
+export const footer = (kit: Kit, act: BandActions, ws?: Workspace): RenderElement => {
+  const { Box, Text, Svg, measure, icon } = kit
   const buttons = buttonsOf(kit, act)
+  const room = rowRoom(kit) - buttonsRoom(kit, buttons)
+  // The strip and the two buttons: two gaps.
+  const strip = ws === undefined ? undefined : drawStrip(kit, ws, 'footer', 0, room - 2)
   const hint = (
     <Box key="hint" flexDirection="row">
       {Svg ? icon('info', BARE.icon) : null}
       <Text color={BARE.label}>Bring it back with /nextcost</Text>
     </Box>
   )
-  const hinted = cellsOf(hint, measure) + cellsOf(buttons, measure) + 2 * HOTKEY_MARK + buttons.length + 1 <= columns - ROW_SLACK
+  // The hint, its air and the two buttons: three gaps.
+  const hinted = cellsOf(hint, measure) + 3 <= room
   return (
     <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>
       {strip ?? (hinted ? hint : null)}
@@ -128,9 +140,6 @@ export const line = (kit: Kit, key: string, pieces: readonly RenderChildren[], e
     </Box>
   )
 }
-
-/** The columns a row may take: the band's, less its slack. */
-const rowRoom = (kit: Kit): number => kit.columns - ROW_SLACK
 
 /** A collapsed row squeezed by its give-way order to the first step at which
  *  it fits its room. */

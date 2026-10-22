@@ -10,13 +10,12 @@
 import type { RenderElement } from 'claude-code'
 import { boardBudget, boardLineHeight, boardRule, flapCells, flapColumns, type FlapColumn } from '../flaps'
 import type { Kit } from '../kit'
-import { ROW_SLACK, boardCells } from '../layout'
+import { boardCells } from '../layout'
 import type { Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import type { Palette } from '../palette'
-import { drawStrip } from '../strip'
 import { BOARD_HEADINGS, BOARD_NOW, BOARD_NO_TIME, BOARD_TITLE, type BoardKey, type BoardRow } from '../words'
-import { bodyRowsFor, footer, footerRoom } from './frame'
+import { bodyRowsFor, footer, rowRoom } from './frame'
 
 /** REMARKS cut to `tiles` characters, `…` last where cut. */
 export const remarksFit = (remarks: string, tiles: number): string =>
@@ -192,7 +191,7 @@ const readingLine = (kit: Kit, l: Line, row: BoardRow, cols: Columns, remark: st
  *  nothing when no line fits. */
 const board = (kit: Kit, read: Readings, collapsedRows: number): RenderElement | null => {
   const { Box, Svg, palette } = kit
-  const inner = Math.max(0, kit.columns - ROW_SLACK - BOARD_PAD)
+  const inner = Math.max(0, rowRoom(kit) - BOARD_PAD)
   const cols = columnsOf(kit, read.board().rows, inner)
   const plan = fitPlan(kit, linesOf(read), cols, boardBudget(kit, bodyRowsFor(read.frame.maxRows, collapsedRows, 0)))
   if (plan.lines.length === 0) return null
@@ -219,7 +218,5 @@ const board = (kit: Kit, read: Readings, collapsedRows: number): RenderElement |
 /** Departures open: the board, then the footer every layout draws, the
  *  workspace strip in its row. */
 export const openBoard = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderElement[] => {
-  const ws = read.workspace
-  const strip = ws === undefined ? undefined : drawStrip(kit, ws, 'footer', 0, kit.columns - ROW_SLACK - footerRoom(kit))
-  return [board(kit, read, collapsedRows), footer(kit, act, strip)].filter(e => e !== null)
+  return [board(kit, read, collapsedRows), footer(kit, act, read.workspace)].filter(e => e !== null)
 }

@@ -10,12 +10,11 @@
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { barChart, dayCells, dayCellsFit, flatBeats, sparkline, track } from '../charts'
 import type { Kit } from '../kit'
-import { DESKTOP, ROW_SLACK } from '../layout'
+import { DESKTOP } from '../layout'
 import type { LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
-import { drawStrip } from '../strip'
 import { EMPTY, limitsHead, markedHead } from '../words'
-import { bodyRowsFor, footer, footerRoom } from './frame'
+import { bodyRowsFor, footer } from './frame'
 import { CARD_NAMES, alertLine, cardBordered, cardEdge, cardGrid, cardInner, cardInnerPx, cardShell, cardsPerLine, cardsPresent, factRow, headline, linesOf } from './shell'
 import type { CardName } from './shell'
 
@@ -280,12 +279,9 @@ const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement =
  *  cards draw (the row never draws the other limits) still says it needs
  *  you, on the row they would have started on. */
 export const openStack = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderElement[] => {
-  const ws = read.workspace
-  const room = kit.columns - ROW_SLACK
-  const strip = ws === undefined ? undefined : drawStrip(kit, ws, 'footer', 0, room - footerRoom(kit))
   const body = bodyRowsFor(read.frame.maxRows, collapsedRows, 0)
   const f = factsOf(kit, read)
   const p = planFor(kit, f, body)
   const cards = p !== undefined ? drawCards(kit, read, f, p) : body < 1 ? null : alertLine(kit, read)
-  return [cards, footer(kit, act, strip)].filter(e => e !== null)
+  return [cards, footer(kit, act, read.workspace)].filter(e => e !== null)
 }
