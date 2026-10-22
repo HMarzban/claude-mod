@@ -54,7 +54,7 @@ export const asRates = (v: unknown): Rates =>
     : {}
 
 /** The key a rate is kept and found under: the model it was billed under,
- *  its window aside, as every version has kept it. */
+ *  its window aside, as every released version has kept it. */
 const rateKey = (model: string): string => modelName(model)
 
 /** The store's rates with `rate` kept for `model`, the one billed. */
