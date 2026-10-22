@@ -25,17 +25,21 @@ export const SEVERE_AT = 0.95
 /** Within this share of the compaction point, context counts down to it. */
 const COMPACT_NEAR = 0.9
 
+/** `part` as a share of `whole`; a share of nothing is none. */
+const shareOf = (part: number, whole: number): number => (whole > 0 ? part / whole : 0)
+
 /** How full the context is against where it runs out, and the levels it
  *  escalates at there: toward compaction, where it is on and its point
  *  known, near it; else toward the window, at the warning and severe lines.
  *  Unclamped: a reading clamps it, a toast escalates on it as it is. */
 export const contextPressure = (used: number, window: number, compactAt: number | undefined): Readonly<{ frac: number; levels: readonly number[] }> =>
-  compactAt === undefined ? { frac: used / window, levels: [WARN_AT, SEVERE_AT] } : { frac: used / compactAt, levels: [COMPACT_NEAR] }
+  compactAt === undefined ? { frac: shareOf(used, window), levels: [WARN_AT, SEVERE_AT] } : { frac: shareOf(used, compactAt), levels: [COMPACT_NEAR] }
 
 /** The tokens left before auto-compaction runs at `compactAt`; none once past it. */
 export const toCompaction = (used: number, compactAt: number): number => Math.max(0, compactAt - used)
 
-export const clamp01 = (n: number): number => (n < 0 ? 0 : n > 1 ? 1 : n)
+/** `n` held to 0–1; NaN, a share of nothing, is 0. */
+export const clamp01 = (n: number): number => (Number.isNaN(n) || n < 0 ? 0 : n > 1 ? 1 : n)
 
 /** A share as a whole percent: 0.38 is `38%`. */
 export const fmtPct = (frac: number): string => `${Math.round(frac * 100)}%`

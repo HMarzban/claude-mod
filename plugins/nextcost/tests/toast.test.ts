@@ -82,3 +82,7 @@ test('each change of scale starts the warnings on the new one afresh', () => {
     ['Auto-compaction in ~10k tokens.'],
   ])
 })
+
+test('a window of 0 speaks no toast, never an Infinity%', () => {
+  expect(contextSays([{ used: 76_000, window: 0 }])).toEqual([[]])
+})

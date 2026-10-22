@@ -2,7 +2,7 @@
 // resets, projections, ages, clipped names and the context in use.
 
 import { test, expect } from 'claude-code/testing'
-import { clipMiddle, clipWords, contextUsed, fmtAgo, fmtCost, fmtCountdown, fmtEstimate, fmtEta, fmtPct, fmtSmallCost, fmtTokens, parseReset, resetIn, sameReset } from '../hooks/format'
+import { clamp01, clipMiddle, clipWords, contextPressure, contextUsed, fmtAgo, fmtCost, fmtCountdown, fmtEstimate, fmtEta, fmtPct, fmtSmallCost, fmtTokens, parseReset, resetIn, sameReset } from '../hooks/format'
 import { HOUR, MIN } from './helpers'
 
 const SEC = 1000
@@ -214,4 +214,11 @@ test('a cost that rounds to $1,000 is written as whole dollars, as $1,000 itself
 test('a reset under a minute away says so, not 0m', () => {
   expect(resetIn(30_000, 0)).toEqual({ kind: 'in', text: '<1m' })
   expect(resetIn(60_000, 0)).toEqual({ kind: 'in', text: '1m' })
+})
+
+test('a share of nothing is none: a window or a compaction point of 0 reads 0, never NaN or Infinity', () => {
+  expect(clamp01(Number.NaN)).toBe(0)
+  expect(contextPressure(0, 0, undefined).frac).toBe(0)
+  expect(contextPressure(76_000, 0, undefined).frac).toBe(0)
+  expect(contextPressure(76_000, 200_000, 0).frac).toBe(0)
 })

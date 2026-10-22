@@ -427,3 +427,9 @@ test("`no costs yet` is said only while there is no cost at all: no message's an
   expect(readingsOf(snapOf({ ...none, costUsd: 2.41 })).history().costsNote).toBeUndefined()
   expect(readingsOf(snapOf({ costUsd: 0, history: { costs: [{ usd: 0.2, reWarm: false }], context: [] } })).history().costsNote).toBeUndefined()
 })
+
+test('a context window of 0 reads 0%, never NaN%', () => {
+  const r = readingsOf(snapOf({ context: { tokens: 0, window: 0, percent: undefined, compactAt: undefined, autoCompactOff: false } }))
+  expect(r.context.pct).toBe('0%')
+  expect(r.context.alt).not.toMatch(/NaN|Infinity/)
+})
