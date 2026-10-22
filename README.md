@@ -43,7 +43,7 @@ the summary.
 
 **Needs** Claude Code with mods (function-hooks plugins), outside WSL, which
 doesn't load plugins. CI tests every change, in the terminal's engine, on
-Claude Code 2.1.299 and the latest release (2.1.303 at 0.18.2). The one-line
+Claude Code 2.1.299 and the latest release (2.1.308 at 0.19.0). The one-line
 install below needs 2.1.292 or later
 (`claude --version`); on an older one, use the two steps underneath.
 
@@ -190,7 +190,7 @@ card, command and setting.
 It's a **mod**: a Claude Code plugin written with the function-hooks API.
 A `ui.render` hook draws the band above the prompt, and the other hooks watch
 turns, steps and compactions. It's TypeScript and JSX, with no dependencies,
-no build step and about 1,000 tests.
+no build step and over 1,100 tests.
 
 - **The price comes from your own bill.** No pricing table is reachable from
   a mod, so the band solves the base rate from the session's cost and token
@@ -213,8 +213,8 @@ no build step and about 1,000 tests.
   spent from its transcript.
 - **It spends nothing and sends nothing.** It never calls a model, never
   writes files and never sends anything anywhere. Besides two read-only git commands for
-  the workspace line, it runs only `grep` and `tail`, to read an old
-  session's transcript. The plugin README's
+  the workspace line, it runs only `grep` and `tail`, to read a
+  session's own transcript. The plugin README's
   [What it runs, reads and sends](plugins/nextcost/README.md#what-it-runs-reads-and-sends)
   names each command and what each hook does, and [SECURITY.md](SECURITY.md)
   lists exactly what it reads.
@@ -276,7 +276,7 @@ see in your own sessions.
 ### Good places to start
 
 - **The tokens chip hides too early on the desktop.** Chips' row fits by
-  `squeezeToFit` against `columns - ROW_SLACK` (`hooks/views/chips.tsx`).
+  `fitLine` (`hooks/views/frame.tsx`) against `columns - ROW_SLACK`.
   `DESKTOP` (`hooks/layout.ts`) estimates text width roughly, so the row
   keeps `ROW_SLACK` spare and the tokens chip, first to give way, drops
   before it has to. Calibrating that estimate from screenshots would let it

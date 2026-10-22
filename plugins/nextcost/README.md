@@ -23,7 +23,7 @@ claude plugin install nextcost --marketplace HMarzban/nextcost
 It loads in your next session, or run `/reload-plugins` in an open one.
 
 The band needs Claude Code with mods (function-hooks plugins). CI tests
-every change on 2.1.299 and the latest release (2.1.303 at 0.18.2). The
+every change on 2.1.299 and the latest release (2.1.308 at 0.19.0). The
 one-line form needs Claude Code 2.1.292 or later; on an older one, add the
 marketplace first (`claude plugin marketplace add HMarzban/nextcost`),
 then `claude plugin install nextcost@hossein-mods`.
@@ -217,7 +217,8 @@ itself. The terminal setting can't be detected, so set
 braille as dots. In ASCII each glyph becomes one character or is dropped
 (`█` is `#`, `▵` is `^`, `◷` goes), a ` · ` between two facts reads `, `,
 text too long for its room is clipped rather than ended with `…`, and
-braille charts give way to their numbers. It applies to every layout,
+braille charts give way to their numbers. A wide character, such as a
+Japanese project's name, stays, and the band counts it two columns. It applies to every layout,
 chips included, and only in the terminal.
 
 ### Clock times
@@ -411,8 +412,8 @@ it, each given 3 seconds, and never while the band draws:
 | --- | --- | --- |
 | `git -c core.fsmonitor=false --no-optional-locks status --porcelain=v2 --branch` | the session's project folder | the workspace line: branch, changes, ahead and behind. It never takes git's index lock. `-c core.fsmonitor=false` is git's own option for setting one value for this run: it stops a repository's config from making git start its fsmonitor program. It starts no shell. |
 | `git rev-parse --path-format=absolute --git-dir --git-common-dir --show-toplevel` | the same | whether the folder is a linked worktree, and of which repository |
-| `tail -c 1048576 <transcript>` | that session's own transcript under `~/.claude/projects` | only when a conversation is resumed or reopened: when its last reply was, so the cache countdown starts from it |
-| `grep -a -b -F '"type":"cost-state"' <transcript>`, then `tail -c +<offset> <transcript>` | the same | only then too: what the conversation spent before this process, so the session's cost includes it |
+| `tail -c 1048576 <transcript>` | that session's own transcript under `~/.claude/projects` | only when a conversation is resumed, or the band loads into one it can't tell is new and its own store doesn't know the last reply's time or its model's rate: when that reply was, so the cache countdown starts from it, and the rate its cost record solves to; on a resume, also how long its cache was written for |
+| `grep -a -b -F '"type":"cost-state"' <transcript>`, then `tail -c +<offset> <transcript>` | the same | only when a conversation is resumed: what it spent before this process, so the session's cost includes it |
 
 **It reads** the session's usage from Claude Code (cost, token counts,
 context fill and rate-limit percentages), the clock, the project's folder and
@@ -440,7 +441,7 @@ none edits a message, a setting, a tool call or a result.
 
 | Hook | What it does |
 | --- | --- |
-| `session.start` | Resets the band, reads its settings, stored layout and limit readings, starts a once-a-second timer that repaints only when the drawing would change, and registers `/nextcost` (and its old name, `/usage-band`). |
+| `session.start` | Starts a once-a-second timer that repaints only when the drawing would change and registers `/nextcost` (and its old name, `/usage-band`), then resets the band and reads its settings, stored layout and limit readings. Loaded into a conversation it can't tell is new, it recalls the last reply, from its store or the transcript's end as above. |
 | `session.end` | On `/clear` or a resume, starts the next conversation's count. |
 | `classic.SessionStart` | On a resume or fork, notes that the conversation isn't new and reads its transcript as above. |
 | `turn.start`, `turn.complete` | Note the session's cost as each main turn starts and ends, the turn's cost, the context, and a limit reading; then read the layout and git again. A subagent's turn is left alone. |
@@ -453,7 +454,7 @@ none edits a message, a setting, a tool call or a result.
 ## Developing
 
 See [CONTRIBUTING.md](https://github.com/HMarzban/nextcost/blob/main/CONTRIBUTING.md)
-for the development loop, the gates (about 1,000 tests), the module map and
+for the development loop, the gates (over 1,100 tests), the module map and
 the rules the code follows.
 
 ## Help make it better

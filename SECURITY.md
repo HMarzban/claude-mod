@@ -30,7 +30,9 @@ it:
   it from taking the index lock. Besides `grep` and `tail`, below, the
   plugin runs no other command, though git itself still honours the rest
   of your git configuration.
-- **Reads**, once when a session it has no memory of is reopened, the end
+- **Reads**, once when the band loads into a session it can't tell is new
+  (reopened, reloaded, or one whose cost Claude Code doesn't report) and
+  its store doesn't know the last reply's time or its model's rate, the end
   of that session's own transcript in `~/.claude/projects/`: its last
   megabyte, by `tail -c 1048576 <transcript>` with the same 3-second
   timeout, or failing that the whole file if it is 4 MiB or smaller. It

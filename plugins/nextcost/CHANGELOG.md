@@ -5,11 +5,28 @@ format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/). Before
 1.0.0, a minor version may change how the band reads.
 
-## [Unreleased]
+## [0.19.0] - 2026-10-22
+
+### Fixed
+- The auto-compaction toast speaks after a context warning too. The window's warnings and the ones toward compaction each keep their own level, so a toast at 85% of the window no longer silences `Auto-compaction in ~14k tokens` until the context falls under 75%.
+- A reset's countdown turns on time. The band repaints as each reset's minute turns, and where the time zone isn't known, the departures board's last minute, `IN 47S`, counts every second; before, either could lag up to a minute.
+- A reset under ten minutes off reads in whole minutes rounded up, as the board counts it: `in 5m` at 4:30, where chips, pulse and the cards said `in 4m`.
+- A reloaded session on a model alias, such as `opus[1m]`, finds its rate in the band's store, which keeps each rate under the model as `/model` names it. A reload no longer re-reads the transcript for it, and prices a cold cache's re-warm in dollars even where the transcript can't be read.
+- A reopened session counts its cache down from the main conversation's last reply, and prices its re-warm at the main conversation's model. A subagent's reply logged last no longer stands in for either.
+- A load where Claude Code reports no cost is no longer taken for a new conversation: the cache shows as recalled, or not yet measured, rather than `cache warming`.
+- A context window or compaction point of 0 reads 0%, never `NaN%`, and speaks no `Infinity% full` toast.
+- `/nextcost` and the band's once-a-second repaint are in place as a session starts, before any slow read, and a failure while the session starts no longer leaves the band without them or stops the session.
+- A reading that can't be drawn no longer breaks the band: chips is drawn in its place, and if chips can't be either, the band steps aside and the prompt draws as usual.
+- A turn that cost nothing keeps the last real message cost, the same in every layout. Chips and departures dropped it while pulse kept it.
+- A text split bar, in chips' open Spend card in the terminal and in plain, fills its width exactly; it could run a cell past its card.
+- Wide (CJK) project and branch names stay in the ascii tier, which dropped them, and every line counts them two columns, so the workspace line and a clipped name keep to their room.
+- In the dark and light palettes, a text meter's empty cells, the cache's track and a day not yet measured meet 3:1 contrast on every ground. They read at 1.2 to 1.5:1.
 
 ### Changed
 - Each command the band runs is now fixed text at its call, but for the transcript's path and the offset it reads from: `tail -c 1048576` and `grep -a -b -F '"type":"cost-state"'` are written out where they run. The settings read keeps `promptCacheTtl` and `idleCompaction` at the call and drops the rest there, `env` included. The README says how nextcost can and can't send anything out, and that it reads no credential. Nothing the band runs or draws changes.
 - A view now calls for the history, week and board (`read.week()`) rather than reading a getter, so reading a property never runs code. Each is still built only when a view asks, and once.
+- Inside, each rule has one home, and nothing else the band draws changes. `/nextcost` makes a plan that the hooks carry out; the toasts, the transcript's reads and the departures board's words each have a module of their own; the cache is one model per session; the snapshot has one pure builder; every collapsed row gives way by one engine; and chips' words are in the phrasebook with every layout's. The views gate now reads every view, chips included.
+- The tooling: the dead golden capture and sign-off tools are gone, the demo scripts share one module, and the demo captures are type-checked. CI pins its actions by SHA, cancels a pull request's superseded runs, times out, and lints the tools with shellcheck and ruff; Dependabot watches the actions. The tests are named by the behaviour they hold, and their project is `nextcost`.
 
 ## [0.18.2] - 2026-10-20
 
