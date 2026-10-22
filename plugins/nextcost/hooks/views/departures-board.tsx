@@ -101,7 +101,7 @@ const columnsOf = (kit: Kit, rows: readonly BoardRow[], room: number): Columns =
     if (keep[widest] <= 1) break
     keep[widest]--
   }
-  const [item, status, time] = FLAP_KEYS.map(widthOf) as [number, number, number]
+  const [item, status, time] = [widthOf('item'), widthOf('status'), widthOf('time')]
   const left = room - item - status - time
   return { item, status, time, remarks: left >= REMARKS_LEAST ? left : 0, keep }
 }

@@ -43,7 +43,7 @@ export const warmAverageOf = (costs: readonly CostEntry[]): number | undefined =
 }
 
 // Changed in place only, so the snapshot can hold them by reference.
-const kept = { costs: [] as CostEntry[], context: [] as number[] }
+const kept: { costs: CostEntry[]; context: number[] } = { costs: [], context: [] }
 
 /** The trails, read-only: the arrays the push functions keep, passed by reference. */
 export const trails: Trails = kept

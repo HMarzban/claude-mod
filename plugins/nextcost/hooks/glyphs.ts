@@ -54,8 +54,6 @@ export const asciiText = (s: string): string => {
   return out
 }
 
-type Node = { props?: Record<string, unknown>; children?: unknown[] }
-
 /** The tree with every string, and every Button label, in ASCII. A node
  *  gains no field it didn't have. */
 export const asciiTree = <T>(tree: T): T => {
@@ -63,13 +61,14 @@ export const asciiTree = <T>(tree: T): T => {
     if (typeof k === 'string') return asciiText(k)
     if (Array.isArray(k)) return k.map(walk)
     if (k === null || typeof k !== 'object') return k
-    const node = k as Node
-    const label = node.props?.label
+    const props = 'props' in k && typeof k.props === 'object' && k.props !== null ? k.props : undefined
+    const label = props !== undefined && 'label' in props ? props.label : undefined
     return {
-      ...node,
-      ...(typeof label === 'string' ? { props: { ...node.props, label: asciiText(label) } } : {}),
-      ...(node.children === undefined ? {} : { children: node.children.map(walk) }),
+      ...k,
+      ...(typeof label === 'string' ? { props: { ...props, label: asciiText(label) } } : {}),
+      ...('children' in k && Array.isArray(k.children) ? { children: k.children.map(walk) } : {}),
     }
   }
+  // The walk keeps every node's shape, which its type can't follow.
   return walk(tree) as T
 }
