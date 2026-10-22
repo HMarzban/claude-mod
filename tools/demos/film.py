@@ -12,7 +12,7 @@ import json
 import math
 import sys
 
-from common import trees
+from common import trees, write
 from render_desk import BAND_CSS, MARK, SITE, node
 
 FPS = 30
@@ -116,7 +116,7 @@ def frame(i, theme, trees, minutes):
     cursor = ramp(t, T_CURSOR_A, T_CLICK - .15) if T_CURSOR_A <= t < T_END + .4 else -1
     press = clamp(1 - abs(t - T_CLICK) / .12)
     ripple = clamp((t - T_CLICK) / .5) if T_CLICK <= t < T_CLICK + .5 else -1
-    params = dict(zoom=zoom_at(t), focus='cache' if t < T_CURSOR_A else 'row', ring=ring, cursor=cursor, press=press, ripple=ripple)
+    params = {'zoom': zoom_at(t), 'focus': 'cache' if t < T_CURSOR_A else 'row', 'ring': ring, 'cursor': cursor, 'press': press, 'ripple': ripple}
     lapse = clamp(min((t - T_LAPSE_A) / .3, (T_LAPSE_B + .2 - t) / .3)) if T_LAPSE_A <= t < T_LAPSE_B + .2 else 0
     chrome = app * (1 - endcard)
     return PAGE.format(
@@ -230,5 +230,5 @@ if __name__ == '__main__':
     minutes = sorted(int(k[1:]) for k in drawn if k.startswith('s'))
     n = int(DURATION * FPS)
     for i in range(n):
-        open(f"{out}/f{i:04d}.html", 'w').write(frame(i, theme, drawn, minutes))
+        write(f'{out}/f{i:04d}.html', frame(i, theme, drawn, minutes))
     print(theme, n)

@@ -114,6 +114,6 @@ MARK = '''<svg viewBox="0 0 64 64" width="{s}" height="{s}" aria-hidden="true"><
 
 # The site's page colours, for every demo page; each adds its own shadow.
 SITE = {
-    'light': dict(bg='#faf9f5', text='#1f1e1b', text3='#6b675e', accent='#b4502c', hl='rgba(217,119,87,.30)'),
-    'dark': dict(bg='#141413', text='#f2f0eb', text3='#8a877f', accent='#d97757', hl='rgba(217,119,87,.32)'),
+    'light': {'bg': '#faf9f5', 'text': '#1f1e1b', 'text3': '#6b675e', 'accent': '#b4502c', 'hl': 'rgba(217,119,87,.30)'},
+    'dark': {'bg': '#141413', 'text': '#f2f0eb', 'text3': '#8a877f', 'accent': '#d97757', 'hl': 'rgba(217,119,87,.32)'},
 }

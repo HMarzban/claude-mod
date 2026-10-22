@@ -1,22 +1,33 @@
-"""What the demo scripts share: the capture's lines, the text a drawn tree
-shows, the plugin's version, and the CSS a Box's flex props ask for."""
+"""What the demo scripts share: reading and writing a page, the capture's
+lines, the text a drawn tree shows, the plugin's version, and the CSS a Box's
+flex props ask for."""
 import json
 import os
+from pathlib import Path
 
 MANIFEST = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../plugins/nextcost/.claude-plugin/plugin.json')
 
 
+def read(path):
+    return Path(path).read_text()
+
+
+def write(path, text):
+    Path(path).write_text(text)
+
+
 def plugin_version():
     """The version in the plugin's manifest: the release the demos describe."""
-    return json.load(open(MANIFEST))['version']
+    return json.loads(read(MANIFEST))['version']
 
 
 def trees(path):
     """{name: tree} from a capture file's `<TAG> <name> <tree>` lines, in order."""
     out = {}
-    for line in open(path):
-        _, name, js = line.split(' ', 2)
-        out[name] = json.loads(js)
+    with open(path) as f:
+        for line in f:
+            _, name, js = line.split(' ', 2)
+            out[name] = json.loads(js)
     return out
 
 

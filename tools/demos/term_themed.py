@@ -3,7 +3,7 @@ terminal trees (frames.txt) in a dark terminal window on the page colour."""
 import sys
 
 import render as R
-from common import trees
+from common import trees, write
 from render_desk import SITE
 
 THEMES = {
@@ -24,5 +24,5 @@ for name, tree in trees(src).items():
     pre, acc, post, rest = CAPS[name]
     cap = f'{pre}<span class="em hl">{acc}</span>{post} <span class="rest">{rest}</span>'
     page = R.PAGE.format(**THEMES[theme], lh=R.LH, cap=cap, band=R.node(tree))
-    open(f'{out}/{name}.html', 'w').write(page)
+    write(f'{out}/{name}.html', page)
 print(theme)

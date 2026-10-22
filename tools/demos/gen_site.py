@@ -12,7 +12,7 @@ import json
 import os
 import sys
 
-from common import plugin_version, trees, words
+from common import plugin_version, read, trees, words, write
 from render_desk import node
 
 
@@ -67,11 +67,12 @@ def demo_drawings(path):
     minute is wrapped in <span class=cd>; departures draws its countdown on
     flap tiles inside an SVG, so its drawings carry none."""
     demo = {layout: {state: {} for state in STATES} for layout in LAYOUTS}
-    for line in open(path):
-        _, layout, state, look, js = line.rstrip('\n').split(' ', 4)
-        tree = json.loads(js)
-        lift_hovers(tree)
-        demo[layout][state][look] = node(tree, site=True)
+    with open(path) as f:
+        for line in f:
+            _, layout, state, look, js = line.rstrip('\n').split(' ', 4)
+            tree = json.loads(js)
+            lift_hovers(tree)
+            demo[layout][state][look] = node(tree, site=True)
     for layout in LAYOUTS:
         for state in STATES:
             for look in ('shut', 'open'):
@@ -94,7 +95,7 @@ for name, tree in trees(src).items():
     lift_hovers(tree)
     states[name] = node(tree).replace('0:47', '<span class=cd>0:47</span>')
 
-page = open(template).read()
+page = read(template)
 # The release the page describes is the manifest's, and it is dated the day
 # it was built (UTC), as the sitemap is: neither is typed into the template.
 page = page.replace('{{version}}', plugin_version())
@@ -106,5 +107,5 @@ if '{{demo-' in page:
     page = page.replace('{{demo-chips-amber}}', demo['chips']['amber']['shut'])
     page = page.replace('{{demo-json}}', script_json(demo))
 assert '{{' not in page, 'unfilled placeholder'
-open(out, 'w').write(page)
+write(out, page)
 print({k: len(v) for k, v in states.items()}, len(page))
