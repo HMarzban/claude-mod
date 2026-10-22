@@ -518,9 +518,9 @@ type Response = Pick<ModelUsage, 'input_tokens' | 'output_tokens' | 'cache_read_
   Readonly<{ model?: string }>
 
 /** What a session remembers of a turn, for when it is reopened or the band
- *  reloads: when its last reply was sent, the rate its bill solves to, and
- *  the model /model names. */
-export type Remembered = Readonly<{ lastAt: number; rate: number | null; priceModel: string | undefined }>
+ *  reloads: when its last reply was sent, the rate its bill solves to, the
+ *  model that reply was billed under, and the model /model names. */
+export type Remembered = Readonly<{ lastAt: number; rate: number | null; billed: string | undefined; priceModel: string | undefined }>
 
 /** One session's cache model. Each entry is a hook's facts, in its shape,
  *  and each that is handed the ledger notes it before it reads it. */
@@ -619,7 +619,7 @@ export const newCache = (): CacheModel => {
       s.turnOpen = false
       const rebuilt = s.lastRebuilt
       s.lastRebuilt = false
-      return { rebuilt, remember: s.requests === 0 ? undefined : { lastAt: s.lastAt, rate: ratePerToken(s, ledger), priceModel: s.priceModel } }
+      return { rebuilt, remember: s.requests === 0 ? undefined : { lastAt: s.lastAt, rate: ratePerToken(s, ledger), billed: s.billedModel, priceModel: s.priceModel } }
     },
     conversationEnded: (ledger, resumed) => {
       // The billing mode, its TTL and the session's settings carry over;

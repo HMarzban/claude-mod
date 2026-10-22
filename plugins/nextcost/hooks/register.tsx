@@ -181,8 +181,8 @@ const spendBefore = async ($: EngineInterface, path: string, sessionId: string, 
   return transcriptSpend(recordEnd < 0 ? record.line : record.line + tail.slice(recordEnd), sessionId, before)
 }
 
-/** Recalls when `sessionId` last had a reply, and what a token costs on
- *  its model, as memory.ts's recallOf weighs them: the band's own store,
+/** Recalls when `sessionId` last had a reply, the model it was billed
+ *  under, and what a token costs there, as memory.ts's recallOf weighs them: the band's own store,
  *  then for what it leaves unknown, the end of the transcript `readEnd`
  *  reads. Recalled once per load or resume, and only those facts kept; the
  *  caller notes them. Never throws: unknown stays unknown. */
@@ -251,14 +251,15 @@ const resumeConversation = async ($: EngineInterface, e: ClassicEventOf['classic
   $.ui.invalidate('ui.render')
 }
 
-/** Remembers this session's last reply and the rate its bill solves to, for
- *  when it is reopened or the band reloads. */
+/** Remembers this session's last reply, the model it was billed under and
+ *  the rate its bill solves to, kept under that model's name, for when it is
+ *  reopened or the band reloads. */
 const rememberTurn = async ($: EngineInterface, cache: Remembered): Promise<void> => {
   try {
     const id = await $.session.id()
-    await $.store.set(SESSIONS_KEY, rememberReply(asSessions(await $.store.get(SESSIONS_KEY)), id, cache.lastAt))
+    await $.store.set(SESSIONS_KEY, rememberReply(asSessions(await $.store.get(SESSIONS_KEY)), id, cache.lastAt, cache.billed))
     const rate = cache.rate
-    if (rate !== null) await $.store.set(RATES_KEY, rememberRate(await $.store.get(RATES_KEY), cache.priceModel ?? (await $.session.model()), rate))
+    if (rate !== null) await $.store.set(RATES_KEY, rememberRate(await $.store.get(RATES_KEY), cache.billed ?? cache.priceModel ?? (await $.session.model()), rate))
   } catch {
     // memory is a convenience; the band works without it
   }

@@ -5,12 +5,28 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import { BUILD_155K, FRESH, HOUR, LONG, MIN, START, TURN_DONE, TURN_START, cardOf, engine, fact, pillOf, respond, shown, transcriptOf, usage, setup, mountBand } from './helpers'
+import { BUILD_155K, FRESH, HOUR, LONG, MIN, START, TURN_DONE, TURN_START, USAGE, cardOf, cardText, engine, fact, hoverCardOf, jsonl, pillOf, promptLine, resp, respond, shown, transcriptOf, usage, setup, mountBand } from './helpers'
 
 const ENV = { ENABLE_PROMPT_CACHING_1H: '1', HOME: '/Users/me' }
 const MODEL = 'claude-opus-5-5'
 /** $2.41 over 76k of context at 1.25× a write: what USAGE implies for the rate. */
 const RATE = 0.00001
+/** Claude Haiku 5.5, whose prompts over 100k pay 5× every price, and the
+ *  lower tier's rate, $0.10 per million. */
+const HAIKU = 'claude-haiku-5-5'
+const HAIKU_RATE = 0.0000001
+/** A Haiku 5.5 session past 100k: 151k of context, and $0.0886 spent on two
+ *  requests, a 20k prompt and a 150k one at 5×, 886k weighted tokens. */
+const HAIKU_USAGE = { ...USAGE, cost: { usd: 0.0886 }, context: { tokens: 151_000, window: 1_000_000, percent: 15 } }
+/** Its two requests, billed on Haiku 5.5. */
+const haikuTurn = async ($: Engine) => {
+  await respond($, resp(2_000, 0, 18_000, 1_000), { model: HAIKU })
+  await respond($, resp(2_000, 18_000, 130_000, 1_000), { model: HAIKU })
+  await $.turn.complete(TURN_DONE)
+}
+/** 151k written at the upper tier: 151k × 1.25 × $0.50 per million = $0.094.
+ *  At the lower tier it would say ~$0.02. */
+const HAIKU_COLD = /cache cold · next message ~\$0\.09\b/
 
 const mounted = async ($: Engine, open = false) => {
   const ui = await mountBand($, 'terminal', 140)
@@ -114,8 +130,7 @@ test('after each turn the band remembers the reply and the rate it solved', asyn
   usage.current = { ...usage.current, cost: { usd: 2.83 } } // the turn cost $0.42
   await $.turn.complete(TURN_DONE)
   await clock.settle()
-  const sessions = engine.store.sessions as Record<string, { lastAt: number }>
-  expect(sessions.s1?.lastAt).toBe(5 * MIN)
+  expect(engine.store.sessions).toEqual({ s1: { lastAt: 5 * MIN, billed: MODEL } })
   const rates = engine.store.rates as Record<string, number>
   expect(rates[MODEL]).toBeGreaterThan(0)
 })
@@ -132,7 +147,7 @@ test('a rate solved on a 1M-context session is remembered under the model, for a
   expect(Object.keys(engine.store.rates as Record<string, number>)).toEqual([MODEL])
 })
 
-test('a rate solved on a session named by an alias is remembered under the alias, which a reload knows', async ($, on) => {
+test('a rate solved on a session named by an alias is remembered under the billed model, as an older version reads it', async ($, on) => {
   const clock = setup(on, { env: ENV })
   engine.model = 'opus[1m]'
   await $.session.start(START)
@@ -141,7 +156,8 @@ test('a rate solved on a session named by an alias is remembered under the alias
   usage.current = { ...usage.current, cost: { usd: 2.83 } }
   await $.turn.complete(TURN_DONE)
   await clock.settle()
-  expect(Object.keys(engine.store.rates as Record<string, number>)).toEqual(['opus'])
+  expect(Object.keys(engine.store.rates as Record<string, number>)).toEqual([MODEL])
+  expect(engine.store.sessions).toEqual({ s1: { lastAt: 0, billed: MODEL } })
 })
 
 test('reloaded, a session named by an alias recalls its rate from the store, with no transcript to read', LONG, async ($, on) => {
@@ -159,6 +175,47 @@ test('reloaded, a session named by an alias recalls its rate from the store, wit
   await clock.settle()
   expect(engine.ran.filter(argv => argv[0] === 'tail')).toEqual([])
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold · next message ~\$/)
+})
+
+test("reloaded with no transcript, a session named by an alias prices its re-warm at the billed model's tier", LONG, async ($, on) => {
+  const clock = setup(on, { env: ENV, usage: HAIKU_USAGE })
+  engine.model = 'haiku'
+  await $.session.start(START)
+  await haikuTurn($)
+  await clock.settle()
+  await clock.advance(61 * MIN)
+  engine.ran.length = 0
+  await $.session.start(START)
+  await clock.settle()
+  expect(engine.ran.filter(argv => argv[0] === 'tail')).toEqual([])
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(HAIKU_COLD)
+})
+
+test("reloaded with no transcript, a session named by an alias reads its cache at the billed model's share", async ($, on) => {
+  const clock = setup(on, { env: ENV })
+  engine.model = 'opus[1m]'
+  await $.session.start(START)
+  await $.turn.start(TURN_START)
+  await respond($, BUILD_155K)
+  usage.current = { ...usage.current, cost: { usd: 2.83 } }
+  await $.turn.complete(TURN_DONE)
+  await clock.settle()
+  await clock.advance(10 * MIN)
+  await $.session.start(START)
+  await clock.settle()
+  const ui = await mountBand($, 'terminal', 140)
+  // Opus 5.5 reads its cache at 0.05× input; an unknown model at 0.1×.
+  expect(cardText(hoverCardOf(await ui.drawn(), 'cache'))).toMatch(/warm cache bills input at 5%/)
+  await ui.unmount()
+})
+
+test('a session remembered without its billed model, as older versions kept it, recalls the model off its transcript', async ($, on) => {
+  setup(on, { env: ENV, usage: HAIKU_USAGE, store: { sessions: { s1: { lastAt: 0 } }, rates: { [HAIKU]: HAIKU_RATE } }, now: 3 * HOUR })
+  engine.model = 'haiku'
+  engine.transcript = jsonl(promptLine(-5000), { type: 'assistant', timestamp: new Date(0).toISOString(), message: { role: 'assistant', model: HAIKU, content: [] } })
+  await $.session.start(START)
+  expect(engine.ran.filter(argv => argv[0] === 'tail')).toHaveLength(1)
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(HAIKU_COLD)
 })
 
 test('the band remembers at most 50 sessions, the oldest replies going first', async ($, on) => {
