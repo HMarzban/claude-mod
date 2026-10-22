@@ -1,7 +1,8 @@
-// The lines pulse and departures squeeze to fit, and a limit's accent.
+// The collapsed rows' give-way, the line pulse and departures lay, and a limit's accent.
 
 import { test, expect } from 'claude-code/testing'
 import { makeKit } from '../hooks/kit'
+import { ROW_SLACK } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
 import { accentOf } from '../hooks/views/cards'
 import { fitLine, line, type Keeps } from '../hooks/views/frame'
@@ -13,31 +14,56 @@ const kit = (columns = 120) => makeKit(fakeEl, snapOf({ columns }))
 /** One cut line of plain text. */
 const words = (k: ReturnType<typeof kit>, key: string, text: string) => k.oneLine({ key }, text)
 const A: Amber = { long: '! 47s left · re-warm ~$1.66', short: '! 47s' }
-const said = (k: ReturnType<typeof kit>, room: number) =>
-  shown(fitLine(k, ['extra', 'more', 'amberShort'] as const, room, keeps => line(k, 'l', [
+/** A line in `room` columns: the band's row is its room and the slack. */
+const said = (room: number) => {
+  const k = kit(room + ROW_SLACK)
+  return shown(fitLine(k, { calm: ['extra', 'more'], amber: ['amberShort'] } as const, keeps => line(k, 'l', [
     words(k, 'a', keeps.amber(A)),
     keeps.has('more') ? words(k, 'm', 'more words') : null,
     keeps.has('extra') ? words(k, 'e', 'extra words') : null,
   ])))
+}
+/** The Keeps a line is built with at each step, first to last, where none fits. */
+const steps = () => {
+  const k = kit(ROW_SLACK)
+  const seen: Keeps<'x' | 'amberShort' | 'pad'>[] = []
+  fitLine(k, { calm: ['x'], amber: ['amberShort'], last: ['pad'] } as const, keeps => {
+    seen.push(keeps)
+    return line(k, 'l', [words(k, 'w', 'wide words')])
+  })
+  return seen
+}
 
 test('a line drops its calm pieces in order, and shortens amber only after the last', () => {
-  const k = kit()
-  expect(said(k, 60)).toMatch(/extra words/)
-  expect(said(k, 50)).not.toMatch(/extra words/)
-  expect(said(k, 50)).toMatch(/more words/)
-  expect(said(k, 35)).toMatch(/^! 47s left · re-warm/)
-  expect(said(k, 35)).not.toMatch(/more words/)
-  expect(said(k, 20)).toBe('! 47s')
+  expect(said(60)).toMatch(/extra words/)
+  expect(said(50)).not.toMatch(/extra words/)
+  expect(said(50)).toMatch(/more words/)
+  expect(said(35)).toMatch(/^! 47s left · re-warm/)
+  expect(said(35)).not.toMatch(/more words/)
+  expect(said(20)).toBe('! 47s')
 })
-test('at the last step nothing calm is kept, amber is short, and an amber tone still counts', () => {
+test('amber steps come after every calm one, and any last step after them', () => {
+  const at = steps()
+  expect(at.map(k => [k.has('x'), k.has('amberShort'), k.has('pad')])).toEqual([
+    [true, true, true],
+    [false, true, true],
+    [false, false, true],
+    [false, false, false],
+  ])
+})
+test('an amber piece is kept whole at every step; its part and its long words until amber gives way', () => {
+  const at = steps()
+  expect(at.map(k => [k.calm('x', 'calm'), k.calm('x', 'amber')])).toEqual([[true, true], [false, true], [false, true], [false, true]])
+  expect(at.map(k => [k.part('x', 'calm'), k.part('x', 'amber')])).toEqual([[true, true], [false, true], [false, false], [false, false]])
+  expect(at.map(k => k.amber(A))).toEqual([A.long, A.long, A.short, A.short])
+})
+test("a line's order is typed: a piece it doesn't name doesn't compile", () => {
   const k = kit()
-  let last: Keeps<'x' | 'amberShort'> | undefined
-  fitLine(k, ['x', 'amberShort'] as const, 0, keeps => { last = keeps; return line(k, 'l', [words(k, 'w', 'wide words')]) })
-  expect(last?.has('x')).toBe(false)
-  expect(last?.calm('x', 'calm')).toBe(false)
-  expect(last?.calm('x', 'amber')).toBe(true)
-  expect(last?.amber(A)).toBe('! 47s')
-  expect(last?.has('amberShort')).toBe(false)
+  fitLine(k, { calm: ['x'], amber: ['amberShort'] } as const, keeps => {
+    // @ts-expect-error: 'amberShrot' is no piece of this order.
+    keeps.has('amberShrot')
+    return line(k, 'l', [])
+  })
 })
 test('each piece of a line keeps its width; words truncate, never wrap', () => {
   const k = kit()

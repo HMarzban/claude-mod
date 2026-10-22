@@ -10,7 +10,7 @@ import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { openBody } from '../hooks/views/cards'
 import { cachePill, chipsPills, chipsView, limitPill, pillRow } from '../hooks/views/chips'
-import { drawView, toggleButton } from '../hooks/views/frame'
+import { drawView, toggleButton, type Keeps } from '../hooks/views/frame'
 import type { View } from '../hooks/views/view'
 import { canon } from './golden/hash'
 import { BARE, DARK, PLAIN } from '../hooks/palette'
@@ -88,16 +88,18 @@ test('shut, a cards view draws its collapsed lines alone', () => {
   const tree = drawn(linesView(1), snap)
   expect(shown(tree)).toBe('LINE 0')
 })
+/** Every piece kept: a row's first step. */
+const KEEP_ALL: Keeps<string> = { has: () => true, calm: () => true, part: () => true, amber: a => a.long }
 test("a layout composes chips' pills: chips' row is its pills in a pill row", () => {
   const snap = snapOf({ columns: 200 })
   const kit = makeKit(fakeEl, snap)
   const read = readingsOf(snap)
   const row = (drawView(chipsView, kit, read, NO_ACT) as unknown as Node).children?.[0]
-  expect(canon(row)).toEqual(canon(pillRow(kit, toggleButton(kit, read, NO_ACT), chipsPills(kit, read, 0))))
-  const mine = pillRow(kit, toggleButton(kit, read, NO_ACT), [limitPill(kit, read, '7d', 0, false), cachePill(kit, read, true)].filter(p => p !== undefined))
+  expect(canon(row)).toEqual(canon(pillRow(kit, toggleButton(kit, read, NO_ACT), chipsPills(kit, read, KEEP_ALL))))
+  const mine = pillRow(kit, toggleButton(kit, read, NO_ACT), [limitPill(kit, read, '7d', KEEP_ALL, false), cachePill(kit, read, true)].filter(p => p !== undefined))
   expect(shown(mine)).toBe('7d ██░░░░ 30% │ ↻ 2d 19h ◷ cache 52m ')
   expect(byKey(mine, 'more', 'Button')?.props?.label).toBe('▵')
-  expect(limitPill(kit, readingsOf(snapOf({ sevenDay: undefined })), '7d', 0, false)).toBeUndefined()
+  expect(limitPill(kit, readingsOf(snapOf({ sevenDay: undefined })), '7d', KEEP_ALL, false)).toBeUndefined()
 })
 test('a card head is bold on its figure alone, its words in label ink', () => {
   const tree = opened()

@@ -7,10 +7,10 @@
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { barChart, dayCells, flatBeats, heartbeat, sparkline } from '../charts'
 import type { Kit } from '../kit'
-import { ROW_SLACK, isDrawn } from '../layout'
+import { isDrawn } from '../layout'
 import type { Readings, Tone } from '../reading'
 import { EMPTY, type Amber } from '../words'
-import { fitLine, type Keeps, line } from './frame'
+import { fitLine, type Keeps, line, type PieceOf } from './frame'
 import { openStack } from './pulse-open'
 import type { View } from './view'
 
@@ -24,8 +24,12 @@ import type { View } from './view'
  *  last of all, the tiles drop their padding (plain, its second column
  *  between readings, each amber one led by its `!`). The cache and the 7d
  *  never go. */
-const ORDER = ['last', 'contextTrail', 'beats14', 'fiveTrail', 'sevenDays', 'beats', 'spend', 'context', 'five', 'short', 'amberShort', 'padding'] as const
-type Piece = (typeof ORDER)[number]
+const ORDER = {
+  calm: ['last', 'contextTrail', 'beats14', 'fiveTrail', 'sevenDays', 'beats', 'spend', 'context', 'five', 'short'],
+  amber: ['amberShort'],
+  last: ['padding'],
+} as const
+type Piece = PieceOf<typeof ORDER>
 /** The beats' width: 6 px a beat. */
 const BEATS_PX = { 14: 84, 8: 48 } as const
 
@@ -65,10 +69,6 @@ const tile = (kit: Kit, k: Keeps<Piece>, key: string, tone: Tone, ground: string
   )
 }
 
-/** Whether a reading's chart is kept: a calm one while its step holds, an
- *  amber one until the amber step. */
-const chartKept = (k: Keeps<Piece>, piece: Piece, tone: Tone): boolean => k.has(piece) || (tone === 'amber' && k.has('amberShort'))
-
 /** A calm reading's words, long until the short step. */
 const calmWords = (k: Keeps<Piece>, long: string, short: string): string => (k.has('short') ? long : short)
 
@@ -78,7 +78,7 @@ const wordsOf = (kit: Kit, k: Keeps<Piece>, name: string, figure: string, amber:
   amber === undefined ? [named(kit, name), said(kit, 'w', figure, false)] : [said(kit, 'w', k.amber(amber), true)]
 
 const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderElement =>
-  fitLine(kit, ORDER, kit.columns - ROW_SLACK, k => {
+  fitLine(kit, ORDER, k => {
     const { Svg, Text, palette } = kit
     const { cache, context, fiveHour, sevenDay } = read
     const hist = read.history()
@@ -105,20 +105,20 @@ const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderEleme
     ])
     const contextTile = !k.calm('context', context.tone) ? null : tile(kit, k, 'context', context.tone, palette.surface, [
       ...wordsOf(kit, k, context.bandName, context.valueText, context.amber),
-      charts && chartKept(k, 'contextTrail', context.tone) && hist.context.length > 1
+      charts && k.part('contextTrail', context.tone) && hist.context.length > 1
         ? sparkline(kit, { key: 'trail', alt: hist.contextTrailAlt, values: hist.context, color: palette.label, px: 36, height: 16, max: context.compactAt ?? context.window })
         : null,
     ])
     const fiveTile = fiveHour === undefined || !k.calm('five', fiveHour.tone) ? null : tile(kit, k, '5h', fiveHour.tone, palette.fiveBg, [
       ...wordsOf(kit, k, fiveHour.bandName, fiveHour.valueText, fiveHour.amber),
-      charts && chartKept(k, 'fiveTrail', fiveHour.tone) && week.fiveHourWindow.values.length > 1
+      charts && k.part('fiveTrail', fiveHour.tone) && week.fiveHourWindow.values.length > 1
         ? sparkline(kit, { key: 'trail', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, from: week.fiveHourWindow.from, color: fiveHour.tone === 'amber' ? palette.amberFg : palette.fiveAccent, px: 48, height: 16, max: 100 })
         : null,
     ])
     // The 7d's cells are the desktop's: in text it is words (spec §4.1).
     const sevenTile = sevenDay === undefined ? null : tile(kit, k, '7d', sevenDay.tone, palette.weekBg, [
       ...wordsOf(kit, k, sevenDay.bandName, sevenDay.valueText, sevenDay.amber),
-      Svg && chartKept(k, 'sevenDays', sevenDay.tone) && week.daysDrawn.measured
+      Svg && k.part('sevenDays', sevenDay.tone) && week.daysDrawn.measured
         ? dayCells(kit, { key: 'days', alt: week.daysAlt, values: week.daysDrawn.values, guess: week.daysDrawn.guess, today: week.daysDrawn.today, color: sevenDay.tone === 'amber' ? palette.amberFg : palette.weekAccent, cellPx: 4, height: 14, max: 100 })
         : null,
     ])

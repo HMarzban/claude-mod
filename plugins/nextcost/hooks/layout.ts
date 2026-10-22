@@ -1,55 +1,9 @@
-// How the band measures and fits a line: what gives way as it narrows, and
-// how many columns a drawn tree takes on each surface.
+// How the band measures a line: how many columns a drawn tree takes on each
+// surface, the sizes it lays out by, and the squeeze that fits a line to its
+// room by a give-way order its layout names.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 
-/** What the row gives up as it narrows, least important first. The row is
- *  measured after each step; an amber piece holds out until the end. */
-export const GIVES_WAY = [
-  'tokens',
-  'weekReset',
-  'fiveReset',
-  'contextMeter',
-  'calmWeek',
-  'limitBars',
-  'shortWording',
-  'calmContext',
-  'calmFive',
-  'amberWeekReset',
-  'amberFiveReset',
-] as const
-export type Piece = (typeof GIVES_WAY)[number]
-
-/** For a give-way order: whether a line squeezed `squeeze` steps still keeps `piece`. */
-export const keepsIn =
-  <P extends string>(order: readonly P[]) =>
-  (squeeze: number, piece: P): boolean =>
-    squeeze <= order.indexOf(piece)
-
-export const keeps = keepsIn<Piece>(GIVES_WAY)
-
-/** What the workspace strip gives up as it narrows, least important first.
- *  The path, the branch and the change count's word shorten; the extras go
- *  whole, and the path's hover card still says everything. Uncommitted
- *  changes never go: they are what a narrow line must still say. */
-export const STRIP_GIVES_WAY = [
-  'clean',
-  'parent',
-  'changedWord',
-  'branchLong',
-  'worktreeOf',
-  'aheadBehind',
-  'branchShort',
-  'worktree',
-  'nameLong',
-  'nameShort',
-] as const
-export const stripKeeps = keepsIn<(typeof STRIP_GIVES_WAY)[number]>(STRIP_GIVES_WAY)
-
-/** Below this, the cache and context wording turns short whatever the squeeze. */
-export const SHORT_BELOW = 68
-export const METER_CELLS = 6
-const METER_PX = 44
 /** The longest line a card holds unwrapped, in characters: LIMITS' lead
  *  row, `resets  Mon 08:40 · full before reset`, its label two columns apart. */
 export const CARD_TEXT = 37
@@ -62,7 +16,6 @@ export const ROW_SLACK = 4
 
 /** A bar's length: px on desktop, cells elsewhere. */
 export type BarSize = Readonly<{ px: number; cells: number }>
-export const CHIP_BAR: BarSize = { px: METER_PX, cells: METER_CELLS }
 
 /** How a surface lays text out against its bodyColumns: the terminal one cell
  *  a character; the desktop's proportional font runs about three quarters of
@@ -143,12 +96,13 @@ export const spansOf = (pieces: readonly RenderChildren[], gap: number, m: Measu
   })
 }
 
-/** The line `build` draws at the first squeeze that fits `room` columns, or
- *  at the last tried: a line drops its pieces in the order its give-way table
- *  names them. */
-export const squeezeToFit = (build: (squeeze: number) => RenderElement, steps: number, room: number, m: Measure): RenderElement => {
+/** The line `build` draws at the first step of `order` at which it fits
+ *  `room` columns, or at the last: a line drops its pieces in the order
+ *  named, and `has` says whether a piece is still kept. */
+export const squeezeToFit = <P extends string>(order: readonly P[], room: number, m: Measure, build: (has: (piece: P) => boolean) => RenderElement): RenderElement => {
+  const at = (squeeze: number) => build(piece => squeeze <= order.indexOf(piece))
   let squeeze = 0
-  let line = build(squeeze)
-  while (squeeze < steps && cellsOf(line, m) > room) line = build(++squeeze)
+  let line = at(squeeze)
+  while (squeeze < order.length && cellsOf(line, m) > room) line = at(++squeeze)
   return line
 }

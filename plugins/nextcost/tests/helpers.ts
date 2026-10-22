@@ -13,7 +13,7 @@ import type {
 } from 'claude-code'
 import { mock, type Engine, type MockClock } from 'claude-code/testing'
 import type { Sample } from '../hooks/memory'
-import { METER_CELLS } from '../hooks/layout'
+import { CHIP_BAR } from '../hooks/views/chips'
 import { READ_LIMIT } from '../hooks/memory'
 import { DARK } from '../hooks/palette'
 
@@ -548,9 +548,9 @@ export const pillKeys = (row: unknown): unknown[] =>
 /** The cache card's rebuild count, 0 when the row is absent. */
 export const rebuilds = (tree: unknown): number => Number(fact(tree, 'unexpected rebuilds') ?? 0)
 
-/** Text meters drawn: METER_CELLS cells of █ and ░. An empty meter's
+/** Text meters drawn: CHIP_BAR's cells of █ and ░. An empty meter's
  *  inner track Text is as many cells too, so it's told apart by its colour. */
-const METER = new RegExp(`^[█░]{${METER_CELLS}}$`)
+const METER = new RegExp(`^[█░]{${CHIP_BAR.cells}}$`)
 export const textMeters = async (ui: {
   findAll: (q: { type: string; text: RegExp }) => Promise<Array<{ props?: Record<string, unknown> }>>
 }): Promise<number> => (await ui.findAll({ type: 'Text', text: METER })).filter(t => t.props?.color !== DARK.meterTrack).length

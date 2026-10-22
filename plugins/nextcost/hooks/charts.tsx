@@ -4,7 +4,6 @@
 import type { RenderChildren } from 'claude-code'
 import { clamp01 } from './format'
 import type { Kit } from './kit'
-import { CHIP_BAR } from './layout'
 import type { BarSize } from './layout'
 import type { Tone } from './reading'
 
@@ -68,7 +67,7 @@ type MeterOptions = Readonly<{
   frac: number
   tone: Tone
   accent: string
-  size?: BarSize
+  size: BarSize
   /** An Svg with no width, capped by its slot: chips' cards' heads and
    *  bodies alone, since spec §2.9 bars it from every collapsed line. */
   stretch?: boolean
@@ -82,7 +81,7 @@ type MeterOptions = Readonly<{
  *  wider than any slot, the slot caps it, so it spans its card. */
 export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
   const { Svg, svg, Text, palette, onTone } = kit
-  const { key = 'meter', label, frac, tone, accent, size = CHIP_BAR, stretch = false, reads = 'used' } = o
+  const { key = 'meter', label, frac, tone, accent, size, stretch = false, reads = 'used' } = o
   const fill = onTone(tone, accent)
   const alt = `${label} ${Math.round(clamp01(frac) * 100)}% ${reads}`
   if (Svg) {

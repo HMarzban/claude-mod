@@ -1,10 +1,11 @@
 // What every layout's frame shares: the toggle on the row nearest the
 // prompt, the rows an open view is given beneath the collapsed lines, the
-// footer, and the one-line rows pulse and departures squeeze to fit.
+// footer, and how a collapsed row gives way to fit: the one engine every
+// layout squeezes its row with, and the line pulse and departures lay.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import type { Kit } from '../kit'
-import { HOTKEY_MARK, ROW_SLACK, cellsOf, isDrawn, keepsIn, squeezeToFit } from '../layout'
+import { HOTKEY_MARK, ROW_SLACK, cellsOf, isDrawn, squeezeToFit } from '../layout'
 import { BARE } from '../palette'
 import type { Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
@@ -89,15 +90,25 @@ export const footer = (kit: Kit, act: BandActions, strip?: RenderElement): Rende
   )
 }
 
-// ---- the rows pulse and departures squeeze -----------------------------------
+// ---- the collapsed rows' give-way --------------------------------------------
+
+/** A collapsed row's give-way order, first to last: its calm steps, then
+ *  amber's, then any after them. Amber never gives way before calm: its
+ *  steps come once every calm one is taken. */
+export type GiveWay<P extends string> = Readonly<{ calm: readonly P[]; amber: readonly P[]; last?: readonly P[] }>
+/** The pieces an order names. */
+export type PieceOf<G> = G extends GiveWay<infer P> ? P : never
 
 /** What a line's build may ask at its squeeze. */
 export type Keeps<P extends string> = Readonly<{
-  /** Whether a calm, optional piece is still kept. */
+  /** Whether a piece is still kept: its step not yet taken. */
   has: (p: P) => boolean
   /** Whether a piece of this tone is kept: an amber one always is. */
   calm: (p: P, tone: Tone) => boolean
-  /** An amber reading's words: long until the `amberShort` step, then short. */
+  /** Whether a part of a piece of this tone is kept: a calm one while its
+   *  step holds, an amber one until amber's first step. */
+  part: (p: P, tone: Tone) => boolean
+  /** An amber reading's words: long until amber's first step, then short. */
   amber: (a: Amber) => string
 }>
 
@@ -118,20 +129,18 @@ export const line = (kit: Kit, key: string, pieces: readonly RenderChildren[], e
   )
 }
 
-/** A line squeezed by its give-way order to the smallest squeeze at which it
- *  fits. Every order names `amberShort`, where amber turns short, so amber
- *  shortens only once every calm piece before it has gone. */
-export const fitLine = <P extends string>(kit: Kit, order: readonly P[], room: number, build: (keeps: Keeps<P>) => RenderElement): RenderElement => {
-  const at = keepsIn(order)
-  return squeezeToFit(
-    squeeze =>
-      build({
-        has: p => at(squeeze, p),
-        calm: (p, tone) => tone === 'amber' || at(squeeze, p),
-        amber: a => (at(squeeze, 'amberShort' as P) ? a.long : a.short),
-      }),
-    order.length,
-    room,
-    kit.measure,
-  )
-}
+/** The columns a row may take: the band's, less its slack. */
+const rowRoom = (kit: Kit): number => kit.columns - ROW_SLACK
+
+/** A collapsed row squeezed by its give-way order to the first step at which
+ *  it fits its room. */
+export const fitLine = <P extends string>(kit: Kit, order: GiveWay<P>, build: (keeps: Keeps<P>) => RenderElement): RenderElement =>
+  squeezeToFit([...order.calm, ...order.amber, ...(order.last ?? [])], rowRoom(kit), kit.measure, has => {
+    const long = order.amber.every(has)
+    return build({
+      has,
+      calm: (p, tone) => tone === 'amber' || has(p),
+      part: (p, tone) => has(p) || (tone === 'amber' && long),
+      amber: a => (long ? a.long : a.short),
+    })
+  })

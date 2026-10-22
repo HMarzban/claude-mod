@@ -1,7 +1,7 @@
 import { test, expect } from 'claude-code/testing'
 import { barChart, braille, dayCells, dayCellsFit, flatBeats, heartbeat, meter, sparkline, track } from '../hooks/charts'
 import { makeKit } from '../hooks/kit'
-import { METER_CELLS } from '../hooks/layout'
+import { CHIP_BAR } from '../hooks/views/chips'
 import { drawBand } from '../hooks/band'
 import { byKey, fakeEl, svgsOf, textOf, type Node } from './helpers'
 import { NO_ACT, snapOf } from './matrix'
@@ -24,7 +24,7 @@ for (const [name, el] of [
   ['sparkline', sparkline(desk, { key: 's', alt: '5h usage over the last hour', values: [1, 2, 3], color: '#7fcf8a', px: 90, height: 36 })],
   ['barChart', barChart(desk, { key: 'b', alt: 'cost of the last 3 messages', values: [1, 2, 9], marked: [false, false, true], color: '#888888', markColor: '#eeeeee', px: 18, height: 36 })],
   ['dayCells', dayCells(desk, { key: 'd', alt: 'weekly limit by day', values: [6, 9, 11, 4, 7, 7, 7], guess: [false, false, false, false, true, true, true], today: 3, color: '#a99cf0', cellPx: 16, height: 16 })],
-  ['meter', meter(desk, { key: 'm', label: '5h', frac: 0.04, tone: 'calm', accent: '#7fcf8a' })],
+  ['meter', meter(desk, { key: 'm', label: '5h', frac: 0.04, tone: 'calm', accent: '#7fcf8a', size: CHIP_BAR })],
 ] as const) {
   test(`${name} draws one Svg with alt, width and no ids`, () => {
     const n = svg(el)
@@ -132,15 +132,15 @@ for (const [cellPx, height] of [[18, 56], [4, 14]] as const) {
 }
 const term = makeKit(fakeEl, snapOf())
 test('a builder drawn outside a mount keeps its key and its children', () => {
-  const n = meter(term, { label: 'context', frac: 0.5, tone: 'calm', accent: '#b8b8c2' }) as Node
-  const half = Math.round(METER_CELLS / 2)
+  const n = meter(term, { label: 'context', frac: 0.5, tone: 'calm', accent: '#b8b8c2', size: CHIP_BAR }) as Node
+  const half = Math.round(CHIP_BAR.cells / 2)
   expect(n.type).toBe('Text')
   expect(n.props?.key).toBe('meter')
   expect(byKey(n, 'track', 'Text')).toBeDefined()
-  expect(textOf(n)).toBe(`${'█'.repeat(half)}${'░'.repeat(METER_CELLS - half)}`)
+  expect(textOf(n)).toBe(`${'█'.repeat(half)}${'░'.repeat(CHIP_BAR.cells - half)}`)
 })
 test('a stretched meter has no width of its own, its marks scaled to the slot', () => {
-  const n = svg(meter(desk, { label: 'cache', frac: 0.5, tone: 'calm', accent: '#7fcf8a', stretch: true }))
+  const n = svg(meter(desk, { label: 'cache', frac: 0.5, tone: 'calm', accent: '#7fcf8a', size: CHIP_BAR, stretch: true }))
   expect(n.props.width).toBeUndefined()
   expect(n.props.source).toMatch(/preserveAspectRatio="none"/)
   expect(n.props.source).toMatch(/vector-effect="non-scaling-stroke"/)

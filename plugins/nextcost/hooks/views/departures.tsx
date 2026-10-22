@@ -7,11 +7,10 @@
 import type { RenderElement } from 'claude-code'
 import { flaps } from '../flaps'
 import type { Kit } from '../kit'
-import { ROW_SLACK } from '../layout'
 import type { Readings } from '../reading'
 import type { BoardRow } from '../words'
 import { ITEM_INK, openBoard } from './departures-board'
-import { fitLine, type Keeps, line } from './frame'
+import { fitLine, type Keeps, line, type PieceOf } from './frame'
 import type { View } from './view'
 
 /** What gives way as the row narrows, first to last (spec §5.2), calm only:
@@ -22,8 +21,12 @@ import type { View } from './view'
  *  their padding, keeping their ground; plain, which has none, brackets each
  *  reading once and sets them a column apart: four amber readings at 60
  *  columns in every palette. CACHE and 7D never go. */
-const ORDER = ['reset5h', 'reset7d', 'remark5h', 'remark7d', 'spend', 'context', 'five', 'long', 'amberShort', 'padding'] as const
-type Piece = (typeof ORDER)[number]
+const ORDER = {
+  calm: ['reset5h', 'reset7d', 'remark5h', 'remark7d', 'spend', 'context', 'five', 'long'],
+  amber: ['amberShort'],
+  last: ['padding'],
+} as const
+type Piece = PieceOf<typeof ORDER>
 
 /** A reading as its own module: on the board's ground, a column of padding
  *  either side until the last step, its ITEM's tiles in its own ink, then
@@ -46,7 +49,7 @@ const moduleOf = (kit: Kit, k: Keeps<Piece>, row: BoardRow, cell: string): Rende
  *  while its step holds, then its remark while its own step holds, then its
  *  value. Any other: long, then short. */
 const cellOf = (row: BoardRow, k: Keeps<Piece>): string => {
-  if (row.tone === 'amber') return k.has('amberShort') ? row.cell : row.cellShort
+  if (row.tone === 'amber') return k.amber({ long: row.cell, short: row.cellShort })
   if (row.key !== '5h' && row.key !== '7d') return k.has('long') ? row.cell : row.cellShort
   if (k.has(row.key === '5h' ? 'reset5h' : 'reset7d')) return row.cell
   return k.has(row.key === '5h' ? 'remark5h' : 'remark7d') ? (row.cellNoReset ?? row.cell) : row.cellShort
@@ -64,7 +67,7 @@ const keeps = (row: BoardRow, k: Keeps<Piece>): boolean =>
 /** Each kept reading's module, then its air: the row's own gap is none, so
  *  every column between modules is one the row draws and measures. */
 const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderElement =>
-  fitLine(kit, ORDER, kit.columns - ROW_SLACK, k => {
+  fitLine(kit, ORDER, k => {
     const modules = read.board().rows.filter(r => keeps(r, k)).flatMap((r, i) => [moduleOf(kit, k, r, cellOf(r, k)), 
       // The band's own background between modules, and after the last, before
       // ▵: a column where modules have their ground; in plain, which has none,

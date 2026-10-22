@@ -27,11 +27,14 @@ export const ITEM_INK: Readonly<Record<BoardKey, Exclude<keyof Palette, 'filled'
   cache: 'flapItemCache', spend: 'flapItemSpend', context: 'flapItemContext', '5h': 'flapItem5h', '7d': 'flapItem7d', other: 'flapText',
 }
 
+/** What a line is named by: the header, the headings, or its reading. */
+type LineName = 'header' | 'headings' | BoardKey
+
 /** What gives way as rows run out, first to last (spec §5.3), CACHE and 7D
  *  together as the body's last step, after the remarks where leaving them
  *  out saves height. Calm lines alone give way (spec §2.1): an amber
  *  reading's line stays, as chips' cards leave their alert. */
-const GIVE_WAY: ReadonlyArray<readonly string[]> = [['other'], ['headings'], ['spend'], ['context'], ['header'], ['5h'], ['cache', '7d']]
+const GIVE_WAY: ReadonlyArray<readonly LineName[]> = [['other'], ['headings'], ['spend'], ['context'], ['header'], ['5h'], ['cache', '7d']]
 
 /** The columns of air after ITEM, STATUS and TIME. */
 const COLUMN_GAP = 2
@@ -40,7 +43,7 @@ const REMARKS_LEAST = 8
 /** The columns the board's paddingX takes, both sides. */
 const BOARD_PAD = 2
 
-type Line = Readonly<{ name: string; key: string; row?: BoardRow }>
+type Line = Readonly<{ name: LineName; key: string; row?: BoardRow }>
 /** The lines a board keeps, and whether they keep their remarks. */
 type Plan = Readonly<{ lines: readonly Line[]; remarks: boolean }>
 /** The board's columns: ITEM, STATUS and TIME as wide as their widest,
@@ -54,12 +57,12 @@ const FLAP_KEYS: readonly FlapKey[] = ['item', 'status', 'time']
  *  way with it. */
 const linesOf = (read: Readings): readonly Line[] => {
   const { rows } = read.board()
-  const named = (key: BoardKey) => rows.filter(r => r.key === key).map(row => ({ name: key, row, key: `row:${key}` }))
+  const named = (key: BoardKey): Line[] => rows.filter(r => r.key === key).map(row => ({ name: key, row, key: `row:${key}` }))
   return [
     { name: 'header', key: 'row:header' },
     { name: 'headings', key: 'row:headings' },
     ...named('cache'), ...named('spend'), ...named('context'), ...named('5h'), ...named('7d'),
-    ...rows.filter(r => r.key === 'other').map((row, i) => ({ name: 'other', row, key: `row:other:${i}` })),
+    ...rows.filter(r => r.key === 'other').map((row, i): Line => ({ name: 'other', row, key: `row:other:${i}` })),
   ]
 }
 

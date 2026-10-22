@@ -13,12 +13,26 @@ import { asciiText } from '../glyphs'
 import { GLYPH } from '../icons'
 import type { Icon } from '../icons'
 import type { Kit } from '../kit'
-import { GIVES_WAY, ROW_SLACK, SHORT_BELOW, cellsOf, keeps, spansOf, squeezeToFit } from '../layout'
-import type { Piece } from '../layout'
+import { cellsOf, spansOf } from '../layout'
+import type { BarSize } from '../layout'
 import type { Palette } from '../palette'
 import type { LimitKey, Readings, Tone } from '../reading'
 import { openBody } from './cards'
+import { fitLine, type Keeps, type PieceOf } from './frame'
 import type { View } from './view'
+
+/** What the row gives up as it narrows, least important first. The row is
+ *  measured after each step; an amber piece holds out until the end. */
+const ORDER = {
+  calm: ['tokens', 'weekReset', 'fiveReset', 'contextMeter', 'calmWeek', 'limitBars', 'shortWording', 'calmContext', 'calmFive'],
+  amber: ['amberWeekReset', 'amberFiveReset'],
+} as const
+type Piece = PieceOf<typeof ORDER>
+
+/** Below this, the cache and context wording turns short whatever the squeeze. */
+const SHORT_BELOW = 68
+/** A chip's bar: 44 px on the desktop, 6 cells elsewhere. */
+export const CHIP_BAR: BarSize = { px: 44, cells: 6 }
 
 // ---- the pill and the battery ----------------------------------------------
 
@@ -163,9 +177,9 @@ export const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
 
 // ---- the pills --------------------------------------------------------------
 
-/** Whether the row says the cache and context short at `squeeze`: always
+/** Whether the row says the cache and context short at its squeeze: always
  *  below `SHORT_BELOW` columns. */
-const shortAt = (kit: Kit, squeeze: number): boolean => kit.columns < SHORT_BELOW || !keeps(squeeze, 'shortWording')
+const shortAt = (kit: Kit, k: Keeps<Piece>): boolean => kit.columns < SHORT_BELOW || !k.has('shortWording')
 
 /** The cache pill: a draining battery and its countdown, or its mood. A
  *  layout that bolds each reading's figure asks for the countdown `bold`;
@@ -244,16 +258,16 @@ const contextHover = (read: Readings): string => {
 }
 
 /** The context's fill on a meter, counting down to compaction once near it. */
-const contextPill = (kit: Kit, read: Readings, squeeze: number): PillSpec => {
+const contextPill = (kit: Kit, read: Readings, k: Keeps<Piece>): PillSpec => {
   const { Text, palette, onTone, gap, icon } = kit
   const ctx = read.context
   const { frac, pct, tone } = read.context
   const amount =
     ctx.compactAt !== undefined
-      ? keeps(squeeze, 'shortWording')
+      ? k.has('shortWording')
         ? `${pct} full`
         : pct
-      : !keeps(squeeze, 'shortWording') || ctx.tokens === undefined
+      : !k.has('shortWording') || ctx.tokens === undefined
         ? pct
         : `${fmtTokens(ctx.tokens)} / ${fmtTokens(ctx.window)}`
   const mark = ctx.compactAt === undefined ? severityMark(frac) : ''
@@ -263,7 +277,7 @@ const contextPill = (kit: Kit, read: Readings, squeeze: number): PillSpec => {
     tone,
     body: [
       ...icon('context', onTone(tone, palette.label)),
-      ...(keeps(squeeze, 'contextMeter') ? [meter(kit, { label: 'context', frac, tone, accent: palette.meterFill }), gap('g-bar')] : []),
+      ...(k.has('contextMeter') ? [meter(kit, { label: 'context', frac, tone, accent: palette.meterFill, size: CHIP_BAR }), gap('g-bar')] : []),
       <Text key="v" color={onTone(tone, palette.value)}>
         {`${amount}${mark}${countdown}`}
       </Text>,
@@ -288,7 +302,7 @@ const limitHover = (read: Readings, key: ChipKey): string | undefined => {
  *  early speaks in words. A window whose reset has passed shows as reset:
  *  its last reading is from before it. Undefined while the engine reports
  *  no such window. A layout's `mark`, such as a trail, takes the bar's place. */
-export const limitPill = (kit: Kit, read: Readings, key: ChipKey, squeeze: number, short: boolean, mark?: RenderChildren): PillSpec | undefined => {
+export const limitPill = (kit: Kit, read: Readings, key: ChipKey, k: Keeps<Piece>, short: boolean, mark?: RenderChildren): PillSpec | undefined => {
   const { Text, palette, onTone, gap, icon } = kit
   const w = key === '5h' ? read.fiveHour : read.sevenDay
   if (w === undefined) return undefined
@@ -307,10 +321,10 @@ export const limitPill = (kit: Kit, read: Readings, key: ChipKey, squeeze: numbe
   const pace = w.fullIn === undefined ? '' : ` ${short ? w.fullIn : w.pace}`
   const fg = onTone(tone, tint.fg)
   const accent = onTone(tone, tint.accent)
-  const bar = keeps(squeeze, 'limitBars') ? [gap('g-bar'), mark ?? meter(kit, { label: key, frac, tone, accent: tint.accent })] : []
+  const bar = k.has('limitBars') ? [gap('g-bar'), mark ?? meter(kit, { label: key, frac, tone, accent: tint.accent, size: CHIP_BAR })] : []
   // The reset is a qualifier: in label ink, its figure the usage before it.
   const resetInk = onTone(tone, palette.label)
-  const reset = r !== undefined && keeps(squeeze, tone === 'amber' ? spec.amberReset : spec.reset) ? resetClause(kit, resetInk, r.text) : []
+  const reset = r !== undefined && k.has(tone === 'amber' ? spec.amberReset : spec.reset) ? resetClause(kit, resetInk, r.text) : []
   return {
     key,
     tone,
@@ -332,19 +346,18 @@ export const limitPill = (kit: Kit, read: Readings, key: ChipKey, squeeze: numbe
 }
 
 /** Chips' pills at a squeeze, in its order, the tokens last: the calm ones
- *  give way by `GIVES_WAY`, the tokens first, and an amber one holds out. */
-export const chipsPills = (kit: Kit, read: Readings, squeeze: number): PillSpec[] => {
-  const short = shortAt(kit, squeeze)
-  const calm = (tone: 'calm' | 'amber', piece: Piece) => tone === 'amber' || keeps(squeeze, piece)
-  const five = read.fiveHour && calm(read.fiveHour.tone, LIMITS['5h'].calm) ? limitPill(kit, read, '5h', squeeze, short) : undefined
-  const seven = read.sevenDay && calm(read.sevenDay.tone, LIMITS['7d'].calm) ? limitPill(kit, read, '7d', squeeze, short) : undefined
+ *  give way by `ORDER`, the tokens first, and an amber one holds out. */
+export const chipsPills = (kit: Kit, read: Readings, k: Keeps<Piece>): PillSpec[] => {
+  const short = shortAt(kit, k)
+  const five = read.fiveHour && k.calm(LIMITS['5h'].calm, read.fiveHour.tone) ? limitPill(kit, read, '5h', k, short) : undefined
+  const seven = read.sevenDay && k.calm(LIMITS['7d'].calm, read.sevenDay.tone) ? limitPill(kit, read, '7d', k, short) : undefined
   return [
     cachePill(kit, read, short),
     costPill(kit, read),
-    ...(read.context.known && calm(read.context.tone, 'calmContext') ? [contextPill(kit, read, squeeze)] : []),
+    ...(read.context.known && k.calm('calmContext', read.context.tone) ? [contextPill(kit, read, k)] : []),
     ...(five === undefined ? [] : [five]),
     ...(seven === undefined ? [] : [seven]),
-    ...(read.cache.measured && keeps(squeeze, 'tokens') ? [tokensPill(kit, read)] : []),
+    ...(read.cache.measured && k.has('tokens') ? [tokensPill(kit, read)] : []),
   ]
 }
 
@@ -368,7 +381,6 @@ export const pillRow = (kit: Kit, toggle: RenderElement, specs: readonly PillSpe
 export const chipsView: View = {
   rows: { desktop: 1, terminal: 1 },
   // Its one row, squeezed until it fits.
-  collapsed: (kit, read, toggle) =>
-    squeezeToFit(squeeze => pillRow(kit, toggle, chipsPills(kit, read, squeeze)), GIVES_WAY.length, kit.columns - ROW_SLACK, kit.measure),
+  collapsed: (kit, read, toggle) => fitLine(kit, ORDER, k => pillRow(kit, toggle, chipsPills(kit, read, k))),
   open: openBody,
 }
