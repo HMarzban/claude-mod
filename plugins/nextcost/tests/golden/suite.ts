@@ -4,7 +4,7 @@
 // and in every frame a hover card shows in, each piece covered whole or not at all.
 import { test, expect } from 'claude-code/testing'
 import { GOLDEN, GOLDEN_TREES } from './chips'
-import { partCovered } from './cover'
+import { partCovered } from '../cover'
 import { canon, treeHash } from './hash'
 import { GOLDEN_APPEARANCES, GOLDEN_MOUNTS, GOLDEN_SCENARIOS, caseKey, drawCases, goldenKey, type Appearance, type ScenarioName } from '../matrix'
 import { LONG } from '../helpers'

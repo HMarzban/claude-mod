@@ -4,10 +4,9 @@ import { fixedZone } from '../hooks/format'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK, LIGHT, PLAIN } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { withLimits } from './cases'
 import { HOUR, MIN, USAGE, byKey, firstRow, shown, svgsOf, wordsOf, type Node } from './helpers'
 import {
-  AMBER_WEEK_LIMITS, COLD_CACHE, LAST_MINUTE_CACHE, NEAR_COMPACTION, WORKSPACE, bandOf, caseKey, drawCases, limitAt, otherLimits, viewSuite, visualRows,
+  AMBER_WEEK_LIMITS, COLD_CACHE, LAST_MINUTE_CACHE, NEAR_COMPACTION, WORKSPACE, bandOf, caseKey, drawCases, limitAt, otherLimits, viewSuite, visualRows, withLimits,
 } from './matrix'
 
 viewSuite('departures')

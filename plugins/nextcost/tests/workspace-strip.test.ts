@@ -7,7 +7,7 @@ import { drawBand } from '../hooks/band'
 import { ROW_SLACK } from '../hooks/layout'
 import { LAYOUT_NAMES } from '../hooks/snapshot'
 import { BARE, LIGHT } from '../hooks/palette'
-import { partCovered } from './golden/cover'
+import { partCovered } from './cover'
 import { NO_ACT, snapOf } from './matrix'
 import {
   GIT_CLEAN,

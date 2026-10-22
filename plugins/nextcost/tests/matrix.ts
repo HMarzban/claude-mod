@@ -1,6 +1,7 @@
 // The checks every layout is held to, over the cases in cases.ts: the
 // snapshot builder for pure tests and the parts they share, the invariant
-// checks and the suite every layout runs.
+// checks and the suite every layout runs. It passes cases.ts on, so a test
+// imports both from here.
 
 import type { RenderChildren } from 'claude-code'
 import { expect, test, type Engine } from 'claude-code/testing'
