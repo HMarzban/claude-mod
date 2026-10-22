@@ -286,7 +286,9 @@ see in your own sessions.
 - **A new mod.** This repo is a marketplace: add your own plugin under
   `plugins/` and list it in `.claude-plugin/marketplace.json`, then run
   `claude plugin validate .`, then `claude plugin validate` and
-  `claude plugin test` on your plugin's folder.
+  `claude plugin test` on your plugin's folder. The tooling targets
+  nextcost today: CI, the views gate, the single-test runner and the demo
+  builder all name `plugins/nextcost`, so run those checks on yours by hand.
 
 ### Development loop
 
@@ -308,8 +310,9 @@ plugins/nextcost/
   tests/                            the test suite
   CHANGELOG.md                      what changed in each version
 docs/                               the website (GitHub Pages) and the images in this README
-tools/                              the demo builder, the golden capture, the views gate, a single-test runner
-.github/                            issue and pull request templates, CI
+design/                             the layout specs the code cites; finished plans in design/archive/
+tools/                              the demo builder, the views gate, a single-test runner
+.github/                            issue and pull request templates, CI, Dependabot
 ```
 
 Every module, test helper and tool is in

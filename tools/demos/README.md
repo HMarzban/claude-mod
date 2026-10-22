@@ -11,7 +11,8 @@ tools/demos/build.sh capture    # only re-capture the band's frames
 
 It needs Claude Code, Google Chrome, Node 22+, Python 3 with Pillow, and ffmpeg.
 It uses the first `python3` it finds that can import Pillow; set
-`PYTHON=/path/to/python3` to choose one.
+`PYTHON=/path/to/python3` to choose one. It looks for Chrome where macOS
+installs it; elsewhere, set `CHROME=/path/to/chrome`.
 
 ## How it works
 
@@ -25,6 +26,8 @@ It uses the first `python3` it finds that can import Pillow; set
 2. **Draw.** `render.py` turns a terminal tree into HTML on a monospace grid;
    `render_desk.py` turns a desktop tree into HTML laid out like the Code tab
    (10px per column, 24px per text row), with the band's real SVG icons.
+   Both map a Box's flex props through `common.py`, which the scripts share
+   for the capture's lines, a tree's text and the plugin's version.
 3. **Compose.** `film.py` builds the film frame by frame in a light and a
    dark theme; `term_themed.py` the terminal demo; `gen_site.py` fills
    `site/template.html` with the live demo's drawings (`{{demo-chips-amber}}`

@@ -1,9 +1,9 @@
 """The terminal demo in the site's style, light or dark: the band's real
 terminal trees (frames.txt) in a dark terminal window on the page colour."""
-import json
 import sys
 
 import render as R
+from common import trees, write
 from render_desk import SITE
 
 THEMES = {
@@ -20,10 +20,9 @@ CAPS = {
     'cards': ('▵ opens ', 'every', ' fact.', 'Cache, spend, context and limits.'),
 }
 src, out, theme = sys.argv[1:4]
-for line in open(src):
-    _, name, js = line.split(' ', 2)
+for name, tree in trees(src).items():
     pre, acc, post, rest = CAPS[name]
     cap = f'{pre}<span class="em hl">{acc}</span>{post} <span class="rest">{rest}</span>'
-    page = R.PAGE.format(**THEMES[theme], lh=R.LH, cap=cap, band=R.node(json.loads(js)))
-    open(f'{out}/{name}.html', 'w').write(page)
+    page = R.PAGE.format(**THEMES[theme], lh=R.LH, cap=cap, band=R.node(tree))
+    write(f'{out}/{name}.html', page)
 print(theme)

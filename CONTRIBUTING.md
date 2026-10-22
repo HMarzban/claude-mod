@@ -21,9 +21,14 @@ tools/test-only.sh view-pulse 'golden-*'
 
 # Type-check (after the engine has laid the types, see below)
 npx -y -p typescript@5 tsc -p plugins/nextcost
+npx -y -p typescript@5 tsc -p tools/demos
 
 # The views gate: no layout but chips formats or reads a raw fact
 tools/views-gate.sh
+
+# Lint the tools' shell scripts and Python, as CI does
+git ls-files -z 'tools/*.sh' | xargs -0 shellcheck -x
+pipx run ruff==0.17.1 check tools
 ```
 
 The type check reads the engine's API types from
@@ -34,12 +39,21 @@ they're git-ignored. Neither `claude plugin test` nor `validate` writes
 them, and loading needs a signed-in session, so CI can't type-check: run it
 locally before you open a pull request.
 
-CI runs every check twice: on the latest Claude Code, and on a pinned
-version last known good (`matrix.claude-code` in `.github/workflows/ci.yml`).
+The second check covers the demo captures in `tools/demos/capture/`, with
+`tools/demos/tsconfig.json`, which extends the plugin's. They run from a
+scratch copy's `tests/`, so its `rootDirs` reads `tools/demos/` as the
+plugin's folder and `capture/` as its `tests/`, and their `./helpers` and
+`../hooks/…` imports resolve as they do there. The plugin's own config names
+nothing outside its folder, which ships as it is.
+
+CI runs the plugin's checks twice: on the latest Claude Code, and on a pinned
+version last known good (`matrix.claude-code` in `.github/workflows/ci.yml`),
+and lints the tools once.
 It also runs nightly, so a new release that breaks the band shows within a
 day. Red on latest alone means a Claude Code release changed something:
-fix the band or its tests for it, then bump the pin to that release. Red on
-both means the change itself.
+fix the band or its tests for it, then bump the pin to that release, in
+`ci.yml` and in both READMEs' Install sections, which name the pinned
+version. Red on both means the change itself.
 
 To see a change live, add your clone as the marketplace and install from
 it. From the clone's parent folder:
@@ -97,8 +111,9 @@ Run `/reload-plugins` in your session afterwards.
 | `types/index.d.ts` | The plugin's state contract. |
 | `tests/` | Tests, one file per area, with shared helpers in `helpers.ts`: `setup()` starts a test from a fresh engine, `mountBand()` draws the band, `byKey()` finds a node. |
 | `tests/cases.ts`, `tests/matrix.ts` | The states every layout is drawn in and `drawCases`, which draws them; `snapOf` for pure tests, the invariant checks, and `viewSuite`, which every layout's test file runs. |
-| `tools/golden/capture.sh`, `tests/golden/` | Chips' frozen trees and the tests that hold chips to them; see the rule below. |
+| `tests/golden/` | Chips' frozen trees and the tests that hold chips to them; see the rule below. |
 | `tools/test-only.sh` | Runs only the tests whose names match the globs given, against a scratch copy of the plugin. |
+| `tools/scratch.sh` | `scratch_plugin`, which `test-only.sh` and the demo build source: a scratch copy of the plugin without its tests. |
 | `tools/views-gate.sh` | The views gate, run in CI: fails when a layout's view formats or reads a raw fact, or a hook other than `kit.tsx` writes an `<svg>` root. |
 | `tools/demos/build.sh` | Rebuilds every demo and the site from the band's own output; see `tools/demos/README.md`. |
 
@@ -171,13 +186,12 @@ Run `/reload-plugins` in your session afterwards.
   columns, shut and open; and every frame's hover cards to whole pieces.
   A clock time is the host's zone's, which the kit can't pin, so the hash
   reads every clock time alike (`tests/golden/hash.ts`); the readings' tests
-  hold each to its zone. `tools/golden/capture.sh` runs only on the hooks at
-  `846e17d`, so it can't recapture a fix. If your change is meant to alter
-  what chips draws, update the failing keys in `tests/golden/chips.ts` to
-  the hashes the failures print. For a key also held in `GOLDEN_TREES`,
-  replace its whole tree too: log `JSON.stringify(canon(tree))` for that
-  key in `tests/golden/suite.ts`, paste the output in, and drop the log.
-  Say why in the pull request.
+  hold each to its zone. No tool recaptures the trees, so a change meant to
+  alter what chips draws re-freezes them by hand: update the failing keys
+  in `tests/golden/chips.ts` to the hashes the failures print. For a key
+  also held in `GOLDEN_TREES`, replace its whole tree too: log
+  `JSON.stringify(canon(tree))` for that key in `tests/golden/suite.ts`,
+  paste the output in, and drop the log. Say why in the pull request.
 
 ## Demos and the website
 
@@ -201,7 +215,8 @@ subject says what changed. The body, when there is one, says why.
 3. Update the plugin's README if the band reads differently, and its *What
    it runs, reads and sends* and `SECURITY.md` if it runs, reads or hooks
    anything new.
-4. Make sure validate, test, the type check and the views gate all pass.
+4. Make sure validate, test, the type check, the views gate and, if you
+   touched `tools/`, the lint all pass.
 
 After merge, the maintainer tags the release with
 `claude plugin tag plugins/nextcost`.

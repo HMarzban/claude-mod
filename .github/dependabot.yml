@@ -1,0 +1,8 @@
+# Keeps the workflows' pinned actions current: each pin is a commit SHA with
+# its release in a comment, which Dependabot bumps together.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

@@ -10,6 +10,7 @@ import os
 import re
 import sys
 
+from common import plugin_version, trees, words, write
 from render_desk import BAND_CSS, node
 
 # The social card, 1280x640 shot at 2x: the page's dark counter and receipt
@@ -46,22 +47,6 @@ h1{position:absolute;left:72px;right:72px;top:118px;font-size:76px;line-height:1
 <div class="line mono">RE-WARM IF MISSED<i></i><b>{rewarm}</b></div>
 <div class="foot">Free Claude Code plugin · no tokens · terminal + desktop</div>
 </body></html>'''
-
-
-def words(n):
-    """The text a drawn tree shows."""
-    if isinstance(n, str):
-        return n
-    if isinstance(n, list):
-        return ''.join(words(c) for c in n)
-    if isinstance(n, dict):
-        return ''.join(words(c) for c in n.get('children') or [])
-    return ''
-
-
-def plugin_version():
-    here = os.path.dirname(os.path.abspath(__file__))
-    return json.load(open(os.path.join(here, '../../plugins/nextcost/.claude-plugin/plugin.json')))['version']
 
 
 def social(tree):
@@ -150,8 +135,8 @@ LAYOUTS = [([f'layout-{k}', f'layout-{k}-amber'], t, d) for k, t, d in [
     ('departures', 'Departures', 'when the cache goes cold, and each limit resets or fills'),
 ]]
 GTHEME = {
-    'light': dict(bg='#faf9f5', text='#1f1e1b', text3='#6b675e', shadow='0 1px 2px rgba(31,30,27,.06), 0 12px 30px -12px rgba(31,30,27,.3)'),
-    'dark': dict(bg='#141413', text='#f2f0eb', text3='#8a877f', shadow='0 0 0 1px #2f2e2b'),
+    'light': {'bg': '#faf9f5', 'text': '#1f1e1b', 'text3': '#6b675e', 'shadow': '0 1px 2px rgba(31,30,27,.06), 0 12px 30px -12px rgba(31,30,27,.3)'},
+    'dark': {'bg': '#141413', 'text': '#f2f0eb', 'text3': '#8a877f', 'shadow': '0 0 0 1px #2f2e2b'},
 }
 
 EXPANDED = '''<!doctype html><html><head><meta charset="utf-8"><style>
@@ -172,20 +157,18 @@ def gallery(out, name, rows, trees):
         page = GALLERY.replace('{rows}', body)
         for k, v in c.items():
             page = page.replace('{' + k + '}', v)
-        open(f'{out}/{name}-{th}.html', 'w').write(page)
+        write(f'{out}/{name}-{th}.html', page)
 
 
 if __name__ == '__main__':
     src, out = sys.argv[1], sys.argv[2]
     demo_src = sys.argv[3] if len(sys.argv) > 3 else os.path.join(os.path.dirname(src), 'demo.txt')
-    trees = {}
-    for line in open(src):
-        _, name, js = line.split(' ', 2)
-        trees[name] = json.loads(js)
-    amber = next(json.loads(line.split(' ', 4)[4]) for line in open(demo_src) if line.startswith('DEMO chips amber shut '))
-    open(f'{out}/social.html', 'w').write(social(amber))
-    open(f'{out}/anatomy.html', 'w').write(ANATOMY.replace('{band}', node(trees['calm'])))
-    open(f'{out}/expanded.html', 'w').write(EXPANDED.replace('{band}', node(trees['amberOpen'])))
-    gallery(out, 'states', STATES, trees)
-    gallery(out, 'layouts', LAYOUTS, trees)
+    drawn = trees(src)
+    with open(demo_src) as f:
+        amber = next(json.loads(line.split(' ', 4)[4]) for line in f if line.startswith('DEMO chips amber shut '))
+    write(f'{out}/social.html', social(amber))
+    write(f'{out}/anatomy.html', ANATOMY.replace('{band}', node(drawn['calm'])))
+    write(f'{out}/expanded.html', EXPANDED.replace('{band}', node(drawn['amberOpen'])))
+    gallery(out, 'states', STATES, drawn)
+    gallery(out, 'layouts', LAYOUTS, drawn)
     print('stills')

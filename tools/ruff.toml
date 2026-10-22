@@ -1,0 +1,2 @@
+# The demo build runs on the first python3 with Pillow, 3.10 or later.
+target-version = "py310"

@@ -1,0 +1,7 @@
+{
+  "extends": "../../plugins/nextcost/tsconfig.json",
+  "compilerOptions": {
+    "rootDirs": ["../../plugins/nextcost", "../../plugins/nextcost/tests", ".", "capture"]
+  },
+  "include": ["../../plugins/nextcost/.claude-plugin/types", "../../plugins/nextcost/types", "../../plugins/nextcost/tests/globals.d.ts", "capture"]
+}

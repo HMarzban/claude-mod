@@ -1,6 +1,8 @@
 # The site, itemized: redesign brief
 
-Status: in progress (branch `site/itemized`). Distilled from four audits run
+Historical: kept for the record, not to be followed; its paths and names are as they were then.
+
+Status: done, merged in PR #13 on 2026-10-19. Distilled from four audits run
 on 2026-10-19 (information architecture, originality, accessibility, SEO and
 marketing); this brief settles where they disagreed.
 
