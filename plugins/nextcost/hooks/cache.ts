@@ -445,15 +445,15 @@ const recordResponse = (s: CacheState, usage: Response, sentAt: number, isMain: 
   const model = usage.model
   const hit = usage.cache_read_input_tokens
   const written = usage.cache_creation_input_tokens
-  const fresh = usage.input_tokens
+  const uncached = usage.input_tokens
 
   // The session's bill includes every subagent, so their tokens count toward
   // the totals the rate is solved from. Their prefixes are their own, though:
   // they say nothing about the main conversation's cache or its countdown.
-  const request = { uncached: fresh, written, read: hit, output: usage.output_tokens }
+  const request = { uncached, written, read: hit, output: usage.output_tokens }
   s.tokens = addTokens(s.tokens, request)
   // A request is priced by its whole prompt, cache reads and writes included.
-  const factor = tierFactor(model, fresh + hit + written)
+  const factor = tierFactor(model, uncached + hit + written)
   s.premium += (factor - 1) * weightedTokens(request, model)
   s.tieredReads += factor * hit
   if (!isMain) return
@@ -489,7 +489,7 @@ const recordResponse = (s: CacheState, usage: Response, sentAt: number, isMain: 
   s.requests += 1
   // The next request's TTL follows the config in force, not the transcript's.
   s.ttlSeen = undefined
-  s.window = fresh + hit + written + usage.output_tokens
+  s.window = uncached + hit + written + usage.output_tokens
   s.cached = hit + written
   s.lastAt = sentAt
   s.rebuilding = false

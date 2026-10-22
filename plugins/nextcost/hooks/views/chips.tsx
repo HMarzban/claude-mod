@@ -48,7 +48,7 @@ type PillSpec = Readonly<{
 /** A pill carries its own foreground and background, never one of each. It
  *  reveals its card, drawn after every pill, through the hover scope they
  *  share; one line, since a collapsed band is one row. Plain has no cards;
- *  the expanded line says it all. A pill never shrinks: the squeeze drops
+ *  the open view says it all. A pill never shrinks: the squeeze drops
  *  pieces instead, so its text never wraps. */
 const pill = (kit: Kit, { key, tone, body, hover, paintsOwnBg, bg }: PillSpec): RenderElement => {
   const { Box, Text, palette, onTone, hoverable } = kit

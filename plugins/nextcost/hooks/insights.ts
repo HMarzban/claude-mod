@@ -4,21 +4,25 @@
 
 import { MINUTE_MS, sameReset } from './format'
 
-const WINDOW_MS = 30 * MINUTE_MS
+/** The pace is measured over the last half hour's points: across ten
+ *  minutes at least, and a rise of 2 points, the newest no staler than a
+ *  quarter of an hour. */
+const LOOKBACK_MS = 30 * MINUTE_MS
 const MIN_SPAN_MS = 10 * MINUTE_MS
 const MIN_RISE = 2
 const STALE_MS = 15 * MINUTE_MS
 
 type InsightState = {
   turnStartCost: Map<string, number>
-  samples: TrailPoint[]
+  /** The 5-hour window's use as measured, oldest first, within the lookback. */
+  points: PacePoint[]
   /** When the 5-hour window resets, epoch ms. */
   resetsAt: number | undefined
 }
 
 const state: InsightState = {
   turnStartCost: new Map(),
-  samples: [],
+  points: [],
   resetsAt: undefined,
 }
 
@@ -27,7 +31,8 @@ export const CONTEXT_TRAIL = 40
 
 /** What a main-loop message cost, and whether its turn rebuilt the cache. */
 export type CostEntry = Readonly<{ usd: number; reWarm: boolean }>
-type TrailPoint = Readonly<{ at: number; pct: number }>
+/** The 5-hour window's use at one moment. */
+type PacePoint = Readonly<{ at: number; pct: number }>
 export type Trails = Readonly<{ costs: readonly CostEntry[]; context: readonly number[] }>
 
 /** The mean cost of the messages that found the cache warm: a re-warm's
@@ -74,7 +79,7 @@ export const resetConversationInsights = (): void => {
 
 export const resetInsights = (): void => {
   resetConversationInsights()
-  state.samples = []
+  state.points = []
   state.resetsAt = undefined
 }
 
@@ -94,20 +99,20 @@ export const noteTurnEnd = (turnId: string, costUsd: number | undefined): number
 }
 
 export const noteFiveHour = (now: number, percentUsed: number, resetsAt: number | undefined): void => {
-  const last = state.samples[state.samples.length - 1]
+  const last = state.points[state.points.length - 1]
   if (!sameReset(resetsAt, state.resetsAt) || (last !== undefined && percentUsed < last.pct)) {
-    state.samples = []
+    state.points = []
   }
   state.resetsAt = resetsAt
-  state.samples.push({ at: now, pct: percentUsed })
-  state.samples = state.samples.filter(s => now - s.at <= WINDOW_MS)
+  state.points.push({ at: now, pct: percentUsed })
+  state.points = state.points.filter(p => now - p.at <= LOOKBACK_MS)
 }
 
 /** Time until your pace fills the 5-hour window, or null while the
  *  evidence is thin, stale, or the window resets first. */
 export const fiveHourEtaMs = (now: number): number | null => {
-  const first = state.samples[0]
-  const last = state.samples[state.samples.length - 1]
+  const first = state.points[0]
+  const last = state.points[state.points.length - 1]
   if (first === undefined || last === undefined || last.pct >= 100) return null
   const span = last.at - first.at
   const rise = last.pct - first.pct

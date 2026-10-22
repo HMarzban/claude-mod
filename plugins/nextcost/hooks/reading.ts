@@ -1,7 +1,8 @@
 // What the band reads off its snapshot before it draws anything: the cache's
 // meaning as cache.ts reads it, the context's fill, each limit's tone and
-// pace, with their words from words.ts beside them. Pure, so readingsOf can be checked without
-// mounting the band.
+// pace, with their words from words.ts beside them, and the board's from
+// board-words.ts. Pure, so readingsOf can be checked without mounting the
+// band.
 
 import { cacheFactsOf } from './cache'
 import type { CacheFacts } from './cache'
@@ -254,7 +255,7 @@ const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
 }
 
 /** The conversation's trails with their words and the series a chart draws. */
-const historyFacts = (trails: Trails, context: ContextFacts, spend: Readonly<{ totalText: string; totalUsd: number }>): HistoryReading => {
+const historyReading = (trails: Trails, context: ContextFacts, spend: Readonly<{ totalUsd: number }>): HistoryReading => {
   // Worked out once: the words, the scale and the chart's rule read it.
   const warmAvgUsd = warmAverageOf(trails.costs)
   return {
@@ -292,7 +293,7 @@ const windowOf = (l: LimitView | undefined, now: number): WindowNow | undefined 
 
 /** The week's cells from the limit samples, as drawn, with their words.
  *  With the zone unknown, the cells are named in UTC. */
-const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour: LimitView | undefined): WeekReading => {
+const weekReading = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour: LimitView | undefined): WeekReading => {
   const week = drawnWeekOf({ samples: snap.samples, seven: windowOf(sevenDay, snap.now), five: windowOf(fiveHour, snap.now), now: snap.now, zone: snap.zone ?? fixedZone(0) })
   return { ...week, ...weekWords(week, fiveHour) }
 }
@@ -336,8 +337,8 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     worstLimit,
     workspace: snap.workspace,
     // Plain functions, not getters: reading a property never runs code.
-    history: () => (history ??= historyFacts(snap.history, context, spendRead)),
-    week: () => (week ??= weekFacts(snap, sevenDay, fiveHour)),
+    history: () => (history ??= historyReading(snap.history, context, spendRead)),
+    week: () => (week ??= weekReading(snap, sevenDay, fiveHour)),
     board: () => (board ??= boardWords({ frame, cache: cacheRead, spend: spendRead, context: contextRead, limits })),
     chips: chipsWords({ frame, cache, spend: spendSaid, context, limits }),
   }

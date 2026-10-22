@@ -2,7 +2,7 @@
 // one order. Collapsed, each reading its own module: its ITEM and cell's
 // tiles on a panel of the board's ground, the band's own background between
 // modules. Open, the board itself (departures-board.tsx). The words are the
-// board's (words.ts boardWords); this file only lays tiles.
+// board's (board-words.ts); this file only lays tiles.
 
 import type { RenderElement } from 'claude-code'
 import { flaps } from '../flaps'

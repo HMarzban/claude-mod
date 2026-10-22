@@ -311,8 +311,8 @@ const resetSpans = (left: number, zone: Zone | undefined): string =>
   left <= 0 ? 'passed' : zone === undefined ? `${fmtResetSpan(left)} ${boardSpan(left)}` : fmtResetSpan(left)
 
 /** Every phrase the clock alone moves, as one key, so the 1-second tick
- *  repaints only when one would read differently: the minute (the clocks
- *  and the battery), the cache's countdown, the 5-hour fill's projection,
+ *  repaints only when one would read differently: the minute (the clocks,
+ *  the battery and the average's pace), the cache's countdown, the 5-hour fill's projection,
  *  and each reset's countdown, which turns on the reset's own minute. The
  *  minute turns just past the boundary, as the countdowns to a time on the
  *  minute do: on it, they still read the minute before. */

@@ -369,9 +369,10 @@ export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
     // One timer, repainting only when the drawing would differ: every minute
-    // (the clocks, the battery, the pace tick), and as each countdown turns,
-    // every second where it shows seconds. It and the commands come first, so
-    // a read below that waits or fails never leaves the band without them.
+    // (the clocks, the battery, the average's pace), and as each countdown
+    // turns, every second where it shows seconds. It and the commands come
+    // first, so a read below that waits or fails never leaves the band
+    // without them.
     band.tick?.cancel()
     band.tick = $.clock.every(1000, () => {
       void (async () => {

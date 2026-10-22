@@ -18,14 +18,15 @@ import type { Palette } from '../palette'
 import { BOARD_HEADINGS, BOARD_NOW, BOARD_NO_TIME, BOARD_TITLE, type BoardKey, type BoardRow } from '../board-words'
 import { bodyRowsFor, footer, rowRoom } from './frame'
 
-/** REMARKS cut to `tiles` columns, `…` last where cut, a wide character
- *  never split. */
-export const remarksFit = (remarks: string, tiles: number): string => {
-  if (textCells(remarks) <= tiles) return remarks
+/** A line's text cut to `tiles` columns, `…` last where cut, a wide
+ *  character never split: REMARKS, and a flap column's text where the room
+ *  can't hold its widest. */
+export const remarksFit = (text: string, tiles: number): string => {
+  if (textCells(text) <= tiles) return text
   if (tiles <= 1) return ''
   let kept = ''
   let cells = 0
-  for (const ch of remarks) {
+  for (const ch of text) {
     const width = charCells(ch)
     if (cells + width > tiles - 1) break
     kept += ch

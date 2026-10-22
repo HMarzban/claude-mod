@@ -20,7 +20,7 @@ import type { GitState, Workspace } from './workspace'
  *  the branch and the change count's word shorten; the extras go whole, and
  *  the path's hover card still says everything. Uncommitted changes never
  *  go: they are what a narrow line must still say. */
-const GIVES_WAY = [
+const GIVE_WAY = [
   'clean',
   'parent',
   'changedWord',
@@ -32,7 +32,7 @@ const GIVES_WAY = [
   'nameLong',
   'nameShort',
 ] as const
-type Piece = (typeof GIVES_WAY)[number]
+type Piece = (typeof GIVE_WAY)[number]
 
 /** Push and pull in words, leaving out a side with nothing on it. */
 const tracking = (g: GitState): string => {
@@ -225,4 +225,4 @@ const stripAt = (kit: Kit, ws: Workspace, kept: (piece: Piece) => boolean, place
  *  view's top, or the footer when the band is short of rows; `edge` is the
  *  cards' border width, so the strip's text lines up with theirs. */
 export const drawStrip = (kit: Kit, ws: Workspace, place: 'top' | 'footer', edge: number, room: number): RenderElement =>
-  squeezeToFit(GIVES_WAY, room, kit.measure, kept => stripAt(kit, ws, kept, place, edge, room))
+  squeezeToFit(GIVE_WAY, room, kit.measure, kept => stripAt(kit, ws, kept, place, edge, room))
