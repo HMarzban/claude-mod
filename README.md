@@ -286,7 +286,9 @@ see in your own sessions.
 - **A new mod.** This repo is a marketplace: add your own plugin under
   `plugins/` and list it in `.claude-plugin/marketplace.json`, then run
   `claude plugin validate .`, then `claude plugin validate` and
-  `claude plugin test` on your plugin's folder.
+  `claude plugin test` on your plugin's folder. The tooling targets
+  nextcost today: CI, the views gate, the single-test runner and the demo
+  builder all name `plugins/nextcost`, so run those checks on yours by hand.
 
 ### Development loop
 
