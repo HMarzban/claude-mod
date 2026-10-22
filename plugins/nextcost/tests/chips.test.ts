@@ -20,7 +20,7 @@ test('the pills run cache, cost, context, 5h and 7d, then the tokens, first to g
   expect(pillKeys(rowOf())).toEqual(['cache', 'cost', 'ctx', '5h', '7d', 'tokens'])
 })
 test("a limit's reset reads in label ink, its pace in its tint, and only its figure is bold", () => {
-  const row = rowOf({ fiveHour: { percentUsed: 84, resetsAt: new Date(70 * MIN).toISOString(), etaMs: 40 * MIN } })
+  const row = rowOf({ fiveHour: { percentUsed: 84, resetsAt: 70 * MIN, etaMs: 40 * MIN } })
   const five = byKey(row, '5h', 'Box')
   expect(boldOf(five)).toEqual([' 84%!'])
   expect(shown(byKey(five, 'p', 'Text'))).toBe(' full in ~40m')

@@ -16,9 +16,9 @@ import { NO_ACT, snapOf, visualRows } from './matrix'
 
 const COSTS = Array.from({ length: 24 }, (_, i) => ({ usd: i === 23 ? 0.21 : i === 17 ? 0.84 : 0.2, reWarm: i === 17 }))
 const HISTORY = { costs: COSTS, context: [40_000, 60_000, 76_000] }
-const LIMITS = { fiveHour: { percentUsed: 26, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null }, sevenDay: { percentUsed: 41, resetsAt: new Date(67 * HOUR).toISOString() } }
-const OTHER = [{ kind: 'spend_limit', percentUsed: 40, resetsAt: new Date(5 * HOUR).toISOString() }] as BandSnapshot['otherLimits']
-const AMBER_OTHER = [{ kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }] as BandSnapshot['otherLimits']
+const LIMITS = { fiveHour: { percentUsed: 26, resetsAt: 3 * HOUR, etaMs: null }, sevenDay: { percentUsed: 41, resetsAt: 67 * HOUR } }
+const OTHER = [{ kind: 'spend_limit', percentUsed: 40, resetsAt: 5 * HOUR }] as BandSnapshot['otherLimits']
+const AMBER_OTHER = [{ kind: 'spend_limit', percentUsed: 92, resetsAt: 5 * HOUR }] as BandSnapshot['otherLimits']
 const NEAR = { tokens: 180_000, window: 200_000, percent: 90, compactAt: 190_000, autoCompactOff: false }
 const EXPIRING = { ...snapOf().cache, msLeft: 30_000, ttl: '5m' as const }
 const AMBER_7D = { ...LIMITS, sevenDay: { ...LIMITS.sevenDay, percentUsed: 85 } }
@@ -251,7 +251,7 @@ test("the context's compaction line sits inside its own chart, with air above it
 })
 
 test('every card keeps to its share of the line: no fact or chart wider than the card, at any width, amber or calm', () => {
-  const amber = { cache: EXPIRING, context: NEAR, fiveHour: { percentUsed: 50, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 40 * MIN } }
+  const amber = { cache: EXPIRING, context: NEAR, fiveHour: { percentUsed: 50, resetsAt: 3 * HOUR, etaMs: 40 * MIN } }
   for (const surface of ['desktop', 'terminal'] as const)
     for (const columns of [40, 50, 60, 80, 94, 120, 160])
       for (const over of [{}, amber]) {
@@ -312,8 +312,8 @@ test("the cards' words: each figure from the readings, phrase by phrase", () => 
   expect(r.history().costFact).toEqual({ label: 'last message · avg', value: '$0.21 · ~$0.21' })
   expect(readingsOf(snapOf()).history().costFact).toBeUndefined()
   expect(r.fiveHour?.fact).toEqual({ label: '5h resets', value: '03:00' })
-  expect(readingsOf(snapOf({ zone: fixedZone(0), fiveHour: { percentUsed: 50, resetsAt: new Date(4 * HOUR).toISOString(), etaMs: 40 * MIN } })).fiveHour?.fact).toEqual({ label: '5h full in', value: '~40m' })
-  expect(readingsOf(snapOf({ fiveHour: { percentUsed: 50, resetsAt: new Date(-HOUR).toISOString(), etaMs: null } })).fiveHour?.fact).toEqual({ label: '5h', value: 'reset' })
+  expect(readingsOf(snapOf({ zone: fixedZone(0), fiveHour: { percentUsed: 50, resetsAt: 4 * HOUR, etaMs: 40 * MIN } })).fiveHour?.fact).toEqual({ label: '5h full in', value: '~40m' })
+  expect(readingsOf(snapOf({ fiveHour: { percentUsed: 50, resetsAt: -HOUR, etaMs: null } })).fiveHour?.fact).toEqual({ label: '5h', value: 'reset' })
   expect(limitsHead(r.limits)).toEqual([['5h ', 'label'], ['4%', 'value'], [' · 7d ', 'label'], ['30%', 'value']])
   expect(markedHead([['93%', 'value']], 'amber')).toEqual([['! ', 'amber'], ['93%', 'value']])
   expect(markedHead([['38%', 'value']], 'calm')).toEqual([['38%', 'value']])

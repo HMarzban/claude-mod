@@ -2,7 +2,7 @@
 // last message cost, when your pace fills the 5-hour limit, and the trails
 // pulse draws: each message's cost, and the context.
 
-import { MINUTE_MS, SAME_RESET_MS } from './format'
+import { MINUTE_MS, sameReset } from './format'
 
 const WINDOW_MS = 30 * MINUTE_MS
 const MIN_SPAN_MS = 10 * MINUTE_MS
@@ -12,7 +12,8 @@ const STALE_MS = 15 * MINUTE_MS
 type InsightState = {
   turnStartCost: Map<string, number>
   samples: TrailPoint[]
-  resetsAt: string | undefined
+  /** When the 5-hour window resets, epoch ms. */
+  resetsAt: number | undefined
 }
 
 const state: InsightState = {
@@ -94,15 +95,7 @@ export const noteTurnEnd = (turnId: string, costUsd: number | undefined): number
   return turns.lastTurnUsd
 }
 
-const sameReset = (a: string | undefined, b: string | undefined): boolean => {
-  if (a === b) return true
-  if (a === undefined || b === undefined) return false
-  const da = Date.parse(a)
-  const db = Date.parse(b)
-  return !Number.isNaN(da) && !Number.isNaN(db) && Math.abs(da - db) < SAME_RESET_MS
-}
-
-export const noteFiveHour = (now: number, percentUsed: number, resetsAt: string | undefined): void => {
+export const noteFiveHour = (now: number, percentUsed: number, resetsAt: number | undefined): void => {
   const last = state.samples[state.samples.length - 1]
   if (!sameReset(resetsAt, state.resetsAt) || (last !== undefined && percentUsed < last.pct)) {
     state.samples = []
@@ -122,22 +115,7 @@ export const fiveHourEtaMs = (now: number): number | null => {
   const rise = last.pct - first.pct
   if (span < MIN_SPAN_MS || rise < MIN_RISE || now - last.at > STALE_MS) return null
   const tFull = last.at + ((100 - last.pct) * span) / rise
-  if (state.resetsAt !== undefined) {
-    const resetAt = Date.parse(state.resetsAt)
-    if (!Number.isNaN(resetAt) && tFull >= resetAt) return null
-  }
+  if (state.resetsAt !== undefined && tFull >= state.resetsAt) return null
   return Math.max(0, tFull - now)
 }
 
-/** A toast re-arms once its figure falls back below this share. */
-const TOAST_REARM_BELOW = 0.75
-
-/** Whether a toast speaks, and the level to remember: it speaks once per
- *  threshold crossed (at the highest reached), holds while the figure stays
- *  up, and re-arms, back to level 0, once the figure falls under the re-arm
- *  share. `prev` is the level remembered from before. */
-export const escalate = (prev: number, frac: number, levels: readonly number[]): Readonly<{ level: number; speak: boolean }> => {
-  const level = levels.filter(at => frac >= at).length
-  if (level > prev) return { level, speak: true }
-  return { level: frac < TOAST_REARM_BELOW ? 0 : prev, speak: false }
-}

@@ -1,14 +1,14 @@
 // What the band remembers across sessions, in the plugin's own store: when
 // each session last had a reply, what a token costs on each model, the
-// layout the band draws in, and a week of limit samples. With the first two a
-// reopened session, or a reload, says whether its cache is cold and what the
-// next message costs, before any reply of its own, and with the samples the
-// week shows the days before this session. What a session has spent, and how
+// layout the band draws in, and a week's worth of limit samples. With the
+// first two a reopened session, or a reload, says whether its cache is cold
+// and what the next message costs, before any reply of its own, and with the
+// samples the week shows the days before this session. What a session has spent, and how
 // long its cache was last written for, are read off its transcript, which
 // Claude Code keeps.
 
 import { NO_TOKENS, addTokens, modelName, tierFactor, weightedTokens } from './cache'
-import type { Spend, TokenCounts, Ttl } from './cache'
+import type { RecalledReply, Spend, TokenCounts, Ttl } from './cache'
 import { MINUTE_MS, SEVEN_DAY_MS } from './format'
 import { LAYOUT_NAMES } from './snapshot'
 import type { LayoutName } from './snapshot'
@@ -68,6 +68,14 @@ export const removedLayoutOf = (v: unknown): string | undefined => {
   return (REMOVED_LAYOUTS as readonly string[]).includes(word) ? word : undefined
 }
 
+/** The one key a rate is kept and found under: the model as /model names
+ *  it, perhaps an alias, its window aside. A reload knows it before any
+ *  reply, as the billed name it doesn't. */
+const rateKey = (model: string): string => modelName(model)
+
+/** The store's rates with `rate` kept for `model`, as /model names it. */
+export const rememberRate = (stored: unknown, model: string, rate: number): Rates => ({ ...asRates(stored), [rateKey(model)]: rate })
+
 /** `sessions` with `id`'s reply at `lastAt`, the oldest dropped past MAX_SESSIONS. */
 export const rememberReply = (sessions: Sessions, id: string, lastAt: number): Sessions =>
   Object.fromEntries(
@@ -78,7 +86,7 @@ export const rememberReply = (sessions: Sessions, id: string, lastAt: number): S
 
 /** The engine's names for the two limits a sample holds. */
 export const FIVE_HOUR = 'five_hour'
-export const SEVEN_DAY = 'seven_day'
+const SEVEN_DAY = 'seven_day'
 
 /** Both limits at one moment, with the resets that name their windows (epoch ms). */
 export type Sample = Readonly<{ at: number; fivePct: number; sevenPct: number; fiveResetAt: number; sevenResetAt: number }>
@@ -125,12 +133,12 @@ export const splitLimits = <L extends Readonly<{ kind: string }>>(limits: readon
   others: limits.filter(l => l.kind !== FIVE_HOUR && l.kind !== SEVEN_DAY),
 })
 
-/** Both limits now, as one sample; undefined unless each is reported with a readable reset. */
-export const sampleOf = (now: number, limits: ReadonlyArray<Readonly<{ kind: string; percentUsed: number; resetsAt?: string }>>): Sample | undefined => {
+/** Both limits now, as one sample; undefined unless each is reported with a reset. */
+export const sampleOf = (now: number, limits: ReadonlyArray<Readonly<{ kind: string; percentUsed: number; resetsAt: number | undefined }>>): Sample | undefined => {
   const { five, seven } = splitLimits(limits)
-  const fiveResetAt = Date.parse(five?.resetsAt ?? '')
-  const sevenResetAt = Date.parse(seven?.resetsAt ?? '')
-  if (five === undefined || seven === undefined || !Number.isFinite(fiveResetAt) || !Number.isFinite(sevenResetAt)) return undefined
+  const fiveResetAt = five?.resetsAt
+  const sevenResetAt = seven?.resetsAt
+  if (five === undefined || seven === undefined || fiveResetAt === undefined || sevenResetAt === undefined) return undefined
   return { at: now, fivePct: five.percentUsed, sevenPct: seven.percentUsed, fiveResetAt, sevenResetAt }
 }
 
@@ -172,11 +180,12 @@ const loggedAt = (entry: Record<string, unknown>): number | undefined => {
   return Number.isFinite(at) ? at : undefined
 }
 
-/** When a transcript's last assistant reply was. Its file time won't do:
- *  Claude Code writes a cost line each time it opens a session. */
+/** When a transcript's last main-loop reply was: a subagent's says nothing
+ *  of the main loop's cache. Its file time won't do: Claude Code writes a
+ *  cost line each time it opens a session. */
 export const lastReplyAt = (transcript: string): number | undefined => {
   for (const entry of fromEnd(transcript, REPLY_MARKER)) {
-    const at = entry.type === 'assistant' ? loggedAt(entry) : undefined
+    const at = entry.type === 'assistant' && entry.isSidechain !== true ? loggedAt(entry) : undefined
     if (at !== undefined) return at
   }
   return undefined
@@ -190,6 +199,38 @@ export const lastReplyModel = (transcript: string): string | undefined => {
     if (typeof model === 'string' && model !== '') return model
   }
   return undefined
+}
+
+/** What the band's own store recalls of a session's last reply: when it
+ *  was, and the rate on the model /model names, under the name that keys
+ *  it; with every rate stored, for the model a transcript names. */
+export type StoreRecall = Readonly<{ rates: Rates; model: string; lastAt: number | undefined; rate: number | null }>
+
+/** What the store recalls of `sessionId`'s last reply, on `model` as /model names it. */
+export const fromStore = (stored: Readonly<{ sessions: unknown; rates: unknown }>, sessionId: string, model: string): StoreRecall => {
+  const rates = asRates(stored.rates)
+  const key = rateKey(model)
+  return { rates, model: key, lastAt: asSessions(stored.sessions)[sessionId]?.lastAt, rate: rates[key] ?? null }
+}
+
+/** Whether the store leaves a fact unknown that the transcript may give. */
+export const needsTranscript = (r: StoreRecall): boolean => r.lastAt === undefined || r.rate === null
+
+/** The last reply as recalled: the store's facts first; what they leave
+ *  unknown off the transcript's end, when one was read: its last reply's
+ *  time, and the rate on the model that reply was billed under, as stored
+ *  under that name (a /model that named it in full, or a version that kept
+ *  rates by the billed name) or else solved from the transcript's cost
+ *  record. */
+export const recallOf = (r: StoreRecall, transcript: string | undefined): RecalledReply => {
+  if (transcript === undefined) return { lastAt: r.lastAt, rate: r.rate, billed: undefined }
+  // /model may name an alias; the last reply names the model it was billed under.
+  const billed = lastReplyModel(transcript)
+  return {
+    lastAt: r.lastAt ?? lastReplyAt(transcript),
+    rate: r.rate ?? (billed === undefined ? rateFromTranscript(transcript, r.model) : (r.rates[rateKey(billed)] ?? rateFromTranscript(transcript, billed))),
+    billed,
+  }
 }
 
 /** A count the transcript gives, or 0 for anything that isn't one. */

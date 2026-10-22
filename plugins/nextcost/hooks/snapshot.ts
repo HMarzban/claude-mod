@@ -19,7 +19,8 @@ export type LayoutName = (typeof LAYOUT_NAMES)[number]
 /** The layout drawn until /nextcost layout chooses another. */
 export const DEFAULT_LAYOUT: LayoutName = 'chips'
 
-export type LimitReading = Readonly<{ percentUsed: number; resetsAt: string | undefined }>
+/** A limit window's use, and when it resets, epoch ms; undefined without a readable time. */
+export type LimitReading = Readonly<{ percentUsed: number; resetsAt: number | undefined }>
 
 /** Everything the band shows, read by register.tsx. */
 export type BandSnapshot = Readonly<{
@@ -84,7 +85,8 @@ export type BandSnapshot = Readonly<{
   }>
   fiveHour: (LimitReading & { etaMs: number | null }) | undefined
   sevenDay: LimitReading | undefined
-  /** The limit samples of the last week, every session's, oldest first. */
+  /** The newest limit samples, a week's worth of 15-minute buckets, every
+   *  session's, oldest first. Sparse use may stretch them back past a week. */
   samples: readonly Sample[]
   /** Any other window the engine reports, such as a gateway's spend_limit. */
   otherLimits: ReadonlyArray<LimitReading & { kind: string }>

@@ -17,10 +17,7 @@ import {
   noteRecalled,
   noteResume,
   noteTranscript,
-  modelName,
-  noteBilledModel,
   notePriceModel,
-  pricedModel,
   pinTtl,
   ratePerToken,
   recordResponse,
@@ -33,8 +30,8 @@ import {
   wantsRecall,
 } from './cache'
 import type { RecalledReply, ResumedCache, Spend, TranscriptFacts } from './cache'
-import { LAYOUT_LIST, REPLY, UNSAVED, layoutReply, parseCommand } from './command'
-import { MINUTE_MS, SEVERE_AT, WARN_AT, clipMiddle, contextPressure, contextUsed, fmtCountdown, fmtEta, fmtTokens, hostZone, readableZone } from './format'
+import { commandPlan, parseCommand } from './command'
+import { contextUsed, hostZone, parseReset, readableZone } from './format'
 import { resolveGlyphs } from './glyphs'
 import {
   fiveHourEtaMs,
@@ -42,7 +39,6 @@ import {
   noteFiveHour,
   noteTurnEnd,
   noteTurnStart,
-  escalate,
   pushContext,
   pushCost,
   resetConversationInsights,
@@ -60,16 +56,15 @@ import {
   SESSIONS_KEY,
   addSample,
   asLayoutName,
-  REMOVED_IN,
   removedLayoutOf,
   asLimitSamples,
-  asRates,
   asSessions,
-  lastReplyAt,
-  lastReplyModel,
+  fromStore,
   lastWriteTtl,
   mergeSamples,
-  rateFromTranscript,
+  needsTranscript,
+  recallOf,
+  rememberRate,
   rememberReply,
   sameBucket,
   sampleOf,
@@ -82,13 +77,14 @@ import {
 import type { Sample } from './memory'
 import { DEFAULT_LAYOUT } from './snapshot'
 import type { Glyphs, LayoutName, LimitReading } from './snapshot'
+import { NO_WARNINGS, contextToasts, forgetConversation, limitToasts } from './toast'
+import type { Warned } from './toast'
+import { paintKey } from './words'
 import { homeRelative, parseGitState, splitPath } from './workspace'
 import type { Workspace } from './workspace'
 
 const isHidden = atom({ plugin: 'nextcost', key: 'isHidden' } as const, false)
 const isExpanded = atom({ plugin: 'nextcost', key: 'isExpanded' } as const, false)
-
-const CONTEXT_WARN = 'context'
 
 /** Long enough for a large repository's status or a transcript's tail,
  *  short enough that a hung command never holds a read open for long. */
@@ -110,8 +106,9 @@ type Resume = Readonly<{
   transcript: TranscriptFacts | undefined
 }>
 
-/** Everything the band keeps between hooks, in one place. A reload starts it
- *  over with the module; session.start resets the rest. */
+/** What the band keeps between hooks, beside the cache model's and the
+ *  insights' own state. A reload starts it over with the module;
+ *  session.start resets the rest. */
 const band: {
   palette: Readonly<Palette>
   /** The layout the band draws in. */
@@ -133,8 +130,9 @@ const band: {
   /** Where the session is: its project, home-relative, and git there. Read
    *  between redraws, never while drawing, since git takes a process. */
   workspace: Workspace | undefined
-  /** The limit samples of the last week, every session's: read from the store
-   *  at load and at each new 15-minute bucket, written once per bucket. */
+  /** The newest limit samples, a week's worth of buckets, every session's:
+   *  read from the store at load and at each new 15-minute bucket, written
+   *  once per bucket. */
   samples: Sample[]
   /** Reads begun, so one that ends after a newer one never overwrites it. */
   reads: number
@@ -144,8 +142,11 @@ const band: {
   resume: Resume | undefined
   /** What the band last drew, so the timer repaints only when it would change. */
   lastPaintKey: string
+  /** The limits' resets the band last drew, epoch ms, so the timer repaints
+   *  as their countdowns turn. */
+  resets: readonly number[]
   /** Each toast's level reached, so it speaks once per crossing. */
-  warned: Map<string, number>
+  warned: Warned
   tick: Timer | undefined
 } = {
   palette: DARK,
@@ -161,9 +162,14 @@ const band: {
   reads: 0,
   resume: undefined,
   lastPaintKey: '',
-  warned: new Map(),
+  resets: [],
+  warned: NO_WARNINGS,
   tick: undefined,
 }
+
+/** A window the engine reports, its reset parsed once, here: past this
+ *  point every reset is epoch ms. */
+const limitOf = (l: SessionRateLimit): LimitReading & Readonly<{ kind: string }> => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: parseReset(l.resetsAt) })
 
 /** Where `sessionId`'s transcript is: where the engine says, else where
  *  Claude Code keeps it for this project; undefined without either. */
@@ -219,31 +225,21 @@ const spendBefore = async ($: EngineInterface, path: string, sessionId: string, 
 }
 
 /** Recalls when `sessionId` last had a reply, and what a token costs on
- *  its model: the band's own memory first; for a session from before the
- *  band, its transcript's last reply and cost record, from the end
- *  `readEnd` reads. Recalled once per load or resume, and only those facts
- *  kept; the caller notes them. Never throws: unknown stays unknown. */
+ *  its model, as memory.ts's recallOf weighs them: the band's own store,
+ *  then for what it leaves unknown, the end of the transcript `readEnd`
+ *  reads. Recalled once per load or resume, and only those facts kept; the
+ *  caller notes them. Never throws: unknown stays unknown. */
 const recallLastReply = async (
   $: EngineInterface,
   sessionId: string,
   readEnd: () => Promise<string | undefined>,
 ): Promise<RecalledReply | undefined> => {
   try {
-    const model = modelName(await $.session.model())
-    const rates = asRates(await $.store.get(RATES_KEY))
-    let lastAt = asSessions(await $.store.get(SESSIONS_KEY))[sessionId]?.lastAt
-    let rate = rates[model] ?? null
-    let billed: string | undefined
-    if (lastAt === undefined || rate === null) {
-      const transcript = await readEnd()
-      if (transcript !== undefined) {
-        lastAt ??= lastReplyAt(transcript)
-        // /model may name an alias; the last reply names the model it was billed under.
-        billed = lastReplyModel(transcript)
-        rate ??= billed === undefined ? rateFromTranscript(transcript, model) : (rates[billed] ?? rateFromTranscript(transcript, billed))
-      }
-    }
-    return { lastAt, rate, billed }
+    const model = await $.session.model()
+    const rates = await $.store.get(RATES_KEY)
+    const sessions = await $.store.get(SESSIONS_KEY)
+    const stored = fromStore({ sessions, rates }, sessionId, model)
+    return recallOf(stored, needsTranscript(stored) ? await readEnd() : undefined)
   } catch {
     return undefined // nothing to recall
   }
@@ -314,7 +310,7 @@ const rememberTurn = async ($: EngineInterface, costNow: number | undefined): Pr
     const id = await $.session.id()
     await $.store.set(SESSIONS_KEY, rememberReply(asSessions(await $.store.get(SESSIONS_KEY)), id, cache.lastAt))
     const rate = ratePerToken(costNow)
-    if (rate !== null) await $.store.set(RATES_KEY, { ...asRates(await $.store.get(RATES_KEY)), [pricedModel() ?? modelName(await $.session.model())]: rate })
+    if (rate !== null) await $.store.set(RATES_KEY, rememberRate(await $.store.get(RATES_KEY), cache.priceModel ?? (await $.session.model()), rate))
   } catch {
     // memory is a convenience; the band works without it
   }
@@ -396,63 +392,71 @@ const readLayout = async ($: EngineInterface): Promise<void> => {
   band.removed = removedLayoutOf(read.stored)
 }
 
-/** `/nextcost layout [name]`: lists, or switches and remembers. Only this writes the layout. */
-const chooseLayout = async ($: EngineInterface, arg: string): Promise<string> => {
-  if (arg.trim() === '') return `${layoutReply(band.layout, band.removed)} ${LAYOUT_LIST}`
-  const name = asLayoutName(arg)
-  const gone = removedLayoutOf(arg)
-  if (gone !== undefined) return `${gone} was removed in ${REMOVED_IN}. ${LAYOUT_LIST}`
-  if (name === undefined) return `Unknown layout "${clipMiddle(arg.trim(), 20)}". ${LAYOUT_LIST}`
-  band.layout = name
-  band.removed = undefined
-  // Remembered for the next session. A store that fails leaves this one
-  // switched until the next turn reads the store back, and the reply says so.
-  const saved = await $.store.set(LAYOUT_KEY, name).then(
-    () => true,
-    () => false,
-  )
-  await update($, isHidden, () => false)
-  $.ui.invalidate('ui.render')
-  const reply = name === DEFAULT_LAYOUT ? layoutReply(name) : `${layoutReply(name)} /nextcost layout ${DEFAULT_LAYOUT} goes back.`
-  return saved ? reply : `${reply} ${UNSAVED}`
-}
-
-/** What /nextcost, or its old name /usage-band, does with `args`, and what it answers. */
+/** What /nextcost, or its old name /usage-band, does with `args`: the plan
+ *  command.ts makes of it, carried out, and what it answers. */
 const runCommand = async ($: EngineInterface, args: string): Promise<{ text: string }> => {
-  const command = parseCommand(args)
-  if (typeof command === 'object') return { text: await chooseLayout($, command.layout) }
-  switch (command) {
-    case 'more':
-    case 'less':
-      await update($, isExpanded, () => command === 'more')
-      await update($, isHidden, () => false)
-      if (command === 'more') void readWorkspace($)
-      return { text: command === 'more' ? REPLY.expanded : REPLY.collapsed }
-    case 'show':
-    case 'hide':
-      await update($, isHidden, () => command === 'hide')
-      return { text: command === 'hide' ? REPLY.hidden : REPLY.shown }
-    case 'toggle': {
-      const wasHidden = await read($, isHidden)
-      await update($, isHidden, () => !wasHidden)
-      return { text: wasHidden ? REPLY.shownFirst : REPLY.hidden }
-    }
-    case undefined:
-      return { text: REPLY.usage }
+  const plan = commandPlan(parseCommand(args), { layout: band.layout, removed: band.removed, hidden: await read($, isHidden) })
+  let text = plan.reply
+  if (plan.layout !== undefined) {
+    const { name } = plan.layout
+    band.layout = name
+    band.removed = undefined
+    // Remembered for the next session. A store that fails leaves this one
+    // switched until the next turn reads the store back, and the reply says so.
+    const saved = await $.store.set(LAYOUT_KEY, name).then(
+      () => true,
+      () => false,
+    )
+    if (!saved) text = plan.layout.unsaved
   }
+  const { expanded, hidden } = plan
+  if (expanded !== undefined) await update($, isExpanded, () => expanded)
+  if (hidden !== undefined) await update($, isHidden, () => hidden)
+  if (plan.layout !== undefined) $.ui.invalidate('ui.render')
+  if (plan.readWorkspace) void readWorkspace($)
+  return { text }
 }
 
 export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
+    // One timer, repainting only when the drawing would differ: every minute
+    // (the clocks, the battery, the pace tick), and as each countdown turns,
+    // every second where it shows seconds. It and the commands come first, so
+    // a read below that waits or fails never leaves the band without them.
+    band.tick?.cancel()
+    band.tick = $.clock.every(1000, () => {
+      void (async () => {
+        const now = await $.clock.now()
+        const key = paintKey(now, { cacheLeft: msLeft(now), etaMs: fiveHourEtaMs(now), resets: band.resets, zone: readableZone(hostZone, now) })
+        if (key !== band.lastPaintKey) {
+          band.lastPaintKey = key
+          $.ui.invalidate('ui.render')
+        }
+      })().catch(() => undefined)
+    })
+
+    $.command.register({
+      name: 'nextcost',
+      description: 'Show, hide, expand, collapse or restyle nextcost, what your next message costs',
+      argumentHint: '[more | less | show | hide | layout <name>]',
+    })
+    // The command's name before 0.18.0, kept so a habit or a note still works.
+    $.command.register({
+      name: 'usage-band',
+      description: "nextcost's old name: the same as /nextcost",
+      argumentHint: '[more | less | show | hide | layout <name>]',
+    })
+
     const id = await $.session.id().catch(() => undefined)
     resetCache()
     // A resume of another session is no longer news. It is dropped in the
     // same step as the reset, so no read of it can land in between.
     if (band.resume?.sessionId !== id) band.resume = undefined
     resetInsights()
-    band.warned.clear()
+    band.warned = NO_WARNINGS
     band.lastPaintKey = ''
+    band.resets = []
     band.workspace = undefined
     const now = await $.clock.now()
     band.samples = samplesUpTo((await storedSamples($)) ?? [], now)
@@ -504,39 +508,8 @@ export const register: Register = on => {
       disableAll: await $.env.get('DISABLE_COMPACT'),
       minTokens: await $.env.get('CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS'),
     })
-
-    // One timer, repainting only when the drawing would differ: every minute
-    // (the battery, the reset countdowns, the pace tick), and every second of
-    // the cache's last ten minutes, when its countdown shows seconds.
-    band.tick?.cancel()
-    band.tick = $.clock.every(1000, () => {
-      void (async () => {
-        const now = await $.clock.now()
-        const left = msLeft(now)
-        const eta = fiveHourEtaMs(now)
-        // The minute turns just past the boundary, as the countdowns to a
-        // time on the minute do: on it, they still read the minute before.
-        const key = `${Math.ceil(now / MINUTE_MS)}|${fmtCountdown(left)}|${left > 0}|${eta === null ? '-' : fmtEta(eta)}`
-        if (key !== band.lastPaintKey) {
-          band.lastPaintKey = key
-          $.ui.invalidate('ui.render')
-        }
-      })().catch(() => undefined)
-    })
-
-    $.command.register({
-      name: 'nextcost',
-      description: 'Show, hide, expand, collapse or restyle nextcost, what your next message costs',
-      argumentHint: '[more | less | show | hide | layout <name>]',
-    })
-    // The command's name before 0.18.0, kept so a habit or a note still works.
-    $.command.register({
-      name: 'usage-band',
-      description: "nextcost's old name: the same as /nextcost",
-      argumentHint: '[more | less | show | hide | layout <name>]',
-    })
     return next(e)
-  })
+  }).catch(($, e, next) => next(e)) // a failure here must never stop a session starting
 
   // /clear and resume end the conversation but not the process, and no
   // session.start follows, so the next conversation starts from here. A
@@ -546,10 +519,8 @@ export const register: Register = on => {
     const costNow = (await ledgerUsd($)) ?? 0
     if (e.reason === 'resume') resetForResume(costNow)
     else resetConversation(costNow)
-    // The context warning is this conversation's; the 5-hour one is the
-    // account's, and /clear changes nothing about it.
     resetConversationInsights()
-    band.warned.delete(CONTEXT_WARN)
+    band.warned = forgetConversation(band.warned)
     band.lastPaintKey = ''
     // A resume may be another project.
     void readWorkspace($)
@@ -593,7 +564,7 @@ export const register: Register = on => {
       if (used !== undefined) pushContext(used)
       void rememberTurn($, cost)
       const now = await $.clock.now()
-      const sample = usage === undefined ? undefined : sampleOf(now, usage.rateLimits)
+      const sample = usage === undefined ? undefined : sampleOf(now, usage.rateLimits.map(limitOf))
       if (sample !== undefined) await noteSample($, sample)
       // Another session may have chosen a layout since.
       await readLayout($)
@@ -610,8 +581,7 @@ export const register: Register = on => {
     const result = yield* next(e)
     const isMain = e.agentId === undefined
     if (result?.usage) {
-      if (isMain && result.usage.model) noteBilledModel(result.usage.model)
-      recordResponse(result.usage, sentAt, isMain, result.usage.model)
+      recordResponse(result.usage, sentAt, isMain)
       const cost = await ledgerUsd($)
       if (cost !== undefined) noteLedger(cost)
       $.ui.invalidate('ui.render')
@@ -632,17 +602,10 @@ export const register: Register = on => {
 
   on('session.measure', async ($, e, next) => {
     const now = await $.clock.now()
-    const note = (key: string, frac: number, levels: readonly number[], text: (pct: number) => string): void => {
-      const { level, speak } = escalate(band.warned.get(key) ?? 0, frac, levels)
-      band.warned.set(key, level)
-      if (speak) $.ui.toast(text(Math.round(frac * 100)))
-    }
-
-    for (const limit of e.rateLimits) {
-      if (limit.kind !== FIVE_HOUR) continue
-      noteFiveHour(now, limit.percentUsed, limit.resetsAt)
-      note(FIVE_HOUR, limit.percentUsed / 100, [WARN_AT, SEVERE_AT], pct => `You've used ${pct}% of your 5-hour limit.`)
-    }
+    for (const limit of e.rateLimits.map(limitOf)) if (limit.kind === FIVE_HOUR) noteFiveHour(now, limit.percentUsed, limit.resetsAt)
+    const limits = limitToasts(band.warned, e.rateLimits)
+    band.warned = limits.warned
+    for (const text of limits.say) $.ui.toast(text)
 
     // Local and token-free, but it can fail; the last answer stands until a new one.
     try {
@@ -656,17 +619,9 @@ export const register: Register = on => {
       // keep the last known setting
     }
 
-    // The context toast speaks where the context pill turns amber: by the same rule.
-    const used = contextUsed(e.context)
-    if (used !== undefined) {
-      const at = band.compactAt
-      const { frac, levels } = contextPressure(used, e.context.window, at)
-      note(CONTEXT_WARN, frac, levels, pct =>
-        at !== undefined ? `Auto-compaction in ~${fmtTokens(Math.max(0, at - used))} tokens.`
-        : band.autoCompactOff ? `Context is ${pct}% full and auto-compaction is off, so the conversation will run out of room.`
-        : `Context is ${pct}% full.`,
-      )
-    }
+    const context = contextToasts(band.warned, { used: contextUsed(e.context), window: e.context.window, compactAt: band.compactAt, autoCompactOff: band.autoCompactOff })
+    band.warned = context.warned
+    for (const text of context.say) $.ui.toast(text)
 
     $.ui.invalidate('ui.render')
     return next(e)
@@ -683,10 +638,11 @@ export const register: Register = on => {
     const usage = await $.session.usage().catch(() => undefined)
     if (usage === undefined) return next(e)
     const now = await $.clock.now()
-    const { five, seven, others } = splitLimits(usage.rateLimits)
+    const limits = usage.rateLimits.map(limitOf)
+    const { five, seven, others } = splitLimits(limits)
     if (usage.cost !== undefined) noteLedger(usage.cost.usd)
     const contextTokens = contextUsed(usage.context) ?? 0
-    const limitOf = (l: SessionRateLimit): LimitReading => ({ percentUsed: l.percentUsed, resetsAt: l.resetsAt })
+    band.resets = limits.flatMap(l => (l.resetsAt === undefined ? [] : [l.resetsAt]))
 
     return drawBand(
       $.ui.resolve(e),
@@ -711,14 +667,14 @@ export const register: Register = on => {
           compactAt: band.compactAt,
           autoCompactOff: band.autoCompactOff,
         },
-        fiveHour: five ? { ...limitOf(five), etaMs: fiveHourEtaMs(now) } : undefined,
-        sevenDay: seven ? limitOf(seven) : undefined,
+        fiveHour: five ? { percentUsed: five.percentUsed, resetsAt: five.resetsAt, etaMs: fiveHourEtaMs(now) } : undefined,
+        sevenDay: seven ? { percentUsed: seven.percentUsed, resetsAt: seven.resetsAt } : undefined,
         samples: band.samples,
         workspace: band.workspace,
         // Read at each instant drawn, so a daylight-saving change shows by
         // the next minute's repaint, with no reply needed.
         zone: readableZone(hostZone, now),
-        otherLimits: others.map(l => ({ kind: l.kind, ...limitOf(l) })),
+        otherLimits: others,
       },
       {
         toggleExpanded: async () => {

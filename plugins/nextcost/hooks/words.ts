@@ -3,6 +3,7 @@
 // amber, pace, resets, empty states and alt text read the same everywhere.
 
 import type { Week } from './calendar'
+import type { Zone } from './format'
 import {
   clamp01,
   etaMinutes,
@@ -19,8 +20,10 @@ import {
   fmtLeftShort,
   fmtLeftSpoken,
   fmtPct,
+  fmtResetSpan,
   fmtSmallCost,
   fmtTokens,
+  grainOf,
   HOUR_MS,
   MINUTE_MS,
   minutesLeft,
@@ -51,6 +54,11 @@ const said = (parts: ReadonlyArray<string | undefined>): string[] => parts.filte
 /** The phrases said, joined by `sep`. */
 const saidJoined = (parts: ReadonlyArray<string | undefined>, sep: string): string => said(parts).join(sep)
 
+/** The room before auto-compaction, an estimate: `~14k`. */
+export const roomOf = (toCompact: number): string => `~${fmtTokens(toCompact)}`
+/** Near compaction, the room before it: `compacts in ~14k`. */
+const compactsIn = (toCompact: number): string => `compacts in ${roomOf(toCompact)}`
+
 const amberOf = (say: Say, sayShort: Say): Amber => ({ long: joined(say), short: joined(sayShort) })
 
 /** What an amber reading says, long and short, always led by one `AMBER_LEAD`. */
@@ -59,7 +67,7 @@ export const AMBER = {
     amberOf([[AMBER_LEAD, 'amber'], [leftShort, 'value'], [` left · re-warm ${estimate}`, 'amber']], [[AMBER_LEAD, 'amber'], [leftShort, 'value']]),
   context: (frac: number, toCompact: number): Amber =>
     amberOf(
-      [[`${AMBER_LEAD}context `, 'amber'], [fmtPct(frac), 'value'], [` · compacts in ~${fmtTokens(toCompact)}`, 'amber']],
+      [[`${AMBER_LEAD}context `, 'amber'], [fmtPct(frac), 'value'], [` · ${compactsIn(toCompact)}`, 'amber']],
       [[`${AMBER_LEAD}ctx `, 'amber'], [fmtPct(frac), 'value']],
     ),
   contextNoCompaction: (frac: number): Amber =>
@@ -107,7 +115,7 @@ export const CARD_TITLES = { cache: 'Cache', spend: 'Spend', context: 'Context',
 export const markedHead = (say: Say, tone: Tone): Say => (tone === 'amber' ? [[AMBER_LEAD, 'amber'], ...say] : say)
 
 /** A card's fact: its label at one end, its value at the other. */
-export type Fact = Readonly<{ label: string; value: string }>
+type Fact = Readonly<{ label: string; value: string }>
 
 // ---- the words of each section, from its facts ------------------------------
 
@@ -413,13 +421,13 @@ export const cacheCopy = (f: CacheFacts, frame: Frame): CacheCopy => {
 export const contextWords = (f: ContextFacts): ContextWords => {
   const value = f.known ? f.pct : UNKNOWN
   const towardText = f.compactAt !== undefined ? 'toward compaction' : 'of the window'
-  const roomText = !f.known || f.compactAt === undefined ? undefined : `~${fmtTokens(f.toCompact)}`
+  const roomText = !f.known || f.compactAt === undefined ? undefined : roomOf(f.toCompact)
   const say: Say = [['context ', 'label'], [value, 'value']]
   const amber = f.tone !== 'amber' ? undefined : f.compactAt !== undefined ? AMBER.context(f.frac, f.toCompact) : AMBER.contextNoCompaction(f.frac)
   const cardHead: Say = [[`${f.pct}${f.compactAt === undefined ? severityMark(f.frac) : ''}`, 'value'], [' full', 'label']]
   const compactsAtText = f.compactAt === undefined ? undefined : fmtTokens(f.compactAt)
   // Near compaction, the room before it; else where it compacts.
-  const compaction = f.compactAt === undefined ? undefined : amber !== undefined ? `compacts in ~${fmtTokens(f.toCompact)}` : `compacts at ${fmtTokens(f.compactAt)}`
+  const compaction = f.compactAt === undefined ? undefined : amber !== undefined ? compactsIn(f.toCompact) : `compacts at ${fmtTokens(f.compactAt)}`
   const inContext = f.known ? fmtTokens(f.used) : UNKNOWN
   return {
     valueText: value,
@@ -546,9 +554,9 @@ const contextTrendOf = (tokens: readonly number[]): 'rising' | 'falling' | 'stea
   return first === undefined || last === undefined || last === first ? 'steady' : last > first ? 'rising' : 'falling'
 }
 
-export const historyWords = (record: Trails, context: ContextFacts, spend: Readonly<{ totalUsd: number }>): HistoryWords => {
+/** What the history says, from its trails and `avg`, their warm average. */
+export const historyWords = (record: Trails, context: ContextFacts, spend: Readonly<{ totalUsd: number }>, avg: number | undefined): HistoryWords => {
   const last = record.costs[record.costs.length - 1]
-  const avg = warmAverageOf(record.costs)
   const lastText = last === undefined ? undefined : fmtSmallCost(last.usd)
   const trend =
     last === undefined || avg === undefined
@@ -666,7 +674,7 @@ type BoardFacts = Readonly<{
 
 /** A measured span on the board: `47S`, `38 MIN`, `1H 04M`. Never `38M`. */
 const boardSpan = (ms: number): string =>
-  ms < MINUTE_MS ? `${secondsLeft(ms)}S` : ms < HOUR_MS ? `${minutesLeft(ms)} MIN` : fmtCountdown(ms)
+  grainOf(ms) === 'seconds' ? `${secondsLeft(ms)}S` : ms < HOUR_MS ? `${minutesLeft(ms)} MIN` : fmtCountdown(ms)
 /** A projection on the board: `~40 MIN`, `~1H 15M`. */
 const boardEta = (ms: number): string => (etaMinutes(ms) < 60 ? `~${etaMinutes(ms)} MIN` : fmtEta(ms))
 
@@ -710,7 +718,7 @@ const contextBoard = (r: BoardFacts): BoardRow => {
   // Near compaction the board names the event; with compaction off, the
   // fill. The group's ITEM already says CONTEXT, so its cell never does.
   const short = `${AMBER_LEAD}${x.valueText}`
-  const long = x.toCompact === undefined ? short : `${AMBER_LEAD}COMPACTS IN ~${fmtTokens(x.toCompact)}`
+  const long = x.toCompact === undefined ? short : `${AMBER_LEAD}${compactsIn(x.toCompact)}`
   return { ...base, status: long, remarks, cell: long, cellShort: short, tone: 'amber' }
 }
 
@@ -751,6 +759,29 @@ export const boardWords = (r: BoardFacts): Board => {
     now: r.frame.zone === undefined ? undefined : fmtClock(r.frame.now, r.frame.zone),
   }
 }
+
+// ---- the clock ---------------------------------------------------------------
+
+/** A reset's countdown as every layout says it: the span a card and, with
+ *  no zone known, a limit's words say, and the board's, which with no zone
+ *  counts its last minute's seconds; with a zone the board says a clock. */
+const resetSpans = (left: number, zone: Zone | undefined): string =>
+  left <= 0 ? 'passed' : zone === undefined ? `${fmtResetSpan(left)} ${boardSpan(left)}` : fmtResetSpan(left)
+
+/** Every phrase the clock alone moves, as one key, so the 1-second tick
+ *  repaints only when one would read differently: the minute (the clocks
+ *  and the battery), the cache's countdown, the 5-hour fill's projection,
+ *  and each reset's countdown, which turns on the reset's own minute. The
+ *  minute turns just past the boundary, as the countdowns to a time on the
+ *  minute do: on it, they still read the minute before. */
+export const paintKey = (now: number, t: Readonly<{ cacheLeft: number; etaMs: number | null; resets: readonly number[]; zone: Zone | undefined }>): string =>
+  [
+    Math.ceil(now / MINUTE_MS),
+    fmtCountdown(t.cacheLeft),
+    t.cacheLeft > 0,
+    t.etaMs === null ? '-' : fmtEta(t.etaMs),
+    ...t.resets.map(at => resetSpans(at - now, t.zone)),
+  ].join('|')
 
 /** What a board line says in its four columns. */
 type BoardText = Readonly<Record<'item' | 'status' | 'time' | 'remarks', string>>

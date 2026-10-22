@@ -2,7 +2,7 @@
 // reply has been seen, recalled before that, and one rule between the two.
 
 import { test, expect } from 'claude-code/testing'
-import { cacheView, noteLoad, noteResume, notePriceModel, noteRecall, recordResponse, resetCache, resetConversation } from '../hooks/cache'
+import { cacheView, noteLoad, noteResume, notePriceModel, noteRecall, recordResponse, resetCache, resetConversation, wantsRecall } from '../hooks/cache'
 import { MIN } from './helpers'
 
 const RATE = 0.00001
@@ -42,7 +42,7 @@ test("once a reply is seen, the measured cache stands and the recall doesn't", (
   resetCache()
   noteLoad(2.41)
   noteRecall(0, RATE)
-  recordResponse({ input_tokens: 1_000, output_tokens: 500, cache_read_input_tokens: 0, cache_creation_input_tokens: 80_000 }, 5 * MIN, true, undefined)
+  recordResponse({ input_tokens: 1_000, output_tokens: 500, cache_read_input_tokens: 0, cache_creation_input_tokens: 80_000 }, 5 * MIN, true)
   const view = cacheView(10 * MIN, 2.41, 76_000, NO_IDLE)
   expect(view.recalled).toBe(false)
   expect(view.msLeft).toBe(55 * MIN) // from the reply this band saw
@@ -65,11 +65,22 @@ test('a reset forgets the recall and the model the tokens were priced at', () =>
 test('coldAt: null before a reply, the reply plus the lifetime after, null once a resume is called expired', () => {
   resetCache()
   expect(cacheView(0, undefined, 0, NO_IDLE).coldAt).toBeNull()
-  recordResponse({ input_tokens: 10, output_tokens: 10, cache_read_input_tokens: 0, cache_creation_input_tokens: 1000 }, 5 * MIN, true, undefined)
+  recordResponse({ input_tokens: 10, output_tokens: 10, cache_read_input_tokens: 0, cache_creation_input_tokens: 1000 }, 5 * MIN, true)
   const v = cacheView(10 * MIN, undefined, 0, NO_IDLE)
   expect(v.coldAt).toBe(10 * MIN + v.msLeft)
   resetCache()
   noteResume({ lastAt: 0, expired: true, reWarmUsd: 0.5 })
   expect(cacheView(MIN, undefined, 0, NO_IDLE).coldAt).toBeNull()
   expect(cacheView(MIN, undefined, 0, NO_IDLE).msLeft).toBe(0)
+})
+
+test("a ledger that has spent nothing is a new conversation; one that can't be read is not known to be", () => {
+  resetCache()
+  noteLoad(0)
+  expect(cacheView(0, 0, 0, NO_IDLE).fresh).toBe(true)
+  expect(wantsRecall()).toBe(false)
+  resetCache()
+  noteLoad(undefined)
+  expect(cacheView(0, undefined, 0, NO_IDLE).fresh).toBe(false)
+  expect(wantsRecall()).toBe(true)
 })

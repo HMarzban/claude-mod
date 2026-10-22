@@ -132,7 +132,7 @@ test('a rate solved on a 1M-context session is remembered under the model, for a
   expect(Object.keys(engine.store.rates as Record<string, number>)).toEqual([MODEL])
 })
 
-test('a rate solved on a session named by an alias is remembered under the billed model', async ($, on) => {
+test('a rate solved on a session named by an alias is remembered under the alias, which a reload knows', async ($, on) => {
   const clock = setup(on, { env: ENV })
   engine.model = 'opus[1m]'
   await $.session.start(START)
@@ -141,7 +141,24 @@ test('a rate solved on a session named by an alias is remembered under the bille
   usage.current = { ...usage.current, cost: { usd: 2.83 } }
   await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
   await clock.settle()
-  expect(Object.keys(engine.store.rates as Record<string, number>)).toEqual([MODEL])
+  expect(Object.keys(engine.store.rates as Record<string, number>)).toEqual(['opus'])
+})
+
+test('reloaded, a session named by an alias recalls its rate from the store, with no transcript to read', async ($, on) => {
+  const clock = setup(on, { env: ENV })
+  engine.model = 'opus[1m]'
+  await $.session.start(START)
+  await $.turn.start({ text: 'hi', turnId: 't1' })
+  await respond($, resp(41_000, 0, 155_000, 12_000))
+  usage.current = { ...usage.current, cost: { usd: 2.83 } }
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+  await clock.settle()
+  await clock.advance(2 * HOUR)
+  engine.ran.length = 0
+  await $.session.start(START)
+  await clock.settle()
+  expect(engine.ran.filter(argv => argv[0] === 'tail')).toEqual([])
+  expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold · next message ~\$/)
 })
 
 test('the band remembers at most 50 sessions, the oldest replies going first', async ($, on) => {

@@ -15,7 +15,7 @@ import { NO_ACT, snapOf, visualRows } from './matrix'
 /** 20:06 UTC, the viewer at +00:30: their clock reads 20:36. */
 const NOW = 20 * HOUR + 6 * MIN
 const ZONE = fixedZone(30)
-const at = (pct: number, h: number) => ({ percentUsed: pct, resetsAt: new Date(NOW + h * HOUR).toISOString() })
+const at = (pct: number, h: number) => ({ percentUsed: pct, resetsAt: NOW + h * HOUR })
 const WS = { path: '/u/claude-mod', git: { branch: 'main', changed: 0 } } as BandSnapshot['workspace']
 const OTHER = [{ kind: 'spend_limit', ...at(40, 5) }, { kind: 'credit_limit', ...at(20, 9) }] as BandSnapshot['otherLimits']
 /** 7D amber at 85%, as spec §3's scenario has it. */

@@ -2,7 +2,7 @@
 // the 5-hour one, read off the limit samples, with a guess for the slices
 // ahead. Pure, so the cells can be checked without the store.
 
-import { DAY_MS, HOUR_MS, SAME_RESET_MS, WEEKDAYS, dayOf, fmtClock, midnightOf } from './format'
+import { DAY_MS, HOUR_MS, WEEKDAYS, dayOf, fmtClock, midnightOf, sameReset } from './format'
 import type { Zone } from './format'
 import type { Sample } from './memory'
 
@@ -80,7 +80,7 @@ type Slice = Readonly<{ start: number; end: number; pct: number | undefined; gue
 
 /** Each slice's rise, from the window's own samples; undefined where unknown or ahead. */
 const risesOf = (samples: readonly Sample[], cut: Cut, resetAt: number, bounds: readonly number[], now: number): Array<number | undefined> => {
-  const own = samples.filter(s => Math.abs(cut.reset(s) - resetAt) < SAME_RESET_MS)
+  const own = samples.filter(s => sameReset(cut.reset(s), resetAt))
   const lastWhere = (keep: (s: Sample) => boolean) => own.reduce<Sample | undefined>((found, s) => (keep(s) ? s : found), undefined)
   return bounds.slice(0, -1).map((from, i) => {
     const to = bounds[i + 1] ?? from

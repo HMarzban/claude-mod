@@ -11,10 +11,14 @@ import {
   asLimitSamples,
   asRates,
   asSessions,
+  fromStore,
   lastReplyAt,
   lastReplyModel,
   mergeSamples,
+  needsTranscript,
   rateFromTranscript,
+  recallOf,
+  rememberRate,
   rememberReply,
   sampleOf,
   transcriptPath,
@@ -145,8 +149,8 @@ test('a stored list past the cap is read as its newest week, malformed entries d
 
 test('a sample needs both windows and their resets', () => {
   const both = [
-    { kind: 'five_hour', percentUsed: 4, resetsAt: new Date(T0 + 3 * HOUR).toISOString() },
-    { kind: 'seven_day', percentUsed: 30, resetsAt: new Date(T0 + 67 * HOUR).toISOString() },
+    { kind: 'five_hour', percentUsed: 4, resetsAt: T0 + 3 * HOUR },
+    { kind: 'seven_day', percentUsed: 30, resetsAt: T0 + 67 * HOUR },
   ]
   expect(sampleOf(T0, both)).toEqual({ at: T0, fivePct: 4, sevenPct: 30, fiveResetAt: T0 + 3 * HOUR, sevenResetAt: T0 + 67 * HOUR })
   expect(sampleOf(T0, both.slice(0, 1))).toBeUndefined()
@@ -189,6 +193,11 @@ test("the last reply's model is the one the API billed it under, past lines that
   const sonnet = { ...reply(1_000), message: { role: 'assistant', model: 'claude-sonnet-5-5', content: [] } }
   expect(lastReplyModel(jsonl(sonnet, reply(2_000), prompt(3_000), { type: 'assistant', timestamp: iso(4_000), message: { role: 'assistant' } }))).toBe('claude-opus-5-5')
   expect(lastReplyModel(jsonl(prompt(1_000)))).toBeUndefined()
+})
+
+test("a subagent's reply is not the conversation's last: its own cache says nothing of the main loop's", () => {
+  const subagent = { ...reply(9_000), isSidechain: true }
+  expect(lastReplyAt(jsonl(reply(5_000), subagent))).toBe(5_000)
 })
 
 test('a transcript with no reply has no last reply', () => {
@@ -260,4 +269,36 @@ test('a later line that merely names cost-state, such as a prompt quoting it, ne
 test('an unreadable last cost line falls back to the record before it', () => {
   const transcript = jsonl(costState('claude-opus-5-5'), '{"type":"cost-state", broken')
   expect(near(rateFromTranscript(transcript, 'claude-opus-5-5'), 20 / 3_000_000)).toBe(true)
+})
+
+// ── the recall ─────────────────────────────────────────────────────────
+
+const OPUS_RATE = 0.00001
+
+test('the store recalls a session\'s last reply and the rate under the model /model names, its window aside', () => {
+  const stored = fromStore({ sessions: { s1: { lastAt: 5_000 } }, rates: { 'claude-opus-5-5': OPUS_RATE } }, 's1', 'claude-opus-5-5[1m]')
+  expect(needsTranscript(stored)).toBe(false)
+  expect(recallOf(stored, undefined)).toEqual({ lastAt: 5_000, rate: OPUS_RATE, billed: undefined })
+})
+
+test('what the store leaves unknown, the transcript gives: its last reply, and the rate stored for the model it was billed under', () => {
+  const stored = fromStore({ sessions: {}, rates: { 'claude-opus-5-5': OPUS_RATE } }, 's1', 'opus')
+  expect(needsTranscript(stored)).toBe(true)
+  expect(recallOf(stored, jsonl(reply(7_000)))).toEqual({ lastAt: 7_000, rate: OPUS_RATE, billed: 'claude-opus-5-5' })
+})
+
+test("with no rate stored for either, the rate is solved from the transcript's cost record", () => {
+  const stored = fromStore({ sessions: { s1: { lastAt: 5_000 } }, rates: 'not rates' }, 's1', 'claude-opus-5-5')
+  const recalled = recallOf(stored, jsonl(reply(7_000), costState('claude-opus-5-5')))
+  // The store's time stands over the transcript's.
+  expect(recalled.lastAt).toBe(5_000)
+  expect(near(recalled.rate, 20 / 3_000_000)).toBe(true)
+})
+
+test('no transcript to read leaves unknown what the store does', () => {
+  expect(recallOf(fromStore({ sessions: undefined, rates: undefined }, 's1', 'opus'), undefined)).toEqual({ lastAt: undefined, rate: null, billed: undefined })
+})
+
+test('a rate is kept beside the others stored, and over its own', () => {
+  expect(rememberRate({ 'claude-sonnet-5-5': 2, 'claude-opus-5-5': 1, bad: -1 }, 'claude-opus-5-5', 3)).toEqual({ 'claude-sonnet-5-5': 2, 'claude-opus-5-5': 3 })
 })

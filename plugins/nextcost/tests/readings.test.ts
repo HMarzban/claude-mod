@@ -27,14 +27,14 @@ test('a card says when a limit resets: its clock once the offset is known, else 
 test('a window that fills before its reset says when: a measured fill, else the average pace\'s, its day past today', () => {
   // 7d at 66% with 30h of 168 gone fills in another 30h × 34/66, 15h 27m:
   // from Sunday 20:00, Monday; from Sunday midnight, that day at 15:27.
-  const sevenFrom = (now: number) => readingsOf(snapOf({ zone: fixedZone(0), now, sevenDay: { percentUsed: 66, resetsAt: new Date(now + 138 * HOUR).toISOString() } })).sevenDay
+  const sevenFrom = (now: number) => readingsOf(snapOf({ zone: fixedZone(0), now, sevenDay: { percentUsed: 66, resetsAt: now + 138 * HOUR } })).sevenDay
   const seven = sevenFrom(3 * 24 * HOUR + 20 * HOUR)
   expect(Math.abs((seven?.fillInMs ?? 0) - (30 * HOUR * 34) / 66)).toBeLessThan(1e-3)
   expect(seven?.fillText).toBe('full ~Mon')
   expect(sevenFrom(3 * 24 * HOUR)?.fillText).toBe('full ~15:27')
-  expect(readingsOf(snapOf({ sevenDay: { percentUsed: 66, resetsAt: new Date(138 * HOUR).toISOString() } })).sevenDay?.fillText).toBe('full in ~15h 30m')
+  expect(readingsOf(snapOf({ sevenDay: { percentUsed: 66, resetsAt: 138 * HOUR } })).sevenDay?.fillText).toBe('full in ~15h 30m')
   // Measured, the 5h's own fill.
-  expect(readingsOf(snapOf({ zone: fixedZone(0), fiveHour: { percentUsed: 40, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 40 * MIN } })).fiveHour?.fillText).toBe('full ~00:40')
+  expect(readingsOf(snapOf({ zone: fixedZone(0), fiveHour: { percentUsed: 40, resetsAt: 3 * HOUR, etaMs: 40 * MIN } })).fiveHour?.fillText).toBe('full ~00:40')
   expect(readingsOf(snapOf({ zone: fixedZone(0) })).fiveHour?.fillInMs).toBeUndefined()
 })
 test('a card says nothing of a window that has passed', () => {
@@ -55,12 +55,12 @@ test('a card heads its section with one figure, the rest in words, in lowercase'
   expect(moods.map(m => readingsOf(m).cache.cardHead)).toEqual([[['not measured yet', 'value']], [['warming', 'value']], [['cold', 'value']], [['warm', 'value']]])
 })
 test('a limit at 82% reads 5h 82%, with no mark, and is amber', () => {
-  const r = readingsOf(snapOf({ fiveHour: { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }))
+  const r = readingsOf(snapOf({ fiveHour: { percentUsed: 82, resetsAt: 3 * HOUR, etaMs: null } }))
   expect(`${r.fiveHour?.name} ${r.fiveHour?.value}`).toBe('5h 82%')
   expect(r.fiveHour?.tone).toBe('amber')
 })
 test('a measured 5h fill sets its projection to 100', () => {
-  const r = readingsOf(snapOf({ fiveHour: { percentUsed: 84, resetsAt: new Date(70 * MIN).toISOString(), etaMs: 40 * MIN } }))
+  const r = readingsOf(snapOf({ fiveHour: { percentUsed: 84, resetsAt: 70 * MIN, etaMs: 40 * MIN } }))
   expect(r.fiveHour?.projectedPct).toBe(100)
   expect(r.fiveHour?.tone).toBe('amber')
   expect(r.fiveHour?.cardResetLess).toBe('resets 1h 10m · full in ~40m')
@@ -131,12 +131,12 @@ test('the countdown never looks like a clock', () => {
 })
 test('clock times appear only when the offset is known', () => {
   const now = Date.UTC(2026, 9, 9, 13, 40)
-  const five = { percentUsed: 4, resetsAt: new Date(now + 3 * HOUR).toISOString(), etaMs: null }
+  const five = { percentUsed: 4, resetsAt: now + 3 * HOUR, etaMs: null }
   expect(readingsOf(snapOf({ now, fiveHour: five })).fiveHour?.resetWhen).toBe('in 3h 00m')
   expect(readingsOf(snapOf({ now, zone: fixedZone(0), fiveHour: five })).fiveHour?.resetWhen).toBe(fmtClock(now + 3 * HOUR, fixedZone(0)))
 })
 test('limits speak in words, amber with one "! "', () => {
-  const r = readingsOf(snapOf({ fiveHour: { percentUsed: 82, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }))
+  const r = readingsOf(snapOf({ fiveHour: { percentUsed: 82, resetsAt: 3 * HOUR, etaMs: null } }))
   expect(r.fiveHour?.text).toBe('5h 82%')
   expect([r.fiveHour?.amber?.long, r.fiveHour?.amber?.short]).toEqual(['! 5h 82%', '! 5h 82%'])
   expect([r.fiveHour?.resetWhen, r.fiveHour?.resetInMs]).toEqual(['in 3h 00m', 3 * HOUR])
@@ -146,19 +146,19 @@ test('limits speak in words, amber with one "! "', () => {
 })
 test('a measured fill is an estimate, with ~', () => {
   const now = Date.UTC(2026, 9, 9, 13, 40)
-  const r = readingsOf(snapOf({ now, zone: fixedZone(0), fiveHour: { percentUsed: 84, resetsAt: new Date(now + 70 * MIN).toISOString(), etaMs: 40 * MIN } }))
+  const r = readingsOf(snapOf({ now, zone: fixedZone(0), fiveHour: { percentUsed: 84, resetsAt: now + 70 * MIN, etaMs: 40 * MIN } }))
   expect(r.fiveHour?.fullIn).toBe('~40m')
   expect([r.fiveHour?.amber?.long, r.fiveHour?.amber?.short]).toEqual(['! 5h full in ~40m', '! 5h ~40m'])
   expect(r.fiveHour?.alt).toBe('5h limit 84 percent used, needs attention, full in about 40 minutes')
 })
 test('a landing at or over 100% is full before reset, never ~112%', () => {
-  const r = readingsOf(snapOf({ sevenDay: { percentUsed: 79, resetsAt: new Date(50 * HOUR).toISOString() } }))
+  const r = readingsOf(snapOf({ sevenDay: { percentUsed: 79, resetsAt: 50 * HOUR } }))
   expect(r.sevenDay?.projectedPct ?? 0).toBeGreaterThan(100)
   expect([r.sevenDay?.tone, r.sevenDay?.pace]).toEqual(['calm', 'full before reset'])
   expect(r.sevenDay?.alt).toBe('7d limit 79 percent used, fine, full before its reset')
 })
 test('a measured fill lands at 100, so it too is full before reset', () => {
-  const r = readingsOf(snapOf({ fiveHour: { percentUsed: 84, resetsAt: new Date(70 * MIN).toISOString(), etaMs: 40 * MIN } }))
+  const r = readingsOf(snapOf({ fiveHour: { percentUsed: 84, resetsAt: 70 * MIN, etaMs: 40 * MIN } }))
   expect(r.fiveHour?.pace).toBe('full in ~40m')
 })
 test('a passed window has no reset words', () => {
@@ -170,7 +170,7 @@ test('a limit reads its value, or once its window has passed, reset', () => {
   expect(readingsOf(snapOf({ now: 4 * HOUR })).fiveHour?.valueText).toBe('reset')
 })
 test('a passed window has no fill time', () => {
-  const r = readingsOf(snapOf({ now: 4 * HOUR, fiveHour: { percentUsed: 84, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 0 } }))
+  const r = readingsOf(snapOf({ now: 4 * HOUR, fiveHour: { percentUsed: 84, resetsAt: 3 * HOUR, etaMs: 0 } }))
   expect([r.fiveHour?.fullIn, r.fiveHour?.fillText]).toEqual([undefined, undefined])
   expect(r.fiveHour?.alt).not.toMatch(/full in/)
 })
@@ -231,8 +231,8 @@ test('the week names its cells in words, for a reader', () => {
   const wk = readingsOf(snapOf({
     now, zone: fixedZone(0),
     samples: [T(0, 0), T(15, 6), T(39, 15), T(63, 26), T(75.5, 28, 4), T(76.5, 29, 12), T(77, 30, 12)],
-    sevenDay: { percentUsed: 30, resetsAt: new Date(168 * HOUR).toISOString() },
-    fiveHour: { percentUsed: 12, resetsAt: new Date(80 * HOUR).toISOString(), etaMs: null },
+    sevenDay: { percentUsed: 30, resetsAt: 168 * HOUR },
+    fiveHour: { percentUsed: 12, resetsAt: 80 * HOUR, etaMs: null },
   })).week()
   expect(wk.daysAlt).toMatch(/^weekly limit by day: \w+day 6%, \w+day 9%/)
   expect(wk.daysAlt).toMatch(/Monday about \d+%/)
@@ -240,7 +240,7 @@ test('the week names its cells in words, for a reader', () => {
 })
 test('with no samples and no pace yet, the week is not known yet', () => {
   // An hour into the window: too early for a landing, so no day is guessed either.
-  const wk = readingsOf(snapOf({ now: HOUR, sevenDay: { percentUsed: 1, resetsAt: new Date(168 * HOUR).toISOString() } })).week()
+  const wk = readingsOf(snapOf({ now: HOUR, sevenDay: { percentUsed: 1, resetsAt: 168 * HOUR } })).week()
   expect(wk.daysAlt).toBe('weekly limit by day: not known yet')
 })
 
@@ -253,8 +253,8 @@ const boardSample = (at: number, sevenPct: number) => ({ at, fivePct: 0, sevenPc
 const boardWeek = (percentUsed = 66) => readingsOf(snapOf({
   now: SUN, zone: fixedZone(0),
   samples: [boardSample(SAT_RESET - 168 * HOUR, 0), boardSample(SUN - MIN, percentUsed)],
-  sevenDay: { percentUsed, resetsAt: new Date(SAT_RESET).toISOString() },
-  fiveHour: { percentUsed: 0, resetsAt: new Date(FIVE_RESET).toISOString(), etaMs: null },
+  sevenDay: { percentUsed, resetsAt: SAT_RESET },
+  fiveHour: { percentUsed: 0, resetsAt: FIVE_RESET, etaMs: null },
 })).week()
 test('week stops its guess at the cap: the fill day takes what is left, and none is left after it', () => {
   const wk = boardWeek()
@@ -283,7 +283,7 @@ test('the week says its days for a reader', () => {
 })
 test("a limit knows the share of its window gone, and a window with nothing used has no pace", () => {
   expect(readingsOf(snapOf()).fiveHour?.gone).toBeGreaterThan(0)
-  const unused = readingsOf(snapOf({ fiveHour: { percentUsed: 0, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null } }))
+  const unused = readingsOf(snapOf({ fiveHour: { percentUsed: 0, resetsAt: 3 * HOUR, etaMs: null } }))
   expect(unused.fiveHour?.gone === undefined).toBe(false)
   // Nor a pace: a landing of ~0% says nothing the 0% doesn't.
   expect([unused.fiveHour?.projectedPct, unused.fiveHour?.pace]).toEqual([undefined, ''])
@@ -294,13 +294,13 @@ test("a limit knows the share of its window gone, and a window with nothing used
 test('a limit fills in its measured time, else on its average once it lands at 100% or more, never once passed', () => {
   const fullIn = (over: Parameters<typeof snapOf>[0]) => readingsOf(snapOf(over)).limits.map(l => l.fullInMs)
   expect(fullIn({})).toEqual([undefined, undefined])
-  expect(fullIn({ fiveHour: { percentUsed: 40, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 40 * MIN } })[0]).toBe(40 * MIN)
+  expect(fullIn({ fiveHour: { percentUsed: 40, resetsAt: 3 * HOUR, etaMs: 40 * MIN } })[0]).toBe(40 * MIN)
   // 79% in the 118h gone of 168: the 21% left takes 118h × 21 / 79.
-  const seven = fullIn({ sevenDay: { percentUsed: 79, resetsAt: new Date(50 * HOUR).toISOString() } })[1] ?? 0
+  const seven = fullIn({ sevenDay: { percentUsed: 79, resetsAt: 50 * HOUR } })[1] ?? 0
   expect(Math.abs(seven - (118 * HOUR * 21) / 79)).toBeLessThan(1)
-  expect(fullIn({ now: 4 * HOUR, fiveHour: { percentUsed: 84, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 0 } })[0]).toBeUndefined()
+  expect(fullIn({ now: 4 * HOUR, fiveHour: { percentUsed: 84, resetsAt: 3 * HOUR, etaMs: 0 } })[0]).toBeUndefined()
   // A full window has nothing left to fill, measured or not.
-  for (const etaMs of [null, 5 * MIN]) expect(fullIn({ fiveHour: { percentUsed: 100, resetsAt: new Date(2 * HOUR).toISOString(), etaMs } })[0]).toBeUndefined()
+  for (const etaMs of [null, 5 * MIN]) expect(fullIn({ fiveHour: { percentUsed: 100, resetsAt: 2 * HOUR, etaMs } })[0]).toBeUndefined()
 })
 test('the cache counts down to cold; under 10 minutes it is its last call, a 5-minute cache in its last minute', () => {
   const cache = (over: Partial<ReturnType<typeof snapOf>['cache']>) => readingsOf(snapOf({ cache: { ...snapOf().cache, ...over } })).cache
@@ -311,7 +311,7 @@ test('the cache counts down to cold; under 10 minutes it is its last call, a 5-m
   expect([cache({ ttl: '5m', msLeft: 4 * MIN }).lastCall, cache({ ttl: '5m', msLeft: 59_000 }).lastCall]).toEqual([false, true])
 })
 const costs = (list: Array<[number, boolean]>) => readingsOf(snapOf({ history: { costs: list.map(([usd, reWarm]) => ({ usd, reWarm })), context: [] } })).history()
-const FIVE = { percentUsed: 4, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null }
+const FIVE = { percentUsed: 4, resetsAt: 3 * HOUR, etaMs: null }
 
 test('the cost fact says the warm average, as an estimate; none before a cost', () => {
   expect(costs([[0.02, false], [0.9, true], [0.02, false]]).costFact?.value).toBe('$0.02 · ~$0.02')
@@ -351,7 +351,7 @@ test('windowAlt speaks the whole window, not the last hour: its use, its pace as
 const fiveFrom = (samples: ReadonlyArray<readonly [number, number]>, percentUsed: number, now: number) =>
   readingsOf(snapOf({
     zone: fixedZone(0), now,
-    fiveHour: { percentUsed, resetsAt: new Date(5 * HOUR).toISOString(), etaMs: null },
+    fiveHour: { percentUsed, resetsAt: 5 * HOUR, etaMs: null },
     samples: samples.map(([at, fivePct]) => ({ at, fivePct, sevenPct: 30, fiveResetAt: 5 * HOUR, sevenResetAt: 67 * HOUR })),
   }))
 test("fiveHourWindow's level now is the window's percentUsed, so the line and its words agree", () => {
@@ -397,7 +397,7 @@ test("pulse's tiles are named, and another window's line says its name among its
   expect([other(40), other(85)]).toEqual(['spend 40%', '! spend 85%'])
 })
 test("the 7d's days as drawn: capped, so the guesses never pass what is left; today kept", () => {
-  const week = readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0), sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() } })).week()
+  const week = readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0), sevenDay: { percentUsed: 85, resetsAt: 67 * HOUR } })).week()
   const d = week.daysDrawn
   expect(d.values.reduce<number>((n, v, i) => n + (d.guess[i] ? (v ?? 0) : 0), 0)).toBeLessThanOrEqual(15 + 1e-9)
   expect(d.today).toBe(week.days.findIndex(day => day.today))
@@ -408,7 +408,7 @@ test("today's fill with no reading inside today yet is a guess of what is left, 
   // before today, and no day before it has a reading at its start.
   const at = (m: number, sevenPct: number) => ({ at: m * MIN, fivePct: 0, sevenPct, fiveResetAt: 3 * HOUR, sevenResetAt: 67 * HOUR })
   const weekOf = (samples: ReturnType<typeof at>[]) =>
-    readingsOf(snapOf({ zone: undefined, sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() }, samples })).week()
+    readingsOf(snapOf({ zone: undefined, sevenDay: { percentUsed: 85, resetsAt: 67 * HOUR }, samples })).week()
   const late = [at(-120, 70), at(-90, 74), at(-60, 78), at(-30, 82), at(-5, 85)]
   for (const week of [weekOf(late), weekOf([at(-30 * 60, 60), ...late])]) {
     const today = week.daysDrawn.today ?? -1
@@ -426,4 +426,10 @@ test("`no costs yet` is said only while there is no cost at all: no message's an
   expect(readingsOf(snapOf({ ...none, costUsd: 0 })).history().costsNote).toBe('no costs yet')
   expect(readingsOf(snapOf({ ...none, costUsd: 2.41 })).history().costsNote).toBeUndefined()
   expect(readingsOf(snapOf({ costUsd: 0, history: { costs: [{ usd: 0.2, reWarm: false }], context: [] } })).history().costsNote).toBeUndefined()
+})
+
+test('a context window of 0 reads 0%, never NaN%', () => {
+  const r = readingsOf(snapOf({ context: { tokens: 0, window: 0, percent: undefined, compactAt: undefined, autoCompactOff: false } }))
+  expect(r.context.pct).toBe('0%')
+  expect(r.context.alt).not.toMatch(/NaN|Infinity/)
 })

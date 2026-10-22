@@ -5,7 +5,7 @@ import type { Engine } from 'claude-code/testing'
 import { MAX_SAMPLES } from '../hooks/memory'
 import type { Sample } from '../hooks/memory'
 import { LAYOUT_NAMES } from '../hooks/snapshot'
-import { CLEAR, HOUR, LONG, MIN, START, engine, mountBand, nodeCount, resp, respond, setup, shown, svgAlts, turn, usage, walk } from './helpers'
+import { CLEAR, HOUR, LONG, MIN, START, engine, mountBand, nodeCount, resp, respond, setup, shown, svgAlts, turn, usage, usageAt, walk } from './helpers'
 
 const run = ($: Engine, args: string) =>
   $.command.run({ command: 'nextcost', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 110 } })
@@ -113,6 +113,20 @@ test('with the cache cold, a reset countdown repaints as its minute turns', LONG
   await clock.advance(61 * MIN)
   expect(shown(await ui.drawn())).toMatch(/↻ 1h 59m/)
   await clock.advance(1000)
+  expect(shown(await ui.drawn())).toMatch(/↻ 1h 58m/)
+  await ui.unmount()
+})
+
+test("a reset off the minute repaints as its own minute turns, not the clock's", LONG, async ($, on) => {
+  const clock = setup(on)
+  // The 5h window resets half a minute past 3 hours.
+  usage.current = usageAt(30_000)
+  await $.session.start(START)
+  await respond($, resp(41_000, 0, 155_000, 12_000))
+  const ui = await mountBand($, 'terminal', 200)
+  await clock.advance(61 * MIN)
+  expect(shown(await ui.drawn())).toMatch(/↻ 1h 59m/)
+  await clock.advance(31_000)
   expect(shown(await ui.drawn())).toMatch(/↻ 1h 58m/)
   await ui.unmount()
 })

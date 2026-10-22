@@ -179,9 +179,10 @@ const recalledAt = (): number | undefined => state.resumedCache?.lastAt ?? state
 const isRecalled = (): boolean => state.requests === 0 && !state.knownFresh && recalledAt() !== undefined
 
 /** At load: a ledger that has spent nothing is a new conversation, unless
- *  the engine has already said it resumed one. */
+ *  the engine has already said it resumed one. A ledger that can't be read
+ *  says neither, so the band recalls the last reply. */
 export const noteLoad = (costNow: number | undefined): void => {
-  if (!state.resumed) state.knownFresh = !costNow
+  if (!state.resumed) state.knownFresh = costNow === 0
 }
 
 /** A resumed conversation didn't start here, whatever the ledger says; what
@@ -196,13 +197,13 @@ export const noteResume = (said: ResumedCache | undefined): void => {
 }
 
 /** What a resumed conversation spent before this process. */
-export const notePrior = (spend: Spend): void => {
+const notePrior = (spend: Spend): void => {
   state.prior = spend
 }
 
 /** The TTL the transcript's last cache write was made at: it speaks for
  *  the cache until this band's first reply. */
-export const noteTtlSeen = (ttl: Ttl): void => {
+const noteTtlSeen = (ttl: Ttl): void => {
   if (state.requests === 0) state.ttlSeen = ttl
 }
 
@@ -243,7 +244,7 @@ const allTokens = (): TokenCounts => (state.prior === undefined ? state.tokens :
 export const IDLE_COMPACT_MS = 54 * 60_000
 /** A compaction this long after the last request, with no turn under way, is
  *  an idle one: an auto-compaction comes as a turn starts, not half an hour on. */
-export const IDLE_GAP_MS = 30 * 60_000
+const IDLE_GAP_MS = 30 * 60_000
 const IDLE_COMPACT_TOKENS = 200_000
 const IDLE_COMPACT_FLOOR = 100_000
 
@@ -301,7 +302,7 @@ export const noteCompaction = (sizeAfter: number | undefined): void => {
 
 /** A compaction while the conversation sat idle, at `at`: its cache counts
  *  as gone from then, at the summary's size. */
-export const noteIdleCompaction = (at: number, sizeAfter: number): void => {
+const noteIdleCompaction = (at: number, sizeAfter: number): void => {
   noteCompaction(sizeAfter)
   state.compactedAt = at
 }
@@ -330,12 +331,15 @@ export const noteConversationStart = (costNow: number): void => {
   state.baselined = true
 }
 
+/** A response's tokens, sent at `sentAt`: every response's count toward the
+ *  bill, and a main-loop one's measure the cache and name the model its
+ *  reply was billed under. */
 export const recordResponse = (
-  usage: Pick<ModelUsage, 'input_tokens' | 'output_tokens' | 'cache_read_input_tokens' | 'cache_creation_input_tokens'>,
+  usage: Pick<ModelUsage, 'input_tokens' | 'output_tokens' | 'cache_read_input_tokens' | 'cache_creation_input_tokens'> & Readonly<{ model?: string }>,
   sentAt: number,
   isMain: boolean,
-  model: string | undefined,
 ): void => {
+  const model = usage.model
   const hit = usage.cache_read_input_tokens
   const written = usage.cache_creation_input_tokens
   const fresh = usage.input_tokens
@@ -350,6 +354,7 @@ export const recordResponse = (
   state.premium += (factor - 1) * weightedTokens(request, model)
   state.tieredReads += factor * hit
   if (!isMain) return
+  if (model) noteBilledModel(model)
 
   // Read as cold already: a resume the engine called expired, or a recalled
   // reply past its TTL.
@@ -443,13 +448,13 @@ export const notePriceModel = (model: string | undefined): void => {
   state.priceModel = model
 }
 
-export const noteBilledModel = (model: string): void => {
+const noteBilledModel = (model: string): void => {
   state.billedModel = model
 }
 
 /** The model the tokens are priced at: the one replies are billed under, else
  *  what /model names, which may be an alias such as `opus[1m]`. */
-export const pricedModel = (): string | undefined =>
+const pricedModel = (): string | undefined =>
   state.billedModel ?? (state.priceModel === undefined ? undefined : modelName(state.priceModel))
 
 /** A cache read's price against input, on the model in force. */
@@ -511,7 +516,7 @@ export const msLeft = (now: number): number => {
 
 /** Where idle compaction stands: the context it runs from, undefined where
  *  it never does (idleCompactFrom), and whether auto-compaction is off. */
-export type IdleCompaction = Readonly<{ from: number | undefined; autoCompactOff: boolean }>
+type IdleCompaction = Readonly<{ from: number | undefined; autoCompactOff: boolean }>
 
 /** The cache as the band shows it, at `now`: measured once a reply has been
  *  seen, recalled before that. `contextTokens` is the context as it stands,

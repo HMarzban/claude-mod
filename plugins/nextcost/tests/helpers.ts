@@ -124,6 +124,8 @@ type EngineFake = {
   storeReadFails: boolean
   /** How many times the plugin asked for a redraw (`$.ui.invalidate`). */
   invalidates: number
+  /** Every slash command the plugin registered, by name, in order. */
+  commands: string[]
 }
 
 /** Each test's engine, as `base` restores it: every default written once, so
@@ -137,6 +139,7 @@ const ENGINE_INITIAL: Readonly<EngineFake> = {
   storeFails: false,
   storeReadFails: false,
   invalidates: 0,
+  commands: [],
   hold: undefined,
   sessionId: 's1',
   model: 'claude-opus-5-5',
@@ -248,7 +251,10 @@ const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Record<stri
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.end', ($, e) => ({ sessionId: e.sessionId }))
   on('classic.SessionStart', () => ({}))
-  on('command.register', ($, e) => ({ value: { command: e.name } }))
+  on('command.register', ($, e) => {
+    engine.commands.push(e.name)
+    return { value: { command: e.name } }
+  })
   on('session.usage', ($, e) => {
     if (usage.fails) throw new Error('usage unavailable')
     if (e.breakdown !== undefined && usage.breakdownFails) throw new Error('breakdown unavailable')

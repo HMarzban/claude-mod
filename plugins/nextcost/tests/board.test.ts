@@ -9,7 +9,7 @@ const UTC = fixedZone(0)
 const cacheAt = (over: object) => ({ ...snapOf().cache, ...over })
 const board = (over: object = {}) => readingsOf(snapOf({ zone: UTC, ...over })).board()
 const row = (over: object, key: string) => board(over).rows.find(r => r.key === key)
-const limit = (pct: number, resetH: number) => ({ percentUsed: pct, resetsAt: new Date(resetH * HOUR).toISOString(), etaMs: null })
+const limit = (pct: number, resetH: number) => ({ percentUsed: pct, resetsAt: resetH * HOUR, etaMs: null })
 const CLOCK = /\d\d:\d\d/
 
 test('rows run in the one order', () => {
@@ -94,7 +94,7 @@ test('a passed reset says RESET PASSED once, never RESET twice, zone known or no
   }
 })
 test('no board form draws ↻, which the flap face lacks: RESET says it', () => {
-  const pace = { fiveHour: { ...limit(20, 3), etaMs: 40 * MIN }, sevenDay: limit(85, 67), otherLimits: [{ kind: 'spend_limit', percentUsed: 40, resetsAt: new Date(5 * HOUR).toISOString() }] }
+  const pace = { fiveHour: { ...limit(20, 3), etaMs: 40 * MIN }, sevenDay: limit(85, 67), otherLimits: [{ kind: 'spend_limit', percentUsed: 40, resetsAt: 5 * HOUR }] }
   for (const zone of [UTC, undefined])
     for (const r of board({ ...pace, zone }).rows) for (const text of [r.status, r.time ?? '', r.remarks, r.cell, r.cellShort, r.cellNoReset ?? '']) expect(text).not.toMatch(/↻/)
   expect(row({ fiveHour: limit(26, 3) }, '5h')?.cell).toMatch(/^26% RESET 03:00/)
@@ -120,7 +120,12 @@ test("an amber limit's short form keeps its mark: ! and its value; a calm one it
   expect(row({ sevenDay: limit(41, 67) }, '7d')?.cellShort).toBe('41%')
 })
 test("an other limit's ITEM names it a limit, so it never reads as the session's SPEND", () => {
-  const others = (kind: string) => board({ otherLimits: [{ kind, percentUsed: 40, resetsAt: new Date(5 * HOUR).toISOString() }] }).rows.filter(r => r.key === 'other').map(r => r.item)
+  const others = (kind: string) => board({ otherLimits: [{ kind, percentUsed: 40, resetsAt: 5 * HOUR }] }).rows.filter(r => r.key === 'other').map(r => r.item)
   expect(others('spend_limit')).toEqual(['SPEND LIMIT'])
   expect(others('credit_limit')).toEqual(['CREDIT LIMIT'])
+})
+test("with no zone, a reset under ten minutes off reads the same minute on the board as in the limit's words", () => {
+  const r = readingsOf(snapOf({ fiveHour: { percentUsed: 4, resetsAt: 4 * MIN + 30_000, etaMs: null } }))
+  expect(r.fiveHour?.resetWhen).toBe('in 5m')
+  expect(r.board().rows.find(row => row.key === '5h')?.time).toBe('IN 5 MIN')
 })

@@ -11,7 +11,7 @@ import { NO_ACT, caseKey, drawCases, snapOf, viewSuite, visualRows } from './mat
 
 viewSuite('departures')
 
-const at = (pct: number, h: number) => ({ percentUsed: pct, resetsAt: new Date(h * HOUR).toISOString() })
+const at = (pct: number, h: number) => ({ percentUsed: pct, resetsAt: h * HOUR })
 const LIMITS = { fiveHour: { ...at(26, 3), etaMs: null }, sevenDay: at(85, 67) }
 const WS = { path: '/u/claude-mod', git: { branch: 'main', changed: 0 } } as BandSnapshot['workspace']
 // Two other limits, as spec §5.3's count at 13 rows has.

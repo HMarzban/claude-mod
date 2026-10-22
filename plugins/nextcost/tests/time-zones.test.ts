@@ -38,8 +38,8 @@ const readAt = (now: string, zone: Zone, over: Partial<BandSnapshot> & { fiveAt?
   return readingsOf(snapOf({
     now: at(now),
     zone,
-    fiveHour: fiveAt === undefined ? undefined : { percentUsed: five, resetsAt: fiveAt, etaMs },
-    sevenDay: sevenAt === undefined ? undefined : { percentUsed: seven, resetsAt: sevenAt },
+    fiveHour: fiveAt === undefined ? undefined : { percentUsed: five, resetsAt: at(fiveAt), etaMs },
+    sevenDay: sevenAt === undefined ? undefined : { percentUsed: seven, resetsAt: at(sevenAt) },
     ...rest,
   }))
 }
@@ -133,7 +133,7 @@ test("each day's rise sits in that day's own cell, the 25-hour day whole, the sa
 })
 test('the 25-hour day holds its own date among the days', () => {
   // Sun Nov 1 12:00 EST.
-  const wk = readingsOf(snapOf({ now: at('2026-11-01T17:00Z'), zone: NEW_YORK, sevenDay: { percentUsed: 14, resetsAt: new Date(FALL_RESET).toISOString() } })).week()
+  const wk = readingsOf(snapOf({ now: at('2026-11-01T17:00Z'), zone: NEW_YORK, sevenDay: { percentUsed: 14, resetsAt: FALL_RESET } })).week()
   expect(wk.days.map(d => d.date)).toEqual(['28', '29', '30', '31', '1', '2', '3'])
 })
 test('a week spring forward holds nine slices, folds to seven, and keeps each date in its cell', () => {
@@ -199,8 +199,8 @@ test('the longest reset and fill words fit every layout at every width, shut and
             const now = at(iso)
             const tree = drawBand(fakeEl, snapOf({
               layout, surface, glyphs, columns: cols, expanded, maxRows: DEFAULT_MAX_ROWS, now, zone: fixedZone(0),
-              fiveHour: { percentUsed: 4, resetsAt: new Date(now + 3 * HOUR).toISOString(), etaMs: null },
-              sevenDay: { percentUsed: seven, resetsAt: '2026-10-24T13:30Z' },
+              fiveHour: { percentUsed: 4, resetsAt: now + 3 * HOUR, etaMs: null },
+              sevenDay: { percentUsed: seven, resetsAt: at('2026-10-24T13:30Z') },
             }), NO_ACT) as unknown as Node
             // Held to the rules of the layout drawn there: chips below departures' 60.
             const errors = invariantErrors(tree, { layout: layoutAt(layout, cols), surface, appearance: 'dark', cols, maxRows: DEFAULT_MAX_ROWS, scenario: 'calm', glyphs, expanded })
