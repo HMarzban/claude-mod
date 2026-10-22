@@ -388,3 +388,31 @@ test('one commit to push reads as one', async ($, on) => {
   expect(text).toContain('1 commit to push')
   expect(text.join('|')).not.toMatch(/0 to pull/)
 })
+
+/** A Japanese project on a Japanese branch. */
+const JAPANESE = { path: '/Users/me/workspace/設計メモ', repoName: undefined, git: { branch: '機能/表示幅', commit: '1a2b3c4', worktree: undefined, changed: 3, ahead: 2, behind: 1 } }
+/** Columns a terminal draws `s` in: kana and CJK ideographs two each. */
+const drawnWidth = (s: string): number => [...s].reduce((n, c) => n + (/[぀-ヿ一-鿿]/u.test(c) ? 2 : 1), 0)
+for (const glyphs of ['unicode', 'ascii'] as const) {
+  test(`${glyphs}: a Japanese project and branch keep their names, and the line still fits its row, shut and open`, () => {
+    for (const layout of LAYOUT_NAMES)
+      for (const columns of [70, 90, 120, 160]) {
+        const at = `${layout} ${columns}`
+        const draw = (expanded: boolean) => drawBand(fakeEl, snapOf({ layout, columns, glyphs, expanded, maxRows: 40, workspace: JAPANESE }), NO_ACT) as unknown as Node
+        const shut = draw(false)
+        expect(`${at} shut ${drawnWidth(shown(shut)) <= columns - ROW_SLACK}`).toBe(`${at} shut true`)
+        const open = draw(true)
+        const strip = byKey(open, 'strip', 'Box')
+        const said = shown(strip)
+        expect(`${at} ${said.includes('設計メモ')} ${said.includes('機能')}`).toBe(`${at} true true`)
+        // In the footer the strip has the room the buttons, their hotkey marks
+        // and the two gaps leave; on top, the row's, less its padding.
+        const actions = byKey(open, 'actions', 'Box')
+        const inFooter = byKey(actions, 'strip', 'Box') !== undefined
+        const buttons = ((actions?.children ?? []) as Node[]).flat().filter(k => k?.type === 'Button').reduce((n, b) => n + drawnWidth(String(b.props?.label)) + 3 + 2, 0)
+        const room = inFooter ? columns - ROW_SLACK - buttons - 2 : columns - ROW_SLACK - 2 * Number(strip?.props?.paddingX ?? 0)
+        // The fill between its sides keeps two columns.
+        expect(`${at} ${drawnWidth(said) + 2} <= ${room} ${drawnWidth(said) + 2 <= room}`).toMatch(/ true$/)
+      }
+  })
+}

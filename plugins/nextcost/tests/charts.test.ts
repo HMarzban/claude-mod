@@ -1,7 +1,7 @@
 import { test, expect } from 'claude-code/testing'
-import { barChart, braille, dayCells, dayCellsFit, flatBeats, heartbeat, meter, sparkline, track } from '../hooks/charts'
+import { barChart, braille, dayCells, dayCellsFit, flatBeats, heartbeat, meter, sparkline, splitBar, track } from '../hooks/charts'
 import { makeKit } from '../hooks/kit'
-import { METER_CELLS } from '../hooks/layout'
+import { CHIP_BAR } from '../hooks/views/chips'
 import { drawBand } from '../hooks/band'
 import { byKey, fakeEl, svgsOf, textOf, type Node } from './helpers'
 import { NO_ACT, snapOf } from './matrix'
@@ -24,7 +24,7 @@ for (const [name, el] of [
   ['sparkline', sparkline(desk, { key: 's', alt: '5h usage over the last hour', values: [1, 2, 3], color: '#7fcf8a', px: 90, height: 36 })],
   ['barChart', barChart(desk, { key: 'b', alt: 'cost of the last 3 messages', values: [1, 2, 9], marked: [false, false, true], color: '#888888', markColor: '#eeeeee', px: 18, height: 36 })],
   ['dayCells', dayCells(desk, { key: 'd', alt: 'weekly limit by day', values: [6, 9, 11, 4, 7, 7, 7], guess: [false, false, false, false, true, true, true], today: 3, color: '#a99cf0', cellPx: 16, height: 16 })],
-  ['meter', meter(desk, { key: 'm', label: '5h', frac: 0.04, tone: 'calm', accent: '#7fcf8a' })],
+  ['meter', meter(desk, { key: 'm', label: '5h', frac: 0.04, tone: 'calm', accent: '#7fcf8a', size: CHIP_BAR })],
 ] as const) {
   test(`${name} draws one Svg with alt, width and no ids`, () => {
     const n = svg(el)
@@ -60,10 +60,10 @@ test("day cells: a measured day filled, an empty one a solid edge on the track",
   const { palette: p } = desk
   const cells = svg(dayCells(desk, { key: 'd', alt: 'week', values: [undefined, 10, undefined], color: p.trackStroke, cellPx: 20, height: 14 }))
   expect(dayMarks(cells.props.source)).toEqual([
-    `edge height=13 fill=none stroke=${p.meterTrack}`,
+    `edge height=13 fill=none stroke=${p.trackInk}`,
     `fill height=12 fill=${p.trackStroke}`,
     `edge height=13 fill=none stroke=${p.trackStroke}`,
-    `edge height=13 fill=none stroke=${p.meterTrack}`,
+    `edge height=13 fill=none stroke=${p.trackInk}`,
   ])
   // 3px apart, each 3px round.
   const xs = [...cells.props.source.matchAll(/class="edge" x="([\d.]+)"/g)].map(([, x]) => Number(x))
@@ -132,15 +132,15 @@ for (const [cellPx, height] of [[18, 56], [4, 14]] as const) {
 }
 const term = makeKit(fakeEl, snapOf())
 test('a builder drawn outside a mount keeps its key and its children', () => {
-  const n = meter(term, { label: 'context', frac: 0.5, tone: 'calm', accent: '#b8b8c2' }) as Node
-  const half = Math.round(METER_CELLS / 2)
+  const n = meter(term, { label: 'context', frac: 0.5, tone: 'calm', accent: '#b8b8c2', size: CHIP_BAR }) as Node
+  const half = Math.round(CHIP_BAR.cells / 2)
   expect(n.type).toBe('Text')
   expect(n.props?.key).toBe('meter')
   expect(byKey(n, 'track', 'Text')).toBeDefined()
-  expect(textOf(n)).toBe(`${'█'.repeat(half)}${'░'.repeat(METER_CELLS - half)}`)
+  expect(textOf(n)).toBe(`${'█'.repeat(half)}${'░'.repeat(CHIP_BAR.cells - half)}`)
 })
 test('a stretched meter has no width of its own, its marks scaled to the slot', () => {
-  const n = svg(meter(desk, { label: 'cache', frac: 0.5, tone: 'calm', accent: '#7fcf8a', stretch: true }))
+  const n = svg(meter(desk, { label: 'cache', frac: 0.5, tone: 'calm', accent: '#7fcf8a', size: CHIP_BAR, stretch: true }))
   expect(n.props.width).toBeUndefined()
   expect(n.props.source).toMatch(/preserveAspectRatio="none"/)
   expect(n.props.source).toMatch(/vector-effect="non-scaling-stroke"/)
@@ -182,7 +182,7 @@ test('beats: a re-warm is capped flat, a warm beat peaks to a point', () => {
   expect(tops(false)).toBe(1)
 })
 test('sparkline: nowAt draws a now rule and the points after it dashed; level, a dashed rule', () => {
-  const src = String(svgsOf(sparkline(deskKit(), { key: 's', alt: 'a', values: [1, 2, 3, 4, 5], color: '#fff', px: 60, height: 16, max: 10, nowAt: 2, level: 0.8 }))[0]?.props?.source)
+  const src = String(svgsOf(sparkline(deskKit(), { key: 's', alt: 'a', values: [1, 2, 3, 4, 5], color: '#fff', px: 60, height: 16, max: 10, nowAt: 2, levelFrac: 0.8 }))[0]?.props?.source)
   expect(src).toMatch(/class="now"/)
   expect(src).toMatch(/class="ahead"[^>]*stroke-dasharray/)
   expect(src).toMatch(/class="level"[^>]*stroke-dasharray/)
@@ -201,17 +201,16 @@ test('sparkline: from leaves the points before it undrawn, on the same x scale; 
   expect(textOf(sparkline(term, { ...o, values: [10, 10, 20, 26], from: 2 }))).toBe(`${braille([0, 0], 100)}${braille([20, 26], 100, 1)}`)
 })
 test('heartbeat per state; the beat ships still: no animation, never interactive', () => {
-  const of = (state: 'still' | 'beat' | 'flat' | 'hollow') => svgsOf(heartbeat(deskKit(), { key: 'h', alt: 'cache warm', state, color: '#F5B14C' }))[0]
+  const of = (state: 'beat' | 'flat' | 'hollow') => svgsOf(heartbeat(deskKit(), { key: 'h', alt: 'cache warm', state, color: '#F5B14C' }))[0]
   expect(String(of('flat')?.props?.source)).toMatch(/<line/)
   expect(String(of('hollow')?.props?.source)).toMatch(/fill="none"/)
-  expect(String(of('still')?.props?.source)).not.toMatch(/animation|<style/)
   expect(of('beat')?.props?.isInteractive).toBeUndefined()
   expect(String(of('beat')?.props?.source)).not.toMatch(/animation|<style/)
   expect(String(of('beat')?.props?.source)).toMatch(/fill="#F5B14C"/)
   expect(heartbeat(makeKit(fakeEl, snapOf({ surface: 'terminal' })), { key: 'h', alt: 'a', state: 'beat', color: '#fff' })).toBeNull()
 })
 test('beats: the average rule is dotted', () => {
-  const src = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values: [0.5, 0.7], marked: [false, false], color: '#fff', markColor: '#fff', px: 40, height: 20, max: 1, level: 0.6 }))[0]?.props?.source)
+  const src = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values: [0.5, 0.7], marked: [false, false], color: '#fff', markColor: '#fff', px: 40, height: 20, max: 1, levelValue: 0.6 }))[0]?.props?.source)
   expect(src).toMatch(/class="level"[^>]*stroke-dasharray/)
 })
 test('beats: a zero or tiny value is a flat tick, never a notch below the baseline', () => {
@@ -250,7 +249,7 @@ test("the cache's track: the hour gone filled from the left, now a rule across i
   expect(text).toBe('⣤⣤⣀⣀⣀⣀⣀⣀')
 })
 test("a line's headroom keeps its scale's top, and a level drawn there, below the chart's own top", () => {
-  const src = svg(sparkline(desk, { key: 's', alt: 'context', values: [10, 20], color: '#888888', px: 90, height: 40, max: 20, level: 1, air: 8, headroom: 8 })).props.source
+  const src = svg(sparkline(desk, { key: 's', alt: 'context', values: [10, 20], color: '#888888', px: 90, height: 40, max: 20, levelFrac: 1, air: 8, headroom: 8 })).props.source
   const y = Number(/<line class="level" x1="0" y1="([\d.]+)"/.exec(src)?.[1])
   // Inside the air's translate: 8 of air, then 2 + 8 of the plot's own.
   expect(y).toBe(10)
@@ -264,4 +263,20 @@ test("the flat line keeps its chart's air above it", () => {
   const n = svg(flatBeats(desk, { key: 'b', alt: 'a', beats: 24, color: '#9a9aa4', px: 240, height: 40, air: 8 }))
   expect([n.props.width, (n as Node).props?.height]).toEqual([240, 48])
   expect(n.props.source).toMatch(/translate\(0 8\)/)
+})
+
+/** A text split bar's cells for parts of `ns`, `cells` long, each part's fill its index. */
+const splitCells = (ns: readonly number[], cells: number): string =>
+  textOf(splitBar(term, { alt: 'split', parts: ns.map((n, i) => ({ n, color: '#888888', mark: String(i) })), size: { px: 8 * cells, cells } }))
+test('a text split bar fills its width exactly: a zero last part takes no cell', () => {
+  expect(splitCells([1, 1, 0], 31)).toBe(`${'0'.repeat(16)}${'1'.repeat(15)}`)
+  for (const ns of [[1, 1, 0], [1, 1, 1], [0, 3, 1], [5, 0, 5], [1, 2, 3], [998, 1, 1], [0, 0, 7]])
+    for (const cells of [3, 6, 7, 23, 31, 46]) expect(`${ns} ${cells}: ${splitCells(ns, cells).length}`).toBe(`${ns} ${cells}: ${cells}`)
+})
+test('in a text split bar every part with any share keeps a cell where there are cells for each', () => {
+  for (const cells of [3, 6, 23]) {
+    const drawn = splitCells([998, 1, 1], cells)
+    expect(`${cells}: ${['0', '1', '2'].map(i => drawn.includes(i))}`).toBe(`${cells}: true,true,true`)
+  }
+  expect(splitCells([998, 1, 1], 2)).toBe('00')
 })

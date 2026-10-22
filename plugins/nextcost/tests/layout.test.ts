@@ -2,7 +2,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import { DARK } from '../hooks/palette'
-import { cellsOf, TERMINAL } from '../hooks/layout'
+import { DESKTOP, cellsOf, TERMINAL, textCells } from '../hooks/layout'
 import {
   LONG,
   USAGE,
@@ -240,4 +240,9 @@ test('a column Box is as wide as its widest row', () => {
     ],
   }
   expect(cellsOf(col as never, TERMINAL)).toBe(6)
+})
+
+test('a wide character takes two columns, in every measure; an ambiguous glyph one', () => {
+  expect([textCells('設計メモ'), textCells('main'), textCells('│ · …'), textCells('한글'), textCells('ＡＢ')]).toEqual([8, 4, 5, 4, 4])
+  expect([cellsOf('設計', TERMINAL), cellsOf('設計', DESKTOP)]).toEqual([4, 3])
 })

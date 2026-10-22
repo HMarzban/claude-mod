@@ -4,7 +4,6 @@
 import type { RenderChildren } from 'claude-code'
 import { clamp01 } from './format'
 import type { Kit } from './kit'
-import { CHIP_BAR } from './layout'
 import type { BarSize } from './layout'
 import type { Tone } from './reading'
 
@@ -68,7 +67,7 @@ type MeterOptions = Readonly<{
   frac: number
   tone: Tone
   accent: string
-  size?: BarSize
+  size: BarSize
   /** An Svg with no width, capped by its slot: chips' cards' heads and
    *  bodies alone, since spec §2.9 bars it from every collapsed line. */
   stretch?: boolean
@@ -82,7 +81,7 @@ type MeterOptions = Readonly<{
  *  wider than any slot, the slot caps it, so it spans its card. */
 export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
   const { Svg, svg, Text, palette, onTone } = kit
-  const { key = 'meter', label, frac, tone, accent, size = CHIP_BAR, stretch = false, reads = 'used' } = o
+  const { key = 'meter', label, frac, tone, accent, size, stretch = false, reads = 'used' } = o
   const fill = onTone(tone, accent)
   const alt = `${label} ${Math.round(clamp01(frac) * 100)}% ${reads}`
   if (Svg) {
@@ -108,7 +107,7 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
   return (
     <Text key={key} color={fill}>
       {'█'.repeat(filled)}
-      {filled < size.cells ? <Text key="track" color={palette.meterTrack}>{'░'.repeat(size.cells - filled)}</Text> : null}
+      {filled < size.cells ? <Text key="track" color={palette.trackInk}>{'░'.repeat(size.cells - filled)}</Text> : null}
     </Text>
   )
 }
@@ -124,6 +123,29 @@ type SplitBarOptions = Readonly<{
   parts: readonly SplitPart[]
   size: BarSize
 }>
+
+/** `cells` shared among amounts, always all of them: each its share's whole
+ *  cells, then one more each for the largest remainders, the first first.
+ *  Where there is a cell for each, an amount left with none takes one from
+ *  the amount with the most. */
+const shareCells = (ns: readonly number[], cells: number): number[] => {
+  const total = ns.reduce((sum, n) => sum + n, 0)
+  const exact = ns.map(n => (total > 0 ? (n / total) * cells : 0))
+  const counts = exact.map(Math.floor)
+  const remainder = (i: number) => (exact[i] ?? 0) - (counts[i] ?? 0)
+  const byRemainder = ns.map((_, i) => i).sort((a, b) => remainder(b) - remainder(a) || a - b)
+  const left = cells - counts.reduce((sum, c) => sum + c, 0)
+  for (const i of byRemainder.slice(0, left)) counts[i] = (counts[i] ?? 0) + 1
+  if (cells >= ns.length) {
+    for (let i = 0; i < counts.length; i++) {
+      if (counts[i] !== 0) continue
+      const most = counts.indexOf(Math.max(...counts))
+      counts[most] = (counts[most] ?? 0) - 1
+      counts[i] = 1
+    }
+  }
+  return counts
+}
 
 /** A bar split into parts, each its share of the whole, in its own colour
  *  and, in text, its own fill; nothing while the whole is none. */
@@ -157,18 +179,14 @@ export const splitBar = (kit: Kit, o: SplitBarOptions): RenderChildren => {
     })
     return svg({ key, alt, width, height: 8, stretch: true }, segments.join(''))
   }
-  let used = 0
+  const counts = shareCells(shown.map(({ n }) => n), size.cells)
   return (
     <Text key={key}>
-      {parts.map(({ n, color, mark }, i) => {
-        const count = i === parts.length - 1 ? size.cells - used : Math.round((n / total) * size.cells)
-        used += count
-        return (
-          <Text key={`s${i}`} color={color}>
-            {mark.repeat(Math.max(0, count))}
-          </Text>
-        )
-      })}
+      {shown.map(({ color, mark }, i) => (
+        <Text key={`s${i}`} color={color}>
+          {mark.repeat(counts[i] ?? 0)}
+        </Text>
+      ))}
     </Text>
   )
 }
@@ -192,7 +210,7 @@ type SparklineOptions = Readonly<{
    *  known, so none is drawn, and in text their cells are blank. */
   from?: number
   /** A line to read against, as a fraction of the scale's top, such as compaction. */
-  level?: number
+  levelFrac?: number
   /** Px of air above the chart, inside its Svg: a band's room past its chart. */
   air?: number
   /** Px kept above the scale's top inside the chart, so a level drawn there
@@ -207,7 +225,7 @@ const SPARK_AIR = 2
  *  braille on its floor, on one line that a row too narrow cuts. */
 export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   const { Svg, svg, palette, oneLine } = kit
-  const { key, alt, values, color, px, height, max, nowAt, level, air = 0, headroom = 0, from = 0 } = o
+  const { key, alt, values, color, px, height, max, nowAt, levelFrac, air = 0, headroom = 0, from = 0 } = o
   const top = max ?? topOf(values)
   if (!Svg) return oneLine({ key, color }, braille(values.map((v, i) => (i < from ? undefined : v)), top, 1))
   const end = px - SPARK_AIR
@@ -223,7 +241,7 @@ export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
     if (ahead.length > 1) marks += `<polyline class="ahead" points="${ahead.map(p => p.join(',')).join(' ')}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" ${PROJECTION_DASH}/>`
     marks += `<line class="now" x1="${x(nowAt)}" y1="0" x2="${x(nowAt)}" y2="${height}" stroke="${palette.label}" stroke-width="1"/>`
   }
-  if (level !== undefined) marks += `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1" ${PROJECTION_DASH}/>`
+  if (levelFrac !== undefined) marks += `<line class="level" x1="0" y1="${y(levelFrac)}" x2="${px}" y2="${y(levelFrac)}" stroke="${palette.label}" stroke-width="1" ${PROJECTION_DASH}/>`
   return svg({ key, alt, width: px, height, air }, marks)
 }
 
@@ -243,7 +261,7 @@ type BarChartOptions = Readonly<{
    *  stands full, so one tall bar can't flatten the rest. */
   max?: number
   /** A value the bars are read against, such as their average: a rule across. */
-  level?: number
+  levelValue?: number
   /** Px of air above the chart, inside its Svg: a band's room past its chart. */
   air?: number
 }>
@@ -256,7 +274,7 @@ const CAP_ROOM = 3
  *  holding a marked one in the mark's colour. */
 export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
   const { Svg, svg, palette } = kit
-  const { key, alt, values, marked, color, markColor, px, height, max, level, air = 0 } = o
+  const { key, alt, values, marked, color, markColor, px, height, max, levelValue, air = 0 } = o
   const top = max ?? topOf(values)
   if (!Svg) {
     const cells = Array.from({ length: Math.ceil(values.length / 2) }, (_, c): readonly [string, string] => {
@@ -278,7 +296,7 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
     const peaks = capped ? `L${tenth(peak - 1.5)},${at}L${tenth(peak + 1.5)},${at}` : `L${peak},${at}`
     return `${i === 0 ? 'M' : 'L'}${x0},${base}${peaks}L${dip},${Math.min(height - 1, base + 3)}L${x1},${base}`
   }).join('')
-  const rule = level === undefined ? '' : `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1" stroke-dasharray="1 2"/>`
+  const rule = levelValue === undefined ? '' : `<line class="level" x1="0" y1="${y(levelValue)}" x2="${px}" y2="${y(levelValue)}" stroke="${palette.label}" stroke-width="1" stroke-dasharray="1 2"/>`
   const beats = `<path class="beats" d="${d}" fill="none" stroke="${color}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>`
   return svg({ key, alt, width: px, height, air }, rule + beats)
 }
@@ -297,10 +315,11 @@ export const flatBeats = (kit: Kit, o: Readonly<{ key: string; alt: string; beat
 
 // ---- heartbeat ------------------------------------------------------------
 
-/** The cache's heartbeat, 12px: a dot while warm or in its last minute, a
- *  flat line when cold, hollow before it's measured. It stays still: its
- *  source changes only with its state, so its frame never reloads per tick. */
-export const heartbeat = (kit: Kit, o: Readonly<{ key: string; alt: string; state: 'still' | 'beat' | 'flat' | 'hollow'; color: string }>): RenderChildren => {
+/** The cache's heartbeat, 12px: a beat, a dot, while warm or in its last
+ *  minute; a flat line when cold, hollow before it's measured. It stays
+ *  still: its source changes only with its state, so its frame never reloads
+ *  per tick. */
+export const heartbeat = (kit: Kit, o: Readonly<{ key: string; alt: string; state: 'beat' | 'flat' | 'hollow'; color: string }>): RenderChildren => {
   const { Svg, svg, palette } = kit
   if (!Svg) return null
   const { key, alt, state, color } = o
@@ -341,7 +360,7 @@ export const track = (kit: Kit, o: TrackOptions): RenderChildren => {
   const gone = clamp01(frac)
   if (!Svg) {
     const raised = Math.round(gone * cells)
-    const glyphs: Array<readonly [string, string]> = Array.from({ length: cells }, (_, i) => (i < raised ? ['⣤', color] : ['⣀', palette.meterTrack]))
+    const glyphs: Array<readonly [string, string]> = Array.from({ length: cells }, (_, i) => (i < raised ? ['⣤', color] : ['⣀', palette.trackInk]))
     return textRuns(kit, key, glyphs)
   }
   const y = tenth((height - TRACK_PX) / 2)
@@ -437,7 +456,7 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
       ? [palette.value, ` ${TODAY_DASH}`]
       : isGuess(i)
         ? [palette.trackStroke, ` ${GUESS_DASH} opacity="0.75"`]
-        : [v === undefined ? palette.meterTrack : color, '']
+        : [v === undefined ? palette.trackInk : color, '']
     const edge = `<rect class="edge" x="${x + 0.5}" y="${DAY_EDGE + 0.5}" width="${cellPx - 1}" height="${height - 1}" rx="3" fill="none" stroke="${stroke}"${dash}/>`
     return ground + filled + edge
   })

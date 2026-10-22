@@ -10,28 +10,42 @@
 import type { RenderElement } from 'claude-code'
 import { boardBudget, boardLineHeight, boardRule, flapCells, flapColumns, type FlapColumn } from '../flaps'
 import type { Kit } from '../kit'
-import { ROW_SLACK, boardCells } from '../layout'
+import { boardCells, charCells, textCells } from '../layout'
 import type { Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import type { Palette } from '../palette'
-import { drawStrip } from '../strip'
 import { BOARD_HEADINGS, BOARD_NOW, BOARD_NO_TIME, BOARD_TITLE, type BoardKey, type BoardRow } from '../words'
-import { bodyRowsFor, footer, footerRoom } from './frame'
+import { bodyRowsFor, footer, rowRoom } from './frame'
 
-/** REMARKS cut to `tiles` characters, `…` last where cut. */
-export const remarksFit = (remarks: string, tiles: number): string =>
-  remarks.length <= tiles ? remarks : tiles <= 1 ? '' : `${remarks.slice(0, tiles - 1)}…`
+/** REMARKS cut to `tiles` columns, `…` last where cut, a wide character
+ *  never split. */
+export const remarksFit = (remarks: string, tiles: number): string => {
+  if (textCells(remarks) <= tiles) return remarks
+  if (tiles <= 1) return ''
+  let kept = ''
+  let cells = 0
+  for (const ch of remarks) {
+    const width = charCells(ch)
+    if (cells + width > tiles - 1) break
+    kept += ch
+    cells += width
+  }
+  return `${kept}…`
+}
 
 /** Each reading's ITEM ink: its own, as an airline's code has its colour. */
 export const ITEM_INK: Readonly<Record<BoardKey, Exclude<keyof Palette, 'filled'>>> = {
   cache: 'flapItemCache', spend: 'flapItemSpend', context: 'flapItemContext', '5h': 'flapItem5h', '7d': 'flapItem7d', other: 'flapText',
 }
 
+/** What a line is named by: the header, the headings, or its reading. */
+type LineName = 'header' | 'headings' | BoardKey
+
 /** What gives way as rows run out, first to last (spec §5.3), CACHE and 7D
  *  together as the body's last step, after the remarks where leaving them
  *  out saves height. Calm lines alone give way (spec §2.1): an amber
  *  reading's line stays, as chips' cards leave their alert. */
-const GIVE_WAY: ReadonlyArray<readonly string[]> = [['other'], ['headings'], ['spend'], ['context'], ['header'], ['5h'], ['cache', '7d']]
+const GIVE_WAY: ReadonlyArray<readonly LineName[]> = [['other'], ['headings'], ['spend'], ['context'], ['header'], ['5h'], ['cache', '7d']]
 
 /** The columns of air after ITEM, STATUS and TIME. */
 const COLUMN_GAP = 2
@@ -40,7 +54,7 @@ const REMARKS_LEAST = 8
 /** The columns the board's paddingX takes, both sides. */
 const BOARD_PAD = 2
 
-type Line = Readonly<{ name: string; key: string; row?: BoardRow }>
+type Line = Readonly<{ name: LineName; key: string; row?: BoardRow }>
 /** The lines a board keeps, and whether they keep their remarks. */
 type Plan = Readonly<{ lines: readonly Line[]; remarks: boolean }>
 /** The board's columns: ITEM, STATUS and TIME as wide as their widest,
@@ -52,14 +66,14 @@ const FLAP_KEYS: readonly FlapKey[] = ['item', 'status', 'time']
 
 /** The lines the board would draw with every row: each named by what gives
  *  way with it. */
-const linesOf = (read: Readings): readonly Line[] => {
+const boardLines = (read: Readings): readonly Line[] => {
   const { rows } = read.board()
-  const named = (key: BoardKey) => rows.filter(r => r.key === key).map(row => ({ name: key, row, key: `row:${key}` }))
+  const named = (key: BoardKey): Line[] => rows.filter(r => r.key === key).map(row => ({ name: key, row, key: `row:${key}` }))
   return [
     { name: 'header', key: 'row:header' },
     { name: 'headings', key: 'row:headings' },
     ...named('cache'), ...named('spend'), ...named('context'), ...named('5h'), ...named('7d'),
-    ...rows.filter(r => r.key === 'other').map((row, i) => ({ name: 'other', row, key: `row:other:${i}` })),
+    ...rows.filter(r => r.key === 'other').map((row, i): Line => ({ name: 'other', row, key: `row:other:${i}` })),
   ]
 }
 
@@ -75,7 +89,7 @@ const columnsOf = (kit: Kit, rows: readonly BoardRow[], room: number): Columns =
     item: rows.map(r => r.item), status: rows.map(r => r.status), time: rows.flatMap(r => r.time ?? []),
   }
   const keep = { item: 0, status: 0, time: 0 }
-  for (const k of FLAP_KEYS) keep[k] = Math.max(0, ...texts[k].map(t => [...t].length))
+  for (const k of FLAP_KEYS) keep[k] = Math.max(0, ...texts[k].map(textCells))
   const widthOf = (k: FlapKey): number =>
     Math.max(Math.ceil(boardCells(BOARD_HEADINGS[k], kit.measure)), ...texts[k].map(t => flapCells(kit, remarksFit(t, keep[k])))) + COLUMN_GAP
   const total = () => FLAP_KEYS.reduce((n, k) => n + widthOf(k), 0)
@@ -189,9 +203,9 @@ const readingLine = (kit: Kit, l: Line, row: BoardRow, cols: Columns, remark: st
  *  nothing when no line fits. */
 const board = (kit: Kit, read: Readings, collapsedRows: number): RenderElement | null => {
   const { Box, Svg, palette } = kit
-  const inner = Math.max(0, kit.columns - ROW_SLACK - BOARD_PAD)
+  const inner = Math.max(0, rowRoom(kit) - BOARD_PAD)
   const cols = columnsOf(kit, read.board().rows, inner)
-  const plan = fitPlan(kit, linesOf(read), cols, boardBudget(kit, bodyRowsFor(read.frame.maxRows, collapsedRows, 0)))
+  const plan = fitPlan(kit, boardLines(read), cols, boardBudget(kit, bodyRowsFor(read.frame.maxRows, collapsedRows, 0)))
   if (plan.lines.length === 0) return null
   const remarks = plan.remarks && cols.remarks > 0
   return (
@@ -216,7 +230,5 @@ const board = (kit: Kit, read: Readings, collapsedRows: number): RenderElement |
 /** Departures open: the board, then the footer every layout draws, the
  *  workspace strip in its row. */
 export const openBoard = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderElement[] => {
-  const ws = read.workspace
-  const strip = ws === undefined ? undefined : drawStrip(kit, ws, 'footer', 0, kit.columns - ROW_SLACK - footerRoom(kit))
-  return [board(kit, read, collapsedRows), footer(kit, act, strip)].filter(e => e !== null)
+  return [board(kit, read, collapsedRows), footer(kit, act, read.workspace)].filter(e => e !== null)
 }

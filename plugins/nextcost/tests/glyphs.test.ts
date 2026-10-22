@@ -99,3 +99,7 @@ for (const layout of LAYOUT_NAMES) {
     })
   }
 }
+test('the ascii tier keeps a wide character, which it measures two columns, and still maps the ambiguous ones', () => {
+  expect(asciiText('設計メモ · 機能/表示幅 │ ±3')).toBe('設計メモ, 機能/表示幅 | +3')
+  expect(asciiText('한국어 프로젝트')).toBe('한국어 프로젝트')
+})

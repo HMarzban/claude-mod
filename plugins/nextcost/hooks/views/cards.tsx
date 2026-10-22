@@ -1,18 +1,17 @@
 // Chips' open view: its four cards, CACHE, SPEND, CONTEXT and LIMITS, and its
 // footer of the workspace strip and the buttons.
 
-import type { RenderChildren, RenderElement } from 'claude-code'
+import type { RenderChildren } from 'claude-code'
 import { meter, splitBar } from '../charts'
 import type { SplitPart } from '../charts'
 import type { Kit } from '../kit'
-import { DESKTOP, ROW_SLACK } from '../layout'
+import { textCells } from '../layout'
 import type { BarSize } from '../layout'
 import type { LimitKey, LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
-import { drawStrip } from '../strip'
 import { SPLIT_LABELS, type Say } from '../words'
-import { bodyRowsFor, footer, footerRoom } from './frame'
-import { CARD_NAMES, alertLine, cardBordered, cardEdge, cardGrid, cardInner, cardShell, cardsPerLine, cardsPresent, factRow as sharedFactRow, headline, linesOf } from './shell'
+import { bodyRowsFor, footer, topStrip } from './frame'
+import { CARD_NAMES, alertLine, cardGrid, cardLine, cardShell, cardsPresent, factRow, headline, linesOf } from './shell'
 import type { CardName } from './shell'
 
 /** A limit's accent: its window's, or the meter's for any other. */
@@ -29,7 +28,7 @@ const SPLIT_ALT = `token split: ${SPLIT_LABELS.join(', ')}`
 const tokenPartsOf = (kit: Kit, read: Readings): SplitPart[] => {
   const { Svg, palette } = kit
   const { spend } = read
-  const [inputFill, outputFill, readsFill] = Svg ? ['■', '■', '■'] : read.frame.glyphs === 'ascii' ? ['#', '=', '+'] : ['█', '▓', '▒']
+  const [inputFill, outputFill, readsFill] = Svg ? ['■', '■', '■'] : kit.glyphs === 'ascii' ? ['#', '=', '+'] : ['█', '▓', '▒']
   return [
     { n: spend.sent, color: palette.meterFill, mark: inputFill },
     { n: spend.back, color: palette.coin, mark: outputFill },
@@ -37,16 +36,15 @@ const tokenPartsOf = (kit: Kit, read: Readings): SplitPart[] => {
   ]
 }
 
-/** What opens beneath a layout's collapsed lines: as many cards to a line as
- *  hold their text, each as much of its body as the band has rows for; the
- *  workspace strip on top or in the footer; then Collapse and Hide band. */
+/** Chips' open view, beneath its row: as many cards to a line as hold their
+ *  text, each as much of its body as the band has rows for; the workspace
+ *  strip on top or in the footer; then Collapse and Hide band. */
 export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderChildren[] => {
-  const { Box, Text, palette, measure, columns, onTone, oneLine } = kit
+  const { Box, Text, palette, measure, onTone, oneLine } = kit
   const { cache, spend, context } = read
 
-  const factRow = (label: string, value: string | Say, swatch?: SplitPart) => sharedFactRow(kit, label, value, swatch)
   /** A fact the readings may not know yet: nothing until they do. */
-  const knownRow = (label: string, value: string | undefined) => (value === undefined ? null : factRow(label, value))
+  const knownRow = (label: string, value: string | undefined) => (value === undefined ? null : factRow(kit, label, value))
   const note = (text: string) => (
     <Text key="note" color={palette.label} wrap="wrap">
       {text}
@@ -58,13 +56,11 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRo
   // cards align whatever their text and a line never wraps one away. A
   // desktop card has a visible edge; a terminal card is a fill, its border
   // would cost two columns. Lines keep a row of air between them.
-  const bordered = cardBordered(kit)
-  const edge = cardEdge(kit)
   // The cards present, which the grid lays out.
   const hasCard = cardsPresent(read)
   const present = CARD_NAMES.filter(name => hasCard[name])
   const cardCount = present.length
-  const perLine = cardsPerLine(kit, cardCount, edge)
+  const { perLine, inner, edge, pxEdge } = cardLine(kit, cardCount)
   const lineCount = Math.ceil(cardCount / perLine)
   const lineGap = 1
   // The rows a card's body may take: the frame's, shared by the lines less
@@ -80,8 +76,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRo
   // Short of a row under each head for a fact, the cards give way whole. The
   // desktop draws a card's edge as a line of pixels, so there it never
   // counts as the row a fact needs.
-  const cardsFit = bodyFor(0) + (measure === DESKTOP ? edge : 0) >= 1
-  const inner = cardInner(kit, perLine, edge)
+  const cardsFit = bodyFor(0) + (pxEdge ? edge : 0) >= 1
   const cardBar: BarSize = { px: inner * measure.pxPerCell, cells: inner }
   /** As much of a card's body as the band has rows for, its facts listed
    *  most important first. Its bar repeats a chip's, so it shows only when
@@ -92,7 +87,7 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRo
   }
   /** A card: its title and headline on one line, then its bar and its body. */
   const card = (name: CardName, head: Readonly<{ say: Say; tone?: Tone }>, bar: RenderChildren, body: RenderChildren[]) =>
-    cardShell(kit, { key: `card:${name}`, name, head: headline(kit, head.say, head.tone ?? 'calm'), body: fitBody(bar, body), bordered })
+    cardShell(kit, { key: `card:${name}`, name, head: headline(kit, head.say, head.tone ?? 'calm'), body: fitBody(bar, body) })
 
   const cacheView = card(
     'cache',
@@ -100,22 +95,22 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRo
     cache.known ? meter(kit, { label: 'cache', frac: cache.charge, tone: cache.tone, accent: palette.warm, size: cardBar, stretch: true, reads: 'left' }) : null,
     [
       cache.cardNote === undefined ? null : note(cache.cardNote),
-      cache.known ? factRow(cache.estimateLabel, cache.estimate) : null,
+      cache.known ? factRow(kit, cache.estimateLabel, cache.estimate) : null,
       knownRow('idle for', cache.idleText),
       knownRow('unexpected rebuilds', cache.rebuildsText),
       knownRow('saved by cache', cache.savedText),
       knownRow('hit rate', cache.hitText),
-      factRow('expires', cache.lastsText),
+      factRow(kit, 'expires', cache.lastsText),
     ],
   )
 
   const tokenParts = tokenPartsOf(kit, read)
   const split = (size: BarSize) =>
     splitBar(kit, { alt: SPLIT_ALT, parts: tokenParts, size })
-  const lastRow = spend.lastText === undefined ? null : factRow('last message', spend.lastText)
+  const lastRow = spend.lastText === undefined ? null : factRow(kit, 'last message', spend.lastText)
   const splitShown = cache.measured
   const tokenRows = splitShown
-    ? spend.split.map((part, i) => factRow(part.label, part.text, tokenParts[i]))
+    ? spend.split.map((part, i) => factRow(kit, part.label, part.text, tokenParts[i]))
     : [note('Breakdown counts from your next message.')]
   const spendView = card('spend', { say: [[spend.totalText, 'value']] }, splitShown ? split(cardBar) : null, [lastRow, ...tokenRows])
 
@@ -127,8 +122,8 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRo
         [
           knownRow('room left', context.roomText),
           knownRow('auto-compacts at', context.compactsAtText),
-          factRow('in context', context.inContextText),
-          factRow('model window', context.windowText),
+          factRow(kit, 'in context', context.inContextText),
+          factRow(kit, 'model window', context.windowText),
         ],
       )
     : null
@@ -158,10 +153,10 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRo
    *  for the worst. */
   const limitRows = (w: LimitView): readonly [RenderChildren, RenderChildren] => {
     const { name, frac, tone } = w
-    if (w.passed) return [factRow(name, 'reset'), null]
+    if (w.passed) return [factRow(kit, name, 'reset'), null]
     const value = w.valueMarked
     const reset = w.cardResetLess
-    const room = Math.max(4, inner - [...name].length - [...value].length - 2)
+    const room = Math.max(4, inner - textCells(name) - textCells(value) - 2)
     const size: BarSize = { px: room * measure.pxPerCell, cells: room }
     return [
       <Box key={`fact:${name}`} flexDirection="row" columnGap={1}>
@@ -205,19 +200,12 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRo
 
   const cardViews = [cacheView, spendView, contextView, limitsView].filter(view => view !== null)
 
-  let strip: RenderElement | null = null
-  if (stripPlace !== undefined && ws !== undefined) {
-    // In the footer it shares the line with the buttons and their hotkey marks.
-    const room = columns - ROW_SLACK - (stripPlace === 'footer' ? footerRoom(kit) : 0)
-    strip = drawStrip(kit, ws, stripPlace, edge, room)
-  }
-
   return [
-    stripPlace === 'top' ? strip : null,
+    stripPlace === 'top' && ws !== undefined ? topStrip(kit, ws, edge) : null,
     cardsFit ? cardGrid(kit, linesOf(cardViews, perLine), { marginTop: stripPlace === 'top' ? 0 : 1, align: 'flex-start' })
     // Without them, the other windows' alert, where the band has a row for it.
     : bodyRowsFor(read.frame.maxRows, collapsedRows, 0) < 1 ? null
     : alertLine(kit, read),
-    footer(kit, act, stripPlace === 'footer' && strip !== null ? strip : undefined),
+    footer(kit, act, stripPlace === 'footer' ? ws : undefined),
   ]
 }

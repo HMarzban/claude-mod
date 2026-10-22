@@ -1,10 +1,13 @@
 // The terminal's glyph tier. East-Asian-Ambiguous glyphs (█ ▓ ▒ ▌ │ · Σ … ±)
 // draw two columns wide in a CJK locale, or with a terminal's "ambiguous is
 // wide" option, while Ink counts one, so the row would overflow. The ascii
-// tier draws ASCII alone; every mapping is one character at most, so the
-// squeeze, measured before it, never undercounts. Braille is Neutral width and
-// stays in the unicode tier. Unicode EastAsianWidth-18.0.0, checked 2026-10-09.
+// tier maps them to ASCII; every mapping is one character at most, so the
+// squeeze, measured before it, never undercounts. A wide character, such as a
+// Japanese project's name, stays: every tier measures it two columns. Braille
+// is Neutral width and stays in the unicode tier. Unicode
+// EastAsianWidth-18.0.0, checked 2026-10-09.
 
+import { isWide } from './layout'
 import type { BandSnapshot, Glyphs } from './snapshot'
 
 const CJK = /^(ja|zh|ko)([_.-]|$)/i
@@ -34,10 +37,11 @@ export const ASCII_MAP: Readonly<Record<string, string>> = {
   '▐': ' ', '▌': ' ',
 }
 
-/** `s` in ASCII: a spaced separator a comma, since ` - ` between numbers
- *  reads as a minus, and a screen reader says so; then each glyph mapped,
- *  and any other non-ASCII character dropped alone. A glyph mapped to
- *  nothing takes the one space after it, so no gap is left where it was. */
+/** `s` in ASCII and wide characters: a spaced separator a comma, since ` - `
+ *  between numbers reads as a minus, and a screen reader says so; then each
+ *  glyph mapped, a wide character kept, and any other non-ASCII character
+ *  dropped alone. A glyph mapped to nothing takes the one space after it, so
+ *  no gap is left where it was. */
 export const asciiText = (s: string): string => {
   const chars = [...s.replace(/ · /g, ', ')]
   let out = ''
@@ -45,7 +49,7 @@ export const asciiText = (s: string): string => {
     const ch = chars[i] ?? ''
     const mapped = ASCII_MAP[ch]
     if (mapped === '' && chars[i + 1] === ' ') i++
-    out += mapped ?? (ch.charCodeAt(0) < 0x80 ? ch : '')
+    out += mapped ?? (ch.charCodeAt(0) < 0x80 || isWide(ch) ? ch : '')
   }
   return out
 }

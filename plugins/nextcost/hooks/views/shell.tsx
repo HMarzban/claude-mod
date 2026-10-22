@@ -7,7 +7,7 @@ import type { RenderChildren, RenderElement } from 'claude-code'
 import type { SplitPart } from '../charts'
 import type { Icon } from '../icons'
 import type { Kit } from '../kit'
-import { CARD_TEXT } from '../layout'
+import { CARD_TEXT, DESKTOP } from '../layout'
 import type { Readings, Tone } from '../reading'
 import type { Palette } from '../palette'
 import { CARD_TITLES } from '../words'
@@ -75,32 +75,50 @@ export const alertLine = (kit: Kit, read: Readings): RenderElement | null => {
 /** Whether a card draws its edge: the desktop's always, a terminal's only
  *  in plain, which has no fill to stand on; a terminal card with a fill
  *  draws none, since its border would cost two columns. */
-export const cardBordered = (kit: Kit): boolean => kit.Svg !== undefined || !kit.palette.filled
-
-/** The columns, and in text the rows, a card's edge takes. */
-export const cardEdge = (kit: Kit): number => (cardBordered(kit) ? 2 : 0)
-
-/** As many cards to a line as hold their text, else half of them, else one. */
-export const cardsPerLine = (kit: Kit, count: number, edge: number): number => {
-  const minCard = Math.ceil(CARD_TEXT * kit.measure.text) + 2 + edge
-  const fits = (n: number) => n * minCard + (n - 1) <= kit.columns
-  return [count, Math.ceil(count / 2)].find(fits) ?? 1
-}
-
-/** The columns inside a card, `perLine` to a line: its share of the line,
- *  less its padding and edge. */
-export const cardInner = (kit: Kit, perLine: number, edge: number): number =>
-  Math.max(4, Math.floor((kit.columns - (perLine - 1)) / perLine) - 2 - edge)
+const cardBordered = (kit: Kit): boolean => kit.Svg !== undefined || !kit.palette.filled
 
 /** A desktop card's edge: a line of a pixel either side. */
 const DESKTOP_EDGE_PX = 2
 
-/** The px inside a desktop card, `perLine` to a line: its share of the
- *  line's px, less its padding and its edge's lines, so a chart drawn this
- *  wide ends where its fact row does. */
-export const cardInnerPx = (kit: Kit, perLine: number): number => {
+/** A line of cards as the shell lays it out. */
+export type CardLine = Readonly<{
+  /** How many cards a line holds: as many as hold their text, else half
+   *  of them, else one. */
+  perLine: number
+  /** The columns inside a card, its share of the line less its padding
+   *  and edge. */
+  inner: number
+  /** The px inside a desktop card: its share of the line's px, less its
+   *  padding and its edge's lines, so a chart drawn this wide ends where its
+   *  fact row does. */
+  innerPx: number
+  /** The columns a card's edge takes. */
+  edge: number
+  /** Whether a card's edge is a line of pixels, as the desktop draws it,
+   *  rather than a row of text above and below. */
+  pxEdge: boolean
+  /** The rows a card's edge takes: a terminal's border two, the desktop's
+   *  line and its padding one, a terminal fill none. */
+  edgeRows: number
+}>
+
+/** The line `count` cards are laid out on. */
+export const cardLine = (kit: Kit, count: number): CardLine => {
   const { columns, measure } = kit
-  return Math.floor(((columns - (perLine - 1)) * measure.pxPerCell) / perLine - 2 * measure.pxPerCell - (cardBordered(kit) ? DESKTOP_EDGE_PX : 0))
+  const bordered = cardBordered(kit)
+  const edge = bordered ? 2 : 0
+  const pxEdge = measure === DESKTOP
+  const minCard = Math.ceil(CARD_TEXT * measure.text) + 2 + edge
+  const fits = (n: number) => n * minCard + (n - 1) <= columns
+  const perLine = [count, Math.ceil(count / 2)].find(fits) ?? 1
+  return {
+    perLine,
+    inner: Math.max(4, Math.floor((columns - (perLine - 1)) / perLine) - 2 - edge),
+    innerPx: Math.floor(((columns - (perLine - 1)) * measure.pxPerCell) / perLine - 2 * measure.pxPerCell - (bordered ? DESKTOP_EDGE_PX : 0)),
+    edge,
+    pxEdge,
+    edgeRows: !bordered ? 0 : pxEdge ? 1 : 2,
+  }
 }
 
 /** A label and its value at either end of a line; `swatch` keys a legend
@@ -148,7 +166,7 @@ export const headline = (kit: Kit, say: Say, tone: Tone): RenderElement => {
   )
 }
 
-export type CardSpec = Readonly<{
+type CardSpec = Readonly<{
   /** The card's key, `card:cache`. */
   key: string
   /** Which card: its title, and its mark, drawn on the desktop alone. */
@@ -157,12 +175,11 @@ export type CardSpec = Readonly<{
   head: RenderElement
   /** What follows the head, line by line. */
   body: RenderChildren
-  bordered: boolean
 }>
 
 /** A card: its title and headline on one line, then its body. Each grows
  *  alike from no width, so the cards of a line share it equally. */
-export const cardShell = (kit: Kit, { key, name, head, body, bordered }: CardSpec): RenderElement => {
+export const cardShell = (kit: Kit, { key, name, head, body }: CardSpec): RenderElement => {
   const { Box, Text, Svg, palette, icon } = kit
   const title = CARD_TITLES[name]
   const [mark, ink] = CARD_ICONS[name]
@@ -182,7 +199,7 @@ export const cardShell = (kit: Kit, { key, name, head, body, bordered }: CardSpe
       minWidth={0}
       paddingX={1}
       {...(palette.filled ? { backgroundColor: palette.cardBg } : {})}
-      {...(bordered ? { borderStyle: 'round', borderColor: palette.cardBorder } : {})}
+      {...(cardBordered(kit) ? { borderStyle: 'round', borderColor: palette.cardBorder } : {})}
     >
       <Box key="head" flexDirection="row" justifyContent="space-between" columnGap={1}>
         {titled}

@@ -2,8 +2,9 @@ import { test, expect } from 'claude-code/testing'
 import { makeKit } from '../hooks/kit'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { bodyRowsFor, footer, footerRoom, toggleButton } from '../hooks/views/frame'
-import type { RenderElement } from 'claude-code'
+import { HOTKEY_MARK, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
+import { bodyRowsFor, footer, toggleButton } from '../hooks/views/frame'
+import type { RenderChildren } from 'claude-code'
 import { byKey, fakeEl, shown, type Node } from './helpers'
 import { NO_ACT, snapOf } from './matrix'
 
@@ -36,13 +37,16 @@ test('footer without a strip: the hint, air, then Collapse (c) and Hide band (h)
   expect(byKey(tree, 'hide', 'Button')?.props?.hotkey).toBe('h')
   expect(shown(tree)).toContain('Bring it back with /nextcost')
 })
-test('footer with a strip draws the strip in place of the hint', () => {
-  const k = kit120()
-  const strip = k.oneLine({ key: 'strip', color: '#fff' }, 'claude-mod') as RenderElement
-  const text = shown(footer(k, NO_ACT, strip))
-  expect(text).toContain('claude-mod')
+const WS = { path: '/Users/me/workspace/nextcost', git: { branch: 'feature/strip-room', commit: 'abc1234', worktree: undefined, changed: 3, ahead: 2, behind: 1 }, repoName: undefined }
+test('footer with a workspace draws its strip in place of the hint', () => {
+  const text = shown(footer(kit120(), NO_ACT, WS))
+  expect(text).toContain('nextcost')
   expect(text).not.toContain('Bring it back')
 })
-test('footerRoom counts the buttons, their marks and gaps', () => {
-  expect(footerRoom(kit120())).toBeGreaterThan(20)
+test("the footer's strip squeezes to the room the buttons, their hotkey marks and the gaps leave", () => {
+  for (const columns of [70, 80, 100, 120]) {
+    const tree = footer(makeKit(fakeEl, snapOf({ columns, expanded: true })), NO_ACT, WS) as unknown as Node
+    expect(byKey(tree, 'strip', 'Box')).toBeDefined()
+    expect(`${columns}: ${cellsOf(tree as unknown as RenderChildren, TERMINAL) + 2 * HOTKEY_MARK <= columns - ROW_SLACK}`).toBe(`${columns}: true`)
+  }
 })
