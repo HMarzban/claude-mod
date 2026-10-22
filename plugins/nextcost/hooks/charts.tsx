@@ -71,7 +71,8 @@ type MeterOptions = Readonly<{
   accent: string
   size: BarSize
   /** An Svg with no width, capped by its slot: chips' cards' heads and
-   *  bodies alone, since spec §2.9 bars it from every collapsed line. */
+   *  bodies alone, since band-layouts spec §2.9 bars it from every
+   *  collapsed line. */
   stretch?: boolean
   /** What the fill is: what's used or what's left. */
   reads?: 'used' | 'left'

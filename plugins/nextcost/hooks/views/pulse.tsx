@@ -14,10 +14,10 @@ import { fitLine, type Keeps, line, type PieceOf } from './frame'
 import { openStack } from './pulse-open'
 import type { View } from './view'
 
-/** What gives way as the row narrows, first to last (spec §4.1, §2.1),
- *  calm only: the last cost, the context trail, the trace from 14 beats to
- *  8, the 5h trail, the 7d cells, the trace; then whole readings, spend,
- *  context and 5h; then their short forms. Each step is taken only while
+/** What gives way as the row narrows, first to last (three-layouts spec
+ *  §4.1, §2.1), calm only: the last cost, the context trail, the trace from
+ *  14 beats to 8, the 5h trail, the 7d cells, the trace; then whole
+ *  readings, spend, context and 5h; then their short forms. Each step is taken only while
  *  the row doesn't fit: at 40 columns a calm row of tiles is the cache and
  *  the 7d, and a few columns wider the 5h is back. An amber reading keeps
  *  its tile, its chart and its long words until the amber step; past it,
@@ -114,7 +114,7 @@ const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderEleme
         ? sparkline(kit, { key: 'trail', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, from: week.fiveHourWindow.from, color: fiveHour.tone === 'amber' ? palette.amberFg : palette.fiveAccent, px: 48, height: 16, max: 100 })
         : null,
     ])
-    // The 7d's cells are the desktop's: in text it is words (spec §4.1).
+    // The 7d's cells are the desktop's: in text it is words (three-layouts spec §4.1).
     const sevenTile = sevenDay === undefined ? null : tile(kit, k, '7d', sevenDay.tone, palette.weekBg, [
       ...wordsOf(kit, k, sevenDay.bandName, sevenDay.valueText, sevenDay.amber),
       Svg && k.part('sevenDays', sevenDay.tone) && week.daysDrawn.measured

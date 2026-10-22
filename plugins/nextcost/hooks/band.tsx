@@ -13,7 +13,8 @@ import { VIEWS } from './views/index'
 import type { View } from './views/view'
 import { drawView } from './views/frame'
 
-/** Below this, every layout draws chips (spec §1); a layout may need more. */
+/** Below this, every layout draws chips (three-layouts spec §1); a layout
+ *  may need more. */
 const CHIPS_BELOW = 40
 
 /** The layout the band draws at `columns`: the one chosen, or chips below

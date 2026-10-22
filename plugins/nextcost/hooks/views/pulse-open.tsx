@@ -23,10 +23,11 @@ const DOT = ' · '
 /** What gives way short of rows, a card or the other limits' row in Limits. */
 type Unit = 'other' | 'context' | 'limits' | 'cache' | 'spend'
 const UNITS: readonly Unit[] = ['cache', 'spend', 'context', 'limits', 'other']
-/** The order they give way, first to last (spec §4.2's): the other limits,
- *  Context, Limits, the cache, then Spend. A calm one gives way at its turn;
- *  an amber one only where the body can't hold every amber one, then in
- *  AMBER_SHED's order, so the view is empty only when nothing fits. */
+/** The order they give way, first to last (three-layouts spec §4.2): the
+ *  other limits, Context, Limits, the cache, then Spend. A calm one gives
+ *  way at its turn; an amber one only where the body can't hold every amber
+ *  one, then in AMBER_SHED's order, so the view is empty only when nothing
+ *  fits. */
 const SHED: readonly Unit[] = ['other', 'context', 'limits', 'cache', 'spend']
 const AMBER_SHED: readonly Unit[] = ['other', 'context', 'limits', 'cache']
 
