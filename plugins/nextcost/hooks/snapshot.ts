@@ -40,9 +40,9 @@ export const removedLayoutOf = (v: unknown): string | undefined => {
 }
 
 /** A limit window's use, and when it resets, epoch ms; undefined without a readable time. */
-export type LimitReading = Readonly<{ percentUsed: number; resetsAt: number | undefined }>
+export type LimitUse = Readonly<{ percentUsed: number; resetsAt: number | undefined }>
 /** A window the engine reports, by its kind: `five_hour`, `spend_limit`. */
-export type ReportedLimit = LimitReading & Readonly<{ kind: string }>
+export type ReportedLimit = LimitUse & Readonly<{ kind: string }>
 
 /** A window the engine reports, its reset parsed once, here: past this
  *  point every reset is epoch ms. */
@@ -83,8 +83,8 @@ export type BandSnapshot = Readonly<{
     /** Auto-compaction is off, as the engine said; false while unknown. */
     autoCompactOff: boolean
   }>
-  fiveHour: (LimitReading & { etaMs: number | null }) | undefined
-  sevenDay: LimitReading | undefined
+  fiveHour: (LimitUse & { etaMs: number | null }) | undefined
+  sevenDay: LimitUse | undefined
   /** The newest limit samples, a week's worth of 15-minute buckets, every
    *  session's, oldest first. Sparse use may stretch them back past a week. */
   samples: readonly Sample[]

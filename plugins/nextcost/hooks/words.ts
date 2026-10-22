@@ -1,11 +1,11 @@
 // The phrasebook: every phrase a layout draws, built from the facts the
 // readings hold. Pure, and the one place a layout's words are written, so
 // amber, pace, resets, empty states and alt text read the same everywhere.
-// The departures board's words are board-words.ts's, built from these.
+// The departures board's words are board-words.ts's, and chips' own
+// chips-words.ts's, built from these.
 
 import type { DrawnWeek, SliceMark } from './calendar'
 import {
-  clamp01,
   fmtAgo,
   fmtCost,
   fmtCountdown,
@@ -25,10 +25,9 @@ import {
 } from './format'
 import { IDLE_COMPACT_MS } from './cache'
 import type { CacheFacts } from './cache'
+import type { ContextFacts, Frame, LimitFacts, SpendFacts, Tone } from './facts'
 import { lastCostOf, warmAverageOf } from './insights'
 import type { CostEntry, Trails } from './insights'
-// Types alone, erased at runtime, so reading.ts may import this file's values.
-import type { ContextFacts, Frame, LimitFacts, SpendFacts, Tone } from './reading'
 
 /** The colour a piece of a phrase is drawn in. */
 export type Role = 'label' | 'value' | 'amber' | 'accent5' | 'accent7'
@@ -37,7 +36,7 @@ export type Say = ReadonlyArray<readonly [string, Role]>
 /** An amber reading's words: long while a calm piece remains to give way, then short. */
 export type Amber = Readonly<{ long: string; short: string }>
 /** A value not known yet: unknown, never 0. */
-const UNKNOWN = '–'
+export const UNKNOWN = '–'
 
 /** What leads an amber reading: its mark, then its words. */
 export const AMBER_LEAD = '! '
@@ -56,7 +55,7 @@ export const roomOf = (toCompact: number): string => `~${fmtTokens(toCompact)}`
 export const compactsIn = (toCompact: number): string => `compacts in ${roomOf(toCompact)}`
 
 /** When Claude Code may compact a conversation idle on the hour's cache. */
-const IDLE_COMPACT_AT = `at ~${fmtAgo(IDLE_COMPACT_MS)} idle, before it goes cold`
+export const IDLE_COMPACT_AT = `at ~${fmtAgo(IDLE_COMPACT_MS)} idle, before it goes cold`
 
 const amberOf = (say: Say, sayShort: Say): Amber => ({ long: joined(say), short: joined(sayShort) })
 /** The context's amber lead and fill, long and short: `! context 93%`, `! ctx 93%`. */
@@ -178,6 +177,8 @@ export const SPLIT_LABELS = ['input', 'output', 'cache reads'] as const
 type SpendSplit = Readonly<{ label: (typeof SPLIT_LABELS)[number]; tokens: number; text: string; frac: number }>
 
 export type SpendWords = Readonly<{
+  /** Pulse's spend tile's name: `spend`. */
+  bandName: string
   /** `$3.19`, the last message's `$0.21`, and the tokens, `225k`. */
   totalText: string
   lastText: string | undefined
@@ -193,7 +194,7 @@ export type LimitWords = Readonly<{
   valueMarked: string
   /** A card's reset and pace, `resets 3h 00m · on pace for ~10%`; undefined
    *  without a reset to come. */
-  cardResetLess: string | undefined
+  resetAndPace: string | undefined
   /** When it resets, after `resets`: `16:40` or `Sat 13:30` once the offset
    *  is known, else `resetIn`; undefined without a reset to come. */
   resetWhen: string | undefined
@@ -229,7 +230,7 @@ type MoodWords = Pick<CacheWords, 'figureShort' | 'amber' | 'cardHead' | 'cardNo
 
 /** Each mood's name for a reader, unchanged as the cache counts down: the
  *  heartbeat's alt, and where a mood says no more, a card's and chips'. */
-const MOOD_ALT: Readonly<Record<CacheFacts['mood'], string>> = {
+export const MOOD_ALT: Readonly<Record<CacheFacts['mood'], string>> = {
   unmeasured: 'cache not measured yet',
   warming: 'cache warming',
   warm: 'cache warm',
@@ -239,10 +240,10 @@ const MOOD_ALT: Readonly<Record<CacheFacts['mood'], string>> = {
 }
 
 /** A cache gone, short: its mood and the next message's price, `cold ~$1.66`. */
-const goneShort = (mood: 'cold' | 'compacted', estimate: string): string => `${mood} ${estimate}`
+export const goneShort = (mood: 'cold' | 'compacted', estimate: string): string => `${mood} ${estimate}`
 
 /** The cache's words for its mood, as the cards, pulse and the board say
- *  them. Chips' row says its own, in `cacheCopy`, since its trees are
+ *  them. Chips' row says its own, in chips-words.ts, since its trees are
  *  frozen; what the two say alike they share. `left` and `leftShort` are
  *  the countdown, empty while not counting; `price` is the re-warm, spoken. */
 const moodWords = (f: CacheFacts, left: string, leftShort: string, price: string): MoodWords => {
@@ -340,67 +341,6 @@ export const cacheWords = (f: CacheFacts): CacheWords => {
   }
 }
 
-/** Every word chips' row says about the cache, for one mood: the pill, its
- *  hover and the battery's name. Chips' own table beside `moodWords`, its
- *  wording frozen with chips' trees. */
-type CacheCopy = Readonly<{
-  pill: (short: boolean) => string
-  hover: string
-  alt: string
-}>
-
-const cacheCopy = (f: CacheFacts, frame: Frame): CacheCopy => {
-  // What a warm read costs against input on the model in force.
-  const readPct = `${+(f.readShare * 100).toFixed(1)}%`
-  const left = fmtCountdown(f.leftMs)
-  // The rebuild's price after its tokens, where a rate is known.
-  const priced = f.reWarmUsd === null ? '' : ` (${f.estimate})`
-  const battery = f.charge <= 0 ? 'cache battery empty' : `cache battery ${Math.round(clamp01(f.charge) * 100)}% left`
-  const warmHover = f.idleCompactSoon
-    ? `${left} left; may be compacted ${IDLE_COMPACT_AT}`
-    : `${left} left; warm cache bills input at ${readPct}, expires ${f.ttl} after a request`
-  switch (f.mood) {
-    case 'unmeasured':
-      return {
-        pill: () => `cache ${UNKNOWN}`,
-        hover: "Not measured since the band loaded; the countdown starts with Claude's next reply",
-        alt: MOOD_ALT.unmeasured,
-      }
-    case 'warming':
-      return {
-        pill: () => 'cache warming',
-        hover: `Your first message builds the cache; after that it bills input at ${readPct}`,
-        alt: MOOD_ALT.warming,
-      }
-    case 'expiring':
-      return {
-        pill: short => (short ? `${left} ${f.estimate}` : `${left} left · re-warm ${f.estimate}`),
-        hover: warmHover,
-        alt: battery,
-      }
-    case 'compacted':
-      return {
-        // A summary to write, not a cache lost: as calm as cold.
-        pill: short => (short ? goneShort('compacted', f.estimate) : `cache compacted · next ${f.estimate}`),
-        hover: `Compacted while idle: next message writes the ${fmtTokens(f.window)} summary${priced}`,
-        alt: MOOD_ALT.compacted,
-      }
-    case 'cold':
-      return {
-        // Cold is a price, not an error: neutral, no hue, no alarm.
-        pill: short => (short ? goneShort('cold', f.estimate) : `cache cold · next message ${f.estimate}`),
-        hover: `Cold: next message rebuilds ${fmtTokens(f.window)} tokens${priced}`,
-        alt: battery,
-      }
-    case 'warm':
-      return {
-        pill: () => (frame.isWorking ? 'cache warm' : `cache ${left}`),
-        hover: warmHover,
-        alt: battery,
-      }
-  }
-}
-
 /** The context in words, measured toward compaction when it is on; unknown
  *  while the engine reports none, never 0%. */
 export const contextWords = (f: ContextFacts): ContextWords => {
@@ -437,6 +377,7 @@ export const spendWords = (f: SpendFacts): SpendWords => {
   const tokensByLabel: Readonly<Record<SpendSplit['label'], number>> = { input: f.sent, output: f.back, 'cache reads': f.cached }
   const totalText = fmtCost(f.totalUsd)
   return {
+    bandName: 'spend',
     totalText,
     lastText: f.lastTurnUsd === null ? undefined : fmtSmallCost(f.lastTurnUsd),
     tokensText: fmtTokens(f.total),
@@ -477,7 +418,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   return {
     valueText,
     valueMarked: `${f.value}${severityMark(f.frac)}`,
-    cardResetLess: span === undefined ? undefined : saidJoined([`resets ${span}`, pace], ' · '),
+    resetAndPace: span === undefined ? undefined : saidJoined([`resets ${span}`, pace], ' · '),
     resetWhen,
     text: joined(say),
     say,
@@ -501,59 +442,6 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   }
 }
 
-// ---- chips' row ---------------------------------------------------------------
-
-/** The chips a limit window has, and the title its hover card names it by. */
-const CHIP_TITLES = { '5h': '5-hour limit', '7d': 'Weekly limit' } as const
-
-/** Every word chips' row says beyond the readings' own: the cache pill's
- *  table, the hover cards, and the context's amount. */
-export type ChipsWords = Readonly<{
-  cache: CacheCopy
-  /** The last message's cost, subagents included, else the session's so far. */
-  costHover: string
-  /** The tokens by kind: `input 41k · output 12k · cache reads 155k`. */
-  tokensHover: string
-  /** The context's amount, its mark, and near compaction the room before it:
-   *  `87% full · compacts in ~14k`, or without compaction `76k / 200k`.
-   *  `long` while the row keeps its long wording. */
-  contextPill: (long: boolean) => string
-  /** How much of the window is used, and where it compacts. */
-  contextHover: string
-  /** A limit chip's hover card: once passed, that it has reset; else its
-   *  reset first, the fact the chip had, so a short row's cut only takes the
-   *  description. Undefined while the engine reports no such window. */
-  limitHover: Readonly<Record<keyof typeof CHIP_TITLES, string | undefined>>
-}>
-
-/** Chips' words, from the facts and the words the other layouts share. */
-export const chipsWords = (r: Readonly<{ frame: Frame; cache: CacheFacts; spend: SpendWords; context: ContextFacts; limits: readonly LimitFacts[] }>): ChipsWords => {
-  const { spend, context: x } = r
-  const limitHover = (key: keyof typeof CHIP_TITLES): string | undefined => {
-    const l = r.limits.find(w => w.key === key)
-    if (l === undefined) return undefined
-    const title = CHIP_TITLES[key]
-    if (l.passed) return `${title} has reset; it updates after your next message`
-    return l.reset?.kind === 'in' ? `Resets in ${l.reset.text}; ${title.toLowerCase()}, all your Claude use` : `Your ${title.toLowerCase()}, across all your Claude use`
-  }
-  return {
-    cache: cacheCopy(r.cache, r.frame),
-    costHover: spend.lastText === undefined ? `${spend.totalText} so far this session` : `${spend.lastText} spent during your last message, subagents included`,
-    tokensHover: spend.split.map(s => `${s.label} ${s.text}`).join(' · '),
-    contextPill: long => {
-      const amount =
-        x.compactAt !== undefined ? (long ? `${x.pct} full` : x.pct) : !long || x.tokens === undefined ? x.pct : `${fmtTokens(x.tokens)} / ${fmtTokens(x.window)}`
-      const mark = x.compactAt === undefined ? severityMark(x.frac) : ''
-      return `${amount}${mark}${x.nearCompact ? ` · ${compactsIn(x.toCompact)}` : ''}`
-    },
-    contextHover:
-      x.compactAt === undefined
-        ? `${fmtTokens(x.used)} of ${fmtTokens(x.window)} (${x.pct}); older turns get summarized near full`
-        : `${fmtTokens(x.used)} of ${fmtTokens(x.compactAt)} (${x.pct}); auto-${compactsIn(x.toCompact)}`,
-    limitHover: { '5h': limitHover('5h'), '7d': limitHover('7d') },
-  }
-}
-
 /** What the history says: the costs' numbers, and each trail's trend for a reader. */
 export type HistoryWords = Readonly<{
   /** '$0.21' */
@@ -566,8 +454,6 @@ export type HistoryWords = Readonly<{
   costsAltOf: (count: number) => string
   /** 'context over the conversation, rising, compacts at 190k'; with compaction off, no compaction point. */
   contextTrailAlt: string
-  /** Pulse's spend tile's name: `spend`. */
-  spendBandName: string
   /** `no costs yet`, beside the flat trace, only while there is no cost at
    *  all: none recorded and a total of $0. A resumed conversation's total
    *  says there were costs. */
@@ -620,7 +506,6 @@ export const historyWords = (record: Trails, context: ContextFacts, spend: Reado
     numbersShort,
     costsAltOf,
     contextTrailAlt: `context over the conversation, ${contextTrendOf(record.context)}${compactsAt}`,
-    spendBandName: 'spend',
     costsNote: record.costs.length === 0 && !(spend.totalUsd > 0) ? EMPTY.costsShort : undefined,
     costFact:
       lastText === undefined ? undefined

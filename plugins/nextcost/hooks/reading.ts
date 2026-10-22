@@ -1,13 +1,14 @@
 // What the band reads off its snapshot before it draws anything: the cache's
 // meaning as cache.ts reads it, the context's fill, each limit's tone and
-// pace, with their words from words.ts beside them, and the board's from
-// board-words.ts. Pure, so readingsOf can be checked without mounting the
-// band.
+// pace, with their words from words.ts beside them, the board's from
+// board-words.ts and chips' from chips-words.ts. Pure, so readingsOf can be
+// checked without mounting the band.
 
 import { cacheFactsOf } from './cache'
 import type { CacheFacts } from './cache'
 import { drawnWeekOf } from './calendar'
 import type { DrawnWeek, WindowNow } from './calendar'
+import type { ContextFacts, ContextFill, Frame, LimitBase, LimitFacts, LimitKey, LiveLimit, SpendFacts } from './facts'
 import {
   FIVE_HOUR_MS,
   SEVEN_DAY_MS,
@@ -21,17 +22,15 @@ import {
   resetIn,
   toCompaction,
 } from './format'
-import type { ResetIn, Zone } from './format'
-import { drawnTier } from './glyphs'
 import { lastCostOf, warmAverageOf } from './insights'
 import type { CostEntry, Trails } from './insights'
-import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
+import type { BandSnapshot, LimitUse } from './snapshot'
 import { boardWords } from './board-words'
 import type { Board } from './board-words'
-import { cacheWords, chipsWords, contextWords, historyWords, limitWords, spendWords, weekWords } from './words'
-import type { CacheWords, ChipsWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
-
-export type Tone = 'calm' | 'amber'
+import { chipsWords } from './chips-words'
+import type { ChipsWords } from './chips-words'
+import { cacheWords, contextWords, historyWords, limitWords, spendWords, weekWords } from './words'
+import type { CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
 
 // ---- the limits -------------------------------------------------------------
 
@@ -39,106 +38,47 @@ export type Tone = 'calm' | 'amber'
 const windowGone = (at: number | undefined, windowMs: number | undefined, now: number): number | undefined =>
   windowMs === undefined || at === undefined || at <= now ? undefined : clamp01(1 - (at - now) / windowMs)
 
-// ---- the facts every layout draws from ------------------------------------
+/** The share of a window gone before the average's landing is said: before
+ *  it, the pace is too young to read. */
+const PACE_MIN_GONE = 0.05
 
-/** How the band is mounted and when: what every view lays itself out by. */
-export type Frame = Readonly<{
-  expanded: boolean
-  maxRows: number
-  now: number
-  isWorking: boolean
-  /** The tier drawn in: the session's on a terminal, where ambiguous-width
-   *  glyphs can draw wide; the band's own glyphs on every other surface. */
-  glyphs: Glyphs
-  zone: Zone | undefined
-}>
+/** A window still to reset, from its `base`: where the average lands it,
+ *  when it fills, its tone and the time to its reset. `etaMs` is a measured
+ *  fill, set only for one that comes before the reset. */
+const paceOf = (base: LimitBase, windowMs: number | undefined, etaMs: number | null, now: number): LiveLimit => {
+  const { percentUsed, gone, resetsAt: at } = base
+  // A measured fill lands it at 100, so the words and the amber agree; else
+  // the average's landing, once enough of the window has gone and any of it
+  // is used: with none, the window may not have begun.
+  const projectedPct =
+    etaMs !== null ? 100 : gone === undefined || gone < PACE_MIN_GONE || percentUsed <= 0 ? undefined : percentUsed / gone
+  // At the average's pace, what is left takes the time gone so far, scaled by what is left over what is used.
+  const averageFill =
+    projectedPct === undefined || projectedPct < 100 || gone === undefined || windowMs === undefined
+      ? undefined
+      : (Math.max(0, 100 - percentUsed) / percentUsed) * gone * windowMs
+  const fillInMs = etaMs ?? averageFill
+  return {
+    ...base,
+    passed: false,
+    etaMs,
+    tone: base.frac >= WARN_AT || etaMs !== null ? 'amber' : 'calm',
+    projectedPct,
+    resetInMs: base.reset?.kind === 'in' && at !== undefined ? at - now : undefined,
+    fillInMs,
+    // A full window has nothing left to fill: it says its percent, and its reset.
+    fullInMs: percentUsed >= 100 ? undefined : fillInMs,
+  }
+}
 
-/** The context's fill, read alike whether or not it compacts. */
-type ContextFill = Readonly<{
-  known: boolean
-  used: number
-  frac: number
-  pct: string
-  tone: Tone
-  /** The tokens in context, as the engine reported them; undefined when it didn't. */
-  tokens: number | undefined
-  autoCompactOff: boolean
-  window: number
-}>
-
-/** The context toward auto-compaction, with the room left before it and
- *  whether it is near; or, with compaction off or not reported yet, against
- *  the window alone. */
-export type ContextFacts = ContextFill &
-  (
-    | Readonly<{ compactAt: number; toCompact: number; nearCompact: boolean }>
-    | Readonly<{ compactAt: undefined; toCompact: undefined; nearCompact: false }>
-  )
-
-export type SpendFacts = Readonly<{
-  totalUsd: number
-  lastTurnUsd: number | null
-  sent: number
-  back: number
-  cached: number
-  total: number
-}>
-
-export type LimitKey = '5h' | '7d' | 'other'
-
-/** What a window says whether or not it has passed. */
-type LimitBase = Readonly<{
-  name: string
-  key: LimitKey
-  percentUsed: number
-  frac: number
-  /** `82%`, with no severity mark: chips adds its own. */
-  value: string
-  reset: ResetIn | undefined
-  /** When it resets, epoch ms, as the snapshot carries it. */
-  resetsAt: number | undefined
-  gone: number | undefined
-}>
-
-/** A window still to reset: its tone, its pace and when it fills. */
-type LiveLimit = LimitBase &
-  Readonly<{
-    passed: false
-    tone: Tone
-    etaMs: number | null
-    /** 100 when a 5h fill is measured; else the average's landing, once 5% of
-     *  the window has gone and any of it is used. */
-    projectedPct: number | undefined
-    /** Time to the reset. */
-    resetInMs: number | undefined
-    /** Time to full before the reset: a measured fill, else the average's,
-     *  once it lands at 100% or more; undefined while it lands short. */
-    fillInMs: number | undefined
-    /** `fillInMs` while there is something left to fill: undefined once full. */
-    fullInMs: number | undefined
-  }>
-
-/** A window whose reset has passed: calm, with no pace, reset or fill to say. */
-type PassedLimit = LimitBase &
-  Readonly<{
-    passed: true
-    tone: 'calm'
-    etaMs: null
-    projectedPct: undefined
-    resetInMs: undefined
-    fillInMs: undefined
-    fullInMs: undefined
-  }>
-
-export type LimitFacts = LiveLimit | PassedLimit
+// ---- the readings -----------------------------------------------------------
 
 // What the views read: each section's facts, and its words beside them.
 type CacheReading = CacheFacts & CacheWords
 type ContextReading = ContextFacts & ContextWords
 type SpendReading = SpendFacts & SpendWords
-/** A limit window as the views read it. A view, not a reading: `LimitReading`
- *  is the snapshot's raw window. */
-export type LimitView = LimitFacts & LimitWords
+/** A limit window as the views read it. */
+export type LimitReading = LimitFacts & LimitWords
 
 /** The conversation's trails, their words, and the series a chart draws. */
 type HistoryReading = Trails &
@@ -166,11 +106,11 @@ export type Readings = Readonly<{
   cache: CacheReading
   spend: SpendReading
   context: ContextReading
-  fiveHour: LimitView | undefined
-  sevenDay: LimitView | undefined
+  fiveHour: LimitReading | undefined
+  sevenDay: LimitReading | undefined
   /** 5h, 7d, then every other window the engine reports. */
-  limits: readonly LimitView[]
-  worstLimit: LimitView | undefined
+  limits: readonly LimitReading[]
+  worstLimit: LimitReading | undefined
   workspace: BandSnapshot['workspace']
   /** Built the first time a view calls it, then kept, so chips never pays for it. */
   history: () => HistoryReading
@@ -213,39 +153,16 @@ const spendFacts = (snap: BandSnapshot): SpendFacts => {
 
 /** The facts of each window the engine reports: 5h, 7d, then the rest. */
 const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
-  const one = (name: string, key: LimitKey, reading: LimitReading, windowMs: number | undefined, etaMs: number | null): LimitFacts => {
-    const at = reading.resetsAt
+  const one = (name: string, key: LimitKey, use: LimitUse, windowMs: number | undefined, etaMs: number | null): LimitFacts => {
+    const at = use.resetsAt
     const reset = resetIn(at, snap.now)
-    const frac = clamp01(reading.percentUsed / 100)
+    const frac = clamp01(use.percentUsed / 100)
     const gone = windowGone(at, windowMs, snap.now)
-    const base: LimitBase = { name, key, reset, resetsAt: at, gone, percentUsed: reading.percentUsed, frac, value: fmtPercent(reading.percentUsed) }
+    const base: LimitBase = { name, key, reset, resetsAt: at, gone, percentUsed: use.percentUsed, frac, value: fmtPercent(use.percentUsed) }
     // Passed, the window that reset has no pace, reset or fill to say.
     if (reset?.kind === 'passed')
       return { ...base, passed: true, tone: 'calm', etaMs: null, projectedPct: undefined, resetInMs: undefined, fillInMs: undefined, fullInMs: undefined }
-    // A measured fill lands it at 100, so the words and the amber agree; else
-    // the average's landing, once 5% of the window has gone and any of it is
-    // used: with none, the window may not have begun.
-    const projectedPct =
-      etaMs !== null ? 100 : gone === undefined || gone < 0.05 || reading.percentUsed <= 0 ? undefined : reading.percentUsed / gone
-    // At the average's pace, what is left takes the time gone so far, scaled by what is left over what is used.
-    const averageFill =
-      projectedPct === undefined || projectedPct < 100 || gone === undefined || windowMs === undefined
-        ? undefined
-        : (Math.max(0, 100 - reading.percentUsed) / reading.percentUsed) * gone * windowMs
-    const fillInMs = etaMs ?? averageFill
-    // A full window has nothing left to fill: it says its percent, and its reset.
-    const fullInMs = reading.percentUsed >= 100 ? undefined : fillInMs
-    return {
-      ...base,
-      passed: false,
-      etaMs,
-      // etaMs is set only for a measured fill that comes before the reset.
-      tone: frac >= WARN_AT || etaMs !== null ? 'amber' : 'calm',
-      projectedPct,
-      resetInMs: reset?.kind === 'in' && at !== undefined ? at - snap.now : undefined,
-      fillInMs,
-      fullInMs,
-    }
+    return paceOf(base, windowMs, etaMs, snap.now)
   }
   return [
     ...(snap.fiveHour ? [one('5h', '5h', snap.fiveHour, FIVE_HOUR_MS, snap.fiveHour.etaMs)] : []),
@@ -279,7 +196,7 @@ const beatsTopOf = (costs: readonly CostEntry[], avg: number | undefined): numbe
 
 /** A window as the calendar reads it: its reset and its fill as times. A
  *  reset passed is one the calendar draws nothing for. */
-const windowOf = (l: LimitView | undefined, now: number): WindowNow | undefined =>
+const windowOf = (l: LimitReading | undefined, now: number): WindowNow | undefined =>
   l === undefined
     ? undefined
     : {
@@ -293,7 +210,7 @@ const windowOf = (l: LimitView | undefined, now: number): WindowNow | undefined 
 
 /** The week's cells from the limit samples, as drawn, with their words.
  *  With the zone unknown, the cells are named in UTC. */
-const weekReading = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour: LimitView | undefined): WeekReading => {
+const weekReading = (snap: BandSnapshot, sevenDay: LimitReading | undefined, fiveHour: LimitReading | undefined): WeekReading => {
   const week = drawnWeekOf({ samples: snap.samples, seven: windowOf(sevenDay, snap.now), five: windowOf(fiveHour, snap.now), now: snap.now, zone: snap.zone ?? fixedZone(0) })
   return { ...week, ...weekWords(week, fiveHour) }
 }
@@ -309,17 +226,16 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     maxRows: snap.maxRows,
     now: snap.now,
     isWorking: snap.isWorking,
-    glyphs: drawnTier(snap),
     zone: snap.zone,
   }
   const cache: CacheReading = withWords(cacheFactsOf(snap.cache, snap.isWorking), cacheWords)
   const spend: SpendReading = withWords(spendFacts(snap), spendWords)
   const context: ContextReading = withWords(contextFacts(snap), contextWords)
-  const limits = limitFacts(snap).map((f): LimitView => withWords(f, l => limitWords(l, frame)))
+  const limits = limitFacts(snap).map((f): LimitReading => withWords(f, l => limitWords(l, frame)))
   // The headline is the window closest to its limit.
   const worstLimit = limits
     .filter(l => !l.passed)
-    .reduce<LimitView | undefined>((top, l) => (top === undefined || l.percentUsed > top.percentUsed ? l : top), undefined)
+    .reduce<LimitReading | undefined>((top, l) => (top === undefined || l.percentUsed > top.percentUsed ? l : top), undefined)
   const fiveHour = limits.find(l => l.key === '5h')
   const sevenDay = limits.find(l => l.key === '7d')
   let history: HistoryReading | undefined

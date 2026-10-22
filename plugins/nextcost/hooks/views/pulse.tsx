@@ -6,9 +6,10 @@
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { barChart, dayCells, flatBeats, heartbeat, sparkline } from '../charts'
+import type { Tone } from '../facts'
 import type { Kit } from '../kit'
 import { isDrawn } from '../layout'
-import type { Readings, Tone } from '../reading'
+import type { Readings } from '../reading'
 import { EMPTY, type Amber } from '../words'
 import { fitLine, type Keeps, line, type PieceOf } from './frame'
 import { chartsDraw, openStack } from './pulse-open'
@@ -98,7 +99,7 @@ const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderEleme
     const total = said(kit, 'w', k.has('last') && !hist.empty ? [read.spend.totalText, hist.numbersShort].join(' · ') : read.spend.totalText, 'calm')
     // Spend is never amber: it gives way whole at its step.
     const spendTile = !k.has('spend') ? null : tile(kit, k, 'spend', 'calm', palette.surface, [
-      named(kit, hist.spendBandName),
+      named(kit, read.spend.bandName),
       noted ? <Text key="w">{total}<Text key="none" color={palette.label}>{` · ${hist.costsNote}`}</Text></Text> : total,
       trace,
     ])

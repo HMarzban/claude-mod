@@ -36,7 +36,7 @@ export const drawBand = (
     const tree = drawView(views[layout], kit, read, act)
     // Mapped last: the squeeze measured the row in the band's own glyphs, and
     // no mapping widens one.
-    return read.frame.glyphs === 'ascii' ? asciiTree(tree) : tree
+    return kit.glyphs === 'ascii' ? asciiTree(tree) : tree
   }
   try {
     return draw(layoutAt(snap.layout, snap.columns, views))

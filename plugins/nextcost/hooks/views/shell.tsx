@@ -5,10 +5,11 @@
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import type { SplitPart } from '../charts'
+import type { Tone } from '../facts'
 import type { Icon } from '../icons'
 import type { Kit } from '../kit'
 import { CARD_TEXT, DESKTOP } from '../layout'
-import type { Readings, Tone } from '../reading'
+import type { Readings } from '../reading'
 import type { Palette } from '../palette'
 import { CARD_TITLES } from '../words'
 import type { Role, Say } from '../words'

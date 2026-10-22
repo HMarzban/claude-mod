@@ -4,10 +4,11 @@
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { meter, splitBar } from '../charts'
 import type { SplitPart } from '../charts'
+import type { LimitKey, Tone } from '../facts'
 import type { Kit } from '../kit'
 import { textCells } from '../layout'
 import type { BarSize } from '../layout'
-import type { LimitKey, LimitView, Readings, Tone } from '../reading'
+import type { LimitReading, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { SPLIT_LABELS, type Say } from '../words'
 import { bodyRowsFor, footer, topStrip } from './frame'
@@ -154,7 +155,7 @@ const contextCard = (kit: Kit, read: Readings, fit: Fit): RenderElement | null =
 
 /** Limits' first row: the worst window's reset, at its clock time once the
  *  offset is known, and its pace. */
-const leadRow = (kit: Kit, worst: LimitView | undefined): RenderChildren => {
+const leadRow = (kit: Kit, worst: LimitReading | undefined): RenderChildren => {
   if (worst === undefined) return null
   const { Box, Text, palette, oneLine } = kit
   const { pace, resetWhen: when } = worst
@@ -176,12 +177,12 @@ const leadRow = (kit: Kit, worst: LimitView | undefined): RenderChildren => {
 /** One window: its name, bar and value on a line, then its name again with
  *  its reset and pace in words, `5h resets 4h 55m`, which the lead row says
  *  for the worst. */
-const limitRows = (kit: Kit, fit: Fit, worst: LimitView | undefined, w: LimitView): readonly [RenderChildren, RenderChildren] => {
+const limitRows = (kit: Kit, fit: Fit, worst: LimitReading | undefined, w: LimitReading): readonly [RenderChildren, RenderChildren] => {
   const { Box, Text, palette, measure, onTone, oneLine } = kit
   const { name, frac, tone } = w
   if (w.passed) return [factRow(kit, name, 'reset'), null]
   const value = w.valueMarked
-  const reset = w.cardResetLess
+  const reset = w.resetAndPace
   const room = Math.max(4, fit.inner - textCells(name) - textCells(value) - 2)
   const size: BarSize = { px: room * measure.pxPerCell, cells: room }
   return [

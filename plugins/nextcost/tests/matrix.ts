@@ -12,7 +12,7 @@ import { makeKit, type Kit } from '../hooks/kit'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
 import { snapshotOf } from '../hooks/snapshot'
-import type { BandActions, BandSnapshot, Glyphs, LayoutName, LimitReading, SnapshotParts } from '../hooks/snapshot'
+import type { BandActions, BandSnapshot, Glyphs, LayoutName, LimitUse, SnapshotParts } from '../hooks/snapshot'
 import { VIEWS } from '../hooks/views/index'
 import { SPLIT_LABELS } from '../hooks/words'
 import { rowsOf } from '../hooks/views/view'
@@ -73,7 +73,7 @@ export const LAST_MINUTE_CACHE = cacheWith({ leftMs: 30_000, ttl: '5m' })
 export const NEAR_COMPACTION: BandSnapshot['context'] = { tokens: 180_000, window: 200_000, percent: 90, compactAt: 190_000, autoCompactOff: false }
 
 /** A window `pct` used, resetting `h` hours after `now`. */
-export const limitAt = (pct: number, h: number, now = 0): LimitReading => ({ percentUsed: pct, resetsAt: now + h * HOUR })
+export const limitAt = (pct: number, h: number, now = 0): LimitUse => ({ percentUsed: pct, resetsAt: now + h * HOUR })
 /** Calm windows: the 5h at 26%, its reset in 3h and no fill in sight; the 7d at 41%, its reset in 67h. */
 export const CALM_LIMITS = { fiveHour: { ...limitAt(26, 3), etaMs: null }, sevenDay: limitAt(41, 67) } as const satisfies Partial<BandSnapshot>
 /** The same, but the 7d amber at 85%, as the three-layouts spec §3's scenario has it. */

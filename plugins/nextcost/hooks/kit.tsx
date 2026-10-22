@@ -3,13 +3,13 @@
 // global h(), so nothing here, or anywhere, is named h.
 
 import type { ElementTable, RenderChildren, RenderElement, TextProps } from 'claude-code'
+import type { Tone } from './facts'
 import { clipWords } from './format'
 import { asciiText, asciiTree, drawnTier } from './glyphs'
 import { ALT, GLYPH, ICON_PATHS, ICON_PX } from './icons'
 import type { Icon } from './icons'
 import { DESKTOP, DESKTOP_CARD_TEXT, TERMINAL, textCells } from './layout'
 import type { Span } from './layout'
-import type { Tone } from './reading'
 import type { BandSnapshot } from './snapshot'
 
 /** Where a hover card sits in its row, which has `room` columns: by `left`,
