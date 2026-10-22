@@ -61,7 +61,7 @@ test('the first reply after a resume or a reload rebuilds a cache already cold',
 test('a warm read is no re-warm', () => {
   const c = newCache()
   c.responded(OPUS_BUILD, 0, true)
-  rebuilt(c)
+  c.turnEnded(undefined)
   c.responded({ ...resp(2_000, 196_000, 4_000, 3_000), model: 'claude-opus-5-5' }, MIN, true)
   expect(rebuilt(c)).toBe(false)
 })
