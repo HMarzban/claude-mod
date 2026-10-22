@@ -20,8 +20,8 @@ import {
   fmtLeftShort,
   fmtLeftSpoken,
   fmtPct,
+  fmtResetSpan,
   fmtSmallCost,
-  fmtSpan,
   fmtTokens,
   grainOf,
   HOUR_MS,
@@ -766,7 +766,7 @@ export const boardWords = (r: BoardFacts): Board => {
  *  no zone known, a limit's words say, and the board's, which with no zone
  *  counts its last minute's seconds; with a zone the board says a clock. */
 const resetSpans = (left: number, zone: Zone | undefined): string =>
-  left <= 0 ? 'passed' : zone === undefined ? `${fmtSpan(left)} ${boardSpan(left)}` : fmtSpan(left)
+  left <= 0 ? 'passed' : zone === undefined ? `${fmtResetSpan(left)} ${boardSpan(left)}` : fmtResetSpan(left)
 
 /** Every phrase the clock alone moves, as one key, so the 1-second tick
  *  repaints only when one would read differently: the minute (the clocks

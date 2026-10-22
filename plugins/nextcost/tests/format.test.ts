@@ -86,9 +86,11 @@ test('a reset at or before now has passed; one less than a second off has not ye
   expect(resetIn(at(999), NOW)).toEqual({ kind: 'in', text: '<1m' })
 })
 
-test('a reset within the hour is whole minutes, cut down', () => {
+test('a reset under ten minutes off is whole minutes rounded up, as every close countdown is; within the hour, cut down', () => {
   expect(resetIn(at(MIN), NOW)).toEqual({ kind: 'in', text: '1m' })
-  expect(resetIn(at(5 * MIN + 59 * SEC), NOW)).toEqual({ kind: 'in', text: '5m' })
+  expect(resetIn(at(MIN + SEC), NOW)).toEqual({ kind: 'in', text: '2m' })
+  expect(resetIn(at(5 * MIN + 59 * SEC), NOW)).toEqual({ kind: 'in', text: '6m' })
+  expect(resetIn(at(10 * MIN + 59 * SEC), NOW)).toEqual({ kind: 'in', text: '10m' })
   expect(resetIn(at(59 * MIN + 59 * SEC), NOW)).toEqual({ kind: 'in', text: '59m' })
 })
 

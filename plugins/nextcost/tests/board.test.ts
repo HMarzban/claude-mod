@@ -124,3 +124,8 @@ test("an other limit's ITEM names it a limit, so it never reads as the session's
   expect(others('spend_limit')).toEqual(['SPEND LIMIT'])
   expect(others('credit_limit')).toEqual(['CREDIT LIMIT'])
 })
+test("with no zone, a reset under ten minutes off reads the same minute on the board as in the limit's words", () => {
+  const r = readingsOf(snapOf({ fiveHour: { percentUsed: 4, resetsAt: new Date(4 * MIN + 30_000).toISOString(), etaMs: null } }))
+  expect(r.fiveHour?.resetWhen).toBe('in 5m')
+  expect(r.board().rows.find(row => row.key === '5h')?.time).toBe('IN 5 MIN')
+})

@@ -86,7 +86,7 @@ export const fmtCountdown = (ms: number): string => {
 export type ResetIn = { kind: 'in'; text: string } | { kind: 'passed' }
 
 /** A span coarsely, to the minute: `2d 4h`, `3h 05m`, `12m`, `<1m`. */
-export const fmtSpan = (ms: number): string => {
+const fmtSpan = (ms: number): string => {
   const mins = Math.floor(Math.max(0, ms) / MINUTE_MS)
   const hours = Math.floor(mins / 60)
   const days = Math.floor(hours / 24)
@@ -95,13 +95,17 @@ export const fmtSpan = (ms: number): string => {
   return mins > 0 ? `${mins}m` : '<1m'
 }
 
+/** The time to a reset `ms` off: coarsely, and while close in whole minutes
+ *  rounded up, as every close countdown counts. */
+export const fmtResetSpan = (ms: number): string => (grainOf(ms) === 'close' ? `${minutesLeft(ms)}m` : fmtSpan(ms))
+
 /** When `iso` comes, from `now`; undefined without a readable time. */
 export const resetIn = (iso: string | undefined, now: number): ResetIn | undefined => {
   if (!iso) return undefined
   const at = Date.parse(iso)
   if (Number.isNaN(at)) return undefined
   const left = at - now
-  return left <= 0 ? { kind: 'passed' } : { kind: 'in', text: fmtSpan(left) }
+  return left <= 0 ? { kind: 'passed' } : { kind: 'in', text: fmtResetSpan(left) }
 }
 
 /** The words for escalation: colour is never the only signal. */
