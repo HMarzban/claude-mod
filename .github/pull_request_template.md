@@ -16,3 +16,4 @@
 - [ ] `tools/views-gate.sh` passes
 - [ ] `version` bumped in `plugin.json` and an entry added to `CHANGELOG.md`
 - [ ] The plugin README updated, if the band reads differently
+- [ ] The plugin README's *What it runs, reads and sends* and `SECURITY.md` updated, if the band runs, reads or hooks anything new
