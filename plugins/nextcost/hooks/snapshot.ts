@@ -1,8 +1,10 @@
 // The snapshot register.tsx reads for the band, and what the band can do
-// back: the one contract between the engine side and the drawing.
+// back: the one contract between the engine side and the drawing, and the
+// one way to build it, which the tests build theirs by too.
 
-import type { RenderSurface } from 'claude-code'
-import type { Ttl } from './cache'
+import type { RenderSurface, SessionRateLimit, SessionUsage } from 'claude-code'
+import type { CacheView } from './cache'
+import { parseReset } from './format'
 import type { Zone } from './format'
 import type { Trails } from './insights'
 import type { Sample } from './memory'
@@ -22,6 +24,21 @@ export const DEFAULT_LAYOUT: LayoutName = 'chips'
 /** A limit window's use, and when it resets, epoch ms; undefined without a readable time. */
 export type LimitReading = Readonly<{ percentUsed: number; resetsAt: number | undefined }>
 
+/** A window the engine reports, its reset parsed once, here: past this
+ *  point every reset is epoch ms. */
+export const limitOf = (l: SessionRateLimit): LimitReading & Readonly<{ kind: string }> => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: parseReset(l.resetsAt) })
+
+/** The engine's names for the two limits the band reads by name. */
+export const FIVE_HOUR = 'five_hour'
+const SEVEN_DAY = 'seven_day'
+
+/** The 5-hour and 7-day windows the engine reports, and every other one. */
+export const splitLimits = <L extends Readonly<{ kind: string }>>(limits: readonly L[]): Readonly<{ five: L | undefined; seven: L | undefined; others: L[] }> => ({
+  five: limits.find(l => l.kind === FIVE_HOUR),
+  seven: limits.find(l => l.kind === SEVEN_DAY),
+  others: limits.filter(l => l.kind !== FIVE_HOUR && l.kind !== SEVEN_DAY),
+})
+
 /** Everything the band shows, read by register.tsx. */
 export type BandSnapshot = Readonly<{
   surface: RenderSurface
@@ -32,47 +49,10 @@ export type BandSnapshot = Readonly<{
   expanded: boolean
   palette: Readonly<Palette>
   now: number
-  cache: Readonly<{
-    requests: number
-    msLeft: number
-    /** When the cache goes or went cold, epoch ms; null when not known. */
-    coldAt: number | null
-    ttl: Ttl
-    /** The TTL is known, not assumed: pinned by the environment, or seen on
-     *  the transcript's last cache write before this band's first reply. */
-    ttlPinned: boolean
-    window: number
-    hitRatio: number | null
-    misses: number
-    reWarmUsd: number | null
-    /** What reading from the cache saved against full input price. */
-    savedUsd: number | null
-    /** A cache read's price against input, on the model in force. */
-    readShare: number
-    /** The conversation is known to start here; else, before its first
-     *  reply, the band has not measured the cache yet. */
-    fresh: boolean
-    /** Claude Code compacted the conversation while it sat idle: the cache
-     *  is gone, and the next message writes the summary. */
-    compacted: boolean
-    /** Claude Code may compact this conversation when it sits idle on the
-     *  hour's cache: a terminal session, idle compaction on, and the context
-     *  past its threshold. */
-    idleCompacts: boolean
-    /** Before the first reply the band saw, the cache is as recalled: from
-     *  the session's last reply, remembered or read off its transcript. */
-    recalled: boolean
-    /** How long since that recalled reply. */
-    idleMs: number | null
-    /** A resumed conversation's spend and tokens from before this process
-     *  are counted, as its transcript records them. */
-    recovered: boolean
-    /** Every token since the conversation began, subagents included. */
-    tokens: Readonly<{ sent: number; back: number; cached: number }>
-  }>
+  cache: CacheView
   costUsd: number
-  lastTurnUsd: number | null
-  /** This conversation's message costs and context. */
+  /** This conversation's message costs and context: the newest cost is
+   *  what the last message cost. */
   history: Trails
   context: Readonly<{
     tokens: number | undefined
@@ -105,3 +85,55 @@ export type BandActions = Readonly<{
   toggleExpanded: () => Promise<void>
   hide: () => Promise<void>
 }>
+
+/** What a snapshot is built from: the engine's usage at `now` and the
+ *  render's mount; what the band keeps between hooks; and the cache's view
+ *  and the insights as they stand then, the ledger already noted. */
+export type SnapshotParts = Readonly<{
+  usage: Pick<SessionUsage, 'rateLimits' | 'context'>
+  now: number
+  mount: Pick<BandSnapshot, 'surface' | 'columns' | 'maxRows' | 'isWorking'>
+  expanded: boolean
+  band: Pick<BandSnapshot, 'palette' | 'layout' | 'glyphs' | 'samples' | 'workspace'> & Pick<BandSnapshot['context'], 'compactAt' | 'autoCompactOff'>
+  cache: CacheView
+  costUsd: number
+  history: Trails
+  /** Time until your pace fills the 5-hour window, as insights.ts measures it. */
+  etaMs: number | null
+  zone: Zone | undefined
+}>
+
+/** The snapshot of `p`: each window the engine reports read once, the 5h
+ *  and 7d by name, and the context with where it compacts. */
+export const snapshotOf = (p: SnapshotParts): BandSnapshot => {
+  const { five, seven, others } = splitLimits(p.usage.rateLimits.map(limitOf))
+  const { band, usage } = p
+  return {
+    ...p.mount,
+    expanded: p.expanded,
+    palette: band.palette,
+    layout: band.layout,
+    glyphs: band.glyphs,
+    now: p.now,
+    cache: p.cache,
+    costUsd: p.costUsd,
+    history: p.history,
+    context: {
+      tokens: usage.context.tokens,
+      window: usage.context.window,
+      percent: usage.context.percent,
+      compactAt: band.compactAt,
+      autoCompactOff: band.autoCompactOff,
+    },
+    fiveHour: five ? { percentUsed: five.percentUsed, resetsAt: five.resetsAt, etaMs: p.etaMs } : undefined,
+    sevenDay: seven ? { percentUsed: seven.percentUsed, resetsAt: seven.resetsAt } : undefined,
+    samples: band.samples,
+    workspace: band.workspace,
+    zone: p.zone,
+    otherLimits: others,
+  }
+}
+
+/** The resets a snapshot draws, epoch ms: the timer repaints as their countdowns turn. */
+export const resetsOf = (s: BandSnapshot): number[] =>
+  [s.fiveHour, s.sevenDay, ...s.otherLimits].flatMap(l => (l?.resetsAt === undefined ? [] : [l.resetsAt]))

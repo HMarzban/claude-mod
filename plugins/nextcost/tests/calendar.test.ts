@@ -1,5 +1,6 @@
 import { test, expect } from 'claude-code/testing'
-import { weekOf } from '../hooks/calendar'
+import { cappedMarks, drawnWeekOf, weekOf, windowNowAt } from '../hooks/calendar'
+import type { HourCell } from '../hooks/calendar'
 import { fixedZone } from '../hooks/format'
 import { HOUR as H } from './helpers'
 
@@ -80,4 +81,29 @@ test("on the reset's own day, before it resets, today is that day", () => {
   const wk = weekOf({ samples: [], seven: seven(80, 90), five: undefined, now: R - 6 * H, zone: fixedZone(0) })
   expect(wk.days.filter(d => d.today).map(d => `${initial(d)}${d.date}`)).toEqual(['T13'])
   expect(wk.days).toHaveLength(7)
+})
+test("capped, the slice marked full takes what is left, even where the step's guess says otherwise", () => {
+  const cell = (pct: number, guess: boolean, fullMark = false): HourCell =>
+    ({ startClock: '', now: false, future: guess, pct, guess, fullMark })
+  const marks = (cells: HourCell[], used: number) => cappedMarks(cells, used).map(m => `${m.kind} ${m.pct}`)
+  // A measured fill lands sooner than the step: its slice still fills the cap.
+  expect(marks([cell(50, false), cell(10, true, true), cell(10, true)], 50)).toEqual(['measured 50', 'fills 50', 'spent 0'])
+  // Or later: the guesses before it spend what is left, and it is still the fill.
+  expect(marks([cell(70, false), cell(40, true), cell(40, true, true), cell(40, true)], 70)).toEqual(['measured 70', 'guess 30', 'fills 0', 'spent 0'])
+})
+test("the 5h's now stays on the chart: at the window's very end it is the last slice, and with no slice none", () => {
+  expect(windowNowAt(5, 5)).toBe(4)
+  expect(windowNowAt(4.99, 5)).toBe(4)
+  expect(windowNowAt(2.5, 5)).toBe(2)
+  expect(windowNowAt(3, 0)).toBeUndefined()
+  expect(windowNowAt(undefined, 5)).toBeUndefined()
+})
+test('as drawn, the days ahead are guessed only up to what is left, and the cells say which are guesses', () => {
+  // 30% used by Friday, on pace for 130%: the raw guesses ahead would pass the 70 points left.
+  const wk = drawnWeekOf({ samples: [s(0, 0), s(15, 6), s(39, 15), s(63, 26), s(77, 30)], seven: seven(30, 130), five: undefined, now: T0 + 77 * H, zone: fixedZone(0) })
+  expect(wk.days.slice(4).reduce((n, d) => n + (d.pct ?? 0), 0)).toBeGreaterThan(70)
+  const { values, guess, today, measured } = wk.daysDrawn
+  expect(values.reduce<number>((n, v, i) => n + (guess[i] ? (v ?? 0) : 0), 0)).toBeLessThanOrEqual(70 + 1e-9)
+  expect([today, measured, guess.slice(0, 4)]).toEqual([3, true, [false, false, false, false]])
+  expect(wk.fiveHourWindow).toEqual({ values: [], nowAt: undefined, from: 0 })
 })

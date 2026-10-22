@@ -71,7 +71,7 @@ test('every layout that says an empty state draws it in a label\'s ink', () => {
         for (const columns of [160, 40]) {
           const snap = snapOf({
             layout, surface, expanded, columns, maxRows: 40,
-            lastTurnUsd: null,
+            history: { costs: [], context: [] },
             context: { tokens: undefined, window: 200_000, percent: undefined, compactAt: undefined, autoCompactOff: false },
             fiveHour: undefined, sevenDay: undefined,
           })

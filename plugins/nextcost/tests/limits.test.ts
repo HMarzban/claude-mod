@@ -2,6 +2,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import { DARK } from '../hooks/palette'
+import { resetsOf, snapshotOf } from '../hooks/snapshot'
 import {
   LONG,
   USAGE,
@@ -26,6 +27,7 @@ import {
   setup,
   mountBand,
 } from './helpers'
+import { SNAP_PARTS, snapOf } from './matrix'
 
 test('the 5h and 7d chips show usage on a fill with no thumb, and the reset countdown', async ($, on) => {
   setup(on) // 5h 4%, resets in 3h; 7d 30%, resets in 67h
@@ -195,4 +197,17 @@ test('a gateway spend limit is listed in the expanded line', async ($, on) => {
   expect(fact(tree, 'resets')).toBe(hostClock(MODERN + 5 * HOUR, MODERN))
   expect(fact(tree, 'spend pace')).toBeUndefined()
   await ui.unmount()
+})
+
+test("a snapshot reads the 5h and 7d by name and every other window apart, each reset parsed once, and draws each one's", () => {
+  const spend = { kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }
+  const snap = snapOf()
+  const built = snapshotOf({
+    ...SNAP_PARTS,
+    usage: { ...USAGE, rateLimits: [spend, ...USAGE.rateLimits] },
+    etaMs: 40 * MIN,
+  })
+  expect([built.fiveHour, built.sevenDay]).toEqual([{ percentUsed: 4, resetsAt: 3 * HOUR, etaMs: 40 * MIN }, snap.sevenDay])
+  expect(built.otherLimits).toEqual([{ kind: 'spend_limit', percentUsed: 92, resetsAt: 5 * HOUR }])
+  expect(resetsOf(built)).toEqual([3 * HOUR, 67 * HOUR, 5 * HOUR])
 })

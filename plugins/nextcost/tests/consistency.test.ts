@@ -1,12 +1,14 @@
 // One source for each figure: a pace, a tone, a read price, the context in
 // use. Where the band says a thing twice, it says it the same way.
 
+import type { SessionRateLimit } from 'claude-code'
 import { test, expect, type Plugin } from 'claude-code/testing'
 import { contextUsed } from '../hooks/format'
 import { DARK } from '../hooks/palette'
 import {
   LONG,
   START,
+  USAGE,
   byKey,
   cardOf,
   engine,
@@ -108,6 +110,19 @@ test('a usage read that fails mid-turn never breaks the turn or the band', { plu
   usage.fails = false
   const ui = await mountBand($, 'terminal', 140)
   expect(shown(pillOf(await ui.drawn(), 'cache'))).toMatch(/cache 1h 00m/)
+  await ui.unmount()
+})
+
+test('a reading that throws never throws out of the band: it steps aside, by its own catch', { plugins: [tracer] }, async ($, on) => {
+  setup(on)
+  await $.session.start(START)
+  await respond($, resp(41_000, 0, 155_000, 12_000))
+  // A window the engine reports with no kind, as its JSON could arrive: the readings can't name it.
+  const nameless: SessionRateLimit = JSON.parse('{"kind":null,"percentUsed":50}')
+  usage.current = { ...USAGE, rateLimits: [...USAGE.rateLimits, nameless] }
+  // The tracer draws the band's outcome: its own catch stood, rather than the engine skipping it.
+  const ui = await mountBand($, 'terminal', 140)
+  expect(shown(await ui.drawn())).toBe('caught')
   await ui.unmount()
 })
 

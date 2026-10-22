@@ -12,17 +12,14 @@ import {
   asRates,
   asSessions,
   fromStore,
-  lastReplyAt,
-  lastReplyModel,
   mergeSamples,
   needsTranscript,
-  rateFromTranscript,
   recallOf,
   rememberRate,
   rememberReply,
   sampleOf,
-  transcriptPath,
 } from '../hooks/memory'
+import { lastReplyAt, lastReplyModel, rateFromTranscript, transcriptPath } from '../hooks/transcript'
 import { HOUR } from './helpers'
 
 const iso = (ms: number): string => new Date(ms).toISOString()
@@ -198,6 +195,14 @@ test("the last reply's model is the one the API billed it under, past lines that
 test("a subagent's reply is not the conversation's last: its own cache says nothing of the main loop's", () => {
   const subagent = { ...reply(9_000), isSidechain: true }
   expect(lastReplyAt(jsonl(reply(5_000), subagent))).toBe(5_000)
+})
+
+test("a subagent's reply names neither the main loop's model nor its last prompt", () => {
+  const subagent = { ...haikuReply(150_000), timestamp: iso(9_000), isSidechain: true }
+  expect(lastReplyModel(jsonl(reply(5_000), subagent))).toBe('claude-opus-5-5')
+  // A subagent's prompt over Haiku's tier says nothing of the main loop's: the record counts at the lower tier.
+  const transcript = jsonl(costState('claude-haiku-5-5'), haikuReply(60_000), subagent)
+  expect(near(rateFromTranscript(transcript, 'claude-haiku-5-5'), 20 / 4_000_000)).toBe(true)
 })
 
 test('a transcript with no reply has no last reply', () => {

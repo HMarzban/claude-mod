@@ -246,3 +246,6 @@ test('a wide character takes two columns, in every measure; an ambiguous glyph o
   expect([textCells('設計メモ'), textCells('main'), textCells('│ · …'), textCells('한글'), textCells('ＡＢ')]).toEqual([8, 4, 5, 4, 4])
   expect([cellsOf('設計', TERMINAL), cellsOf('設計', DESKTOP)]).toEqual([4, 3])
 })
+test("the fit tests' own count takes a wide character as two columns, as the terminal draws it", () => {
+  expect([widthOf('日本'), widthOf('😀a'), widthOf({ type: 'Button', props: { label: '日本' } })]).toEqual([4, 3, 4])
+})

@@ -14,7 +14,8 @@ import type {
 import { mock, type Engine, type MockClock } from 'claude-code/testing'
 import type { Sample } from '../hooks/memory'
 import { CHIP_BAR } from '../hooks/views/chips'
-import { READ_LIMIT } from '../hooks/memory'
+import { textCells } from '../hooks/layout'
+import { READ_LIMIT } from '../hooks/transcript'
 import { DARK } from '../hooks/palette'
 
 export const PLUGIN = 'nextcost'
@@ -363,16 +364,16 @@ export const rowCount = (tree: unknown): number => {
 }
 
 /** Cells a drawn row needs, as the terminal lays it out: text, padding, gaps
- *  and Button labels; hidden cards take none, nor a gap; an Svg takes a cell
- *  per 8px.
+ *  and Button labels, a wide character two cells by layout.ts's one rule;
+ *  hidden cards take none, nor a gap; an Svg takes a cell per 8px.
  *  Kept apart from band.tsx's own measure on purpose, so the fit tests check
  *  the drawing against an independent count rather than against itself. */
 export const widthOf = (n: unknown): number => {
-  if (typeof n === 'string' || typeof n === 'number') return [...String(n)].length
+  if (typeof n === 'string' || typeof n === 'number') return textCells(String(n))
   if (n === null || typeof n !== 'object') return 0
   const node = n as Node
   if (node.props?.position === 'absolute') return 0
-  if (node.type === 'Button') return [...String(node.props?.label ?? '')].length
+  if (node.type === 'Button') return textCells(String(node.props?.label ?? ''))
   if (node.type === 'Svg') return Math.ceil(Number(node.props?.width ?? 64) / 8)
   const kids = (node.children ?? []).filter(k => k !== null && k !== undefined && k !== false && !isCard(k))
   const pad = typeof node.props?.paddingX === 'number' ? 2 * node.props.paddingX : 0

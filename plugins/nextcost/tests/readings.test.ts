@@ -1,7 +1,7 @@
 import { test, expect } from 'claude-code/testing'
 import { fixedZone, fmtClock } from '../hooks/format'
-import type { HourCell } from '../hooks/calendar'
-import { cappedMarks, readingsOf, windowNowAt } from '../hooks/reading'
+import { cappedMarks } from '../hooks/calendar'
+import { readingsOf } from '../hooks/reading'
 import { HOUR, MIN, SAMPLES } from './helpers'
 import { snapOf } from './matrix'
 
@@ -206,7 +206,7 @@ test('the ascii tier is drawn on a terminal alone', () => {
   for (const surface of ['desktop', 'mobile', 'vscode'] as const) expect(readingsOf(snapOf({ surface, glyphs: 'ascii' })).frame.glyphs).toBe('unicode')
 })
 test('spend splits its tokens, each with its share', () => {
-  const s = readingsOf(snapOf()).spend
+  const s = readingsOf(snapOf({ history: { costs: [{ usd: 0.21, reWarm: false }], context: [] } })).spend
   expect([s.totalText, s.lastText, s.tokensText]).toEqual(['$3.19', '$0.21', '225k'])
   expect(s.split.map(p => p.label)).toEqual(['input', 'output', 'cache reads'])
   expect(Math.abs((s.split[2]?.frac ?? 0) - 198 / 225)).toBeLessThan(1e-5)
@@ -271,19 +271,10 @@ const boardWeek = (percentUsed = 66) => readingsOf(snapOf({
 })).week()
 test('week stops its guess at the cap: the fill day takes what is left, and none is left after it', () => {
   const wk = boardWeek()
-  expect(cappedMarks(wk.days, 66).map(m => `${m.kind} ${Math.round(m.pct)}`)).toEqual(['measured 66', 'fills 34', 'spent 0', 'spent 0', 'spent 0', 'spent 0', 'spent 0'])
+  expect(wk.dayMarks.map(m => `${m.kind} ${Math.round(m.pct)}`)).toEqual(['measured 66', 'fills 34', 'spent 0', 'spent 0', 'spent 0', 'spent 0', 'spent 0'])
   // calendar.ts still guesses every day ahead alike.
   expect(wk.days.slice(2).every(d => d.guess && (d.pct ?? 0) > 34)).toBe(true)
-  expect(cappedMarks(boardWeek(100).days, 100).slice(1).every(m => m.kind === 'spent')).toBe(true)
-})
-test("the slice calendar marks full takes what is left, even where the step's guess says otherwise", () => {
-  const cell = (pct: number, guess: boolean, fullMark = false): HourCell =>
-    ({ startClock: '', now: false, future: guess, pct, guess, fullMark })
-  const marks = (cells: HourCell[], used: number) => cappedMarks(cells, used).map(m => `${m.kind} ${m.pct}`)
-  // A measured fill lands sooner than the step: its slice still fills the cap.
-  expect(marks([cell(50, false), cell(10, true, true), cell(10, true)], 50)).toEqual(['measured 50', 'fills 50', 'spent 0'])
-  // Or later: the guesses before it spend what is left, and it is still the fill.
-  expect(marks([cell(70, false), cell(40, true), cell(40, true, true), cell(40, true)], 70)).toEqual(['measured 70', 'guess 30', 'fills 0', 'spent 0'])
+  expect(boardWeek(100).dayMarks.slice(1).every(m => m.kind === 'spent')).toBe(true)
 })
 test('the 5h at 0% places no now among its hours', () => {
   const wk = boardWeek()
@@ -345,13 +336,6 @@ test('fiveHourWindow climbs slice by slice and marks now', () => {
 test('fiveHourWindow is empty with no 5h window, or no slice measured', () => {
   expect(readingsOf(snapOf({ samples: [] })).week().fiveHourWindow.values).toEqual([])
   expect(readingsOf(snapOf({ samples: [], zone: fixedZone(0) })).week().fiveHourWindow.values).toEqual([])
-})
-test("fiveHourWindow's now stays on the chart: at the window's very end it is the last slice, and with no slice none", () => {
-  expect(windowNowAt(5, 5)).toBe(4)
-  expect(windowNowAt(4.99, 5)).toBe(4)
-  expect(windowNowAt(2.5, 5)).toBe(2)
-  expect(windowNowAt(3, 0)).toBeUndefined()
-  expect(windowNowAt(undefined, 5)).toBeUndefined()
 })
 test('windowAlt speaks the whole window, not the last hour: its use, its pace as about, no ~; nothing once passed', () => {
   const alt = readingsOf(snapOf({ samples: SAMPLES, zone: fixedZone(0) })).week().windowAlt
@@ -425,7 +409,7 @@ test("today's fill with no reading inside today yet is a guess of what is left, 
   const late = [at(-120, 70), at(-90, 74), at(-60, 78), at(-30, 82), at(-5, 85)]
   for (const week of [weekOf(late), weekOf([at(-30 * 60, 60), ...late])]) {
     const today = week.daysDrawn.today ?? -1
-    expect(cappedMarks(week.days, 85)[today]).toEqual({ kind: 'fills', pct: 15 })
+    expect(week.dayMarks[today]).toEqual({ kind: 'fills', pct: 15 })
     expect(week.daysAlt).toMatch(/Thursday about 15% and fills it/)
     expect([week.daysDrawn.values[today], week.daysDrawn.guess[today]]).toEqual([15, true])
   }
@@ -445,4 +429,10 @@ test('a context window of 0 reads 0%, never NaN%', () => {
   const r = readingsOf(snapOf({ context: { tokens: 0, window: 0, percent: undefined, compactAt: undefined, autoCompactOff: false } }))
   expect(r.context.pct).toBe('0%')
   expect(r.context.alt).not.toMatch(/NaN|Infinity/)
+})
+
+test("the last message's cost is one fact: the spend's words and the history's read the trail's newest", () => {
+  const r = readingsOf(snapOf({ history: { costs: [{ usd: 0.5, reWarm: false }, { usd: 0.08, reWarm: false }], context: [] } }))
+  expect([r.spend.lastText, r.history().lastText]).toEqual(['$0.08', '$0.08'])
+  expect(readingsOf(snapOf({ history: { costs: [], context: [] } })).spend.lastText).toBeUndefined()
 })
