@@ -149,8 +149,8 @@ test('a stored list past the cap is read as its newest week, malformed entries d
 
 test('a sample needs both windows and their resets', () => {
   const both = [
-    { kind: 'five_hour', percentUsed: 4, resetsAt: new Date(T0 + 3 * HOUR).toISOString() },
-    { kind: 'seven_day', percentUsed: 30, resetsAt: new Date(T0 + 67 * HOUR).toISOString() },
+    { kind: 'five_hour', percentUsed: 4, resetsAt: T0 + 3 * HOUR },
+    { kind: 'seven_day', percentUsed: 30, resetsAt: T0 + 67 * HOUR },
   ]
   expect(sampleOf(T0, both)).toEqual({ at: T0, fivePct: 4, sevenPct: 30, fiveResetAt: T0 + 3 * HOUR, sevenResetAt: T0 + 67 * HOUR })
   expect(sampleOf(T0, both.slice(0, 1))).toBeUndefined()

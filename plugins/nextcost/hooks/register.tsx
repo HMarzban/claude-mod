@@ -31,7 +31,7 @@ import {
 } from './cache'
 import type { RecalledReply, ResumedCache, Spend, TranscriptFacts } from './cache'
 import { commandPlan, parseCommand } from './command'
-import { contextUsed, hostZone, readableZone } from './format'
+import { contextUsed, hostZone, parseReset, readableZone } from './format'
 import { resolveGlyphs } from './glyphs'
 import {
   fiveHourEtaMs,
@@ -164,6 +164,10 @@ const band: {
   warned: NO_WARNINGS,
   tick: undefined,
 }
+
+/** A window the engine reports, its reset parsed once, here: past this
+ *  point every reset is epoch ms. */
+const limitOf = (l: SessionRateLimit): LimitReading & Readonly<{ kind: string }> => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: parseReset(l.resetsAt) })
 
 /** Where `sessionId`'s transcript is: where the engine says, else where
  *  Claude Code keeps it for this project; undefined without either. */
@@ -557,7 +561,7 @@ export const register: Register = on => {
       if (used !== undefined) pushContext(used)
       void rememberTurn($, cost)
       const now = await $.clock.now()
-      const sample = usage === undefined ? undefined : sampleOf(now, usage.rateLimits)
+      const sample = usage === undefined ? undefined : sampleOf(now, usage.rateLimits.map(limitOf))
       if (sample !== undefined) await noteSample($, sample)
       // Another session may have chosen a layout since.
       await readLayout($)
@@ -595,7 +599,7 @@ export const register: Register = on => {
 
   on('session.measure', async ($, e, next) => {
     const now = await $.clock.now()
-    for (const limit of e.rateLimits) if (limit.kind === FIVE_HOUR) noteFiveHour(now, limit.percentUsed, limit.resetsAt)
+    for (const limit of e.rateLimits.map(limitOf)) if (limit.kind === FIVE_HOUR) noteFiveHour(now, limit.percentUsed, limit.resetsAt)
     const limits = limitToasts(band.warned, e.rateLimits)
     band.warned = limits.warned
     for (const text of limits.say) $.ui.toast(text)
@@ -631,14 +635,11 @@ export const register: Register = on => {
     const usage = await $.session.usage().catch(() => undefined)
     if (usage === undefined) return next(e)
     const now = await $.clock.now()
-    const { five, seven, others } = splitLimits(usage.rateLimits)
+    const limits = usage.rateLimits.map(limitOf)
+    const { five, seven, others } = splitLimits(limits)
     if (usage.cost !== undefined) noteLedger(usage.cost.usd)
     const contextTokens = contextUsed(usage.context) ?? 0
-    const limitOf = (l: SessionRateLimit): LimitReading => ({ percentUsed: l.percentUsed, resetsAt: l.resetsAt })
-    band.resets = usage.rateLimits.flatMap(l => {
-      const at = Date.parse(l.resetsAt ?? '')
-      return Number.isNaN(at) ? [] : [at]
-    })
+    band.resets = limits.flatMap(l => (l.resetsAt === undefined ? [] : [l.resetsAt]))
 
     return drawBand(
       $.ui.resolve(e),
@@ -663,14 +664,14 @@ export const register: Register = on => {
           compactAt: band.compactAt,
           autoCompactOff: band.autoCompactOff,
         },
-        fiveHour: five ? { ...limitOf(five), etaMs: fiveHourEtaMs(now) } : undefined,
-        sevenDay: seven ? limitOf(seven) : undefined,
+        fiveHour: five ? { percentUsed: five.percentUsed, resetsAt: five.resetsAt, etaMs: fiveHourEtaMs(now) } : undefined,
+        sevenDay: seven ? { percentUsed: seven.percentUsed, resetsAt: seven.resetsAt } : undefined,
         samples: band.samples,
         workspace: band.workspace,
         // Read at each instant drawn, so a daylight-saving change shows by
         // the next minute's repaint, with no reply needed.
         zone: readableZone(hostZone, now),
-        otherLimits: others.map(l => ({ kind: l.kind, ...limitOf(l) })),
+        otherLimits: others,
       },
       {
         toggleExpanded: async () => {

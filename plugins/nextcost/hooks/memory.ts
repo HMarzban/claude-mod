@@ -133,12 +133,12 @@ export const splitLimits = <L extends Readonly<{ kind: string }>>(limits: readon
   others: limits.filter(l => l.kind !== FIVE_HOUR && l.kind !== SEVEN_DAY),
 })
 
-/** Both limits now, as one sample; undefined unless each is reported with a readable reset. */
-export const sampleOf = (now: number, limits: ReadonlyArray<Readonly<{ kind: string; percentUsed: number; resetsAt?: string }>>): Sample | undefined => {
+/** Both limits now, as one sample; undefined unless each is reported with a reset. */
+export const sampleOf = (now: number, limits: ReadonlyArray<Readonly<{ kind: string; percentUsed: number; resetsAt: number | undefined }>>): Sample | undefined => {
   const { five, seven } = splitLimits(limits)
-  const fiveResetAt = Date.parse(five?.resetsAt ?? '')
-  const sevenResetAt = Date.parse(seven?.resetsAt ?? '')
-  if (five === undefined || seven === undefined || !Number.isFinite(fiveResetAt) || !Number.isFinite(sevenResetAt)) return undefined
+  const fiveResetAt = five?.resetsAt
+  const sevenResetAt = seven?.resetsAt
+  if (five === undefined || seven === undefined || fiveResetAt === undefined || sevenResetAt === undefined) return undefined
   return { at: now, fivePct: five.percentUsed, sevenPct: seven.percentUsed, fiveResetAt, sevenResetAt }
 }
 

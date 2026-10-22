@@ -99,11 +99,17 @@ const fmtSpan = (ms: number): string => {
  *  rounded up, as every close countdown counts. */
 export const fmtResetSpan = (ms: number): string => (grainOf(ms) === 'close' ? `${minutesLeft(ms)}m` : fmtSpan(ms))
 
-/** When `iso` comes, from `now`; undefined without a readable time. */
-export const resetIn = (iso: string | undefined, now: number): ResetIn | undefined => {
+/** When a reset the engine names in ISO time comes, epoch ms; undefined
+ *  without a readable time. The one place a reset is parsed. */
+export const parseReset = (iso: string | undefined): number | undefined => {
   if (!iso) return undefined
   const at = Date.parse(iso)
-  if (Number.isNaN(at)) return undefined
+  return Number.isNaN(at) ? undefined : at
+}
+
+/** When a reset at `at` comes, from `now`; undefined without one. */
+export const resetIn = (at: number | undefined, now: number): ResetIn | undefined => {
+  if (at === undefined) return undefined
   const left = at - now
   return left <= 0 ? { kind: 'passed' } : { kind: 'in', text: fmtResetSpan(left) }
 }
@@ -154,8 +160,11 @@ export const DAY_MS = 24 * HOUR_MS
 export const FIVE_HOUR_MS = 5 * HOUR_MS
 /** The weekly limit's window. */
 export const SEVEN_DAY_MS = 7 * DAY_MS
-// resetsAt readings of one window can differ by a few seconds.
-export const SAME_RESET_MS = MINUTE_MS
+/** Resets read of one window can differ by a few seconds. */
+const SAME_RESET_MS = MINUTE_MS
+/** Whether two resets name one window: both unknown, or within a minute. */
+export const sameReset = (a: number | undefined, b: number | undefined): boolean =>
+  a === b || (a !== undefined && b !== undefined && Math.abs(a - b) < SAME_RESET_MS)
 
 export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const
 

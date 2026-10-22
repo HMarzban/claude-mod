@@ -66,8 +66,8 @@ const reWarmEstimate = (c: Cache): string => (c.reWarmUsd !== null ? fmtEstimate
 // ---- the limits -------------------------------------------------------------
 
 /** The share of a window gone, from its length and its reset at `at`, NaN when unknown. */
-const windowGone = (at: number, windowMs: number | undefined, now: number): number | undefined =>
-  windowMs === undefined || Number.isNaN(at) || at <= now ? undefined : clamp01(1 - (at - now) / windowMs)
+const windowGone = (at: number | undefined, windowMs: number | undefined, now: number): number | undefined =>
+  windowMs === undefined || at === undefined || at <= now ? undefined : clamp01(1 - (at - now) / windowMs)
 
 // ---- the facts every layout draws from ------------------------------------
 
@@ -147,6 +147,8 @@ type LimitBase = Readonly<{
   /** `82%`, with no severity mark: chips adds its own. */
   value: string
   reset: ResetIn | undefined
+  /** When it resets, epoch ms, as the snapshot carries it. */
+  resetsAt: number | undefined
   gone: number | undefined
 }>
 
@@ -329,11 +331,11 @@ const spendFacts = (snap: BandSnapshot): SpendFacts => {
 /** The facts of each window the engine reports: 5h, 7d, then the rest. */
 const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
   const one = (name: string, key: LimitKey, reading: LimitReading, windowMs: number | undefined, etaMs: number | null): LimitFacts => {
-    const reset = resetIn(reading.resetsAt, snap.now)
+    const at = reading.resetsAt
+    const reset = resetIn(at, snap.now)
     const frac = clamp01(reading.percentUsed / 100)
-    const at = Date.parse(reading.resetsAt ?? '')
     const gone = windowGone(at, windowMs, snap.now)
-    const base: LimitBase = { name, key, reset, gone, percentUsed: reading.percentUsed, frac, value: `${Math.round(reading.percentUsed)}%` }
+    const base: LimitBase = { name, key, reset, resetsAt: at, gone, percentUsed: reading.percentUsed, frac, value: `${Math.round(reading.percentUsed)}%` }
     // Passed, the window that reset has no pace, reset or fill to say.
     if (reset?.kind === 'passed')
       return { ...base, passed: true, tone: 'calm', etaMs: null, projectedPct: undefined, resetInMs: undefined, fillInMs: undefined, fullInMs: undefined }
@@ -357,7 +359,7 @@ const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
       // etaMs is set only for a measured fill that comes before the reset.
       tone: frac >= WARN_AT || etaMs !== null ? 'amber' : 'calm',
       projectedPct,
-      resetInMs: reset?.kind === 'in' ? at - snap.now : undefined,
+      resetInMs: reset?.kind === 'in' && at !== undefined ? at - snap.now : undefined,
       fillInMs,
       fullInMs,
     }
@@ -389,14 +391,15 @@ const beatsTopOf = (costs: readonly CostEntry[]): number => {
   return scale > 0 ? scale : 1
 }
 
-/** A window as the calendar reads it: its reset and its fill as times. */
+/** A window as the calendar reads it: its reset and its fill as times. A
+ *  reset passed is one the calendar draws nothing for. */
 const windowOf = (l: LimitView | undefined, now: number): WindowNow | undefined =>
   l === undefined
     ? undefined
     : {
         percentUsed: l.percentUsed,
         projectedPct: l.projectedPct,
-        resetsAt: l.resetInMs === undefined ? undefined : now + l.resetInMs,
+        resetsAt: l.resetsAt,
         // The fill the limit's own words say, so the week's cells name the same one.
         fullAt: l.fullInMs === undefined ? undefined : now + l.fullInMs,
       }

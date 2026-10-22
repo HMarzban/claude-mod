@@ -19,7 +19,8 @@ export type LayoutName = (typeof LAYOUT_NAMES)[number]
 /** The layout drawn until /nextcost layout chooses another. */
 export const DEFAULT_LAYOUT: LayoutName = 'chips'
 
-export type LimitReading = Readonly<{ percentUsed: number; resetsAt: string | undefined }>
+/** A limit window's use, and when it resets, epoch ms; undefined without a readable time. */
+export type LimitReading = Readonly<{ percentUsed: number; resetsAt: number | undefined }>
 
 /** Everything the band shows, read by register.tsx. */
 export type BandSnapshot = Readonly<{

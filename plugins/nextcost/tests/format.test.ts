@@ -2,12 +2,12 @@
 // resets, projections, ages, clipped names and the context in use.
 
 import { test, expect } from 'claude-code/testing'
-import { clipMiddle, clipWords, contextUsed, fmtAgo, fmtCost, fmtCountdown, fmtEstimate, fmtEta, fmtPct, fmtSmallCost, fmtTokens, resetIn } from '../hooks/format'
+import { clipMiddle, clipWords, contextUsed, fmtAgo, fmtCost, fmtCountdown, fmtEstimate, fmtEta, fmtPct, fmtSmallCost, fmtTokens, parseReset, resetIn, sameReset } from '../hooks/format'
 import { HOUR, MIN } from './helpers'
 
 const SEC = 1000
 const NOW = 1_000_000
-const at = (ms: number): string => new Date(NOW + ms).toISOString()
+const at = (ms: number): number => NOW + ms
 
 test('tokens: whole under a thousand, a tenth of a k to ten thousand, whole k above, a tenth of an M from a million, of a B from a billion', () => {
   expect(fmtTokens(0)).toBe('0')
@@ -74,9 +74,22 @@ test('the countdown rounds to the second and never runs below zero', () => {
 })
 
 test('a reset with no readable time is unknown', () => {
+  expect(parseReset(undefined)).toBeUndefined()
+  expect(parseReset('')).toBeUndefined()
+  expect(parseReset('soon')).toBeUndefined()
   expect(resetIn(undefined, NOW)).toBeUndefined()
-  expect(resetIn('', NOW)).toBeUndefined()
-  expect(resetIn('soon', NOW)).toBeUndefined()
+})
+
+test('two resets name one window when both are unknown, or they lie within a minute', () => {
+  expect(sameReset(undefined, undefined)).toBe(true)
+  expect(sameReset(NOW, undefined)).toBe(false)
+  expect(sameReset(NOW, NOW + 59_999)).toBe(true)
+  expect(sameReset(NOW + 60_000, NOW)).toBe(false)
+})
+
+test('a reset is read as the instant its ISO time names, whatever the zone it is written in', () => {
+  expect(parseReset('1970-01-01T00:16:40Z')).toBe(NOW)
+  expect(parseReset('1970-01-01T03:46:40+03:30')).toBe(NOW)
 })
 
 test('a reset at or before now has passed; one less than a second off has not yet', () => {
@@ -199,6 +212,6 @@ test('a cost that rounds to $1,000 is written as whole dollars, as $1,000 itself
 })
 
 test('a reset under a minute away says so, not 0m', () => {
-  expect(resetIn(new Date(30_000).toISOString(), 0)).toEqual({ kind: 'in', text: '<1m' })
-  expect(resetIn(new Date(60_000).toISOString(), 0)).toEqual({ kind: 'in', text: '1m' })
+  expect(resetIn(30_000, 0)).toEqual({ kind: 'in', text: '<1m' })
+  expect(resetIn(60_000, 0)).toEqual({ kind: 'in', text: '1m' })
 })

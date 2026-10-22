@@ -26,7 +26,7 @@ const band = (over: Partial<BandSnapshot> = {}): Node =>
 const rowOf = (over: Partial<BandSnapshot> = {}): Node => firstRow(band(over)) as Node
 
 const CLASS = (alt: string) => (/^cache/.test(alt) ? 'cache' : /^cost of/.test(alt) ? 'cost' : /^context/.test(alt) ? 'context' : /^5h/.test(alt) ? '5h' : /^weekly/.test(alt) ? '7d' : alt)
-const LIMITS = { fiveHour: { percentUsed: 26, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null }, sevenDay: { percentUsed: 41, resetsAt: new Date(67 * HOUR).toISOString() } }
+const LIMITS = { fiveHour: { percentUsed: 26, resetsAt: 3 * HOUR, etaMs: null }, sevenDay: { percentUsed: 41, resetsAt: 67 * HOUR } }
 const beatOf = (tree: unknown) => svgsOf(firstRow(tree)).find(s => /^cache/.test(String(s.props?.alt)))
 
 test('collapsed desktop: one row; its charts in the one order', () => {
@@ -157,7 +157,7 @@ test("no costs yet: the name, the total in a value's ink, its words then the fla
 })
 test('an amber reading keeps its chart past the calm ones, until the amber step', () => {
   // SAMPLES' window, so its trail is drawn.
-  const pace = { fiveHour: { percentUsed: 50, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 40 * MIN }, sevenDay: LIMITS.sevenDay }
+  const pace = { fiveHour: { percentUsed: 50, resetsAt: 3 * HOUR, etaMs: 40 * MIN }, sevenDay: LIMITS.sevenDay }
   // Narrow enough that every calm chart has gone.
   const widths = Array.from({ length: 121 }, (_, i) => 160 - i)
   const keeps5h = (columns: number) => svgAlts(rowOf({ surface: 'desktop', columns, ...pace })).map(CLASS).includes('5h')
@@ -172,7 +172,7 @@ const EXPIRING = { ...snapOf().cache, msLeft: 30_000, ttl: '5m' as const }
 test("a 5h window first seen mid-window: its chart, shut and open, starts at the first hour it knows, its level now the window's", () => {
   // Samples from hour 3 on, as when the window opened on another device.
   const sample = (at: number, fivePct: number) => ({ at, fivePct, sevenPct: 30, fiveResetAt: 5 * HOUR, sevenResetAt: 67 * HOUR })
-  const mid = { surface: 'desktop', now: 4.5 * HOUR, fiveHour: { percentUsed: 30, resetsAt: new Date(5 * HOUR).toISOString(), etaMs: null }, samples: [sample(3.2 * HOUR, 26), sample(4.2 * HOUR, 30)] } as const
+  const mid = { surface: 'desktop', now: 4.5 * HOUR, fiveHour: { percentUsed: 30, resetsAt: 5 * HOUR, etaMs: null }, samples: [sample(3.2 * HOUR, 26), sample(4.2 * HOUR, 30)] } as const
   for (const tree of [rowOf(mid), byKey(band({ ...mid, expanded: true }), 'pulse:limits', 'Box')]) {
     const five = svgsOf(tree).find(s => /^5h window/.test(String(s.props?.alt)))
     const solid = /<polyline points="([^"]+)"/.exec(String(five?.props?.source))?.[1]?.split(' ') ?? []
@@ -190,7 +190,7 @@ test("an expiring cache's heartbeat is drawn in amber", () => {
   expect(String(beatOf(band({ surface: 'desktop', cache: EXPIRING }))?.props?.source)).toMatch(new RegExp(`fill="${DARK.amberFg}"`))
 })
 test("7d at 85% on a fast pace: the guessed days, drawn, never pass what is left of the week", () => {
-  const snap = { surface: 'desktop' as const, fiveHour: LIMITS.fiveHour, sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() } }
+  const snap = { surface: 'desktop' as const, fiveHour: LIMITS.fiveHour, sevenDay: { percentUsed: 85, resetsAt: 67 * HOUR } }
   // The raw guesses would pass the 15 points left.
   const days = readingsOf(snapOf({ layout: 'pulse', samples: SAMPLES, ...snap })).week().days
   expect(days.filter(d => d.guess).reduce((n, d) => n + (d.pct ?? 0), 0)).toBeGreaterThan(15)
@@ -212,7 +212,7 @@ test("today's fill, with no reading inside today yet, draws as the alt says it: 
   const at = (m: number, sevenPct: number) => ({ at: m * MIN, fivePct: 0, sevenPct, fiveResetAt: 3 * HOUR, sevenResetAt: 67 * HOUR })
   const late = [at(-120, 70), at(-90, 74), at(-60, 78), at(-30, 82), at(-5, 85)]
   const unzoned = (samples: ReturnType<typeof at>[], expanded: boolean) =>
-    band({ surface: 'desktop', zone: undefined, expanded, fiveHour: LIMITS.fiveHour, sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() }, samples })
+    band({ surface: 'desktop', zone: undefined, expanded, fiveHour: LIMITS.fiveHour, sevenDay: { percentUsed: 85, resetsAt: 67 * HOUR }, samples })
   const cellsOf7d = (tree: Node) => svgsOf(tree).filter(s => /^weekly limit by day/.test(String(s.props?.alt)))
   // No day measured: no cells, shut or open, and the 7d's words stay.
   for (const expanded of [false, true]) {

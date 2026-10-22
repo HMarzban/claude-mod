@@ -19,7 +19,7 @@ import { ITEM_INK } from '../hooks/views/departures-board'
 import { HOUR, LONG, byKey, fakeEl, firstRow, flapWords, shown, svgsOf, walk, type Node } from './helpers'
 import { NO_ACT, snapOf } from './matrix'
 
-const at = (pct: number, h: number) => ({ percentUsed: pct, resetsAt: new Date(h * HOUR).toISOString() })
+const at = (pct: number, h: number) => ({ percentUsed: pct, resetsAt: h * HOUR })
 const CALM = { fiveHour: { ...at(26, 3), etaMs: null }, sevenDay: at(41, 67) }
 const EXPIRING = { cache: { ...snapOf().cache, msLeft: 40_000, ttl: '5m' as const } }
 const NEAR = { context: { tokens: 176_000, window: 200_000, percent: 88, compactAt: 190_000, autoCompactOff: false } }

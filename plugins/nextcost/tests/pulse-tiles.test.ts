@@ -16,7 +16,7 @@ import { NO_ACT, snapOf } from './matrix'
 
 const COSTS = Array.from({ length: 24 }, (_, i) => ({ usd: i === 23 ? 0.21 : i === 17 ? 0.84 : 0.2, reWarm: i === 17 }))
 const HISTORY = { costs: COSTS, context: [40_000, 60_000, 76_000] }
-const LIMITS = { fiveHour: { percentUsed: 26, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: null }, sevenDay: { percentUsed: 41, resetsAt: new Date(67 * HOUR).toISOString() } }
+const LIMITS = { fiveHour: { percentUsed: 26, resetsAt: 3 * HOUR, etaMs: null }, sevenDay: { percentUsed: 41, resetsAt: 67 * HOUR } }
 const EXPIRING = { ...snapOf().cache, msLeft: 30_000, ttl: '5m' as const }
 const NEAR = { tokens: 180_000, window: 200_000, percent: 90, compactAt: 190_000, autoCompactOff: false }
 const KEYS = ['cache', 'spend', 'context', '5h', '7d'] as const
@@ -67,7 +67,7 @@ test('a calm tile on the terminal: name, figure, then its braille, a space apart
   expect(shown(byKey(row, '7d', 'Box'))).toBe('7d 41%')
 })
 test('an amber tile is led by its amber words, which name it, in amber; its chart after them', () => {
-  const row = rowOf({ surface: 'desktop', cache: EXPIRING, context: NEAR, sevenDay: { percentUsed: 85, resetsAt: new Date(67 * HOUR).toISOString() } })
+  const row = rowOf({ surface: 'desktop', cache: EXPIRING, context: NEAR, sevenDay: { percentUsed: 85, resetsAt: 67 * HOUR } })
   expect(piecesOf(byKey(row, 'cache', 'Box'))).toEqual(['! 30s left · re-warm ~$1.66|amber', 'svg'])
   expect(piecesOf(byKey(row, 'context', 'Box'))).toEqual(['! context 95% · compacts in ~10k|amber', 'svg'])
   expect(piecesOf(byKey(row, '7d', 'Box'))).toEqual(['! 7d 85%|amber', 'svg'])
@@ -167,7 +167,7 @@ for (const surface of ['desktop', 'terminal'] as const) {
   })
 }
 test('an amber reading keeps its words and its chart past every calm chart', () => {
-  const pace = { fiveHour: { percentUsed: 50, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 40 * MIN } }
+  const pace = { fiveHour: { percentUsed: 50, resetsAt: 3 * HOUR, etaMs: 40 * MIN } }
   for (const surface of ['desktop', 'terminal'] as const) {
     const calmGone = WIDTHS.find(columns => !chartsOf(rowOf({ surface, columns, ...pace })).includes('spend')) ?? 0
     const row = rowOf({ surface, columns: calmGone, ...pace })
@@ -191,8 +191,8 @@ test('at 40 columns a calm row of tiles is the cache and the 7d, a cold one too;
 const AMBER = {
   cache: { cache: EXPIRING },
   context: { context: NEAR },
-  five: { fiveHour: { percentUsed: 85, resetsAt: new Date(3 * HOUR).toISOString(), etaMs: 20 * MIN } },
-  seven: { sevenDay: { percentUsed: 90, resetsAt: new Date(67 * HOUR).toISOString() } },
+  five: { fiveHour: { percentUsed: 85, resetsAt: 3 * HOUR, etaMs: 20 * MIN } },
+  seven: { sevenDay: { percentUsed: 90, resetsAt: 67 * HOUR } },
 } as const
 const ALL_AMBER = { ...AMBER.cache, ...AMBER.context, ...AMBER.five, ...AMBER.seven }
 

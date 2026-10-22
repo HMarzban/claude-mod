@@ -13,7 +13,7 @@ import {
 import { MIN, endTurn, fact, mountBand, resp, respond, setup, START, startTurn } from './helpers'
 
 const cents = (n: number | null): number | null => (n === null ? null : Math.round(n * 100))
-const RESET_IN_3H = new Date(3 * 60 * MIN).toISOString()
+const RESET_IN_3H = 3 * 60 * MIN
 
 test("last turn's cost is the ledger's rise across one turn", () => {
   resetInsights()
@@ -75,7 +75,7 @@ test('the ETA hides when the samples go stale', () => {
 
 test('the ETA hides when the window resets first', () => {
   resetInsights()
-  const soon = new Date(30 * MIN).toISOString()
+  const soon = 30 * MIN
   noteFiveHour(0, 40, soon)
   noteFiveHour(12 * MIN, 46, soon) // fills at 120m, resets at 30m
   expect(fiveHourEtaMs(12 * MIN)).toBe(null)
@@ -90,10 +90,10 @@ test('no ETA once the window is full', () => {
 
 test('jitter in resetsAt keeps the samples; a real reset clears them', () => {
   resetInsights()
-  noteFiveHour(0, 40, new Date(3 * 60 * MIN).toISOString())
-  noteFiveHour(12 * MIN, 46, new Date(3 * 60 * MIN + 2_000).toISOString()) // 2s jitter
+  noteFiveHour(0, 40, 3 * 60 * MIN)
+  noteFiveHour(12 * MIN, 46, 3 * 60 * MIN + 2_000) // 2s jitter
   expect(fiveHourEtaMs(12 * MIN)).not.toBe(null)
-  noteFiveHour(13 * MIN, 2, new Date(8 * 60 * MIN).toISOString()) // new window
+  noteFiveHour(13 * MIN, 2, 8 * 60 * MIN) // new window
   expect(fiveHourEtaMs(13 * MIN)).toBe(null)
 })
 

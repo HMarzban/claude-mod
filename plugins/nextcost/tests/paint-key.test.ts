@@ -59,7 +59,7 @@ test("the key moves whenever the cache's countdown does, to cold and past it", (
 const resetMisses = (zone: Zone | undefined): number[] => {
   const resetsAt = 12 * MIN + 30 * SEC
   const snapAt = (now: number): BandSnapshot => {
-    const snap = snapOf({ now, fiveHour: { percentUsed: 4, resetsAt: new Date(resetsAt).toISOString(), etaMs: null }, sevenDay: undefined, zone })
+    const snap = snapOf({ now, fiveHour: { percentUsed: 4, resetsAt: resetsAt, etaMs: null }, sevenDay: undefined, zone })
     return { ...snap, cache: { ...snap.cache, coldAt: 0, msLeft: 0 } }
   }
   return missed(0, 13 * MIN, snapAt, now => paintKey(now, { cacheLeft: 0, etaMs: null, resets: [resetsAt], zone }))
