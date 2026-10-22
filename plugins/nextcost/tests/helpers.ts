@@ -7,14 +7,16 @@ import type {
   On,
   SessionCompactResult,
   SessionContextBreakdown,
+  SessionRateLimit,
   SessionUsage,
   TurnStepInput,
   TurnStopReason,
 } from 'claude-code'
 import { mock, type Engine, type MockClock } from 'claude-code/testing'
 import type { Sample } from '../hooks/memory'
-import { METER_CELLS } from '../hooks/layout'
-import { READ_LIMIT } from '../hooks/memory'
+import { CHIP_BAR } from '../hooks/views/chips'
+import { textCells } from '../hooks/layout'
+import { READ_LIMIT } from '../hooks/transcript'
 import { DARK } from '../hooks/palette'
 
 export const PLUGIN = 'nextcost'
@@ -68,7 +70,7 @@ export const COMPACTED_TO = 20_000
 export const SUMMARY = [{ role: 'user' as const, text: 'summary', toolUses: [] }]
 
 /** The project the tests run in, and git's answers for it. */
-export const PROJECT = '/Users/me/workspace/claude-mod'
+export const PROJECT = '/Users/me/workspace/nextcost'
 export const GIT_CLEAN = '# branch.oid 1a2b3c4d5e6f\n# branch.head main\n# branch.upstream origin/main\n# branch.ab +0 -0\n'
 export const GIT_MAIN_TREE = `${PROJECT}/.git\n${PROJECT}/.git\n${PROJECT}\n`
 
@@ -103,6 +105,8 @@ type EngineFake = {
   transcriptBytes: number | undefined
   /** When set, `tail` can't run, as where the host has none. */
   tailFails: boolean
+  /** While set, `tail` answers wait on it, as a slow read of a transcript does. */
+  tailHold: Promise<void> | undefined
   /** When set, `grep` can't run, as where the host has none. */
   grepFails: boolean
   /** When set, `grep -b` gives each match's byte offset, as ugrep does, not
@@ -124,6 +128,8 @@ type EngineFake = {
   storeReadFails: boolean
   /** How many times the plugin asked for a redraw (`$.ui.invalidate`). */
   invalidates: number
+  /** Every slash command the plugin registered, by name, in order. */
+  commands: string[]
 }
 
 /** Each test's engine, as `base` restores it: every default written once, so
@@ -137,6 +143,7 @@ const ENGINE_INITIAL: Readonly<EngineFake> = {
   storeFails: false,
   storeReadFails: false,
   invalidates: 0,
+  commands: [],
   hold: undefined,
   sessionId: 's1',
   model: 'claude-opus-5-5',
@@ -144,6 +151,7 @@ const ENGINE_INITIAL: Readonly<EngineFake> = {
   transcript: undefined,
   transcriptBytes: undefined,
   tailFails: false,
+  tailHold: undefined,
   grepFails: false,
   grepMatchOffsets: false,
   truncates: undefined,
@@ -220,6 +228,7 @@ const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Record<stri
     engine.ran.push([...e.argv])
     const quiet = { stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
     if (e.argv[0] === 'tail') {
+      if (engine.tailHold !== undefined) await engine.tailHold
       if (engine.tailFails || engine.transcript === undefined) return { value: { ...quiet, exitCode: 1, stdout: '', stderr: 'tail: no such file' } }
       // `-c N` is the last N bytes, `-c +N` everything from byte N on.
       const count = String(e.argv[2])
@@ -248,7 +257,10 @@ const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Record<stri
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.end', ($, e) => ({ sessionId: e.sessionId }))
   on('classic.SessionStart', () => ({}))
-  on('command.register', ($, e) => ({ value: { command: e.name } }))
+  on('command.register', ($, e) => {
+    engine.commands.push(e.name)
+    return { value: { command: e.name } }
+  })
   on('session.usage', ($, e) => {
     if (usage.fails) throw new Error('usage unavailable')
     if (e.breakdown !== undefined && usage.breakdownFails) throw new Error('breakdown unavailable')
@@ -287,6 +299,15 @@ export const resp = (input: number, read: number, write: number, output: number)
   cache_read_input_tokens: read,
   cache_creation_input_tokens: write,
 })
+
+/** A step that builds a 155k cache, none read from it: 41k in, 12k out. */
+export const BUILD_155K: ModelUsage = resp(41_000, 0, 155_000, 12_000)
+/** A step that builds a 100k cache: 10k in, 2k out. */
+export const BUILD_100K: ModelUsage = resp(10_000, 0, 100_000, 2_000)
+/** The step after BUILD_100K, reading its 100k back: 4k in, 6k written, 3k out. */
+export const READ_100K: ModelUsage = resp(4_000, 100_000, 6_000, 3_000)
+/** A step that builds an 80k cache: 2k in, 500 out. */
+export const BUILD_80K: ModelUsage = resp(2_000, 0, 80_000, 500)
 
 /** One step of a main-loop turn on `$`, its reply billed as `u`; `over`
  *  makes it a subagent's (`{ agentId }`) or another model's. */
@@ -357,16 +378,16 @@ export const rowCount = (tree: unknown): number => {
 }
 
 /** Cells a drawn row needs, as the terminal lays it out: text, padding, gaps
- *  and Button labels; hidden cards take none, nor a gap; an Svg takes a cell
- *  per 8px.
+ *  and Button labels, a wide character two cells by layout.ts's one rule;
+ *  hidden cards take none, nor a gap; an Svg takes a cell per 8px.
  *  Kept apart from band.tsx's own measure on purpose, so the fit tests check
  *  the drawing against an independent count rather than against itself. */
 export const widthOf = (n: unknown): number => {
-  if (typeof n === 'string' || typeof n === 'number') return [...String(n)].length
+  if (typeof n === 'string' || typeof n === 'number') return textCells(String(n))
   if (n === null || typeof n !== 'object') return 0
   const node = n as Node
   if (node.props?.position === 'absolute') return 0
-  if (node.type === 'Button') return [...String(node.props?.label ?? '')].length
+  if (node.type === 'Button') return textCells(String(node.props?.label ?? ''))
   if (node.type === 'Svg') return Math.ceil(Number(node.props?.width ?? 64) / 8)
   const kids = (node.children ?? []).filter(k => k !== null && k !== undefined && k !== false && !isCard(k))
   const pad = typeof node.props?.paddingX === 'number' ? 2 * node.props.paddingX : 0
@@ -380,6 +401,13 @@ export const firstRow = (tree: unknown): unknown => ((tree as Node).children ?? 
 // ── constants ──────────────────────────────────────────────────────────
 
 export const START = { cwd: '/tmp', surface: 'terminal', isInteractive: true } as const
+/** START on the desktop. */
+export const DESKTOP_START = { ...START, surface: 'desktop' } as const
+/** Turn t1's start and its end, answered, with the ledger left as it stands. */
+export const TURN_START = { text: 'hi', turnId: 't1' } as const
+export const TURN_DONE = { answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' } as const
+/** A gateway's spend limit as the engine reports it: 92% used, resetting 5 hours on. */
+export const SPEND_LIMIT: SessionRateLimit = { kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }
 /** Pins the 1-hour TTL, so tests don't depend on the assumed one. */
 export const HOUR_1 = { ENABLE_PROMPT_CACHING_1H: '1' }
 /** Where a mounted test that reads a host's clock starts: never epoch 0,
@@ -422,6 +450,10 @@ export const setup = (
   base(on, opts.usage, opts.store)
   return clock
 }
+
+/** `/nextcost args`, or another command named, as typed at the prompt. */
+export const runCommand = ($: Engine, args: string, command = 'nextcost') =>
+  $.command.run({ command, args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 110 } })
 
 /** The band drawn above the prompt on `surface`, `cols` wide. */
 export const mountBand = <S extends 'terminal' | 'desktop'>(
@@ -467,6 +499,9 @@ export const flapWords = (n: unknown): string =>
     .filter(w => w !== '')
     .join(' ')
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+
+/** A tree's words: its visible text, then a desktop board's flaps'. */
+export const wordsOf = (n: unknown): string => `${shown(n)} ${flapWords(n)}`
 
 export const svgAlts = (tree: unknown): string[] => svgsOf(tree).map(n => String(n.props?.alt))
 
@@ -548,12 +583,12 @@ export const pillKeys = (row: unknown): unknown[] =>
 /** The cache card's rebuild count, 0 when the row is absent. */
 export const rebuilds = (tree: unknown): number => Number(fact(tree, 'unexpected rebuilds') ?? 0)
 
-/** Text meters drawn: METER_CELLS cells of █ and ░. An empty meter's
+/** Text meters drawn: CHIP_BAR's cells of █ and ░. An empty meter's
  *  inner track Text is as many cells too, so it's told apart by its colour. */
-const METER = new RegExp(`^[█░]{${METER_CELLS}}$`)
+const METER = new RegExp(`^[█░]{${CHIP_BAR.cells}}$`)
 export const textMeters = async (ui: {
   findAll: (q: { type: string; text: RegExp }) => Promise<Array<{ props?: Record<string, unknown> }>>
-}): Promise<number> => (await ui.findAll({ type: 'Text', text: METER })).filter(t => t.props?.color !== DARK.meterTrack).length
+}): Promise<number> => (await ui.findAll({ type: 'Text', text: METER })).filter(t => t.props?.color !== DARK.trackInk).length
 
 // ── driving the engine ─────────────────────────────────────────────────
 
@@ -563,14 +598,14 @@ type TurnEnd = { agentId?: string; isAborted?: boolean; reason?: 'answer' | 'abo
 export const startTurn = async ($: Engine, id: string, at: number, agentId?: string): Promise<void> => {
   usage.current = { ...usage.current, cost: { usd: at } }
   // Since 2.1.299 a subagent's turn raises turn.start too, with its agentId.
-  const start = agentId === undefined ? { text: 'hi', turnId: id } : { text: 'hi', turnId: id, agentId }
+  const start = agentId === undefined ? { ...TURN_START, turnId: id } : { ...TURN_START, turnId: id, agentId }
   await $.turn.start(start)
 }
 
 /** A turn's `turn.complete` (with `agentId`, a subagent's), with the ledger at `at`. */
 export const endTurn = async ($: Engine, id: string, at: number, extra: TurnEnd = {}): Promise<void> => {
   usage.current = { ...usage.current, cost: { usd: at } }
-  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: id, reason: 'answer', ...extra })
+  await $.turn.complete({ ...TURN_DONE, turnId: id, ...extra })
 }
 
 /** One main-loop turn (or, with `agentId`, a subagent's) that moves the
@@ -607,17 +642,29 @@ export const pacing = async ($: Engine, clock: MockClock): Promise<void> => {
 export const breakdown = (fields: Pick<SessionContextBreakdown, 'isAutoCompactEnabled'> & { autoCompactThreshold?: number }): SessionContextBreakdown =>
   fields as SessionContextBreakdown
 
+/** A transcript of `lines`, one to a line: an object as its JSON, a string
+ *  as it is, so a test can write a line cut short. */
+export const jsonl = (...lines: unknown[]): string => lines.map(line => (typeof line === 'string' ? line : JSON.stringify(line))).join('\n') + '\n'
+/** A main-loop reply's line, logged at `ms`, billed under Opus 5.5. */
+export const replyLine = (ms: number) => ({ type: 'assistant', timestamp: new Date(ms).toISOString(), message: { role: 'assistant', model: 'claude-opus-5-5', content: [] } })
+/** A prompt's line, logged at `ms`. */
+export const promptLine = (ms: number) => ({ type: 'user', timestamp: new Date(ms).toISOString(), message: { role: 'user', content: 'hi' } })
+/** A cost record as Claude Code writes one: $20 over 1M input, 400k written,
+ *  20M read and 100k output, per model named. */
+export const costRecord = (...models: string[]) => ({
+  type: 'cost-state',
+  totalCostUSD: 20,
+  modelUsage: Object.fromEntries(
+    models.map(model => [model, { inputTokens: 1_000_000, cacheCreationInputTokens: 400_000, cacheReadInputTokens: 20_000_000, outputTokens: 100_000, costUSD: 20 }]),
+  ),
+})
+/** Whether a rate solved from a transcript is `b`, to within float error. */
+export const rateNear = (a: number | null, b: number): boolean => a !== null && Math.abs(a - b) < 1e-15
+
 /** A transcript as Claude Code writes one: a user line, an assistant reply at
  *  `replyAt`, and the cost-state line it adds when a session is opened. */
 export const transcriptOf = (replyAt: number, modelUsage: Record<string, Record<string, number>> = {}): string =>
-  [
-    { type: 'user', timestamp: new Date(replyAt - 5000).toISOString(), message: { role: 'user', content: 'hi' } },
-    { type: 'assistant', timestamp: new Date(replyAt).toISOString(), message: { role: 'assistant', model: 'claude-opus-5-5', content: [] } },
-    { type: 'last-prompt', lastPrompt: 'hi' },
-    { type: 'cost-state', totalCostUSD: 1, modelUsage },
-  ]
-    .map(line => JSON.stringify(line))
-    .join('\n') + '\n'
+  jsonl(promptLine(replyAt - 5000), replyLine(replyAt), { type: 'last-prompt', lastPrompt: 'hi' }, { type: 'cost-state', totalCostUSD: 1, modelUsage })
 
 /** WCAG 2.x contrast ratio of two hex colours. */
 export const contrast = (a: string, b: string): number => {

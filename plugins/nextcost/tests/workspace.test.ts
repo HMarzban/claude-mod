@@ -139,11 +139,11 @@ test('no home, an empty home or a root home changes nothing', () => {
 })
 
 test('a path splits into its parent and its name', () => {
-  expect(splitPath('~/workspace/claude-mod')).toEqual({ parent: '~/workspace/', name: 'claude-mod' })
+  expect(splitPath('~/workspace/nextcost')).toEqual({ parent: '~/workspace/', name: 'nextcost' })
   expect(splitPath('/Users')).toEqual({ parent: '/', name: 'Users' })
   expect(splitPath('~/p')).toEqual({ parent: '~/', name: 'p' })
-  expect(splitPath('claude-mod')).toEqual({ parent: '', name: 'claude-mod' })
-  expect(splitPath('~/workspace/claude-mod/')).toEqual({ parent: '~/workspace/', name: 'claude-mod' })
+  expect(splitPath('nextcost')).toEqual({ parent: '', name: 'nextcost' })
+  expect(splitPath('~/workspace/nextcost/')).toEqual({ parent: '~/workspace/', name: 'nextcost' })
 })
 
 test('a root is all name', () => {

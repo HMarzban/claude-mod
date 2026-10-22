@@ -2,7 +2,7 @@
 // every price (Anthropic's pricing page, 2026-10-19). Each request is priced
 // on its own, by every input token it sends, cache reads and writes included.
 import { test, expect } from 'claude-code/testing'
-import { tierFactor } from '../hooks/cache'
+import { tierFactor } from '../hooks/prices'
 import { LONG, MIN, START, USAGE, engine, fact, mountBand, pillOf, resp, respond, setup, shown } from './helpers'
 
 /** A step billed on Haiku 5.5. */

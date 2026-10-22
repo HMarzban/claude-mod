@@ -2,93 +2,47 @@
 // into the pure modules, and ui.render hands drawBand a snapshot of them.
 
 import { atom, read, update } from 'claude-code'
-import type { ClassicEventOf, EngineInterface, ProcessRunResult, Register, SessionRateLimit, Timer } from 'claude-code'
+import type { ClassicEventOf, EngineInterface, ProcessRunResult, Register, Timer } from 'claude-code'
 import { drawBand } from './band'
-import {
-  cache,
-  cacheView,
-  msLeft,
-  idleCompactFrom,
-  noteCompact,
-  noteCompaction,
-  noteConversationStart,
-  noteLedger,
-  noteLoad,
-  noteRecalled,
-  noteResume,
-  noteTranscript,
-  modelName,
-  noteBilledModel,
-  notePriceModel,
-  pricedModel,
-  pinTtl,
-  ratePerToken,
-  recordResponse,
-  resetCache,
-  resetConversation,
-  resetForResume,
-  resolveTtl,
-  spentUsd,
-  takeRebuilt,
-  wantsRecall,
-} from './cache'
-import type { RecalledReply, ResumedCache, Spend, TranscriptFacts } from './cache'
-import { LAYOUT_LIST, REPLY, UNSAVED, layoutReply, parseCommand } from './command'
-import { MINUTE_MS, SEVERE_AT, WARN_AT, clipMiddle, contextPressure, contextUsed, fmtCountdown, fmtEta, fmtTokens, hostZone, readableZone } from './format'
+import { newCache } from './cache'
+import type { CacheModel, RecalledReply, Remembered, ResumedCache, Spend, TranscriptFacts } from './cache'
+import { idleCompactFrom, resolveTtl } from './cache-settings'
+import { ARGUMENT_HINT, commandPlan, parseCommand } from './command'
+import { contextUsed, hostZone, paintKey, readableZone } from './format'
 import { resolveGlyphs } from './glyphs'
-import {
-  fiveHourEtaMs,
-  insights,
-  noteFiveHour,
-  noteTurnEnd,
-  noteTurnStart,
-  escalate,
-  pushContext,
-  pushCost,
-  resetConversationInsights,
-  resetInsights,
-  trails,
-} from './insights'
+import { newInsights } from './insights'
+import type { Insights } from './insights'
 import { DARK, resolvePalette } from './palette'
 import type { Palette } from './palette'
 import {
-  FIVE_HOUR,
   LAYOUT_KEY,
   LIMIT_SAMPLES_KEY,
   RATES_KEY,
-  READ_LIMIT,
   SESSIONS_KEY,
   addSample,
-  asLayoutName,
-  REMOVED_IN,
-  removedLayoutOf,
   asLimitSamples,
-  asRates,
   asSessions,
-  lastReplyAt,
-  lastReplyModel,
-  lastWriteTtl,
+  fromStore,
   mergeSamples,
-  rateFromTranscript,
+  needsTranscript,
+  recallOf,
+  rememberRate,
   rememberReply,
   sameBucket,
   sampleOf,
   samplesUpTo,
-  sessionCostRecord,
-  splitLimits,
-  transcriptPath,
-  transcriptSpend,
 } from './memory'
 import type { Sample } from './memory'
-import { DEFAULT_LAYOUT } from './snapshot'
-import type { Glyphs, LayoutName, LimitReading } from './snapshot'
+import { DEFAULT_LAYOUT, FIVE_HOUR, asLayoutName, limitOf, removedLayoutOf, resetsOf, snapshotOf } from './snapshot'
+import type { Glyphs, LayoutName } from './snapshot'
+import { NO_WARNINGS, contextToasts, forgetConversation, limitToasts } from './toast'
+import type { Warned } from './toast'
+import { READ_LIMIT, lastWriteTtl, sessionCostRecord, transcriptPath, transcriptSpend } from './transcript'
 import { homeRelative, parseGitState, splitPath } from './workspace'
 import type { Workspace } from './workspace'
 
 const isHidden = atom({ plugin: 'nextcost', key: 'isHidden' } as const, false)
 const isExpanded = atom({ plugin: 'nextcost', key: 'isExpanded' } as const, false)
-
-const CONTEXT_WARN = 'context'
 
 /** Long enough for a large repository's status or a transcript's tail,
  *  short enough that a hung command never holds a read open for long. */
@@ -110,9 +64,12 @@ type Resume = Readonly<{
   transcript: TranscriptFacts | undefined
 }>
 
-/** Everything the band keeps between hooks, in one place. A reload starts it
- *  over with the module; session.start resets the rest. */
-const band: {
+/** What the band keeps between hooks. */
+type Band = {
+  /** The cache model, made anew at each session.start. */
+  cache: CacheModel
+  /** The insights, made anew beside the cache model. */
+  insights: Insights
   palette: Readonly<Palette>
   /** The layout the band draws in. */
   layout: LayoutName
@@ -125,16 +82,12 @@ const band: {
   compactAt: number | undefined
   /** The breakdown said auto-compaction is off. */
   autoCompactOff: boolean
-  /** Idle compaction can run in this session, from this many tokens of
-   *  context; undefined when it can't. Read at session.start. */
-  idleCompactFrom: number | undefined
-  /** A main-loop turn is under way: a compaction then is no idle one. */
-  turnOpen: boolean
   /** Where the session is: its project, home-relative, and git there. Read
    *  between redraws, never while drawing, since git takes a process. */
   workspace: Workspace | undefined
-  /** The limit samples of the last week, every session's: read from the store
-   *  at load and at each new 15-minute bucket, written once per bucket. */
+  /** The newest limit samples, a week's worth of buckets, every session's:
+   *  read from the store at load and at each new 15-minute bucket, written
+   *  once per bucket. */
   samples: Sample[]
   /** Reads begun, so one that ends after a newer one never overwrites it. */
   reads: number
@@ -144,24 +97,40 @@ const band: {
   resume: Resume | undefined
   /** What the band last drew, so the timer repaints only when it would change. */
   lastPaintKey: string
+  /** The limits' resets the band last drew, epoch ms, so the timer repaints
+   *  as their countdowns turn. */
+  resets: readonly number[]
   /** Each toast's level reached, so it speaks once per crossing. */
-  warned: Map<string, number>
+  warned: Warned
   tick: Timer | undefined
-} = {
-  palette: DARK,
+}
+
+/** What each session.start begins the band from: a new session's cache
+ *  model and insights, no warning spoken, nothing drawn or read yet, and
+ *  the default layout until the store is read. */
+const freshSession = (): Pick<Band, 'cache' | 'insights' | 'warned' | 'lastPaintKey' | 'resets' | 'workspace' | 'layout'> => ({
+  cache: newCache(),
+  insights: newInsights(),
+  warned: NO_WARNINGS,
+  lastPaintKey: '',
+  resets: [],
+  workspace: undefined,
   layout: DEFAULT_LAYOUT,
+})
+
+/** The band. A reload starts it over with the module; session.start starts
+ *  a session over with freshSession, and what it reads at once (the
+ *  palette, the glyphs, the samples) it reads again; the rest carries on. */
+const band: Band = {
+  ...freshSession(),
+  palette: DARK,
   removed: undefined,
   glyphs: 'unicode',
   compactAt: undefined,
   autoCompactOff: false,
-  idleCompactFrom: undefined,
-  turnOpen: false,
-  workspace: undefined,
   samples: [],
   reads: 0,
   resume: undefined,
-  lastPaintKey: '',
-  warned: new Map(),
   tick: undefined,
 }
 
@@ -218,42 +187,25 @@ const spendBefore = async ($: EngineInterface, path: string, sessionId: string, 
   return transcriptSpend(recordEnd < 0 ? record.line : record.line + tail.slice(recordEnd), sessionId, before)
 }
 
-/** Recalls when `sessionId` last had a reply, and what a token costs on
- *  its model: the band's own memory first; for a session from before the
- *  band, its transcript's last reply and cost record, from the end
- *  `readEnd` reads. Recalled once per load or resume, and only those facts
- *  kept; the caller notes them. Never throws: unknown stays unknown. */
+/** Recalls when `sessionId` last had a reply, the model it was billed
+ *  under, and what a token costs there, as memory.ts's recallOf weighs them: the band's own store,
+ *  then for what it leaves unknown, the end of the transcript `readEnd`
+ *  reads. Recalled once per load or resume, and only those facts kept; the
+ *  caller notes them. Never throws: unknown stays unknown. */
 const recallLastReply = async (
   $: EngineInterface,
   sessionId: string,
   readEnd: () => Promise<string | undefined>,
 ): Promise<RecalledReply | undefined> => {
   try {
-    const model = modelName(await $.session.model())
-    const rates = asRates(await $.store.get(RATES_KEY))
-    let lastAt = asSessions(await $.store.get(SESSIONS_KEY))[sessionId]?.lastAt
-    let rate = rates[model] ?? null
-    let billed: string | undefined
-    if (lastAt === undefined || rate === null) {
-      const transcript = await readEnd()
-      if (transcript !== undefined) {
-        lastAt ??= lastReplyAt(transcript)
-        // /model may name an alias; the last reply names the model it was billed under.
-        billed = lastReplyModel(transcript)
-        rate ??= billed === undefined ? rateFromTranscript(transcript, model) : (rates[billed] ?? rateFromTranscript(transcript, billed))
-      }
-    }
-    return { lastAt, rate, billed }
+    const model = await $.session.model()
+    const rates = await $.store.get(RATES_KEY)
+    const sessions = await $.store.get(SESSIONS_KEY)
+    const stored = fromStore({ sessions, rates }, sessionId, model)
+    return recallOf(stored, needsTranscript(stored) ? await readEnd() : undefined)
   } catch {
     return undefined // nothing to recall
   }
-}
-
-/** A resume, applied to the cache model: the engine's word on its cache, and
- *  its transcript's once read. */
-const applyResume = (resume: Resume): void => {
-  noteResume(resume.cache)
-  if (resume.transcript !== undefined) noteTranscript(resume.transcript)
 }
 
 /** Reads what a resumed conversation's transcript shows, keeps it with the
@@ -273,8 +225,7 @@ const readResumed = async ($: EngineInterface, mine: Resume): Promise<void> => {
     if (band.resume !== mine) return
     const transcript = { spend, ttl: tail === undefined ? undefined : lastWriteTtl(tail) }
     band.resume = { ...mine, transcript }
-    noteRecalled(recalled)
-    noteTranscript(transcript)
+    band.cache.recalled(recalled, transcript)
     $.ui.invalidate('ui.render')
   } catch {
     // the ledger and the TTL stand
@@ -301,20 +252,20 @@ const resumeConversation = async ($: EngineInterface, e: ClassicEventOf['classic
     transcript: undefined,
   }
   band.resume = resume
-  applyResume(resume)
+  band.cache.resumed(resume)
   void readResumed($, resume)
   $.ui.invalidate('ui.render')
 }
 
-/** Remembers this session's last reply and the rate its bill solves to, for
- *  when it is reopened or the band reloads. */
-const rememberTurn = async ($: EngineInterface, costNow: number | undefined): Promise<void> => {
-  if (cache.requests === 0) return
+/** Remembers this session's last reply, the model it was billed under and
+ *  the rate its bill solves to, kept under that model's name, for when it is
+ *  reopened or the band reloads. */
+const rememberTurn = async ($: EngineInterface, cache: Remembered): Promise<void> => {
   try {
     const id = await $.session.id()
-    await $.store.set(SESSIONS_KEY, rememberReply(asSessions(await $.store.get(SESSIONS_KEY)), id, cache.lastAt))
-    const rate = ratePerToken(costNow)
-    if (rate !== null) await $.store.set(RATES_KEY, { ...asRates(await $.store.get(RATES_KEY)), [pricedModel() ?? modelName(await $.session.model())]: rate })
+    await $.store.set(SESSIONS_KEY, rememberReply(asSessions(await $.store.get(SESSIONS_KEY)), id, cache.lastAt, cache.billed))
+    const rate = cache.rate
+    if (rate !== null) await $.store.set(RATES_KEY, rememberRate(await $.store.get(RATES_KEY), cache.billed ?? cache.priceModel ?? (await $.session.model()), rate))
   } catch {
     // memory is a convenience; the band works without it
   }
@@ -396,147 +347,150 @@ const readLayout = async ($: EngineInterface): Promise<void> => {
   band.removed = removedLayoutOf(read.stored)
 }
 
-/** `/nextcost layout [name]`: lists, or switches and remembers. Only this writes the layout. */
-const chooseLayout = async ($: EngineInterface, arg: string): Promise<string> => {
-  if (arg.trim() === '') return `${layoutReply(band.layout, band.removed)} ${LAYOUT_LIST}`
-  const name = asLayoutName(arg)
-  const gone = removedLayoutOf(arg)
-  if (gone !== undefined) return `${gone} was removed in ${REMOVED_IN}. ${LAYOUT_LIST}`
-  if (name === undefined) return `Unknown layout "${clipMiddle(arg.trim(), 20)}". ${LAYOUT_LIST}`
-  band.layout = name
-  band.removed = undefined
-  // Remembered for the next session. A store that fails leaves this one
-  // switched until the next turn reads the store back, and the reply says so.
-  const saved = await $.store.set(LAYOUT_KEY, name).then(
-    () => true,
-    () => false,
-  )
-  await update($, isHidden, () => false)
-  $.ui.invalidate('ui.render')
-  const reply = name === DEFAULT_LAYOUT ? layoutReply(name) : `${layoutReply(name)} /nextcost layout ${DEFAULT_LAYOUT} goes back.`
-  return saved ? reply : `${reply} ${UNSAVED}`
+/** What /nextcost, or its old name /usage-band, does with `args`: the plan
+ *  command.ts makes of it, carried out, and what it answers. */
+const runCommand = async ($: EngineInterface, args: string): Promise<{ text: string }> => {
+  const plan = commandPlan(parseCommand(args), { layout: band.layout, removed: band.removed, hidden: await read($, isHidden) })
+  let text = plan.reply
+  if (plan.layout !== undefined) {
+    const { name } = plan.layout
+    band.layout = name
+    band.removed = undefined
+    // Remembered for the next session. A store that fails leaves this one
+    // switched until the next turn reads the store back, and the reply says so.
+    const saved = await $.store.set(LAYOUT_KEY, name).then(
+      () => true,
+      () => false,
+    )
+    if (!saved) text = plan.layout.unsaved
+  }
+  const { expanded, hidden } = plan
+  if (expanded !== undefined) await update($, isExpanded, () => expanded)
+  if (hidden !== undefined) await update($, isHidden, () => hidden)
+  if (plan.layout !== undefined) $.ui.invalidate('ui.render')
+  if (plan.readWorkspace) void readWorkspace($)
+  return { text }
 }
 
-/** What /nextcost, or its old name /usage-band, does with `args`, and what it answers. */
-const runCommand = async ($: EngineInterface, args: string): Promise<{ text: string }> => {
-  const command = parseCommand(args)
-  if (typeof command === 'object') return { text: await chooseLayout($, command.layout) }
-  switch (command) {
-    case 'more':
-    case 'less':
-      await update($, isExpanded, () => command === 'more')
-      await update($, isHidden, () => false)
-      if (command === 'more') void readWorkspace($)
-      return { text: command === 'more' ? REPLY.expanded : REPLY.collapsed }
-    case 'show':
-    case 'hide':
-      await update($, isHidden, () => command === 'hide')
-      return { text: command === 'hide' ? REPLY.hidden : REPLY.shown }
-    case 'toggle': {
-      const wasHidden = await read($, isHidden)
-      await update($, isHidden, () => !wasHidden)
-      return { text: wasHidden ? REPLY.shownFirst : REPLY.hidden }
-    }
-    case undefined:
-      return { text: REPLY.usage }
+/** Starts the one timer, in place of any before it, repainting only when
+ *  the drawing would differ: every minute (the clocks, the battery, the
+ *  average's pace), and as each countdown turns, every second where it
+ *  shows seconds. */
+const startTicker = ($: EngineInterface): void => {
+  band.tick?.cancel()
+  band.tick = $.clock.every(1000, () => {
+    void (async () => {
+      const now = await $.clock.now()
+      const key = paintKey(now, {
+        cacheLeft: band.cache.leftMs(now),
+        idleMs: band.cache.idleMs(now),
+        etaMs: band.insights.fiveHourEtaMs(now),
+        resets: band.resets,
+        zone: readableZone(hostZone, now),
+      })
+      if (key !== band.lastPaintKey) {
+        band.lastPaintKey = key
+        $.ui.invalidate('ui.render')
+      }
+    })().catch(() => undefined)
+  })
+}
+
+/** Registers /nextcost, and its name before 0.18.0, kept so a habit or a
+ *  note still works. */
+const registerCommands = ($: EngineInterface): void => {
+  $.command.register({
+    name: 'nextcost',
+    description: 'Show, hide, expand, collapse or restyle nextcost, what your next message costs',
+    argumentHint: ARGUMENT_HINT,
+  })
+  $.command.register({
+    name: 'usage-band',
+    description: "nextcost's old name: the same as /nextcost",
+    argumentHint: ARGUMENT_HINT,
+  })
+}
+
+/** Reads the palette and the glyph tier from the environment. One literal
+ *  name a read: the engine lists the variables a module reads. Each setting
+ *  by its name, else by its name before 0.18.0. */
+const readAppearance = async ($: EngineInterface): Promise<void> => {
+  const appearance = (await $.env.get('NEXTCOST_APPEARANCE')) ?? (await $.env.get('CC_BAND_APPEARANCE'))
+  band.palette = resolvePalette(appearance?.toLowerCase(), await $.env.get('NO_COLOR'))
+  band.glyphs = resolveGlyphs({
+    NEXTCOST_GLYPHS: (await $.env.get('NEXTCOST_GLYPHS')) ?? (await $.env.get('CC_BAND_GLYPHS')),
+    LC_ALL: await $.env.get('LC_ALL'),
+    LC_CTYPE: await $.env.get('LC_CTYPE'),
+    LANG: await $.env.get('LANG'),
+  })
+}
+
+/** Reads what the environment and settings say of the cache, for a
+ *  `terminal` session or not, and hands the cache model the TTL they pin
+ *  and where idle compaction runs from. */
+const readCacheSettings = async ($: EngineInterface, terminal: boolean): Promise<void> => {
+  // Only these two keys are taken; the rest, `env` included, is dropped here.
+  const { promptCacheTtl, idleCompaction } = (await $.settings.read().catch(() => undefined)) ?? {}
+  const pinned = resolveTtl({
+    force5m: await $.env.get('FORCE_PROMPT_CACHING_5M'),
+    chosen: await $.env.get('CLAUDE_CODE_PROMPT_CACHE_TTL'),
+    setting: promptCacheTtl,
+    enable1h: await $.env.get('ENABLE_PROMPT_CACHING_1H'),
+  })
+  const idleFrom = idleCompactFrom({
+    terminal,
+    setting: idleCompaction,
+    disableAuto: await $.env.get('DISABLE_AUTO_COMPACT'),
+    disableAll: await $.env.get('DISABLE_COMPACT'),
+    minTokens: await $.env.get('CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS'),
+  })
+  band.cache.configured({ ttl: pinned, idleCompactFrom: idleFrom })
+}
+
+/** Recalls session `id`'s last reply into the cache model, off the store or
+ *  the end of its transcript: where a resume names it, else where Claude
+ *  Code keeps it. */
+const recallOnLoad = async ($: EngineInterface, id: string): Promise<void> => {
+  const path = band.resume?.path
+  const readEnd = async () => {
+    const file = await transcriptFile($, id, path)
+    return file === undefined ? undefined : transcriptEnd($, file)
   }
+  band.cache.recalled(await recallLastReply($, id, readEnd))
 }
 
 export const register: Register = on => {
-
   on('session.start', async ($, e, next) => {
+    // The timer and the commands come first, so a read below that waits or
+    // fails never leaves the band without them.
+    startTicker($)
+    registerCommands($)
+
     const id = await $.session.id().catch(() => undefined)
-    resetCache()
+    Object.assign(band, freshSession())
     // A resume of another session is no longer news. It is dropped in the
     // same step as the reset, so no read of it can land in between.
     if (band.resume?.sessionId !== id) band.resume = undefined
-    resetInsights()
-    band.warned.clear()
-    band.lastPaintKey = ''
-    band.workspace = undefined
     const now = await $.clock.now()
     band.samples = samplesUpTo((await storedSamples($)) ?? [], now)
     band.reads++ // any read still out began before this load
     // A read that fails keeps the layout drawn: none yet, so chips.
-    band.layout = DEFAULT_LAYOUT
     await readLayout($)
-    notePriceModel(await $.session.model().catch(() => undefined))
+    // The settings come before the recall, which may wait on a transcript,
+    // so a session.start that runs long has its palette, glyphs and TTL.
+    await readAppearance($)
+    await readCacheSettings($, e.surface === 'terminal' && e.isInteractive)
+    const priceModel = await $.session.model().catch(() => undefined)
     // A resume of this session, said before this load or while it runs, is
     // noted again after the reset.
-    if (band.resume !== undefined) applyResume(band.resume)
-    noteLoad(await ledgerUsd($))
+    if (band.resume !== undefined) band.cache.resumed(band.resume)
+    band.cache.loaded({ priceModel, ledger: await ledgerUsd($) })
     void readWorkspace($)
     // Loaded mid-conversation, the band has seen no reply: recall the last,
     // unless the engine said when it was.
-    if (id !== undefined && wantsRecall()) {
-      const path = band.resume?.path
-      const readEnd = async () => {
-        const file = await transcriptFile($, id, path)
-        return file === undefined ? undefined : transcriptEnd($, file)
-      }
-      noteRecalled(await recallLastReply($, id, readEnd))
-    }
-
-    // One literal name a read: the engine lists the variables a module reads.
-    // Each setting by its name, else by its name before 0.18.0.
-    const appearance = (await $.env.get('NEXTCOST_APPEARANCE')) ?? (await $.env.get('CC_BAND_APPEARANCE'))
-    band.palette = resolvePalette(appearance?.toLowerCase(), await $.env.get('NO_COLOR'))
-    band.glyphs = resolveGlyphs({
-      NEXTCOST_GLYPHS: (await $.env.get('NEXTCOST_GLYPHS')) ?? (await $.env.get('CC_BAND_GLYPHS')),
-      LC_ALL: await $.env.get('LC_ALL'),
-      LC_CTYPE: await $.env.get('LC_CTYPE'),
-      LANG: await $.env.get('LANG'),
-    })
-    // Only these two keys are taken; the rest, `env` included, is dropped here.
-    const { promptCacheTtl, idleCompaction } = (await $.settings.read().catch(() => undefined)) ?? {}
-    const pinned = resolveTtl({
-      force5m: await $.env.get('FORCE_PROMPT_CACHING_5M'),
-      chosen: await $.env.get('CLAUDE_CODE_PROMPT_CACHE_TTL'),
-      setting: promptCacheTtl,
-      enable1h: await $.env.get('ENABLE_PROMPT_CACHING_1H'),
-    })
-    if (pinned !== undefined) pinTtl(pinned)
-    band.turnOpen = false
-    band.idleCompactFrom = idleCompactFrom({
-      terminal: e.surface === 'terminal' && e.isInteractive,
-      setting: idleCompaction,
-      disableAuto: await $.env.get('DISABLE_AUTO_COMPACT'),
-      disableAll: await $.env.get('DISABLE_COMPACT'),
-      minTokens: await $.env.get('CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS'),
-    })
-
-    // One timer, repainting only when the drawing would differ: every minute
-    // (the battery, the reset countdowns, the pace tick), and every second of
-    // the cache's last ten minutes, when its countdown shows seconds.
-    band.tick?.cancel()
-    band.tick = $.clock.every(1000, () => {
-      void (async () => {
-        const now = await $.clock.now()
-        const left = msLeft(now)
-        const eta = fiveHourEtaMs(now)
-        // The minute turns just past the boundary, as the countdowns to a
-        // time on the minute do: on it, they still read the minute before.
-        const key = `${Math.ceil(now / MINUTE_MS)}|${fmtCountdown(left)}|${left > 0}|${eta === null ? '-' : fmtEta(eta)}`
-        if (key !== band.lastPaintKey) {
-          band.lastPaintKey = key
-          $.ui.invalidate('ui.render')
-        }
-      })().catch(() => undefined)
-    })
-
-    $.command.register({
-      name: 'nextcost',
-      description: 'Show, hide, expand, collapse or restyle nextcost, what your next message costs',
-      argumentHint: '[more | less | show | hide | layout <name>]',
-    })
-    // The command's name before 0.18.0, kept so a habit or a note still works.
-    $.command.register({
-      name: 'usage-band',
-      description: "nextcost's old name: the same as /nextcost",
-      argumentHint: '[more | less | show | hide | layout <name>]',
-    })
+    if (id !== undefined && band.cache.wantsRecall()) await recallOnLoad($, id)
     return next(e)
-  })
+  }).catch(($, e, next) => next(e)) // a failure here must never stop a session starting
 
   // /clear and resume end the conversation but not the process, and no
   // session.start follows, so the next conversation starts from here. A
@@ -544,12 +498,9 @@ export const register: Register = on => {
   on('session.end', async ($, e, next) => {
     band.resume = undefined // and any read of it still out is dropped
     const costNow = (await ledgerUsd($)) ?? 0
-    if (e.reason === 'resume') resetForResume(costNow)
-    else resetConversation(costNow)
-    // The context warning is this conversation's; the 5-hour one is the
-    // account's, and /clear changes nothing about it.
-    resetConversationInsights()
-    band.warned.delete(CONTEXT_WARN)
+    band.cache.conversationEnded(costNow, e.reason === 'resume')
+    band.insights.conversationEnded()
+    band.warned = forgetConversation(band.warned)
     band.lastPaintKey = ''
     // A resume may be another project.
     void readWorkspace($)
@@ -569,12 +520,11 @@ export const register: Register = on => {
     // (read through `in`: older engines' types don't declare it). Its run is
     // part of the main turn that spawned it, which keeps the start cost.
     if ('agentId' in e && e.agentId !== undefined) return next(e)
-    band.turnOpen = true
     // /model may have switched what the session's tokens are priced at.
-    notePriceModel(await $.session.model().catch(() => undefined))
+    const priceModel = await $.session.model().catch(() => undefined)
     const cost = await ledgerUsd($)
-    noteTurnStart(e.turnId, cost)
-    if (cost !== undefined) noteConversationStart(cost)
+    band.insights.noteTurnStart(e.turnId, cost)
+    band.cache.turnStarted({ priceModel, ledger: cost })
     return next(e)
   })
 
@@ -582,18 +532,17 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId === undefined) {
-      band.turnOpen = false
       const usage = await $.session.usage().catch(() => undefined)
       const cost = usage?.cost?.usd
-      const spent = noteTurnEnd(e.turnId, cost)
+      const spent = band.insights.noteTurnEnd(e.turnId, cost)
       // Taken every turn, so a rebuild never marks a later turn's cost.
-      const reWarm = takeRebuilt()
-      if (spent !== null) pushCost(spent, reWarm)
+      const ended = band.cache.turnEnded(cost)
+      if (spent !== null) band.insights.pushCost(spent, ended.rebuilt)
       const used = usage === undefined ? undefined : contextUsed(usage.context)
-      if (used !== undefined) pushContext(used)
-      void rememberTurn($, cost)
+      if (used !== undefined) band.insights.pushContext(used)
+      if (ended.remember !== undefined) void rememberTurn($, ended.remember)
       const now = await $.clock.now()
-      const sample = usage === undefined ? undefined : sampleOf(now, usage.rateLimits)
+      const sample = usage === undefined ? undefined : sampleOf(now, usage.rateLimits.map(limitOf))
       if (sample !== undefined) await noteSample($, sample)
       // Another session may have chosen a layout since.
       await readLayout($)
@@ -610,13 +559,11 @@ export const register: Register = on => {
     const result = yield* next(e)
     const isMain = e.agentId === undefined
     if (result?.usage) {
-      if (isMain && result.usage.model) noteBilledModel(result.usage.model)
-      recordResponse(result.usage, sentAt, isMain, result.usage.model)
-      const cost = await ledgerUsd($)
-      if (cost !== undefined) noteLedger(cost)
+      band.cache.responded(result.usage, sentAt, isMain)
+      band.cache.ledgerRead(await ledgerUsd($))
       $.ui.invalidate('ui.render')
     }
-    if (isMain && result?.stopReason === 'compaction') noteCompaction(undefined)
+    if (isMain && result?.stopReason === 'compaction') band.cache.compacted({ now: sentAt })
     return result
   })
 
@@ -624,7 +571,7 @@ export const register: Register = on => {
   on('session.compact', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId === undefined && e.trigger !== 'precompute' && result.skip === undefined) {
-      noteCompact({ now: await $.clock.now(), turnOpen: band.turnOpen, trigger: e.trigger, sizeAfter: result.tokensAfter })
+      band.cache.compacted({ now: await $.clock.now(), sizeAfter: result.tokensAfter, manual: e.trigger === 'manual' })
       $.ui.invalidate('ui.render')
     }
     return result
@@ -632,17 +579,10 @@ export const register: Register = on => {
 
   on('session.measure', async ($, e, next) => {
     const now = await $.clock.now()
-    const note = (key: string, frac: number, levels: readonly number[], text: (pct: number) => string): void => {
-      const { level, speak } = escalate(band.warned.get(key) ?? 0, frac, levels)
-      band.warned.set(key, level)
-      if (speak) $.ui.toast(text(Math.round(frac * 100)))
-    }
-
-    for (const limit of e.rateLimits) {
-      if (limit.kind !== FIVE_HOUR) continue
-      noteFiveHour(now, limit.percentUsed, limit.resetsAt)
-      note(FIVE_HOUR, limit.percentUsed / 100, [WARN_AT, SEVERE_AT], pct => `You've used ${pct}% of your 5-hour limit.`)
-    }
+    for (const limit of e.rateLimits.map(limitOf)) if (limit.kind === FIVE_HOUR) band.insights.noteFiveHour(now, limit.percentUsed, limit.resetsAt)
+    const limits = limitToasts(band.warned, e.rateLimits)
+    band.warned = limits.warned
+    for (const text of limits.say) $.ui.toast(text)
 
     // Local and token-free, but it can fail; the last answer stands until a new one.
     try {
@@ -656,17 +596,9 @@ export const register: Register = on => {
       // keep the last known setting
     }
 
-    // The context toast speaks where the context pill turns amber: by the same rule.
-    const used = contextUsed(e.context)
-    if (used !== undefined) {
-      const at = band.compactAt
-      const { frac, levels } = contextPressure(used, e.context.window, at)
-      note(CONTEXT_WARN, frac, levels, pct =>
-        at !== undefined ? `Auto-compaction in ~${fmtTokens(Math.max(0, at - used))} tokens.`
-        : band.autoCompactOff ? `Context is ${pct}% full and auto-compaction is off, so the conversation will run out of room.`
-        : `Context is ${pct}% full.`,
-      )
-    }
+    const context = contextToasts(band.warned, { used: contextUsed(e.context), window: e.context.window, compactAt: band.compactAt, autoCompactOff: band.autoCompactOff })
+    band.warned = context.warned
+    for (const text of context.say) $.ui.toast(text)
 
     $.ui.invalidate('ui.render')
     return next(e)
@@ -683,43 +615,27 @@ export const register: Register = on => {
     const usage = await $.session.usage().catch(() => undefined)
     if (usage === undefined) return next(e)
     const now = await $.clock.now()
-    const { five, seven, others } = splitLimits(usage.rateLimits)
-    if (usage.cost !== undefined) noteLedger(usage.cost.usd)
-    const contextTokens = contextUsed(usage.context) ?? 0
-    const limitOf = (l: SessionRateLimit): LimitReading => ({ percentUsed: l.percentUsed, resetsAt: l.resetsAt })
+    // The ledger is noted here, before the snapshot is built from the cache's view.
+    const { cache, costUsd } = band.cache.view({ now, ledger: usage.cost?.usd, contextTokens: contextUsed(usage.context) ?? 0, autoCompactOff: band.autoCompactOff })
+    const snap = snapshotOf({
+      usage,
+      now,
+      mount: { surface: e.surface, columns: e.props.bodyColumns, maxRows: e.props.maxRows, isWorking: e.props.isWorking },
+      expanded: await read($, isExpanded),
+      band,
+      cache,
+      costUsd,
+      history: band.insights.trails(),
+      etaMs: band.insights.fiveHourEtaMs(now),
+      // Read at each instant drawn, so a daylight-saving change shows by
+      // the next minute's repaint, with no reply needed.
+      zone: readableZone(hostZone, now),
+    })
+    band.resets = resetsOf(snap)
 
     return drawBand(
       $.ui.resolve(e),
-      {
-        surface: e.surface,
-        columns: e.props.bodyColumns,
-        maxRows: e.props.maxRows,
-        isWorking: e.props.isWorking,
-        expanded: await read($, isExpanded),
-        palette: band.palette,
-        layout: band.layout,
-        glyphs: band.glyphs,
-        now,
-        cache: cacheView(now, usage.cost?.usd, contextTokens, { from: band.idleCompactFrom, autoCompactOff: band.autoCompactOff }),
-        costUsd: spentUsd(usage.cost?.usd),
-        lastTurnUsd: insights.lastTurnUsd,
-        history: trails,
-        context: {
-          tokens: usage.context.tokens,
-          window: usage.context.window,
-          percent: usage.context.percent,
-          compactAt: band.compactAt,
-          autoCompactOff: band.autoCompactOff,
-        },
-        fiveHour: five ? { ...limitOf(five), etaMs: fiveHourEtaMs(now) } : undefined,
-        sevenDay: seven ? limitOf(seven) : undefined,
-        samples: band.samples,
-        workspace: band.workspace,
-        // Read at each instant drawn, so a daylight-saving change shows by
-        // the next minute's repaint, with no reply needed.
-        zone: readableZone(hostZone, now),
-        otherLimits: others.map(l => ({ kind: l.kind, ...limitOf(l) })),
-      },
+      snap,
       {
         toggleExpanded: async () => {
           // Opening reads git, so the cards never show a stale branch.
@@ -730,5 +646,5 @@ export const register: Register = on => {
         },
       },
     )
-  })
+  }).catch(($, e, next) => next(e)) // a band that can't be drawn steps aside, never breaks the prompt
 }

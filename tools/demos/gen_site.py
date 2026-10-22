@@ -3,26 +3,21 @@ output (from the test kit) rendered in as the hero's live band.
 
     python3 gen_site.py out/site.txt site/template.html ../../docs/index.html [out/demo.txt]
 
-site.txt fills the legacy {{<state>}} placeholders; demo.txt (beside site.txt
-unless given) fills {{demo-chips-amber}}, the hero's first drawing, and
-{{demo-json}}, every drawing as {layout: {state: {shut, open}}} for
-<script type="application/json" id="demo-data">."""
+demo.txt (beside site.txt unless given) fills {{demo-chips-amber}}, the
+hero's first drawing, and {{demo-json}}, every drawing as
+{layout: {state: {shut, open}}} for <script type="application/json"
+id="demo-data">. The layouts are the ones it draws: a line holding
+{{layout-radio}} is repeated with each layout's radio button, and
+{{layout-names}} lists them in words. site.txt itself feeds the stills, not
+the page."""
 import datetime
 import json
 import os
+import re
 import sys
 
+from common import demo_layouts, plugin_version, read, words, write
 from render_desk import node
-
-
-def text(n):
-    if isinstance(n, str):
-        return n
-    if isinstance(n, dict):
-        return ''.join(text(c) for c in n.get('children') or [])
-    if isinstance(n, list):
-        return ''.join(text(c) for c in n)
-    return ''
 
 
 def lift_hovers(tree):
@@ -43,7 +38,7 @@ def lift_hovers(tree):
             if p.get('position') == 'absolute' and p.get('display') == 'none':
                 scope = (c.get('hover') or {}).get('scope')
                 if scope is not None:
-                    tips[scope] = ' '.join(text(c).split())
+                    tips[scope] = ' '.join(words(c).split())
             else:
                 keep.append(c)
                 drop(c)
@@ -66,22 +61,24 @@ def lift_hovers(tree):
 
 
 # The live demo's drawings: every state in every layout, from demo.txt.
-LAYOUTS = ('chips', 'pulse', 'departures')
 STATES = ('calm', 'amber', 'cold', 'limit')
+# The layout the page opens on, as its script's first state does.
+FIRST = 'chips'
 
 
-def demo_drawings(path):
+def demo_drawings(path, layouts):
     """{layout: {state: {shut, open}}}: each DEMO line's tree, its hover cards
     lifted onto their chips, drawn for the site. A countdown in the last
     minute is wrapped in <span class=cd>; departures draws its countdown on
     flap tiles inside an SVG, so its drawings carry none."""
-    demo = {layout: {state: {} for state in STATES} for layout in LAYOUTS}
-    for line in open(path):
-        _, layout, state, look, js = line.rstrip('\n').split(' ', 4)
-        tree = json.loads(js)
-        lift_hovers(tree)
-        demo[layout][state][look] = node(tree, site=True)
-    for layout in LAYOUTS:
+    demo = {layout: {state: {} for state in STATES} for layout in layouts}
+    with open(path) as f:
+        for line in f:
+            _, layout, state, look, js = line.rstrip('\n').split(' ', 4)
+            tree = json.loads(js)
+            lift_hovers(tree)
+            demo[layout][state][look] = node(tree, site=True)
+    for layout in layouts:
         for state in STATES:
             for look in ('shut', 'open'):
                 body = demo[layout][state].get(look)
@@ -91,6 +88,24 @@ def demo_drawings(path):
     return demo
 
 
+def radio(layout):
+    """A layout's radio button in the demo's layout switch."""
+    checked = ' checked' if layout == FIRST else ''
+    return f'<label><input type="radio" name="layout" value="{layout}"{checked}>{layout}</label>'
+
+
+def with_radios(page, layouts):
+    """`page` with each line holding {{layout-radio}} once per layout, in
+    the capture's order, that layout's radio button in its place."""
+    line = re.compile(r'^(.*)\{\{layout-radio\}\}(.*)$', flags=re.MULTILINE)
+    return line.sub(lambda m: '\n'.join(m.group(1) + radio(k) + m.group(2) for k in layouts), page)
+
+
+def in_words(names):
+    """`a, b or c`."""
+    return names[0] if len(names) == 1 else f'{", ".join(names[:-1])} or {names[-1]}'
+
+
 def script_json(data):
     """JSON safe inside <script type="application/json">."""
     return json.dumps(data, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/').replace('<!--', '<\\u0021--')
@@ -98,25 +113,20 @@ def script_json(data):
 
 src, template, out = sys.argv[1], sys.argv[2], sys.argv[3]
 demo_src = sys.argv[4] if len(sys.argv) > 4 else os.path.join(os.path.dirname(src), 'demo.txt')
-states = {}
-for line in open(src):
-    _, name, js = line.split(' ', 2)
-    tree = json.loads(js)
-    lift_hovers(tree)
-    states[name] = node(tree).replace('0:47', '<span class=cd>0:47</span>')
 
-page = open(template).read()
+page = read(template)
 # The release the page describes is the manifest's, and it is dated the day
 # it was built (UTC), as the sitemap is: neither is typed into the template.
-manifest = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../plugins/nextcost/.claude-plugin/plugin.json')
-page = page.replace('{{version}}', json.load(open(manifest))['version'])
+page = page.replace('{{version}}', plugin_version())
 page = page.replace('{{built}}', datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))
-for name, body in states.items():
-    page = page.replace('{{' + name + '}}', body)
-if '{{demo-' in page:
-    demo = demo_drawings(demo_src)
-    page = page.replace('{{demo-chips-amber}}', demo['chips']['amber']['shut'])
+if '{{demo-' in page or '{{layout-' in page:
+    layouts = demo_layouts(demo_src)
+    assert FIRST in layouts, f'no {FIRST} drawing in {demo_src}, which the page opens on'
+    page = with_radios(page, layouts)
+    page = page.replace('{{layout-names}}', in_words(layouts))
+    demo = demo_drawings(demo_src, layouts)
+    page = page.replace('{{demo-chips-amber}}', demo[FIRST]['amber']['shut'])
     page = page.replace('{{demo-json}}', script_json(demo))
 assert '{{' not in page, 'unfilled placeholder'
-open(out, 'w').write(page)
-print({k: len(v) for k, v in states.items()}, len(page))
+write(out, page)
+print(len(page))

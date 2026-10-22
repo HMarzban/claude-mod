@@ -2,6 +2,11 @@
 
 import { test, expect } from 'claude-code/testing'
 import {
+  BUILD_100K,
+  BUILD_80K,
+  TURN_DONE,
+  TURN_START,
+  BUILD_155K,
   LONG,
   USAGE,
   START,
@@ -39,8 +44,8 @@ test("last turn's cost follows the main turn and ignores subagents'", async ($, 
 test("no cost ledger hides last turn's cost", async ($, on) => {
   setup(on, { usage: { startedAt: 0, context: { window: 200_000 }, rateLimits: [] } })
   await $.session.start(START)
-  await $.turn.start({ text: 'hi', turnId: 't1' })
-  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+  await $.turn.start(TURN_START)
+  await $.turn.complete(TURN_DONE)
 
   const ui = await mountBand($, 'terminal', 110)
   // The card covers its chip, so it carries the figure first.
@@ -51,7 +56,7 @@ test("no cost ledger hides last turn's cost", async ($, on) => {
 test('/clear starts the band on a fresh conversation', async ($, on) => {
   setup(on)
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
 
   await $.session.end(CLEAR)
 
@@ -63,12 +68,12 @@ test('/clear starts the band on a fresh conversation', async ($, on) => {
 test('spend before a /clear does not inflate the re-warm estimate', LONG, async ($, on) => {
   const clock = setup(on) // ledger at $2.41 when /clear runs
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   await $.session.end(CLEAR)
 
   // The ledger keeps counting: $0.59 is this conversation's.
   usage.current = { ...USAGE, cost: { usd: 3.0 } }
-  await respond($, resp(10_000, 0, 100_000, 2_000))
+  await respond($, BUILD_100K)
   await clock.advance(61 * 60_000)
 
   // rate = 0.59 / (10k + 1.25*100k + 5*2k) ; re-warm = 1.25 * 112k * rate = 0.57
@@ -80,11 +85,11 @@ test('spend before a /clear does not inflate the re-warm estimate', LONG, async 
 test('a ledger the engine reset on /clear is used as it stands', LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   await $.session.end(CLEAR)
 
   usage.current = { ...USAGE, cost: { usd: 0.59 } } // below the $2.41 baseline: reset
-  await respond($, resp(10_000, 0, 100_000, 2_000))
+  await respond($, BUILD_100K)
   await clock.advance(61 * 60_000)
 
   const ui = await mountBand($, 'terminal', 110)
@@ -95,11 +100,11 @@ test('a ledger the engine reset on /clear is used as it stands', LONG, async ($,
 test('a ledger reset on /clear keeps the re-warm price right after the new conversation outspends the old', LONG, async ($, on) => {
   const clock = setup(on) // $2.41 when /clear runs
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   await $.session.end(CLEAR)
 
   usage.current = { ...USAGE, cost: { usd: 0.59 } } // the engine reset the ledger
-  await respond($, resp(10_000, 0, 100_000, 2_000))
+  await respond($, BUILD_100K)
   usage.current = { ...USAGE, cost: { usd: 3.0 } } // now past the old $2.41
   await respond($, resp(1_000, 112_000, 2_000, 1_000))
   await clock.advance(61 * MIN)
@@ -113,10 +118,10 @@ test('a ledger reset on /clear keeps the re-warm price right after the new conve
 test('a session resumed or reloaded with spend on the ledger prices the re-warm from spend since', LONG, async ($, on) => {
   const clock = setup(on, { usage: { ...USAGE, cost: { usd: 20 } } }) // the ledger carries an earlier run's $20
   await $.session.start(START)
-  await $.turn.start({ text: 'hi', turnId: 't1' })
-  await respond($, resp(10_000, 0, 100_000, 2_000))
+  await $.turn.start(TURN_START)
+  await respond($, BUILD_100K)
   usage.current = { ...USAGE, cost: { usd: 20.3 } }
-  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+  await $.turn.complete(TURN_DONE)
   await clock.advance(61 * MIN)
 
   // $0.30 since start: 1.25 * 112k * 0.30 / 145k = 0.29
@@ -129,7 +134,7 @@ test('/clear keeps a TTL the environment pinned', async ($, on) => {
   const clock = setup(on, { env: { CLAUDE_CODE_PROMPT_CACHE_TTL: '5m' } })
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
   await $.session.end(CLEAR)
-  await respond($, resp(2_000, 0, 80_000, 500))
+  await respond($, BUILD_80K)
   await clock.advance(6 * 60_000) // past 5m, well inside the 1h default
 
   const ui = await mountBand($, 'terminal', 110)

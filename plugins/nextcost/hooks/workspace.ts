@@ -45,7 +45,9 @@ const worktreeName = (dirs: string): string | undefined => {
   return trimSlash(gitDir) === trimSlash(commonDir) ? undefined : basename(top) || undefined
 }
 
-/** Undefined without a `# branch.head` line: not a repo, or not porcelain v2. */
+/** The git state in `status`, porcelain v2 with its branch headers, and
+ *  `dirs`, rev-parse's three paths. Undefined without a `# branch.head`
+ *  line: not a repo, or not porcelain v2. */
 export const parseGitState = (status: string, dirs: string): GitState | undefined => {
   let head: string | undefined
   let oid: string | undefined

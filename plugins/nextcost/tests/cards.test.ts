@@ -8,35 +8,36 @@ import { makeKit } from '../hooks/kit'
 import { DESKTOP, HOTKEY_MARK, TERMINAL, cellsOf } from '../hooks/layout'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { openBody } from '../hooks/views/cards'
+import { chipsOpen } from '../hooks/views/chips-open'
+import { cardLine, limitAccent } from '../hooks/views/shell'
 import { cachePill, chipsPills, chipsView, limitPill, pillRow } from '../hooks/views/chips'
-import { drawView, toggleButton } from '../hooks/views/frame'
+import { drawView, toggleButton, type Keeps } from '../hooks/views/frame'
 import type { View } from '../hooks/views/view'
 import { canon } from './golden/hash'
 import { BARE, DARK, PLAIN } from '../hooks/palette'
 import { boldOf, byKey, cardFirstRow, cardHead, cardOf, fact, fakeEl, shown, walk, type Node } from './helpers'
-import { NO_ACT, snapOf, visualRows } from './matrix'
+import { NO_ACT, kitOf, snapOf, visualRows } from './matrix'
 
 const text = (s: string) => ({ type: 'Text', props: {}, children: [s] }) as unknown as RenderElement
 /** Cards beneath `count` collapsed lines, as a layout of that many rows would draw them. */
 const linesView = (count: number): View => ({
   rows: { desktop: count, terminal: count },
   collapsed: () => ({ type: 'Box', props: { flexDirection: 'column' }, children: Array.from({ length: count }, (_, i) => text(`LINE ${i}`)) }) as unknown as RenderElement,
-  open: openBody,
+  open: chipsOpen,
 })
 const drawn = (view: View, snap: BandSnapshot) => drawView(view, makeKit(fakeEl, snap), readingsOf(snap), NO_ACT)
 const opened = (over: Partial<BandSnapshot> = {}): Node => {
   const snap = snapOf({ expanded: true, maxRows: 40, ...over })
-  return { type: 'Box', props: {}, children: openBody(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT, 1) } as unknown as Node
+  return { type: 'Box', props: {}, children: chipsOpen(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT, 1) } as unknown as Node
 }
 
-test("chips' open view is openBody's, with one collapsed row and nothing to skip", () => {
+test("chips' open view is chipsOpen's, with one collapsed row and nothing to skip", () => {
   for (const surface of ['terminal', 'desktop'] as const) {
     const snap = snapOf({ expanded: true, surface })
     const kit = makeKit(fakeEl, snap)
     const read = readingsOf(snap)
     const open = (drawView(chipsView, kit, read, NO_ACT) as unknown as Node).children?.flat().slice(1)
-    expect(canon(open)).toEqual(canon(openBody(kit, read, NO_ACT, 1).filter(Boolean)))
+    expect(canon(open)).toEqual(canon(chipsOpen(kit, read, NO_ACT, 1).filter(Boolean)))
   }
 })
 test('the cards take only the rows the collapsed lines leave', () => {
@@ -47,12 +48,12 @@ test('the cards take only the rows the collapsed lines leave', () => {
       // desktop card's edge takes a row above and below, which visualRows
       // leaves out, so each line of them adds two.
       for (const maxRows of [13, 14, 20, 40]) {
-        const snap = snapOf({ surface, expanded: true, maxRows, workspace: { path: '/Users/me/workspace/claude-mod', git: undefined, repoName: undefined } })
+        const snap = snapOf({ surface, expanded: true, maxRows, workspace: { path: '/Users/me/workspace/nextcost', git: undefined, repoName: undefined } })
         const tree = drawn(view, snap)
         const edges = surface === 'desktop' ? 2 * (byKey(tree, 'cards')?.children ?? []).length : 0
         // The desktop's two lines at 13 rows, the gauges board's case, leave
         // its two lines of cards no row of body. Each card keeps one anyway,
-        // as openBody holds every card to a fact at least, so the band is a
+        // as chipsOpen holds every card to a fact at least, so the band is a
         // row over.
         const over = surface === 'desktop' && count === 2 && maxRows === 13
         const at = `${surface} ${count} at ${maxRows}`
@@ -88,16 +89,18 @@ test('shut, a cards view draws its collapsed lines alone', () => {
   const tree = drawn(linesView(1), snap)
   expect(shown(tree)).toBe('LINE 0')
 })
+/** Every piece kept: a row's first step. */
+const KEEP_ALL: Keeps<string> = { has: () => true, calm: () => true, part: () => true, amber: a => a.long }
 test("a layout composes chips' pills: chips' row is its pills in a pill row", () => {
   const snap = snapOf({ columns: 200 })
   const kit = makeKit(fakeEl, snap)
   const read = readingsOf(snap)
   const row = (drawView(chipsView, kit, read, NO_ACT) as unknown as Node).children?.[0]
-  expect(canon(row)).toEqual(canon(pillRow(kit, toggleButton(kit, read, NO_ACT), chipsPills(kit, read, 0))))
-  const mine = pillRow(kit, toggleButton(kit, read, NO_ACT), [limitPill(kit, read, '7d', 0, false), cachePill(kit, read, true)].filter(p => p !== undefined))
+  expect(canon(row)).toEqual(canon(pillRow(kit, toggleButton(kit, read, NO_ACT), chipsPills(kit, read, KEEP_ALL))))
+  const mine = pillRow(kit, toggleButton(kit, read, NO_ACT), [limitPill(kit, read, '7d', KEEP_ALL, false), cachePill(kit, read, true)].filter(p => p !== undefined))
   expect(shown(mine)).toBe('7d ██░░░░ 30% │ ↻ 2d 19h ◷ cache 52m ')
   expect(byKey(mine, 'more', 'Button')?.props?.label).toBe('▵')
-  expect(limitPill(kit, readingsOf(snapOf({ sevenDay: undefined })), '7d', 0, false)).toBeUndefined()
+  expect(limitPill(kit, readingsOf(snapOf({ sevenDay: undefined })), '7d', KEEP_ALL, false)).toBeUndefined()
 })
 test('a card head is bold on its figure alone, its words in label ink', () => {
   const tree = opened()
@@ -142,4 +145,19 @@ test("the footer's hint and the strip's words are inked in the theme's legible g
   // `subtle` is 2.07:1 on Claude Code's dark terminal ground; `inactive` about 5.8:1.
   expect(BARE.label).toBe('inactive')
   expect(PLAIN.label).toBe('subtle')
+})
+test("the shell answers a line of cards' geometry: how many to a line, their insides, and their edge", () => {
+  const line = (over: Partial<BandSnapshot>, count = 4) => cardLine(kitOf(over), count)
+  // A terminal card with a fill draws no edge; plain's border takes two columns and two rows.
+  expect(line({ columns: 200 })).toMatchObject({ perLine: 4, inner: 47, edge: 0, edgeRows: 0, pxEdge: false })
+  expect(line({ columns: 200, palette: PLAIN })).toMatchObject({ perLine: 4, inner: 45, edge: 2, edgeRows: 2, pxEdge: false })
+  // The desktop's edge is a line of pixels: its px come off the card's inside.
+  expect(line({ columns: 200, surface: 'desktop' })).toMatchObject({ perLine: 4, inner: 45, innerPx: 470, edge: 2, edgeRows: 1, pxEdge: true })
+  // Short of room for every card, half of them; else one.
+  expect([line({ columns: 95 }).perLine, line({ columns: 60 }).perLine, line({ columns: 40 }).perLine]).toEqual([2, 1, 1])
+})
+test("a limit's accent is its window's, or the meter's for any other", () => {
+  expect(limitAccent(DARK, '5h')).toBe(DARK.fiveAccent)
+  expect(limitAccent(DARK, '7d')).toBe(DARK.weekAccent)
+  expect(limitAccent(DARK, 'other')).toBe(DARK.meterFill)
 })

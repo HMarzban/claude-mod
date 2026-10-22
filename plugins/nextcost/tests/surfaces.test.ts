@@ -3,10 +3,11 @@
 import { test, expect } from 'claude-code/testing'
 import { DARK } from '../hooks/palette'
 import {
+  DESKTOP_START,
+  BUILD_155K,
   PLUGIN,
   START,
   props,
-  resp,
   respond,
   textOf,
   walk,
@@ -24,7 +25,7 @@ import {
 test('NEXTCOST_APPEARANCE=plain drops every background for theme keys', async ($, on) => {
   setup(on, { env: { NEXTCOST_APPEARANCE: 'plain', ...HOUR_1 } })
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
 
   const ui = await mountBand($, 'terminal', 110)
   let backgrounds = 0
@@ -38,8 +39,8 @@ test('NEXTCOST_APPEARANCE=plain drops every background for theme keys', async ($
 
 test('the band draws on every surface that renders', async ($, on) => {
   setup(on)
-  await $.session.start({ ...START, surface: 'desktop' })
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await $.session.start(DESKTOP_START)
+  await respond($, BUILD_155K)
   for (const surface of ['desktop', 'vscode', 'mobile'] as const) {
     const ui = await $.ui.mount({ plugin: PLUGIN, surface, component: 'AbovePrompt', props: props(110) })
     expect(await ui.find({ type: 'Text', text: /\$2\.41/ })).toBeDefined()
@@ -50,8 +51,8 @@ test('the band draws on every surface that renders', async ($, on) => {
 
 test('desktop draws SVG meters; the terminal and plain draw text ones', async ($, on) => {
   setup(on)
-  await $.session.start({ ...START, surface: 'desktop' })
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await $.session.start(DESKTOP_START)
+  await respond($, BUILD_155K)
 
   const desk = await mountBand($, 'desktop', 110)
   const svgs = (await desk.findAll({ type: 'Svg' })).filter(n => /% used/.test(String(n.props?.alt)))
@@ -71,7 +72,7 @@ test('desktop draws SVG meters; the terminal and plain draw text ones', async ($
 
 test('plain appearance keeps text meters on desktop', async ($, on) => {
   setup(on, { env: { NEXTCOST_APPEARANCE: 'plain', ...HOUR_1 } })
-  await $.session.start({ ...START, surface: 'desktop' })
+  await $.session.start(DESKTOP_START)
 
   const ui = await mountBand($, 'desktop', 110)
   expect(await ui.findAll({ type: 'Svg' })).toHaveLength(0)
@@ -80,8 +81,8 @@ test('plain appearance keeps text meters on desktop', async ($, on) => {
 
 test('desktop draws a coin, a tokens and a context icon; the terminal uses glyphs', async ($, on) => {
   setup(on)
-  await $.session.start({ ...START, surface: 'desktop' })
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await $.session.start(DESKTOP_START)
+  await respond($, BUILD_155K)
 
   const desk = await mountBand($, 'desktop', 140)
   const alts = svgAlts(await desk.drawn())

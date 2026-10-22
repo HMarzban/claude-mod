@@ -1,8 +1,12 @@
-// A filled pill needs its foreground and background from one source: a theme
-// key resolves against the user's theme, a hex does not, and mixing them makes
-// a pill that is legible on one theme and blank on the other. Nothing in the
-// API reports whether the theme is light or dark, so the palette is declared
-// rather than guessed: NEXTCOST_APPEARANCE = dark | light | plain.
+// The band's palettes, dark, light and plain, and the colours for what sits
+// on its bare ground.
+
+/** A filled pill needs its foreground and background from one source: a
+ *  theme key resolves against the user's theme, a hex does not, and mixing
+ *  them makes a pill that is legible on one theme and blank on the other.
+ *  Nothing in the API reports whether the theme is light or dark, so the
+ *  palette is declared rather than guessed: NEXTCOST_APPEARANCE = dark |
+ *  light | plain. */
 export type Palette = {
   filled: boolean
   surface: string
@@ -14,7 +18,12 @@ export type Palette = {
   cold: string
   amberBg: string
   amberFg: string
+  /** The desktop's ground inside a meter's, a track's and a guessed day's
+   *  edge, which trackStroke draws. */
   meterTrack: string
+  /** A text track's empty cells (░ ⣀) and an unmeasured day's edge: 3:1
+   *  against every ground they sit on. */
+  trackInk: string
   meterFill: string
   /** The expanded view's cards: fill, edge, and their values. */
   cardBg: string
@@ -94,6 +103,7 @@ export const DARK: Readonly<Palette> = {
   amberBg: '#3a2f17',
   amberFg: '#f0c969',
   meterTrack: '#45454f',
+  trackInk: '#787889',
   meterFill: '#b8b8c2',
   cardBg: '#2a2a31',
   cardBorder: '#76767f',
@@ -125,6 +135,7 @@ export const LIGHT: Readonly<Palette> = {
   amberBg: '#fbeccd',
   amberFg: '#7a4e06',
   meterTrack: '#d6d6de',
+  trackInk: '#82829b',
   meterFill: '#55555f',
   cardBg: '#f4f4f7',
   cardBorder: '#77777f',
@@ -158,6 +169,7 @@ export const PLAIN: Readonly<Palette> = {
   amberBg: '',
   amberFg: 'warning',
   meterTrack: 'subtle',
+  trackInk: 'subtle',
   meterFill: 'text',
   cardBg: '',
   cardBorder: 'subtle',

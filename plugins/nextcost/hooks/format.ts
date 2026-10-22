@@ -1,30 +1,51 @@
-// Numbers, times and escalation marks, as the band words them.
+// Numbers, times and escalation marks, as the band words them, and the
+// paint key: every phrase the clock alone moves, as one key.
 
 export const MINUTE_MS = 60_000
 /** The cache's last minute: the one span where acting changes the bill. */
 export const SOON_MS = MINUTE_MS
+/** Under ten minutes a countdown is close: see `grainOf`. */
+const CLOSE_MS = 10 * MINUTE_MS
+
+/** How finely a countdown with `ms` left is said: `seconds` in its last
+ *  minute, where every form counts seconds; `close` under ten minutes, where
+ *  chips' `M:SS` still does and the other forms count whole minutes rounded
+ *  up; else `minutes`, whole and rounded down. The one rule every countdown
+ *  follows. */
+export const grainOf = (ms: number): 'seconds' | 'close' | 'minutes' => (ms < MINUTE_MS ? 'seconds' : ms < CLOSE_MS ? 'close' : 'minutes')
+
 /** Departures' calm last call: an hour's cache this near cold says LAST CALL at
- *  its clock, in the board's calm ink. Only the last minute is amber. */
-export const LAST_CALL_MS = 10 * MINUTE_MS
+ *  its clock, in the board's calm ink, from where its countdown is close.
+ *  Only the last minute is amber. */
+export const LAST_CALL_MS = CLOSE_MS
 
 /** At this share a pill turns amber and gains `!`, and a toast speaks. */
 export const WARN_AT = 0.8
 /** At this share the mark becomes `!!`, and a toast speaks again. */
 export const SEVERE_AT = 0.95
 /** Within this share of the compaction point, context counts down to it. */
-export const COMPACT_NEAR = 0.9
+const COMPACT_NEAR = 0.9
+
+/** `part` as a share of `whole`; a share of nothing is none. */
+const shareOf = (part: number, whole: number): number => (whole > 0 ? part / whole : 0)
 
 /** How full the context is against where it runs out, and the levels it
  *  escalates at there: toward compaction, where it is on and its point
  *  known, near it; else toward the window, at the warning and severe lines.
  *  Unclamped: a reading clamps it, a toast escalates on it as it is. */
 export const contextPressure = (used: number, window: number, compactAt: number | undefined): Readonly<{ frac: number; levels: readonly number[] }> =>
-  compactAt === undefined ? { frac: used / window, levels: [WARN_AT, SEVERE_AT] } : { frac: used / compactAt, levels: [COMPACT_NEAR] }
+  compactAt === undefined ? { frac: shareOf(used, window), levels: [WARN_AT, SEVERE_AT] } : { frac: shareOf(used, compactAt), levels: [COMPACT_NEAR] }
 
-export const clamp01 = (n: number): number => (n < 0 ? 0 : n > 1 ? 1 : n)
+/** The tokens left before auto-compaction runs at `compactAt`; none once past it. */
+export const toCompaction = (used: number, compactAt: number): number => Math.max(0, compactAt - used)
 
+/** `n` held to 0–1; NaN, a share of nothing, is 0. */
+export const clamp01 = (n: number): number => (Number.isNaN(n) || n < 0 ? 0 : n > 1 ? 1 : n)
+
+/** A percent as a whole one: 82.4 is `82%`. */
+export const fmtPercent = (percent: number): string => `${Math.round(percent)}%`
 /** A share as a whole percent: 0.38 is `38%`. */
-export const fmtPct = (frac: number): string => `${Math.round(frac * 100)}%`
+export const fmtPct = (frac: number): string => fmtPercent(frac * 100)
 
 export const fmtTokens = (n: number): string => {
   const v = Math.max(0, Math.round(n))
@@ -64,7 +85,7 @@ export const fmtCountdown = (ms: number): string => {
     const hours = Math.floor(secs / 3600)
     return `${hours}h ${String(Math.floor((secs % 3600) / 60)).padStart(2, '0')}m`
   }
-  if (secs >= 600) return `${Math.floor(secs / 60)}m`
+  if (grainOf(secs * 1000) === 'minutes') return `${Math.floor(secs / 60)}m`
   return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
 }
 
@@ -81,13 +102,23 @@ const fmtSpan = (ms: number): string => {
   return mins > 0 ? `${mins}m` : '<1m'
 }
 
-/** When `iso` comes, from `now`; undefined without a readable time. */
-export const resetIn = (iso: string | undefined, now: number): ResetIn | undefined => {
+/** The time to a reset `ms` off: coarsely, and while close in whole minutes
+ *  rounded up, as every close countdown counts. */
+const fmtResetSpan = (ms: number): string => (grainOf(ms) === 'close' ? `${minutesLeft(ms)}m` : fmtSpan(ms))
+
+/** When a reset the engine names in ISO time comes, epoch ms; undefined
+ *  without a readable time. The one place a reset is parsed. */
+export const parseReset = (iso: string | undefined): number | undefined => {
   if (!iso) return undefined
   const at = Date.parse(iso)
-  if (Number.isNaN(at)) return undefined
+  return Number.isNaN(at) ? undefined : at
+}
+
+/** When a reset at `at` comes, from `now`; undefined without one. */
+export const resetIn = (at: number | undefined, now: number): ResetIn | undefined => {
+  if (at === undefined) return undefined
   const left = at - now
-  return left <= 0 ? { kind: 'passed' } : { kind: 'in', text: fmtSpan(left) }
+  return left <= 0 ? { kind: 'passed' } : { kind: 'in', text: fmtResetSpan(left) }
 }
 
 /** The words for escalation: colour is never the only signal. */
@@ -107,26 +138,6 @@ export const fmtEta = (ms: number): string => {
   return hours === 0 ? `~${mins}m` : rest ? `~${hours}h ${rest}m` : `~${hours}h`
 }
 
-/** `text` at most `max` characters, cut in the middle: a branch keeps both
- *  its prefix and its end, where names differ. */
-export const clipMiddle = (text: string, max: number): string => {
-  const chars = [...text]
-  if (chars.length <= max) return text
-  if (max <= 1) return '…'.slice(0, max)
-  const head = Math.ceil((max - 1) / 2)
-  return `${chars.slice(0, head).join('')}…${chars.slice(chars.length - (max - 1 - head)).join('')}`
-}
-
-/** `text` at most `room` characters, cut at its last whole word with a `.`
- *  in place of the punctuation it ended on; a first word longer than the
- *  room is cut where the room ends. */
-export const clipWords = (text: string, room: number): string => {
-  if (text.length <= room) return text
-  const space = text.lastIndexOf(' ', room - 1)
-  const kept = space > 0 ? text.slice(0, space).replace(/[\s,;:]+$/, '') : text.slice(0, room - 1)
-  return `${kept}.`
-}
-
 /** How long ago, coarsely: `2d 4h`, `3h 05m`, `12m`; under a minute is `now`. */
 export const fmtAgo = (ms: number): string => (ms < MINUTE_MS ? 'now' : fmtSpan(ms))
 
@@ -136,8 +147,11 @@ export const DAY_MS = 24 * HOUR_MS
 export const FIVE_HOUR_MS = 5 * HOUR_MS
 /** The weekly limit's window. */
 export const SEVEN_DAY_MS = 7 * DAY_MS
-// resetsAt readings of one window can differ by a few seconds.
-export const SAME_RESET_MS = MINUTE_MS
+/** Resets read of one window can differ by a few seconds. */
+const SAME_RESET_MS = MINUTE_MS
+/** Whether two resets name one window: both unknown, or within a minute. */
+export const sameReset = (a: number | undefined, b: number | undefined): boolean =>
+  a === b || (a !== undefined && b !== undefined && Math.abs(a - b) < SAME_RESET_MS)
 
 export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const
 
@@ -205,17 +219,24 @@ export const fmtDayClock = (ms: number, zone: Zone, now: number): string =>
 export const fmtDay = (ms: number, zone: Zone, now: number): string => (isToday(ms, zone, now) ? fmtClock(ms, zone) : weekdayOf(ms, zone, now))
 
 /** Whole seconds left, never 0 while any remain. */
-export const secondsLeft = (ms: number): number => Math.max(1, Math.ceil(ms / 1000))
-/** Whole minutes left: rounded up under ten minutes, then as `fmtCountdown`
+const secondsLeft = (ms: number): number => Math.max(1, Math.ceil(ms / 1000))
+/** Whole minutes left: rounded up while close, then as `fmtCountdown`
  *  counts them. */
-export const minutesLeft = (ms: number): number => (ms < 10 * MINUTE_MS ? Math.ceil(ms / MINUTE_MS) : Math.floor(wholeSeconds(ms) / 60))
+const minutesLeft = (ms: number): number => (grainOf(ms) === 'minutes' ? Math.floor(wholeSeconds(ms) / 60) : Math.ceil(ms / MINUTE_MS))
 
 /** The countdown alone, for a tile or a pill: `1h 00m`, `52m`, `10m`, `47s`. */
-export const fmtLeftShort = (ms: number): string =>
-  ms < MINUTE_MS ? `${secondsLeft(ms)}s` : ms < 10 * MINUTE_MS ? `${minutesLeft(ms)}m` : fmtCountdown(ms)
+export const fmtLeftShort = (ms: number): string => {
+  const grain = grainOf(ms)
+  return grain === 'seconds' ? `${secondsLeft(ms)}s` : grain === 'close' ? `${minutesLeft(ms)}m` : fmtCountdown(ms)
+}
 
 /** A countdown in words: `1h 00m left`, `52m left`, `10m left`, `47s left`. */
 export const fmtLeft = (ms: number): string => `${fmtLeftShort(ms)} left`
+
+/** A measured span on the departures board: `47S`, `38 MIN`, `1H 04M`.
+ *  Never `38M`. */
+export const boardSpan = (ms: number): string =>
+  grainOf(ms) === 'seconds' ? `${secondsLeft(ms)}S` : ms < HOUR_MS ? `${minutesLeft(ms)} MIN` : fmtCountdown(ms)
 
 export const plural = (n: number, unit: string): string => `${n} ${unit}${n === 1 ? '' : 's'}`
 
@@ -228,7 +249,7 @@ const spokenMinutes = (mins: number): string => {
 
 /** The same countdown as a screen reader should hear it: `1 hour 5 minutes left`. */
 export const fmtLeftSpoken = (ms: number): string =>
-  `${ms < MINUTE_MS ? plural(secondsLeft(ms), 'second') : spokenMinutes(minutesLeft(ms))} left`
+  `${grainOf(ms) === 'seconds' ? plural(secondsLeft(ms), 'second') : spokenMinutes(minutesLeft(ms))} left`
 
 /** A projection spelled out, rounded as `fmtEta` rounds it: `about 40 minutes`. */
 export const fmtEtaSpoken = (ms: number): string => `about ${spokenMinutes(etaMinutes(ms))}`
@@ -237,3 +258,30 @@ export const fmtEtaSpoken = (ms: number): string => `about ${spokenMinutes(etaMi
  *  undefined when the engine reports neither. */
 export const contextUsed = (ctx: Readonly<{ tokens?: number; percent?: number; window: number }>): number | undefined =>
   ctx.tokens ?? (ctx.percent === undefined ? undefined : (ctx.percent / 100) * ctx.window)
+
+/** A reset's countdown as every layout says it: the span a card and, with
+ *  no zone known, a limit's words say, and the board's, which with no zone
+ *  counts its last minute's seconds; with a zone the board says a clock. */
+const resetSpans = (left: number, zone: Zone | undefined): string =>
+  left <= 0 ? 'passed' : zone === undefined ? `${fmtResetSpan(left)} ${boardSpan(left)}` : fmtResetSpan(left)
+
+/** Every phrase the clock alone moves, as one key, so the 1-second tick
+ *  repaints only when one would read differently: the minute (the clocks,
+ *  the battery and the average's pace), the cache's countdown, how long a
+ *  recalled cache has sat idle (null when none is drawn), which turns on its
+ *  last reply's minute, the 5-hour fill's projection, and each reset's
+ *  countdown, which turns on the reset's own minute. The minute turns just
+ *  past the boundary, as the countdowns to a time on the minute do: on it,
+ *  they still read the minute before. */
+export const paintKey = (
+  now: number,
+  t: Readonly<{ cacheLeft: number; idleMs: number | null; etaMs: number | null; resets: readonly number[]; zone: Zone | undefined }>,
+): string =>
+  [
+    Math.ceil(now / MINUTE_MS),
+    fmtCountdown(t.cacheLeft),
+    t.cacheLeft > 0,
+    t.idleMs === null ? '-' : fmtAgo(t.idleMs),
+    t.etaMs === null ? '-' : fmtEta(t.etaMs),
+    ...t.resets.map(at => resetSpans(at - now, t.zone)),
+  ].join('|')

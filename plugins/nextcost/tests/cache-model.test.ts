@@ -2,13 +2,19 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
+import { newCache, type CacheModel } from '../hooks/cache'
 import {
+  BUILD_100K,
+  BUILD_80K,
+  READ_100K,
+  BUILD_155K,
   LONG,
   USAGE,
   SUMMARY,
   COMPACTED_TO,
   START,
   MIN,
+  HOUR,
   resp,
   respond,
   pillOf,
@@ -21,10 +27,49 @@ import {
   mountBand,
 } from './helpers'
 
+/** Whether the turn's end finds the cache rebuilt. */
+const rebuilt = (c: CacheModel): boolean => c.turnEnded(undefined).rebuilt
+const OPUS_BUILD = { ...BUILD_155K, model: 'claude-opus-5-5' }
+test('a request after the TTL ran out rebuilt the cache, and the turn takes the mark once', () => {
+  const c = newCache()
+  c.responded(OPUS_BUILD, 0, true)
+  expect(rebuilt(c)).toBe(false) // the first build is warming, not a re-warm
+  c.responded(OPUS_BUILD, 61 * MIN, true)
+  expect(rebuilt(c)).toBe(true)
+  expect(rebuilt(c)).toBe(false)
+})
+test('the first reply after a resume or a reload rebuilds a cache already cold', () => {
+  const resumed = newCache()
+  resumed.resumed({ cache: { lastAt: 0, expired: true, reWarmUsd: 1 }, transcript: undefined })
+  expect(resumed.leftMs(48 * HOUR)).toBe(0)
+  resumed.responded(OPUS_BUILD, 48 * HOUR, true)
+  expect(rebuilt(resumed)).toBe(true)
+  const reloaded = (): CacheModel => {
+    const c = newCache()
+    c.loaded({ priceModel: undefined, ledger: 5 })
+    c.recalled({ lastAt: 0, rate: null, billed: undefined })
+    return c
+  }
+  const cold = reloaded()
+  cold.responded(OPUS_BUILD, 3 * HOUR, true)
+  expect(rebuilt(cold)).toBe(true)
+  // Recalled warm, the first reply reads the cache it found.
+  const warm = reloaded()
+  warm.responded({ ...resp(2_000, 196_000, 4_000, 3_000), model: 'claude-opus-5-5' }, 10 * MIN, true)
+  expect(rebuilt(warm)).toBe(false)
+})
+test('a warm read is no re-warm', () => {
+  const c = newCache()
+  c.responded(OPUS_BUILD, 0, true)
+  rebuilt(c)
+  c.responded({ ...resp(2_000, 196_000, 4_000, 3_000), model: 'claude-opus-5-5' }, MIN, true)
+  expect(rebuilt(c)).toBe(false)
+})
+
 test('an assumed hour is corrected to 5m when a gap past 5m rebuilt the cache', LONG, async ($, on) => {
   const clock = setup(on, { env: {} })
   await $.session.start(START)
-  await respond($, resp(2_000, 0, 80_000, 500))
+  await respond($, BUILD_80K)
   await clock.advance(12 * MIN)
   await respond($, resp(82_500, 0, 82_500, 300))
 
@@ -39,7 +84,7 @@ test('an assumed hour is corrected to 5m when a gap past 5m rebuilt the cache', 
 test('a prefix the cache should have served but did not is an unexpected rebuild', async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
-  await respond($, resp(2_000, 0, 80_000, 500))
+  await respond($, BUILD_80K)
   await clock.advance(30_000)
   await respond($, resp(82_500, 0, 82_500, 300))
 
@@ -82,7 +127,7 @@ test("a subagent's steps leave the main countdown and window alone", LONG, async
 test("a subagent's tokens still count toward the rate the re-warm is solved from", LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
-  await respond($, resp(10_000, 0, 100_000, 2_000))
+  await respond($, BUILD_100K)
   await respond($, resp(3_000, 20_000, 10_000, 4_000), { agentId: 'agent-1' })
   await clock.advance(61 * MIN)
 
@@ -96,8 +141,8 @@ test("a subagent's tokens still count toward the rate the re-warm is solved from
 test("the re-warm estimate is solved from every response's tokens", LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
-  await respond($, resp(10_000, 0, 100_000, 2_000))
-  await respond($, resp(4_000, 100_000, 6_000, 3_000))
+  await respond($, BUILD_100K)
+  await respond($, READ_100K)
   await respond($, resp(1_000, 110_000, 2_000, 1_000))
   await clock.advance(61 * MIN)
 
@@ -138,7 +183,7 @@ test('after a compaction the cold price is for the compacted size', LONG, async 
 test('a model switch is an expected rebuild and keeps the assumed hour', async ($, on) => {
   const clock = setup(on, { env: {} }) // TTL unpinned
   await $.session.start(START)
-  await respond($, resp(2_000, 0, 80_000, 500))
+  await respond($, BUILD_80K)
   await clock.advance(6 * MIN)
   await respond($, resp(82_500, 0, 82_500, 300), { model: 'claude-sonnet-5-5' })
 
@@ -206,7 +251,7 @@ test('a step that stops for compaction makes the next rebuild expected', async (
 test('switching model and back within a pinned hour is no miss', async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
-  await respond($, resp(2_000, 0, 80_000, 500))
+  await respond($, BUILD_80K)
   await clock.advance(30_000)
   await respond($, resp(82_500, 0, 82_500, 300), { model: 'claude-sonnet-5-5' })
   await clock.advance(30_000)

@@ -1,55 +1,10 @@
-// How the band measures and fits a line: what gives way as it narrows, and
-// how many columns a drawn tree takes on each surface.
+// How the band measures a line: the columns a character and a drawn tree
+// take on each surface, the clips that cut a line to its columns, the sizes
+// it lays out by, and the squeeze that fits a line to its room by a give-way
+// order its layout names.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 
-/** What the row gives up as it narrows, least important first. The row is
- *  measured after each step; an amber piece holds out until the end. */
-export const GIVES_WAY = [
-  'tokens',
-  'weekReset',
-  'fiveReset',
-  'contextMeter',
-  'calmWeek',
-  'limitBars',
-  'shortWording',
-  'calmContext',
-  'calmFive',
-  'amberWeekReset',
-  'amberFiveReset',
-] as const
-export type Piece = (typeof GIVES_WAY)[number]
-
-/** For a give-way order: whether a line squeezed `squeeze` steps still keeps `piece`. */
-export const keepsIn =
-  <P extends string>(order: readonly P[]) =>
-  (squeeze: number, piece: P): boolean =>
-    squeeze <= order.indexOf(piece)
-
-export const keeps = keepsIn<Piece>(GIVES_WAY)
-
-/** What the workspace strip gives up as it narrows, least important first.
- *  The path, the branch and the change count's word shorten; the extras go
- *  whole, and the path's hover card still says everything. Uncommitted
- *  changes never go: they are what a narrow line must still say. */
-export const STRIP_GIVES_WAY = [
-  'clean',
-  'parent',
-  'changedWord',
-  'branchLong',
-  'worktreeOf',
-  'aheadBehind',
-  'branchShort',
-  'worktree',
-  'nameLong',
-  'nameShort',
-] as const
-export const stripKeeps = keepsIn<(typeof STRIP_GIVES_WAY)[number]>(STRIP_GIVES_WAY)
-
-/** Below this, the cache and context wording turns short whatever the squeeze. */
-export const SHORT_BELOW = 68
-export const METER_CELLS = 6
-const METER_PX = 44
 /** The longest line a card holds unwrapped, in characters: LIMITS' lead
  *  row, `resets  Mon 08:40 · full before reset`, its label two columns apart. */
 export const CARD_TEXT = 37
@@ -62,7 +17,6 @@ export const ROW_SLACK = 4
 
 /** A bar's length: px on desktop, cells elsewhere. */
 export type BarSize = Readonly<{ px: number; cells: number }>
-export const CHIP_BAR: BarSize = { px: METER_PX, cells: METER_CELLS }
 
 /** How a surface lays text out against its bodyColumns: the terminal one cell
  *  a character; the desktop's proportional font runs about three quarters of
@@ -77,13 +31,84 @@ export const DESKTOP: Measure = { text: 0.75, pxPerCell: 10 }
  *  a space 4.2, punctuation 7.0. Monospace counts every character as one. */
 const BOARD_CAPS = 1
 export const boardCells = (text: string, m: Measure): number =>
-  m.text >= 1 ? [...text].length * m.text : [...text].reduce((n, c) => n + (/[A-Z0-9]/.test(c) ? BOARD_CAPS : m.text), 0)
+  m.text >= 1 ? textCells(text) * m.text : [...text].reduce((n, c) => n + (/[A-Z0-9]/.test(c) ? BOARD_CAPS : charCells(c) * m.text), 0)
 
 /** Columns a desktop hover card's text takes a character: about 0.8, as
  *  measured on the desktop on 0.12.0's wording (its 57-character 7d card ran
  *  about 453px), a little over the measure's 0.75 so a card never cuts its
  *  own words. */
 export const DESKTOP_CARD_TEXT = 0.8
+
+/** East Asian Wide and Fullwidth, by block: Hangul Jamo, CJK and its
+ *  punctuation, kana, Hangul syllables, CJK compatibility forms, the
+ *  fullwidth forms and the ideographs' supplementary planes, which draw two
+ *  columns in every terminal. The emoji blocks are taken whole, though a few
+ *  of their characters are narrow: counting one wide only keeps a column
+ *  spare. Ambiguous glyphs (█ · … │) are not here: a terminal draws them one
+ *  column wide unless a CJK locale widens them, which the ascii tier answers. */
+const WIDE = /[\u1100-\u115f\u231a\u231b\u2329\u232a\u2e80-\u303e\u3041-\u33ff\u3400-\u4dbf\u4e00-\u9fff\ua000-\ua4cf\ua960-\ua97f\uac00-\ud7a3\uf900-\ufaff\ufe10-\ufe19\ufe30-\ufe6f\uff00-\uff60\uffe0-\uffe6\u{16fe0}-\u{16fe4}\u{17000}-\u{18aff}\u{1b000}-\u{1b2ff}\u{1f300}-\u{1f64f}\u{1f680}-\u{1f6ff}\u{1f900}-\u{1f9ff}\u{20000}-\u{3fffd}]/u
+
+/** Whether a character draws two columns wide. */
+export const isWide = (ch: string): boolean => WIDE.test(ch)
+
+/** The columns a character takes in a monospace cell grid: a wide one two,
+ *  any other one. */
+const charCells = (ch: string): number => (isWide(ch) ? 2 : 1)
+
+/** The columns `text` takes in a monospace cell grid. */
+export const textCells = (text: string): number => [...text].reduce((n, ch) => n + charCells(ch), 0)
+
+/** The most of `chars` from their start that fits `room` columns. */
+const headIn = (chars: readonly string[], room: number): string[] => {
+  let used = 0
+  const kept: string[] = []
+  for (const ch of chars) {
+    used += charCells(ch)
+    if (used > room) break
+    kept.push(ch)
+  }
+  return kept
+}
+
+/** `text` at most `max` columns, cut in the middle: a branch keeps both its
+ *  prefix and its end, where names differ. A wide character takes two
+ *  columns, and is never cut through; a column the head can't use goes to
+ *  the end. */
+export const clipMiddle = (text: string, max: number): string => {
+  if (textCells(text) <= max) return text
+  if (max <= 1) return '…'.slice(0, max)
+  const chars = [...text]
+  const head = headIn(chars, Math.ceil((max - 1) / 2))
+  const tail = headIn([...chars].reverse(), max - 1 - textCells(head.join(''))).reverse()
+  return `${head.join('')}…${tail.join('')}`
+}
+
+/** `text` at most `room` columns, cut at its last whole word with a `.` in
+ *  place of the punctuation it ended on; a first word longer than the room
+ *  is cut where the room ends. A wide character takes two columns. */
+export const clipWords = (text: string, room: number): string => {
+  if (textCells(text) <= room) return text
+  const chars = [...text]
+  // The last space within the room but the `.`'s column, by its index.
+  let space = -1
+  let at = 0
+  for (const [i, ch] of chars.entries()) {
+    if (at > room - 1) break
+    if (ch === ' ' && i > 0) space = i
+    at += charCells(ch)
+  }
+  const kept = space > 0 ? chars.slice(0, space).join('').replace(/[\s,;:]+$/, '') : headIn(chars, room - 1).join('')
+  return `${kept}.`
+}
+
+/** `text` at most `tiles` columns, `…` last where cut, a wide character
+ *  never split; nothing at a column or less. The board's flap columns and
+ *  its remarks are cut so. */
+export const clipToTiles = (text: string, tiles: number): string => {
+  if (textCells(text) <= tiles) return text
+  if (tiles <= 1) return ''
+  return `${headIn([...text], tiles - 1).join('')}…`
+}
 
 export const isList = (n: RenderChildren): n is readonly RenderChildren[] => Array.isArray(n)
 
@@ -94,17 +119,18 @@ export const isDrawn = (child: unknown): boolean => child !== null && child !== 
 const isPlaced = (n: RenderChildren): boolean =>
   typeof n === 'object' && n !== null && !isList(n) && n.type === 'Box' && n.props?.position === 'absolute'
 
-/** Columns a drawn tree takes: text, padding, gaps and Button labels. A
- *  column Box takes its widest row; hidden cards take none, nor a gap; an
- *  Svg takes its width in columns, rounded up. */
+/** Columns a drawn tree takes: text, padding, gaps and Button labels, a
+ *  wide character twice a narrow one's. A column Box takes its widest row;
+ *  hidden cards take none, nor a gap; an Svg takes its width in columns,
+ *  rounded up. */
 export const cellsOf = (n: RenderChildren, m: Measure): number => {
   if (n === null || n === undefined || typeof n === 'boolean') return 0
-  if (typeof n === 'string' || typeof n === 'number') return [...String(n)].length * m.text
+  if (typeof n === 'string' || typeof n === 'number') return textCells(String(n)) * m.text
   if (isList(n)) return n.reduce((sum: number, k: RenderChildren) => sum + cellsOf(k, m), 0)
   switch (n.type) {
     case 'Button':
       // A framed button's chrome: its padding and edges either side.
-      return [...(n.props.label ?? '')].length * m.text + (n.props.variant === undefined ? 0 : BUTTON_CHROME)
+      return textCells(n.props.label ?? '') * m.text + (n.props.variant === undefined ? 0 : BUTTON_CHROME)
     case 'Svg':
       return Math.ceil((n.props.width ?? 64) / m.pxPerCell)
     case 'Box':
@@ -143,12 +169,13 @@ export const spansOf = (pieces: readonly RenderChildren[], gap: number, m: Measu
   })
 }
 
-/** The line `build` draws at the first squeeze that fits `room` columns, or
- *  at the last tried: a line drops its pieces in the order its give-way table
- *  names them. */
-export const squeezeToFit = (build: (squeeze: number) => RenderElement, steps: number, room: number, m: Measure): RenderElement => {
+/** The line `build` draws at the first step of `order` at which it fits
+ *  `room` columns, or at the last: a line drops its pieces in the order
+ *  named, and `has` says whether a piece is still kept. */
+export const squeezeToFit = <P extends string>(order: readonly P[], room: number, m: Measure, build: (has: (piece: P) => boolean) => RenderElement): RenderElement => {
+  const at = (squeeze: number) => build(piece => squeeze <= order.indexOf(piece))
   let squeeze = 0
-  let line = build(squeeze)
-  while (squeeze < steps && cellsOf(line, m) > room) line = build(++squeeze)
+  let line = at(squeeze)
+  while (squeeze < order.length && cellsOf(line, m) > room) line = at(++squeeze)
   return line
 }

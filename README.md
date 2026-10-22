@@ -43,7 +43,7 @@ the summary.
 
 **Needs** Claude Code with mods (function-hooks plugins), outside WSL, which
 doesn't load plugins. CI tests every change, in the terminal's engine, on
-Claude Code 2.1.299 and the latest release (2.1.303 at 0.18.2). The one-line
+Claude Code 2.1.299 and the latest release (2.1.308 at 0.19.0). The one-line
 install below needs 2.1.292 or later
 (`claude --version`); on an older one, use the two steps underneath.
 
@@ -116,7 +116,8 @@ loads straight from the marketplace. If it isn't showing yet, run
 <summary>Update or uninstall</summary>
 
 ```bash
-# update, then /reload-plugins
+# update, then quit and reopen Claude Code (Cmd+Q on the desktop):
+# /reload-plugins doesn't load a new version
 claude plugin marketplace update hossein-mods
 claude plugin update nextcost@hossein-mods
 
@@ -168,9 +169,12 @@ Resume or fork a session (`claude --resume`, `/resume`, or a past session
 in the desktop app) and the band picks up its cache and spend where they
 were ([how it reads them](plugins/nextcost/README.md#reopening-an-old-session)).
 
-Press `▵` to open every fact, under a line that says where you are: the
+Press `▵` to open every fact, with a line that says where you are: the
 project, its git branch or worktree, uncommitted changes and ahead/behind.
-Chips opens into four labelled cards. Pulse opens into a grid of chart bands, and departures into an ITEM, STATUS, TIME and REMARKS board.
+Chips opens into four labelled cards, that line above them when the band
+has the rows, else beside the buttons. Pulse opens into four cards, each
+with its chart, and departures into an ITEM, STATUS, TIME and REMARKS
+board, both with the line beside the buttons.
 
 ![The band expanded on the desktop: chips for the cache, cost, context and the 5h and 7d limits, then the Cache, Spend, Context and Limits cards, the project path and branch, and the Collapse and Hide band buttons](docs/band-expanded.png)
 
@@ -190,7 +194,7 @@ card, command and setting.
 It's a **mod**: a Claude Code plugin written with the function-hooks API.
 A `ui.render` hook draws the band above the prompt, and the other hooks watch
 turns, steps and compactions. It's TypeScript and JSX, with no dependencies,
-no build step and about 1,000 tests.
+no build step and over 1,100 tests.
 
 - **The price comes from your own bill.** No pricing table is reachable from
   a mod, so the band solves the base rate from the session's cost and token
@@ -208,13 +212,14 @@ no build step and about 1,000 tests.
   A re-warm is then the whole context written to the cache again, or the
   summary after a compaction.
 - **It remembers across sessions:** the layout you chose, when each session
-  last had a reply, the rate it solved for each model, and a week of 5-hour
-  and weekly readings for pulse's day cells. A reopened session reads what it
+  last had a reply and the model it was billed under, the rate it solved
+  for each model, and a week of 5-hour and weekly readings for pulse's day
+  cells. A reopened session reads what it
   spent from its transcript.
 - **It spends nothing and sends nothing.** It never calls a model, never
   writes files and never sends anything anywhere. Besides two read-only git commands for
-  the workspace line, it runs only `grep` and `tail`, to read an old
-  session's transcript. The plugin README's
+  the workspace line, it runs only `grep` and `tail`, to read a
+  session's own transcript. The plugin README's
   [What it runs, reads and sends](plugins/nextcost/README.md#what-it-runs-reads-and-sends)
   names each command and what each hook does, and [SECURITY.md](SECURITY.md)
   lists exactly what it reads.
@@ -276,7 +281,7 @@ see in your own sessions.
 ### Good places to start
 
 - **The tokens chip hides too early on the desktop.** Chips' row fits by
-  `squeezeToFit` against `columns - ROW_SLACK` (`hooks/views/chips.tsx`).
+  `fitLine` (`hooks/views/frame.tsx`) against `columns - ROW_SLACK`.
   `DESKTOP` (`hooks/layout.ts`) estimates text width roughly, so the row
   keeps `ROW_SLACK` spare and the tokens chip, first to give way, drops
   before it has to. Calibrating that estimate from screenshots would let it
@@ -286,7 +291,9 @@ see in your own sessions.
 - **A new mod.** This repo is a marketplace: add your own plugin under
   `plugins/` and list it in `.claude-plugin/marketplace.json`, then run
   `claude plugin validate .`, then `claude plugin validate` and
-  `claude plugin test` on your plugin's folder.
+  `claude plugin test` on your plugin's folder. The tooling targets
+  nextcost today: CI, the views gate, the single-test runner and the demo
+  builder all name `plugins/nextcost`, so run those checks on yours by hand.
 
 ### Development loop
 
@@ -308,8 +315,9 @@ plugins/nextcost/
   tests/                            the test suite
   CHANGELOG.md                      what changed in each version
 docs/                               the website (GitHub Pages) and the images in this README
-tools/                              the demo builder, the golden capture, the views gate, a single-test runner
-.github/                            issue and pull request templates, CI
+design/                             the layout specs the code cites; finished plans in design/archive/
+tools/                              the demo builder, the views gate, a single-test runner
+.github/                            issue and pull request templates, CI, Dependabot
 ```
 
 Every module, test helper and tool is in

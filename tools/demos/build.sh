@@ -8,6 +8,7 @@
 # Needs: Claude Code (claude plugin test), Google Chrome, Node 22+, Python 3
 # with Pillow, and ffmpeg. Output lands in docs/; scratch in tools/demos/out/.
 # PYTHON=/path/to/python3 picks the Python; else the first on PATH with Pillow.
+# CHROME=/path/to/chrome picks the browser; else macOS's Google Chrome.app.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -15,6 +16,8 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 PLUGIN="$ROOT/plugins/nextcost"
 OUT="$HERE/out"
 DOCS="$ROOT/docs"
+# shellcheck source=SCRIPTDIR/../scratch.sh
+. "$ROOT/tools/scratch.sh"
 export CHROME="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
 mkdir -p "$OUT"
 cd "$HERE"
@@ -29,10 +32,7 @@ shot() { # shot WIDTH HEIGHT PAGE PNG
 # run leaves nothing in the plugin's tests/.
 capture() {
   echo "capturing the band's frames"
-  SCRATCH="$(mktemp -d)"
-  trap 'rm -rf "$SCRATCH"' EXIT
-  find "$PLUGIN" -mindepth 1 -maxdepth 1 ! -name tests -exec cp -R {} "$SCRATCH/" \;
-  mkdir -p "$SCRATCH/tests"
+  scratch_plugin "$PLUGIN"
   cp "$PLUGIN"/tests/{helpers.ts,globals.d.ts,cases.ts,matrix.ts} capture/*.test.ts "$SCRATCH/tests/"
   claude plugin test "$SCRATCH" > "$OUT/capture.log" 2>&1 || { tail -20 "$OUT/capture.log"; exit 1; }
   grep '^FRAME' "$OUT/capture.log" > "$OUT/frames.txt"

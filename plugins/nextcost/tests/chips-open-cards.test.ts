@@ -1,17 +1,19 @@
-// The pro-design pass: contrast, chips that never break, context toward
-// compaction, honest early states, a tidy card grid and clear card copy.
+// Chips' open view, mounted: it opens under a row left as it was; its four
+// cards, their copy and their bars; the context toward compaction; honest
+// early states; and a grid of cards that fits the rows it is given.
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import { DARK, LIGHT } from '../hooks/palette'
-import { ROLE_INK } from '../hooks/views/shell'
+import { DARK } from '../hooks/palette'
 import {
+  BUILD_100K,
+  DESKTOP_START,
+  READ_100K,
+  SPEND_LIMIT,
+  BUILD_155K,
   CLEAR,
-  DARK_HOSTS,
   FRESH,
   HOUR,
-  LIGHT_HOSTS,
-  contrast,
   START,
   USAGE,
   breakdown,
@@ -31,6 +33,7 @@ import {
   type Node,
   setup,
   mountBand,
+  turn,
 } from './helpers'
 
 const withCompaction = (tokens: number) => ({
@@ -40,83 +43,12 @@ const withCompaction = (tokens: number) => ({
 const measureContext = async ($: Engine, tokens: number) =>
   $.session.measure({ context: { tokens, window: 200_000, percent: tokens / 2000 }, rateLimits: USAGE.rateLimits, cost: USAGE.cost, changed: [] })
 
-// ── contrast ───────────────────────────────────────────────────────────
+// ── opening ────────────────────────────────────────────────────────────
 
-// Both palettes, every pair: a palette added later is checked by adding it here.
-for (const [name, p, hosts] of [
-  ['dark', DARK, DARK_HOSTS],
-  ['light', LIGHT, LIGHT_HOSTS],
-] as const) {
-  const pillGrounds = [p.surface, p.amberBg, p.cardBg, p.fiveBg, p.weekBg]
-
-  test(`${name}: labels and values meet WCAG text contrast on every surface they sit on`, () => {
-    for (const bg of pillGrounds) expect(contrast(p.label, bg)).toBeGreaterThanOrEqual(4.5)
-    expect(contrast(p.cardValue, p.cardBg)).toBeGreaterThanOrEqual(4.5)
-    expect(contrast(p.value, p.cardBg)).toBeGreaterThanOrEqual(4.5)
-  })
-
-  test(`${name}: card edges and bar tracks meet WCAG non-text contrast`, () => {
-    for (const host of hosts) expect(contrast(p.cardBorder, host)).toBeGreaterThanOrEqual(3)
-    for (const bg of pillGrounds) expect(contrast(p.trackStroke, bg)).toBeGreaterThanOrEqual(3)
-  })
-
-  test(`${name}: a hover card is inverted, its ink legible and its ground apart from every chip's and the band's`, () => {
-    expect(contrast(p.tooltipFg, p.tooltipBg)).toBeGreaterThanOrEqual(4.5)
-    // Cards are drawn over chips' row and the workspace strip alone, so the
-    // grounds they cover are the chips' and the host's.
-    const covered = [...pillGrounds, p.meterTrack, p.batteryFill, p.batteryAmber, ...hosts]
-    const low = covered.filter(bg => contrast(p.tooltipBg, bg) < 3)
-    expect(low.map(bg => `${bg} ${contrast(p.tooltipBg, bg).toFixed(2)}`)).toEqual([])
-  })
-
-  test(`${name}: the layouts' text and marks hold on the card ground`, () => {
-    expect(contrast(p.amberFg, p.cardBg)).toBeGreaterThanOrEqual(4.5)
-    for (const mark of [p.meterFill, p.warm, p.fiveAccent, p.weekAccent]) expect(contrast(mark, p.cardBg)).toBeGreaterThanOrEqual(3)
-    expect(contrast(p.value, p.surface)).toBeGreaterThanOrEqual(4.5)
-  })
-
-  test(`${name}: a window's name holds as text on its own tint and on the card`, () => {
-    expect(contrast(p.fiveText, p.fiveBg)).toBeGreaterThanOrEqual(4.5)
-    expect(contrast(p.weekText, p.weekBg)).toBeGreaterThanOrEqual(4.5)
-    expect(contrast(p.weekText, p.cardBg)).toBeGreaterThanOrEqual(4.5)
-    for (const bg of [p.fiveBg, p.weekBg]) expect(contrast(p.value, bg)).toBeGreaterThanOrEqual(4.5)
-  })
-
-  test(`${name}: every role a layout's words take is text that holds on the card ground`, () => {
-    const low = Object.entries(ROLE_INK).filter(([, ink]) => contrast(p[ink], p.cardBg) < 4.5)
-    expect(low.map(([role, ink]) => `${role} ${ink} ${contrast(p[ink], p.cardBg).toFixed(2)}`)).toEqual([])
-  })
-}
-
-// ── the departures board ───────────────────────────────────────────────
-
-const BOARD_INKS = ['flapItemCache', 'flapItemSpend', 'flapItemContext', 'flapItem5h', 'flapItem7d', 'flapText', 'flapDim', 'flapAmber'] as const
-test('the board is dark in dark and light alike, and every ink reads on its tiles', () => {
-  for (const p of [DARK, LIGHT]) for (const ink of BOARD_INKS) expect(contrast(p[ink], p.flapBg)).toBeGreaterThanOrEqual(4.5)
-  for (const k of ['boardBg', 'flapBg', 'flapSeam', ...BOARD_INKS] as const) expect(LIGHT[k]).toBe(DARK[k])
-  // The seam is decoration (spec §5.1): it differs from the tile, with no contrast target.
-  expect(DARK.flapSeam).not.toBe(DARK.flapBg)
-  expect(DARK.flapItem5h).toBe(DARK.fiveAccent)
-  expect(DARK.flapItem7d).toBe(DARK.weekAccent)
-})
-
-// ── the chip row ───────────────────────────────────────────────────────
-
-test('chips never shrink, so their text never wraps', async ($, on) => {
-  setup(on)
-  await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
-  const ui = await mountBand($, 'desktop', 95)
-  const pills = ((firstRow(await ui.drawn()) as Node).children ?? []).filter(k => (k as Node).props?.key !== undefined && ['cache', 'cost', 'tokens', 'ctx', '5h', '7d'].includes(String((k as Node).props?.key)))
-  expect(pills.length).toBeGreaterThan(3)
-  for (const p of pills) expect((p as Node).props?.flexShrink).toBe(0)
-  await ui.unmount()
-})
-
-test("expanding leaves the chip row exactly as it was; only the toggle's icon turns from ▵ to ▿", async ($, on) => {
+test("opening leaves the chip row exactly as it was; only the toggle's icon turns from ▵ to ▿", async ($, on) => {
   setup(on, { usage: withCompaction(152_000) })
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   await measureContext($, 152_000)
   const ui = await mountBand($, 'desktop', 95)
   const toggle = async () => byKey(firstRow(await ui.drawn()), 'more', 'Button')?.props?.label
@@ -128,11 +60,75 @@ test("expanding leaves the chip row exactly as it was; only the toggle's icon tu
   await ui.unmount()
 })
 
+test('a gap separates the open view from the row of chips', async ($, on) => {
+  setup(on)
+  await $.session.start(START)
+  const ui = await mountBand($, 'terminal', 110)
+  await ui.press({ key: 'more' })
+  // whatever comes first under the chips, the strip or, without it, the cards
+  const under = ((await ui.drawn()) as Node).children?.filter(Boolean)[1] as Node | undefined
+  expect(under?.props?.marginTop).toBe(1)
+  await ui.unmount()
+})
+
+// ── the cards ──────────────────────────────────────────────────────────
+
+test('the open view is four labelled cards', async ($, on) => {
+  setup(on)
+  await $.session.start(START)
+  await respond($, BUILD_155K)
+  const ui = await mountBand($, 'terminal', 110)
+  await ui.press({ key: 'more' })
+  const tree = await ui.drawn()
+  for (const [name, title] of [['cache', 'CACHE'], ['spend', 'SPEND'], ['context', 'CONTEXT'], ['limits', 'LIMITS']] as const) {
+    expect(shown(cardOf(tree, name))).toMatch(new RegExp(`^${title}`))
+  }
+  await ui.unmount()
+})
+
+test('the spend card: session total, last message and the token split', async ($, on) => {
+  setup(on)
+  await $.session.start(START)
+  await turn($, 't1', 2.0, 2.41)
+  await respond($, BUILD_100K)
+  await respond($, READ_100K)
+  const ui = await mountBand($, 'terminal', 110)
+  await ui.press({ key: 'more' })
+  const tree = await ui.drawn()
+  expect(shown(cardOf(tree, 'spend'))).toMatch(/^SPEND\$2\.41/)
+  expect(fact(tree, 'last message')).toBe('$0.41')
+  expect(fact(tree, 'input')).toBe('120k')
+  expect(fact(tree, 'output')).toBe('5.0k')
+  expect(fact(tree, 'cache reads')).toBe('100k')
+  await ui.unmount()
+})
+
+test('the limits card: each window with its usage and reset', async ($, on) => {
+  setup(on, {
+    usage: usageAt(MODERN, {
+      ...USAGE,
+      rateLimits: [...USAGE.rateLimits, SPEND_LIMIT],
+    }),
+    now: MODERN,
+  })
+  await $.session.start(START)
+  const ui = await mountBand($, 'terminal', 110)
+  await ui.press({ key: 'more' })
+  const tree = await ui.drawn()
+  expect(fact(tree, '5h')).toBe('4%')
+  expect(fact(tree, '7d')).toBe('30%')
+  expect(fact(tree, 'spend')).toBe('92%!') // past 80%: marked, never colour alone
+  // The worst, spend, leads with its reset; no window length, so no pace.
+  expect(fact(tree, 'resets')).toBe(hostClock(MODERN + 5 * HOUR, MODERN))
+  expect(fact(tree, '5h pace')).toBe('5h resets 3h 00m · on pace for ~10%')
+  await ui.unmount()
+})
+
 // ── context toward compaction ──────────────────────────────────────────
 
 test('with compaction known, the context chip measures toward it, with no tick', async ($, on) => {
   setup(on, { usage: withCompaction(100_000) })
-  await $.session.start({ ...START, surface: 'desktop' })
+  await $.session.start(DESKTOP_START)
   await measureContext($, 100_000)
   const ui = await mountBand($, 'desktop', 140)
   const ctx = pillOf(await ui.drawn(), 'ctx')
@@ -195,7 +191,7 @@ test('a brand-new session, or one after /clear, is warming', async ($, on) => {
 test('after /clear the new conversation is warming even with spend on the ledger', async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   await $.session.end(CLEAR)
   const ui = await mountBand($, 'terminal', 140)
   expect(shown(pillOf(await ui.drawn(), 'cache'))).toMatch(/cache warming/)
@@ -207,8 +203,8 @@ test('after /clear the new conversation is warming even with spend on the ledger
 test('the cache card leads with the stake: re-warm cost, savings, hit rate, expiry', async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond($, resp(10_000, 0, 100_000, 2_000))
-  await respond($, resp(4_000, 100_000, 6_000, 3_000))
+  await respond($, BUILD_100K)
+  await respond($, READ_100K)
   const ui = await mountBand($, 'terminal', 140)
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
@@ -240,8 +236,8 @@ for (const [tier, fills] of [['unicode', ['█', '▓', '▒']], ['ascii', ['#',
   test(`the token split tells its parts apart by fill, not hue alone, its legend marked alike: ${tier}`, async ($, on) => {
     setup(on, { env: { NEXTCOST_GLYPHS: tier } })
     await $.session.start(START)
-    await respond($, resp(10_000, 0, 100_000, 2_000))
-    await respond($, resp(4_000, 100_000, 6_000, 3_000))
+    await respond($, BUILD_100K)
+    await respond($, READ_100K)
     const ui = await mountBand($, 'terminal', 140)
     await ui.press({ key: 'more' })
     expect(splitOf(await ui.drawn())).toEqual({ fills, marks: fills })
@@ -263,29 +259,15 @@ const segmentsOf = (source: string): Array<readonly [number, number]> =>
 
 test('on the desktop each part of the token split ends a pixel short of the next, so the ground divides them', async ($, on) => {
   setup(on)
-  await $.session.start({ ...START, surface: 'desktop' })
-  await respond($, resp(10_000, 0, 100_000, 2_000))
-  await respond($, resp(4_000, 100_000, 6_000, 3_000))
+  await $.session.start(DESKTOP_START)
+  await respond($, BUILD_100K)
+  await respond($, READ_100K)
   const ui = await mountBand($, 'desktop', 140)
   await ui.press({ key: 'more' })
   const split = svgsOf(cardOf(await ui.drawn(), 'spend')).find(n => /token split/.test(String(n.props?.alt)))
   const segments = segmentsOf(String(split?.props?.source))
   expect(segments).toHaveLength(3)
   for (let i = 1; i < segments.length; i++) expect(Number(((segments[i]?.[0] ?? 0) - (segments[i - 1]?.[1] ?? 0)).toFixed(1))).toBe(1)
-  await ui.unmount()
-})
-
-test('the spend card names its split like a legend: input, output, cache reads', async ($, on) => {
-  setup(on)
-  await $.session.start(START)
-  await respond($, resp(10_000, 0, 100_000, 2_000))
-  await respond($, resp(4_000, 100_000, 6_000, 3_000))
-  const ui = await mountBand($, 'terminal', 140)
-  await ui.press({ key: 'more' })
-  const tree = await ui.drawn()
-  expect(fact(tree, 'input')).toBe('120k')
-  expect(fact(tree, 'output')).toBe('5.0k')
-  expect(fact(tree, 'cache reads')).toBe('100k')
   await ui.unmount()
 })
 
@@ -304,12 +286,12 @@ test('the limits card puts each value beside its bar and says the pace in words'
   await ui.unmount()
 })
 
-// ── the grid and the buttons ───────────────────────────────────────────
+// ── the grid and the bars ──────────────────────────────────────────────
 
 test('cards sit in lines that share the width equally: four across when they fit, else two by two', async ($, on) => {
   setup(on)
-  await $.session.start({ ...START, surface: 'desktop' })
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await $.session.start(DESKTOP_START)
+  await respond($, BUILD_155K)
   const lines = async (cols: number) => {
     const ui = await mountBand($, 'desktop', cols)
     const grid = byKey(await ui.drawn(), 'cards', 'Box')
@@ -332,10 +314,10 @@ test('cards sit in lines that share the width equally: four across when they fit
   expect(await lines(140)).toEqual([['cache', 'spend', 'context', 'limits']])
 })
 
-test('the expanded band fits the rows it is given: cards drop their least facts first', async ($, on) => {
+test('the open band fits the rows it is given: cards drop their least facts first', async ($, on) => {
   setup(on, { usage: withCompaction(100_000) })
-  await $.session.start({ ...START, surface: 'desktop' })
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await $.session.start(DESKTOP_START)
+  await respond($, BUILD_155K)
   await measureContext($, 100_000)
   const rowsOf = async (maxRows: number) => {
     const ui = await mountBand($, 'desktop', 95, { maxRows })
@@ -358,7 +340,7 @@ test('the expanded band fits the rows it is given: cards drop their least facts 
 
 test('desktop cards have a visible rounded border; terminal cards a fill only', async ($, on) => {
   setup(on)
-  await $.session.start({ ...START, surface: 'desktop' })
+  await $.session.start(DESKTOP_START)
   const desk = await mountBand($, 'desktop', 110)
   await desk.press({ key: 'more' })
   const d = cardOf(await desk.drawn(), 'cache')
@@ -373,24 +355,10 @@ test('desktop cards have a visible rounded border; terminal cards a fill only', 
   await term.unmount()
 })
 
-test('the buttons: Collapse without a Ctrl-like glyph, Hide band, and how to bring it back', async ($, on) => {
-  setup(on)
-  await $.session.start(START)
-  const ui = await mountBand($, 'desktop', 110)
-  await ui.press({ key: 'more' })
-  const labels: string[] = []
-  walk(await ui.drawn(), n => {
-    if (n.type === 'Button' && (n.props?.key === 'collapse' || n.props?.key === 'hide')) labels.push(String(n.props?.label))
-  })
-  expect(labels).toEqual(['Collapse', 'Hide band'])
-  expect(shown(await ui.drawn())).toMatch(/Bring it back with \/nextcost/)
-  await ui.unmount()
-})
-
 test('the desktop gets no whitespace-only strings, which it drops, so every gap is a spacer', async ($, on) => {
   setup(on, { usage: withCompaction(100_000) })
-  await $.session.start({ ...START, surface: 'desktop' })
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await $.session.start(DESKTOP_START)
+  await respond($, BUILD_155K)
   await measureContext($, 100_000)
   const ui = await mountBand($, 'desktop', 160)
   await ui.press({ key: 'more' })
@@ -407,7 +375,7 @@ test('the desktop gets no whitespace-only strings, which it drops, so every gap 
 
 test('card lines have a row of air between them, and the buttons a row above', async ($, on) => {
   setup(on)
-  await $.session.start({ ...START, surface: 'desktop' })
+  await $.session.start(DESKTOP_START)
   for (const surface of ['desktop', 'terminal'] as const) {
     const ui = await mountBand($, surface, 95)
     if (surface === 'desktop') await ui.press({ key: 'more' })
@@ -422,7 +390,7 @@ test('card lines have a row of air between them, and the buttons a row above', a
 
 test('each desktop card title, and the hint, leads with an icon; terminal titles stay text', async ($, on) => {
   setup(on)
-  await $.session.start({ ...START, surface: 'desktop' })
+  await $.session.start(DESKTOP_START)
   const ui = await mountBand($, 'desktop', 110)
   await ui.press({ key: 'more' })
   const tree = await ui.drawn()
@@ -442,8 +410,8 @@ test('each desktop card title, and the hint, leads with an icon; terminal titles
 
 test('a card short of rows gives up its bar before a fact, since the chips already show it', async ($, on) => {
   setup(on)
-  await $.session.start({ ...START, surface: 'desktop' })
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await $.session.start(DESKTOP_START)
+  await respond($, BUILD_155K)
   const contextAt = async (maxRows: number) => {
     const ui = await mountBand($, 'desktop', 95, { maxRows })
     const open = byKey(await ui.drawn(), 'cards', 'Box') !== undefined
@@ -460,4 +428,48 @@ test('a card short of rows gives up its bar before a fact, since the chips alrea
   // with rows to spare the bar is back, above the facts
   const tall = await contextAt(40)
   expect(svgsOf(cardOf(tall, 'context')).filter(n => /used/.test(String(n.props?.alt)))).toHaveLength(1)
+})
+
+test("the cache card's bar reads as the time left, as its battery does", async ($, on) => {
+  setup(on)
+  await $.session.start(DESKTOP_START)
+  await respond($, BUILD_155K)
+  const ui = await mountBand($, 'desktop', 95)
+  await ui.press({ key: 'more' })
+  const alts = svgsOf(cardOf(await ui.drawn(), 'cache')).map(n => String(n.props?.alt))
+  expect(alts).toContain('cache 100% left')
+  expect(alts.some(alt => /used/.test(alt))).toBe(false)
+  await ui.unmount()
+})
+
+test("a card's bar stretches across the card", async ($, on) => {
+  setup(on)
+  await $.session.start(DESKTOP_START)
+  await respond($, BUILD_155K)
+  const ui = await mountBand($, 'desktop', 95)
+  await ui.press({ key: 'more' })
+  // no fixed width: the slot caps the drawing, so it spans whatever the card gets
+  const bar = svgsOf(cardOf(await ui.drawn(), 'cache')).find(n => /left/.test(String(n.props?.alt)))
+  expect(bar?.props?.width).toBeUndefined()
+  expect(String(bar?.props?.source)).toContain('preserveAspectRatio="none"')
+  await ui.unmount()
+
+  // still expanded: the open view is the session's, not the mount's
+  const term = await mountBand($, 'terminal', 120)
+  const meter = shown(cardOf(await term.drawn(), 'cache')).match(/[█░┃]+/)?.[0] ?? ''
+  expect(meter.length).toBeGreaterThan(12)
+  await term.unmount()
+})
+
+test('the token split shows cache reads in the warm colour, so the bar never looks empty', async ($, on) => {
+  setup(on)
+  await $.session.start(DESKTOP_START)
+  await respond($, resp(1_000, 0, 10_000, 200))
+  await respond($, resp(500, 900_000, 1_000, 200)) // nearly all from cache
+  const ui = await mountBand($, 'desktop', 95)
+  await ui.press({ key: 'more' })
+  const split = svgsOf(cardOf(await ui.drawn(), 'spend')).find(n => /token split/.test(String(n.props?.alt)))
+  expect(String(split?.props?.source)).toContain(DARK.warm)
+  expect(String(split?.props?.source)).not.toContain(`fill="${DARK.meterTrack}"`)
+  await ui.unmount()
 })

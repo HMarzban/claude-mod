@@ -1,7 +1,6 @@
-// What the band remembers across sessions, and what it reads back from a
-// transcript: the store's entries taken as untrusted data, the newest
-// sessions and a week of limit samples kept, where a transcript lives, its
-// last reply and its rate.
+// What the band remembers across sessions: the store's entries taken as
+// untrusted data, the newest sessions and a week of limit samples kept, and
+// a session recalled from the store and its transcript.
 
 import { test, expect } from 'claude-code/testing'
 import {
@@ -11,31 +10,15 @@ import {
   asLimitSamples,
   asRates,
   asSessions,
-  lastReplyAt,
-  lastReplyModel,
+  fromStore,
   mergeSamples,
-  rateFromTranscript,
+  needsTranscript,
+  recallOf,
+  rememberRate,
   rememberReply,
   sampleOf,
-  transcriptPath,
 } from '../hooks/memory'
-import { HOUR } from './helpers'
-
-const iso = (ms: number): string => new Date(ms).toISOString()
-const jsonl = (...lines: unknown[]): string => lines.map(line => (typeof line === 'string' ? line : JSON.stringify(line))).join('\n') + '\n'
-const reply = (ms: number) => ({ type: 'assistant', timestamp: iso(ms), message: { role: 'assistant', model: 'claude-opus-5-5', content: [] } })
-const prompt = (ms: number) => ({ type: 'user', timestamp: iso(ms), message: { role: 'user', content: 'hi' } })
-
-/** A cost record as Claude Code writes one: $20 over 1M input, 400k written,
- *  20M read and 100k output, per model named. */
-const costState = (...models: string[]) => ({
-  type: 'cost-state',
-  totalCostUSD: 20,
-  modelUsage: Object.fromEntries(
-    models.map(model => [model, { inputTokens: 1_000_000, cacheCreationInputTokens: 400_000, cacheReadInputTokens: 20_000_000, outputTokens: 100_000, costUSD: 20 }]),
-  ),
-})
-const near = (a: number | null, b: number): boolean => a !== null && Math.abs(a - b) < 1e-15
+import { HOUR, costRecord, jsonl, rateNear, replyLine } from './helpers'
 
 // ── the store, as untrusted data ───────────────────────────────────────
 
@@ -97,13 +80,17 @@ test('a stored record past the cap is written back as its newest sessions, malfo
   expect([kept.new, kept.s451, kept.s450, kept.infinite, kept.text]).toEqual([{ lastAt: 1_000 }, { lastAt: 451 }, undefined, undefined, undefined])
 })
 
-test('the sessions kept stay under 4,000 bytes of JSON, at UUIDs and 13-digit times', () => {
+test('a reply billed under a model it names is remembered with that name', () => {
+  expect(rememberReply({}, 'a', 9, 'claude-haiku-5-5')).toEqual({ a: { lastAt: 9, billed: 'claude-haiku-5-5' } })
+})
+
+test('the sessions kept stay under 6,000 bytes of JSON, at UUIDs, 13-digit times and the longest model name', () => {
   const at = Date.UTC(2026, 9, 6)
   const uuid = (i: number) => `${String(i).padStart(8, '0')}-0000-4000-8000-000000000000`
   let kept = {}
-  for (let i = 0; i < 2 * MAX_SESSIONS; i++) kept = rememberReply(kept, uuid(i), at + i)
+  for (let i = 0; i < 2 * MAX_SESSIONS; i++) kept = rememberReply(kept, uuid(i), at + i, 'claude-sonnet-5-5')
   expect(Object.keys(kept)).toHaveLength(MAX_SESSIONS)
-  expect(JSON.stringify(kept).length).toBeLessThan(4_000)
+  expect(JSON.stringify(kept).length).toBeLessThan(6_000)
 })
 
 // ── the limit samples kept ─────────────────────────────────────────────
@@ -145,119 +132,55 @@ test('a stored list past the cap is read as its newest week, malformed entries d
 
 test('a sample needs both windows and their resets', () => {
   const both = [
-    { kind: 'five_hour', percentUsed: 4, resetsAt: new Date(T0 + 3 * HOUR).toISOString() },
-    { kind: 'seven_day', percentUsed: 30, resetsAt: new Date(T0 + 67 * HOUR).toISOString() },
+    { kind: 'five_hour', percentUsed: 4, resetsAt: T0 + 3 * HOUR },
+    { kind: 'seven_day', percentUsed: 30, resetsAt: T0 + 67 * HOUR },
   ]
   expect(sampleOf(T0, both)).toEqual({ at: T0, fivePct: 4, sevenPct: 30, fiveResetAt: T0 + 3 * HOUR, sevenResetAt: T0 + 67 * HOUR })
   expect(sampleOf(T0, both.slice(0, 1))).toBeUndefined()
 })
 
-// ── where a transcript lives ───────────────────────────────────────────
+// ── the recall ─────────────────────────────────────────────────────────
 
-test("a transcript lives under home's projects, in a folder named for the root with every other character a dash", () => {
-  expect(transcriptPath('/Users/me', '/Users/me/workspace/claude-mod', 's1')).toBe('/Users/me/.claude/projects/-Users-me-workspace-claude-mod/s1.jsonl')
-  expect(transcriptPath('/Users/me', '/Users/me/my.proj_x 2', 's1')).toBe('/Users/me/.claude/projects/-Users-me-my-proj-x-2/s1.jsonl')
+const OPUS_RATE = 0.00001
+
+test('the store recalls a session\'s last reply and the rate under the model /model names, its window aside', () => {
+  const stored = fromStore({ sessions: { s1: { lastAt: 5_000 } }, rates: { 'claude-opus-5-5': OPUS_RATE } }, 's1', 'claude-opus-5-5[1m]')
+  expect(needsTranscript(stored)).toBe(false)
+  expect(recallOf(stored, undefined)).toEqual({ lastAt: 5_000, rate: OPUS_RATE, billed: undefined })
 })
 
-test("home's trailing slashes are trimmed", () => {
-  expect(transcriptPath('/Users/me/', '/p', 's1')).toBe('/Users/me/.claude/projects/-p/s1.jsonl')
-  expect(transcriptPath('/Users/me//', '/p', 's1')).toBe('/Users/me/.claude/projects/-p/s1.jsonl')
+test("a session's record names the model its reply was billed under, and the rate kept under that name", () => {
+  const stored = fromStore({ sessions: { s1: { lastAt: 5_000, billed: 'claude-haiku-5-5' } }, rates: { 'claude-haiku-5-5': OPUS_RATE, haiku: 1 } }, 's1', 'haiku')
+  expect(needsTranscript(stored)).toBe(false)
+  expect(recallOf(stored, undefined)).toEqual({ lastAt: 5_000, rate: OPUS_RATE, billed: 'claude-haiku-5-5' })
 })
 
-// ── the last reply ─────────────────────────────────────────────────────
-
-test("the last reply is the last assistant line's time, past the lines Claude Code adds after it", () => {
-  const transcript = jsonl(prompt(1_000), reply(5_000), { type: 'last-prompt', lastPrompt: 'hi' }, { type: 'cost-state', totalCostUSD: 1, modelUsage: {} })
-  expect(lastReplyAt(transcript)).toBe(5_000)
+test("a record's billed model that isn't a name is unknown, so the transcript says it", () => {
+  for (const billed of [42, '', null]) {
+    const stored = fromStore({ sessions: { s1: { lastAt: 5_000, billed } }, rates: {} }, 's1', 'opus')
+    expect(needsTranscript(stored)).toBe(true)
+    expect(recallOf(stored, jsonl(replyLine(7_000), costRecord('claude-opus-5-5'))).billed).toBe('claude-opus-5-5')
+  }
 })
 
-test('the last reply is the last in the file, not the latest time in it', () => {
-  expect(lastReplyAt(jsonl(reply(9_000), reply(2_000)))).toBe(2_000)
+test('what the store leaves unknown, the transcript gives: its last reply, and the rate stored for the model it was billed under', () => {
+  const stored = fromStore({ sessions: {}, rates: { 'claude-opus-5-5': OPUS_RATE } }, 's1', 'opus')
+  expect(needsTranscript(stored)).toBe(true)
+  expect(recallOf(stored, jsonl(replyLine(7_000)))).toEqual({ lastAt: 7_000, rate: OPUS_RATE, billed: 'claude-opus-5-5' })
 })
 
-test('lines that are not assistant replies, even ones naming "assistant", are skipped', () => {
-  const transcript = jsonl(reply(5_000), prompt(9_000), { type: 'last-prompt', lastPrompt: 'assistant' })
-  expect(lastReplyAt(transcript)).toBe(5_000)
+test("with no rate stored for either, the rate is solved from the transcript's cost record", () => {
+  const stored = fromStore({ sessions: { s1: { lastAt: 5_000 } }, rates: 'not rates' }, 's1', 'claude-opus-5-5')
+  const recalled = recallOf(stored, jsonl(replyLine(7_000), costRecord('claude-opus-5-5')))
+  // The store's time stands over the transcript's.
+  expect(recalled.lastAt).toBe(5_000)
+  expect(rateNear(recalled.rate, 20 / 3_000_000)).toBe(true)
 })
 
-test('an unparseable line, or a reply with no readable time, is skipped', () => {
-  const transcript = jsonl(reply(5_000), '{"type":"assistant", "timestamp": broken', { type: 'assistant', timestamp: 'not a time' }, { type: 'assistant', timestamp: 7_000 })
-  expect(lastReplyAt(transcript)).toBe(5_000)
+test('no transcript to read leaves unknown what the store does', () => {
+  expect(recallOf(fromStore({ sessions: undefined, rates: undefined }, 's1', 'opus'), undefined)).toEqual({ lastAt: undefined, rate: null, billed: undefined })
 })
 
-test("the last reply's model is the one the API billed it under, past lines that name none", () => {
-  const sonnet = { ...reply(1_000), message: { role: 'assistant', model: 'claude-sonnet-5-5', content: [] } }
-  expect(lastReplyModel(jsonl(sonnet, reply(2_000), prompt(3_000), { type: 'assistant', timestamp: iso(4_000), message: { role: 'assistant' } }))).toBe('claude-opus-5-5')
-  expect(lastReplyModel(jsonl(prompt(1_000)))).toBeUndefined()
-})
-
-test('a transcript with no reply has no last reply', () => {
-  expect(lastReplyAt('')).toBeUndefined()
-  expect(lastReplyAt(jsonl(prompt(1_000)))).toBeUndefined()
-})
-
-// ── the rate ───────────────────────────────────────────────────────────
-
-test("the rate is the cost record's dollars over its weighted tokens, reads at Opus 5.5's 0.05×", () => {
-  // 1M + 1.25 × 400k + 0.05 × 20M + 5 × 100k = 3M weighted tokens
-  expect(near(rateFromTranscript(jsonl(costState('claude-opus-5-5')), 'claude-opus-5-5'), 20 / 3_000_000)).toBe(true)
-})
-
-test('on a model without a read price of its own, reads weigh 0.1×', () => {
-  // Sonnet 5 reads at $0.20 on $2 input. 1M + 1.25 × 400k + 0.1 × 20M + 5 × 100k = 4M weighted tokens
-  expect(near(rateFromTranscript(jsonl(costState('claude-sonnet-5')), 'claude-sonnet-5'), 20 / 4_000_000)).toBe(true)
-})
-
-test("Sonnet 5.5 reads its cache at 0.05×, as Anthropic's pricing lists it ($0.10 on $2 input)", () => {
-  // 1M + 1.25 × 400k + 0.05 × 20M + 5 × 100k = 3M weighted tokens
-  expect(near(rateFromTranscript(jsonl(costState('claude-sonnet-5-5')), 'claude-sonnet-5-5'), 20 / 3_000_000)).toBe(true)
-})
-
-/** A Haiku 5.5 reply whose request sent `prompt` input tokens. */
-const haikuReply = (prompt: number) => ({
-  type: 'assistant',
-  timestamp: iso(1_000),
-  message: { role: 'assistant', model: 'claude-haiku-5-5', content: [], usage: { input_tokens: 1_000, cache_read_input_tokens: prompt - 1_000, cache_creation_input_tokens: 0, output_tokens: 500 } },
-})
-
-test('on Haiku 5.5, a session whose last prompt was over 100k counts its cost record at the upper tier, 5×', () => {
-  // 1M + 1.25 × 400k + 0.1 × 20M + 5 × 100k = 4M weighted tokens, at 5× the lower tier's rate
-  const transcript = jsonl(costState('claude-haiku-5-5'), haikuReply(150_000))
-  expect(near(rateFromTranscript(transcript, 'claude-haiku-5-5'), 20 / 4_000_000 / 5)).toBe(true)
-})
-
-test('on Haiku 5.5, a session whose last prompt was under 100k counts its cost record at the lower tier', () => {
-  const transcript = jsonl(costState('claude-haiku-5-5'), haikuReply(60_000))
-  expect(near(rateFromTranscript(transcript, 'claude-haiku-5-5'), 20 / 4_000_000)).toBe(true)
-})
-
-test('the last cost record is the one read', () => {
-  const earlier = { ...costState(), modelUsage: { 'claude-opus-5-5': { inputTokens: 3_000_000, costUSD: 30 } } }
-  const transcript = jsonl(earlier, reply(1_000), costState('claude-opus-5-5'))
-  expect(near(rateFromTranscript(transcript, 'claude-opus-5-5'), 20 / 3_000_000)).toBe(true)
-})
-
-test('a model the last cost record does not name has no rate, whatever an earlier record says', () => {
-  expect(rateFromTranscript(jsonl(costState('claude-sonnet-5-5')), 'claude-opus-5-5')).toBeNull()
-  expect(rateFromTranscript(jsonl(costState('claude-opus-5-5'), costState('claude-sonnet-5-5')), 'claude-opus-5-5')).toBeNull()
-})
-
-test('a model named with its context size finds its cost record, which names the model alone', () => {
-  expect(near(rateFromTranscript(jsonl(costState('claude-opus-5-5')), 'claude-opus-5-5[1m]'), 20 / 3_000_000)).toBe(true)
-})
-
-test('no cost record, nothing spent or nothing counted is no rate', () => {
-  expect(rateFromTranscript(jsonl(prompt(1_000), reply(2_000)), 'claude-opus-5-5')).toBeNull()
-  expect(rateFromTranscript(jsonl({ type: 'cost-state', modelUsage: { 'claude-opus-5-5': { inputTokens: 1_000, costUSD: 0 } } }), 'claude-opus-5-5')).toBeNull()
-  expect(rateFromTranscript(jsonl({ type: 'cost-state', modelUsage: { 'claude-opus-5-5': { costUSD: 3 } } }), 'claude-opus-5-5')).toBeNull()
-})
-
-test('a later line that merely names cost-state, such as a prompt quoting it, never hides the real record', () => {
-  const transcript = jsonl(costState('claude-opus-5-5'), { type: 'last-prompt', lastPrompt: 'cost-state' })
-  expect(near(rateFromTranscript(transcript, 'claude-opus-5-5'), 20 / 3_000_000)).toBe(true)
-})
-
-test('an unreadable last cost line falls back to the record before it', () => {
-  const transcript = jsonl(costState('claude-opus-5-5'), '{"type":"cost-state", broken')
-  expect(near(rateFromTranscript(transcript, 'claude-opus-5-5'), 20 / 3_000_000)).toBe(true)
+test('a rate is kept beside the others stored, and over its own', () => {
+  expect(rememberRate({ 'claude-sonnet-5-5': 2, 'claude-opus-5-5': 1, bad: -1 }, 'claude-opus-5-5', 3)).toEqual({ 'claude-sonnet-5-5': 2, 'claude-opus-5-5': 3 })
 })

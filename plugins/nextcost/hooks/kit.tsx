@@ -3,13 +3,12 @@
 // global h(), so nothing here, or anywhere, is named h.
 
 import type { ElementTable, RenderChildren, RenderElement, TextProps } from 'claude-code'
-import { clipWords } from './format'
+import type { Tone } from './facts'
 import { asciiText, asciiTree, drawnTier } from './glyphs'
 import { ALT, GLYPH, ICON_PATHS, ICON_PX } from './icons'
 import type { Icon } from './icons'
-import { DESKTOP, DESKTOP_CARD_TEXT, TERMINAL } from './layout'
+import { DESKTOP, DESKTOP_CARD_TEXT, TERMINAL, clipWords, textCells } from './layout'
 import type { Span } from './layout'
-import type { Tone } from './reading'
 import type { BandSnapshot } from './snapshot'
 
 /** Where a hover card sits in its row, which has `room` columns: by `left`,
@@ -104,7 +103,7 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
     // Sized in the glyphs it is drawn in: the ascii tier's are narrower.
     const shown = glyphs === 'ascii' ? asciiText(text) : text
     // A text surface counts a cell a character; the desktop sizes by its font.
-    const cells = (capped ? shown.length : Math.ceil(shown.length * DESKTOP_CARD_TEXT)) + chrome
+    const cells = (capped ? textCells(shown) : Math.ceil(textCells(shown) * DESKTOP_CARD_TEXT)) + chrome
     const span = cardSpan(place, cells)
     if (span.width < chrome + 1) return null
     const shell = { position: 'absolute', top: 0, ...span, display: 'none', hover: { display: 'flex', scope: scopeOf(key) } } as const
@@ -133,16 +132,16 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
     )
   }
 
-  /** A column of air. The desktop drops a string child that is only spaces,
-   *  plain or not, so there the gap is an empty Box; a text surface keeps
-   *  its space. */
-  const gap = (key: string): RenderChildren => (snap.surface === 'desktop' ? <Box key={key} width={1} flexShrink={0} /> : ' ')
-
   /** `columns` of air that is always an element, for a Box whose children
    *  are all elements: the desktop's an empty Box, a text surface's a Text of
    *  spaces, since a text surface draws no bare string in a Box. */
   const air = (key: string, columns = 1): RenderElement =>
     snap.surface === 'desktop' ? <Box key={key} width={columns} flexShrink={0} /> : <Text key={key}>{' '.repeat(columns)}</Text>
+
+  /** A column of air among text: a text surface keeps a bare space, but the
+   *  desktop drops a string child that is only spaces, plain or not, so
+   *  there it is `air`. */
+  const gap = (key: string): RenderChildren => (snap.surface === 'desktop' ? air(key) : ' ')
 
   /** Marks in an Svg `width` by `height` px, one unit to a pixel: the one
    *  place an Svg is built. `air` sets the marks that many px down, under the

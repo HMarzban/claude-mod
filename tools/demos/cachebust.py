@@ -14,8 +14,10 @@ import os
 import re
 import sys
 
+from common import read, write
+
 SITE = 'https://hmarzban.github.io/nextcost/'
-NAME = re.compile(r"""(["'])((?:%s)?)([A-Za-z0-9._-]+\.(?:png|svg|mp4|gif|jpg|webp|ico))(?:\?v=[0-9a-f]+)?\1""" % re.escape(SITE))
+NAME = re.compile(rf"""(["'])((?:{re.escape(SITE)})?)([A-Za-z0-9._-]+\.(?:png|svg|mp4|gif|jpg|webp|ico))(?:\?v=[0-9a-f]+)?\1""")
 
 page, docs = sys.argv[1], sys.argv[2]
 digests = {}
@@ -35,7 +37,5 @@ def version(m):
     return f'{quote}{prefix}{name}?v={digest(name)}{quote}'
 
 
-html = open(page).read()
-out = NAME.sub(version, html)
-open(page, 'w').write(out)
+write(page, NAME.sub(version, read(page)))
 print(f'cachebust: {len(digests)} assets versioned: ' + ', '.join(sorted(digests)))

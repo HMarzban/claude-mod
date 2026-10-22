@@ -6,11 +6,9 @@ set -euo pipefail
 if [ "$#" -eq 0 ]; then echo "no test globs given" >&2; exit 1; fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PLUGIN="$ROOT/plugins/nextcost"
-SCRATCH="$(mktemp -d)"
-trap 'rm -rf "$SCRATCH"' EXIT
-# Everything but the tests, hidden folders (the manifest, the types) included.
-find "$PLUGIN" -mindepth 1 -maxdepth 1 ! -name tests -exec cp -R {} "$SCRATCH/" \;
-mkdir -p "$SCRATCH/tests"
+# shellcheck source=SCRIPTDIR/scratch.sh
+. "$ROOT/tools/scratch.sh"
+scratch_plugin "$PLUGIN"
 # Every shared module beside the test files, so a new one is never left out.
 find "$PLUGIN/tests" -maxdepth 1 -type f ! -name '*.test.ts' -exec cp {} "$SCRATCH/tests/" \;
 cp -R "$PLUGIN/tests/golden" "$SCRATCH/tests/"

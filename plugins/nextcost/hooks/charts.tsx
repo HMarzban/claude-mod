@@ -1,12 +1,13 @@
-// The band's charts: each draws an Svg on the desktop, with its alt and
-// width, and text elsewhere. Every builder takes the kit first and a key.
+// The band's charts, and chips' cache battery: each draws an Svg on the
+// desktop, with its alt and width, and text elsewhere. Every builder takes
+// the kit first.
 
 import type { RenderChildren } from 'claude-code'
+import type { Tone } from './facts'
 import { clamp01 } from './format'
+import { asciiText } from './glyphs'
 import type { Kit } from './kit'
-import { CHIP_BAR } from './layout'
 import type { BarSize } from './layout'
-import type { Tone } from './reading'
 
 /** One decimal: enough for an Svg coordinate, short enough to read. */
 const tenth = (n: number): number => Math.round(n * 10) / 10
@@ -68,9 +69,10 @@ type MeterOptions = Readonly<{
   frac: number
   tone: Tone
   accent: string
-  size?: BarSize
+  size: BarSize
   /** An Svg with no width, capped by its slot: chips' cards' heads and
-   *  bodies alone, since spec §2.9 bars it from every collapsed line. */
+   *  bodies alone, since band-layouts spec §2.9 bars it from every
+   *  collapsed line. */
   stretch?: boolean
   /** What the fill is: what's used or what's left. */
   reads?: 'used' | 'left'
@@ -82,7 +84,7 @@ type MeterOptions = Readonly<{
  *  wider than any slot, the slot caps it, so it spans its card. */
 export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
   const { Svg, svg, Text, palette, onTone } = kit
-  const { key = 'meter', label, frac, tone, accent, size = CHIP_BAR, stretch = false, reads = 'used' } = o
+  const { key = 'meter', label, frac, tone, accent, size, stretch = false, reads = 'used' } = o
   const fill = onTone(tone, accent)
   const alt = `${label} ${Math.round(clamp01(frac) * 100)}% ${reads}`
   if (Svg) {
@@ -108,9 +110,48 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
   return (
     <Text key={key} color={fill}>
       {'█'.repeat(filled)}
-      {filled < size.cells ? <Text key="track" color={palette.meterTrack}>{'░'.repeat(size.cells - filled)}</Text> : null}
+      {filled < size.cells ? <Text key="track" color={palette.trackInk}>{'░'.repeat(size.cells - filled)}</Text> : null}
     </Text>
   )
+}
+
+// ---- battery --------------------------------------------------------------
+
+/** The battery's width on the desktop: an icon's. */
+const BATTERY_PX = 22
+
+/** The cache's battery on the desktop, chips' alone: an outline, its cap,
+ *  and the charge filling it. Pulse and departures draw their own look. */
+export const batteryIcon = (kit: Kit, charge: number, tone: Tone, alt: string): RenderChildren => {
+  const { palette, onTone, svg } = kit
+  const outline = onTone(tone, palette.label)
+  const fill = onTone(tone, palette.warm)
+  const width = tenth(clamp01(charge) * (BATTERY_PX - 7))
+  return svg(
+    { key: 'battery', alt, width: BATTERY_PX, height: 12 },
+    `<rect x="0.75" y="0.75" width="${BATTERY_PX - 3.5}" height="10.5" rx="3" fill="none" stroke="${outline}" stroke-width="1.5"/>` +
+      `<rect x="${BATTERY_PX - 2.25}" y="4" width="1.75" height="4" rx="0.8" fill="${outline}"/>` +
+      `<rect class="charge" x="2.5" y="2.5" width="${width}" height="7" rx="1.5" fill="${fill}"/>`,
+  )
+}
+
+/** On a text surface the battery is the pill itself: its charge painted as
+ *  the background of the leading characters, draining right to left. In the
+ *  ascii tier `text` is mapped before the cut, so a dropped glyph neither
+ *  leaves a gap at the cut nor takes its cells from the charge. */
+export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string): RenderChildren[] => {
+  const { Text, palette, onTone, glyphs } = kit
+  const chars = [...` ${glyphs === 'ascii' ? asciiText(text) : text} `]
+  const cut = Math.round(clamp01(charge) * chars.length)
+  const fg = onTone(tone, palette.value)
+  /** One side of the cut: its Text, or nothing. */
+  const side = (key: string, part: readonly string[], ground: string): RenderChildren =>
+    part.length === 0 ? null : (
+      <Text key={key} color={fg} backgroundColor={ground}>
+        {part.join('')}
+      </Text>
+    )
+  return [side('bf', chars.slice(0, cut), onTone(tone, palette.batteryFill, palette.batteryAmber)), side('be', chars.slice(cut), onTone(tone, palette.surface, palette.amberBg))]
 }
 
 // ---- split bar ------------------------------------------------------------
@@ -119,17 +160,40 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
 export type SplitPart = Readonly<{ n: number; color: string; mark: string }>
 
 type SplitBarOptions = Readonly<{
-  key?: string
   alt: string
   parts: readonly SplitPart[]
   size: BarSize
 }>
 
+/** `cells` shared among amounts, always all of them: each its share's whole
+ *  cells, then one more each for the largest remainders, the first first.
+ *  Where there is a cell for each, an amount left with none takes one from
+ *  the amount with the most. */
+const shareCells = (ns: readonly number[], cells: number): number[] => {
+  const total = ns.reduce((sum, n) => sum + n, 0)
+  const exact = ns.map(n => (total > 0 ? (n / total) * cells : 0))
+  const counts = exact.map(Math.floor)
+  const remainder = (i: number) => (exact[i] ?? 0) - (counts[i] ?? 0)
+  const byRemainder = ns.map((_, i) => i).sort((a, b) => remainder(b) - remainder(a) || a - b)
+  const left = cells - counts.reduce((sum, c) => sum + c, 0)
+  for (const i of byRemainder.slice(0, left)) counts[i] = (counts[i] ?? 0) + 1
+  if (cells >= ns.length) {
+    for (let i = 0; i < counts.length; i++) {
+      if (counts[i] !== 0) continue
+      const most = counts.indexOf(Math.max(...counts))
+      counts[most] = (counts[most] ?? 0) - 1
+      counts[i] = 1
+    }
+  }
+  return counts
+}
+
 /** A bar split into parts, each its share of the whole, in its own colour
  *  and, in text, its own fill; nothing while the whole is none. */
 export const splitBar = (kit: Kit, o: SplitBarOptions): RenderChildren => {
   const { Svg, svg, Text } = kit
-  const { key = 'split', alt, parts, size } = o
+  const { alt, parts, size } = o
+  const key = 'split'
   const total = parts.reduce((sum, { n }) => sum + n, 0)
   if (total <= 0) return null
   const shown = parts.filter(({ n }) => n > 0)
@@ -157,18 +221,14 @@ export const splitBar = (kit: Kit, o: SplitBarOptions): RenderChildren => {
     })
     return svg({ key, alt, width, height: 8, stretch: true }, segments.join(''))
   }
-  let used = 0
+  const counts = shareCells(shown.map(({ n }) => n), size.cells)
   return (
     <Text key={key}>
-      {parts.map(({ n, color, mark }, i) => {
-        const count = i === parts.length - 1 ? size.cells - used : Math.round((n / total) * size.cells)
-        used += count
-        return (
-          <Text key={`s${i}`} color={color}>
-            {mark.repeat(Math.max(0, count))}
-          </Text>
-        )
-      })}
+      {shown.map(({ color, mark }, i) => (
+        <Text key={`s${i}`} color={color}>
+          {mark.repeat(counts[i] ?? 0)}
+        </Text>
+      ))}
     </Text>
   )
 }
@@ -192,7 +252,7 @@ type SparklineOptions = Readonly<{
    *  known, so none is drawn, and in text their cells are blank. */
   from?: number
   /** A line to read against, as a fraction of the scale's top, such as compaction. */
-  level?: number
+  levelFrac?: number
   /** Px of air above the chart, inside its Svg: a band's room past its chart. */
   air?: number
   /** Px kept above the scale's top inside the chart, so a level drawn there
@@ -207,23 +267,26 @@ const SPARK_AIR = 2
  *  braille on its floor, on one line that a row too narrow cuts. */
 export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   const { Svg, svg, palette, oneLine } = kit
-  const { key, alt, values, color, px, height, max, nowAt, level, air = 0, headroom = 0, from = 0 } = o
+  const { key, alt, values, color, px, height, max, nowAt, levelFrac, air = 0, headroom = 0, from = 0 } = o
   const top = max ?? topOf(values)
   if (!Svg) return oneLine({ key, color }, braille(values.map((v, i) => (i < from ? undefined : v)), top, 1))
   const end = px - SPARK_AIR
   const x = (i: number) => (values.length <= 1 ? end : tenth(SPARK_AIR + (i * (end - SPARK_AIR)) / (values.length - 1)))
   const y = (frac: number) => tenth(height - SPARK_AIR - clamp01(frac) * (height - 2 * SPARK_AIR - headroom))
   const points = values.map((v, i) => [x(i), y(top > 0 ? v / top : 0)] as const)
+  /** A run of points as a polyline's, and the stroke both runs draw in. */
+  const pointsOf = (run: typeof points) => run.map(p => p.join(',')).join(' ')
+  const stroke = `fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"`
   let marks = ''
   // Solid up to now; from now on, dashed.
   const solid = nowAt === undefined ? points.slice(from) : points.slice(from, nowAt + 1)
-  if (solid.length > 1) marks += `<polyline points="${solid.map(p => p.join(',')).join(' ')}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`
+  if (solid.length > 1) marks += `<polyline points="${pointsOf(solid)}" ${stroke}/>`
   if (nowAt !== undefined) {
     const ahead = points.slice(Math.max(from, nowAt))
-    if (ahead.length > 1) marks += `<polyline class="ahead" points="${ahead.map(p => p.join(',')).join(' ')}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" ${PROJECTION_DASH}/>`
+    if (ahead.length > 1) marks += `<polyline class="ahead" points="${pointsOf(ahead)}" ${stroke} ${PROJECTION_DASH}/>`
     marks += `<line class="now" x1="${x(nowAt)}" y1="0" x2="${x(nowAt)}" y2="${height}" stroke="${palette.label}" stroke-width="1"/>`
   }
-  if (level !== undefined) marks += `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1" ${PROJECTION_DASH}/>`
+  if (levelFrac !== undefined) marks += `<line class="level" x1="0" y1="${y(levelFrac)}" x2="${px}" y2="${y(levelFrac)}" stroke="${palette.label}" stroke-width="1" ${PROJECTION_DASH}/>`
   return svg({ key, alt, width: px, height, air }, marks)
 }
 
@@ -233,17 +296,17 @@ type BarChartOptions = Readonly<{
   key: string
   alt: string
   values: readonly number[]
-  /** Bars to set apart, as a re-warm is: their own colour and a cap. */
+  /** Beats to set apart, as a re-warm is: capped flat across the peak.
+   *  Text draws them as any other. */
   marked: readonly boolean[]
   color: string
-  markColor: string
   px: number
   height: number
   /** The top of the scale, by default the largest value: a bar past it
    *  stands full, so one tall bar can't flatten the rest. */
   max?: number
   /** A value the bars are read against, such as their average: a rule across. */
-  level?: number
+  levelValue?: number
   /** Px of air above the chart, inside its Svg: a band's room past its chart. */
   air?: number
 }>
@@ -252,17 +315,13 @@ type BarChartOptions = Readonly<{
 const CAP_ROOM = 3
 
 /** A beat per value, oldest first: one ECG path, a marked value capped flat
- *  across its peak. Text draws bars in braille, two to a cell, a cell
- *  holding a marked one in the mark's colour. */
+ *  across its peak. Text draws bars in braille, two to a cell. */
 export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
   const { Svg, svg, palette } = kit
-  const { key, alt, values, marked, color, markColor, px, height, max, level, air = 0 } = o
+  const { key, alt, values, marked, color, px, height, max, levelValue, air = 0 } = o
   const top = max ?? topOf(values)
   if (!Svg) {
-    const cells = Array.from({ length: Math.ceil(values.length / 2) }, (_, c): readonly [string, string] => {
-      const i = 2 * c
-      return [braille(values.slice(i, i + 2), top, 1), marked[i] === true || marked[i + 1] === true ? markColor : color]
-    })
+    const cells = Array.from({ length: Math.ceil(values.length / 2) }, (_, c): readonly [string, string] => [braille(values.slice(2 * c, 2 * c + 2), top, 1), color])
     return textRuns(kit, key, cells, color)
   }
   const room = height - CAP_ROOM
@@ -278,7 +337,7 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
     const peaks = capped ? `L${tenth(peak - 1.5)},${at}L${tenth(peak + 1.5)},${at}` : `L${peak},${at}`
     return `${i === 0 ? 'M' : 'L'}${x0},${base}${peaks}L${dip},${Math.min(height - 1, base + 3)}L${x1},${base}`
   }).join('')
-  const rule = level === undefined ? '' : `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1" stroke-dasharray="1 2"/>`
+  const rule = levelValue === undefined ? '' : `<line class="level" x1="0" y1="${y(levelValue)}" x2="${px}" y2="${y(levelValue)}" stroke="${palette.label}" stroke-width="1" stroke-dasharray="1 2"/>`
   const beats = `<path class="beats" d="${d}" fill="none" stroke="${color}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>`
   return svg({ key, alt, width: px, height, air }, rule + beats)
 }
@@ -297,10 +356,11 @@ export const flatBeats = (kit: Kit, o: Readonly<{ key: string; alt: string; beat
 
 // ---- heartbeat ------------------------------------------------------------
 
-/** The cache's heartbeat, 12px: a dot while warm or in its last minute, a
- *  flat line when cold, hollow before it's measured. It stays still: its
- *  source changes only with its state, so its frame never reloads per tick. */
-export const heartbeat = (kit: Kit, o: Readonly<{ key: string; alt: string; state: 'still' | 'beat' | 'flat' | 'hollow'; color: string }>): RenderChildren => {
+/** The cache's heartbeat, 12px: a beat, a dot, while warm or in its last
+ *  minute; a flat line when cold, hollow before it's measured. It stays
+ *  still: its source changes only with its state, so its frame never reloads
+ *  per tick. */
+export const heartbeat = (kit: Kit, o: Readonly<{ key: string; alt: string; state: 'beat' | 'flat' | 'hollow'; color: string }>): RenderChildren => {
   const { Svg, svg, palette } = kit
   if (!Svg) return null
   const { key, alt, state, color } = o
@@ -341,7 +401,7 @@ export const track = (kit: Kit, o: TrackOptions): RenderChildren => {
   const gone = clamp01(frac)
   if (!Svg) {
     const raised = Math.round(gone * cells)
-    const glyphs: Array<readonly [string, string]> = Array.from({ length: cells }, (_, i) => (i < raised ? ['⣤', color] : ['⣀', palette.meterTrack]))
+    const glyphs: Array<readonly [string, string]> = Array.from({ length: cells }, (_, i) => (i < raised ? ['⣤', color] : ['⣀', palette.trackInk]))
     return textRuns(kit, key, glyphs)
   }
   const y = tenth((height - TRACK_PX) / 2)
@@ -420,15 +480,16 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
   const tall = height + 2 * DAY_EDGE
   const marks = values.map((v, i) => {
     const x = DAY_EDGE + i * step
-    const measured = v !== undefined && !isGuess(i)
-    const fillPx = !measured || top <= 0 ? 0 : tenth(clamp01(v / top) * (height - 2))
+    // A value's height in the cell, measured or a guess.
+    const valuePx = v === undefined || top <= 0 ? 0 : tenth(clamp01(v / top) * (height - 2))
+    const fillPx = isGuess(i) ? 0 : valuePx
     const ground = isToday(i)
       ? `<rect class="ground" x="${x}" y="${DAY_EDGE}" width="${cellPx}" height="${height}" rx="3" fill="${palette.trackStroke}" opacity="0.45"/>`
       : isGuess(i)
         ? `<rect class="ground" x="${x}" y="${DAY_EDGE}" width="${cellPx}" height="${height}" rx="3" fill="${palette.meterTrack}"/>`
         : ''
     // A guess fills toward its value, dimmed, so the cells say what is to come.
-    const guessPx = !isGuess(i) || v === undefined || top <= 0 ? 0 : tenth(clamp01(v / top) * (height - 2))
+    const guessPx = isGuess(i) ? valuePx : 0
     const filled =
       fillPx > 0 ? `<rect class="fill" x="${x + 1}" y="${tenth(DAY_EDGE + height - 1 - fillPx)}" width="${cellPx - 2}" height="${fillPx}" rx="2" fill="${color}"/>`
       : guessPx > 0 ? `<rect class="guess" x="${x + 1}" y="${tenth(DAY_EDGE + height - 1 - guessPx)}" width="${cellPx - 2}" height="${guessPx}" rx="2" fill="${color}" opacity="0.45"/>`
@@ -437,7 +498,7 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
       ? [palette.value, ` ${TODAY_DASH}`]
       : isGuess(i)
         ? [palette.trackStroke, ` ${GUESS_DASH} opacity="0.75"`]
-        : [v === undefined ? palette.meterTrack : color, '']
+        : [v === undefined ? palette.trackInk : color, '']
     const edge = `<rect class="edge" x="${x + 0.5}" y="${DAY_EDGE + 0.5}" width="${cellPx - 1}" height="${height - 1}" rx="3" fill="none" stroke="${stroke}"${dash}/>`
     return ground + filled + edge
   })

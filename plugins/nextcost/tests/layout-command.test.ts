@@ -3,13 +3,14 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import { asLayoutName, removedLayoutOf } from '../hooks/memory'
-import { START, engine, mountBand, resp, respond, setup, shown, turn } from './helpers'
+import { asLayoutName, removedLayoutOf } from '../hooks/snapshot'
+import { GOLDEN } from './golden/chips'
+import { treeHash } from './golden/hash'
+import { BUILD_155K, LONG, START, engine, mountBand, respond, runCommand, setup, shown, turn } from './helpers'
+import { caseKey, drawCases, goldenKey, type Mount } from './matrix'
 
-const run = async ($: Engine, args: string): Promise<string> => {
-  const r = await $.command.run({ command: 'nextcost', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 110 } })
-  return String((r as { text?: string }).text ?? '')
-}
+/** What `/nextcost args` says. */
+const run = async ($: Engine, args: string): Promise<string> => (await runCommand($, args)).text ?? ''
 const drawnText = async ($: Engine): Promise<string> => {
   const ui = await mountBand($, 'terminal', 110)
   const t = shown(await ui.drawn())
@@ -108,7 +109,7 @@ test('a store that fails to write still switches the layout, and says until when
   )
   expect(await run($, 'layout')).toMatch(/^nextcost layout: pulse\./)
   // As it says: the next reply reads the store back, which holds none.
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   await turn($, 'x', 2.41, 2.5)
   expect(await run($, 'layout')).toMatch(/^nextcost layout: chips\./)
 })
@@ -122,7 +123,7 @@ test('the usage line keeps its bracket and adds the layout hint', async ($, on) 
 })
 test("another session's layout is read after this session's next turn", async ($, on) => {
   setup(on); await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   engine.storeGets.length = 0
   engine.store.layout = 'pulse'
   await turn($, 'x', 2.41, 2.5)
@@ -142,4 +143,9 @@ test('a store read that fails as a new session starts draws chips, not the last 
   engine.storeReadFails = true
   await $.session.start(START)
   expect(await run($, 'layout')).toMatch(/^nextcost layout: chips\./)
+})
+test('chips stored explicitly draws the same as nothing stored', LONG, async ($, on) => {
+  const m: Mount = { surface: 'desktop', cols: 95 }
+  const trees = await drawCases($, on, { scenario: 'calm', appearance: 'dark', layout: 'chips' }, [m])
+  for (const state of ['shut', 'open'] as const) expect(treeHash(trees[caseKey(m, state)])).toBe(GOLDEN[goldenKey('calm', 'dark', caseKey(m, state))])
 })

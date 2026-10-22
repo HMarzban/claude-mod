@@ -1,13 +1,13 @@
 // How the band words numbers and times: tokens, dollars, countdowns,
-// resets, projections, ages, clipped names and the context in use.
+// resets, projections, ages and the context in use.
 
 import { test, expect } from 'claude-code/testing'
-import { clipMiddle, clipWords, contextUsed, fmtAgo, fmtCost, fmtCountdown, fmtEstimate, fmtEta, fmtPct, fmtSmallCost, fmtTokens, resetIn } from '../hooks/format'
+import { clamp01, contextPressure, contextUsed, fmtAgo, fmtCost, fmtCountdown, fmtEstimate, fmtEta, fmtPct, fmtSmallCost, fmtTokens, parseReset, resetIn, sameReset } from '../hooks/format'
 import { HOUR, MIN } from './helpers'
 
 const SEC = 1000
 const NOW = 1_000_000
-const at = (ms: number): string => new Date(NOW + ms).toISOString()
+const at = (ms: number): number => NOW + ms
 
 test('tokens: whole under a thousand, a tenth of a k to ten thousand, whole k above, a tenth of an M from a million, of a B from a billion', () => {
   expect(fmtTokens(0)).toBe('0')
@@ -74,9 +74,22 @@ test('the countdown rounds to the second and never runs below zero', () => {
 })
 
 test('a reset with no readable time is unknown', () => {
+  expect(parseReset(undefined)).toBeUndefined()
+  expect(parseReset('')).toBeUndefined()
+  expect(parseReset('soon')).toBeUndefined()
   expect(resetIn(undefined, NOW)).toBeUndefined()
-  expect(resetIn('', NOW)).toBeUndefined()
-  expect(resetIn('soon', NOW)).toBeUndefined()
+})
+
+test('two resets name one window when both are unknown, or they lie within a minute', () => {
+  expect(sameReset(undefined, undefined)).toBe(true)
+  expect(sameReset(NOW, undefined)).toBe(false)
+  expect(sameReset(NOW, NOW + 59_999)).toBe(true)
+  expect(sameReset(NOW + 60_000, NOW)).toBe(false)
+})
+
+test('a reset is read as the instant its ISO time names, whatever the zone it is written in', () => {
+  expect(parseReset('1970-01-01T00:16:40Z')).toBe(NOW)
+  expect(parseReset('1970-01-01T03:46:40+03:30')).toBe(NOW)
 })
 
 test('a reset at or before now has passed; one less than a second off has not yet', () => {
@@ -86,9 +99,11 @@ test('a reset at or before now has passed; one less than a second off has not ye
   expect(resetIn(at(999), NOW)).toEqual({ kind: 'in', text: '<1m' })
 })
 
-test('a reset within the hour is whole minutes, cut down', () => {
+test('a reset under ten minutes off is whole minutes rounded up, as every close countdown is; within the hour, cut down', () => {
   expect(resetIn(at(MIN), NOW)).toEqual({ kind: 'in', text: '1m' })
-  expect(resetIn(at(5 * MIN + 59 * SEC), NOW)).toEqual({ kind: 'in', text: '5m' })
+  expect(resetIn(at(MIN + SEC), NOW)).toEqual({ kind: 'in', text: '2m' })
+  expect(resetIn(at(5 * MIN + 59 * SEC), NOW)).toEqual({ kind: 'in', text: '6m' })
+  expect(resetIn(at(10 * MIN + 59 * SEC), NOW)).toEqual({ kind: 'in', text: '10m' })
   expect(resetIn(at(59 * MIN + 59 * SEC), NOW)).toEqual({ kind: 'in', text: '59m' })
 })
 
@@ -138,39 +153,6 @@ test('an age under a minute is now, then minutes, hours and minutes, days and ho
   expect(fmtAgo(52 * HOUR)).toBe('2d 4h')
 })
 
-test('a line too long is cut at its last whole word, with a `.`, within the room', () => {
-  expect(clipWords('$0.41 spent during your last message, subagents included', 50)).toBe('$0.41 spent during your last message, subagents.')
-  expect(clipWords('76k of 200k (38%); older turns get summarized near full', 20)).toBe('76k of 200k (38%).')
-  expect(clipWords('Resets in 3h 00m', 16)).toBe('Resets in 3h 00m')
-  expect(clipWords('Resets in 3h 00m', 13)).toBe('Resets in 3h.')
-  // A first word longer than the room is cut where the room ends.
-  expect(clipWords('uncommitted', 6)).toBe('uncom.')
-})
-
-test('a name that fits is kept whole', () => {
-  expect(clipMiddle('abcdef', 10)).toBe('abcdef')
-  expect(clipMiddle('abcdef', 6)).toBe('abcdef')
-  expect(clipMiddle('', 0)).toBe('')
-})
-
-test('a name too long is cut in the middle to exactly the room, the head getting the odd character', () => {
-  expect(clipMiddle('abcdef', 5)).toBe('ab…ef')
-  expect(clipMiddle('abcdef', 4)).toBe('ab…f')
-  expect(clipMiddle('abcdef', 3)).toBe('a…f')
-  expect(clipMiddle('abcdef', 2)).toBe('a…')
-  expect(clipMiddle('claude/a-rather-long-feature-branch', 15)).toBe('claude/…-branch')
-})
-
-test('with room for one character the name is an ellipsis, and with none it is empty', () => {
-  expect(clipMiddle('abcdef', 1)).toBe('…')
-  expect(clipMiddle('abcdef', 0)).toBe('')
-  expect(clipMiddle('abcdef', -1)).toBe('')
-})
-
-test('a name is clipped by characters, never through one', () => {
-  expect(clipMiddle('😀😀😀😀', 3)).toBe('😀…😀')
-})
-
 test('the context in use prefers its token count, even a zero, to the percent', () => {
   expect(contextUsed({ tokens: 0, percent: 40, window: 200_000 })).toBe(0)
   expect(contextUsed({ percent: 0, window: 200_000 })).toBe(0)
@@ -197,6 +179,13 @@ test('a cost that rounds to $1,000 is written as whole dollars, as $1,000 itself
 })
 
 test('a reset under a minute away says so, not 0m', () => {
-  expect(resetIn(new Date(30_000).toISOString(), 0)).toEqual({ kind: 'in', text: '<1m' })
-  expect(resetIn(new Date(60_000).toISOString(), 0)).toEqual({ kind: 'in', text: '1m' })
+  expect(resetIn(30_000, 0)).toEqual({ kind: 'in', text: '<1m' })
+  expect(resetIn(60_000, 0)).toEqual({ kind: 'in', text: '1m' })
+})
+
+test('a share of nothing is none: a window or a compaction point of 0 reads 0, never NaN or Infinity', () => {
+  expect(clamp01(Number.NaN)).toBe(0)
+  expect(contextPressure(0, 0, undefined).frac).toBe(0)
+  expect(contextPressure(76_000, 0, undefined).frac).toBe(0)
+  expect(contextPressure(76_000, 200_000, 0).frac).toBe(0)
 })

@@ -7,14 +7,32 @@
 // between ` · `. One row always: nothing in it wraps.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
-import { clipMiddle, plural } from './format'
+import { plural } from './format'
 import { ALT } from './icons'
 import type { CardPlace, Kit } from './kit'
-import { STRIP_GIVES_WAY, isList, spansOf, squeezeToFit, stripKeeps } from './layout'
+import { clipMiddle, isList, spansOf, squeezeToFit } from './layout'
 import type { Span } from './layout'
 import { BARE } from './palette'
 import { gitSummary, splitPath } from './workspace'
 import type { GitState, Workspace } from './workspace'
+
+/** What the strip gives up as it narrows, least important first. The path,
+ *  the branch and the change count's word shorten; the extras go whole, and
+ *  the path's hover card still says everything. Uncommitted changes never
+ *  go: they are what a narrow line must still say. */
+const GIVE_WAY = [
+  'clean',
+  'parent',
+  'changedWord',
+  'branchLong',
+  'worktreeOf',
+  'aheadBehind',
+  'branchShort',
+  'worktree',
+  'nameLong',
+  'nameShort',
+] as const
+type Piece = (typeof GIVE_WAY)[number]
 
 /** Push and pull in words, leaving out a side with nothing on it. */
 const tracking = (g: GitState): string => {
@@ -34,22 +52,24 @@ const keyOf = (n: RenderChildren): string | undefined => {
   return typeof key === 'string' ? key : undefined
 }
 
-const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'footer', edge: number, room: number): RenderElement => {
-  const { Box, Text, Svg, measure, asDrawn, oneLine, hoverable, hoverCard, icon } = kit
-  const kept = (piece: (typeof STRIP_GIVES_WAY)[number]) => stripKeeps(squeeze, piece)
+/** What the strip says at a squeeze: the path's side and the state's, each
+ *  piece keyed, and by its key the card text each piece that explains
+ *  itself reveals on hover. */
+type Said = Readonly<{ where: RenderChildren[]; state: RenderChildren[]; explained: ReadonlyMap<string, string> }>
+
+const saidOf = (kit: Kit, ws: Workspace, kept: (piece: Piece) => boolean): Said => {
+  const { Box, Text, Svg, oneLine, hoverable, icon } = kit
   const git = ws.git
   const { parent, name: fullName } = splitPath(ws.path)
-  const name = clipMiddle(fullName, kept('nameLong') ? Infinity : kept('nameShort') ? 24 : 12)
+  /** A name cut in the middle as the squeeze shortens it: whole, then 24
+   *  columns, then 12. */
+  const shortened = (text: string, long: Piece, short: Piece): string => clipMiddle(text, kept(long) ? Infinity : kept(short) ? 24 : 12)
+  const name = shortened(fullName, 'nameLong', 'nameShort')
   const shortParent = parent === '' ? '' : parent.startsWith('~/') ? '~/…/' : '…/'
   const parentShown = kept('parent') || shortParent.length >= parent.length ? parent : shortParent
   const clipped = parentShown !== parent || name !== fullName
-  const joined = (side: string, pieces: RenderChildren[]): RenderChildren[] =>
-    pieces.flatMap((piece, i) =>
-      i === 0 || Svg ? [piece] : [<Text key={`${side}-sep${i}`} color={BARE.label}>{' · '}</Text>, piece],
-    )
 
-  // The card text each piece that explains itself on hover reveals, by the
-  // piece's key, for the end of the strip; see the kit's hoverCard.
+  // The card text each piece reveals, by its key; see the kit's hoverCard.
   const explained = new Map<string, string>()
   /** The props of a piece keyed `key` that reveals `text` on hover. */
   const explains = (key: string, text: string) => {
@@ -65,7 +85,7 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
     </Box>,
   ]
   if (git?.branch !== undefined) {
-    const branch = clipMiddle(git.branch, kept('branchLong') ? Infinity : kept('branchShort') ? 24 : 12)
+    const branch = shortened(git.branch, 'branchLong', 'branchShort')
     where.push(
       <Box flexDirection="row" {...explains('ws:head', `Branch ${git.branch}${git.commit === undefined ? ', no commits yet' : ''}: ${tracking(git)}`)}>
         {Svg ? icon('branch', BARE.branch, branch === git.branch ? ALT.branch : `branch ${git.branch}`) : <Text color={BARE.label}>{'on '}</Text>}
@@ -137,6 +157,19 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
       )
     }
   }
+  return { where, state, explained }
+}
+
+/** The strip at a squeeze, in `room` columns: the path's side, the fill,
+ *  the state's side, then each piece's hover card, placed at its piece. */
+const stripAt = (kit: Kit, ws: Workspace, kept: (piece: Piece) => boolean, place: 'top' | 'footer', edge: number, room: number): RenderElement => {
+  const { Box, Text, Svg, measure, asDrawn, hoverCard } = kit
+  const { where, state, explained } = saidOf(kit, ws, kept)
+  /** A side's pieces, a text surface's ` · ` between each. */
+  const joined = (side: string, pieces: RenderChildren[]): RenderChildren[] =>
+    pieces.flatMap((piece, i) =>
+      i === 0 || Svg ? [piece] : [<Text key={`${side}-sep${i}`} color={BARE.label}>{' · '}</Text>, piece],
+    )
 
   // Each card at its piece: on the path's side from where the piece starts,
   // on the state's ending where it ends. A separator is a Text, not a Box, so
@@ -205,4 +238,4 @@ const stripAt = (kit: Kit, ws: Workspace, squeeze: number, place: 'top' | 'foote
  *  view's top, or the footer when the band is short of rows; `edge` is the
  *  cards' border width, so the strip's text lines up with theirs. */
 export const drawStrip = (kit: Kit, ws: Workspace, place: 'top' | 'footer', edge: number, room: number): RenderElement =>
-  squeezeToFit(squeeze => stripAt(kit, ws, squeeze, place, edge, room), STRIP_GIVES_WAY.length, room, kit.measure)
+  squeezeToFit(GIVE_WAY, room, kit.measure, kept => stripAt(kit, ws, kept, place, edge, room))
