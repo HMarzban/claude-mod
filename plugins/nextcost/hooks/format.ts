@@ -1,8 +1,6 @@
 // Numbers, times and escalation marks, as the band words them, and the
 // paint key: every phrase the clock alone moves, as one key.
 
-import { charCells, textCells } from './layout'
-
 export const MINUTE_MS = 60_000
 /** The cache's last minute: the one span where acting changes the bill. */
 export const SOON_MS = MINUTE_MS
@@ -138,49 +136,6 @@ export const fmtEta = (ms: number): string => {
   const hours = Math.floor(mins / 60)
   const rest = mins % 60
   return hours === 0 ? `~${mins}m` : rest ? `~${hours}h ${rest}m` : `~${hours}h`
-}
-
-/** The most of `chars` from their start that fits `room` columns. */
-const headIn = (chars: readonly string[], room: number): string[] => {
-  let used = 0
-  const kept: string[] = []
-  for (const ch of chars) {
-    used += charCells(ch)
-    if (used > room) break
-    kept.push(ch)
-  }
-  return kept
-}
-
-/** `text` at most `max` columns, cut in the middle: a branch keeps both its
- *  prefix and its end, where names differ. A wide character takes two
- *  columns, and is never cut through; a column the head can't use goes to
- *  the end. */
-export const clipMiddle = (text: string, max: number): string => {
-  if (textCells(text) <= max) return text
-  if (max <= 1) return '…'.slice(0, max)
-  const chars = [...text]
-  const head = headIn(chars, Math.ceil((max - 1) / 2))
-  const tail = headIn([...chars].reverse(), max - 1 - textCells(head.join(''))).reverse()
-  return `${head.join('')}…${tail.join('')}`
-}
-
-/** `text` at most `room` columns, cut at its last whole word with a `.` in
- *  place of the punctuation it ended on; a first word longer than the room
- *  is cut where the room ends. A wide character takes two columns. */
-export const clipWords = (text: string, room: number): string => {
-  if (textCells(text) <= room) return text
-  const chars = [...text]
-  // The last space within the room but the `.`'s column, by its index.
-  let space = -1
-  let at = 0
-  for (const [i, ch] of chars.entries()) {
-    if (at > room - 1) break
-    if (ch === ' ' && i > 0) space = i
-    at += charCells(ch)
-  }
-  const kept = space > 0 ? chars.slice(0, space).join('').replace(/[\s,;:]+$/, '') : headIn(chars, room - 1).join('')
-  return `${kept}.`
 }
 
 /** How long ago, coarsely: `2d 4h`, `3h 05m`, `12m`; under a minute is `now`. */

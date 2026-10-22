@@ -4,7 +4,6 @@
 import { test, expect } from 'claude-code/testing'
 import { fixedZone } from '../hooks/format'
 import { readingsOf } from '../hooks/reading'
-import { clipToTiles } from '../hooks/views/departures-board'
 import { HOUR, MIN } from './helpers'
 import { snapOf } from './matrix'
 
@@ -108,10 +107,6 @@ test('an unknown zone: no clock anywhere on the board, and no empty time', () =>
     expect(r.time).not.toBe('')
     expect(`${r.cell}${r.remarks}`).not.toMatch(/undefined|NaN/)
   }
-})
-test('clipToTiles cuts with an ellipsis and leaves a short one whole', () => {
-  expect(clipToTiles('IN 38 MIN · RE-WARM', 6)).toBe('IN 38…')
-  expect(clipToTiles('IN 38 MIN', 40)).toBe('IN 38 MIN')
 })
 test('a calm context row\'s remarks name the room and where compaction falls', () => {
   const calm = row({ context: { ...snapOf().context, tokens: 76_000, window: 200_000, compactAt: 190_000 } }, 'context')

@@ -8,8 +8,8 @@ import { makeKit } from '../hooks/kit'
 import { DESKTOP, HOTKEY_MARK, TERMINAL, cellsOf } from '../hooks/layout'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { openBody } from '../hooks/views/cards'
-import { cardLine } from '../hooks/views/shell'
+import { chipsOpen } from '../hooks/views/chips-open'
+import { cardLine, limitAccent } from '../hooks/views/shell'
 import { cachePill, chipsPills, chipsView, limitPill, pillRow } from '../hooks/views/chips'
 import { drawView, toggleButton, type Keeps } from '../hooks/views/frame'
 import type { View } from '../hooks/views/view'
@@ -23,21 +23,21 @@ const text = (s: string) => ({ type: 'Text', props: {}, children: [s] }) as unkn
 const linesView = (count: number): View => ({
   rows: { desktop: count, terminal: count },
   collapsed: () => ({ type: 'Box', props: { flexDirection: 'column' }, children: Array.from({ length: count }, (_, i) => text(`LINE ${i}`)) }) as unknown as RenderElement,
-  open: openBody,
+  open: chipsOpen,
 })
 const drawn = (view: View, snap: BandSnapshot) => drawView(view, makeKit(fakeEl, snap), readingsOf(snap), NO_ACT)
 const opened = (over: Partial<BandSnapshot> = {}): Node => {
   const snap = snapOf({ expanded: true, maxRows: 40, ...over })
-  return { type: 'Box', props: {}, children: openBody(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT, 1) } as unknown as Node
+  return { type: 'Box', props: {}, children: chipsOpen(makeKit(fakeEl, snap), readingsOf(snap), NO_ACT, 1) } as unknown as Node
 }
 
-test("chips' open view is openBody's, with one collapsed row and nothing to skip", () => {
+test("chips' open view is chipsOpen's, with one collapsed row and nothing to skip", () => {
   for (const surface of ['terminal', 'desktop'] as const) {
     const snap = snapOf({ expanded: true, surface })
     const kit = makeKit(fakeEl, snap)
     const read = readingsOf(snap)
     const open = (drawView(chipsView, kit, read, NO_ACT) as unknown as Node).children?.flat().slice(1)
-    expect(canon(open)).toEqual(canon(openBody(kit, read, NO_ACT, 1).filter(Boolean)))
+    expect(canon(open)).toEqual(canon(chipsOpen(kit, read, NO_ACT, 1).filter(Boolean)))
   }
 })
 test('the cards take only the rows the collapsed lines leave', () => {
@@ -53,7 +53,7 @@ test('the cards take only the rows the collapsed lines leave', () => {
         const edges = surface === 'desktop' ? 2 * (byKey(tree, 'cards')?.children ?? []).length : 0
         // The desktop's two lines at 13 rows, the gauges board's case, leave
         // its two lines of cards no row of body. Each card keeps one anyway,
-        // as openBody holds every card to a fact at least, so the band is a
+        // as chipsOpen holds every card to a fact at least, so the band is a
         // row over.
         const over = surface === 'desktop' && count === 2 && maxRows === 13
         const at = `${surface} ${count} at ${maxRows}`
@@ -155,4 +155,9 @@ test("the shell answers a line of cards' geometry: how many to a line, their ins
   expect(line({ columns: 200, surface: 'desktop' })).toMatchObject({ perLine: 4, inner: 45, innerPx: 470, edge: 2, edgeRows: 1, pxEdge: true })
   // Short of room for every card, half of them; else one.
   expect([line({ columns: 95 }).perLine, line({ columns: 60 }).perLine, line({ columns: 40 }).perLine]).toEqual([2, 1, 1])
+})
+test("a limit's accent is its window's, or the meter's for any other", () => {
+  expect(limitAccent(DARK, '5h')).toBe(DARK.fiveAccent)
+  expect(limitAccent(DARK, '7d')).toBe(DARK.weekAccent)
+  expect(limitAccent(DARK, 'other')).toBe(DARK.meterFill)
 })

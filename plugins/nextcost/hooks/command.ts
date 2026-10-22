@@ -2,7 +2,7 @@
 // a command and the band's state make a plan, which register.tsx carries out
 // against the engine and the store.
 
-import { clipMiddle } from './format'
+import { clipMiddle } from './layout'
 import { DEFAULT_LAYOUT, LAYOUT_NAMES, REMOVED_IN, asLayoutName, removedLayoutOf } from './snapshot'
 import type { LayoutName } from './snapshot'
 

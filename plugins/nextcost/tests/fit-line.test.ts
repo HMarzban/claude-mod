@@ -1,10 +1,10 @@
-// The collapsed rows' give-way, the line pulse and departures lay, and a limit's accent.
+// The collapsed rows' give-way, and the line pulse and departures lay: its
+// pieces' ground and the gap between them.
 
 import { test, expect } from 'claude-code/testing'
 import { ROW_SLACK } from '../hooks/layout'
-import { DARK } from '../hooks/palette'
-import { accentOf } from '../hooks/views/cards'
-import { fitLine, line, type Keeps } from '../hooks/views/frame'
+import { PLAIN } from '../hooks/palette'
+import { fitLine, groundOf, line, pieceGap, type Keeps } from '../hooks/views/frame'
 import type { Amber } from '../hooks/words'
 import { byKey, shown, type Node } from './helpers'
 import { kitOf } from './matrix'
@@ -71,8 +71,14 @@ test('each piece of a line keeps its width; words truncate, never wrap', () => {
   expect(byKey(tree, 'a', 'Text')?.props?.wrap).toBe('truncate-end')
   expect(shown(tree)).toBe('cache 52m')
 })
-test("a limit's accent is its window's", () => {
-  expect(accentOf(kit(), { key: '5h' })).toBe(DARK.fiveAccent)
-  expect(accentOf(kit(), { key: '7d' })).toBe(DARK.weekAccent)
-  expect(accentOf(kit(), { key: 'other' })).toBe(DARK.meterFill)
+/** A squeeze that has, or has taken, every step. */
+const keepsAll = (kept: boolean): Keeps<'padding'> => ({ has: () => kept, calm: () => kept, part: () => kept, amber: a => (kept ? a.long : a.short) })
+test("a piece's ground is its colour, padded until the last step; plain draws none", () => {
+  expect(groundOf(kit(), keepsAll(true), '#123456')).toEqual({ backgroundColor: '#123456', paddingX: 1 })
+  expect(groundOf(kit(), keepsAll(false), '#123456')).toEqual({ backgroundColor: '#123456' })
+  expect(groundOf(kitOf({ palette: PLAIN }), keepsAll(true), '#123456')).toEqual({})
+})
+test('pieces on their ground sit a column apart; plain sets them two apart until the last step', () => {
+  const plain = kitOf({ palette: PLAIN })
+  expect([pieceGap(kit(), keepsAll(true)), pieceGap(kit(), keepsAll(false)), pieceGap(plain, keepsAll(true)), pieceGap(plain, keepsAll(false))]).toEqual([1, 1, 2, 1])
 })

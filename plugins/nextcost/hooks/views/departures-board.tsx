@@ -11,29 +11,12 @@
 import type { RenderElement } from 'claude-code'
 import { boardBudget, boardLineHeight, boardRule, flapCells, flapColumns, type FlapColumn } from '../flaps'
 import type { Kit } from '../kit'
-import { boardCells, charCells, textCells } from '../layout'
+import { boardCells, clipToTiles, textCells } from '../layout'
 import type { Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import type { Palette } from '../palette'
 import { BOARD_HEADINGS, BOARD_NOW, BOARD_NO_TIME, BOARD_TITLE, type BoardKey, type BoardRow } from '../board-words'
 import { bodyRowsFor, footer, rowRoom } from './frame'
-
-/** A line's text cut to `tiles` columns, `…` last where cut, a wide
- *  character never split: REMARKS, and a flap column's text where the room
- *  can't hold its widest. Exported for its tests. */
-export const clipToTiles = (text: string, tiles: number): string => {
-  if (textCells(text) <= tiles) return text
-  if (tiles <= 1) return ''
-  let kept = ''
-  let cells = 0
-  for (const ch of text) {
-    const width = charCells(ch)
-    if (cells + width > tiles - 1) break
-    kept += ch
-    cells += width
-  }
-  return `${kept}…`
-}
 
 /** Each reading's ITEM ink: its own, as an airline's code has its colour. */
 export const ITEM_INK: Readonly<Record<BoardKey, Exclude<keyof Palette, 'filled'>>> = {
@@ -232,5 +215,5 @@ const board = (kit: Kit, read: Readings, collapsedRows: number): RenderElement |
 
 /** Departures open: the board, then the footer every layout draws, the
  *  workspace strip in its row. */
-export const openBoard = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderElement[] =>
+export const departuresOpen = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderElement[] =>
   [board(kit, read, collapsedRows), footer(kit, act, read.workspace)].filter(e => e !== null)

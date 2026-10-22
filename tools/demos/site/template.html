@@ -498,9 +498,7 @@
       <div class="pctl js-only">
         <fieldset class="layouts">
           <legend>Layout</legend>
-          <label><input type="radio" name="layout" value="chips" checked>chips</label>
-          <label><input type="radio" name="layout" value="pulse">pulse</label>
-          <label><input type="radio" name="layout" value="departures">departures</label>
+          {{layout-radio}}
         </fieldset>
         <div class="tour" id="tourbox"><button type="button" id="tour">Play tour</button><span id="tour-step"></span></div>
       </div>
@@ -634,7 +632,7 @@
     --marketplace HMarzban/nextcost</code></pre>
           <button class="copy js-only" type="button" id="copy-total" data-copy="claude plugin install nextcost --marketplace HMarzban/nextcost" aria-label="Copy install command">Copy</button>
         </div>
-        <p class="after">It loads in your next session, or run <code>/reload-plugins</code> in an open one. The one-line install needs Claude Code 2.1.292 or later. <code class="nb">/nextcost layout &lt;name&gt;</code> picks chips, pulse or departures.</p>
+        <p class="after">It loads in your next session, or run <code>/reload-plugins</code> in an open one. The one-line install needs Claude Code 2.1.292 or later. <code class="nb">/nextcost layout &lt;name&gt;</code> picks {{layout-names}}.</p>
       </div>
     </div>
   </section>

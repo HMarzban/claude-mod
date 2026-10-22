@@ -1,6 +1,6 @@
 """What the demo scripts share: reading and writing a page, the capture's
-lines, the text a drawn tree shows, the plugin's version, and the CSS a Box's
-flex props ask for."""
+lines and the layouts it draws, the text a drawn tree shows, the plugin's
+version, and the CSS a Box's flex props ask for."""
 import json
 import os
 from pathlib import Path
@@ -29,6 +29,13 @@ def trees(path):
             _, name, js = line.split(' ', 2)
             out[name] = json.loads(js)
     return out
+
+
+def demo_layouts(path):
+    """The layouts a capture's `DEMO <layout> ...` lines draw, in the order
+    they first come: the capture's, which is LAYOUT_NAMES'."""
+    with open(path) as f:
+        return list(dict.fromkeys(line.split(' ', 2)[1] for line in f))
 
 
 def words(n):

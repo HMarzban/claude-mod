@@ -147,6 +147,16 @@ export const line = (kit: Kit, pieces: readonly RenderChildren[], end: RenderChi
   )
 }
 
+/** A piece's ground on a collapsed line: `color`, with a column of padding
+ *  either side until the line's last step; plain draws no ground. */
+export const groundOf = (kit: Kit, k: Keeps<'padding'>, color: string): Readonly<{ backgroundColor?: string; paddingX?: number }> =>
+  kit.palette.filled ? { backgroundColor: color, ...(k.has('padding') ? { paddingX: 1 } : {}) } : {}
+
+/** The columns between a collapsed line's pieces: one where they stand on
+ *  their ground; in plain, which has none to part them, two until the
+ *  line's last step. */
+export const pieceGap = (kit: Kit, k: Keeps<'padding'>): number => (kit.palette.filled || !k.has('padding') ? 1 : 2)
+
 /** A collapsed row squeezed by its give-way order to the first step at which
  *  it fits its room. */
 export const fitLine = <P extends string>(kit: Kit, order: GiveWay<P>, build: (keeps: Keeps<P>) => RenderElement): RenderElement =>

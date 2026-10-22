@@ -4,7 +4,7 @@
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { meter, splitBar } from '../charts'
 import type { SplitPart } from '../charts'
-import type { LimitKey, Tone } from '../facts'
+import type { Tone } from '../facts'
 import type { Kit } from '../kit'
 import { textCells } from '../layout'
 import type { BarSize } from '../layout'
@@ -12,13 +12,8 @@ import type { LimitReading, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { SPLIT_LABELS, type Say } from '../words'
 import { bodyRowsFor, footer, topStrip } from './frame'
-import { CARD_NAMES, alertLine, cardGrid, cardLine, cardShell, cardsPresent, factRow, headline, linesOf } from './shell'
+import { CARD_NAMES, alertLine, cardGrid, cardLine, cardShell, cardsPresent, factRow, headline, limitAccent, linesOf } from './shell'
 import type { CardName } from './shell'
-
-/** A limit's accent: its window's, or the meter's for any other. Exported
- *  for its tests. */
-export const accentOf = (kit: Kit, limit: Readonly<{ key: LimitKey }>): string =>
-  limit.key === '5h' ? kit.palette.fiveAccent : limit.key === '7d' ? kit.palette.weekAccent : kit.palette.meterFill
 
 const SPLIT_ALT = `token split: ${SPLIT_LABELS.join(', ')}`
 
@@ -52,7 +47,7 @@ type Fit = Readonly<{ inner: number; bodyRows: number; bar: BarSize }>
  *  cards align whatever their text and a line never wraps one away. A
  *  desktop card has a visible edge; a terminal card is a fill, its border
  *  would cost two columns. Lines keep a row of air between them. */
-const layoutOf = (kit: Kit, read: Readings, collapsedRows: number): Grid => {
+const gridOf = (kit: Kit, read: Readings, collapsedRows: number): Grid => {
   const hasCard = cardsPresent(read)
   const cardCount = CARD_NAMES.filter(name => hasCard[name]).length
   const { perLine, inner, edge, pxEdge } = cardLine(kit, cardCount)
@@ -82,7 +77,7 @@ const layoutOf = (kit: Kit, read: Readings, collapsedRows: number): Grid => {
 const knownRow = (kit: Kit, label: string, value: string | undefined): RenderChildren => (value === undefined ? null : factRow(kit, label, value))
 
 /** A line of words in a label's ink, wrapped. */
-const note = (kit: Kit, text: string): RenderElement => {
+const wrappedNote = (kit: Kit, text: string): RenderElement => {
   const { Text, palette } = kit
   return (
     <Text key="note" color={palette.label} wrap="wrap">
@@ -112,7 +107,7 @@ const cacheCard = (kit: Kit, read: Readings, fit: Fit): RenderElement => {
     { say: cache.cardHead, tone: cache.tone },
     cache.known ? meter(kit, { label: 'cache', frac: cache.charge, tone: cache.tone, accent: kit.palette.warm, size: fit.bar, stretch: true, reads: 'left' }) : null,
     [
-      cache.cardNote === undefined ? null : note(kit, cache.cardNote),
+      cache.cardNote === undefined ? null : wrappedNote(kit, cache.cardNote),
       cache.known ? factRow(kit, cache.estimateLabel, cache.estimate) : null,
       knownRow(kit, 'idle for', cache.idleText),
       knownRow(kit, 'unexpected rebuilds', cache.rebuildsText),
@@ -130,7 +125,7 @@ const spendCard = (kit: Kit, read: Readings, fit: Fit): RenderElement => {
   const splitShown = read.cache.measured
   const tokenRows = splitShown
     ? spend.split.map((part, i) => factRow(kit, part.label, part.text, tokenParts[i]))
-    : [note(kit, 'Breakdown counts from your next message.')]
+    : [wrappedNote(kit, 'Breakdown counts from your next message.')]
   return card(kit, fit, 'spend', { say: [[spend.totalText, 'value']] }, splitShown ? splitBar(kit, { alt: SPLIT_ALT, parts: tokenParts, size: fit.bar }) : null, [lastRow, ...tokenRows])
 }
 
@@ -189,7 +184,7 @@ const limitRows = (kit: Kit, fit: Fit, worst: LimitReading | undefined, w: Limit
     <Box key={`fact:${name}`} flexDirection="row" columnGap={1}>
       <Text color={palette.label}>{name}</Text>
       <Box key="bar" flexGrow={1} width={0} minWidth={0}>
-        {meter(kit, { label: name, frac, tone, accent: accentOf(kit, w), size, stretch: true })}
+        {meter(kit, { label: name, frac, tone, accent: limitAccent(palette, w.key), size, stretch: true })}
       </Box>
       <Text color={onTone(tone, palette.cardValue)}>{value}</Text>
     </Box>,
@@ -235,8 +230,8 @@ const limitsCard = (kit: Kit, read: Readings, fit: Fit): RenderElement | null =>
 /** Chips' open view, beneath its row: as many cards to a line as hold their
  *  text, each as much of its body as the band has rows for; the workspace
  *  strip on top or in the footer; then Collapse and Hide band. */
-export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderChildren[] => {
-  const { perLine, edge, stripPlace, cardsFit, fit } = layoutOf(kit, read, collapsedRows)
+export const chipsOpen = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderChildren[] => {
+  const { perLine, edge, stripPlace, cardsFit, fit } = gridOf(kit, read, collapsedRows)
   const ws = read.workspace
   const cards = [cacheCard(kit, read, fit), spendCard(kit, read, fit), contextCard(kit, read, fit), limitsCard(kit, read, fit)].filter(view => view !== null)
   return [

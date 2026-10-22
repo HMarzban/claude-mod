@@ -1,14 +1,15 @@
 // The card shell chips' and pulse's open views share, so their cards read as
-// one family: which cards there are and their marks, a card's ground and
-// edge, its title and headline, its fact rows, how many cards a line holds,
-// the grid they sit in, and the alert drawn where none fits.
+// one family: which cards there are and their marks, a limit's accent, a
+// card's ground and edge, its title and headline, its fact rows, how many
+// cards a line holds, the grid they sit in, and the alert drawn where none
+// fits.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import type { SplitPart } from '../charts'
-import type { Tone } from '../facts'
 import type { Icon } from '../icons'
 import type { Kit } from '../kit'
 import { CARD_TEXT, DESKTOP } from '../layout'
+import type { LimitKey, Tone } from '../facts'
 import type { Readings } from '../reading'
 import type { Palette } from '../palette'
 import { CARD_TITLES } from '../words'
@@ -34,6 +35,10 @@ const CARD_ICONS: Readonly<Record<CardName, readonly [Icon, Exclude<keyof Palett
   context: ['context', 'label'],
   limits: ['limits', 'fiveAccent'],
 }
+
+/** A limit's accent: its window's, or `meterFill` for any other. */
+export const limitAccent = (palette: Palette, key: LimitKey): string =>
+  key === '5h' ? palette.fiveAccent : key === '7d' ? palette.weekAccent : palette.meterFill
 
 /** The cards the readings have something for: the context once it is
  *  reported, the limits once any window is. */
