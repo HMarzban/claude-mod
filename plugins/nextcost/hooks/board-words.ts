@@ -7,7 +7,7 @@
 import { etaMinutes, fmtClock, fmtDayClock, fmtEta } from './format'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
 import type { CacheFacts, ContextFacts, Frame, LimitFacts, LimitKey, SpendFacts, Tone } from './reading'
-import { AMBER_LEAD, boardSpan, compactsIn, saidJoined } from './words'
+import { AMBER_LEAD, EMPTY, boardSpan, compactsIn, saidJoined } from './words'
 import type { CacheWords, ContextWords, LimitWords, SpendWords } from './words'
 
 export type BoardKey = 'cache' | 'spend' | 'context' | '5h' | '7d' | 'other'
@@ -77,7 +77,7 @@ const spendBoard = (r: BoardFacts): BoardRow => ({
 const contextBoard = (r: BoardFacts): BoardRow => {
   const x = r.context
   const base = { key: 'context', item: 'CONTEXT', time: undefined, alt: x.alt } as const
-  if (!x.known) return { ...base, status: 'NOT REPORTED', remarks: '', cell: 'NOT REPORTED', cellShort: 'NOT REPORTED', tone: 'calm' }
+  if (!x.known) return { ...base, status: EMPTY.context, remarks: '', cell: EMPTY.context, cellShort: EMPTY.context, tone: 'calm' }
   const remarks = saidJoined([x.roomText === undefined ? undefined : `${x.roomText} LEFT`, x.compactsAtText === undefined ? undefined : `COMPACTS AT ${x.compactsAtText}`], ' · ')
   if (x.tone === 'calm') return { ...base, status: `${x.valueText} USED`, remarks, cell: x.valueText, cellShort: x.valueText, tone: 'calm' }
   // Near compaction the board names the event; with compaction off, the

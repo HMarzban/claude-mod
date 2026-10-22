@@ -17,7 +17,6 @@ const SEC = 1000
 const drawnTimes = (snap: BandSnapshot): string => {
   const r = readingsOf(snap)
   return JSON.stringify([
-    r.cache.left,
     r.cache.figure,
     r.cache.figureShort,
     r.cache.cardHead,

@@ -29,6 +29,7 @@ import {
   secondsLeft,
   severityMark,
 } from './format'
+import { IDLE_COMPACT_MS } from './cache'
 import { warmAverageOf } from './insights'
 import type { CostEntry, Trails } from './insights'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
@@ -55,8 +56,12 @@ export const saidJoined = (parts: ReadonlyArray<string | undefined>, sep: string
 
 /** The room before auto-compaction, an estimate: `~14k`. */
 export const roomOf = (toCompact: number): string => `~${fmtTokens(toCompact)}`
-/** Near compaction, the room before it: `compacts in ~14k`. */
+/** Near compaction, the room before it: `compacts in ~14k`. Every layout's
+ *  words say it so, chips' hover as `auto-compacts in ~14k`. */
 export const compactsIn = (toCompact: number): string => `compacts in ${roomOf(toCompact)}`
+
+/** When Claude Code may compact a conversation idle on the hour's cache. */
+const IDLE_COMPACT_AT = `at ~${fmtAgo(IDLE_COMPACT_MS)} idle, before it goes cold`
 
 const amberOf = (say: Say, sayShort: Say): Amber => ({ long: joined(say), short: joined(sayShort) })
 
@@ -119,15 +124,8 @@ type Fact = Readonly<{ label: string; value: string }>
 // ---- the words of each section, from its facts ------------------------------
 
 export type CacheWords = Readonly<{
-  /** The value after `cache `: `52m left`, `warm` while Claude works, `–`, `warming`, `cold` or `compacted`. */
-  value: string
-  /** The countdown, `52m left` or `47s left`; empty while not counting. */
-  left: string
-  say: Say
   /** The cache's mood for a reader, unchanged as it counts down: the heartbeat's alt. */
   heartAlt: string
-  /** `say` as plain text: `cache 52m left`. */
-  text: string
   /** Pulse's row tile's name: `cache`. */
   bandName: string
   /** The last minute: `! 47s left · re-warm ~$1.66`, then `! 47s`. */
@@ -157,10 +155,8 @@ export type CacheWords = Readonly<{
 }>
 
 export type ContextWords = Readonly<{
-  /** `38%` and `context 38%`; while not reported, `–`. */
+  /** `38%`; while not reported, `–`. */
   valueText: string
-  text: string
-  say: Say
   /** `! context 93% · compacts in ~14k` / `! ctx 93%`; compaction off, `! context 85%`. */
   amber: Amber | undefined
   /** Tokens in context, where it compacts, the room before then, and the window:
@@ -229,10 +225,9 @@ export type LimitWords = Readonly<{
   alt: string
 }>
 
-/** What one mood of the cache says: its value, its figure after `cache `
- *  long and short, its card's headline and note, a reader's words, and its
- *  amber. */
-type MoodWords = Pick<CacheWords, 'value' | 'figureShort' | 'amber' | 'cardHead' | 'cardNote' | 'estimateLabel' | 'alt'> &
+/** What one mood of the cache says: its figure after `cache ` long and
+ *  short, its card's headline and note, a reader's words, and its amber. */
+type MoodWords = Pick<CacheWords, 'figureShort' | 'amber' | 'cardHead' | 'cardNote' | 'estimateLabel' | 'alt'> &
   Readonly<{ figure: Say }>
 
 /** Each mood's name for a reader, unchanged as the cache counts down: the
@@ -257,7 +252,6 @@ const moodWords = (f: CacheFacts, left: string, leftShort: string, price: string
   switch (f.mood) {
     case 'unmeasured':
       return {
-        value: UNKNOWN,
         figure: [[UNKNOWN, 'value']],
         figureShort: UNKNOWN,
         amber: undefined,
@@ -268,7 +262,6 @@ const moodWords = (f: CacheFacts, left: string, leftShort: string, price: string
       }
     case 'warming':
       return {
-        value: 'warming',
         figure: [['warming', 'value']],
         figureShort: 'warming',
         amber: undefined,
@@ -279,7 +272,6 @@ const moodWords = (f: CacheFacts, left: string, leftShort: string, price: string
       }
     case 'compacted':
       return {
-        value: 'compacted',
         figure: [['compacted', 'value'], [' · next ', 'label'], [f.estimate, 'value']],
         figureShort: goneShort('compacted', f.estimate),
         amber: undefined,
@@ -290,7 +282,6 @@ const moodWords = (f: CacheFacts, left: string, leftShort: string, price: string
       }
     case 'cold':
       return {
-        value: 'cold',
         figure: [['cold', 'value'], [' · re-warm ', 'label'], [f.estimate, 'value']],
         figureShort: goneShort('cold', f.estimate),
         amber: undefined,
@@ -305,13 +296,12 @@ const moodWords = (f: CacheFacts, left: string, leftShort: string, price: string
       const expiring = f.mood === 'expiring'
       const value = f.coldInMs !== undefined ? left : f.mood
       return {
-        value,
         figure: [[value, 'value']],
         figureShort: f.coldInMs !== undefined ? leftShort : value,
         amber: expiring ? AMBER.cache(leftShort, f.estimate) : undefined,
         // The card counts down as chips' row always has: `1h 05m`, `0:47`.
         cardHead: f.coldInMs !== undefined ? [[fmtCountdown(f.msLeft), 'value'], [' left', 'label']] : [[value, 'value']],
-        cardNote: f.idleCompactSoon ? 'Claude Code may compact it at ~54m idle, before it goes cold.' : undefined,
+        cardNote: f.idleCompactSoon ? `Claude Code may compact it ${IDLE_COMPACT_AT}.` : undefined,
         estimateLabel: 're-warm if cold',
         alt:
           f.coldInMs !== undefined
@@ -333,13 +323,8 @@ export const cacheWords = (f: CacheFacts): CacheWords => {
   // Spoken, a price is never marked ~: the alt says "about".
   const price = f.reWarmUsd !== null ? fmtSmallCost(f.reWarmUsd) : `${fmtTokens(f.window)} tokens`
   const m = moodWords(f, left, leftShort, price)
-  const say: Say = [['cache ', 'label'], ...m.figure]
   return {
-    value: m.value,
-    left,
-    say,
     heartAlt: MOOD_ALT[f.mood],
-    text: joined(say),
     bandName: 'cache',
     amber: m.amber,
     savedText: f.measured && f.savedUsd !== null ? fmtEstimate(f.savedUsd) : undefined,
@@ -352,7 +337,7 @@ export const cacheWords = (f: CacheFacts): CacheWords => {
     cardNote: m.cardNote,
     estimateLabel: m.estimateLabel,
     alt: m.alt,
-    // The time marked ~ while it is recalled; `say` keeps it plain.
+    // The time marked ~ while it is recalled.
     figure: recalledTime ? `~${left}` : joined(m.figure),
     figureShort: recalledTime ? `~${leftShort}` : m.figureShort,
   }
@@ -373,7 +358,7 @@ const cacheCopy = (f: CacheFacts, frame: Frame): CacheCopy => {
   const left = fmtCountdown(f.msLeft)
   const battery = f.charge <= 0 ? 'cache battery empty' : `cache battery ${Math.round(clamp01(f.charge) * 100)}% left`
   const warmHover = f.idleCompactSoon
-    ? `${left} left; may be compacted at ~54m idle, before it goes cold`
+    ? `${left} left; may be compacted ${IDLE_COMPACT_AT}`
     : `${left} left; warm cache bills input at ${readPct}, expires ${f.ttl} after a request`
   switch (f.mood) {
     case 'unmeasured':
@@ -423,7 +408,6 @@ export const contextWords = (f: ContextFacts): ContextWords => {
   const value = f.known ? f.pct : UNKNOWN
   const towardText = f.compactAt !== undefined ? 'toward compaction' : 'of the window'
   const roomText = !f.known || f.compactAt === undefined ? undefined : roomOf(f.toCompact)
-  const say: Say = [['context ', 'label'], [value, 'value']]
   const amber = f.tone !== 'amber' ? undefined : f.compactAt !== undefined ? AMBER.context(f.frac, f.toCompact) : AMBER.contextNoCompaction(f.frac)
   const cardHead: Say = [[`${f.pct}${f.compactAt === undefined ? severityMark(f.frac) : ''}`, 'value'], [' full', 'label']]
   const compactsAtText = f.compactAt === undefined ? undefined : fmtTokens(f.compactAt)
@@ -432,10 +416,8 @@ export const contextWords = (f: ContextFacts): ContextWords => {
   const inContext = f.known ? fmtTokens(f.used) : UNKNOWN
   return {
     valueText: value,
-    text: joined(say),
-    say,
     amber,
-    inContextText: f.known ? fmtTokens(f.used) : UNKNOWN,
+    inContextText: inContext,
     compactsAtText,
     roomText,
     bandName: 'context',
