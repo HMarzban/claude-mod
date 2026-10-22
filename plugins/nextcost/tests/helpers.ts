@@ -105,6 +105,8 @@ type EngineFake = {
   transcriptBytes: number | undefined
   /** When set, `tail` can't run, as where the host has none. */
   tailFails: boolean
+  /** While set, `tail` answers wait on it, as a slow read of a transcript does. */
+  tailHold: Promise<void> | undefined
   /** When set, `grep` can't run, as where the host has none. */
   grepFails: boolean
   /** When set, `grep -b` gives each match's byte offset, as ugrep does, not
@@ -149,6 +151,7 @@ const ENGINE_INITIAL: Readonly<EngineFake> = {
   transcript: undefined,
   transcriptBytes: undefined,
   tailFails: false,
+  tailHold: undefined,
   grepFails: false,
   grepMatchOffsets: false,
   truncates: undefined,
@@ -225,6 +228,7 @@ const base = (on: On, initial: SessionUsage = USAGE, store: Readonly<Record<stri
     engine.ran.push([...e.argv])
     const quiet = { stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
     if (e.argv[0] === 'tail') {
+      if (engine.tailHold !== undefined) await engine.tailHold
       if (engine.tailFails || engine.transcript === undefined) return { value: { ...quiet, exitCode: 1, stdout: '', stderr: 'tail: no such file' } }
       // `-c N` is the last N bytes, `-c +N` everything from byte N on.
       const count = String(e.argv[2])

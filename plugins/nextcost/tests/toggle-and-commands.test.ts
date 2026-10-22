@@ -1,6 +1,6 @@
 // Opening, closing and hiding the band: its toggle, its buttons and
-// /nextcost's words; the site a survey holds; and the commands registered
-// before the band reads a transcript.
+// /nextcost's words; the site a survey holds; and the commands registered,
+// and the settings read, before the band reads a transcript.
 
 import { test, expect } from 'claude-code/testing'
 import {
@@ -18,6 +18,9 @@ import {
   setup,
   mountBand,
   engine,
+  fact,
+  transcriptOf,
+  HOUR,
 } from './helpers'
 
 test('the toggle opens the cards, and Hide hides the band', async ($, on) => {
@@ -120,4 +123,24 @@ test('the commands are registered before the band reads a transcript to recall t
   await $.session.start(START)
   expect(registeredAtRead).toBe(2)
   expect(engine.commands).toEqual(['nextcost', 'usage-band'])
+})
+
+test('the settings are read and applied before the band waits on a transcript to recall the last reply', async ($, on) => {
+  const clock = setup(on, { env: { HOME: '/Users/me', FORCE_PROMPT_CACHING_5M: '1' }, now: 3 * HOUR })
+  engine.transcript = transcriptOf(0)
+  let release = (): void => undefined
+  engine.tailHold = new Promise<void>(resolve => {
+    release = resolve
+  })
+  const started = $.session.start(START)
+  await clock.settle()
+  // The recall waits on its read of the transcript's end.
+  expect(engine.ran.filter(argv => argv[0] === 'tail')).toHaveLength(1)
+  const ui = await mountBand($, 'terminal', 140)
+  await ui.press({ key: 'more' })
+  // The TTL the environment pins is in force already.
+  expect(fact(await ui.drawn(), 'expires')).toBe('5m idle')
+  await ui.unmount()
+  release()
+  await started
 })

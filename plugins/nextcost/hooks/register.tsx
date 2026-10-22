@@ -413,23 +413,8 @@ export const register: Register = on => {
     // A read that fails keeps the layout drawn: none yet, so chips.
     band.layout = DEFAULT_LAYOUT
     await readLayout($)
-    const priceModel = await $.session.model().catch(() => undefined)
-    // A resume of this session, said before this load or while it runs, is
-    // noted again after the reset.
-    if (band.resume !== undefined) band.cache.resumed(band.resume)
-    band.cache.loaded({ priceModel, ledger: await ledgerUsd($) })
-    void readWorkspace($)
-    // Loaded mid-conversation, the band has seen no reply: recall the last,
-    // unless the engine said when it was.
-    if (id !== undefined && band.cache.wantsRecall()) {
-      const path = band.resume?.path
-      const readEnd = async () => {
-        const file = await transcriptFile($, id, path)
-        return file === undefined ? undefined : transcriptEnd($, file)
-      }
-      band.cache.recalled(await recallLastReply($, id, readEnd))
-    }
-
+    // The settings come before the recall, which may wait on a transcript,
+    // so a session.start that runs long has its palette, glyphs and TTL.
     // One literal name a read: the engine lists the variables a module reads.
     // Each setting by its name, else by its name before 0.18.0.
     const appearance = (await $.env.get('NEXTCOST_APPEARANCE')) ?? (await $.env.get('CC_BAND_APPEARANCE'))
@@ -456,6 +441,22 @@ export const register: Register = on => {
       minTokens: await $.env.get('CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS'),
     })
     band.cache.configured({ ttl: pinned, idleCompactFrom: idleFrom })
+    const priceModel = await $.session.model().catch(() => undefined)
+    // A resume of this session, said before this load or while it runs, is
+    // noted again after the reset.
+    if (band.resume !== undefined) band.cache.resumed(band.resume)
+    band.cache.loaded({ priceModel, ledger: await ledgerUsd($) })
+    void readWorkspace($)
+    // Loaded mid-conversation, the band has seen no reply: recall the last,
+    // unless the engine said when it was.
+    if (id !== undefined && band.cache.wantsRecall()) {
+      const path = band.resume?.path
+      const readEnd = async () => {
+        const file = await transcriptFile($, id, path)
+        return file === undefined ? undefined : transcriptEnd($, file)
+      }
+      band.cache.recalled(await recallLastReply($, id, readEnd))
+    }
     return next(e)
   }).catch(($, e, next) => next(e)) // a failure here must never stop a session starting
 
