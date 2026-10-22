@@ -1,10 +1,13 @@
 // The prompt cache, as the band models it from each response's token counts,
 // and what it means for the band: its mood, its charge, its last call. One
 // model per session, made at session.start and fed each hook's facts in that
-// hook's own shape; the order they must be applied in is kept here.
+// hook's own shape; the order they must be applied in is kept here. What a
+// token costs is prices.ts's; what the settings pin, cache-settings.ts's.
 
 import type { ModelUsage } from 'claude-code'
 import { LAST_CALL_MS, MINUTE_MS, SOON_MS, fmtEstimate, fmtTokens } from './format'
+import { NO_TOKENS, WRITE_MULT, addTokens, modelName, readMultiplier, tierFactor, weightedTokens } from './prices'
+import type { TokenCounts } from './prices'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
 import type { Tone } from './reading'
 
@@ -16,17 +19,12 @@ export const TTL_MS: Readonly<Record<Ttl, number>> = { '5m': 5 * MINUTE_MS, '1h'
 const MISS_MIN_TOKENS = 2000
 const MISS_MIN_SHARE = 0.05
 
-/** Tokens by kind, as a bill counts them. */
-export type TokenCounts = Readonly<{ uncached: number; written: number; read: number; output: number }>
-
-export const NO_TOKENS: TokenCounts = { uncached: 0, written: 0, read: 0, output: 0 }
-
-export const addTokens = (a: TokenCounts, b: TokenCounts): TokenCounts => ({
-  uncached: a.uncached + b.uncached,
-  written: a.written + b.written,
-  read: a.read + b.read,
-  output: a.output + b.output,
-})
+/** Claude Code compacts a conversation left idle on the hour's cache about
+ *  this long after its last request, before the cache runs out. */
+export const IDLE_COMPACT_MS = 54 * MINUTE_MS
+/** A compaction this long after the last request, with no turn under way, is
+ *  an idle one: an auto-compaction comes as a turn starts, not half an hour on. */
+const IDLE_GAP_MS = 30 * MINUTE_MS
 
 /** What a conversation has spent: its dollars and its tokens. */
 export type Spend = Readonly<{ usd: number; tokens: TokenCounts }>
@@ -182,101 +180,6 @@ const INITIAL: Readonly<CacheState> = {
   prior: undefined,
   priceModel: undefined,
   billedModel: undefined,
-}
-
-// ---- the prices -------------------------------------------------------------
-
-// The price of each kind of token against base input. Writes and output hold
-// one ratio across Anthropic's models; reads do not. Claude Code's own ledger
-// prices every cache write at 1.25×, whatever its lifetime, so the band does
-// too, to agree with the cost it shows.
-const WRITE_MULT = 1.25
-const OUTPUT_MULT = 5
-/** A cache read against base input, by model; 0.1× elsewhere. Per Anthropic's
- *  list prices as of 2026-10: Opus 5.5 reads at $0.20 on $4.00 input, Sonnet
- *  5.5 at $0.10 on $2.00, Fable and Mythos 5.1 at $0.25 on $10.00. */
-const READ_MULT_BY_MODEL: Readonly<Record<string, number>> = {
-  'claude-opus-5-5': 0.05,
-  'claude-sonnet-5-5': 0.05,
-  'claude-fable-5-1': 0.025,
-  'claude-mythos-5-1': 0.025,
-}
-const DEFAULT_READ_MULT = 0.1
-
-/** The model a name bills as. `/model` names a 1M context window with a
- *  suffix, `claude-opus-5-5[1m]`, and the cost record names the model alone. */
-export const modelName = (model: string): string => model.replace(/\[[^\]]*\]$/, '')
-
-/** Prices that rise with a request's prompt, by model: past `over` input
- *  tokens, every price is `factor` times the lower tier's. Per Anthropic's
- *  list prices as of 2026-10: Haiku 5.5 is $0.10 input up to 100,000 prompt
- *  tokens and $0.50 over, the cache and output prices alike. */
-const TIERS_BY_MODEL: Readonly<Record<string, Readonly<{ over: number; factor: number }>>> = {
-  'claude-haiku-5-5': { over: 100_000, factor: 5 },
-}
-
-/** How many times the lower tier's prices a request with `prompt` input
- *  tokens pays on `model`: 1 on a model with one tier. */
-export const tierFactor = (model: string | undefined, prompt: number): number => {
-  const tier = model === undefined ? undefined : TIERS_BY_MODEL[modelName(model)]
-  return tier !== undefined && prompt > tier.over ? tier.factor : 1
-}
-
-/** What a cache read costs against base input on `model`. */
-const readMultiplier = (model: string | undefined): number =>
-  (model === undefined ? undefined : READ_MULT_BY_MODEL[modelName(model)]) ?? DEFAULT_READ_MULT
-
-/** Tokens weighted by their price against base input on `model`: the one
- *  unknown left is the base rate itself. */
-export const weightedTokens = (t: TokenCounts, model: string | undefined): number =>
-  t.uncached + WRITE_MULT * t.written + readMultiplier(model) * t.read + OUTPUT_MULT * t.output
-
-// ---- what the session's settings say ----------------------------------------
-
-/** Claude Code compacts a conversation left idle on the hour's cache about
- *  this long after its last request, before the cache runs out. */
-export const IDLE_COMPACT_MS = 54 * MINUTE_MS
-/** A compaction this long after the last request, with no turn under way, is
- *  an idle one: an auto-compaction comes as a turn starts, not half an hour on. */
-const IDLE_GAP_MS = 30 * MINUTE_MS
-const IDLE_COMPACT_TOKENS = 200_000
-const IDLE_COMPACT_FLOOR = 100_000
-
-const truthy = (v: string | undefined): boolean => v !== undefined && ['1', 'true', 'yes', 'on'].includes(v.trim().toLowerCase())
-
-/** The context, in tokens, from which Claude Code compacts this session when
- *  it sits idle; undefined when it never does: outside an interactive
- *  terminal, `idleCompaction: false`, or compaction turned off. The threshold
- *  takes a positive whole number, raised to 100k, as Claude Code does. */
-export const idleCompactFrom = (o: {
-  terminal: boolean
-  setting: unknown
-  disableAuto: string | undefined
-  disableAll: string | undefined
-  minTokens: string | undefined
-}): number | undefined => {
-  if (!o.terminal || o.setting === false || truthy(o.disableAuto) || truthy(o.disableAll)) return undefined
-  const min = o.minTokens !== undefined && /^\d+$/.test(o.minTokens.trim()) ? Number(o.minTokens.trim()) : 0
-  return min > 0 ? Math.max(IDLE_COMPACT_FLOOR, min) : IDLE_COMPACT_TOKENS
-}
-
-const asTtl = (v: unknown): Ttl | undefined => (v === '5m' || v === '1h' ? v : undefined)
-
-/** The TTL the environment or the settings pin, if they pin one, in Claude
- *  Code's order: forcing 5m, the main conversation's variable, then its
- *  `promptCacheTtl` setting, then asking for 1h. Any other value is ignored,
- *  as Claude Code ignores it. */
-export const resolveTtl = (env: {
-  force5m: string | undefined
-  chosen: string | undefined
-  setting: unknown
-  enable1h: string | undefined
-}): Ttl | undefined => {
-  if (env.force5m === '1') return '5m'
-  const chosen = asTtl(env.chosen) ?? asTtl(env.setting)
-  if (chosen !== undefined) return chosen
-  if (env.enable1h === '1') return '1h'
-  return undefined
 }
 
 // ---- what the state says ----------------------------------------------------

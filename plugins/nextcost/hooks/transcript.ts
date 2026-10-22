@@ -3,8 +3,9 @@
 // how long its cache was last written for, and what the session had spent.
 // Every line is untrusted data, parsed on its own.
 
-import { NO_TOKENS, addTokens, modelName, tierFactor, weightedTokens } from './cache'
-import type { Spend, TokenCounts, Ttl } from './cache'
+import type { Spend, Ttl } from './cache'
+import { NO_TOKENS, addTokens, modelName, tierFactor, weightedTokens } from './prices'
+import type { TokenCounts } from './prices'
 import { stripTrailingSlashes } from './workspace'
 
 /** Whether a parsed value is an object, as a store entry or a transcript line must be. */

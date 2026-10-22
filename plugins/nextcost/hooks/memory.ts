@@ -7,9 +7,9 @@
 // samples the week shows the days before this session. What the store leaves
 // unknown of a last reply is recalled off the transcript (transcript.ts).
 
-import { modelName } from './cache'
 import type { RecalledReply } from './cache'
 import { MINUTE_MS, SEVEN_DAY_MS } from './format'
+import { modelName } from './prices'
 import { splitLimits } from './snapshot'
 import type { ReportedLimit } from './snapshot'
 import { isRecord, lastReplyAt, lastReplyModel, rateFromTranscript } from './transcript'

@@ -1,7 +1,7 @@
 // The cache pill: countdown, battery, cold price, wording.
 
 import { test, expect } from 'claude-code/testing'
-import { resolveTtl } from '../hooks/cache'
+import { resolveTtl } from '../hooks/cache-settings'
 import { DARK } from '../hooks/palette'
 import {
   BUILD_100K,

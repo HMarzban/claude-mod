@@ -1,7 +1,7 @@
 // Idle compaction: Claude Code compacts a long conversation left idle on the
 // hour's cache about 54 minutes on, before the cache runs out.
 import { test, expect, type Engine, type MockClock } from 'claude-code/testing'
-import { idleCompactFrom } from '../hooks/cache'
+import { idleCompactFrom } from '../hooks/cache-settings'
 import {
   LONG,
   MIN,
