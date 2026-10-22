@@ -4,11 +4,11 @@
 
 import { test, expect } from 'claude-code/testing'
 import {
+  BUILD_155K,
   PLUGIN,
   START,
   byKey,
   props,
-  resp,
   respond,
   runCommand,
   rowCount,
@@ -23,7 +23,7 @@ import {
 test('the toggle opens the cards, and Hide hides the band', async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
 
   const ui = await mountBand($, 'terminal', 110)
   expect(rowCount(await ui.drawn())).toBe(1)
@@ -43,7 +43,7 @@ test('the toggle opens the cards, and Hide hides the band', async ($, on) => {
 test('/nextcost more, less, hide and show drive the band', async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
 
   const ui = await mountBand($, 'terminal', 110)
 

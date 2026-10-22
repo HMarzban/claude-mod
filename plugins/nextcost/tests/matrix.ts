@@ -25,6 +25,9 @@ export * from './cases'
  *  last minute stands for it. */
 const ALL_AMBER = 'lastMinute' satisfies ScenarioName
 
+/** A conversation with no message yet. */
+export const NO_HISTORY: BandSnapshot['history'] = { costs: [], context: [] }
+
 /** What a pure test's snapshot is built from: a calm session at 120
  *  columns, 52 minutes of cache left, 38% context with compaction at 190k,
  *  5h at 4% and 7d at 30%. */
@@ -39,7 +42,7 @@ export const SNAP_PARTS: SnapshotParts = {
     savedUsd: 11.4, readShare: 0.05, fresh: true, compacted: false, idleCompacts: false, recalled: false, idleMs: null, recovered: false, tokens: { sent: 18_000, back: 9_000, cached: 198_000 },
   },
   costUsd: 3.19,
-  history: { costs: [], context: [] },
+  history: NO_HISTORY,
   etaMs: null,
   zone: undefined,
 }
@@ -207,7 +210,8 @@ const coloursOf = (n: Node): string[] => {
 
 /** What each glyph tier may draw (the band-layouts spec §3.2): the unicode tier's glyphs, rings' quarters and braille, or ASCII alone. */
 const UNICODE_TIER = /^[\x20-\x7e▁▂▃▄▅▆▇█▓░▒│╌╸▏·›↻Σ◷○◔◑◕▿▵…±●■–↑↓\u2800-\u28ff]*$/
-const ASCII_TIER = /^[\x20-\x7e]*$/
+/** Printable ascii alone: what the ascii tier draws. */
+export const ASCII_TIER = /^[\x20-\x7e]*$/
 /** What a value missing from a phrase leaves drawn (the band-layouts spec §2.8), in any case. */
 const NOTHING = /\b(NaN|undefined|null)\b/i
 /** What the band-layouts spec §2.9 bars from any Svg's markup: an id, a gradient, a pattern, a clipPath. */

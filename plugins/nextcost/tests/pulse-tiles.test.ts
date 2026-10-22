@@ -11,7 +11,7 @@ import { DARK, LIGHT, PLAIN, type Palette } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { HOUR, LONG, MIN, SAMPLES, byKey, firstRow, shown, svgAlts, svgsOf, walk, type Node } from './helpers'
-import { CALM_LIMITS, COLD_CACHE, HISTORY, LAST_MINUTE_CACHE, NEAR_COMPACTION, bandOf, limitAt, snapOf } from './matrix'
+import { ASCII_TIER, CALM_LIMITS, COLD_CACHE, HISTORY, LAST_MINUTE_CACHE, NEAR_COMPACTION, bandOf, limitAt, snapOf } from './matrix'
 
 const KEYS = ['cache', 'spend', 'context', '5h', '7d'] as const
 
@@ -102,7 +102,7 @@ test('plain: no ground anywhere, the name before each figure, readings two colum
 })
 test('the ascii tier: tiles in words alone, ascii only', () => {
   const row = rowOf({ surface: 'terminal', glyphs: 'ascii' })
-  expect(shown(row)).toMatch(/^[\x20-\x7e]*$/)
+  expect(shown(row)).toMatch(ASCII_TIER)
   expect(KEYS.map(k => shown(byKey(row, k, 'Box')))).toEqual(['cache 52m left', 'spend $3.19, last $0.21', 'context 40%', '5h 26%', '7d 41%'])
 })
 

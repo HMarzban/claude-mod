@@ -4,13 +4,11 @@
 
 import { test, expect } from 'claude-code/testing'
 import { batteryIcon, textBattery } from '../hooks/charts'
-import { makeKit } from '../hooks/kit'
 import { DARK, PLAIN } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { fakeEl, fillWidth, segments, svgRect, type Node } from './helpers'
-import { snapOf } from './matrix'
+import { fillWidth, segments, svgRect, type Node } from './helpers'
+import { kitOf } from './matrix'
 
-const kitOf = (over: Partial<BandSnapshot> = {}) => makeKit(fakeEl, snapOf(over))
 /** A text battery's segments: each side of the cut, its text and its ground. */
 const sides = (charge: number, text: string, over: Partial<BandSnapshot> = {}, tone: 'calm' | 'amber' = 'calm') =>
   segments({ children: textBattery(kitOf(over), charge, tone, text) })

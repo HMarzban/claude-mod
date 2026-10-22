@@ -6,7 +6,7 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { SessionUsage } from 'claude-code'
-import { CLEAR, HOUR, LONG, MIN, START, USAGE, cardOf, engine, fact, jsonl, pillOf, resp, respond, setup, shown, startTurn, endTurn, svgAlts, turn, mountBand, usage } from './helpers'
+import { BUILD_155K, BUILD_80K, CLEAR, HOUR, LONG, MIN, START, TURN_DONE, TURN_START, USAGE, cardOf, engine, fact, jsonl, pillOf, resp, respond, setup, shown, startTurn, endTurn, svgAlts, turn, mountBand, usage } from './helpers'
 
 const ENV = { ENABLE_PROMPT_CACHING_1H: '1', HOME: '/Users/me' }
 const BUILT_PATH = '/Users/me/.claude/projects/-Users-me-workspace-nextcost/s1.jsonl'
@@ -447,7 +447,7 @@ test('an hour seen on the transcript speaks only until the first reply, so infer
   await $.session.start(START)
   await resume($, 2 * MIN, { expired: false })
   await clock.settle()
-  await respond($, resp(2_000, 0, 80_000, 500))
+  await respond($, BUILD_80K)
   await clock.advance(12 * MIN)
   await respond($, resp(82_500, 0, 82_500, 300))
   expect(fact(await mounted($, true), 'expires')).toBe('5m idle')
@@ -462,7 +462,7 @@ test('a TTL read off the transcript after the first reply is no longer news', as
   })
   await $.session.start(START)
   await resume($, 2 * MIN, { expired: false })
-  await respond($, resp(2_000, 0, 80_000, 500))
+  await respond($, BUILD_80K)
   release()
   await clock.settle()
   expect(fact(await mounted($, true), 'expires')).toBe('1h idle · assumed')
@@ -490,12 +490,12 @@ test("a recall that lands after the first reply leaves that reply's billed model
   })
   await $.session.start(START)
   await $.classic.SessionStart({ source: 'resume', session_id: 's1', transcript_path: PATH })
-  await $.turn.start({ text: 'hi', turnId: 't1' })
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await $.turn.start(TURN_START)
+  await respond($, BUILD_155K)
   release()
   await clock.settle()
   usage.current = { ...usage.current, cost: { usd: 2.83 } }
-  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+  await $.turn.complete(TURN_DONE)
   await clock.settle()
   expect(Object.keys(engine.store.rates as Record<string, number>)).toEqual(['claude-opus-5-5'])
 })
@@ -516,7 +516,7 @@ test('five minutes seen on the transcript never outlive the first reply: the hou
   await $.session.start(START)
   await resume($, 2 * MIN, { expired: false })
   await clock.settle()
-  await respond($, resp(2_000, 0, 80_000, 500))
+  await respond($, BUILD_80K)
   await clock.advance(10 * MIN)
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache 50m/)
   expect(fact(await mounted($, true), 'expires')).toBe('1h idle · assumed')
@@ -573,7 +573,7 @@ test("the first reply after a resume the engine calls expired is pulse's re-warm
   await $.session.start(START)
   await resume($, 48 * HOUR, { expired: true, reWarmUsd: 1.23 })
   await startTurn($, 't1', 0)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   await endTurn($, 't1', 1.5)
   const ui = await mountBand($, 'desktop', 160)
   await ui.press({ key: 'more' })

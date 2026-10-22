@@ -4,8 +4,9 @@ import { test, expect } from 'claude-code/testing'
 import { ASCII_MAP, asciiText, resolveGlyphs } from '../hooks/glyphs'
 import { ROW_SLACK } from '../hooks/layout'
 import { LAYOUT_NAMES } from '../hooks/snapshot'
-import { caseKey, cutBySurface, drawCases, type Mount } from './matrix'
+import { ASCII_TIER, caseKey, cutBySurface, drawCases, type Mount } from './matrix'
 import {
+  BUILD_80K,
   HOUR_1,
   LONG,
   MIN,
@@ -15,7 +16,6 @@ import {
   firstRow,
   mountBand,
   pillOf,
-  resp,
   respond,
   segments,
   setup,
@@ -38,7 +38,7 @@ test('the ascii tier never makes a row wider', () => {
   for (const [from, to] of Object.entries(ASCII_MAP)) expect([...to].length).toBeLessThanOrEqual([...from].length)
 })
 test('ascii text is pure ASCII, a dropped glyph takes its space, and padding stays', () => {
-  expect(asciiText('◷ cache 52m · ↻ 3h 00m Σ 225k ↑2 ↓1 cache – ●… █░▒│▿▵■ ◔ ±')).toMatch(/^[\x20-\x7e]*$/)
+  expect(asciiText('◷ cache 52m · ↻ 3h 00m Σ 225k ↑2 ↓1 cache – ●… █░▒│▿▵■ ◔ ±')).toMatch(ASCII_TIER)
   expect(asciiText('◷ cache 52m')).toBe('cache 52m')
   expect(asciiText('↻ in 3h 00m')).toBe('in 3h 00m')
   expect(asciiText('█████╸ █│██╌╌')).toBe('#####> #|##~~') // a battery's cap, a notch and a projection
@@ -56,12 +56,12 @@ test('chips in the ascii tier draws only ASCII, within the row, shut and open', 
   const trees = await drawCases($, on, { scenario: 'calm', appearance: 'dark', env: { NEXTCOST_GLYPHS: 'ascii' } }, [m, desktop])
   const shut = trees[caseKey(m, 'shut')]
   const open = trees[caseKey(m, 'open')]
-  expect(textOf(shut)).toMatch(/^[\x20-\x7e]*$/)
+  expect(textOf(shut)).toMatch(ASCII_TIER)
   expect(widthOf(firstRow(shut))).toBeLessThanOrEqual(120 - ROW_SLACK)
   expect(byKey(shut, 'more', 'Button')?.props?.label).toBe('^')
   // Opened (by key), the band stays ASCII and keeps its cards, and the toggle reads v.
   expect(cards(open).length).toBeGreaterThan(0)
-  expect(textOf(open)).toMatch(/^[\x20-\x7e]*$/)
+  expect(textOf(open)).toMatch(ASCII_TIER)
   expect(byKey(open, 'more', 'Button')?.props?.label).toBe('v')
   // The tier is the terminal's: the desktop draws its own glyphs.
   expect(byKey(trees[caseKey(desktop, 'shut')], 'more', 'Button')?.props?.label).toBe('▵')
@@ -69,7 +69,7 @@ test('chips in the ascii tier draws only ASCII, within the row, shut and open', 
 test('the ascii battery drops its glyph before the cut, so its charge and spacing hold', LONG, async ($, on) => {
   const clock = setup(on, { env: { ...HOUR_1, NEXTCOST_GLYPHS: 'ascii' } })
   await $.session.start(START)
-  await respond($, resp(2_000, 0, 80_000, 500))
+  await respond($, BUILD_80K)
   await clock.advance(52 * MIN) // 8 of the hour's 60 minutes left
 
   const ui = await mountBand($, 'terminal', 110)

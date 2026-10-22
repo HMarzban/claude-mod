@@ -7,6 +7,7 @@ import type {
   On,
   SessionCompactResult,
   SessionContextBreakdown,
+  SessionRateLimit,
   SessionUsage,
   TurnStepInput,
   TurnStopReason,
@@ -295,6 +296,15 @@ export const resp = (input: number, read: number, write: number, output: number)
   cache_creation_input_tokens: write,
 })
 
+/** A step that builds a 155k cache, none read from it: 41k in, 12k out. */
+export const BUILD_155K: ModelUsage = resp(41_000, 0, 155_000, 12_000)
+/** A step that builds a 100k cache: 10k in, 2k out. */
+export const BUILD_100K: ModelUsage = resp(10_000, 0, 100_000, 2_000)
+/** The step after BUILD_100K, reading its 100k back: 4k in, 6k written, 3k out. */
+export const READ_100K: ModelUsage = resp(4_000, 100_000, 6_000, 3_000)
+/** A step that builds an 80k cache: 2k in, 500 out. */
+export const BUILD_80K: ModelUsage = resp(2_000, 0, 80_000, 500)
+
 /** One step of a main-loop turn on `$`, its reply billed as `u`; `over`
  *  makes it a subagent's (`{ agentId }`) or another model's. */
 export const respond = async ($: Engine, u: ModelUsage, over: Partial<TurnStepInput> = {}): Promise<void> => {
@@ -387,6 +397,13 @@ export const firstRow = (tree: unknown): unknown => ((tree as Node).children ?? 
 // ── constants ──────────────────────────────────────────────────────────
 
 export const START = { cwd: '/tmp', surface: 'terminal', isInteractive: true } as const
+/** START on the desktop. */
+export const DESKTOP_START = { ...START, surface: 'desktop' } as const
+/** Turn t1's start and its end, answered, with the ledger left as it stands. */
+export const TURN_START = { text: 'hi', turnId: 't1' } as const
+export const TURN_DONE = { answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' } as const
+/** A gateway's spend limit as the engine reports it: 92% used, resetting 5 hours on. */
+export const SPEND_LIMIT: SessionRateLimit = { kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }
 /** Pins the 1-hour TTL, so tests don't depend on the assumed one. */
 export const HOUR_1 = { ENABLE_PROMPT_CACHING_1H: '1' }
 /** Where a mounted test that reads a host's clock starts: never epoch 0,
@@ -577,14 +594,14 @@ type TurnEnd = { agentId?: string; isAborted?: boolean; reason?: 'answer' | 'abo
 export const startTurn = async ($: Engine, id: string, at: number, agentId?: string): Promise<void> => {
   usage.current = { ...usage.current, cost: { usd: at } }
   // Since 2.1.299 a subagent's turn raises turn.start too, with its agentId.
-  const start = agentId === undefined ? { text: 'hi', turnId: id } : { text: 'hi', turnId: id, agentId }
+  const start = agentId === undefined ? { ...TURN_START, turnId: id } : { ...TURN_START, turnId: id, agentId }
   await $.turn.start(start)
 }
 
 /** A turn's `turn.complete` (with `agentId`, a subagent's), with the ledger at `at`. */
 export const endTurn = async ($: Engine, id: string, at: number, extra: TurnEnd = {}): Promise<void> => {
   usage.current = { ...usage.current, cost: { usd: at } }
-  await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: id, reason: 'answer', ...extra })
+  await $.turn.complete({ ...TURN_DONE, turnId: id, ...extra })
 }
 
 /** One main-loop turn (or, with `agentId`, a subagent's) that moves the

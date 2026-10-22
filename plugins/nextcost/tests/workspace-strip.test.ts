@@ -3,13 +3,13 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
-import { drawBand } from '../hooks/band'
 import { ROW_SLACK } from '../hooks/layout'
 import { LAYOUT_NAMES } from '../hooks/snapshot'
 import { BARE, LIGHT } from '../hooks/palette'
 import { partCovered } from './cover'
-import { NO_ACT, snapOf } from './matrix'
+import { bandOf } from './matrix'
 import {
+  DESKTOP_START,
   GIT_CLEAN,
   GIT_MAIN_TREE,
   PROJECT,
@@ -21,7 +21,6 @@ import {
   contrast,
   engine,
   cardText,
-  fakeEl,
   hoverCardOf,
   isCard,
   shown,
@@ -58,7 +57,7 @@ const expanded = async ($: Engine, clock: MockClock, surface: 'desktop' | 'termi
 
 test('the strip opens the expanded view: the project, home as ~, its name bold, and the branch', async ($, on) => {
   const clock = setup(on, { env: HOME })
-  await $.session.start({ ...START, surface: 'desktop' })
+  await $.session.start(DESKTOP_START)
   const tree = await expanded($, clock, 'desktop')
   const kids = ((tree as Node).children ?? []).filter(Boolean) as Node[]
   expect(kids.map(k => k.props?.key)).toEqual(['row', 'strip', 'cards', 'actions'])
@@ -84,7 +83,7 @@ test('the collapsed band has no strip', async ($, on) => {
 test('a dirty tree counts its changes, and ahead/behind shows only what differs', async ($, on) => {
   const clock = setup(on, { env: HOME })
   engine.git = { status: DIRTY, dirs: GIT_MAIN_TREE }
-  await $.session.start({ ...START, surface: 'desktop' })
+  await $.session.start(DESKTOP_START)
   const tree = stripOf(await expanded($, clock, 'desktop'))
   const strip = shown(tree)
   expect(strip).toMatch(/3 changed/)
@@ -100,7 +99,7 @@ test('a dirty tree counts its changes, and ahead/behind shows only what differs'
 test('a detached HEAD says so, with its short commit', async ($, on) => {
   const clock = setup(on, { env: HOME })
   engine.git = { status: DETACHED, dirs: GIT_MAIN_TREE }
-  await $.session.start({ ...START, surface: 'desktop' })
+  await $.session.start(DESKTOP_START)
   const strip = stripOf(await expanded($, clock, 'desktop'))
   expect(shown(strip)).toMatch(/detached at 1a2b3c4/)
   expect(svgsOf(strip).map(n => n.props?.alt)).toContain('HEAD')
@@ -110,7 +109,7 @@ test('a linked worktree names the repository it belongs to', async ($, on) => {
   const clock = setup(on, { env: HOME })
   engine.root = WORKTREE
   engine.git = { status: GIT_CLEAN, dirs: WORKTREE_DIRS }
-  await $.session.start({ ...START, surface: 'desktop' })
+  await $.session.start(DESKTOP_START)
   const strip = stripOf(await expanded($, clock, 'desktop', 160))
   expect(shown(strip)).toMatch(/band-strip.*main.*worktree of nextcost/)
   expect(svgsOf(strip).map(n => n.props?.alt)).toContain('linked')
@@ -120,7 +119,7 @@ test('outside a repository, or with git unable to run, the strip is the path alo
   const clock = setup(on, { env: HOME })
   for (const git of ['none', 'fail'] as const) {
     engine.git = git
-    await $.session.start({ ...START, surface: 'desktop' })
+    await $.session.start(DESKTOP_START)
     const strip = stripOf(await expanded($, clock, 'desktop'))
     expect(shown(strip)).toBe('~/workspace/nextcost')
     expect(svgsOf(strip).map(n => n.props?.alt)).toEqual(['folder'])
@@ -139,7 +138,7 @@ test('the terminal strip is words, with no icons and no bare spaces', async ($, 
 test('on the desktop no strip child is a whitespace-only string', async ($, on) => {
   const clock = setup(on, { env: HOME })
   engine.git = { status: DIRTY, dirs: GIT_MAIN_TREE }
-  await $.session.start({ ...START, surface: 'desktop' })
+  await $.session.start(DESKTOP_START)
   const bare: string[] = []
   walk(stripOf(await expanded($, clock, 'desktop')), n => {
     for (const k of n.children ?? []) if (typeof k === 'string' && k.trim() === '') bare.push(String(n.props?.key))
@@ -162,7 +161,7 @@ for (const cols of [50, 70]) {
 
 test('a band too short for a strip row puts it in the footer, in place of the hint', async ($, on) => {
   const clock = setup(on, { env: HOME })
-  await $.session.start({ ...START, surface: 'desktop' })
+  await $.session.start(DESKTOP_START)
   const footerOf = (tree: unknown): Node | undefined => byKey(tree, 'actions', 'Box')
   // 13 rows, as the desktop gives: each card keeps one fact, so no row is spare
   const short = await expanded($, clock, 'desktop', 95, 13)
@@ -182,7 +181,7 @@ test('a band too short for a strip row puts it in the footer, in place of the hi
 test("the strip has no ground of its own, so its text takes the host theme's colours", async ($, on) => {
   const clock = setup(on, { env: HOME })
   engine.git = { status: DIRTY, dirs: GIT_MAIN_TREE }
-  await $.session.start({ ...START, surface: 'desktop' })
+  await $.session.start(DESKTOP_START)
   const colors: string[] = []
   const visit = (n: Node | undefined): void => {
     if (n === undefined || n === null || typeof n !== 'object' || n.props?.position === 'absolute') return
@@ -232,7 +231,7 @@ test('a clipped branch or path keeps its whole name for a reader', async ($, on)
   const long = 'claude/a-rather-long-feature-branch'
   engine.root = WORKTREE
   engine.git = { status: DIRTY.replace('branch.head main', `branch.head ${long}`), dirs: WORKTREE_DIRS }
-  await $.session.start({ ...START, surface: 'desktop' })
+  await $.session.start(DESKTOP_START)
   const alts = svgsOf(stripOf(await expanded($, clock, 'desktop', 60))).map(n => String(n.props?.alt))
   expect(alts).toContain(`branch ${long}`)
   expect(alts).toContain('folder ~/workspace/nextcost/.claude/worktrees/band-strip')
@@ -241,7 +240,7 @@ test('a clipped branch or path keeps its whole name for a reader', async ($, on)
 test("the path's hover card says the whole state, so nothing a narrow line drops is lost", async ($, on) => {
   const clock = setup(on, { env: HOME })
   engine.git = { status: DIRTY, dirs: GIT_MAIN_TREE }
-  await $.session.start({ ...START, surface: 'desktop' })
+  await $.session.start(DESKTOP_START)
   const card = hoverCardOf(stripOf(await expanded($, clock, 'desktop')), 'ws:path')
   expect(cardText(card)).toBe('~/workspace/nextcost: branch main, 3 changed, 2 ahead, 1 behind')
 })
@@ -354,7 +353,7 @@ test('in the footer, in every layout, the strip takes all the room the buttons l
   for (const layout of LAYOUT_NAMES) {
     let footers = 0
     for (let maxRows = 4; maxRows <= 16; maxRows++) {
-      const actions = byKey(drawBand(fakeEl, snapOf({ layout, expanded: true, maxRows, workspace }), NO_ACT), 'actions', 'Box')
+      const actions = byKey(bandOf({ layout, expanded: true, maxRows, workspace }), 'actions', 'Box')
       const kids = ((actions?.children ?? []) as Node[]).flat().filter(Boolean)
       if (!kids.some(k => k.props?.key === 'strip')) continue
       footers++
@@ -380,7 +379,7 @@ test('a footer strip with no room for its cards still draws, and shows no card t
 test('one commit to push reads as one', async ($, on) => {
   const clock = setup(on, { env: HOME })
   engine.git = { status: DIRTY.replace('+2 -1', '+1 -0'), dirs: GIT_MAIN_TREE }
-  await $.session.start({ ...START, surface: 'desktop' })
+  await $.session.start(DESKTOP_START)
   const text: string[] = []
   walk(stripOf(await expanded($, clock, 'desktop')), n => {
     if (n.type === 'Box' && n.props?.position === 'absolute') text.push(shown({ ...n, props: {} }))
@@ -398,7 +397,7 @@ for (const glyphs of ['unicode', 'ascii'] as const) {
     for (const layout of LAYOUT_NAMES)
       for (const columns of [70, 90, 120, 160]) {
         const at = `${layout} ${columns}`
-        const draw = (expanded: boolean) => drawBand(fakeEl, snapOf({ layout, columns, glyphs, expanded, maxRows: 40, workspace: JAPANESE }), NO_ACT) as unknown as Node
+        const draw = (expanded: boolean) => bandOf({ layout, columns, glyphs, expanded, maxRows: 40, workspace: JAPANESE })
         const shut = draw(false)
         expect(`${at} shut ${drawnWidth(shown(shut)) <= columns - ROW_SLACK}`).toBe(`${at} shut true`)
         const open = draw(true)

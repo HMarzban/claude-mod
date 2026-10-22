@@ -11,7 +11,7 @@ import type { BandSnapshot } from '../hooks/snapshot'
 import { EMPTY } from '../hooks/words'
 import { HOUR, MIN, SAMPLES, USAGE, byKey, firstRow, shown, svgAlts, svgsOf, type Node } from './helpers'
 import {
-  AMBER_WEEK_LIMITS, CALM_LIMITS, COLD_CACHE, HISTORY, LAST_MINUTE_CACHE, bandOf, cacheWith, caseKey, drawCases, snapOf, viewSuite, visualRows, withLimits,
+  NO_HISTORY, AMBER_WEEK_LIMITS, CALM_LIMITS, COLD_CACHE, HISTORY, LAST_MINUTE_CACHE, bandOf, cacheWith, caseKey, drawCases, snapOf, viewSuite, visualRows, withLimits,
 } from './matrix'
 
 viewSuite('pulse')
@@ -58,7 +58,7 @@ test('working shows no countdown', async ($, on) => {
   expect(shown(firstRow(Object.values(working)[0]))).not.toMatch(/\d+m left|\d+s left/)
 })
 test("no costs yet: the flat trace only beside `no costs yet`, while the total is $0; a known total alone, no trace", () => {
-  const none = { history: { costs: [], context: [] } }
+  const none = { history: NO_HISTORY }
   for (const surface of ['desktop', 'terminal'] as const) {
     // A resumed conversation: its total known, no message's cost recorded.
     const resumed = byKey(rowOf({ surface, ...none }), 'spend', 'Box')
@@ -126,7 +126,7 @@ test("terminal: the cache and the 7d in words alone, as the three-layouts spec Â
   expect(shown(byKey(row, '7d', 'Box'))).toMatch(/^7d 41%$/)
 })
 test("no costs yet: the name, the total in a value's ink, its words then the flat trace in a label's", () => {
-  const spend = byKey(rowOf({ surface: 'terminal', history: { costs: [], context: [] }, costUsd: 0 }), 'spend', 'Box')
+  const spend = byKey(rowOf({ surface: 'terminal', history: NO_HISTORY, costUsd: 0 }), 'spend', 'Box')
   const inks: string[] = []
   const visit = (x: unknown): void => {
     const node = x as Node | null

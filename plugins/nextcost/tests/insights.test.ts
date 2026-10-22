@@ -16,7 +16,7 @@ import {
   resetInsights,
   trails,
 } from '../hooks/insights'
-import { MIN, endTurn, fact, mountBand, resp, respond, setup, START, startTurn, turn } from './helpers'
+import { BUILD_155K, MIN, endTurn, fact, mountBand, respond, setup, START, startTurn, turn } from './helpers'
 
 const cents = (n: number | null): number | null => (n === null ? null : Math.round(n * 100))
 const RESET_IN_3H = 3 * 60 * MIN
@@ -136,7 +136,7 @@ test('the ETA rounds to 5 minutes under an hour and 15 from an hour', () => {
 test("a subagent's turn inside an open turn doesn't change what the last message cost", async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   await startTurn($, 'main-1', 2.41)
   await endTurn($, 'sub-1', 2.5, { agentId: 'agent-1' })
   await endTurn($, 'main-1', 2.62)
@@ -149,7 +149,7 @@ test("a subagent's turn inside an open turn doesn't change what the last message
 test('a turn that spent nothing keeps the last cost: every layout reads the one pulse charts', async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   await turn($, 't1', 2.41, 2.62)
   await turn($, 't2', 2.62, 2.62)
   const ui = await mountBand($, 'terminal', 110)
@@ -161,7 +161,7 @@ test('a turn that spent nothing keeps the last cost: every layout reads the one 
 test("a subagent's turn.start doesn't take over the open turn it runs in", async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   await startTurn($, 'main-1', 2.41)
   // Since 2.1.299 a subagent's turn raises turn.start; this one shares its parent's turnId.
   await startTurn($, 'main-1', 2.5, 'agent-1')

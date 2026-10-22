@@ -14,7 +14,7 @@ import { VIEWS } from '../hooks/views/index'
 import { rowsOf, type View } from '../hooks/views/view'
 import { EMPTY } from '../hooks/words'
 import { byKey, fakeEl, shown, walk } from './helpers'
-import { NO_ACT, snapOf } from './matrix'
+import { NO_HISTORY, NO_ACT, bandOf, kitOf, snapOf } from './matrix'
 
 const marker: View = { rows: { desktop: 1, terminal: 1 }, collapsed: () => ({ type: 'Text', props: {}, children: ['PULSE'] }) as unknown as RenderElement, open: () => null }
 const boom: View = { ...marker, collapsed: () => { throw new Error('boom') } }
@@ -24,12 +24,12 @@ test('every layout name has a view', () => {
 })
 test('the rows a view declares follow where Svg draws', () => {
   const rows = { rows: { desktop: 2, terminal: 1 } }
-  expect(rowsOf(rows, makeKit(fakeEl, snapOf({ surface: 'desktop' })))).toBe(2)
-  expect(rowsOf(rows, makeKit(fakeEl, snapOf({ surface: 'desktop', palette: PLAIN })))).toBe(1)
-  expect(rowsOf(rows, makeKit(fakeEl, snapOf({ surface: 'terminal' })))).toBe(1)
+  expect(rowsOf(rows, kitOf({ surface: 'desktop' }))).toBe(2)
+  expect(rowsOf(rows, kitOf({ surface: 'desktop', palette: PLAIN }))).toBe(1)
+  expect(rowsOf(rows, kitOf({ surface: 'terminal' }))).toBe(1)
 })
 test('drawn outside a mount, the band reads as it does mounted', () => {
-  expect(shown(drawBand(fakeEl, snapOf(), NO_ACT))).toMatch(/cache 52m/)
+  expect(shown(bandOf())).toMatch(/cache 52m/)
 })
 test('the stored layout draws, from 40 columns', () => {
   expect(shown(drawBand(fakeEl, snapOf({ layout: 'pulse', columns: 40 }), NO_ACT, { ...VIEWS, pulse: marker }))).toBe('PULSE')
@@ -53,7 +53,7 @@ test('every layout\'s toggle points the way the band will move: up while shut, d
   for (const layout of LAYOUT_NAMES)
     for (const { surface, glyphs, shut, open } of tiers)
       for (const expanded of [false, true]) {
-        const band = drawBand(fakeEl, snapOf({ layout, surface, glyphs, expanded }), NO_ACT)
+        const band = bandOf({ layout, surface, glyphs, expanded })
         expect({ layout, surface, glyphs, expanded, label: byKey(band, 'more', 'Button')?.props?.label })
           .toEqual({ layout, surface, glyphs, expanded, label: expanded ? open : shut })
       }
@@ -71,7 +71,7 @@ test('every layout that says an empty state draws it in a label\'s ink', () => {
         for (const columns of [160, 40]) {
           const snap = snapOf({
             layout, surface, expanded, columns, maxRows: 40,
-            history: { costs: [], context: [] },
+            history: NO_HISTORY,
             context: { tokens: undefined, window: 200_000, percent: undefined, compactAt: undefined, autoCompactOff: false },
             fiveHour: undefined, sevenDay: undefined,
           })

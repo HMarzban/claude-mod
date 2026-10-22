@@ -1,16 +1,15 @@
 // The collapsed rows' give-way, the line pulse and departures lay, and a limit's accent.
 
 import { test, expect } from 'claude-code/testing'
-import { makeKit } from '../hooks/kit'
 import { ROW_SLACK } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
 import { accentOf } from '../hooks/views/cards'
 import { fitLine, line, type Keeps } from '../hooks/views/frame'
 import type { Amber } from '../hooks/words'
-import { byKey, fakeEl, shown, type Node } from './helpers'
-import { snapOf } from './matrix'
+import { byKey, shown, type Node } from './helpers'
+import { kitOf } from './matrix'
 
-const kit = (columns = 120) => makeKit(fakeEl, snapOf({ columns }))
+const kit = (columns = 120) => kitOf({ columns })
 /** One cut line of plain text. */
 const words = (k: ReturnType<typeof kit>, key: string, text: string) => k.oneLine({ key }, text)
 const A: Amber = { long: '! 47s left · re-warm ~$1.66', short: '! 47s' }

@@ -1,13 +1,12 @@
 import { test, expect } from 'claude-code/testing'
 import { flaps, flapsWidth } from '../hooks/flaps'
-import { makeKit } from '../hooks/kit'
 import { PLAIN } from '../hooks/palette'
-import { fakeEl, shown, svgsOf, type Node } from './helpers'
-import { snapOf } from './matrix'
+import { shown, svgsOf, type Node } from './helpers'
+import { kitOf } from './matrix'
 
 const RUNS = [['CACHE', '#7FCF8A'], ['LAST CALL 47S', '#F5B14C']] as const
 const draw = (surface: 'desktop' | 'terminal', plain = false) =>
-  flaps(makeKit(fakeEl, snapOf({ surface, ...(plain ? { palette: PLAIN } : {}) })), { key: 'f', alt: 'cache in its last minute', runs: RUNS, bg: '#262626', seam: '#0E0E0E' })
+  flaps(kitOf({ surface, ...(plain ? { palette: PLAIN } : {}) }), { key: 'f', alt: 'cache in its last minute', runs: RUNS, bg: '#262626', seam: '#0E0E0E' })
 
 test('desktop: one Svg, a tile and a seam per character and blank, monospace, no id', () => {
   const svgs = svgsOf(draw('desktop'))
@@ -30,7 +29,7 @@ test('terminal: a Text per run on its ground; plain: bracketed, no ground', () =
   expect(runs(draw('terminal', true))).toEqual([['[CACHE]', undefined], ['[LAST CALL 47S]', undefined]])
 })
 test('flap text is escaped', () => {
-  const k = makeKit(fakeEl, snapOf({ surface: 'desktop' }))
+  const k = kitOf({ surface: 'desktop' })
   const src = String(svgsOf(flaps(k, { key: 'f', alt: 'a', runs: [['<&>', '#fff']], bg: '#222', seam: '#000' }))[0]?.props?.source)
   expect(src).toMatch(/&lt;[\s\S]*&amp;[\s\S]*&gt;/)
 })

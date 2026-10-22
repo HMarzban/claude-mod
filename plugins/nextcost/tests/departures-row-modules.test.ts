@@ -9,27 +9,26 @@
 
 import type { RenderChildren } from 'claude-code'
 import { test, expect } from 'claude-code/testing'
-import { drawBand } from '../hooks/band'
 import { fixedZone } from '../hooks/format'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK, LIGHT, PLAIN } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { ITEM_INK } from '../hooks/views/departures-board'
-import { LONG, byKey, fakeEl, firstRow, flapWords, shown, svgsOf, walk, wordsOf, type Node } from './helpers'
-import { CALM_LIMITS, COLD_CACHE, LAST_MINUTE_CACHE, NEAR_COMPACTION, NO_ACT, limitAt, snapOf } from './matrix'
+import { LONG, byKey, firstRow, flapWords, shown, svgsOf, walk, wordsOf, type Node } from './helpers'
+import { ASCII_TIER, CALM_LIMITS, COLD_CACHE, LAST_MINUTE_CACHE, NEAR_COMPACTION, bandOf, limitAt, snapOf } from './matrix'
 
 const EXPIRING = { cache: LAST_MINUTE_CACHE }
 const NEAR = { context: NEAR_COMPACTION }
 const KEYS = ['cache', 'spend', 'context', '5h', '7d'] as const
 
-const snap = (over: Partial<BandSnapshot> = {}): BandSnapshot =>
-  snapOf({ layout: 'departures', columns: 160, maxRows: 13, zone: fixedZone(0), ...CALM_LIMITS, ...over })
+/** Departures at 160 columns, its limits calm, in UTC. */
+const DEPARTURES: Partial<BandSnapshot> = { layout: 'departures', columns: 160, maxRows: 13, zone: fixedZone(0), ...CALM_LIMITS }
 /** Departures' collapsed row. */
-const rowOf = (over: Partial<BandSnapshot> = {}): Node => firstRow(drawBand(fakeEl, snap(over), NO_ACT)) as Node
+const rowOf = (over: Partial<BandSnapshot> = {}): Node => firstRow(bandOf({ ...DEPARTURES, ...over })) as Node
 const moduleOf = (row: unknown, key: string): Node | undefined => byKey(row, key, 'Box')
 /** The board's rows the row draws from, by key. */
-const boardRow = (over: Partial<BandSnapshot>, key: string) => readingsOf(snap(over)).board().rows.find(r => r.key === key)
+const boardRow = (over: Partial<BandSnapshot>, key: string) => readingsOf(snapOf({ ...DEPARTURES, ...over })).board().rows.find(r => r.key === key)
 
 /** What a text surface draws: Texts' strings alone, since it draws no bare string in a Box. */
 const drawnText = (n: unknown, inText = false): string => {
@@ -143,7 +142,7 @@ test('plain: no ground and no padding anywhere on the row, and modules at least 
 
 test('the ascii tier: modules in ascii alone, a real space between them', () => {
   const row = rowOf({ surface: 'terminal', glyphs: 'ascii', ...EXPIRING })
-  expect(shown(row)).toMatch(/^[\x20-\x7e]*$/)
+  expect(shown(row)).toMatch(ASCII_TIER)
   expect(drawnText(row)).toMatch(/CACHE\s*LAST CALL \S+ SPEND/)
 })
 

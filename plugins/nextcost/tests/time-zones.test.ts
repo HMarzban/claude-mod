@@ -4,14 +4,14 @@
 // the mounted one follows the host's own.
 
 import { test, expect } from 'claude-code/testing'
-import { drawBand, layoutAt } from '../hooks/band'
+import { layoutAt } from '../hooks/band'
 import { weekOf } from '../hooks/calendar'
 import { dayOf, fixedZone, hostZone, midnightOf, readableZone, zoneOf, type Zone } from '../hooks/format'
 import type { Sample } from '../hooks/memory'
 import { readingsOf } from '../hooks/reading'
 import { LAYOUT_NAMES, type BandSnapshot } from '../hooks/snapshot'
-import { DEFAULT_MAX_ROWS, HOUR, LONG, MIN, MODERN, START, USAGE, fact, fakeEl, hostClock, mountBand, setup, usageAt, type Node } from './helpers'
-import { NO_ACT, invariantErrors, snapOf } from './matrix'
+import { DEFAULT_MAX_ROWS, HOUR, LONG, MIN, MODERN, SPEND_LIMIT, START, USAGE, fact, hostClock, mountBand, setup, usageAt, type Node } from './helpers'
+import { bandOf, invariantErrors, snapOf } from './matrix'
 
 const at = Date.parse
 /** A zone from its first offset and each change after, `[from, offset]`, oldest first. */
@@ -192,11 +192,11 @@ test('the longest reset and fill words fit every layout at every width, shut and
         for (const cols of [40, 41, 50, 60, 67, 68, 80, 95, 120])
           for (const expanded of [false, true]) {
             const now = at(iso)
-            const tree = drawBand(fakeEl, snapOf({
+            const tree = bandOf({
               layout, surface, glyphs, columns: cols, expanded, maxRows: DEFAULT_MAX_ROWS, now, zone: fixedZone(0),
               fiveHour: { percentUsed: 4, resetsAt: now + 3 * HOUR, etaMs: null },
               sevenDay: { percentUsed: seven, resetsAt: at('2026-10-24T13:30Z') },
-            }), NO_ACT) as unknown as Node
+            }) as unknown as Node
             // Held to the rules of the layout drawn there: chips below departures' 60.
             const errors = invariantErrors(tree, { layout: layoutAt(layout, cols), surface, appearance: 'dark', cols, maxRows: DEFAULT_MAX_ROWS, scenario: 'calm', glyphs, expanded })
             const key = `${iso} ${layout} ${surface} ${glyphs} ${cols} ${expanded ? 'open' : 'shut'}`
@@ -240,7 +240,7 @@ test('idle, with no reply, the band reads each clock in the zone in force as the
   const change = lastHostChange(Date.UTC(2015, 0, 1), Date.UTC(2030, 0, 1))
   const start = (change ?? MODERN) - 10 * MIN
   const resetAt = start + 5 * HOUR
-  const usage = usageAt(start, { ...USAGE, rateLimits: [...USAGE.rateLimits, { kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }] })
+  const usage = usageAt(start, { ...USAGE, rateLimits: [...USAGE.rateLimits, SPEND_LIMIT] })
   const clock = setup(on, { usage, now: start })
   await $.session.start(START)
   const ui = await mountBand($, 'terminal', 110)

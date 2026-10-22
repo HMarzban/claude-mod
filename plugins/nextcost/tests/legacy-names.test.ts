@@ -2,7 +2,7 @@
 // settings' old names still work, and the new names win where both are set.
 
 import { test, expect } from 'claude-code/testing'
-import { HOUR_1, START, mountBand, resp, respond, runCommand, setup, shown, walk } from './helpers'
+import { BUILD_155K, HOUR_1, START, mountBand, respond, runCommand, setup, shown, walk } from './helpers'
 
 /** Whether a drawn tree paints any ground: plain paints none. */
 const grounded = (tree: unknown): boolean => {
@@ -18,7 +18,7 @@ const ascii = (tree: unknown): boolean => !/[^\x00-\x7f]/.test(shown(tree))
 test('/usage-band, its old name, answers as /nextcost does', async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   for (const args of ['more', 'less', 'hide', 'show', 'sideways', 'layout'])
     expect(JSON.stringify(await runCommand($, args, 'usage-band'))).toBe(JSON.stringify(await runCommand($, args)))
   expect(JSON.stringify(await runCommand($, 'more', 'usage-band'))).toMatch(/nextcost expanded\./)
@@ -35,7 +35,7 @@ for (const [name, env, holds] of CASES)
   test(`settings: ${name}`, async ($, on) => {
     setup(on, { env: { ...HOUR_1, ...env } })
     await $.session.start(START)
-    await respond($, resp(41_000, 0, 155_000, 12_000))
+    await respond($, BUILD_155K)
     const ui = await mountBand($, 'terminal', 110)
     expect(holds(await ui.drawn())).toBe(true)
     await ui.unmount()

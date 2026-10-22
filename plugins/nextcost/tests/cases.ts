@@ -6,7 +6,7 @@ import type { On, SessionUsage } from 'claude-code'
 import type { Engine, MockClock } from 'claude-code/testing'
 import { TTL_MS, type Ttl } from '../hooks/cache'
 import {
-  DEFAULT_MAX_ROWS, HOUR, HOUR_1, MIN, START, SUMMARY, USAGE, FRESH, breakdown, engine, mountBand, pacing, resp, respond, setup, turn, usageAt, type Node,
+  BUILD_155K, DEFAULT_MAX_ROWS, HOUR, HOUR_1, MIN, SPEND_LIMIT, START, SUMMARY, USAGE, FRESH, breakdown, engine, mountBand, pacing, respond, setup, turn, usageAt, type Node,
 } from './helpers'
 
 export type Appearance = 'dark' | 'light' | 'plain'
@@ -30,7 +30,7 @@ export type Scenario = Readonly<{
 const started = async ($: Engine): Promise<void> => { await $.session.start(START) }
 const replied = async ($: Engine): Promise<void> => {
   await started($)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
 }
 export const withLimits = (five: number, seven: number, fiveResetH = 3, sevenResetH = 67): SessionUsage['rateLimits'] => [
   { kind: 'five_hour', percentUsed: five, resetsAt: new Date(fiveResetH * HOUR).toISOString() },
@@ -75,7 +75,7 @@ export const SCENARIOS = {
   sevenFullBeforeReset: { usage: { ...USAGE, rateLimits: withLimits(4, 79, 3, 50) }, drive: replied, amber: [] },
   noLimits: { usage: { ...USAGE, rateLimits: [] }, drive: replied, amber: [] },
   gatewaySpend: {
-    usage: { ...USAGE, rateLimits: [...withLimits(4, 30), { kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }] },
+    usage: { ...USAGE, rateLimits: [...withLimits(4, 30), SPEND_LIMIT] },
     drive: replied,
     amber: ['otherLimit80'],
   },

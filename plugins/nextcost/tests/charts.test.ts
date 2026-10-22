@@ -1,10 +1,8 @@
 import { test, expect } from 'claude-code/testing'
 import { barChart, braille, dayCells, dayCellsFit, flatBeats, heartbeat, meter, sparkline, splitBar, track } from '../hooks/charts'
-import { makeKit } from '../hooks/kit'
 import { CHIP_BAR } from '../hooks/views/chips'
-import { drawBand } from '../hooks/band'
-import { byKey, fakeEl, svgsOf, textOf, type Node } from './helpers'
-import { NO_ACT, snapOf } from './matrix'
+import { byKey, svgsOf, textOf, type Node } from './helpers'
+import { bandOf, kitOf } from './matrix'
 
 test('braille puts two values in a cell, four heights each', () => {
   expect(braille([0, 0], 4)).toBe('⠀')
@@ -18,7 +16,7 @@ test('braille is one column everywhere: every glyph is in U+2800–28FF', () => 
   for (const ch of braille([0, 1, 2, 3, 4, 3, 2, 1], 4)) expect((ch.codePointAt(0) ?? 0) >= 0x2800 && (ch.codePointAt(0) ?? 0) <= 0x28ff).toBe(true)
 })
 
-const desk = makeKit(fakeEl, snapOf({ surface: 'desktop' }))
+const desk = kitOf({ surface: 'desktop' })
 const svg = (el: unknown) => el as Node & { props: { alt: string; width: number; source: string } }
 for (const [name, el] of [
   ['sparkline', sparkline(desk, { key: 's', alt: '5h usage over the last hour', values: [1, 2, 3], color: '#7fcf8a', px: 90, height: 36 })],
@@ -73,7 +71,7 @@ test("day cells: a measured day filled, an empty one a solid edge on the track",
 // marks into whatever slot it gets. Pulse and departures draw none.
 test('no chart pulse or departures draws stretches: every Svg has its own width and keeps its aspect', () => {
   for (const layout of ['pulse', 'departures'] as const) for (const expanded of [false, true]) {
-    const tree = drawBand(fakeEl, snapOf({ layout, surface: 'desktop', columns: 160, maxRows: 13, expanded }), NO_ACT)
+    const tree = bandOf({ layout, surface: 'desktop', columns: 160, maxRows: 13, expanded })
     // The board's rules are no chart: a solid line a pixel high, which spans
     // its board by stretching and has no marks to squash.
     for (const s of svgsOf(tree).filter(s => !/class="rule"/.test(String(s.props?.source)))) {
@@ -130,7 +128,7 @@ for (const [cellPx, height] of [[18, 56], [4, 14]] as const) {
     })
   })
 }
-const term = makeKit(fakeEl, snapOf())
+const term = kitOf()
 test('a builder drawn outside a mount keeps its key and its children', () => {
   const n = meter(term, { label: 'context', frac: 0.5, tone: 'calm', accent: '#b8b8c2', size: CHIP_BAR }) as Node
   const half = Math.round(CHIP_BAR.cells / 2)
@@ -164,7 +162,7 @@ test('in text, day cells keep one width wherever today falls', () => {
   const widths = values.map((_, today) => textOf(dayCells(term, { key: 'd', alt: 'week', values, today, color: '#a99cf0', cellPx: 16, height: 16 })).length)
   expect(widths).toEqual(values.map(() => 2 * values.length + 1))
 })
-const deskKit = () => makeKit(fakeEl, snapOf({ surface: 'desktop' }))
+const deskKit = () => kitOf({ surface: 'desktop' })
 test('beats: one path; no NaN with one value, all re-warms, or all zero', () => {
   for (const [values, marked] of [[[0.2], [false]], [[0.8, 0.9], [true, true]], [[0, 0], [false, false]]] as const) {
     const src = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values, marked, color: '#fff', px: 84, height: 20 }))[0]?.props?.source)
@@ -207,7 +205,7 @@ test('heartbeat per state; the beat ships still: no animation, never interactive
   expect(of('beat')?.props?.isInteractive).toBeUndefined()
   expect(String(of('beat')?.props?.source)).not.toMatch(/animation|<style/)
   expect(String(of('beat')?.props?.source)).toMatch(/fill="#F5B14C"/)
-  expect(heartbeat(makeKit(fakeEl, snapOf({ surface: 'terminal' })), { key: 'h', alt: 'a', state: 'beat', color: '#fff' })).toBeNull()
+  expect(heartbeat(kitOf({ surface: 'terminal' }), { key: 'h', alt: 'a', state: 'beat', color: '#fff' })).toBeNull()
 })
 test('beats: the average rule is dotted', () => {
   const src = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values: [0.5, 0.7], marked: [false, false], color: '#fff', px: 40, height: 20, max: 1, levelValue: 0.6 }))[0]?.props?.source)
