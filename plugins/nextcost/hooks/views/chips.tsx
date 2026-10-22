@@ -3,11 +3,10 @@
 // departures draw their own look. Like every layout it draws only words from
 // the readings: its hover cards and the context's amount are chips' own
 // table in words.ts. The pill a chip sits in is drawn here alone, led on the
-// cache's by the battery from battery.tsx.
+// cache's by the battery from charts.tsx.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
-import { batteryIcon, textBattery } from '../battery'
-import { meter } from '../charts'
+import { batteryIcon, meter, textBattery } from '../charts'
 import { GLYPH } from '../icons'
 import type { Icon } from '../icons'
 import type { Kit } from '../kit'

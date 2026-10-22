@@ -1,8 +1,10 @@
-// The band's charts: each draws an Svg on the desktop, with its alt and
-// width, and text elsewhere. Every builder takes the kit first and a key.
+// The band's charts, and chips' cache battery: each draws an Svg on the
+// desktop, with its alt and width, and text elsewhere. Every builder takes
+// the kit first.
 
 import type { RenderChildren } from 'claude-code'
 import { clamp01 } from './format'
+import { asciiText } from './glyphs'
 import type { Kit } from './kit'
 import type { BarSize } from './layout'
 import type { Tone } from './reading'
@@ -110,6 +112,45 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
       {filled < size.cells ? <Text key="track" color={palette.trackInk}>{'░'.repeat(size.cells - filled)}</Text> : null}
     </Text>
   )
+}
+
+// ---- battery --------------------------------------------------------------
+
+/** The battery's width on the desktop: an icon's. */
+const BATTERY_PX = 22
+
+/** The cache's battery on the desktop, chips' alone: an outline, its cap,
+ *  and the charge filling it. Pulse and departures draw their own look. */
+export const batteryIcon = (kit: Kit, charge: number, tone: Tone, alt: string): RenderChildren => {
+  const { palette, onTone, svg } = kit
+  const outline = onTone(tone, palette.label)
+  const fill = onTone(tone, palette.warm)
+  const width = tenth(clamp01(charge) * (BATTERY_PX - 7))
+  return svg(
+    { key: 'battery', alt, width: BATTERY_PX, height: 12 },
+    `<rect x="0.75" y="0.75" width="${BATTERY_PX - 3.5}" height="10.5" rx="3" fill="none" stroke="${outline}" stroke-width="1.5"/>` +
+      `<rect x="${BATTERY_PX - 2.25}" y="4" width="1.75" height="4" rx="0.8" fill="${outline}"/>` +
+      `<rect class="charge" x="2.5" y="2.5" width="${width}" height="7" rx="1.5" fill="${fill}"/>`,
+  )
+}
+
+/** On a text surface the battery is the pill itself: its charge painted as
+ *  the background of the leading characters, draining right to left. In the
+ *  ascii tier `text` is mapped before the cut, so a dropped glyph neither
+ *  leaves a gap at the cut nor takes its cells from the charge. */
+export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string): RenderChildren[] => {
+  const { Text, palette, onTone, glyphs } = kit
+  const chars = [...` ${glyphs === 'ascii' ? asciiText(text) : text} `]
+  const cut = Math.round(clamp01(charge) * chars.length)
+  const fg = onTone(tone, palette.value)
+  /** One side of the cut: its Text, or nothing. */
+  const side = (key: string, part: readonly string[], ground: string): RenderChildren =>
+    part.length === 0 ? null : (
+      <Text key={key} color={fg} backgroundColor={ground}>
+        {part.join('')}
+      </Text>
+    )
+  return [side('bf', chars.slice(0, cut), onTone(tone, palette.batteryFill, palette.batteryAmber)), side('be', chars.slice(cut), onTone(tone, palette.surface, palette.amberBg))]
 }
 
 // ---- split bar ------------------------------------------------------------
