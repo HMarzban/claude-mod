@@ -99,7 +99,7 @@ const sample = (at: number, five: number, seven: number, fiveResetAt: number, se
 /** How a session some way in is shaped: its first write, the 5-hour limit
  *  before it opened and over its replies, how far the weekly limit sits above
  *  the calm session's, and the auto-compact threshold if it reports one. */
-type Lived = { firstWrite: number; fiveBefore: readonly number[]; five: readonly [number, number]; weekLift: number; threshold?: number }
+type Lived = { firstWrite: number; fiveBefore: readonly [number, number, number, number]; five: readonly [number, number]; weekLift: number; threshold?: number }
 
 /** The calm session: 303k of context, the 5-hour limit at 27% and the week at 41%. */
 const LIVED: Lived = { firstWrite: 90_000, fiveBefore: [5, 9, 13, 15], five: [16, 27], weekLift: 0 }

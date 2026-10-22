@@ -11,7 +11,8 @@
     "skipLibCheck": true,
     "jsx": "react",
     "jsxFactory": "h",
-    "jsxFragmentFactory": "Fragment"
+    "jsxFragmentFactory": "Fragment",
+    "rootDirs": [".", "tests", "../../tools/demos", "../../tools/demos/capture"]
   },
-  "include": [".claude-plugin/types", "hooks", "types", "tests"]
+  "include": [".claude-plugin/types", "hooks", "types", "tests", "../../tools/demos/capture"]
 }

@@ -34,6 +34,11 @@ they're git-ignored. Neither `claude plugin test` nor `validate` writes
 them, and loading needs a signed-in session, so CI can't type-check: run it
 locally before you open a pull request.
 
+The type check covers the demo captures in `tools/demos/capture/` too. They
+run from a scratch copy's `tests/`, so the tsconfig's `rootDirs` reads
+`tools/demos/` as the plugin's folder and `capture/` as its `tests/`, and
+their `./helpers` and `../hooks/…` imports resolve as they do there.
+
 CI runs every check twice: on the latest Claude Code, and on a pinned
 version last known good (`matrix.claude-code` in `.github/workflows/ci.yml`).
 It also runs nightly, so a new release that breaks the band shows within a
