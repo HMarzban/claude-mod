@@ -4,7 +4,7 @@
 
 import type { RenderChildren } from 'claude-code'
 import { expect, test, type Engine } from 'claude-code/testing'
-import { DEFAULT_MAX_ROWS, LONG, MIN, HOUR, USAGE, firstRow, flapWords, mountBand, shown, walk, type Node } from './helpers'
+import { DEFAULT_MAX_ROWS, LONG, MIN, USAGE, firstRow, flapWords, mountBand, shown, walk, type Node } from './helpers'
 import { layoutAt } from '../hooks/band'
 import type { Ttl } from '../hooks/cache'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'

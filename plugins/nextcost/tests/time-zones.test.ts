@@ -8,7 +8,7 @@ import { drawBand, layoutAt } from '../hooks/band'
 import { weekOf } from '../hooks/calendar'
 import { dayOf, fixedZone, hostZone, midnightOf, type Zone } from '../hooks/format'
 import type { Sample } from '../hooks/memory'
-import { cappedMarks, readingsOf } from '../hooks/reading'
+import { readingsOf } from '../hooks/reading'
 import { LAYOUT_NAMES, type BandSnapshot } from '../hooks/snapshot'
 import { DEFAULT_MAX_ROWS, HOUR, LONG, MIN, MODERN, START, USAGE, fact, fakeEl, hostClock, mountBand, setup, usageAt, type Node } from './helpers'
 import { NO_ACT, invariantErrors, snapOf } from './matrix'
@@ -217,7 +217,7 @@ test("the week's fill day is the forecast's, today included", () => {
   // UTC-8, Sat 09:30, 9 hours into the window at 60%: the average fills it today at 15:30.
   const today = readAt('2026-10-17T17:30Z', fixedZone(-480), { sevenAt: '2026-10-24T08:30Z', seven: 60 })
   expect(today.sevenDay?.fillText).toBe('full ~15:30')
-  expect(cappedMarks(today.week().days, 60)[0]?.kind).toBe('fills')
+  expect(today.week().dayMarks[0]?.kind).toBe('fills')
   // UTC, Wed noon, a fill at Sat 01:30 in the Friday cell Saturday's morning folds into.
   const folded = readAt('2026-10-21T12:00Z', fixedZone(0), { sevenAt: '2026-10-24T06:00Z', seven: 62.4 })
   expect(folded.sevenDay?.fillText).toBe('full ~Sat')

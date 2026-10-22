@@ -5,8 +5,8 @@
 
 import { cacheFactsOf } from './cache'
 import type { CacheFacts } from './cache'
-import { weekOf } from './calendar'
-import type { DayCell, HourCell, Week, WindowNow } from './calendar'
+import { drawnWeekOf } from './calendar'
+import type { DrawnWeek, SliceMark, WindowNow } from './calendar'
 import {
   FIVE_HOUR_MS,
   SEVEN_DAY_MS,
@@ -161,33 +161,11 @@ type HistoryReading = Trails &
     beatsTop: number
   }>
 
-/** How week draws a slice: measured, a guess, the guess that fills the
- *  limit, none left after it, or not known. */
-type SliceKind = 'measured' | 'guess' | 'fills' | 'spent' | 'unknown'
-/** A slice as drawn: its kind and its rise in points toward the cap. */
-export type SliceMark = Readonly<{ kind: SliceKind; pct: number }>
-/** A window's slices as drawn, and where now falls among them, counted in
- *  slices: 0.5 is halfway through the first. Undefined where not known. */
-type SliceRow = Readonly<{ marks: readonly SliceMark[]; notch: number | undefined }>
+/** A slice as drawn, from calendar.ts: the words' own name for it. */
+export type { SliceMark }
 
-/** The week's day and hour cells, as calendar.ts reads them and as drawn, with their words. */
-type WeekReading = Week &
-  WeekWords &
-  Readonly<{
-    /** The 5h window's cumulative percent at the end of each hour slice, from
-     *  the hours as drawn, each guess stopped at the cap, its level at now's slice the window's `percentUsed`; empty
-     *  where no slice is measured. `nowAt` is the slice now falls in (counted
-     *  from 0), the last at the very end; undefined where not known or with no
-     *  values. `from` is the first value drawn: those before it are hours
-     *  before the first sample, whose level isn't known. */
-    fiveHourWindow: Readonly<{ values: readonly number[]; nowAt: number | undefined; from: number }>
-    /** The 7d's days as day cells draw them, from their capped marks,
-     *  so the guesses never pass what is left: each value (undefined where
-     *  unknown), whether it is a guess, and today's index. The day that fills
-     *  the limit is a guess of what is left, or today, once a reading falls
-     *  inside it, its rise so far, measured. `measured` while any day is. */
-    daysDrawn: Readonly<{ values: ReadonlyArray<number | undefined>; guess: readonly boolean[]; today: number | undefined; measured: boolean }>
-  }>
+/** The week's cells, and as drawn, with their words. */
+type WeekReading = DrawnWeek & WeekWords
 
 export type Readings = Readonly<{
   frame: Frame
@@ -316,86 +294,14 @@ const windowOf = (l: LimitView | undefined, now: number): WindowNow | undefined 
         resetsAt: l.resetsAt,
         // The fill the limit's own words say, so the week's cells name the same one.
         fullAt: l.fullInMs === undefined ? undefined : now + l.fullInMs,
+        gone: l.gone,
       }
 
-/** A window's slices with each guess stopped at the cap: the slice calendar
- *  marks full takes what is left, today's on top of its rise so far, and
- *  none is left after it, so the cells and their words agree. calendar.ts
- *  keeps every slice's guess. */
-export const cappedMarks = (cells: ReadonlyArray<DayCell | HourCell>, percentUsed: number): SliceMark[] => {
-  const full = cells.findIndex(c => c.fullMark)
-  let left = Math.max(0, 100 - percentUsed)
-  return cells.map((c, i): SliceMark => {
-    if (full >= 0 && i > full) return { kind: 'spent', pct: 0 }
-    // The fill takes what is left, though the step's guess may say less or more.
-    if (i === full) return { kind: 'fills', pct: (c.guess ? 0 : (c.pct ?? 0)) + left }
-    if (c.pct === undefined) return { kind: 'unknown', pct: 0 }
-    if (!c.guess) return { kind: 'measured', pct: c.pct }
-    if (left <= 0) return { kind: 'spent', pct: 0 }
-    const pct = Math.min(c.pct, left)
-    left -= pct
-    return { kind: 'guess', pct }
-  })
-}
-
-/** Now's slice among `count`, from its notch counted in slices: the slice
- *  it falls in, the last one at the window's very end, so a now rule never
- *  falls past the chart; undefined with no notch or no slice. */
-export const windowNowAt = (notch: number | undefined, count: number): number | undefined =>
-  notch === undefined || count === 0 ? undefined : Math.min(Math.floor(notch), count - 1)
-
-/** The 5h window's climb: each hour's rise added to the ones before it, set
- *  so its level now is the window's `percentUsed`, as its words say. Before
- *  the first measured hour the level isn't known (the window opened on
- *  another device, or the band came mid-window): the line starts at that
- *  hour's start, `from`, the level there what the hours since leave of
- *  `percentUsed`. Measured from the window's start, the past stays as
- *  measured and a reading newer than the last sample lifts now on. A fill
- *  marked in now's hour keeps its climb to the cap past `percentUsed`. */
-const fiveHourClimb = (row: SliceRow, hours: readonly HourCell[], percentUsed: number): WeekReading['fiveHourWindow'] => {
-  const first = row.marks.findIndex(m => m.kind === 'measured')
-  if (first < 0) return { values: [], nowAt: undefined, from: 0 }
-  const nowAt = windowNowAt(row.notch, row.marks.length)
-  let climb = 0
-  const rises = row.marks.map(m => (climb += m.pct))
-  // The level measured up to now: a fill's own rise, without what it takes of the cap.
-  let measured = 0
-  for (const [i, m] of row.marks.entries()) {
-    if (nowAt === undefined || i > nowAt) break
-    measured += m.kind !== 'fills' ? m.pct : hours[i]?.guess === false ? (hours[i]?.pct ?? 0) : 0
-  }
-  const lift = nowAt === undefined ? 0 : percentUsed - measured
-  const from = first > 0 ? first - 1 : 0
-  const liftFrom = first > 0 ? from : (nowAt ?? rises.length)
-  return { values: rises.map((v, i) => (i < liftFrom ? v : v + lift)), nowAt, from }
-}
-
-/** The week's cells from the limit samples, with their words. With the zone
- *  unknown, the cells are named in UTC. */
+/** The week's cells from the limit samples, as drawn, with their words.
+ *  With the zone unknown, the cells are named in UTC. */
 const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour: LimitView | undefined): WeekReading => {
-  const zone = snap.zone ?? fixedZone(0)
-  const seven = windowOf(sevenDay, snap.now)
-  const week = weekOf({ samples: snap.samples, seven, five: windowOf(fiveHour, snap.now), now: snap.now, zone })
-  const today = week.days.findIndex(d => d.today)
-  // The hours are an hour each up to the reset, so the share of the window
-  // gone places now among them; at 0% the 5h has no notch.
-  const hourNotch = fiveHour?.gone === undefined || fiveHour.percentUsed === 0 || week.hours.length === 0 ? undefined : fiveHour.gone * week.hours.length
-  const dayMarks = cappedMarks(week.days, sevenDay?.percentUsed ?? 0)
-  const hourRow: SliceRow = { marks: cappedMarks(week.hours, fiveHour?.percentUsed ?? 0), notch: hourNotch }
-  const fiveHourWindow = fiveHourClimb(hourRow, week.hours, fiveHour?.percentUsed ?? 0)
-  // Today's fill is its rise so far, measured; another day's, or today's
-  // with no reading inside it yet, the guess of what is left, as the alt
-  // says it: never a measured 0.
-  const measuredFill = (i: number) => week.days[i]?.guess === false && week.days[i]?.pct !== undefined
-  const dayValues = dayMarks.map((m, i) => (m.kind === 'unknown' ? undefined : m.kind === 'fills' && measuredFill(i) ? (week.days[i]?.pct ?? 0) : m.pct))
-  const guess = dayMarks.map((m, i) => m.kind === 'guess' || m.kind === 'spent' || (m.kind === 'fills' && !measuredFill(i)))
-  const daysDrawn = { values: dayValues, guess, today: today < 0 ? undefined : today, measured: dayValues.some((v, i) => v !== undefined && !guess[i]) }
-  return {
-    ...week,
-    ...weekWords(week, dayMarks, fiveHour),
-    fiveHourWindow,
-    daysDrawn,
-  }
+  const week = drawnWeekOf({ samples: snap.samples, seven: windowOf(sevenDay, snap.now), five: windowOf(fiveHour, snap.now), now: snap.now, zone: snap.zone ?? fixedZone(0) })
+  return { ...week, ...weekWords(week, week.dayMarks, fiveHour) }
 }
 
 /** Everything a view reads, built once per draw: the frame, each section's
