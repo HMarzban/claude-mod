@@ -180,11 +180,12 @@ const loggedAt = (entry: Record<string, unknown>): number | undefined => {
   return Number.isFinite(at) ? at : undefined
 }
 
-/** When a transcript's last assistant reply was. Its file time won't do:
- *  Claude Code writes a cost line each time it opens a session. */
+/** When a transcript's last main-loop reply was: a subagent's says nothing
+ *  of the main loop's cache. Its file time won't do: Claude Code writes a
+ *  cost line each time it opens a session. */
 export const lastReplyAt = (transcript: string): number | undefined => {
   for (const entry of fromEnd(transcript, REPLY_MARKER)) {
-    const at = entry.type === 'assistant' ? loggedAt(entry) : undefined
+    const at = entry.type === 'assistant' && entry.isSidechain !== true ? loggedAt(entry) : undefined
     if (at !== undefined) return at
   }
   return undefined

@@ -195,6 +195,11 @@ test("the last reply's model is the one the API billed it under, past lines that
   expect(lastReplyModel(jsonl(prompt(1_000)))).toBeUndefined()
 })
 
+test("a subagent's reply is not the conversation's last: its own cache says nothing of the main loop's", () => {
+  const subagent = { ...reply(9_000), isSidechain: true }
+  expect(lastReplyAt(jsonl(reply(5_000), subagent))).toBe(5_000)
+})
+
 test('a transcript with no reply has no last reply', () => {
   expect(lastReplyAt('')).toBeUndefined()
   expect(lastReplyAt(jsonl(prompt(1_000)))).toBeUndefined()
