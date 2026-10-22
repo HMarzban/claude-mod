@@ -21,8 +21,9 @@ if grep -nE "$RAW" "${VIEW_FILES[@]}"; then
   echo "views-gate: a view formats or reads a raw fact (see above)" >&2
   exit 1
 fi
-# Pulse and departures draw their own look: nothing from chips' cards or
-# pills, no battery, no meter. Their files are, for each layout index.ts
+# Pulse and departures draw their own look: nothing from chips' files
+# (chips.tsx and every chips-*.tsx, its open cards among them), no pill,
+# battery or meter. Their files are, for each layout index.ts
 # imports but chips, its `<name>.tsx` and every `<name>-*.tsx`.
 INDEX="$VIEWS/index.ts"
 NAMES=$(sed -nE "s/^import \{ [A-Za-z]+View \} from '\.\/([a-z-]+)'$/\1/p" "$INDEX" | grep -vx chips || true)
@@ -48,7 +49,7 @@ for name in $NAMES; do
     if [ -e "$f" ]; then LOOK+=("$f"); fi
   done
 done
-if grep -nE "from ['\"]\./(cards|chips)(\.tsx)?['\"]|[pP]ill\(|[bB]attery|meter\(" "${LOOK[@]}"; then
+if grep -nE "from ['\"]\./chips(-[a-z-]+)?(\.tsx)?['\"]|[pP]ill\(|[bB]attery|meter\(" "${LOOK[@]}"; then
   echo "views-gate: pulse and departures draw their own look (see above)" >&2
   exit 1
 fi

@@ -14,7 +14,7 @@ import { cellsOf, spansOf } from '../layout'
 import type { BarSize } from '../layout'
 import type { Palette } from '../palette'
 import type { LimitKey, Readings, Tone } from '../reading'
-import { openBody } from './cards'
+import { chipsOpen } from './chips-open'
 import { fitLine, type Keeps, type PieceOf } from './frame'
 import type { View } from './view'
 
@@ -278,5 +278,5 @@ export const chipsView: View = {
   rows: { desktop: 1, terminal: 1 },
   // Its one row, squeezed until it fits.
   collapsed: (kit, read, toggle) => fitLine(kit, ORDER, k => pillRow(kit, toggle, chipsPills(kit, read, k))),
-  open: openBody,
+  open: chipsOpen,
 }

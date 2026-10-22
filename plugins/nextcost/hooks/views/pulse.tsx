@@ -12,7 +12,7 @@ import type { Readings, Tone } from '../reading'
 import type { Amber } from '../words'
 import { fitLine, groundOf, type Keeps, line, pieceGap, type PieceOf } from './frame'
 import { beatsChart, chartsDraw, weekCells, windowTrail } from './pulse-charts'
-import { openStack } from './pulse-open'
+import { pulseOpen } from './pulse-open'
 import type { View } from './view'
 
 /** What gives way as the row narrows, first to last (three-layouts spec
@@ -122,5 +122,5 @@ const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderEleme
 export const pulseView: View = {
   rows: { desktop: 1, terminal: 1 },
   collapsed,
-  open: openStack,
+  open: pulseOpen,
 }

@@ -9,7 +9,7 @@ import { flaps } from '../flaps'
 import type { Kit } from '../kit'
 import type { Readings } from '../reading'
 import type { BoardRow } from '../board-words'
-import { ITEM_INK, openBoard } from './departures-board'
+import { ITEM_INK, departuresOpen } from './departures-board'
 import { fitLine, groundOf, type Keeps, line, pieceGap, type PieceOf } from './frame'
 import type { View } from './view'
 
@@ -82,5 +82,5 @@ export const departuresView: View = {
   rows: { desktop: 1, terminal: 1 },
   minColumns: MIN_COLUMNS,
   collapsed,
-  open: openBoard,
+  open: departuresOpen,
 }

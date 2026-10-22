@@ -310,7 +310,7 @@ const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement =
  *  strip in its row. Short of a row for any card, an amber window only the
  *  cards draw (the row never draws the other limits) still says it needs
  *  you, on the row they would have started on. */
-export const openStack = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderElement[] => {
+export const pulseOpen = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderElement[] => {
   const body = bodyRowsFor(read.frame.maxRows, collapsedRows, 0)
   const f = factsOf(kit, read)
   const p = planFor(kit, f, body)

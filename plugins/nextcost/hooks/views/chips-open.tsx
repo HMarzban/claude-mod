@@ -229,7 +229,7 @@ const limitsCard = (kit: Kit, read: Readings, fit: Fit): RenderElement | null =>
 /** Chips' open view, beneath its row: as many cards to a line as hold their
  *  text, each as much of its body as the band has rows for; the workspace
  *  strip on top or in the footer; then Collapse and Hide band. */
-export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderChildren[] => {
+export const chipsOpen = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderChildren[] => {
   const { perLine, edge, stripPlace, cardsFit, fit } = layoutOf(kit, read, collapsedRows)
   const ws = read.workspace
   const cards = [cacheCard(kit, read, fit), spendCard(kit, read, fit), contextCard(kit, read, fit), limitsCard(kit, read, fit)].filter(view => view !== null)
