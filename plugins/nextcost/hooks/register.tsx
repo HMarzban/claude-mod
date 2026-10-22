@@ -17,10 +17,8 @@ import {
   noteRecalled,
   noteResume,
   noteTranscript,
-  modelName,
   noteBilledModel,
   notePriceModel,
-  pricedModel,
   pinTtl,
   ratePerToken,
   recordResponse,
@@ -307,7 +305,7 @@ const rememberTurn = async ($: EngineInterface, costNow: number | undefined): Pr
     const id = await $.session.id()
     await $.store.set(SESSIONS_KEY, rememberReply(asSessions(await $.store.get(SESSIONS_KEY)), id, cache.lastAt))
     const rate = ratePerToken(costNow)
-    if (rate !== null) await $.store.set(RATES_KEY, rememberRate(await $.store.get(RATES_KEY), pricedModel() ?? modelName(await $.session.model()), rate))
+    if (rate !== null) await $.store.set(RATES_KEY, rememberRate(await $.store.get(RATES_KEY), cache.priceModel ?? (await $.session.model()), rate))
   } catch {
     // memory is a convenience; the band works without it
   }

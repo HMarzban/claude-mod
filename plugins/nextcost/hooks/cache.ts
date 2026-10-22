@@ -449,7 +449,7 @@ export const noteBilledModel = (model: string): void => {
 
 /** The model the tokens are priced at: the one replies are billed under, else
  *  what /model names, which may be an alias such as `opus[1m]`. */
-export const pricedModel = (): string | undefined =>
+const pricedModel = (): string | undefined =>
   state.billedModel ?? (state.priceModel === undefined ? undefined : modelName(state.priceModel))
 
 /** A cache read's price against input, on the model in force. */
