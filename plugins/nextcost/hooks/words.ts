@@ -21,6 +21,7 @@ import {
   fmtPct,
   fmtSmallCost,
   fmtTokens,
+  grainOf,
   HOUR_MS,
   MINUTE_MS,
   minutesLeft,
@@ -671,7 +672,7 @@ type BoardFacts = Readonly<{
 
 /** A measured span on the board: `47S`, `38 MIN`, `1H 04M`. Never `38M`. */
 const boardSpan = (ms: number): string =>
-  ms < MINUTE_MS ? `${secondsLeft(ms)}S` : ms < HOUR_MS ? `${minutesLeft(ms)} MIN` : fmtCountdown(ms)
+  grainOf(ms) === 'seconds' ? `${secondsLeft(ms)}S` : ms < HOUR_MS ? `${minutesLeft(ms)} MIN` : fmtCountdown(ms)
 /** A projection on the board: `~40 MIN`, `~1H 15M`. */
 const boardEta = (ms: number): string => (etaMinutes(ms) < 60 ? `~${etaMinutes(ms)} MIN` : fmtEta(ms))
 
@@ -756,6 +757,17 @@ export const boardWords = (r: BoardFacts): Board => {
     now: r.frame.zone === undefined ? undefined : fmtClock(r.frame.now, r.frame.zone),
   }
 }
+
+// ---- the clock ---------------------------------------------------------------
+
+/** Every phrase the clock alone moves, as one key, so the 1-second tick
+ *  repaints only when one would read differently: the minute (the clocks,
+ *  the reset countdowns, the pace tick), the cache's countdown at its grain,
+ *  and the 5-hour fill's projection. The minute turns just past the
+ *  boundary, as the countdowns to a time on the minute do: on it, they
+ *  still read the minute before. */
+export const paintKey = (now: number, cacheLeft: number, etaMs: number | null): string =>
+  `${Math.ceil(now / MINUTE_MS)}|${fmtCountdown(cacheLeft)}|${cacheLeft > 0}|${etaMs === null ? '-' : fmtEta(etaMs)}`
 
 /** What a board line says in its four columns. */
 type BoardText = Readonly<Record<'item' | 'status' | 'time' | 'remarks', string>>

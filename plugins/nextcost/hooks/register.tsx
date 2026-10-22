@@ -34,7 +34,7 @@ import {
 } from './cache'
 import type { RecalledReply, ResumedCache, Spend, TranscriptFacts } from './cache'
 import { commandPlan, parseCommand } from './command'
-import { MINUTE_MS, contextUsed, fmtCountdown, fmtEta, hostZone, readableZone } from './format'
+import { contextUsed, hostZone, readableZone } from './format'
 import { resolveGlyphs } from './glyphs'
 import {
   fiveHourEtaMs,
@@ -82,6 +82,7 @@ import { DEFAULT_LAYOUT } from './snapshot'
 import type { Glyphs, LayoutName, LimitReading } from './snapshot'
 import { NO_WARNINGS, contextToasts, forgetConversation, limitToasts } from './toast'
 import type { Warned } from './toast'
+import { paintKey } from './words'
 import { homeRelative, parseGitState, splitPath } from './workspace'
 import type { Workspace } from './workspace'
 
@@ -489,11 +490,7 @@ export const register: Register = on => {
     band.tick = $.clock.every(1000, () => {
       void (async () => {
         const now = await $.clock.now()
-        const left = msLeft(now)
-        const eta = fiveHourEtaMs(now)
-        // The minute turns just past the boundary, as the countdowns to a
-        // time on the minute do: on it, they still read the minute before.
-        const key = `${Math.ceil(now / MINUTE_MS)}|${fmtCountdown(left)}|${left > 0}|${eta === null ? '-' : fmtEta(eta)}`
+        const key = paintKey(now, msLeft(now), fiveHourEtaMs(now))
         if (key !== band.lastPaintKey) {
           band.lastPaintKey = key
           $.ui.invalidate('ui.render')
