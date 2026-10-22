@@ -10,8 +10,7 @@ const CLOSE_MS = 10 * MINUTE_MS
 /** How finely a countdown with `ms` left is said: `seconds` in its last
  *  minute, where every form counts seconds; `close` under ten minutes, where
  *  chips' `M:SS` still does and the other forms count whole minutes rounded
- *  up; else `minutes`, whole and rounded down. The one rule every countdown
- *  follows. */
+ *  up; else `minutes`, whole and rounded down. */
 export const grainOf = (ms: number): 'seconds' | 'close' | 'minutes' => (ms < MINUTE_MS ? 'seconds' : ms < CLOSE_MS ? 'close' : 'minutes')
 
 /** Departures' calm last call: an hour's cache this near cold says LAST CALL at
@@ -107,7 +106,7 @@ const fmtSpan = (ms: number): string => {
 const fmtResetSpan = (ms: number): string => (grainOf(ms) === 'close' ? `${minutesLeft(ms)}m` : fmtSpan(ms))
 
 /** When a reset the engine names in ISO time comes, epoch ms; undefined
- *  without a readable time. The one place a reset is parsed. */
+ *  without a readable time. */
 export const parseReset = (iso: string | undefined): number | undefined => {
   if (!iso) return undefined
   const at = Date.parse(iso)

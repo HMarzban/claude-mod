@@ -1,11 +1,11 @@
 // What the band remembers across sessions, in the plugin's own store: when
 // each session last had a reply and the model it was billed under, what a
-// token costs on each model, the
-// layout the band draws in, and a week's worth of limit samples. With the
-// first two a reopened session, or a reload, says whether its cache is cold
-// and what the next message costs, before any reply of its own, and with the
-// samples the week shows the days before this session. What the store leaves
-// unknown of a last reply is recalled off the transcript (transcript.ts).
+// token costs on each model, the layout the band draws in, and a week's
+// worth of limit samples. With the first two a reopened session, or a
+// reload, says whether its cache is cold and what the next message costs,
+// before any reply of its own, and with the samples the week shows the days
+// before this session. What the store leaves unknown of a last reply is
+// recalled off the transcript.
 
 import type { RecalledReply } from './cache'
 import { MINUTE_MS, SEVEN_DAY_MS } from './format'

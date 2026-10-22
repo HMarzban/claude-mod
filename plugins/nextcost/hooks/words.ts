@@ -63,7 +63,7 @@ const contextFill = (frac: number): Say => [[`${AMBER_LEAD}context `, 'amber'], 
 const contextFillShort = (frac: number): Say => [[`${AMBER_LEAD}ctx `, 'amber'], [fmtPct(frac), 'value']]
 
 /** What an amber reading says, long and short, always led by one
- *  `AMBER_LEAD`. Exported for its tests. */
+ *  `AMBER_LEAD`. */
 export const AMBER = {
   cache: (leftShort: string, estimate: string): Amber =>
     amberOf([[AMBER_LEAD, 'amber'], [leftShort, 'value'], [` left · re-warm ${estimate}`, 'amber']], [[AMBER_LEAD, 'amber'], [leftShort, 'value']]),
@@ -91,7 +91,7 @@ export const EMPTY = {
 const fillsBeforeReset = (projectedPct: number): boolean => projectedPct >= 100
 
 /** A window's pace in words: a measured fill first, then the average's
- *  landing. Exported for its tests. */
+ *  landing. */
 export const paceText = (p: Readonly<{ etaMs: number | null; projectedPct: number | undefined }>): string =>
   p.etaMs !== null
     ? `full in ${fmtEta(p.etaMs)}`
@@ -102,8 +102,7 @@ export const paceText = (p: Readonly<{ etaMs: number | null; projectedPct: numbe
         : `on pace for ~${fmtPercent(p.projectedPct)}`
 
 /** What a screen reader hears for a drawn reading: `<name> <value>, <state>,
- *  <more>`, in words. A caller passes "about" and "resets in", never ~ or ↻.
- *  Exported for its tests. */
+ *  <more>`, in words. A caller passes "about" and "resets in", never ~ or ↻. */
 export const altOf = (name: string, value: string, state?: string, more?: string): string =>
   saidJoined([`${name} ${value}`, state, more], ', ')
 
@@ -243,9 +242,8 @@ export const MOOD_ALT: Readonly<Record<CacheFacts['mood'], string>> = {
 export const goneShort = (mood: 'cold' | 'compacted', estimate: string): string => `${mood} ${estimate}`
 
 /** The cache's words for its mood, as the cards, pulse and the board say
- *  them. Chips' row says its own, in chips-words.ts, since its trees are
- *  frozen; what the two say alike they share. `left` and `leftShort` are
- *  the countdown, empty while not counting; `price` is the re-warm, spoken. */
+ *  them; chips' row says its own. `left` and `leftShort` are the countdown,
+ *  empty while not counting; `price` is the re-warm, spoken. */
 const moodWords = (f: CacheFacts, left: string, leftShort: string, price: string): MoodWords => {
   switch (f.mood) {
     case 'unmeasured':

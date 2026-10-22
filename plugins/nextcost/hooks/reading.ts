@@ -1,8 +1,7 @@
 // What the band reads off its snapshot before it draws anything: the cache's
-// meaning as cache.ts reads it, the context's fill, each limit's tone and
-// pace, with their words from words.ts beside them, the board's from
-// board-words.ts and chips' from chips-words.ts. Pure, so readingsOf can be
-// checked without mounting the band.
+// meaning, the context's fill, each limit's tone and pace, with their words
+// beside them, the board's and chips'. Pure, so readingsOf can be checked
+// without mounting the band.
 
 import { cacheFactsOf } from './cache'
 import type { CacheFacts } from './cache'
@@ -173,7 +172,6 @@ const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
 
 /** The conversation's trails with their words and the series a chart draws. */
 const historyReading = (trails: Trails, context: ContextFacts, spend: Readonly<{ totalUsd: number }>): HistoryReading => {
-  // Worked out once: the words, the scale and the chart's rule read it.
   const warmAvgUsd = warmAverageOf(trails.costs)
   return {
     ...trails,

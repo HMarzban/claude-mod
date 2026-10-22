@@ -1,7 +1,6 @@
 // Chips' words: what chips' row says beyond the readings' own, the cache
 // pill's table, the hover cards and the context's amount. Pure, built from
-// the readings' facts and words with the phrasebook's primitives; its
-// wording is frozen with chips' trees, so it keeps its own table.
+// the readings' facts and words with the phrasebook's primitives.
 
 import type { CacheFacts } from './cache'
 import type { ContextFacts, Frame, LimitFacts } from './facts'
@@ -10,8 +9,7 @@ import { IDLE_COMPACT_AT, MOOD_ALT, UNKNOWN, compactsIn, goneShort } from './wor
 import type { SpendWords } from './words'
 
 /** Every word chips' row says about the cache, for one mood: the pill, its
- *  hover and the battery's name. Chips' own table, kept apart from the
- *  phrasebook's `moodWords`, its wording frozen with chips' trees. */
+ *  hover and the battery's name. */
 type CacheCopy = Readonly<{
   pill: (short: boolean) => string
   hover: string

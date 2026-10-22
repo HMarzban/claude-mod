@@ -135,8 +135,7 @@ const wholeDayOf = (start: number, end: number, zone: Zone): number => {
 }
 
 /** The week's day and hour cells, each day named in the offset in force at it.
- *  `samples` are sorted by time, as mergeSamples keeps them. Exported for
- *  its tests. */
+ *  `samples` are sorted by time, as mergeSamples keeps them. */
 export const weekOf = (o: Readonly<{ samples: readonly Sample[]; seven: WindowNow | undefined; five: WindowNow | undefined; now: number; zone: Zone }>): Week => {
   const days = slicesOf(o.samples, o.seven, BY_DAY, o.now, o.zone).map(({ start, end, current, ...slice }): DayCell => {
     // A local day read through the UTC getters.
@@ -165,11 +164,12 @@ export type DrawnWeek = Week &
   Readonly<{
     dayMarks: readonly SliceMark[]
     /** The 5h window's cumulative percent at the end of each hour slice, from
-     *  the hours as drawn, each guess stopped at the cap, its level at now's slice the window's `percentUsed`; empty
-     *  where no slice is measured. `nowAt` is the slice now falls in (counted
-     *  from 0), the last at the very end; undefined where not known or with no
-     *  values. `from` is the first value drawn: those before it are hours
-     *  before the first sample, whose level isn't known. */
+     *  the hours as drawn, each guess stopped at the cap, its level at now's
+     *  slice the window's `percentUsed`; empty where no slice is measured.
+     *  `nowAt` is the slice now falls in (counted from 0), the last at the
+     *  very end; undefined where not known or with no values. `from` is the
+     *  first value drawn: those before it are hours before the first sample,
+     *  whose level isn't known. */
     fiveHourWindow: Readonly<{ values: readonly number[]; nowAt: number | undefined; from: number }>
     /** The 7d's days as day cells draw them, from their capped marks,
      *  so the guesses never pass what is left: each value (undefined where
@@ -182,7 +182,7 @@ export type DrawnWeek = Week &
 /** A window's slices with each guess stopped at the cap: the slice marked
  *  full takes what is left, today's on top of its rise so far, and none is
  *  left after it, so the cells and their words agree. weekOf keeps every
- *  slice's guess. Exported for its tests. */
+ *  slice's guess. */
 export const cappedMarks = (cells: ReadonlyArray<DayCell | HourCell>, percentUsed: number): SliceMark[] => {
   const full = cells.findIndex(c => c.fullMark)
   let left = Math.max(0, 100 - percentUsed)
@@ -201,8 +201,7 @@ export const cappedMarks = (cells: ReadonlyArray<DayCell | HourCell>, percentUse
 
 /** Now's slice among `count`, from its notch counted in slices: the slice
  *  it falls in, the last one at the window's very end, so a now rule never
- *  falls past the chart; undefined with no notch or no slice. Exported for
- *  its tests. */
+ *  falls past the chart; undefined with no notch or no slice. */
 export const windowNowAt = (notch: number | undefined, count: number): number | undefined =>
   notch === undefined || count === 0 ? undefined : Math.min(Math.floor(notch), count - 1)
 
