@@ -420,6 +420,34 @@ const runCommand = async ($: EngineInterface, args: string): Promise<{ text: str
 export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
+    // One timer, repainting only when the drawing would differ: every minute
+    // (the clocks, the battery, the pace tick), and as each countdown turns,
+    // every second where it shows seconds. It and the commands come first, so
+    // a read below that waits or fails never leaves the band without them.
+    band.tick?.cancel()
+    band.tick = $.clock.every(1000, () => {
+      void (async () => {
+        const now = await $.clock.now()
+        const key = paintKey(now, { cacheLeft: msLeft(now), etaMs: fiveHourEtaMs(now), resets: band.resets, zone: readableZone(hostZone, now) })
+        if (key !== band.lastPaintKey) {
+          band.lastPaintKey = key
+          $.ui.invalidate('ui.render')
+        }
+      })().catch(() => undefined)
+    })
+
+    $.command.register({
+      name: 'nextcost',
+      description: 'Show, hide, expand, collapse or restyle nextcost, what your next message costs',
+      argumentHint: '[more | less | show | hide | layout <name>]',
+    })
+    // The command's name before 0.18.0, kept so a habit or a note still works.
+    $.command.register({
+      name: 'usage-band',
+      description: "nextcost's old name: the same as /nextcost",
+      argumentHint: '[more | less | show | hide | layout <name>]',
+    })
+
     const id = await $.session.id().catch(() => undefined)
     resetCache()
     // A resume of another session is no longer news. It is dropped in the
@@ -480,35 +508,8 @@ export const register: Register = on => {
       disableAll: await $.env.get('DISABLE_COMPACT'),
       minTokens: await $.env.get('CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS'),
     })
-
-    // One timer, repainting only when the drawing would differ: every minute
-    // (the clocks, the battery, the pace tick), and as each countdown turns,
-    // every second where it shows seconds.
-    band.tick?.cancel()
-    band.tick = $.clock.every(1000, () => {
-      void (async () => {
-        const now = await $.clock.now()
-        const key = paintKey(now, { cacheLeft: msLeft(now), etaMs: fiveHourEtaMs(now), resets: band.resets, zone: readableZone(hostZone, now) })
-        if (key !== band.lastPaintKey) {
-          band.lastPaintKey = key
-          $.ui.invalidate('ui.render')
-        }
-      })().catch(() => undefined)
-    })
-
-    $.command.register({
-      name: 'nextcost',
-      description: 'Show, hide, expand, collapse or restyle nextcost, what your next message costs',
-      argumentHint: '[more | less | show | hide | layout <name>]',
-    })
-    // The command's name before 0.18.0, kept so a habit or a note still works.
-    $.command.register({
-      name: 'usage-band',
-      description: "nextcost's old name: the same as /nextcost",
-      argumentHint: '[more | less | show | hide | layout <name>]',
-    })
     return next(e)
-  })
+  }).catch(($, e, next) => next(e)) // a failure here must never stop a session starting
 
   // /clear and resume end the conversation but not the process, and no
   // session.start follows, so the next conversation starts from here. A

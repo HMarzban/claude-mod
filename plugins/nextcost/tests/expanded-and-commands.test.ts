@@ -24,6 +24,8 @@ import {
   svgsOf,
   setup,
   mountBand,
+  engine,
+  MIN,
 } from './helpers'
 
 test('the toggle opens the cards, and Hide hides the band', async ($, on) => {
@@ -236,4 +238,25 @@ test('a gap separates the expanded view from the row of chips', async ($, on) =>
   const under = ((await ui.drawn()) as Node).children?.filter(Boolean)[1] as Node | undefined
   expect(under?.props?.marginTop).toBe(1)
   await ui.unmount()
+})
+
+test('the commands are registered before the band reads a transcript to recall the last reply', async ($, on) => {
+  setup(on, { env: { HOME: '/Users/me' } })
+  // How many commands were registered when the recall's tail first read the transcript.
+  let registeredAtRead: number | undefined
+  Object.defineProperty(engine, 'transcript', {
+    configurable: true,
+    enumerable: true,
+    get: () => {
+      if (engine.ran.at(-1)?.[0] === 'tail') registeredAtRead ??= engine.commands.length
+      return undefined
+    },
+    // The next test's reset makes it a plain field again.
+    set: (value: string | undefined) => {
+      Object.defineProperty(engine, 'transcript', { value, writable: true, configurable: true, enumerable: true })
+    },
+  })
+  await $.session.start(START)
+  expect(registeredAtRead).toBe(2)
+  expect(engine.commands).toEqual(['nextcost', 'usage-band'])
 })
