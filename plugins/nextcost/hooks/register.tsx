@@ -10,17 +10,8 @@ import { idleCompactFrom, resolveTtl } from './cache-settings'
 import { commandPlan, parseCommand } from './command'
 import { contextUsed, hostZone, paintKey, readableZone } from './format'
 import { resolveGlyphs } from './glyphs'
-import {
-  fiveHourEtaMs,
-  noteFiveHour,
-  noteTurnEnd,
-  noteTurnStart,
-  pushContext,
-  pushCost,
-  resetConversationInsights,
-  resetInsights,
-  trails,
-} from './insights'
+import { newInsights } from './insights'
+import type { Insights } from './insights'
 import { DARK, resolvePalette } from './palette'
 import type { Palette } from './palette'
 import {
@@ -73,11 +64,13 @@ type Resume = Readonly<{
   transcript: TranscriptFacts | undefined
 }>
 
-/** What the band keeps between hooks, beside the insights' own state. A
- *  reload starts it over with the module; session.start resets the rest. */
+/** What the band keeps between hooks. A reload starts it over with the
+ *  module; session.start resets the rest. */
 const band: {
   /** The cache model, made anew at each session.start. */
   cache: CacheModel
+  /** The insights, made anew beside the cache model. */
+  insights: Insights
   palette: Readonly<Palette>
   /** The layout the band draws in. */
   layout: LayoutName
@@ -113,6 +106,7 @@ const band: {
   tick: Timer | undefined
 } = {
   cache: newCache(),
+  insights: newInsights(),
   palette: DARK,
   layout: DEFAULT_LAYOUT,
   removed: undefined,
@@ -381,7 +375,7 @@ export const register: Register = on => {
         const key = paintKey(now, {
           cacheLeft: band.cache.leftMs(now),
           idleMs: band.cache.idleMs(now),
-          etaMs: fiveHourEtaMs(now),
+          etaMs: band.insights.fiveHourEtaMs(now),
           resets: band.resets,
           zone: readableZone(hostZone, now),
         })
@@ -406,10 +400,10 @@ export const register: Register = on => {
 
     const id = await $.session.id().catch(() => undefined)
     band.cache = newCache()
+    band.insights = newInsights()
     // A resume of another session is no longer news. It is dropped in the
     // same step as the reset, so no read of it can land in between.
     if (band.resume?.sessionId !== id) band.resume = undefined
-    resetInsights()
     band.warned = NO_WARNINGS
     band.lastPaintKey = ''
     band.resets = []
@@ -474,7 +468,7 @@ export const register: Register = on => {
     band.resume = undefined // and any read of it still out is dropped
     const costNow = (await ledgerUsd($)) ?? 0
     band.cache.conversationEnded(costNow, e.reason === 'resume')
-    resetConversationInsights()
+    band.insights.conversationEnded()
     band.warned = forgetConversation(band.warned)
     band.lastPaintKey = ''
     // A resume may be another project.
@@ -498,7 +492,7 @@ export const register: Register = on => {
     // /model may have switched what the session's tokens are priced at.
     const priceModel = await $.session.model().catch(() => undefined)
     const cost = await ledgerUsd($)
-    noteTurnStart(e.turnId, cost)
+    band.insights.noteTurnStart(e.turnId, cost)
     band.cache.turnStarted({ priceModel, ledger: cost })
     return next(e)
   })
@@ -509,12 +503,12 @@ export const register: Register = on => {
     if (e.agentId === undefined) {
       const usage = await $.session.usage().catch(() => undefined)
       const cost = usage?.cost?.usd
-      const spent = noteTurnEnd(e.turnId, cost)
+      const spent = band.insights.noteTurnEnd(e.turnId, cost)
       // Taken every turn, so a rebuild never marks a later turn's cost.
       const ended = band.cache.turnEnded(cost)
-      if (spent !== null) pushCost(spent, ended.rebuilt)
+      if (spent !== null) band.insights.pushCost(spent, ended.rebuilt)
       const used = usage === undefined ? undefined : contextUsed(usage.context)
-      if (used !== undefined) pushContext(used)
+      if (used !== undefined) band.insights.pushContext(used)
       if (ended.remember !== undefined) void rememberTurn($, ended.remember)
       const now = await $.clock.now()
       const sample = usage === undefined ? undefined : sampleOf(now, usage.rateLimits.map(limitOf))
@@ -554,7 +548,7 @@ export const register: Register = on => {
 
   on('session.measure', async ($, e, next) => {
     const now = await $.clock.now()
-    for (const limit of e.rateLimits.map(limitOf)) if (limit.kind === FIVE_HOUR) noteFiveHour(now, limit.percentUsed, limit.resetsAt)
+    for (const limit of e.rateLimits.map(limitOf)) if (limit.kind === FIVE_HOUR) band.insights.noteFiveHour(now, limit.percentUsed, limit.resetsAt)
     const limits = limitToasts(band.warned, e.rateLimits)
     band.warned = limits.warned
     for (const text of limits.say) $.ui.toast(text)
@@ -600,8 +594,8 @@ export const register: Register = on => {
       band,
       cache,
       costUsd,
-      history: trails,
-      etaMs: fiveHourEtaMs(now),
+      history: band.insights.trails(),
+      etaMs: band.insights.fiveHourEtaMs(now),
       // Read at each instant drawn, so a daylight-saving change shows by
       // the next minute's repaint, with no reply needed.
       zone: readableZone(hostZone, now),

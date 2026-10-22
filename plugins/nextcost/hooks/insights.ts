@@ -1,6 +1,7 @@
 // What the band can tell you that the engine's own figures don't: what your
 // last message cost, when your pace fills the 5-hour limit, and the trails
-// pulse draws: each message's cost, and the context.
+// pulse draws: each message's cost, and the context. One set per session,
+// made at session.start beside the cache model.
 
 import { MINUTE_MS, sameReset } from './format'
 
@@ -11,20 +12,6 @@ const LOOKBACK_MS = 30 * MINUTE_MS
 const MIN_SPAN_MS = 10 * MINUTE_MS
 const MIN_RISE = 2
 const STALE_MS = 15 * MINUTE_MS
-
-type InsightState = {
-  turnStartCost: Map<string, number>
-  /** The 5-hour window's use as measured, oldest first, within the lookback. */
-  points: PacePoint[]
-  /** When the 5-hour window resets, epoch ms. */
-  resetsAt: number | undefined
-}
-
-const state: InsightState = {
-  turnStartCost: new Map(),
-  points: [],
-  resetsAt: undefined,
-}
 
 /** The newest messages' costs the cost trail keeps. */
 export const COST_TRAIL = 24
@@ -44,83 +31,91 @@ export const warmAverageOf = (costs: readonly CostEntry[]): number | undefined =
   return warm.length === 0 ? undefined : warm.reduce((sum, e) => sum + e.usd, 0) / warm.length
 }
 
-// Changed in place only, so the snapshot can hold them by reference.
-const kept: { costs: CostEntry[]; context: number[] } = { costs: [], context: [] }
-
-/** The trails, read-only: the arrays the push functions keep, passed by reference. */
-export const trails: Trails = kept
-
 /** What the last message cost: the trail's newest cost, the one fact every
  *  layout reads; null before the conversation's first. A turn that cost
  *  nothing is never on the trail, so the last that did still stands. */
 export const lastCostOf = (t: Trails): number | null => t.costs.at(-1)?.usd ?? null
 
-/** Keeps the newest `cap` of `list`, in place. */
-const capped = <T>(list: T[], cap: number): void => {
-  if (list.length > cap) list.splice(0, list.length - cap)
+type InsightState = {
+  /** The ledger as each open main-loop turn started, by turn id. */
+  turnStartCost: Map<string, number>
+  /** The 5-hour window's use as measured, oldest first, within the lookback. */
+  points: readonly PacePoint[]
+  /** When the 5-hour window resets, epoch ms. */
+  resetsAt: number | undefined
+  /** Each trail, replaced on every push and never changed in place, so a
+   *  snapshot that holds one holds it as it stood. */
+  costs: readonly CostEntry[]
+  context: readonly number[]
 }
 
-export const pushCost = (usd: number, reWarm: boolean): void => {
-  kept.costs.push({ usd, reWarm })
-  capped(kept.costs, COST_TRAIL)
-}
+/** One session's insights. Each entry is a hook's facts, in its shape. */
+export type Insights = Readonly<{
+  /** turn.start of a main-loop turn: the ledger as it starts. */
+  noteTurnStart: (turnId: string, costUsd: number | undefined) => void
+  /** turn.complete of a main-loop turn: everything the ledger rose by during
+   *  it, its tool calls and subagents and any background work that ran
+   *  meanwhile; null unless known and above zero. */
+  noteTurnEnd: (turnId: string, costUsd: number | undefined) => number | null
+  /** What a main-loop message cost, and whether its turn rebuilt the cache. */
+  pushCost: (usd: number, reWarm: boolean) => void
+  /** The context's tokens at a turn's end. */
+  pushContext: (tokens: number) => void
+  /** session.measure: the 5-hour window's use at `now`, and its reset. */
+  noteFiveHour: (now: number, percentUsed: number, resetsAt: number | undefined) => void
+  /** Time until your pace fills the 5-hour window, or null while the
+   *  evidence is thin, stale, or the window resets first. */
+  fiveHourEtaMs: (now: number) => number | null
+  /** session.end: a new conversation (/clear, resume). Its turns and their
+   *  trails start over, but the 5-hour window is account-wide, so its pace
+   *  carries on. */
+  conversationEnded: () => void
+  /** The trails as they stand, for a snapshot to hold. */
+  trails: () => Trails
+}>
 
-/** The context's tokens at a turn's end. */
-export const pushContext = (tokens: number): void => {
-  kept.context.push(tokens)
-  capped(kept.context, CONTEXT_TRAIL)
-}
-
-/** A new conversation (/clear, resume): its turns and their trails start
- *  over, but the 5-hour window is account-wide, so its pace carries on. */
-export const resetConversationInsights = (): void => {
-  state.turnStartCost.clear()
-  kept.costs.length = 0
-  kept.context.length = 0
-}
-
-export const resetInsights = (): void => {
-  resetConversationInsights()
-  state.points = []
-  state.resetsAt = undefined
-}
-
-export const noteTurnStart = (turnId: string, costUsd: number | undefined): void => {
-  if (costUsd !== undefined) state.turnStartCost.set(turnId, costUsd)
-}
-
-/** Everything the ledger rose by during the turn: its tool calls and
- *  subagents, and any background work that ran meanwhile. Returns what the
- *  turn cost, when known and above zero. */
-export const noteTurnEnd = (turnId: string, costUsd: number | undefined): number | null => {
-  const start = state.turnStartCost.get(turnId)
-  state.turnStartCost.delete(turnId)
-  if (start === undefined || costUsd === undefined) return null
-  const spent = costUsd - start
-  return spent > 0 ? spent : null
-}
-
-export const noteFiveHour = (now: number, percentUsed: number, resetsAt: number | undefined): void => {
-  const last = state.points[state.points.length - 1]
-  if (!sameReset(resetsAt, state.resetsAt) || (last !== undefined && percentUsed < last.pct)) {
-    state.points = []
+/** A session's insights, before anything is known of it. */
+export const newInsights = (): Insights => {
+  const s: InsightState = { turnStartCost: new Map(), points: [], resetsAt: undefined, costs: [], context: [] }
+  return {
+    noteTurnStart: (turnId, costUsd) => {
+      if (costUsd !== undefined) s.turnStartCost.set(turnId, costUsd)
+    },
+    noteTurnEnd: (turnId, costUsd) => {
+      const start = s.turnStartCost.get(turnId)
+      s.turnStartCost.delete(turnId)
+      if (start === undefined || costUsd === undefined) return null
+      const spent = costUsd - start
+      return spent > 0 ? spent : null
+    },
+    pushCost: (usd, reWarm) => {
+      s.costs = [...s.costs, { usd, reWarm }].slice(-COST_TRAIL)
+    },
+    pushContext: tokens => {
+      s.context = [...s.context, tokens].slice(-CONTEXT_TRAIL)
+    },
+    noteFiveHour: (now, percentUsed, resetsAt) => {
+      const last = s.points.at(-1)
+      const kept = !sameReset(resetsAt, s.resetsAt) || (last !== undefined && percentUsed < last.pct) ? [] : s.points
+      s.resetsAt = resetsAt
+      s.points = [...kept, { at: now, pct: percentUsed }].filter(p => now - p.at <= LOOKBACK_MS)
+    },
+    fiveHourEtaMs: now => {
+      const first = s.points[0]
+      const last = s.points.at(-1)
+      if (first === undefined || last === undefined || last.pct >= 100) return null
+      const span = last.at - first.at
+      const rise = last.pct - first.pct
+      if (span < MIN_SPAN_MS || rise < MIN_RISE || now - last.at > STALE_MS) return null
+      const tFull = last.at + ((100 - last.pct) * span) / rise
+      if (s.resetsAt !== undefined && tFull >= s.resetsAt) return null
+      return Math.max(0, tFull - now)
+    },
+    conversationEnded: () => {
+      s.turnStartCost.clear()
+      s.costs = []
+      s.context = []
+    },
+    trails: () => ({ costs: s.costs, context: s.context }),
   }
-  state.resetsAt = resetsAt
-  state.points.push({ at: now, pct: percentUsed })
-  state.points = state.points.filter(p => now - p.at <= LOOKBACK_MS)
 }
-
-/** Time until your pace fills the 5-hour window, or null while the
- *  evidence is thin, stale, or the window resets first. */
-export const fiveHourEtaMs = (now: number): number | null => {
-  const first = state.points[0]
-  const last = state.points[state.points.length - 1]
-  if (first === undefined || last === undefined || last.pct >= 100) return null
-  const span = last.at - first.at
-  const rise = last.pct - first.pct
-  if (span < MIN_SPAN_MS || rise < MIN_RISE || now - last.at > STALE_MS) return null
-  const tFull = last.at + ((100 - last.pct) * span) / rise
-  if (state.resetsAt !== undefined && tFull >= state.resetsAt) return null
-  return Math.max(0, tFull - now)
-}
-

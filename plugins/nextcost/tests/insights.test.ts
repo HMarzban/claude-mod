@@ -3,125 +3,123 @@
 
 import { test, expect } from 'claude-code/testing'
 import { fmtEta } from '../hooks/format'
-import {
-  COST_TRAIL,
-  CONTEXT_TRAIL,
-  fiveHourEtaMs,
-  noteFiveHour,
-  noteTurnEnd,
-  noteTurnStart,
-  pushContext,
-  pushCost,
-  resetConversationInsights,
-  resetInsights,
-  trails,
-} from '../hooks/insights'
+import { COST_TRAIL, CONTEXT_TRAIL, newInsights } from '../hooks/insights'
 import { BUILD_155K, MIN, endTurn, fact, mountBand, respond, setup, START, startTurn, turn } from './helpers'
 
 const cents = (n: number | null): number | null => (n === null ? null : Math.round(n * 100))
 const RESET_IN_3H = 3 * 60 * MIN
 
 test('the cost trail keeps the last 24 messages', () => {
-  resetInsights()
-  for (let i = 0; i < 30; i++) pushCost(i, false)
-  expect(trails.costs).toHaveLength(COST_TRAIL)
-  expect([trails.costs[0]?.usd, trails.costs.at(-1)?.usd]).toEqual([6, 29])
+  const i = newInsights()
+  for (let n = 0; n < 30; n++) i.pushCost(n, false)
+  const { costs } = i.trails()
+  expect(costs).toHaveLength(COST_TRAIL)
+  expect([costs[0]?.usd, costs.at(-1)?.usd]).toEqual([6, 29])
 })
 test('the context trail keeps the last 40 turns', () => {
-  resetInsights()
-  for (let i = 0; i < 50; i++) pushContext(i * 1000)
-  expect(trails.context).toHaveLength(CONTEXT_TRAIL)
+  const i = newInsights()
+  for (let n = 0; n < 50; n++) i.pushContext(n * 1000)
+  expect(i.trails().context).toHaveLength(CONTEXT_TRAIL)
 })
-test('/clear empties the conversation trails; a new session empties them too', () => {
-  resetInsights()
-  pushCost(1, false)
-  pushContext(1000)
-  resetConversationInsights()
-  expect([trails.costs.length, trails.context.length]).toEqual([0, 0])
+test('/clear empties the conversation trails', () => {
+  const i = newInsights()
+  i.pushCost(1, false)
+  i.pushContext(1000)
+  i.conversationEnded()
+  expect(i.trails()).toEqual({ costs: [], context: [] })
+})
+test('trails taken for a snapshot stay as they stood', () => {
+  const i = newInsights()
+  i.pushCost(1, false)
+  i.pushContext(1000)
+  const held = i.trails()
+  i.pushCost(2, true)
+  i.conversationEnded()
+  expect(held).toEqual({ costs: [{ usd: 1, reWarm: false }], context: [1000] })
 })
 test("last turn's cost is the ledger's rise across one turn", () => {
-  resetInsights()
-  noteTurnStart('t1', 2.0)
-  expect(cents(noteTurnEnd('t1', 2.41))).toBe(41)
+  const i = newInsights()
+  i.noteTurnStart('t1', 2.0)
+  expect(cents(i.noteTurnEnd('t1', 2.41))).toBe(41)
 })
 
 test('a turn that never started leaves nothing to show', () => {
-  resetInsights()
-  expect(noteTurnEnd('never-started', 5)).toBe(null)
+  const i = newInsights()
+  expect(i.noteTurnEnd('never-started', 5)).toBe(null)
 })
 
 test('a turn without a ledger leaves nothing to show', () => {
-  resetInsights()
-  noteTurnStart('t1', undefined)
-  expect(noteTurnEnd('t1', 3)).toBe(null)
+  const i = newInsights()
+  i.noteTurnStart('t1', undefined)
+  expect(i.noteTurnEnd('t1', 3)).toBe(null)
 })
 
 test('a turn that spent nothing leaves nothing to show', () => {
-  resetInsights()
-  noteTurnStart('t2', 3)
-  expect(noteTurnEnd('t2', 3)).toBe(null)
+  const i = newInsights()
+  i.noteTurnStart('t2', 3)
+  expect(i.noteTurnEnd('t2', 3)).toBe(null)
 })
 
 test('the ETA needs ten minutes of evidence', () => {
-  resetInsights()
-  noteFiveHour(0, 40, RESET_IN_3H)
-  noteFiveHour(8 * MIN, 46, RESET_IN_3H)
-  expect(fiveHourEtaMs(8 * MIN)).toBe(null)
+  const i = newInsights()
+  i.noteFiveHour(0, 40, RESET_IN_3H)
+  i.noteFiveHour(8 * MIN, 46, RESET_IN_3H)
+  expect(i.fiveHourEtaMs(8 * MIN)).toBe(null)
 })
 
 test('the ETA needs a two-point rise', () => {
-  resetInsights()
-  noteFiveHour(0, 40, RESET_IN_3H)
-  noteFiveHour(12 * MIN, 41, RESET_IN_3H)
-  expect(fiveHourEtaMs(12 * MIN)).toBe(null)
+  const i = newInsights()
+  i.noteFiveHour(0, 40, RESET_IN_3H)
+  i.noteFiveHour(12 * MIN, 41, RESET_IN_3H)
+  expect(i.fiveHourEtaMs(12 * MIN)).toBe(null)
 })
 
 test('the ETA projects the pace from the first to the newest sample', () => {
-  resetInsights()
-  noteFiveHour(0, 40, RESET_IN_3H)
-  noteFiveHour(12 * MIN, 46, RESET_IN_3H) // 0.5 points a minute, 54 to go
-  expect(fiveHourEtaMs(12 * MIN)).toBe(108 * MIN)
+  const i = newInsights()
+  i.noteFiveHour(0, 40, RESET_IN_3H)
+  i.noteFiveHour(12 * MIN, 46, RESET_IN_3H) // 0.5 points a minute, 54 to go
+  expect(i.fiveHourEtaMs(12 * MIN)).toBe(108 * MIN)
   expect(fmtEta(108 * MIN)).toBe('~1h 45m')
 })
 
 test('the ETA hides when the samples go stale', () => {
-  resetInsights()
-  noteFiveHour(0, 40, RESET_IN_3H)
-  noteFiveHour(12 * MIN, 46, RESET_IN_3H)
-  expect(fiveHourEtaMs(27 * MIN)).not.toBe(null) // exactly 15 minutes: still fresh
-  expect(fiveHourEtaMs(28 * MIN)).toBe(null) // 16 minutes: stale
+  const i = newInsights()
+  i.noteFiveHour(0, 40, RESET_IN_3H)
+  i.noteFiveHour(12 * MIN, 46, RESET_IN_3H)
+  expect(i.fiveHourEtaMs(27 * MIN)).not.toBe(null) // exactly 15 minutes: still fresh
+  expect(i.fiveHourEtaMs(28 * MIN)).toBe(null) // 16 minutes: stale
 })
 
 test('the ETA hides when the window resets first', () => {
-  resetInsights()
+  const i = newInsights()
   const soon = 30 * MIN
-  noteFiveHour(0, 40, soon)
-  noteFiveHour(12 * MIN, 46, soon) // fills at 120m, resets at 30m
-  expect(fiveHourEtaMs(12 * MIN)).toBe(null)
+  i.noteFiveHour(0, 40, soon)
+  i.noteFiveHour(12 * MIN, 46, soon) // fills at 120m, resets at 30m
+  expect(i.fiveHourEtaMs(12 * MIN)).toBe(null)
 })
 
 test('no ETA once the window is full', () => {
-  resetInsights()
-  noteFiveHour(0, 90, RESET_IN_3H)
-  noteFiveHour(12 * MIN, 100, RESET_IN_3H)
-  expect(fiveHourEtaMs(12 * MIN)).toBe(null)
+  const i = newInsights()
+  i.noteFiveHour(0, 90, RESET_IN_3H)
+  i.noteFiveHour(12 * MIN, 100, RESET_IN_3H)
+  expect(i.fiveHourEtaMs(12 * MIN)).toBe(null)
 })
 
 test('jitter in resetsAt keeps the samples; a real reset clears them', () => {
-  resetInsights()
-  noteFiveHour(0, 40, 3 * 60 * MIN)
-  noteFiveHour(12 * MIN, 46, 3 * 60 * MIN + 2_000) // 2s jitter
-  expect(fiveHourEtaMs(12 * MIN)).not.toBe(null)
-  noteFiveHour(13 * MIN, 2, 8 * 60 * MIN) // new window
-  expect(fiveHourEtaMs(13 * MIN)).toBe(null)
+  const i = newInsights()
+  i.noteFiveHour(0, 40, 3 * 60 * MIN)
+  i.noteFiveHour(12 * MIN, 46, 3 * 60 * MIN + 2_000) // 2s jitter
+  expect(i.fiveHourEtaMs(12 * MIN)).not.toBe(null)
+  i.noteFiveHour(13 * MIN, 2, 8 * 60 * MIN) // new window
+  expect(i.fiveHourEtaMs(13 * MIN)).toBe(null)
 })
 
 test('old samples fall out of the 30-minute window', () => {
-  resetInsights()
-  noteFiveHour(0, 10, RESET_IN_3H)
-  noteFiveHour(40 * MIN, 12, RESET_IN_3H)
-  noteFiveHour(52 * MIN, 13, RESET_IN_3H) // only 40m and 52m remain: 1 point
-  expect(fiveHourEtaMs(52 * MIN)).toBe(null)
+  const i = newInsights()
+  i.noteFiveHour(0, 10, RESET_IN_3H)
+  i.noteFiveHour(40 * MIN, 12, RESET_IN_3H)
+  i.noteFiveHour(52 * MIN, 13, RESET_IN_3H) // only 40m and 52m remain: 1 point
+  expect(i.fiveHourEtaMs(52 * MIN)).toBe(null)
 })
 
 test('the ETA rounds to 5 minutes under an hour and 15 from an hour', () => {
