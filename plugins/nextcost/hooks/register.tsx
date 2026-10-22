@@ -188,10 +188,10 @@ const spendBefore = async ($: EngineInterface, path: string, sessionId: string, 
 }
 
 /** Recalls when `sessionId` last had a reply, the model it was billed
- *  under, and what a token costs there, as memory.ts's recallOf weighs them: the band's own store,
- *  then for what it leaves unknown, the end of the transcript `readEnd`
- *  reads. Recalled once per load or resume, and only those facts kept; the
- *  caller notes them. Never throws: unknown stays unknown. */
+ *  under, and what a token costs there: the band's own store, then for what
+ *  it leaves unknown, the end of the transcript `readEnd` reads. Recalled
+ *  once per load or resume, and only those facts kept; the caller notes
+ *  them. Never throws: unknown stays unknown. */
 const recallLastReply = async (
   $: EngineInterface,
   sessionId: string,
@@ -615,7 +615,6 @@ export const register: Register = on => {
     const usage = await $.session.usage().catch(() => undefined)
     if (usage === undefined) return next(e)
     const now = await $.clock.now()
-    // The ledger is noted here, before the snapshot is built from the cache's view.
     const { cache, costUsd } = band.cache.view({ now, ledger: usage.cost?.usd, contextTokens: contextUsed(usage.context) ?? 0, autoCompactOff: band.autoCompactOff })
     const snap = snapshotOf({
       usage,

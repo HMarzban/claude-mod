@@ -65,7 +65,7 @@ const factFits = (kit: Kit, label: string, value: string, room: number): boolean
 
 /** Everything the plan and the cards read, worked out once a draw. */
 type Facts = Readonly<{
-  /** Whether charts draw here, as chartsDraw says. */
+  /** Whether charts draw here: the desktop's, and the unicode tier's braille. */
   charts: boolean
   windows: readonly LimitReading[]
   others: readonly LimitReading[]

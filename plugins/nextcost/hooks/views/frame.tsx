@@ -1,7 +1,7 @@
 // What every layout's frame shares: the toggle on the row nearest the
 // prompt, the rows an open view is given beneath the collapsed lines, the
-// footer, and how a collapsed row gives way to fit: the one engine every
-// layout squeezes its row with, and the line pulse and departures lay.
+// footer, how a collapsed row gives way to fit its room, and the line pulse
+// and departures lay.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import type { Tone } from '../facts'

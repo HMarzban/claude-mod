@@ -1,7 +1,7 @@
 // The snapshot register.tsx reads for the band, and what the band can do
 // back: the one contract between the engine side and the drawing, and the
-// one way to build it, which the tests build theirs by too. With it, the
-// layouts' names, and those a stored layout or the command may still name.
+// one way to build it. With it, the layouts' names, and those a stored
+// layout or the command may still name.
 
 import type { RenderSurface, SessionRateLimit, SessionUsage } from 'claude-code'
 import type { CacheView } from './cache'
