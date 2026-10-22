@@ -1,4 +1,5 @@
-// Numbers, times and escalation marks, as the band words them.
+// Numbers, times and escalation marks, as the band words them, and the
+// paint key: every phrase the clock alone moves, as one key.
 
 import { charCells, textCells } from './layout'
 
@@ -275,6 +276,11 @@ export const fmtLeftShort = (ms: number): string => {
 /** A countdown in words: `1h 00m left`, `52m left`, `10m left`, `47s left`. */
 export const fmtLeft = (ms: number): string => `${fmtLeftShort(ms)} left`
 
+/** A measured span on the departures board: `47S`, `38 MIN`, `1H 04M`.
+ *  Never `38M`. */
+export const boardSpan = (ms: number): string =>
+  grainOf(ms) === 'seconds' ? `${secondsLeft(ms)}S` : ms < HOUR_MS ? `${minutesLeft(ms)} MIN` : fmtCountdown(ms)
+
 export const plural = (n: number, unit: string): string => `${n} ${unit}${n === 1 ? '' : 's'}`
 
 /** Whole minutes spelled out: `40 minutes`, `1 hour`, `1 hour 5 minutes`. */
@@ -295,3 +301,24 @@ export const fmtEtaSpoken = (ms: number): string => `about ${spokenMinutes(etaMi
  *  undefined when the engine reports neither. */
 export const contextUsed = (ctx: Readonly<{ tokens?: number; percent?: number; window: number }>): number | undefined =>
   ctx.tokens ?? (ctx.percent === undefined ? undefined : (ctx.percent / 100) * ctx.window)
+
+/** A reset's countdown as every layout says it: the span a card and, with
+ *  no zone known, a limit's words say, and the board's, which with no zone
+ *  counts its last minute's seconds; with a zone the board says a clock. */
+const resetSpans = (left: number, zone: Zone | undefined): string =>
+  left <= 0 ? 'passed' : zone === undefined ? `${fmtResetSpan(left)} ${boardSpan(left)}` : fmtResetSpan(left)
+
+/** Every phrase the clock alone moves, as one key, so the 1-second tick
+ *  repaints only when one would read differently: the minute (the clocks
+ *  and the battery), the cache's countdown, the 5-hour fill's projection,
+ *  and each reset's countdown, which turns on the reset's own minute. The
+ *  minute turns just past the boundary, as the countdowns to a time on the
+ *  minute do: on it, they still read the minute before. */
+export const paintKey = (now: number, t: Readonly<{ cacheLeft: number; etaMs: number | null; resets: readonly number[]; zone: Zone | undefined }>): string =>
+  [
+    Math.ceil(now / MINUTE_MS),
+    fmtCountdown(t.cacheLeft),
+    t.cacheLeft > 0,
+    t.etaMs === null ? '-' : fmtEta(t.etaMs),
+    ...t.resets.map(at => resetSpans(at - now, t.zone)),
+  ].join('|')

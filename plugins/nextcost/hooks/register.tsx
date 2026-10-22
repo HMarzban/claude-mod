@@ -7,7 +7,7 @@ import { drawBand } from './band'
 import { idleCompactFrom, newCache, resolveTtl } from './cache'
 import type { CacheModel, RecalledReply, Remembered, ResumedCache, Spend, TranscriptFacts } from './cache'
 import { commandPlan, parseCommand } from './command'
-import { contextUsed, hostZone, readableZone } from './format'
+import { contextUsed, hostZone, paintKey, readableZone } from './format'
 import { resolveGlyphs } from './glyphs'
 import {
   fiveHourEtaMs,
@@ -46,7 +46,6 @@ import type { Glyphs, LayoutName } from './snapshot'
 import { NO_WARNINGS, contextToasts, forgetConversation, limitToasts } from './toast'
 import { READ_LIMIT, lastWriteTtl, sessionCostRecord, transcriptPath, transcriptSpend } from './transcript'
 import type { Warned } from './toast'
-import { paintKey } from './words'
 import { homeRelative, parseGitState, splitPath } from './workspace'
 import type { Workspace } from './workspace'
 

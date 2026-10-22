@@ -5,10 +5,10 @@
 // layout says, in its own voice.
 
 import type { CacheFacts } from './cache'
-import { etaMinutes, fmtClock, fmtDayClock, fmtEta } from './format'
+import { boardSpan, etaMinutes, fmtClock, fmtDayClock, fmtEta } from './format'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
 import type { ContextFacts, Frame, LimitFacts, LimitKey, SpendFacts, Tone } from './reading'
-import { AMBER_LEAD, EMPTY, boardSpan, compactsIn, saidJoined } from './words'
+import { AMBER_LEAD, EMPTY, compactsIn, saidJoined } from './words'
 import type { CacheWords, ContextWords, LimitWords, SpendWords } from './words'
 
 export type BoardKey = 'cache' | 'spend' | 'context' | '5h' | '7d' | 'other'

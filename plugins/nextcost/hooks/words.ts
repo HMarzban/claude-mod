@@ -4,7 +4,6 @@
 // The departures board's words are board-words.ts's, built from these.
 
 import type { SliceMark, Week } from './calendar'
-import type { Zone } from './format'
 import {
   clamp01,
   fmtAgo,
@@ -19,14 +18,8 @@ import {
   fmtLeftShort,
   fmtLeftSpoken,
   fmtPct,
-  fmtResetSpan,
   fmtSmallCost,
   fmtTokens,
-  grainOf,
-  HOUR_MS,
-  MINUTE_MS,
-  minutesLeft,
-  secondsLeft,
   severityMark,
 } from './format'
 import { IDLE_COMPACT_MS } from './cache'
@@ -673,31 +666,3 @@ export const weekWords = (
       ? ''
       : `5h window from start to reset, ${five.valueText} used${five.projectedPct === undefined ? '' : `, on pace for about ${Math.round(five.projectedPct)}%`}`,
 })
-
-// ---- the clock ---------------------------------------------------------------
-
-/** A measured span on the board: `47S`, `38 MIN`, `1H 04M`. Never `38M`.
- *  Here, not with the board's words, since the paint key reads it too. */
-export const boardSpan = (ms: number): string =>
-  grainOf(ms) === 'seconds' ? `${secondsLeft(ms)}S` : ms < HOUR_MS ? `${minutesLeft(ms)} MIN` : fmtCountdown(ms)
-
-/** A reset's countdown as every layout says it: the span a card and, with
- *  no zone known, a limit's words say, and the board's, which with no zone
- *  counts its last minute's seconds; with a zone the board says a clock. */
-const resetSpans = (left: number, zone: Zone | undefined): string =>
-  left <= 0 ? 'passed' : zone === undefined ? `${fmtResetSpan(left)} ${boardSpan(left)}` : fmtResetSpan(left)
-
-/** Every phrase the clock alone moves, as one key, so the 1-second tick
- *  repaints only when one would read differently: the minute (the clocks
- *  and the battery), the cache's countdown, the 5-hour fill's projection,
- *  and each reset's countdown, which turns on the reset's own minute. The
- *  minute turns just past the boundary, as the countdowns to a time on the
- *  minute do: on it, they still read the minute before. */
-export const paintKey = (now: number, t: Readonly<{ cacheLeft: number; etaMs: number | null; resets: readonly number[]; zone: Zone | undefined }>): string =>
-  [
-    Math.ceil(now / MINUTE_MS),
-    fmtCountdown(t.cacheLeft),
-    t.cacheLeft > 0,
-    t.etaMs === null ? '-' : fmtEta(t.etaMs),
-    ...t.resets.map(at => resetSpans(at - now, t.zone)),
-  ].join('|')
