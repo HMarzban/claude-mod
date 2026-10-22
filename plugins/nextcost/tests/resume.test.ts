@@ -5,7 +5,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
-import { FRESH, HOUR, MIN, START, cardOf, engine, fact, pillOf, resp, respond, shown, transcriptOf, usage, setup, mountBand } from './helpers'
+import { FRESH, HOUR, LONG, MIN, START, cardOf, engine, fact, pillOf, resp, respond, shown, transcriptOf, usage, setup, mountBand } from './helpers'
 
 const ENV = { ENABLE_PROMPT_CACHING_1H: '1', HOME: '/Users/me' }
 const MODEL = 'claude-opus-5-5'
@@ -144,7 +144,7 @@ test('a rate solved on a session named by an alias is remembered under the alias
   expect(Object.keys(engine.store.rates as Record<string, number>)).toEqual(['opus'])
 })
 
-test('reloaded, a session named by an alias recalls its rate from the store, with no transcript to read', async ($, on) => {
+test('reloaded, a session named by an alias recalls its rate from the store, with no transcript to read', LONG, async ($, on) => {
   const clock = setup(on, { env: ENV })
   engine.model = 'opus[1m]'
   await $.session.start(START)
