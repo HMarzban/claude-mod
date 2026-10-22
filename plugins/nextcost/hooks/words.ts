@@ -51,6 +51,11 @@ const said = (parts: ReadonlyArray<string | undefined>): string[] => parts.filte
 /** The phrases said, joined by `sep`. */
 const saidJoined = (parts: ReadonlyArray<string | undefined>, sep: string): string => said(parts).join(sep)
 
+/** The room before auto-compaction, an estimate: `~14k`. */
+export const roomOf = (toCompact: number): string => `~${fmtTokens(toCompact)}`
+/** Near compaction, the room before it: `compacts in ~14k`. */
+const compactsIn = (toCompact: number): string => `compacts in ${roomOf(toCompact)}`
+
 const amberOf = (say: Say, sayShort: Say): Amber => ({ long: joined(say), short: joined(sayShort) })
 
 /** What an amber reading says, long and short, always led by one `AMBER_LEAD`. */
@@ -59,7 +64,7 @@ export const AMBER = {
     amberOf([[AMBER_LEAD, 'amber'], [leftShort, 'value'], [` left · re-warm ${estimate}`, 'amber']], [[AMBER_LEAD, 'amber'], [leftShort, 'value']]),
   context: (frac: number, toCompact: number): Amber =>
     amberOf(
-      [[`${AMBER_LEAD}context `, 'amber'], [fmtPct(frac), 'value'], [` · compacts in ~${fmtTokens(toCompact)}`, 'amber']],
+      [[`${AMBER_LEAD}context `, 'amber'], [fmtPct(frac), 'value'], [` · ${compactsIn(toCompact)}`, 'amber']],
       [[`${AMBER_LEAD}ctx `, 'amber'], [fmtPct(frac), 'value']],
     ),
   contextNoCompaction: (frac: number): Amber =>
@@ -413,13 +418,13 @@ export const cacheCopy = (f: CacheFacts, frame: Frame): CacheCopy => {
 export const contextWords = (f: ContextFacts): ContextWords => {
   const value = f.known ? f.pct : UNKNOWN
   const towardText = f.compactAt !== undefined ? 'toward compaction' : 'of the window'
-  const roomText = !f.known || f.compactAt === undefined ? undefined : `~${fmtTokens(f.toCompact)}`
+  const roomText = !f.known || f.compactAt === undefined ? undefined : roomOf(f.toCompact)
   const say: Say = [['context ', 'label'], [value, 'value']]
   const amber = f.tone !== 'amber' ? undefined : f.compactAt !== undefined ? AMBER.context(f.frac, f.toCompact) : AMBER.contextNoCompaction(f.frac)
   const cardHead: Say = [[`${f.pct}${f.compactAt === undefined ? severityMark(f.frac) : ''}`, 'value'], [' full', 'label']]
   const compactsAtText = f.compactAt === undefined ? undefined : fmtTokens(f.compactAt)
   // Near compaction, the room before it; else where it compacts.
-  const compaction = f.compactAt === undefined ? undefined : amber !== undefined ? `compacts in ~${fmtTokens(f.toCompact)}` : `compacts at ${fmtTokens(f.compactAt)}`
+  const compaction = f.compactAt === undefined ? undefined : amber !== undefined ? compactsIn(f.toCompact) : `compacts at ${fmtTokens(f.compactAt)}`
   const inContext = f.known ? fmtTokens(f.used) : UNKNOWN
   return {
     valueText: value,
@@ -710,7 +715,7 @@ const contextBoard = (r: BoardFacts): BoardRow => {
   // Near compaction the board names the event; with compaction off, the
   // fill. The group's ITEM already says CONTEXT, so its cell never does.
   const short = `${AMBER_LEAD}${x.valueText}`
-  const long = x.toCompact === undefined ? short : `${AMBER_LEAD}COMPACTS IN ~${fmtTokens(x.toCompact)}`
+  const long = x.toCompact === undefined ? short : `${AMBER_LEAD}${compactsIn(x.toCompact)}`
   return { ...base, status: long, remarks, cell: long, cellShort: short, tone: 'amber' }
 }
 

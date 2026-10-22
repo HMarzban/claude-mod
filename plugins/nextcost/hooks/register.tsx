@@ -34,7 +34,7 @@ import {
 } from './cache'
 import type { RecalledReply, ResumedCache, Spend, TranscriptFacts } from './cache'
 import { commandPlan, parseCommand } from './command'
-import { MINUTE_MS, SEVERE_AT, WARN_AT, contextPressure, contextUsed, fmtCountdown, fmtEta, fmtTokens, hostZone, readableZone } from './format'
+import { MINUTE_MS, contextUsed, fmtCountdown, fmtEta, hostZone, readableZone } from './format'
 import { resolveGlyphs } from './glyphs'
 import {
   fiveHourEtaMs,
@@ -42,7 +42,6 @@ import {
   noteFiveHour,
   noteTurnEnd,
   noteTurnStart,
-  escalate,
   pushContext,
   pushCost,
   resetConversationInsights,
@@ -81,13 +80,13 @@ import {
 import type { Sample } from './memory'
 import { DEFAULT_LAYOUT } from './snapshot'
 import type { Glyphs, LayoutName, LimitReading } from './snapshot'
+import { NO_WARNINGS, contextToasts, forgetConversation, limitToasts } from './toast'
+import type { Warned } from './toast'
 import { homeRelative, parseGitState, splitPath } from './workspace'
 import type { Workspace } from './workspace'
 
 const isHidden = atom({ plugin: 'nextcost', key: 'isHidden' } as const, false)
 const isExpanded = atom({ plugin: 'nextcost', key: 'isExpanded' } as const, false)
-
-const CONTEXT_WARN = 'context'
 
 /** Long enough for a large repository's status or a transcript's tail,
  *  short enough that a hung command never holds a read open for long. */
@@ -144,7 +143,7 @@ const band: {
   /** What the band last drew, so the timer repaints only when it would change. */
   lastPaintKey: string
   /** Each toast's level reached, so it speaks once per crossing. */
-  warned: Map<string, number>
+  warned: Warned
   tick: Timer | undefined
 } = {
   palette: DARK,
@@ -160,7 +159,7 @@ const band: {
   reads: 0,
   resume: undefined,
   lastPaintKey: '',
-  warned: new Map(),
+  warned: NO_WARNINGS,
   tick: undefined,
 }
 
@@ -429,7 +428,7 @@ export const register: Register = on => {
     // same step as the reset, so no read of it can land in between.
     if (band.resume?.sessionId !== id) band.resume = undefined
     resetInsights()
-    band.warned.clear()
+    band.warned = NO_WARNINGS
     band.lastPaintKey = ''
     band.workspace = undefined
     const now = await $.clock.now()
@@ -524,10 +523,8 @@ export const register: Register = on => {
     const costNow = (await ledgerUsd($)) ?? 0
     if (e.reason === 'resume') resetForResume(costNow)
     else resetConversation(costNow)
-    // The context warning is this conversation's; the 5-hour one is the
-    // account's, and /clear changes nothing about it.
     resetConversationInsights()
-    band.warned.delete(CONTEXT_WARN)
+    band.warned = forgetConversation(band.warned)
     band.lastPaintKey = ''
     // A resume may be another project.
     void readWorkspace($)
@@ -610,17 +607,10 @@ export const register: Register = on => {
 
   on('session.measure', async ($, e, next) => {
     const now = await $.clock.now()
-    const note = (key: string, frac: number, levels: readonly number[], text: (pct: number) => string): void => {
-      const { level, speak } = escalate(band.warned.get(key) ?? 0, frac, levels)
-      band.warned.set(key, level)
-      if (speak) $.ui.toast(text(Math.round(frac * 100)))
-    }
-
-    for (const limit of e.rateLimits) {
-      if (limit.kind !== FIVE_HOUR) continue
-      noteFiveHour(now, limit.percentUsed, limit.resetsAt)
-      note(FIVE_HOUR, limit.percentUsed / 100, [WARN_AT, SEVERE_AT], pct => `You've used ${pct}% of your 5-hour limit.`)
-    }
+    for (const limit of e.rateLimits) if (limit.kind === FIVE_HOUR) noteFiveHour(now, limit.percentUsed, limit.resetsAt)
+    const limits = limitToasts(band.warned, e.rateLimits)
+    band.warned = limits.warned
+    for (const text of limits.say) $.ui.toast(text)
 
     // Local and token-free, but it can fail; the last answer stands until a new one.
     try {
@@ -634,17 +624,9 @@ export const register: Register = on => {
       // keep the last known setting
     }
 
-    // The context toast speaks where the context pill turns amber: by the same rule.
-    const used = contextUsed(e.context)
-    if (used !== undefined) {
-      const at = band.compactAt
-      const { frac, levels } = contextPressure(used, e.context.window, at)
-      note(CONTEXT_WARN, frac, levels, pct =>
-        at !== undefined ? `Auto-compaction in ~${fmtTokens(Math.max(0, at - used))} tokens.`
-        : band.autoCompactOff ? `Context is ${pct}% full and auto-compaction is off, so the conversation will run out of room.`
-        : `Context is ${pct}% full.`,
-      )
-    }
+    const context = contextToasts(band.warned, { used: contextUsed(e.context), window: e.context.window, compactAt: band.compactAt, autoCompactOff: band.autoCompactOff })
+    band.warned = context.warned
+    for (const text of context.say) $.ui.toast(text)
 
     $.ui.invalidate('ui.render')
     return next(e)

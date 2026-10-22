@@ -20,6 +20,7 @@ import {
   fmtPct,
   fmtTokens,
   resetIn,
+  toCompaction,
 } from './format'
 import type { ResetIn, Zone } from './format'
 import { drawnTier } from './glyphs'
@@ -316,7 +317,7 @@ const contextFacts = (snap: BandSnapshot): ContextFacts => {
   }
   return ctx.compactAt === undefined
     ? { ...fill, compactAt: undefined, toCompact: undefined, nearCompact: false }
-    : { ...fill, compactAt: ctx.compactAt, toCompact: Math.max(0, ctx.compactAt - used), nearCompact: amber }
+    : { ...fill, compactAt: ctx.compactAt, toCompact: toCompaction(used, ctx.compactAt), nearCompact: amber }
 }
 
 /** The session's cost and its tokens: sent, back, read from cache, and their total. */

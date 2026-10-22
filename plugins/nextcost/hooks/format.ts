@@ -21,6 +21,9 @@ export const COMPACT_NEAR = 0.9
 export const contextPressure = (used: number, window: number, compactAt: number | undefined): Readonly<{ frac: number; levels: readonly number[] }> =>
   compactAt === undefined ? { frac: used / window, levels: [WARN_AT, SEVERE_AT] } : { frac: used / compactAt, levels: [COMPACT_NEAR] }
 
+/** The tokens left before auto-compaction runs at `compactAt`; none once past it. */
+export const toCompaction = (used: number, compactAt: number): number => Math.max(0, compactAt - used)
+
 export const clamp01 = (n: number): number => (n < 0 ? 0 : n > 1 ? 1 : n)
 
 /** A share as a whole percent: 0.38 is `38%`. */
