@@ -30,7 +30,7 @@ export const DESKTOP: Measure = { text: 0.75, pxPerCell: 10 }
  *  a space 4.2, punctuation 7.0. Monospace counts every character as one. */
 const BOARD_CAPS = 1
 export const boardCells = (text: string, m: Measure): number =>
-  m.text >= 1 ? textCells(text) * m.text : [...text].reduce((n, c) => n + (/[A-Z0-9]/.test(c) ? BOARD_CAPS : textCells(c) * m.text), 0)
+  m.text >= 1 ? textCells(text) * m.text : [...text].reduce((n, c) => n + (/[A-Z0-9]/.test(c) ? BOARD_CAPS : charCells(c) * m.text), 0)
 
 /** Columns a desktop hover card's text takes a character: about 0.8, as
  *  measured on the desktop on 0.12.0's wording (its 57-character 7d card ran
@@ -38,20 +38,24 @@ export const boardCells = (text: string, m: Measure): number =>
  *  own words. */
 export const DESKTOP_CARD_TEXT = 0.8
 
-/** East Asian Wide and Fullwidth: Hangul Jamo, CJK and its punctuation, kana,
- *  Hangul syllables, CJK compatibility forms, the fullwidth forms, the
- *  ideographs' supplementary planes, and the emoji blocks, which draw two
- *  columns in every terminal. Ambiguous glyphs (█ · … │) are not here: a
- *  terminal draws them one column wide unless a CJK locale widens them, which
- *  the ascii tier answers. Unicode EastAsianWidth-18.0.0, checked 2026-10-22. */
+/** East Asian Wide and Fullwidth, by block: Hangul Jamo, CJK and its
+ *  punctuation, kana, Hangul syllables, CJK compatibility forms, the
+ *  fullwidth forms and the ideographs' supplementary planes, which draw two
+ *  columns in every terminal. The emoji blocks are taken whole, though a few
+ *  of their characters are narrow: counting one wide only keeps a column
+ *  spare. Ambiguous glyphs (█ · … │) are not here: a terminal draws them one
+ *  column wide unless a CJK locale widens them, which the ascii tier answers. */
 const WIDE = /[\u1100-\u115f\u231a\u231b\u2329\u232a\u2e80-\u303e\u3041-\u33ff\u3400-\u4dbf\u4e00-\u9fff\ua000-\ua4cf\ua960-\ua97f\uac00-\ud7a3\uf900-\ufaff\ufe10-\ufe19\ufe30-\ufe6f\uff00-\uff60\uffe0-\uffe6\u{16fe0}-\u{16fe4}\u{17000}-\u{18aff}\u{1b000}-\u{1b2ff}\u{1f300}-\u{1f64f}\u{1f680}-\u{1f6ff}\u{1f900}-\u{1f9ff}\u{20000}-\u{3fffd}]/u
 
 /** Whether a character draws two columns wide. */
 export const isWide = (ch: string): boolean => WIDE.test(ch)
 
-/** The columns `text` takes in a monospace cell grid: a wide character two,
+/** The columns a character takes in a monospace cell grid: a wide one two,
  *  any other one. */
-export const textCells = (text: string): number => [...text].reduce((n, ch) => n + (isWide(ch) ? 2 : 1), 0)
+export const charCells = (ch: string): number => (isWide(ch) ? 2 : 1)
+
+/** The columns `text` takes in a monospace cell grid. */
+export const textCells = (text: string): number => [...text].reduce((n, ch) => n + charCells(ch), 0)
 
 export const isList = (n: RenderChildren): n is readonly RenderChildren[] => Array.isArray(n)
 

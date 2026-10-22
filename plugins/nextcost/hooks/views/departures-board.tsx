@@ -10,7 +10,7 @@
 import type { RenderElement } from 'claude-code'
 import { boardBudget, boardLineHeight, boardRule, flapCells, flapColumns, type FlapColumn } from '../flaps'
 import type { Kit } from '../kit'
-import { boardCells, isWide, textCells } from '../layout'
+import { boardCells, charCells, textCells } from '../layout'
 import type { Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import type { Palette } from '../palette'
@@ -25,7 +25,7 @@ export const remarksFit = (remarks: string, tiles: number): string => {
   let kept = ''
   let cells = 0
   for (const ch of remarks) {
-    const width = isWide(ch) ? 2 : 1
+    const width = charCells(ch)
     if (cells + width > tiles - 1) break
     kept += ch
     cells += width
