@@ -124,6 +124,29 @@ type SplitBarOptions = Readonly<{
   size: BarSize
 }>
 
+/** `cells` shared among amounts, always all of them: each its share's whole
+ *  cells, then one more each for the largest remainders, the first first.
+ *  Where there is a cell for each, an amount left with none takes one from
+ *  the amount with the most. */
+const shareCells = (ns: readonly number[], cells: number): number[] => {
+  const total = ns.reduce((sum, n) => sum + n, 0)
+  const exact = ns.map(n => (total > 0 ? (n / total) * cells : 0))
+  const counts = exact.map(Math.floor)
+  const remainder = (i: number) => (exact[i] ?? 0) - (counts[i] ?? 0)
+  const byRemainder = ns.map((_, i) => i).sort((a, b) => remainder(b) - remainder(a) || a - b)
+  const left = cells - counts.reduce((sum, c) => sum + c, 0)
+  for (const i of byRemainder.slice(0, left)) counts[i] = (counts[i] ?? 0) + 1
+  if (cells >= ns.length) {
+    for (let i = 0; i < counts.length; i++) {
+      if (counts[i] !== 0) continue
+      const most = counts.indexOf(Math.max(...counts))
+      counts[most] = (counts[most] ?? 0) - 1
+      counts[i] = 1
+    }
+  }
+  return counts
+}
+
 /** A bar split into parts, each its share of the whole, in its own colour
  *  and, in text, its own fill; nothing while the whole is none. */
 export const splitBar = (kit: Kit, o: SplitBarOptions): RenderChildren => {
@@ -156,18 +179,14 @@ export const splitBar = (kit: Kit, o: SplitBarOptions): RenderChildren => {
     })
     return svg({ key, alt, width, height: 8, stretch: true }, segments.join(''))
   }
-  let used = 0
+  const counts = shareCells(shown.map(({ n }) => n), size.cells)
   return (
     <Text key={key}>
-      {parts.map(({ n, color, mark }, i) => {
-        const count = i === parts.length - 1 ? size.cells - used : Math.round((n / total) * size.cells)
-        used += count
-        return (
-          <Text key={`s${i}`} color={color}>
-            {mark.repeat(Math.max(0, count))}
-          </Text>
-        )
-      })}
+      {shown.map(({ color, mark }, i) => (
+        <Text key={`s${i}`} color={color}>
+          {mark.repeat(counts[i] ?? 0)}
+        </Text>
+      ))}
     </Text>
   )
 }

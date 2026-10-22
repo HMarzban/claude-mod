@@ -1,5 +1,5 @@
 import { test, expect } from 'claude-code/testing'
-import { barChart, braille, dayCells, dayCellsFit, flatBeats, heartbeat, meter, sparkline, track } from '../hooks/charts'
+import { barChart, braille, dayCells, dayCellsFit, flatBeats, heartbeat, meter, sparkline, splitBar, track } from '../hooks/charts'
 import { makeKit } from '../hooks/kit'
 import { CHIP_BAR } from '../hooks/views/chips'
 import { drawBand } from '../hooks/band'
@@ -263,4 +263,20 @@ test("the flat line keeps its chart's air above it", () => {
   const n = svg(flatBeats(desk, { key: 'b', alt: 'a', beats: 24, color: '#9a9aa4', px: 240, height: 40, air: 8 }))
   expect([n.props.width, (n as Node).props?.height]).toEqual([240, 48])
   expect(n.props.source).toMatch(/translate\(0 8\)/)
+})
+
+/** A text split bar's cells for parts of `ns`, `cells` long, each part's fill its index. */
+const splitCells = (ns: readonly number[], cells: number): string =>
+  textOf(splitBar(term, { alt: 'split', parts: ns.map((n, i) => ({ n, color: '#888888', mark: String(i) })), size: { px: 8 * cells, cells } }))
+test('a text split bar fills its width exactly: a zero last part takes no cell', () => {
+  expect(splitCells([1, 1, 0], 31)).toBe(`${'0'.repeat(16)}${'1'.repeat(15)}`)
+  for (const ns of [[1, 1, 0], [1, 1, 1], [0, 3, 1], [5, 0, 5], [1, 2, 3], [998, 1, 1], [0, 0, 7]])
+    for (const cells of [3, 6, 7, 23, 31, 46]) expect(`${ns} ${cells}: ${splitCells(ns, cells).length}`).toBe(`${ns} ${cells}: ${cells}`)
+})
+test('in a text split bar every part with any share keeps a cell where there are cells for each', () => {
+  for (const cells of [3, 6, 23]) {
+    const drawn = splitCells([998, 1, 1], cells)
+    expect(`${cells}: ${['0', '1', '2'].map(i => drawn.includes(i))}`).toBe(`${cells}: true,true,true`)
+  }
+  expect(splitCells([998, 1, 1], 2)).toBe('00')
 })
