@@ -46,7 +46,7 @@ type Fit = Readonly<{ inner: number; bodyRows: number; bar: BarSize }>
  *  cards align whatever their text and a line never wraps one away. A
  *  desktop card has a visible edge; a terminal card is a fill, its border
  *  would cost two columns. Lines keep a row of air between them. */
-const layoutOf = (kit: Kit, read: Readings, collapsedRows: number): Grid => {
+const gridOf = (kit: Kit, read: Readings, collapsedRows: number): Grid => {
   const hasCard = cardsPresent(read)
   const cardCount = CARD_NAMES.filter(name => hasCard[name]).length
   const { perLine, inner, edge, pxEdge } = cardLine(kit, cardCount)
@@ -76,7 +76,7 @@ const layoutOf = (kit: Kit, read: Readings, collapsedRows: number): Grid => {
 const knownRow = (kit: Kit, label: string, value: string | undefined): RenderChildren => (value === undefined ? null : factRow(kit, label, value))
 
 /** A line of words in a label's ink, wrapped. */
-const note = (kit: Kit, text: string): RenderElement => {
+const wrappedNote = (kit: Kit, text: string): RenderElement => {
   const { Text, palette } = kit
   return (
     <Text key="note" color={palette.label} wrap="wrap">
@@ -106,7 +106,7 @@ const cacheCard = (kit: Kit, read: Readings, fit: Fit): RenderElement => {
     { say: cache.cardHead, tone: cache.tone },
     cache.known ? meter(kit, { label: 'cache', frac: cache.charge, tone: cache.tone, accent: kit.palette.warm, size: fit.bar, stretch: true, reads: 'left' }) : null,
     [
-      cache.cardNote === undefined ? null : note(kit, cache.cardNote),
+      cache.cardNote === undefined ? null : wrappedNote(kit, cache.cardNote),
       cache.known ? factRow(kit, cache.estimateLabel, cache.estimate) : null,
       knownRow(kit, 'idle for', cache.idleText),
       knownRow(kit, 'unexpected rebuilds', cache.rebuildsText),
@@ -124,7 +124,7 @@ const spendCard = (kit: Kit, read: Readings, fit: Fit): RenderElement => {
   const splitShown = read.cache.measured
   const tokenRows = splitShown
     ? spend.split.map((part, i) => factRow(kit, part.label, part.text, tokenParts[i]))
-    : [note(kit, 'Breakdown counts from your next message.')]
+    : [wrappedNote(kit, 'Breakdown counts from your next message.')]
   return card(kit, fit, 'spend', { say: [[spend.totalText, 'value']] }, splitShown ? splitBar(kit, { alt: SPLIT_ALT, parts: tokenParts, size: fit.bar }) : null, [lastRow, ...tokenRows])
 }
 
@@ -230,7 +230,7 @@ const limitsCard = (kit: Kit, read: Readings, fit: Fit): RenderElement | null =>
  *  text, each as much of its body as the band has rows for; the workspace
  *  strip on top or in the footer; then Collapse and Hide band. */
 export const chipsOpen = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderChildren[] => {
-  const { perLine, edge, stripPlace, cardsFit, fit } = layoutOf(kit, read, collapsedRows)
+  const { perLine, edge, stripPlace, cardsFit, fit } = gridOf(kit, read, collapsedRows)
   const ws = read.workspace
   const cards = [cacheCard(kit, read, fit), spendCard(kit, read, fit), contextCard(kit, read, fit), limitsCard(kit, read, fit)].filter(view => view !== null)
   return [

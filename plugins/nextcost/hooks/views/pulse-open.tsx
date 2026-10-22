@@ -130,7 +130,7 @@ const cardRows = (kit: Kit, f: Facts, card: CardName, p: Plan, line: CardLine): 
 
 /** The lines of cards a plan draws, `perLine` to a line, and its rows: each
  *  line its tallest card's, a row of air between lines. */
-const layoutOf = (kit: Kit, f: Facts, p: Plan) => {
+const planLines = (kit: Kit, f: Facts, p: Plan) => {
   const cards = cardsOf(f, p.kept)
   const geometry = cardLine(kit, cards.length)
   const lines = linesOf(cards, geometry.perLine)
@@ -151,7 +151,7 @@ const planFor = (kit: Kit, f: Facts, body: number): Plan | undefined => {
       if (cardsOf(f, kept).length === 0) continue
       for (const chart of CHART_STEPS) {
         const p = { kept, chart }
-        if (layoutOf(kit, f, p).rows <= body) return p
+        if (planLines(kit, f, p).rows <= body) return p
       }
     }
   }
@@ -187,7 +187,7 @@ const plot = (kit: Kit, chart: RenderChildren): RenderChildren => {
 }
 
 /** A line of words in a label's ink, cut to its row. */
-const note = (kit: Kit, key: string, text: string): RenderElement => {
+const clippedNote = (kit: Kit, key: string, text: string): RenderElement => {
   const { Box, palette, oneLine } = kit
   return <Box key={key}>{oneLine({ color: palette.label }, text)}</Box>
 }
@@ -213,7 +213,7 @@ const cacheCard = (kit: Kit, read: Readings, at: CardAt): RenderElement => {
   // warming, its hour isn't known: no track, and its note says when it will be.
   const ink = onTone(cache.tone, cache.mood === 'warm' ? palette.warm : palette.label)
   const chart = at.size === undefined || !at.f.charted.cache ? null : track(kit, { key: 'chart', alt: cache.alt, frac: 1 - cache.charge, color: ink, px: at.px, ...at.size, cells: at.inner })
-  const said = cache.untimed && cache.cardNote !== undefined ? note(kit, 'fact', cache.cardNote) : fact(kit, at, cache.estimateLabel, [cache.estimate])
+  const said = cache.untimed && cache.cardNote !== undefined ? clippedNote(kit, 'fact', cache.cardNote) : fact(kit, at, cache.estimateLabel, [cache.estimate])
   return card(kit, 'cache', markedHead(cache.cardHead, cache.tone), cache.tone, [plot(kit, chart), fill(kit), said])
 }
 
@@ -226,7 +226,7 @@ const spendCard = (kit: Kit, read: Readings, at: CardAt): RenderElement => {
   const count = hist.empty ? 2 * at.inner : Svg ? hist.costValues.length : Math.min(hist.costValues.length, 2 * at.inner)
   const chart = at.size === undefined || !at.f.charted.spend ? null : beatsChart(kit, read, { key: 'chart', count, level: true, px: at.px, ...at.size })
   const cost = hist.costFact
-  const said = cost === undefined ? note(kit, 'fact', EMPTY.costs) : factRow(kit, cost.label, cost.value)
+  const said = cost === undefined ? clippedNote(kit, 'fact', EMPTY.costs) : factRow(kit, cost.label, cost.value)
   return card(kit, 'spend', [[read.spend.totalText, 'value']], 'calm', [plot(kit, chart), fill(kit), said])
 }
 
@@ -295,7 +295,7 @@ const CARDS: Readonly<Record<CardName, (kit: Kit, read: Readings, at: CardAt) =>
 
 /** The cards drawn at a plan, line by line. */
 const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement => {
-  const { lines } = layoutOf(kit, f, p)
+  const { lines } = planLines(kit, f, p)
   return cardGrid(
     kit,
     lines.map(line => {

@@ -74,7 +74,7 @@ const calmWords = (k: Keeps<Piece>, long: string, short: string): string => (k.h
 
 /** A reading's words on its tile: calm, its name then its figure; amber, its
  *  amber words alone, long until the amber step. */
-const wordsOf = (kit: Kit, k: Keeps<Piece>, name: string, figure: string, amber: Amber | undefined): RenderChildren[] =>
+const tileWords = (kit: Kit, k: Keeps<Piece>, name: string, figure: string, amber: Amber | undefined): RenderChildren[] =>
   amber === undefined ? [named(kit, name), said(kit, 'w', figure, 'calm')] : [said(kit, 'w', k.amber(amber), 'amber')]
 
 const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderElement =>
@@ -85,7 +85,7 @@ const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderEleme
     const charts = chartsDraw(kit)
     const n = k.has('beats14') ? 14 : 8
     const cacheTile = tile(kit, k, 'cache', cache.tone, palette.surface, [
-      ...wordsOf(kit, k, cache.bandName, calmWords(k, cache.figure, cache.figureShort), cache.amber),
+      ...tileWords(kit, k, cache.bandName, calmWords(k, cache.figure, cache.figureShort), cache.amber),
       heartbeat(kit, { key: 'beat', alt: cache.heartAlt, state: heartState(read), color: onTone(cache.tone, palette.warm) }),
     ])
     // No message's cost: the trace flat, in a label's ink, only beside `no
@@ -101,18 +101,18 @@ const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderEleme
       trace,
     ])
     const contextTile = !k.calm('context', context.tone) ? null : tile(kit, k, 'context', context.tone, palette.surface, [
-      ...wordsOf(kit, k, context.bandName, context.valueText, context.amber),
+      ...tileWords(kit, k, context.bandName, context.valueText, context.amber),
       charts && k.part('contextTrail', context.tone) && hist.context.length > 1
         ? sparkline(kit, { key: 'trail', alt: hist.contextTrailAlt, values: hist.context, color: palette.label, px: 36, height: 16, max: context.compactAt ?? context.window })
         : null,
     ])
     const fiveTile = fiveHour === undefined || !k.calm('five', fiveHour.tone) ? null : tile(kit, k, '5h', fiveHour.tone, palette.fiveBg, [
-      ...wordsOf(kit, k, fiveHour.bandName, fiveHour.valueText, fiveHour.amber),
+      ...tileWords(kit, k, fiveHour.bandName, fiveHour.valueText, fiveHour.amber),
       charts && k.part('fiveTrail', fiveHour.tone) ? windowTrail(kit, read, fiveHour.tone, { key: 'trail', px: 48, height: 16 }) : null,
     ])
     // The 7d's cells are the desktop's: in text it is words (three-layouts spec §4.1).
     const sevenTile = sevenDay === undefined ? null : tile(kit, k, '7d', sevenDay.tone, palette.weekBg, [
-      ...wordsOf(kit, k, sevenDay.bandName, sevenDay.valueText, sevenDay.amber),
+      ...tileWords(kit, k, sevenDay.bandName, sevenDay.valueText, sevenDay.amber),
       k.part('sevenDays', sevenDay.tone) ? weekCells(kit, read, sevenDay.tone, { key: 'days', cellPx: 4, height: 14 }) : null,
     ])
     // Tiles sit a column apart, as chips' do; plain's two, until the last step.
