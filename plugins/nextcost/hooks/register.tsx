@@ -621,5 +621,5 @@ export const register: Register = on => {
         },
       },
     )
-  })
+  }).catch(($, e, next) => next(e)) // a band that can't be drawn steps aside, never breaks the prompt
 }
