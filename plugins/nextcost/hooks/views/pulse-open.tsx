@@ -10,6 +10,7 @@
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { barChart, dayCells, dayCellsFit, flatBeats, sparkline, track } from '../charts'
 import type { Kit } from '../kit'
+import { cellsOf } from '../layout'
 import type { LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, limitsHead, markedHead } from '../words'
@@ -44,23 +45,20 @@ const DAY_CELL_PX = 32
 /** The columns between Limits' two halves. */
 const HALF_GAP = 2
 
-/** The columns text takes. */
-const cellsIn = (kit: Kit, text: string): number => [...text].length * kit.measure.text
-
 /** The phrases joined by DOT, as many as fit `room` from the first; the
  *  first always, which the surface cuts if it must. */
 const fitWords = (kit: Kit, phrases: readonly string[], room: number): string => {
   let words = phrases[0] ?? ''
   for (const p of phrases.slice(1)) {
     const longer = `${words}${DOT}${p}`
-    if (cellsIn(kit, longer) > room) break
+    if (cellsOf(longer, kit.measure) > room) break
     words = longer
   }
   return words
 }
 
 /** Whether a fact's label and value fit `room` side by side, two columns apart. */
-const factFits = (kit: Kit, label: string, value: string, room: number): boolean => cellsIn(kit, label) + 2 + cellsIn(kit, value) <= room
+const factFits = (kit: Kit, label: string, value: string, room: number): boolean => cellsOf(label, kit.measure) + 2 + cellsOf(value, kit.measure) <= room
 
 /** Everything the plan and the cards read, worked out once a draw. */
 type Facts = Readonly<{
@@ -78,7 +76,7 @@ const factsOf = (kit: Kit, read: Readings): Facts => {
   const { Svg } = kit
   const { cache, context } = read
   const week = read.week()
-  const charts = read.frame.glyphs === 'unicode'
+  const charts = kit.glyphs === 'unicode'
   const windows = [read.fiveHour, read.sevenDay].filter((l): l is LimitView => l !== undefined)
   const others = read.limits.filter(l => l.key === 'other')
   const unknownCache = cache.mood === 'unmeasured' || cache.mood === 'warming'
@@ -175,10 +173,11 @@ const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement =
     /** A chart's size on the desktop at this plan; in text, its line. */
     const size = p.chart === 0 ? undefined : CHART_PX[p.chart]
     const daySize = p.chart === 0 ? undefined : DAY_PX[p.chart]
+    const headroom = p.chart === 0 ? undefined : HEADROOM_PX[p.chart]
     /** A line of words in a label's ink, cut to its row. */
     const note = (key: string, text: string) => <Box key={key}>{oneLine({ color: palette.label }, text)}</Box>
     /** A fact, its value's phrases as many as fit beside its label. */
-    const fact = (label: string, values: readonly string[], room = inner) => factRow(kit, label, fitWords(kit, values, room - cellsIn(kit, label) - 2))
+    const fact = (label: string, values: readonly string[], room = inner) => factRow(kit, label, fitWords(kit, values, room - cellsOf(label, kit.measure) - 2))
     /** What fills a card's height past its chart, so its fact sits on the line's last row. */
     const fill = () => <Box key="fill" flexGrow={1} />
     const card = (name: CardName, say: Parameters<typeof headline>[1], tone: Tone, body: RenderChildren[]) =>
@@ -202,7 +201,7 @@ const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement =
       const beats = Svg ? hist.costValues.length : Math.min(hist.costValues.length, 2 * inner)
       const chart = size === undefined || !f.charted.spend ? null
         : hist.empty ? flatBeats(kit, { key: 'chart', alt: EMPTY.costsAlt, beats: 2 * inner, color: palette.label, px, ...size })
-        : barChart(kit, { key: 'chart', alt: hist.costsAltOf(beats), values: hist.costValues.slice(-beats), marked: hist.reWarms.slice(-beats), level: hist.warmAvgUsd, color: palette.value, markColor: palette.value, px, ...size, max: hist.beatsTop })
+        : barChart(kit, { key: 'chart', alt: hist.costsAltOf(beats), values: hist.costValues.slice(-beats), marked: hist.reWarms.slice(-beats), levelValue: hist.warmAvgUsd, color: palette.value, markColor: palette.value, px, ...size, max: hist.beatsTop })
       const cost = hist.costFact
       const said = cost === undefined ? note('fact', EMPTY.costs) : factRow(kit, cost.label, cost.value)
       return card('spend', [[read.spend.totalText, 'value']], 'calm', [plot(chart), fill(), said])
@@ -213,8 +212,8 @@ const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement =
       // level now, which is known. In text two turns to a cell.
       const turns = Svg ? hist.context.length : 2 * inner
       const values = hist.context.length > 1 ? hist.context.slice(-turns) : Array.from({ length: Math.max(2, Svg ? 2 : turns) }, () => context.used)
-      const chart = size === undefined || p.chart === 0 || !f.charted.context ? null
-        : sparkline(kit, { key: 'chart', alt: hist.contextTrailAlt, values, color: onTone(context.tone, palette.label), px, ...size, headroom: HEADROOM_PX[p.chart], max: context.compactAt ?? context.window, level: context.compactAt === undefined ? undefined : 1 })
+      const chart = size === undefined || !f.charted.context ? null
+        : sparkline(kit, { key: 'chart', alt: hist.contextTrailAlt, values, color: onTone(context.tone, palette.label), px, ...size, headroom, max: context.compactAt ?? context.window, levelFrac: context.compactAt === undefined ? undefined : 1 })
       return card('context', markedHead(context.cardHead, context.tone), context.tone, [plot(chart), fill(), fact(context.fact.label, context.fact.values)])
     }
 

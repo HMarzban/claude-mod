@@ -1,10 +1,10 @@
 // Chips: a row of pills, and its four cards beneath it when open. Its pill
-// builders, their hover strings, LIMITS and its row are exported for its
-// tests; pulse and departures draw their own look. They draw from the
-// readings' words; only the context's pill and hover format its facts
-// themselves, which the views gate allows chips alone. The pill a chip sits
-// in and the cache's battery, an icon on the desktop and the pill itself in
-// a terminal, are drawn here alone.
+// builders, its row and its bar's size are exported for its tests; pulse and
+// departures draw their own look. They draw from the readings' words, and
+// phrase their hover cards and the context's amount themselves, which the
+// views gate allows chips alone. The pill a chip sits in and the cache's
+// battery, an icon on the desktop and the pill itself in a terminal, are
+// drawn here alone.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { meter } from '../charts'
@@ -36,7 +36,7 @@ export const CHIP_BAR: BarSize = { px: 44, cells: 6 }
 
 // ---- the pill and the battery ----------------------------------------------
 
-export type PillSpec = Readonly<{
+type PillSpec = Readonly<{
   key: string
   tone: Tone
   body: RenderChildren[]
@@ -53,7 +53,7 @@ export type PillSpec = Readonly<{
  *  share; one line, since a collapsed band is one row. Plain has no cards;
  *  the expanded line says it all. A pill never shrinks: the squeeze drops
  *  pieces instead, so its text never wraps. */
-export const pill = (kit: Kit, { key, tone, body, hover, paintsOwnBg, bg }: PillSpec): RenderElement => {
+const pill = (kit: Kit, { key, tone, body, hover, paintsOwnBg, bg }: PillSpec): RenderElement => {
   const { Box, Text, palette, onTone, hoverable } = kit
   if (!palette.filled) {
     const fg = onTone(tone, palette.value)
@@ -75,7 +75,7 @@ export const pill = (kit: Kit, { key, tone, body, hover, paintsOwnBg, bg }: Pill
 
 /** The desktop's battery: an outline, its cap, and the charge filling it,
  *  `px` wide: an icon's 22, or a bar's length. */
-export const batteryIcon = (kit: Kit, charge: number, tone: Tone, alt: string, px = 22): RenderChildren => {
+const batteryIcon = (kit: Kit, charge: number, tone: Tone, alt: string, px = 22): RenderChildren => {
   const { palette, onTone, svg } = kit
   const outline = onTone(tone, palette.label)
   const fill = onTone(tone, palette.warm)
@@ -88,47 +88,29 @@ export const batteryIcon = (kit: Kit, charge: number, tone: Tone, alt: string, p
   )
 }
 
-/** Text in runs, each bold or not: a figure among its words. */
-type BoldRuns = ReadonlyArray<readonly [text: string, bold: boolean]>
-
 /** On a text surface the battery is the pill itself: its charge painted as
  *  the background of the leading characters, draining right to left. In the
  *  ascii tier `text` is mapped before the cut, so a dropped glyph neither
- *  leaves a gap at the cut nor takes its cells from the charge; in runs, a
- *  bold one stays bold either side of the cut. */
-export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string | BoldRuns): RenderChildren[] => {
+ *  leaves a gap at the cut nor takes its cells from the charge. */
+const textBattery = (kit: Kit, charge: number, tone: Tone, text: string): RenderChildren[] => {
   const { Text, palette, onTone, glyphs } = kit
-  const given: BoldRuns = typeof text === 'string' ? [[text, false]] : text
-  const runs: BoldRuns = glyphs === 'ascii' ? given.map(([run, bold]) => [asciiText(run), bold]) : given
-  const pad = { ch: ' ', bold: false }
-  const chars = [pad, ...runs.flatMap(([run, bold]) => [...run].map(ch => ({ ch, bold }))), pad]
+  const chars = [...` ${glyphs === 'ascii' ? asciiText(text) : text} `]
   const cut = Math.round(clamp01(charge) * chars.length)
   const fg = onTone(tone, palette.value)
-  /** One side of the cut: a Text for each run of one weight, or nothing. */
-  const side = (key: string, part: readonly (typeof pad)[], ground: string): RenderChildren[] => {
-    const pieces: Array<{ text: string; bold: boolean }> = []
-    for (const { ch, bold } of part) {
-      const last = pieces.at(-1)
-      if (last?.bold === bold) last.text += ch
-      else pieces.push({ text: ch, bold })
-    }
-    if (pieces.length === 0) return [null]
-    return pieces.map(({ text: run, bold }, i) => (
-      <Text key={i === 0 ? key : `${key}${i}`} color={fg} backgroundColor={ground} {...(bold ? { bold } : {})}>
-        {run}
+  /** One side of the cut: its Text, or nothing. */
+  const side = (key: string, part: readonly string[], ground: string): RenderChildren =>
+    part.length === 0 ? null : (
+      <Text key={key} color={fg} backgroundColor={ground}>
+        {part.join('')}
       </Text>
-    ))
-  }
-  return [
-    ...side('bf', chars.slice(0, cut), onTone(tone, palette.batteryFill, palette.batteryAmber)),
-    ...side('be', chars.slice(cut), onTone(tone, palette.surface, palette.amberBg)),
-  ]
+    )
+  return [side('bf', chars.slice(0, cut), onTone(tone, palette.batteryFill, palette.batteryAmber)), side('be', chars.slice(cut), onTone(tone, palette.surface, palette.amberBg))]
 }
 
 /** A reset after its reading: the separator in label ink, then `↻` and
  *  when, in `ink`. `↻` is a glyph on every surface, as the boards draw it,
  *  never the clock icon; elsewhere it is the reset icon's own glyph. */
-export const resetClause = (kit: Kit, ink: string, when: string, separator = ' │ '): RenderElement[] => {
+const resetClause = (kit: Kit, ink: string, when: string, separator = ' │ '): RenderElement[] => {
   const { Text, palette } = kit
   return [
     <Text key="d" color={palette.label}>
@@ -154,9 +136,8 @@ type LimitSpec = Readonly<{
   tint: (p: Readonly<Palette>) => Tint
 }>
 
-/** The two limit chips: one shape, their own tint and steps. A layout's
- *  own limit pills take their icon and tint from here. */
-export const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
+/** The two limit chips: one shape, their own tint and steps. */
+const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
   '5h': {
     icon: 'five',
     title: '5-hour limit',
@@ -181,38 +162,23 @@ export const LIMITS: Readonly<Record<ChipKey, LimitSpec>> = {
  *  below `SHORT_BELOW` columns. */
 const shortAt = (kit: Kit, k: Keeps<Piece>): boolean => kit.columns < SHORT_BELOW || !k.has('shortWording')
 
-/** The cache pill: a draining battery and its countdown, or its mood. A
- *  layout that bolds each reading's figure asks for the countdown `bold`;
- *  chips' own draws it plain. */
-export const cachePill = (kit: Kit, read: Readings, short: boolean, bold = false): PillSpec => {
+/** The cache pill: a draining battery and its countdown, or its mood. */
+export const cachePill = (kit: Kit, read: Readings, short: boolean): PillSpec => {
   const { Text, Svg, palette, onTone } = kit
   const { mood, tone, charge } = read.cache
   const { copy } = read.chips.reading
   const text = copy.pill(short)
-  const figure = bold && copy.figure !== undefined && text.endsWith(copy.figure) ? copy.figure : ''
   const fg = onTone(tone, palette.value)
-  /** The text, its figure bold when asked: `cache ` then `52m`. */
-  const words = (key: string, said: string): RenderElement[] =>
-    figure === ''
-      ? [<Text key={key} color={fg}>{said}</Text>]
-      : [
-          <Text key={key} color={fg}>
-            {said.slice(0, said.length - figure.length)}
-          </Text>,
-          <Text key={`${key}-fig`} color={fg} bold>
-            {figure}
-          </Text>,
-        ]
   if (Svg) {
     // A normal rounded pill led by a draining battery icon; the text-surface
     // battery would paint a square-cornered block here.
-    return { key: 'cache', tone, body: [batteryIcon(kit, charge, tone, copy.alt), ...words('c', ` ${text}`)], hover: read.chips.reading.copy.hover }
+    return { key: 'cache', tone, body: [batteryIcon(kit, charge, tone, copy.alt), <Text key="c" color={fg}>{` ${text}`}</Text>], hover: read.chips.reading.copy.hover }
   }
   if (palette.filled) {
     return {
       key: 'cache',
       tone,
-      body: textBattery(kit, charge, tone, [[`◷ ${text.slice(0, text.length - figure.length)}`, false], [figure, true]]),
+      body: textBattery(kit, charge, tone, `◷ ${text}`),
       hover: read.chips.reading.copy.hover,
       paintsOwnBg: true,
     }
@@ -221,7 +187,7 @@ export const cachePill = (kit: Kit, read: Readings, short: boolean, bold = false
   return {
     key: 'cache',
     tone,
-    body: [tone === 'amber' ? null : <Text key="dot" color={dot}>{'● '}</Text>, ...words('c', tone === 'amber' ? `◷ ${text}` : text)],
+    body: [tone === 'amber' ? null : <Text key="dot" color={dot}>{'● '}</Text>, <Text key="c" color={fg}>{tone === 'amber' ? `◷ ${text}` : text}</Text>],
     hover: read.chips.reading.copy.hover,
   }
 }
@@ -301,8 +267,8 @@ const limitHover = (read: Readings, key: ChipKey): string | undefined => {
 /** A limit chip: its usage on a bar and the reset; a pace that fills it
  *  early speaks in words. A window whose reset has passed shows as reset:
  *  its last reading is from before it. Undefined while the engine reports
- *  no such window. A layout's `mark`, such as a trail, takes the bar's place. */
-export const limitPill = (kit: Kit, read: Readings, key: ChipKey, k: Keeps<Piece>, short: boolean, mark?: RenderChildren): PillSpec | undefined => {
+ *  no such window. */
+export const limitPill = (kit: Kit, read: Readings, key: ChipKey, k: Keeps<Piece>, short: boolean): PillSpec | undefined => {
   const { Text, palette, onTone, gap, icon } = kit
   const w = key === '5h' ? read.fiveHour : read.sevenDay
   if (w === undefined) return undefined
@@ -321,7 +287,7 @@ export const limitPill = (kit: Kit, read: Readings, key: ChipKey, k: Keeps<Piece
   const pace = w.fullIn === undefined ? '' : ` ${short ? w.fullIn : w.pace}`
   const fg = onTone(tone, tint.fg)
   const accent = onTone(tone, tint.accent)
-  const bar = k.has('limitBars') ? [gap('g-bar'), mark ?? meter(kit, { label: key, frac, tone, accent: tint.accent, size: CHIP_BAR })] : []
+  const bar = k.has('limitBars') ? [gap('g-bar'), meter(kit, { label: key, frac, tone, accent: tint.accent, size: CHIP_BAR })] : []
   // The reset is a qualifier: in label ink, its figure the usage before it.
   const resetInk = onTone(tone, palette.label)
   const reset = r !== undefined && k.has(tone === 'amber' ? spec.amberReset : spec.reset) ? resetClause(kit, resetInk, r.text) : []

@@ -34,11 +34,10 @@ type Piece = PieceOf<typeof ORDER>
 const BEATS_PX = { 14: 84, 8: 48 } as const
 
 /** The heartbeat's state for the cache's mood. */
-const heartState = (read: Readings): 'still' | 'beat' | 'flat' | 'hollow' =>
+const heartState = (read: Readings): 'beat' | 'flat' | 'hollow' =>
   read.cache.mood === 'cold' || read.cache.mood === 'compacted' ? 'flat'
   : read.cache.mood === 'unmeasured' || read.cache.mood === 'warming' ? 'hollow'
-  : read.cache.tone === 'amber' ? 'beat'
-  : 'still'
+  : 'beat'
 
 /** A reading's words in its tone's ink. */
 const said = (kit: Kit, key: string, text: string, amber: boolean): RenderElement => {
@@ -83,7 +82,7 @@ const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderEleme
     const { cache, context, fiveHour, sevenDay } = read
     const hist = read.history()
     const week = read.week()
-    const charts = read.frame.glyphs === 'unicode'
+    const charts = kit.glyphs === 'unicode'
     const n = k.has('beats14') ? 14 : 8
     const cacheTile = tile(kit, k, 'cache', cache.tone, palette.surface, [
       ...wordsOf(kit, k, cache.bandName, calmWords(k, cache.figure, cache.figureShort), cache.amber),

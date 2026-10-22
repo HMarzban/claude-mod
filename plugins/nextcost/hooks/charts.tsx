@@ -191,7 +191,7 @@ type SparklineOptions = Readonly<{
    *  known, so none is drawn, and in text their cells are blank. */
   from?: number
   /** A line to read against, as a fraction of the scale's top, such as compaction. */
-  level?: number
+  levelFrac?: number
   /** Px of air above the chart, inside its Svg: a band's room past its chart. */
   air?: number
   /** Px kept above the scale's top inside the chart, so a level drawn there
@@ -206,7 +206,7 @@ const SPARK_AIR = 2
  *  braille on its floor, on one line that a row too narrow cuts. */
 export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   const { Svg, svg, palette, oneLine } = kit
-  const { key, alt, values, color, px, height, max, nowAt, level, air = 0, headroom = 0, from = 0 } = o
+  const { key, alt, values, color, px, height, max, nowAt, levelFrac, air = 0, headroom = 0, from = 0 } = o
   const top = max ?? topOf(values)
   if (!Svg) return oneLine({ key, color }, braille(values.map((v, i) => (i < from ? undefined : v)), top, 1))
   const end = px - SPARK_AIR
@@ -222,7 +222,7 @@ export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
     if (ahead.length > 1) marks += `<polyline class="ahead" points="${ahead.map(p => p.join(',')).join(' ')}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" ${PROJECTION_DASH}/>`
     marks += `<line class="now" x1="${x(nowAt)}" y1="0" x2="${x(nowAt)}" y2="${height}" stroke="${palette.label}" stroke-width="1"/>`
   }
-  if (level !== undefined) marks += `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1" ${PROJECTION_DASH}/>`
+  if (levelFrac !== undefined) marks += `<line class="level" x1="0" y1="${y(levelFrac)}" x2="${px}" y2="${y(levelFrac)}" stroke="${palette.label}" stroke-width="1" ${PROJECTION_DASH}/>`
   return svg({ key, alt, width: px, height, air }, marks)
 }
 
@@ -242,7 +242,7 @@ type BarChartOptions = Readonly<{
    *  stands full, so one tall bar can't flatten the rest. */
   max?: number
   /** A value the bars are read against, such as their average: a rule across. */
-  level?: number
+  levelValue?: number
   /** Px of air above the chart, inside its Svg: a band's room past its chart. */
   air?: number
 }>
@@ -255,7 +255,7 @@ const CAP_ROOM = 3
  *  holding a marked one in the mark's colour. */
 export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
   const { Svg, svg, palette } = kit
-  const { key, alt, values, marked, color, markColor, px, height, max, level, air = 0 } = o
+  const { key, alt, values, marked, color, markColor, px, height, max, levelValue, air = 0 } = o
   const top = max ?? topOf(values)
   if (!Svg) {
     const cells = Array.from({ length: Math.ceil(values.length / 2) }, (_, c): readonly [string, string] => {
@@ -277,7 +277,7 @@ export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
     const peaks = capped ? `L${tenth(peak - 1.5)},${at}L${tenth(peak + 1.5)},${at}` : `L${peak},${at}`
     return `${i === 0 ? 'M' : 'L'}${x0},${base}${peaks}L${dip},${Math.min(height - 1, base + 3)}L${x1},${base}`
   }).join('')
-  const rule = level === undefined ? '' : `<line class="level" x1="0" y1="${y(level)}" x2="${px}" y2="${y(level)}" stroke="${palette.label}" stroke-width="1" stroke-dasharray="1 2"/>`
+  const rule = levelValue === undefined ? '' : `<line class="level" x1="0" y1="${y(levelValue)}" x2="${px}" y2="${y(levelValue)}" stroke="${palette.label}" stroke-width="1" stroke-dasharray="1 2"/>`
   const beats = `<path class="beats" d="${d}" fill="none" stroke="${color}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>`
   return svg({ key, alt, width: px, height, air }, rule + beats)
 }
@@ -296,10 +296,11 @@ export const flatBeats = (kit: Kit, o: Readonly<{ key: string; alt: string; beat
 
 // ---- heartbeat ------------------------------------------------------------
 
-/** The cache's heartbeat, 12px: a dot while warm or in its last minute, a
- *  flat line when cold, hollow before it's measured. It stays still: its
- *  source changes only with its state, so its frame never reloads per tick. */
-export const heartbeat = (kit: Kit, o: Readonly<{ key: string; alt: string; state: 'still' | 'beat' | 'flat' | 'hollow'; color: string }>): RenderChildren => {
+/** The cache's heartbeat, 12px: a beat, a dot, while warm or in its last
+ *  minute; a flat line when cold, hollow before it's measured. It stays
+ *  still: its source changes only with its state, so its frame never reloads
+ *  per tick. */
+export const heartbeat = (kit: Kit, o: Readonly<{ key: string; alt: string; state: 'beat' | 'flat' | 'hollow'; color: string }>): RenderChildren => {
   const { Svg, svg, palette } = kit
   if (!Svg) return null
   const { key, alt, state, color } = o

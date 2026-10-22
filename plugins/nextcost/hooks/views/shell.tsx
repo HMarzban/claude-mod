@@ -166,7 +166,7 @@ export const headline = (kit: Kit, say: Say, tone: Tone): RenderElement => {
   )
 }
 
-export type CardSpec = Readonly<{
+type CardSpec = Readonly<{
   /** The card's key, `card:cache`. */
   key: string
   /** Which card: its title, and its mark, drawn on the desktop alone. */

@@ -80,14 +80,14 @@ export const topStrip = (kit: Kit, ws: Workspace, edge: number): RenderElement =
  *  buttons leave, else the hint while it fits; air; then Collapse and Hide
  *  band. A column of gap parts each of the row's pieces. */
 export const footer = (kit: Kit, act: BandActions, ws?: Workspace): RenderElement => {
-  const { Box, Text, Svg, measure, icon } = kit
+  const { Box, Text, measure, icon } = kit
   const buttons = buttonsOf(kit, act)
   const room = rowRoom(kit) - buttonsRoom(kit, buttons)
   // The strip and the two buttons: two gaps.
   const strip = ws === undefined ? undefined : drawStrip(kit, ws, 'footer', 0, room - 2)
   const hint = (
     <Box key="hint" flexDirection="row">
-      {Svg ? icon('info', BARE.icon) : null}
+      {icon('info', BARE.icon)}
       <Text color={BARE.label}>Bring it back with /nextcost</Text>
     </Box>
   )

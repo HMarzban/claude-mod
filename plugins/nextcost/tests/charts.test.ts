@@ -182,7 +182,7 @@ test('beats: a re-warm is capped flat, a warm beat peaks to a point', () => {
   expect(tops(false)).toBe(1)
 })
 test('sparkline: nowAt draws a now rule and the points after it dashed; level, a dashed rule', () => {
-  const src = String(svgsOf(sparkline(deskKit(), { key: 's', alt: 'a', values: [1, 2, 3, 4, 5], color: '#fff', px: 60, height: 16, max: 10, nowAt: 2, level: 0.8 }))[0]?.props?.source)
+  const src = String(svgsOf(sparkline(deskKit(), { key: 's', alt: 'a', values: [1, 2, 3, 4, 5], color: '#fff', px: 60, height: 16, max: 10, nowAt: 2, levelFrac: 0.8 }))[0]?.props?.source)
   expect(src).toMatch(/class="now"/)
   expect(src).toMatch(/class="ahead"[^>]*stroke-dasharray/)
   expect(src).toMatch(/class="level"[^>]*stroke-dasharray/)
@@ -201,17 +201,16 @@ test('sparkline: from leaves the points before it undrawn, on the same x scale; 
   expect(textOf(sparkline(term, { ...o, values: [10, 10, 20, 26], from: 2 }))).toBe(`${braille([0, 0], 100)}${braille([20, 26], 100, 1)}`)
 })
 test('heartbeat per state; the beat ships still: no animation, never interactive', () => {
-  const of = (state: 'still' | 'beat' | 'flat' | 'hollow') => svgsOf(heartbeat(deskKit(), { key: 'h', alt: 'cache warm', state, color: '#F5B14C' }))[0]
+  const of = (state: 'beat' | 'flat' | 'hollow') => svgsOf(heartbeat(deskKit(), { key: 'h', alt: 'cache warm', state, color: '#F5B14C' }))[0]
   expect(String(of('flat')?.props?.source)).toMatch(/<line/)
   expect(String(of('hollow')?.props?.source)).toMatch(/fill="none"/)
-  expect(String(of('still')?.props?.source)).not.toMatch(/animation|<style/)
   expect(of('beat')?.props?.isInteractive).toBeUndefined()
   expect(String(of('beat')?.props?.source)).not.toMatch(/animation|<style/)
   expect(String(of('beat')?.props?.source)).toMatch(/fill="#F5B14C"/)
   expect(heartbeat(makeKit(fakeEl, snapOf({ surface: 'terminal' })), { key: 'h', alt: 'a', state: 'beat', color: '#fff' })).toBeNull()
 })
 test('beats: the average rule is dotted', () => {
-  const src = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values: [0.5, 0.7], marked: [false, false], color: '#fff', markColor: '#fff', px: 40, height: 20, max: 1, level: 0.6 }))[0]?.props?.source)
+  const src = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values: [0.5, 0.7], marked: [false, false], color: '#fff', markColor: '#fff', px: 40, height: 20, max: 1, levelValue: 0.6 }))[0]?.props?.source)
   expect(src).toMatch(/class="level"[^>]*stroke-dasharray/)
 })
 test('beats: a zero or tiny value is a flat tick, never a notch below the baseline', () => {
@@ -250,7 +249,7 @@ test("the cache's track: the hour gone filled from the left, now a rule across i
   expect(text).toBe('⣤⣤⣀⣀⣀⣀⣀⣀')
 })
 test("a line's headroom keeps its scale's top, and a level drawn there, below the chart's own top", () => {
-  const src = svg(sparkline(desk, { key: 's', alt: 'context', values: [10, 20], color: '#888888', px: 90, height: 40, max: 20, level: 1, air: 8, headroom: 8 })).props.source
+  const src = svg(sparkline(desk, { key: 's', alt: 'context', values: [10, 20], color: '#888888', px: 90, height: 40, max: 20, levelFrac: 1, air: 8, headroom: 8 })).props.source
   const y = Number(/<line class="level" x1="0" y1="([\d.]+)"/.exec(src)?.[1])
   // Inside the air's translate: 8 of air, then 2 + 8 of the plot's own.
   expect(y).toBe(10)

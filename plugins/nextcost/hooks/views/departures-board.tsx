@@ -54,7 +54,7 @@ const FLAP_KEYS: readonly FlapKey[] = ['item', 'status', 'time']
 
 /** The lines the board would draw with every row: each named by what gives
  *  way with it. */
-const linesOf = (read: Readings): readonly Line[] => {
+const boardLines = (read: Readings): readonly Line[] => {
   const { rows } = read.board()
   const named = (key: BoardKey): Line[] => rows.filter(r => r.key === key).map(row => ({ name: key, row, key: `row:${key}` }))
   return [
@@ -193,7 +193,7 @@ const board = (kit: Kit, read: Readings, collapsedRows: number): RenderElement |
   const { Box, Svg, palette } = kit
   const inner = Math.max(0, rowRoom(kit) - BOARD_PAD)
   const cols = columnsOf(kit, read.board().rows, inner)
-  const plan = fitPlan(kit, linesOf(read), cols, boardBudget(kit, bodyRowsFor(read.frame.maxRows, collapsedRows, 0)))
+  const plan = fitPlan(kit, boardLines(read), cols, boardBudget(kit, bodyRowsFor(read.frame.maxRows, collapsedRows, 0)))
   if (plan.lines.length === 0) return null
   const remarks = plan.remarks && cols.remarks > 0
   return (
