@@ -8,13 +8,14 @@
 // way in pulse's order, an amber one never.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
-import { barChart, dayCells, dayCellsFit, flatBeats, sparkline, track } from '../charts'
+import { dayCellsFit, sparkline, track } from '../charts'
 import type { Kit } from '../kit'
 import { cellsOf } from '../layout'
 import type { LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, limitsHead, markedHead, type Say } from '../words'
 import { bodyRowsFor, footer } from './frame'
+import { beatsChart, chartsDraw, weekCells, windowTrail } from './pulse-charts'
 import { CARD_NAMES, alertLine, cardGrid, cardLine, cardShell, cardsPresent, factRow, headline, linesOf } from './shell'
 import type { CardLine, CardName } from './shell'
 
@@ -57,10 +58,6 @@ const fitWords = (kit: Kit, phrases: readonly string[], room: number): string =>
   }
   return words
 }
-
-/** Whether pulse's charts draw: the desktop's, and the unicode tier's
- *  braille; the ascii tier draws the words alone. */
-export const chartsDraw = (kit: Kit): boolean => kit.glyphs === 'unicode'
 
 /** Whether a fact's label and value fit `room` side by side, two columns apart. */
 const factFits = (kit: Kit, label: string, value: string, room: number): boolean => cellsOf(label, kit.measure) + 2 + cellsOf(value, kit.measure) <= room
@@ -221,15 +218,13 @@ const cacheCard = (kit: Kit, read: Readings, at: CardAt): RenderElement => {
 }
 
 const spendCard = (kit: Kit, read: Readings, at: CardAt): RenderElement => {
-  const { Svg, palette } = kit
+  const { Svg } = kit
   const hist = read.history()
   // The beats over their average, the newest last; in text two to a cell.
-  // No cost yet: the trace flat and dim, beside the note that says when
-  // costs show, so it never reads as $0 a message.
-  const beats = Svg ? hist.costValues.length : Math.min(hist.costValues.length, 2 * at.inner)
-  const chart = at.size === undefined || !at.f.charted.spend ? null
-    : hist.empty ? flatBeats(kit, { key: 'chart', alt: EMPTY.costsAlt, beats: 2 * at.inner, color: palette.label, px: at.px, ...at.size })
-    : barChart(kit, { key: 'chart', alt: hist.costsAltOf(beats), values: hist.costValues.slice(-beats), marked: hist.reWarms.slice(-beats), levelValue: hist.warmAvgUsd, color: palette.value, px: at.px, ...at.size, max: hist.beatsTop })
+  // No cost yet: the trace flat and dim across the card, beside the note
+  // that says when costs show, so it never reads as $0 a message.
+  const count = hist.empty ? 2 * at.inner : Svg ? hist.costValues.length : Math.min(hist.costValues.length, 2 * at.inner)
+  const chart = at.size === undefined || !at.f.charted.spend ? null : beatsChart(kit, read, { key: 'chart', count, level: true, px: at.px, ...at.size })
   const cost = hist.costFact
   const said = cost === undefined ? note(kit, 'fact', EMPTY.costs) : factRow(kit, cost.label, cost.value)
   return card(kit, 'spend', [[read.spend.totalText, 'value']], 'calm', [plot(kit, chart), fill(kit), said])
@@ -251,17 +246,14 @@ const contextCard = (kit: Kit, read: Readings, at: CardAt): RenderElement => {
 /** A window's half of Limits: its chart, `halfPx` wide, then its fact;
  *  side by side the halves share the line, else each takes all of it. */
 const half = (kit: Kit, read: Readings, at: CardAt, l: LimitView, halfPx: number, across: boolean): RenderElement => {
-  const { Box, Svg, palette, onTone } = kit
-  const week = read.week()
-  const ink = onTone(l.tone, l.key === '5h' ? palette.fiveAccent : palette.weekAccent)
+  const { Box } = kit
   let chart: RenderChildren = null
   if (at.size !== undefined && at.daySize !== undefined && at.f.charts) {
-    if (l.key === '5h' && week.fiveHourWindow.values.length > 1)
-      chart = sparkline(kit, { key: 'chart', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, from: week.fiveHourWindow.from, color: ink, px: halfPx, ...at.size, max: 100 })
     // The day cells are the desktop's: in text the 7d's half is its fact.
-    const cellPx = dayCellsFit(halfPx, week.daysDrawn.values.length, DAY_CELL_PX)
-    if (l.key === '7d' && Svg && week.daysDrawn.measured && cellPx !== undefined)
-      chart = dayCells(kit, { key: 'chart', alt: week.daysAlt, values: week.daysDrawn.values, guess: week.daysDrawn.guess, today: week.daysDrawn.today, color: ink, cellPx, ...at.daySize, max: 100 })
+    const cellPx = dayCellsFit(halfPx, read.week().daysDrawn.values.length, DAY_CELL_PX)
+    chart = l.key === '5h' ? windowTrail(kit, read, l.tone, { key: 'chart', px: halfPx, ...at.size })
+      : l.key === '7d' && cellPx !== undefined ? weekCells(kit, read, l.tone, { key: 'chart', cellPx, ...at.daySize })
+      : null
   }
   return (
     <Box key={l.key} flexDirection="column" justifyContent="flex-end" {...(across ? { flexGrow: 1, width: 0, minWidth: 0 } : {})}>
