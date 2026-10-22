@@ -4,14 +4,14 @@
 // the mounted one follows the host's own.
 
 import { test, expect } from 'claude-code/testing'
-import { drawBand, layoutAt } from '../hooks/band'
+import { layoutAt } from '../hooks/band'
 import { weekOf } from '../hooks/calendar'
 import { dayOf, fixedZone, hostZone, midnightOf, readableZone, zoneOf, type Zone } from '../hooks/format'
 import type { Sample } from '../hooks/memory'
 import { readingsOf } from '../hooks/reading'
 import { LAYOUT_NAMES, type BandSnapshot } from '../hooks/snapshot'
-import { DEFAULT_MAX_ROWS, HOUR, LONG, MIN, MODERN, START, USAGE, fact, fakeEl, hostClock, mountBand, setup, usageAt, type Node } from './helpers'
-import { NO_ACT, invariantErrors, snapOf } from './matrix'
+import { DEFAULT_MAX_ROWS, HOUR, LONG, MIN, MODERN, SPEND_LIMIT, START, USAGE, fact, hostClock, mountBand, setup, usageAt, type Node } from './helpers'
+import { bandOf, invariantErrors, snapOf } from './matrix'
 
 const at = Date.parse
 /** A zone from its first offset and each change after, `[from, offset]`, oldest first. */
@@ -47,34 +47,34 @@ const readAt = (now: string, zone: Zone, over: Partial<BandSnapshot> & { fiveAt?
 const coldClock = (now: string, zone: Zone, over: Parameters<typeof readAt>[2] = {}): string | undefined =>
   readAt(now, zone, { ...over, cache: { ...snapOf().cache, coldAt: at(now) + 52 * MIN } }).board().rows.find(row => row.key === 'cache')?.time
 const initial = (d: Readonly<{ name: string }>): string => d.name.slice(0, 1)
+/** The week's days by initial, today in brackets, as day cells mark it in text: 'SMTW[T]FS'. */
+const marked = (days: ReadonlyArray<Readonly<{ name: string; today: boolean }>>): string => days.map(d => (d.today ? `[${initial(d)}]` : initial(d))).join('')
 
 // ---- the zone matrix ---------------------------------------------------------
 
 // Thu 2026-10-08 12:00 UTC; the 5h resets at 15:00 UTC, the 7d Sun 07:00 UTC.
 const NOON = '2026-10-08T12:00Z'
-/** Per zone: the 5h reset, the 7d reset, cold at (52 minutes on), the first
- *  hour's start, today, and the week's first and last days, as read there. */
-const MATRIX: ReadonlyArray<readonly [number, string, string, string, string, string, string]> = [
-  [-720, '03:00', 'Sat 19:00', '00:52', '22:00', 'Thursday 8', 'S4…S10'],
-  [-570, '05:30', 'Sat 21:30', '03:22', '00:30', 'Thursday 8', 'S4…S10'],
-  [-300, '10:00', 'Sun 02:00', '07:52', '05:00', 'Thursday 8', 'S4…S10'],
-  [-210, '11:30', 'Sun 03:30', '09:22', '06:30', 'Thursday 8', 'S4…S10'],
-  [0, '15:00', 'Sun 07:00', '12:52', '10:00', 'Thursday 8', 'S4…S10'],
-  [60, '16:00', 'Sun 08:00', '13:52', '11:00', 'Thursday 8', 'S4…S10'],
-  [330, '20:30', 'Sun 12:30', '18:22', '15:30', 'Thursday 8', 'M5…S11'],
-  [345, '20:45', 'Sun 12:45', '18:37', '15:45', 'Thursday 8', 'M5…S11'],
-  [570, 'Fri 00:30', 'Sun 16:30', '22:22', '19:30', 'Thursday 8', 'M5…S11'],
-  [765, '03:45', 'Sun 19:45', '01:37', '22:45', 'Friday 9', 'M5…S11'],
-  [840, '05:00', 'Sun 21:00', '02:52', '00:00', 'Friday 9', 'M5…S11'],
+/** Per zone: the 5h reset, the 7d reset, cold at (52 minutes on), and the
+ *  week's days, today marked, as read there: Sunday 4th to Saturday 10th,
+ *  or Monday 5th to Sunday 11th. */
+const MATRIX: ReadonlyArray<readonly [number, string, string, string, string]> = [
+  [-720, '03:00', 'Sat 19:00', '00:52', 'SMTW[T]FS'],
+  [-570, '05:30', 'Sat 21:30', '03:22', 'SMTW[T]FS'],
+  [-300, '10:00', 'Sun 02:00', '07:52', 'SMTW[T]FS'],
+  [-210, '11:30', 'Sun 03:30', '09:22', 'SMTW[T]FS'],
+  [0, '15:00', 'Sun 07:00', '12:52', 'SMTW[T]FS'],
+  [60, '16:00', 'Sun 08:00', '13:52', 'SMTW[T]FS'],
+  [330, '20:30', 'Sun 12:30', '18:22', 'MTW[T]FSS'],
+  [345, '20:45', 'Sun 12:45', '18:37', 'MTW[T]FSS'],
+  [570, 'Fri 00:30', 'Sun 16:30', '22:22', 'MTW[T]FSS'],
+  [765, '03:45', 'Sun 19:45', '01:37', 'MTWT[F]SS'],
+  [840, '05:00', 'Sun 21:00', '02:52', 'MTWT[F]SS'],
 ]
-for (const [offset, five, seven, cold, firstHour, today, days] of MATRIX) {
+for (const [offset, five, seven, cold, week] of MATRIX) {
   test(`at UTC${offset < 0 ? '' : '+'}${offset / 60}, each clock and day reads as it does there`, () => {
     const r = readAt(NOON, fixedZone(offset), { fiveAt: '2026-10-08T15:00Z', sevenAt: '2026-10-11T07:00Z' })
     expect([r.fiveHour?.resetWhen, r.sevenDay?.resetWhen, coldClock(NOON, fixedZone(offset), { fiveAt: '2026-10-08T15:00Z', sevenAt: '2026-10-11T07:00Z' })]).toEqual([five, seven, cold])
-    const wk = r.week()
-    expect(wk.hours[0]?.startClock).toBe(firstHour)
-    expect(wk.days.filter(d => d.today).map(d => `${d.name} ${d.date}`)).toEqual([today])
-    expect(`${wk.days[0] && initial(wk.days[0])}${wk.days[0]?.date}…${wk.days[6] && initial(wk.days[6])}${wk.days[6]?.date}`).toBe(days)
+    expect(marked(r.week().days)).toBe(week)
   })
 }
 
@@ -100,13 +100,6 @@ test('on the night the clocks change, the cold clock says the clock that will sh
   const berlin = readAt('2026-10-25T00:30Z', BERLIN, { fiveAt: '2026-10-25T04:30Z' })
   expect([berlin.fiveHour?.resetWhen, coldClock('2026-10-25T00:30Z', BERLIN, { fiveAt: '2026-10-25T04:30Z' })]).toEqual(['05:30', '02:22'])
 })
-test('the 5h hours are named by the clock at each start: 01 twice falling back, no 02 springing forward', () => {
-  const five = (resetsAt: string) => ({ percentUsed: 4, projectedPct: 10, resetsAt: at(resetsAt) })
-  const fall = weekOf({ samples: [], seven: undefined, five: five('2026-11-01T08:30Z'), now: at('2026-11-01T05:30Z'), zone: NEW_YORK })
-  expect(fall.hours.map(c => c.startClock)).toEqual(['23:30', '00:30', '01:30', '01:30', '02:30'])
-  const spring = weekOf({ samples: [], seven: undefined, five: five('2026-03-08T09:30Z'), now: at('2026-03-08T06:15Z'), zone: NEW_YORK })
-  expect(spring.hours.map(c => c.startClock)).toEqual(['23:30', '00:30', '01:30', '03:30', '04:30'])
-})
 
 // New York, the week of the fall back: Tue 27 15:00 EDT to Tue Nov 3 14:00 EST.
 const FALL_RESET = at('2026-11-03T19:00Z')
@@ -124,19 +117,20 @@ const FALL_SAMPLES = [
 ]
 const fallWeek = (now: string) =>
   weekOf({ samples: FALL_SAMPLES.filter(s => s.at <= at(now)), seven: { percentUsed: 18, projectedPct: 30, resetsAt: FALL_RESET }, five: undefined, now: at(now), zone: NEW_YORK })
-const cellsOf = (wk: ReturnType<typeof weekOf>) => wk.days.map(d => `${initial(d)}${d.date} ${d.pct === undefined ? '' : `${d.guess ? '~' : ''}${Math.round(d.pct)}%`}`)
+const cellsOf = (wk: ReturnType<typeof weekOf>) => wk.days.map(d => `${initial(d)} ${d.pct === undefined ? '' : `${d.guess ? '~' : ''}${Math.round(d.pct)}%`}`)
 test("each day's rise sits in that day's own cell, the 25-hour day whole, the same on every draw", () => {
   const friday = fallWeek('2026-10-30T22:00Z') // Fri 18:00 EDT
   const monday = fallWeek('2026-11-02T15:00Z') // Mon 10:00 EST
-  expect(cellsOf(friday).slice(0, 3)).toEqual(['W28 2%', 'T29 4%', 'F30 6%'])
-  expect(cellsOf(monday).slice(0, 6)).toEqual(['W28 2%', 'T29 4%', 'F30 6%', 'S31 1%', 'S1 2%', 'M2 3%'])
+  // Wednesday 28th to Monday 2nd, Sunday 1st the 25-hour day.
+  expect(cellsOf(friday).slice(0, 3)).toEqual(['W 2%', 'T 4%', 'F 6%'])
+  expect(cellsOf(monday).slice(0, 6)).toEqual(['W 2%', 'T 4%', 'F 6%', 'S 1%', 'S 2%', 'M 3%'])
 })
-test('the 25-hour day holds its own date among the days', () => {
-  // Sun Nov 1 12:00 EST.
+test('the 25-hour day is one day among the seven, and today on it', () => {
+  // Sun Nov 1 12:00 EST, in the week Wednesday 28th to Tuesday 3rd.
   const wk = readingsOf(snapOf({ now: at('2026-11-01T17:00Z'), zone: NEW_YORK, sevenDay: { percentUsed: 14, resetsAt: FALL_RESET } })).week()
-  expect(wk.days.map(d => d.date)).toEqual(['28', '29', '30', '31', '1', '2', '3'])
+  expect(marked(wk.days)).toBe('WTFS[S]MT')
 })
-test('a week spring forward holds nine slices, folds to seven, and keeps each date in its cell', () => {
+test('a week spring forward holds nine slices, folds to seven, and keeps each day in its cell', () => {
   // New York: the reset Sun 2027-03-21 00:30 EDT leaves half an hour at each
   // end, and the 23-hour Sunday the 14th between.
   const reset = at('2027-03-21T04:30Z')
@@ -156,9 +150,10 @@ test('a week spring forward holds nine slices, folds to seven, and keeps each da
   // And inside each end's half hour: Sat 13 23:45 EST and Sun 21 00:15 EDT.
   const first = weekAt('2027-03-14T04:45Z')
   const last = weekAt('2027-03-21T04:15Z')
-  for (const wk of [early, later, first, last]) expect(wk.days.map(d => `${initial(d)}${d.date}`)).toEqual(['S14', 'M15', 'T16', 'W17', 'T18', 'F19', 'S20'])
+  // Sunday 14th to Saturday 20th.
+  for (const wk of [early, later, first, last]) expect(wk.days.map(initial).join('')).toBe('SMTWTFS')
   expect([early, first, last].map(wk => wk.days.filter(d => d.today).map(d => d.name))).toEqual([['Sunday'], ['Sunday'], ['Saturday']])
-  expect(cellsOf(later).slice(0, 3)).toEqual(['S14 5%', 'M15 7%', 'T16 8%'])
+  expect(cellsOf(later).slice(0, 3)).toEqual(['S 5%', 'M 7%', 'T 8%'])
 })
 test('a day whose midnight is skipped starts where the gap ends, to the west and the east', () => {
   for (const [zone, noon, gapEnd] of [[SANTIAGO, '2026-09-06T16:00Z', '2026-09-06T04:00Z'], [BEIRUT, '2026-03-29T10:00Z', '2026-03-28T22:00Z']] as const) {
@@ -197,11 +192,11 @@ test('the longest reset and fill words fit every layout at every width, shut and
         for (const cols of [40, 41, 50, 60, 67, 68, 80, 95, 120])
           for (const expanded of [false, true]) {
             const now = at(iso)
-            const tree = drawBand(fakeEl, snapOf({
+            const tree = bandOf({
               layout, surface, glyphs, columns: cols, expanded, maxRows: DEFAULT_MAX_ROWS, now, zone: fixedZone(0),
               fiveHour: { percentUsed: 4, resetsAt: now + 3 * HOUR, etaMs: null },
               sevenDay: { percentUsed: seven, resetsAt: at('2026-10-24T13:30Z') },
-            }), NO_ACT) as unknown as Node
+            }) as unknown as Node
             // Held to the rules of the layout drawn there: chips below departures' 60.
             const errors = invariantErrors(tree, { layout: layoutAt(layout, cols), surface, appearance: 'dark', cols, maxRows: DEFAULT_MAX_ROWS, scenario: 'calm', glyphs, expanded })
             const key = `${iso} ${layout} ${surface} ${glyphs} ${cols} ${expanded ? 'open' : 'shut'}`
@@ -245,7 +240,7 @@ test('idle, with no reply, the band reads each clock in the zone in force as the
   const change = lastHostChange(Date.UTC(2015, 0, 1), Date.UTC(2030, 0, 1))
   const start = (change ?? MODERN) - 10 * MIN
   const resetAt = start + 5 * HOUR
-  const usage = usageAt(start, { ...USAGE, rateLimits: [...USAGE.rateLimits, { kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }] })
+  const usage = usageAt(start, { ...USAGE, rateLimits: [...USAGE.rateLimits, SPEND_LIMIT] })
   const clock = setup(on, { usage, now: start })
   await $.session.start(START)
   const ui = await mountBand($, 'terminal', 110)

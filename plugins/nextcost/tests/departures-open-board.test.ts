@@ -9,7 +9,7 @@ import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK, PLAIN } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { HOUR, LONG, MIN, byKey, flapWords, shown, svgsOf, walk, wordsOf, type Node } from './helpers'
-import { LAST_MINUTE_CACHE, NEAR_COMPACTION, WORKSPACE, bandOf, cacheWith, limitAt, otherLimits, visualRows } from './matrix'
+import { ASCII_TIER, LAST_MINUTE_CACHE, NEAR_COMPACTION, WORKSPACE, bandOf, cacheWith, limitAt, otherLimits, visualRows } from './matrix'
 
 /** 20:06 UTC, the viewer at +00:30: their clock reads 20:36. */
 const NOW = 20 * HOUR + 6 * MIN
@@ -204,7 +204,7 @@ test('plain has no grounds; the ascii tier draws ASCII alone', () => {
     expect(shown(plain)).toMatch(/\[CACHE\]/)
   }
   const ascii = band({ surface: 'terminal', glyphs: 'ascii', otherLimits: OTHER, maxRows: 40, columns: 60 })
-  expect(shown(boardOf(ascii))).toMatch(/^[\x20-\x7e]*$/)
+  expect(shown(boardOf(ascii))).toMatch(ASCII_TIER)
   expect(shown(boardOf(ascii))).toMatch(/SPEND\s*\$3\.19\s*-/)
 })
 

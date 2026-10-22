@@ -130,10 +130,13 @@ export const rateFromTranscript = (transcript: string, model: string): number | 
   return null
 }
 
+/** What marks a line whose usage splits its cache writes by lifetime. */
+const CACHE_WRITE_MARKER = '"cache_creation"'
+
 /** The TTL the transcript's last main-loop cache write was made at: an hour
  *  if it wrote any for an hour, else five minutes if it wrote any. */
 export const lastWriteTtl = (transcript: string): Ttl | undefined => {
-  for (const entry of fromEnd(transcript, '"cache_creation"')) {
+  for (const entry of fromEnd(transcript, CACHE_WRITE_MARKER)) {
     if (!isMainReply(entry) || !isRecord(entry.message)) continue
     const usage = entry.message.usage
     const written = isRecord(usage) ? usage.cache_creation : undefined

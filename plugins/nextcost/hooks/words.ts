@@ -297,7 +297,7 @@ const moodWords = (f: CacheFacts, left: string, leftShort: string, price: string
         figureShort: f.coldInMs !== undefined ? leftShort : value,
         amber: expiring ? AMBER.cache(leftShort, f.estimate) : undefined,
         // The card counts down as chips' row always has: `1h 05m`, `0:47`.
-        cardHead: f.coldInMs !== undefined ? [[fmtCountdown(f.msLeft), 'value'], [' left', 'label']] : [[value, 'value']],
+        cardHead: f.coldInMs !== undefined ? [[fmtCountdown(f.coldInMs), 'value'], [' left', 'label']] : [[value, 'value']],
         cardNote: f.idleCompactSoon ? `Claude Code may compact it ${IDLE_COMPACT_AT}.` : undefined,
         estimateLabel: 're-warm if cold',
         alt:
@@ -352,7 +352,7 @@ type CacheCopy = Readonly<{
 const cacheCopy = (f: CacheFacts, frame: Frame): CacheCopy => {
   // What a warm read costs against input on the model in force.
   const readPct = `${+(f.readShare * 100).toFixed(1)}%`
-  const left = fmtCountdown(f.msLeft)
+  const left = fmtCountdown(f.leftMs)
   // The rebuild's price after its tokens, where a rate is known.
   const priced = f.reWarmUsd === null ? '' : ` (${f.estimate})`
   const battery = f.charge <= 0 ? 'cache battery empty' : `cache battery ${Math.round(clamp01(f.charge) * 100)}% left`

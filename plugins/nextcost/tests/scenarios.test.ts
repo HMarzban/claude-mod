@@ -4,7 +4,7 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { LONG, START, engine, mountBand, setup, shown, turn, resp, respond } from './helpers'
+import { BUILD_155K, LONG, START, engine, mountBand, setup, shown, turn, respond } from './helpers'
 import { caseKey, drawCases, ttlOf, type Mount, type ScenarioName } from './matrix'
 import { treeHash } from './golden/hash'
 
@@ -55,7 +55,7 @@ test('the fake engine counts store reads, store writes and invalidates', async (
   const clock = setup(on)
   await $.session.start(START)
   expect(engine.storeGets).toContain('sessions')
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   await turn($, 't1', 2.41, 2.62)
   await clock.settle()
   expect(engine.storeSets).toContain('sessions')
@@ -65,7 +65,7 @@ test('a failing store refuses every write, and the band carries on', async ($, o
   const clock = setup(on)
   engine.storeFails = true
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   await turn($, 't1', 2.41, 2.62)
   await clock.settle()
   expect(engine.storeSets).toContain('sessions')

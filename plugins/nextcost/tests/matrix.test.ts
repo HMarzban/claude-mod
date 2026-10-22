@@ -4,9 +4,8 @@ import { test, expect } from 'claude-code/testing'
 import type { RenderChildren } from 'claude-code'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { flaps } from '../hooks/flaps'
-import { makeKit } from '../hooks/kit'
-import { fakeEl, flapWords, type Node } from './helpers'
-import { invariantErrors, orderErrors, snapOf, visualRows, type InvariantContext } from './matrix'
+import { flapWords, type Node } from './helpers'
+import { invariantErrors, kitOf, orderErrors, visualRows, type InvariantContext } from './matrix'
 
 const t = (s: string, props: Record<string, unknown> = {}) => ({ type: 'Text', props, children: [s] })
 const toggle = (label = '▵') => ({ type: 'Button', props: { label } })
@@ -201,7 +200,7 @@ test('the order check: the cache always, the 7d when it is reported, and a subse
   expect(orderErrors(row('cache', '5h'), { has7d: false })).toEqual([])
 })
 test('flapWords reads a flap Svg with its spaces', () => {
-  const k = makeKit(fakeEl, snapOf({ surface: 'desktop' }))
+  const k = kitOf({ surface: 'desktop' })
   expect(flapWords(flaps(k, { key: 'f', alt: 'a', runs: [['CACHE', '#fff'], ['LAST CALL 47S', '#fff']], bg: '#222', seam: '#000' }))).toBe('CACHE LAST CALL 47S')
 })
 test("amber: the board's capitals name the reading, its item and cell joined, bracketed or a gap apart", () => {

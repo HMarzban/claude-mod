@@ -296,10 +296,10 @@ type BarChartOptions = Readonly<{
   key: string
   alt: string
   values: readonly number[]
-  /** Bars to set apart, as a re-warm is: their own colour and a cap. */
+  /** Beats to set apart, as a re-warm is: capped flat across the peak.
+   *  Text draws them as any other. */
   marked: readonly boolean[]
   color: string
-  markColor: string
   px: number
   height: number
   /** The top of the scale, by default the largest value: a bar past it
@@ -315,17 +315,13 @@ type BarChartOptions = Readonly<{
 const CAP_ROOM = 3
 
 /** A beat per value, oldest first: one ECG path, a marked value capped flat
- *  across its peak. Text draws bars in braille, two to a cell, a cell
- *  holding a marked one in the mark's colour. */
+ *  across its peak. Text draws bars in braille, two to a cell. */
 export const barChart = (kit: Kit, o: BarChartOptions): RenderChildren => {
   const { Svg, svg, palette } = kit
-  const { key, alt, values, marked, color, markColor, px, height, max, levelValue, air = 0 } = o
+  const { key, alt, values, marked, color, px, height, max, levelValue, air = 0 } = o
   const top = max ?? topOf(values)
   if (!Svg) {
-    const cells = Array.from({ length: Math.ceil(values.length / 2) }, (_, c): readonly [string, string] => {
-      const i = 2 * c
-      return [braille(values.slice(i, i + 2), top, 1), marked[i] === true || marked[i + 1] === true ? markColor : color]
-    })
+    const cells = Array.from({ length: Math.ceil(values.length / 2) }, (_, c): readonly [string, string] => [braille(values.slice(2 * c, 2 * c + 2), top, 1), color])
     return textRuns(kit, key, cells, color)
   }
   const room = height - CAP_ROOM

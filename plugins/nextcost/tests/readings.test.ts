@@ -3,9 +3,9 @@ import { fixedZone, fmtClock } from '../hooks/format'
 import { cappedMarks } from '../hooks/calendar'
 import { readingsOf } from '../hooks/reading'
 import { HOUR, MIN, SAMPLES } from './helpers'
-import { snapOf } from './matrix'
+import { NO_HISTORY, snapOf } from './matrix'
 
-const cacheAt = (msLeft: number) => ({ ...snapOf().cache, msLeft })
+const cacheAt = (leftMs: number) => ({ ...snapOf().cache, leftMs })
 
 test('readings name every limit with its tone, value, reset and projection', () => {
   const r = readingsOf(snapOf())
@@ -309,10 +309,10 @@ test('a limit fills in its measured time, else on its average once it lands at 1
 test('the cache counts down to cold; under 10 minutes it is its last call, a 5-minute cache in its last minute', () => {
   const cache = (over: Partial<ReturnType<typeof snapOf>['cache']>) => readingsOf(snapOf({ cache: { ...snapOf().cache, ...over } })).cache
   expect(cache({}).lastCall).toBe(false)
-  const soon = cache({ msLeft: 6 * MIN })
+  const soon = cache({ leftMs: 6 * MIN })
   expect([soon.lastCall, soon.tone]).toEqual([true, 'calm'])
-  expect(cache({ msLeft: 10 * MIN }).lastCall).toBe(false)
-  expect([cache({ ttl: '5m', msLeft: 4 * MIN }).lastCall, cache({ ttl: '5m', msLeft: 59_000 }).lastCall]).toEqual([false, true])
+  expect(cache({ leftMs: 10 * MIN }).lastCall).toBe(false)
+  expect([cache({ ttl: '5m', leftMs: 4 * MIN }).lastCall, cache({ ttl: '5m', leftMs: 59_000 }).lastCall]).toEqual([false, true])
 })
 const costs = (list: Array<[number, boolean]>) => readingsOf(snapOf({ history: { costs: list.map(([usd, reWarm]) => ({ usd, reWarm })), context: [] } })).history()
 const FIVE = { percentUsed: 4, resetsAt: 3 * HOUR, etaMs: null }
@@ -419,7 +419,7 @@ test("today's fill with no reading inside today yet is a guess of what is left, 
   expect(weekOf([at(-30 * 60, 60), ...late]).daysDrawn.measured).toBe(true)
 })
 test("`no costs yet` is said only while there is no cost at all: no message's and a total of $0", () => {
-  const none = { history: { costs: [], context: [] } }
+  const none = { history: NO_HISTORY }
   expect(readingsOf(snapOf({ ...none, costUsd: 0 })).history().costsNote).toBe('no costs yet')
   expect(readingsOf(snapOf({ ...none, costUsd: 2.41 })).history().costsNote).toBeUndefined()
   expect(readingsOf(snapOf({ costUsd: 0, history: { costs: [{ usd: 0.2, reWarm: false }], context: [] } })).history().costsNote).toBeUndefined()
@@ -434,5 +434,5 @@ test('a context window of 0 reads 0%, never NaN%', () => {
 test("the last message's cost is one fact: the spend's words and the history's read the trail's newest", () => {
   const r = readingsOf(snapOf({ history: { costs: [{ usd: 0.5, reWarm: false }, { usd: 0.08, reWarm: false }], context: [] } }))
   expect([r.spend.lastText, r.history().lastText]).toEqual(['$0.08', '$0.08'])
-  expect(readingsOf(snapOf({ history: { costs: [], context: [] } })).spend.lastText).toBeUndefined()
+  expect(readingsOf(snapOf({ history: NO_HISTORY })).spend.lastText).toBeUndefined()
 })

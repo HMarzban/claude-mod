@@ -13,7 +13,7 @@ import type { Kit } from '../kit'
 import { cellsOf } from '../layout'
 import type { LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
-import { EMPTY, limitsHead, markedHead } from '../words'
+import { EMPTY, limitsHead, markedHead, type Say } from '../words'
 import { bodyRowsFor, footer } from './frame'
 import { CARD_NAMES, alertLine, cardGrid, cardLine, cardShell, cardsPresent, factRow, headline, linesOf } from './shell'
 import type { CardLine, CardName } from './shell'
@@ -161,109 +161,157 @@ const planFor = (kit: Kit, f: Facts, body: number): Plan | undefined => {
   return undefined
 }
 
+/** What a card on a line is built at: the facts and the plan; the columns
+ *  inside it, `inner`, and on the desktop `px`, so a chart spans its card to
+ *  where its fact row ends; and its charts' sizes at the plan, none without
+ *  charts. */
+type CardAt = Readonly<{
+  f: Facts
+  p: Plan
+  inner: number
+  px: number
+  size: (typeof CHART_PX)[1 | 2] | undefined
+  daySize: (typeof DAY_PX)[1 | 2] | undefined
+  headroom: number | undefined
+}>
+
+/** What a card on a line of `count` is built at. */
+const cardAt = (kit: Kit, f: Facts, p: Plan, count: number): CardAt => {
+  const { inner, innerPx } = cardLine(kit, count)
+  return p.chart === 0
+    ? { f, p, inner, px: innerPx, size: undefined, daySize: undefined, headroom: undefined }
+    : { f, p, inner, px: innerPx, size: CHART_PX[p.chart], daySize: DAY_PX[p.chart], headroom: HEADROOM_PX[p.chart] }
+}
+
+/** A chart in its card: in text clipped to the card, the desktop's its own width. */
+const plot = (kit: Kit, chart: RenderChildren): RenderChildren => {
+  const { Box, Svg } = kit
+  return chart === null || Svg ? chart : <Box key="plot" overflow="hidden">{chart}</Box>
+}
+
+/** A line of words in a label's ink, cut to its row. */
+const note = (kit: Kit, key: string, text: string): RenderElement => {
+  const { Box, palette, oneLine } = kit
+  return <Box key={key}>{oneLine({ color: palette.label }, text)}</Box>
+}
+
+/** A fact, its value's phrases as many as fit beside its label. */
+const fact = (kit: Kit, at: CardAt, label: string, values: readonly string[]): RenderElement =>
+  factRow(kit, label, fitWords(kit, values, at.inner - cellsOf(label, kit.measure) - 2))
+
+/** What fills a card's height past its chart, so its fact sits on the line's last row. */
+const fill = (kit: Kit): RenderElement => {
+  const { Box } = kit
+  return <Box key="fill" flexGrow={1} />
+}
+
+const card = (kit: Kit, name: CardName, say: Say, tone: Tone, body: RenderChildren[]): RenderElement =>
+  cardShell(kit, { key: `pulse:${name}`, name, head: headline(kit, say, tone), body })
+
+const cacheCard = (kit: Kit, read: Readings, at: CardAt): RenderElement => {
+  const { palette, onTone } = kit
+  const { cache } = read
+  // Inked by its mood: amber in its last minute, warm green while warm, a
+  // label's ink cold or compacted, the whole hour gone. Unmeasured or
+  // warming, its hour isn't known: no track, and its note says when it will be.
+  const ink = onTone(cache.tone, cache.mood === 'warm' ? palette.warm : palette.label)
+  const chart = at.size === undefined || !at.f.charted.cache ? null : track(kit, { key: 'chart', alt: cache.alt, frac: 1 - cache.charge, color: ink, px: at.px, ...at.size, cells: at.inner })
+  const said = cache.untimed && cache.cardNote !== undefined ? note(kit, 'fact', cache.cardNote) : fact(kit, at, cache.estimateLabel, [cache.estimate])
+  return card(kit, 'cache', markedHead(cache.cardHead, cache.tone), cache.tone, [plot(kit, chart), fill(kit), said])
+}
+
+const spendCard = (kit: Kit, read: Readings, at: CardAt): RenderElement => {
+  const { Svg, palette } = kit
+  const hist = read.history()
+  // The beats over their average, the newest last; in text two to a cell.
+  // No cost yet: the trace flat and dim, beside the note that says when
+  // costs show, so it never reads as $0 a message.
+  const beats = Svg ? hist.costValues.length : Math.min(hist.costValues.length, 2 * at.inner)
+  const chart = at.size === undefined || !at.f.charted.spend ? null
+    : hist.empty ? flatBeats(kit, { key: 'chart', alt: EMPTY.costsAlt, beats: 2 * at.inner, color: palette.label, px: at.px, ...at.size })
+    : barChart(kit, { key: 'chart', alt: hist.costsAltOf(beats), values: hist.costValues.slice(-beats), marked: hist.reWarms.slice(-beats), levelValue: hist.warmAvgUsd, color: palette.value, px: at.px, ...at.size, max: hist.beatsTop })
+  const cost = hist.costFact
+  const said = cost === undefined ? note(kit, 'fact', EMPTY.costs) : factRow(kit, cost.label, cost.value)
+  return card(kit, 'spend', [[read.spend.totalText, 'value']], 'calm', [plot(kit, chart), fill(kit), said])
+}
+
+const contextCard = (kit: Kit, read: Readings, at: CardAt): RenderElement => {
+  const { Svg, palette, onTone } = kit
+  const { context } = read
+  const hist = read.history()
+  // Its trail under the compaction line; fewer than two turns, flat at its
+  // level now, which is known. In text two turns to a cell.
+  const turns = Svg ? hist.context.length : 2 * at.inner
+  const values = hist.context.length > 1 ? hist.context.slice(-turns) : Array.from({ length: Math.max(2, Svg ? 2 : turns) }, () => context.used)
+  const chart = at.size === undefined || !at.f.charted.context ? null
+    : sparkline(kit, { key: 'chart', alt: hist.contextTrailAlt, values, color: onTone(context.tone, palette.label), px: at.px, ...at.size, headroom: at.headroom, max: context.compactAt ?? context.window, levelFrac: context.compactAt === undefined ? undefined : 1 })
+  return card(kit, 'context', markedHead(context.cardHead, context.tone), context.tone, [plot(kit, chart), fill(kit), fact(kit, at, context.fact.label, context.fact.values)])
+}
+
+/** A window's half of Limits: its chart, `halfPx` wide, then its fact;
+ *  side by side the halves share the line, else each takes all of it. */
+const half = (kit: Kit, read: Readings, at: CardAt, l: LimitView, halfPx: number, across: boolean): RenderElement => {
+  const { Box, Svg, palette, onTone } = kit
+  const week = read.week()
+  const ink = onTone(l.tone, l.key === '5h' ? palette.fiveAccent : palette.weekAccent)
+  let chart: RenderChildren = null
+  if (at.size !== undefined && at.daySize !== undefined && at.f.charts) {
+    if (l.key === '5h' && week.fiveHourWindow.values.length > 1)
+      chart = sparkline(kit, { key: 'chart', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, from: week.fiveHourWindow.from, color: ink, px: halfPx, ...at.size, max: 100 })
+    // The day cells are the desktop's: in text the 7d's half is its fact.
+    const cellPx = dayCellsFit(halfPx, week.daysDrawn.values.length, DAY_CELL_PX)
+    if (l.key === '7d' && Svg && week.daysDrawn.measured && cellPx !== undefined)
+      chart = dayCells(kit, { key: 'chart', alt: week.daysAlt, values: week.daysDrawn.values, guess: week.daysDrawn.guess, today: week.daysDrawn.today, color: ink, cellPx, ...at.daySize, max: 100 })
+  }
+  return (
+    <Box key={l.key} flexDirection="column" justifyContent="flex-end" {...(across ? { flexGrow: 1, width: 0, minWidth: 0 } : {})}>
+      {plot(kit, chart)}
+      {factRow(kit, l.fact.label, l.fact.value)}
+    </Box>
+  )
+}
+
+const limitsCard = (kit: Kit, read: Readings, at: CardAt): RenderElement => {
+  const { Box, palette, measure, onTone, oneLine } = kit
+  const { f, p } = at
+  const windows = p.kept.has('limits') ? f.windows : []
+  const across = halvesAcross(kit, f, at.inner)
+  const halfPx = windows.length > 1 && across ? Math.floor((at.px - HALF_GAP * measure.pxPerCell) / 2) : at.px
+  const others = p.kept.has('other') ? f.others : []
+  const shown = windows.length > 0 ? windows : others
+  const tone: Tone = shown.some(l => l.tone === 'amber') ? 'amber' : 'calm'
+  const othersAmber = others.some(l => l.tone === 'amber')
+  return card(kit, 'limits', markedHead(limitsHead(shown), tone), tone, [
+    windows.length === 0 ? null : (
+      <Box key="halves" flexDirection={across ? 'row' : 'column'} alignItems="stretch" columnGap={HALF_GAP} flexGrow={1}>
+        {windows.map(l => half(kit, read, at, l, halfPx, across))}
+      </Box>
+    ),
+    others.length === 0 ? null : (
+      <Box key="others">{oneLine({ color: onTone(othersAmber ? 'amber' : 'calm', palette.cardValue) }, others.map(l => l.line).join(DOT))}</Box>
+    ),
+  ])
+}
+
+/** Each card's builder, by name. */
+const CARDS: Readonly<Record<CardName, (kit: Kit, read: Readings, at: CardAt) => RenderElement>> = {
+  cache: cacheCard,
+  spend: spendCard,
+  context: contextCard,
+  limits: limitsCard,
+}
+
 /** The cards drawn at a plan, line by line. */
 const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement => {
-  const { Box, Svg, palette, measure, onTone, oneLine } = kit
-  const { cache, context } = read
-  const hist = read.history()
-  const week = read.week()
   const { lines } = layoutOf(kit, f, p)
-  /** The cards of a line of `count`: each `inner` columns inside, and on
-   *  the desktop `px`, so a chart spans its card to where its fact row ends. */
-  const cardsFor = (count: number): Readonly<Record<CardName, () => RenderElement>> => {
-    const { inner, innerPx: px } = cardLine(kit, count)
-    /** A chart in its card: in text clipped to the card, the desktop's its own width. */
-    const plot = (chart: RenderChildren): RenderChildren => (chart === null || Svg ? chart : <Box key="plot" overflow="hidden">{chart}</Box>)
-    /** A chart's size on the desktop at this plan; in text, its line. */
-    const size = p.chart === 0 ? undefined : CHART_PX[p.chart]
-    const daySize = p.chart === 0 ? undefined : DAY_PX[p.chart]
-    const headroom = p.chart === 0 ? undefined : HEADROOM_PX[p.chart]
-    /** A line of words in a label's ink, cut to its row. */
-    const note = (key: string, text: string) => <Box key={key}>{oneLine({ color: palette.label }, text)}</Box>
-    /** A fact, its value's phrases as many as fit beside its label. */
-    const fact = (label: string, values: readonly string[], room = inner) => factRow(kit, label, fitWords(kit, values, room - cellsOf(label, kit.measure) - 2))
-    /** What fills a card's height past its chart, so its fact sits on the line's last row. */
-    const fill = () => <Box key="fill" flexGrow={1} />
-    const card = (name: CardName, say: Parameters<typeof headline>[1], tone: Tone, body: RenderChildren[]) =>
-      cardShell(kit, { key: `pulse:${name}`, name, head: headline(kit, say, tone), body })
-
-    const cacheCard = (): RenderElement => {
-      // Inked by its mood: amber in its last minute, warm green while warm, a
-      // label's ink cold or compacted, the whole hour gone. Unmeasured or
-      // warming, its hour isn't known: no track, and its note says when it will be.
-      const ink = onTone(cache.tone, cache.mood === 'warm' ? palette.warm : palette.label)
-      const chart = size === undefined || !f.charted.cache ? null : track(kit, { key: 'chart', alt: cache.alt, frac: 1 - cache.charge, color: ink, px, ...size, cells: inner })
-      const said = cache.untimed && cache.cardNote !== undefined ? note('fact', cache.cardNote) : fact(cache.estimateLabel, [cache.estimate])
-      return card('cache', markedHead(cache.cardHead, cache.tone), cache.tone, [plot(chart), fill(), said])
-    }
-
-    const spendCard = (): RenderElement => {
-      // The beats over their average, the newest last; in text two to a cell.
-      // No cost yet: the trace flat and dim, beside the note that says when
-      // costs show, so it never reads as $0 a message.
-      const beats = Svg ? hist.costValues.length : Math.min(hist.costValues.length, 2 * inner)
-      const chart = size === undefined || !f.charted.spend ? null
-        : hist.empty ? flatBeats(kit, { key: 'chart', alt: EMPTY.costsAlt, beats: 2 * inner, color: palette.label, px, ...size })
-        : barChart(kit, { key: 'chart', alt: hist.costsAltOf(beats), values: hist.costValues.slice(-beats), marked: hist.reWarms.slice(-beats), levelValue: hist.warmAvgUsd, color: palette.value, markColor: palette.value, px, ...size, max: hist.beatsTop })
-      const cost = hist.costFact
-      const said = cost === undefined ? note('fact', EMPTY.costs) : factRow(kit, cost.label, cost.value)
-      return card('spend', [[read.spend.totalText, 'value']], 'calm', [plot(chart), fill(), said])
-    }
-
-    const contextCard = (): RenderElement => {
-      // Its trail under the compaction line; fewer than two turns, flat at its
-      // level now, which is known. In text two turns to a cell.
-      const turns = Svg ? hist.context.length : 2 * inner
-      const values = hist.context.length > 1 ? hist.context.slice(-turns) : Array.from({ length: Math.max(2, Svg ? 2 : turns) }, () => context.used)
-      const chart = size === undefined || !f.charted.context ? null
-        : sparkline(kit, { key: 'chart', alt: hist.contextTrailAlt, values, color: onTone(context.tone, palette.label), px, ...size, headroom, max: context.compactAt ?? context.window, levelFrac: context.compactAt === undefined ? undefined : 1 })
-      return card('context', markedHead(context.cardHead, context.tone), context.tone, [plot(chart), fill(), fact(context.fact.label, context.fact.values)])
-    }
-
-    /** A window's half of Limits: its chart, `halfPx` wide, then its fact;
-     *  side by side the halves share the line, else each takes all of it. */
-    const half = (l: LimitView, halfPx: number, across: boolean): RenderElement => {
-      const ink = onTone(l.tone, l.key === '5h' ? palette.fiveAccent : palette.weekAccent)
-      let chart: RenderChildren = null
-      if (size !== undefined && daySize !== undefined && f.charts) {
-        if (l.key === '5h' && week.fiveHourWindow.values.length > 1)
-          chart = sparkline(kit, { key: 'chart', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, from: week.fiveHourWindow.from, color: ink, px: halfPx, ...size, max: 100 })
-        // The day cells are the desktop's: in text the 7d's half is its fact.
-        const cellPx = dayCellsFit(halfPx, week.daysDrawn.values.length, DAY_CELL_PX)
-        if (l.key === '7d' && Svg && week.daysDrawn.measured && cellPx !== undefined)
-          chart = dayCells(kit, { key: 'chart', alt: week.daysAlt, values: week.daysDrawn.values, guess: week.daysDrawn.guess, today: week.daysDrawn.today, color: ink, cellPx, ...daySize, max: 100 })
-      }
-      return (
-        <Box key={l.key} flexDirection="column" justifyContent="flex-end" {...(across ? { flexGrow: 1, width: 0, minWidth: 0 } : {})}>
-          {plot(chart)}
-          {factRow(kit, l.fact.label, l.fact.value)}
-        </Box>
-      )
-    }
-
-    const limitsCard = (): RenderElement => {
-      const windows = p.kept.has('limits') ? f.windows : []
-      const across = halvesAcross(kit, f, inner)
-      const halfPx = windows.length > 1 && across ? Math.floor((px - HALF_GAP * measure.pxPerCell) / 2) : px
-      const others = p.kept.has('other') ? f.others : []
-      const shown = windows.length > 0 ? windows : others
-      const tone: Tone = shown.some(l => l.tone === 'amber') ? 'amber' : 'calm'
-      const othersAmber = others.some(l => l.tone === 'amber')
-      return card('limits', markedHead(limitsHead(shown), tone), tone, [
-        windows.length === 0 ? null : (
-          <Box key="halves" flexDirection={across ? 'row' : 'column'} alignItems="stretch" columnGap={HALF_GAP} flexGrow={1}>
-            {windows.map(l => half(l, halfPx, across))}
-          </Box>
-        ),
-        others.length === 0 ? null : (
-          <Box key="others">{oneLine({ color: onTone(othersAmber ? 'amber' : 'calm', palette.cardValue) }, others.map(l => l.line).join(DOT))}</Box>
-        ),
-      ])
-    }
-
-    return { cache: cacheCard, spend: spendCard, context: contextCard, limits: limitsCard }
-  }
-  return cardGrid(kit, lines.map(line => (cards => line.map(c => cards[c]()))(cardsFor(line.length))), { marginTop: 1, align: 'stretch' })
+  return cardGrid(
+    kit,
+    lines.map(line => {
+      const at = cardAt(kit, f, p, line.length)
+      return line.map(c => CARDS[c](kit, read, at))
+    }),
+    { marginTop: 1, align: 'stretch' },
+  )
 }
 
 /** Pulse open: the cards, fitted to the body's rows, then the footer, the

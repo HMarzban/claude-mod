@@ -8,6 +8,7 @@ import { expect, test, type Engine } from 'claude-code/testing'
 import { DEFAULT_MAX_ROWS, HOUR, LONG, MIN, USAGE, fakeEl, firstRow, runCommand, shown, walk, wordsOf, type Node } from './helpers'
 import { drawBand, layoutAt } from '../hooks/band'
 import type { CacheView, Ttl } from '../hooks/cache'
+import { makeKit, type Kit } from '../hooks/kit'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
 import { snapshotOf } from '../hooks/snapshot'
@@ -24,6 +25,9 @@ export * from './cases'
  *  last minute stands for it. */
 const ALL_AMBER = 'lastMinute' satisfies ScenarioName
 
+/** A conversation with no message yet. */
+export const NO_HISTORY: BandSnapshot['history'] = { costs: [], context: [] }
+
 /** What a pure test's snapshot is built from: a calm session at 120
  *  columns, 52 minutes of cache left, 38% context with compaction at 190k,
  *  5h at 4% and 7d at 30%. */
@@ -34,11 +38,11 @@ export const SNAP_PARTS: SnapshotParts = {
   expanded: false,
   band: { palette: DARK, layout: 'chips', glyphs: 'unicode', samples: [], workspace: undefined, compactAt: 190_000, autoCompactOff: false },
   cache: {
-    requests: 1, msLeft: 52 * MIN, coldAt: null, ttl: '1h', ttlPinned: true, window: 155_000, hitRatio: 0.96, misses: 0, reWarmUsd: 1.66,
+    requests: 1, leftMs: 52 * MIN, coldAt: null, ttl: '1h', ttlPinned: true, window: 155_000, hitRatio: 0.96, misses: 0, reWarmUsd: 1.66,
     savedUsd: 11.4, readShare: 0.05, fresh: true, compacted: false, idleCompacts: false, recalled: false, idleMs: null, recovered: false, tokens: { sent: 18_000, back: 9_000, cached: 198_000 },
   },
   costUsd: 3.19,
-  history: { costs: [], context: [] },
+  history: NO_HISTORY,
   etaMs: null,
   zone: undefined,
 }
@@ -50,6 +54,9 @@ export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({ ...
 /** Actions for a draw outside a mount: one function each, so props compare equal. */
 export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide: async () => undefined }
 
+/** The drawing kit outside a mount, from snapOf's snapshot with `over`. */
+export const kitOf = (over: Partial<BandSnapshot> = {}): Kit => makeKit(fakeEl, snapOf(over))
+
 /** The band drawn outside a mount, from snapOf's snapshot with `over`. */
 export const bandOf = (over: Partial<BandSnapshot> = {}): Node => drawBand(fakeEl, snapOf(over), NO_ACT) as unknown as Node
 
@@ -58,9 +65,9 @@ export const bandOf = (over: Partial<BandSnapshot> = {}): Node => drawBand(fakeE
 /** SNAP_PARTS' cache with `over`. */
 export const cacheWith = (over: Partial<CacheView>): CacheView => ({ ...SNAP_PARTS.cache, ...over })
 /** A cache gone cold. */
-export const COLD_CACHE = cacheWith({ msLeft: 0 })
+export const COLD_CACHE = cacheWith({ leftMs: 0 })
 /** The 5-minute cache in its last minute, 30 s left: amber. */
-export const LAST_MINUTE_CACHE = cacheWith({ msLeft: 30_000, ttl: '5m' })
+export const LAST_MINUTE_CACHE = cacheWith({ leftMs: 30_000, ttl: '5m' })
 
 /** 180k of a 200k window with compaction at 190k: 95% of the way, ~10k left, amber. */
 export const NEAR_COMPACTION: BandSnapshot['context'] = { tokens: 180_000, window: 200_000, percent: 90, compactAt: 190_000, autoCompactOff: false }
@@ -203,7 +210,8 @@ const coloursOf = (n: Node): string[] => {
 
 /** What each glyph tier may draw (the band-layouts spec §3.2): the unicode tier's glyphs, rings' quarters and braille, or ASCII alone. */
 const UNICODE_TIER = /^[\x20-\x7e▁▂▃▄▅▆▇█▓░▒│╌╸▏·›↻Σ◷○◔◑◕▿▵…±●■–↑↓\u2800-\u28ff]*$/
-const ASCII_TIER = /^[\x20-\x7e]*$/
+/** Printable ascii alone: what the ascii tier draws. */
+export const ASCII_TIER = /^[\x20-\x7e]*$/
 /** What a value missing from a phrase leaves drawn (the band-layouts spec §2.8), in any case. */
 const NOTHING = /\b(NaN|undefined|null)\b/i
 /** What the band-layouts spec §2.9 bars from any Svg's markup: an id, a gradient, a pattern, a clipPath. */

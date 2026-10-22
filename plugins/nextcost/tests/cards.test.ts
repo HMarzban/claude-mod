@@ -16,7 +16,7 @@ import type { View } from '../hooks/views/view'
 import { canon } from './golden/hash'
 import { BARE, DARK, PLAIN } from '../hooks/palette'
 import { boldOf, byKey, cardFirstRow, cardHead, cardOf, fact, fakeEl, shown, walk, type Node } from './helpers'
-import { NO_ACT, snapOf, visualRows } from './matrix'
+import { NO_ACT, kitOf, snapOf, visualRows } from './matrix'
 
 const text = (s: string) => ({ type: 'Text', props: {}, children: [s] }) as unknown as RenderElement
 /** Cards beneath `count` collapsed lines, as a layout of that many rows would draw them. */
@@ -147,7 +147,7 @@ test("the footer's hint and the strip's words are inked in the theme's legible g
   expect(PLAIN.label).toBe('subtle')
 })
 test("the shell answers a line of cards' geometry: how many to a line, their insides, and their edge", () => {
-  const line = (over: Partial<BandSnapshot>, count = 4) => cardLine(makeKit(fakeEl, snapOf(over)), count)
+  const line = (over: Partial<BandSnapshot>, count = 4) => cardLine(kitOf(over), count)
   // A terminal card with a fill draws no edge; plain's border takes two columns and two rows.
   expect(line({ columns: 200 })).toMatchObject({ perLine: 4, inner: 47, edge: 0, edgeRows: 0, pxEdge: false })
   expect(line({ columns: 200, palette: PLAIN })).toMatchObject({ perLine: 4, inner: 45, edge: 2, edgeRows: 2, pxEdge: false })

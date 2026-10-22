@@ -6,9 +6,11 @@ import { makeKit } from '../hooks/kit'
 import { DESKTOP, ROW_SLACK, cellsOf } from '../hooks/layout'
 import { DARK, LIGHT, type Palette } from '../hooks/palette'
 import {
+  BUILD_100K,
+  DESKTOP_START,
+  BUILD_155K,
   LONG,
   START,
-  resp,
   respond,
   textOf,
   cards,
@@ -25,7 +27,7 @@ import {
   mountBand,
 } from './helpers'
 import { partCovered } from './cover'
-import { snapOf } from './matrix'
+import { kitOf, snapOf } from './matrix'
 
 /** A card drawn inverted against `palette`, so it can't pass for a chip:
  *  its tooltip ground and ink. On a text surface its two ends are half blocks in the ground's
@@ -128,9 +130,9 @@ const PILLS = ['cache', 'cost', 'ctx', '5h', '7d', 'tokens']
 
 test('every pill explains itself on hover, on a card drawn over the row at its pill', async ($, on) => {
   setup(on)
-  await $.session.start({ ...START, surface: 'desktop' })
+  await $.session.start(DESKTOP_START)
   await turn($, 't1', 2.0, 2.41)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
 
   for (const [surface, cols] of [['desktop', 120], ['terminal', 160]] as const) {
     const ui = await mountBand($, surface, cols)
@@ -154,7 +156,7 @@ test('every pill explains itself on hover, on a card drawn over the row at its p
 test('on a wide terminal row each card starts a column before its own pill, its ▐ in the gap, so it covers none to its left', async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   const ui = await mountBand($, 'terminal', 160)
   const row = firstRow(await ui.drawn()) as Node
   const pills = ((row.children ?? []) as Node[]).filter(k => k?.props?.key !== undefined)
@@ -170,7 +172,7 @@ test('on a wide terminal row each card starts a column before its own pill, its 
 test('every pill reveals a card of its own, in the order the pills are drawn', async ($, on) => {
   setup(on)
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await mountBand($, surface, 160)
     const row = firstRow(await ui.drawn()) as Node
@@ -195,7 +197,7 @@ test('when narrower widths drop pills, each pill left keeps its card, slid to en
 test('a cold cache explains what the next message rebuilds', LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
-  await respond($, resp(10_000, 0, 100_000, 2_000))
+  await respond($, BUILD_100K)
   await clock.advance(61 * 60_000)
   const ui = await mountBand($, 'terminal', 110)
   const cache = cards(await ui.drawn()).find(([key]) => key === 'cache')
@@ -218,7 +220,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     test(`on the ${surface}, ${maxRows} rows tall, every card, shut and open, ends within its row's room and covers whole pieces at every width from 20 to 200, its caps included`, LONG, async ($, on) => {
       setup(on)
       await $.session.start(START)
-      await respond($, resp(41_000, 0, 155_000, 12_000))
+      await respond($, BUILD_155K)
       for (let cols = 20; cols <= 200; cols++) {
         const ui = await mountBand($, surface, cols, { maxRows })
         const shut = await ui.drawn()
@@ -251,7 +253,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
 test('in the ascii tier a card keeps its width, with a space for each cap, and covers whole pills', async ($, on) => {
   setup(on, { env: { NEXTCOST_GLYPHS: 'ascii', ...HOUR_1 } })
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   const ui = await mountBand($, 'terminal', 160)
   const tree = await ui.drawn()
   const found = cards(tree)
@@ -269,7 +271,7 @@ test('in the ascii tier a card keeps its width, with a space for each cap, and c
 test('in the ascii tier a card too long for its row is cut by the band at its last whole word, with a `.`, never by the surface', async ($, on) => {
   setup(on, { env: { NEXTCOST_GLYPHS: 'ascii', ...HOUR_1 } })
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   const wide = await mountBand($, 'terminal', 200)
   const whole = new Map(cards(await wide.drawn()).map(([key, card]) => [key, cardText(card)]))
   await wide.unmount()
@@ -297,7 +299,7 @@ test('in the ascii tier a card too long for its row is cut by the band at its la
 test('in the light palette a card is inverted too: a dark ground under light ink', async ($, on) => {
   setup(on, { env: { NEXTCOST_APPEARANCE: 'light', ...HOUR_1 } })
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   for (const [surface, cols] of [['desktop', 120], ['terminal', 160]] as const) {
     const ui = await mountBand($, surface, cols)
     const found = cards(await ui.drawn())
@@ -315,7 +317,7 @@ test('a desktop whose element table holds no Svg still draws its cards without c
 })
 
 test("a desktop card is sized by the surface's measure, about 0.8 columns a character, not one", () => {
-  const kit = makeKit(fakeEl, snapOf({ surface: 'desktop' }))
+  const kit = kitOf({ surface: 'desktop' })
   // The 7d text, 57 characters, measures about 453px in the desktop's font.
   const text = 'Resets in 2d 19h; weekly limit, all your Claude use today'
   const card = kit.hoverCard('7d', text, { left: 10, room: 200, pieces: [] }) as Node

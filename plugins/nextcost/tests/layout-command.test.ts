@@ -6,7 +6,7 @@ import type { Engine } from 'claude-code/testing'
 import { asLayoutName, removedLayoutOf } from '../hooks/snapshot'
 import { GOLDEN } from './golden/chips'
 import { treeHash } from './golden/hash'
-import { LONG, START, engine, mountBand, resp, respond, runCommand, setup, shown, turn } from './helpers'
+import { BUILD_155K, LONG, START, engine, mountBand, respond, runCommand, setup, shown, turn } from './helpers'
 import { caseKey, drawCases, goldenKey, type Mount } from './matrix'
 
 /** What `/nextcost args` says. */
@@ -109,7 +109,7 @@ test('a store that fails to write still switches the layout, and says until when
   )
   expect(await run($, 'layout')).toMatch(/^nextcost layout: pulse\./)
   // As it says: the next reply reads the store back, which holds none.
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   await turn($, 'x', 2.41, 2.5)
   expect(await run($, 'layout')).toMatch(/^nextcost layout: chips\./)
 })
@@ -123,7 +123,7 @@ test('the usage line keeps its bracket and adds the layout hint', async ($, on) 
 })
 test("another session's layout is read after this session's next turn", async ($, on) => {
   setup(on); await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   engine.storeGets.length = 0
   engine.store.layout = 'pulse'
   await turn($, 'x', 2.41, 2.5)

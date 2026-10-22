@@ -5,7 +5,7 @@ import type { Engine } from 'claude-code/testing'
 import { MAX_SAMPLES } from '../hooks/memory'
 import type { Sample } from '../hooks/memory'
 import { LAYOUT_NAMES } from '../hooks/snapshot'
-import { CLEAR, HOUR, LONG, MIN, START, engine, mountBand, nodeCount, resp, respond, runCommand, setup, shown, svgAlts, turn, usage, usageAt, walk } from './helpers'
+import { BUILD_155K, CLEAR, HOUR, LONG, MIN, START, engine, mountBand, nodeCount, respond, runCommand, setup, shown, svgAlts, turn, usage, usageAt, walk } from './helpers'
 
 /** How pulse's 5h window chart's alt begins. */
 const WINDOW_ALT = '5h window from start to reset'
@@ -47,7 +47,7 @@ const rising = (i: number, now: number): void => {
 test('six hours, a thousand turns, three clears: writes, size and trees stay bounded', { timeoutMs: 180_000 }, async ($, on) => {
   const clock = setup(on, { store: { limitSamples: STORED_WEEK } })
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   let cost = 2.41
   /** Turn `i`, measured after it as the engine measures every main-loop turn, then a tick on. */
   const turnAt = async (i: number): Promise<void> => {
@@ -93,7 +93,7 @@ test('six hours, a thousand turns, three clears: writes, size and trees stay bou
 test('a calm ten-minute walk repaints once a minute, not once a second', LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   const ui = await mountBand($, 'terminal', 120)
   await clock.settle()
   const before = engine.invalidates
@@ -105,7 +105,7 @@ test('a calm ten-minute walk repaints once a minute, not once a second', LONG, a
 test('with the cache cold, a reset countdown repaints as its minute turns', LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   const ui = await mountBand($, 'terminal', 200)
   // Cold at 60 minutes; the 5h window resets at 3 hours.
   await clock.advance(61 * MIN)
@@ -120,7 +120,7 @@ test("a reset off the minute repaints as its own minute turns, not the clock's",
   // The 5h window resets half a minute past 3 hours.
   usage.current = usageAt(30_000)
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
   const ui = await mountBand($, 'terminal', 200)
   await clock.advance(61 * MIN)
   expect(shown(await ui.drawn())).toMatch(/↻ 1h 59m/)

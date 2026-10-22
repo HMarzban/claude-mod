@@ -6,7 +6,7 @@ import { HOTKEY_MARK, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { bodyRowsFor, footer, toggleButton } from '../hooks/views/frame'
 import type { RenderChildren } from 'claude-code'
 import { byKey, fakeEl, shown, type Node } from './helpers'
-import { NO_ACT, snapOf } from './matrix'
+import { NO_ACT, kitOf, snapOf } from './matrix'
 
 test('the body gets what is left of the rows, never less than none', () => {
   expect(bodyRowsFor(13, 1, 1)).toBe(8)
@@ -30,7 +30,7 @@ test('the toggle sits on the row nearest the prompt, the way its arrow points, i
   }
 })
 
-const kit120 = () => makeKit(fakeEl, snapOf({ surface: 'terminal', columns: 120, expanded: true }))
+const kit120 = () => kitOf({ surface: 'terminal', columns: 120, expanded: true })
 test('footer without a strip: the hint, air, then Collapse (c) and Hide band (h)', () => {
   const tree = footer(kit120(), NO_ACT) as unknown as Node
   expect(byKey(tree, 'collapse', 'Button')?.props?.hotkey).toBe('c')
@@ -45,7 +45,7 @@ test('footer with a workspace draws its strip in place of the hint', () => {
 })
 test("the footer's strip squeezes to the room the buttons, their hotkey marks and the gaps leave", () => {
   for (const columns of [70, 80, 100, 120]) {
-    const tree = footer(makeKit(fakeEl, snapOf({ columns, expanded: true })), NO_ACT, WS) as unknown as Node
+    const tree = footer(kitOf({ columns, expanded: true }), NO_ACT, WS) as unknown as Node
     expect(byKey(tree, 'strip', 'Box')).toBeDefined()
     expect(`${columns}: ${cellsOf(tree as unknown as RenderChildren, TERMINAL) + 2 * HOTKEY_MARK <= columns - ROW_SLACK}`).toBe(`${columns}: true`)
   }

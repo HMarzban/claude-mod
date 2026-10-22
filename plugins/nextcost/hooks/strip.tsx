@@ -52,8 +52,13 @@ const keyOf = (n: RenderChildren): string | undefined => {
   return typeof key === 'string' ? key : undefined
 }
 
-const stripAt = (kit: Kit, ws: Workspace, kept: (piece: Piece) => boolean, place: 'top' | 'footer', edge: number, room: number): RenderElement => {
-  const { Box, Text, Svg, measure, asDrawn, oneLine, hoverable, hoverCard, icon } = kit
+/** What the strip says at a squeeze: the path's side and the state's, each
+ *  piece keyed, and by its key the card text each piece that explains
+ *  itself reveals on hover. */
+type Said = Readonly<{ where: RenderChildren[]; state: RenderChildren[]; explained: ReadonlyMap<string, string> }>
+
+const saidOf = (kit: Kit, ws: Workspace, kept: (piece: Piece) => boolean): Said => {
+  const { Box, Text, Svg, oneLine, hoverable, icon } = kit
   const git = ws.git
   const { parent, name: fullName } = splitPath(ws.path)
   /** A name cut in the middle as the squeeze shortens it: whole, then 24
@@ -63,13 +68,8 @@ const stripAt = (kit: Kit, ws: Workspace, kept: (piece: Piece) => boolean, place
   const shortParent = parent === '' ? '' : parent.startsWith('~/') ? '~/…/' : '…/'
   const parentShown = kept('parent') || shortParent.length >= parent.length ? parent : shortParent
   const clipped = parentShown !== parent || name !== fullName
-  const joined = (side: string, pieces: RenderChildren[]): RenderChildren[] =>
-    pieces.flatMap((piece, i) =>
-      i === 0 || Svg ? [piece] : [<Text key={`${side}-sep${i}`} color={BARE.label}>{' · '}</Text>, piece],
-    )
 
-  // The card text each piece that explains itself on hover reveals, by the
-  // piece's key, for the end of the strip; see the kit's hoverCard.
+  // The card text each piece reveals, by its key; see the kit's hoverCard.
   const explained = new Map<string, string>()
   /** The props of a piece keyed `key` that reveals `text` on hover. */
   const explains = (key: string, text: string) => {
@@ -157,6 +157,19 @@ const stripAt = (kit: Kit, ws: Workspace, kept: (piece: Piece) => boolean, place
       )
     }
   }
+  return { where, state, explained }
+}
+
+/** The strip at a squeeze, in `room` columns: the path's side, the fill,
+ *  the state's side, then each piece's hover card, placed at its piece. */
+const stripAt = (kit: Kit, ws: Workspace, kept: (piece: Piece) => boolean, place: 'top' | 'footer', edge: number, room: number): RenderElement => {
+  const { Box, Text, Svg, measure, asDrawn, hoverCard } = kit
+  const { where, state, explained } = saidOf(kit, ws, kept)
+  /** A side's pieces, a text surface's ` · ` between each. */
+  const joined = (side: string, pieces: RenderChildren[]): RenderChildren[] =>
+    pieces.flatMap((piece, i) =>
+      i === 0 || Svg ? [piece] : [<Text key={`${side}-sep${i}`} color={BARE.label}>{' · '}</Text>, piece],
+    )
 
   // Each card at its piece: on the path's side from where the piece starts,
   // on the state's ending where it ends. A separator is a Text, not a Box, so

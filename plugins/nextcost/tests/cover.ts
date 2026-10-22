@@ -2,9 +2,11 @@
 // is covered whole or left whole, so no sliver of a chip reads as a value of
 // its own. Golden holds each of chips' frames to it, and the hover and
 // strip tests the frames they draw.
-import type { RenderChildren } from 'claude-code'
-import { DESKTOP, HOTKEY_MARK, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
+import type { RenderChildren, RenderElement } from 'claude-code'
+import { DESKTOP, cellsOf, isDrawn } from '../hooks/layout'
+import { footerStripRoom, rowRoom } from '../hooks/views/frame'
 import { byKey, isCard, textOf, widthOf, type Node } from './helpers'
+import { kitOf } from './matrix'
 
 type Surface = 'terminal' | 'desktop'
 /** The columns a drawn piece takes, [start, end), as this check counts them. */
@@ -86,9 +88,9 @@ export const partCovered = (tree: unknown, surface: Surface, cols: number): stri
     // In the footer the strip shares its line with the buttons, as chips gives it room.
     const actions = byKey(tree, 'actions', 'Box')
     const inFooter = byKey(actions, 'strip', 'Box') !== undefined
-    const buttons = kidsOf(actions).filter(k => k.type === 'Button')
-    const footer = inFooter ? cellsOf(buttons as RenderChildren[], surface === 'desktop' ? DESKTOP : TERMINAL) + 2 * HOTKEY_MARK + 2 : 0
-    const stripRoom = cols - ROW_SLACK - footer
+    const buttons = kidsOf(actions).filter(k => k.type === 'Button') as RenderElement[]
+    const kit = kitOf({ surface, columns: cols })
+    const stripRoom = inFooter ? footerStripRoom(kit, buttons) : rowRoom(kit)
     const stripCards = kidsOf(strip).filter(isCard)
     /** A side's pieces, less its separators, at their spans from its own
      *  end, held to the part of each within `to`. */

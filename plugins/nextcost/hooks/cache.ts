@@ -48,7 +48,8 @@ export type RecalledReply = Readonly<{ lastAt: number | undefined; rate: number 
 /** The cache as the model measured it, the snapshot's to carry to the band. */
 export type CacheView = Readonly<{
   requests: number
-  msLeft: number
+  /** The cache's time left: 0 once cold. */
+  leftMs: number
   /** When the cache goes or went cold, epoch ms; null when not known. */
   coldAt: number | null
   ttl: Ttl
@@ -356,7 +357,7 @@ const coldAtOf = (s: CacheState): number | null => {
 /** The cache's time left: from the last reply this band saw, else the one
  *  it recalls, none if the engine called it expired; a full lifetime before
  *  either. */
-const msLeftOf = (s: CacheState, now: number): number => {
+const leftMsOf = (s: CacheState, now: number): number => {
   if (s.compactedAt !== undefined) return 0
   if (s.requests === 0 && s.resumedCache?.expired === true) return 0
   const at = coldAtOf(s)
@@ -378,7 +379,7 @@ const viewOf = (s: CacheState, now: number, sessionCost: number | undefined, con
   const share = readMultiplier(pricedModel(s))
   return {
     requests: s.requests,
-    msLeft: msLeftOf(s, now),
+    leftMs: leftMsOf(s, now),
     coldAt: coldAtOf(s),
     ttl: effectiveTtl(s),
     // Known, not assumed: pinned, or seen on the transcript's last cache write.
@@ -438,48 +439,54 @@ const noteCompaction = (s: CacheState, sizeAfter: number | undefined): void => {
   }
 }
 
-/** A response's tokens, sent at `sentAt`: every response's count toward the
- *  bill, and a main-loop one's measure the cache and name the model its
- *  reply was billed under. */
-const recordResponse = (s: CacheState, usage: Response, sentAt: number, isMain: boolean): void => {
-  const model = usage.model
+/** A response's tokens toward the bill: every response's, a subagent's
+ *  included, since the session's bill includes every subagent and the rate
+ *  is solved from it. */
+const billResponse = (s: CacheState, usage: Response): void => {
   const hit = usage.cache_read_input_tokens
   const written = usage.cache_creation_input_tokens
   const uncached = usage.input_tokens
-
-  // The session's bill includes every subagent, so their tokens count toward
-  // the totals the rate is solved from. Their prefixes are their own, though:
-  // they say nothing about the main conversation's cache or its countdown.
   const request = { uncached, written, read: hit, output: usage.output_tokens }
   s.tokens = addTokens(s.tokens, request)
   // A request is priced by its whole prompt, cache reads and writes included.
-  const factor = tierFactor(model, uncached + hit + written)
-  s.premium += (factor - 1) * weightedTokens(request, model)
+  const factor = tierFactor(usage.model, uncached + hit + written)
+  s.premium += (factor - 1) * weightedTokens(request, usage.model)
   s.tieredReads += factor * hit
-  if (!isMain) return
+}
+
+/** Whether a main-loop request that read `hit` tokens, `gap` after the
+ *  last, read short of a cache that should have been warm, by enough tokens
+ *  and enough of what it held: within its TTL, on the same model, and with
+ *  nothing rebuilding it on purpose. */
+const readShort = (s: CacheState, hit: number, gap: number, switched: boolean): boolean => {
+  const prefix = s.cached
+  if (prefix <= 0 || s.rebuilding || switched || gap > TTL_MS[s.ttl]) return false
+  const shortfall = prefix - hit
+  return shortfall >= MISS_MIN_TOKENS && shortfall > prefix * MISS_MIN_SHARE
+}
+
+/** A main-loop response, sent at `sentAt`, as a measure of the cache: a
+ *  miss or a rebuild, what it leaves in the cache, and the model its reply
+ *  was billed under. A subagent's prefix is its own, so it says nothing of
+ *  the main conversation's cache or its countdown. */
+const measureCache = (s: CacheState, usage: Response, sentAt: number): void => {
+  const model = usage.model
+  const hit = usage.cache_read_input_tokens
+  const written = usage.cache_creation_input_tokens
   if (model) s.billedModel = model
 
   // Read as cold already: a resume the engine called expired, or a recalled
   // reply past its TTL.
-  const coldBefore = isRecalled(s) && msLeftOf(s, sentAt) === 0
-  let missed = false
-  const prefix = s.cached
+  const coldBefore = isRecalled(s) && leftMsOf(s, sentAt) === 0
   const gap = s.requests > 0 ? sentAt - s.lastAt : 0
   // Another model has its own cache: reading nothing after a switch is no miss.
   const switched = s.model !== undefined && model !== undefined && model !== s.model
-
-  if (prefix > 0 && !s.rebuilding && !switched && gap <= TTL_MS[s.ttl]) {
-    const shortfall = prefix - hit
-    if (shortfall >= MISS_MIN_TOKENS && shortfall > prefix * MISS_MIN_SHARE) {
-      // An assumed hour that read nothing after five idle minutes was five.
-      if (!s.ttlPinned && s.ttl === '1h' && hit === 0 && gap > TTL_MS['5m']) {
-        s.ttl = '5m'
-      } else {
-        s.misses += 1
-        missed = true
-      }
-    }
-  }
+  const short = readShort(s, hit, gap, switched)
+  // An assumed hour that read nothing after five idle minutes was five.
+  const wasFive = short && !s.ttlPinned && s.ttl === '1h' && hit === 0 && gap > TTL_MS['5m']
+  if (wasFive) s.ttl = '5m'
+  const missed = short && !wasFive
+  if (missed) s.misses += 1
 
   // A rebuild of a cache that existed: its time ran out, it missed, a
   // compaction rebuilt it, or the model changed. The first build is warming,
@@ -489,12 +496,19 @@ const recordResponse = (s: CacheState, usage: Response, sentAt: number, isMain: 
   s.requests += 1
   // The next request's TTL follows the config in force, not the transcript's.
   s.ttlSeen = undefined
-  s.window = uncached + hit + written + usage.output_tokens
+  s.window = usage.input_tokens + hit + written + usage.output_tokens
   s.cached = hit + written
   s.lastAt = sentAt
   s.rebuilding = false
   s.compactedAt = undefined
   s.model = model ?? s.model
+}
+
+/** A response's tokens, sent at `sentAt`: every response's toward the bill,
+ *  and a main-loop one's as a measure of the cache. */
+const recordResponse = (s: CacheState, usage: Response, sentAt: number, isMain: boolean): void => {
+  billResponse(s, usage)
+  if (isMain) measureCache(s, usage, sentAt)
 }
 
 // ---- the model --------------------------------------------------------------
@@ -554,7 +568,7 @@ export type CacheModel = Readonly<{
    *  the session has cost, to show. */
   view: (o: Readonly<{ now: number; ledger: number | undefined; contextTokens: number; autoCompactOff: boolean }>) => Readonly<{ cache: CacheView; costUsd: number }>
   /** The cache's time left at `now`, for the timer's repaint. */
-  msLeft: (now: number) => number
+  leftMs: (now: number) => number
 }>
 
 /** A session's cache model, before anything is known of it. */
@@ -618,7 +632,7 @@ export const newCache = (): CacheModel => {
       noteLedger(s, ledger)
       return { cache: viewOf(s, now, ledger, contextTokens, autoCompactOff), costUsd: spentUsd(s, ledger) }
     },
-    msLeft: now => msLeftOf(s, now),
+    leftMs: now => leftMsOf(s, now),
   }
 }
 
@@ -664,11 +678,11 @@ const moodOf = (c: CacheView): CacheMood =>
     ? c.fresh
       ? 'warming'
       : 'unmeasured'
-    : c.msLeft <= 0
+    : c.leftMs <= 0
       ? c.compacted
         ? 'compacted'
         : 'cold'
-      : c.msLeft <= SOON_MS
+      : c.leftMs <= SOON_MS
         ? 'expiring'
         : 'warm'
 
@@ -684,16 +698,16 @@ export const cacheFactsOf = (c: CacheView, isWorking: boolean): CacheFacts => {
     ...c,
     mood,
     tone: mood === 'expiring' ? 'amber' : 'calm',
-    charge: timeless ? 0 : mood === 'warm' && isWorking ? 1 : c.msLeft / TTL_MS[c.ttl],
+    charge: timeless ? 0 : mood === 'warm' && isWorking ? 1 : c.leftMs / TTL_MS[c.ttl],
     estimate: c.reWarmUsd !== null ? fmtEstimate(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`,
     measured,
     known: measured || c.recalled,
     untimed,
     hitFrac: measured && c.hitRatio !== null ? c.hitRatio : undefined,
-    coldInMs: counting ? c.msLeft : undefined,
+    coldInMs: counting ? c.leftMs : undefined,
     // A 5-minute cache is always under ten minutes from cold, so its last
     // call is its last minute, when chips turns amber too.
-    lastCall: counting && (c.ttl === '5m' ? mood === 'expiring' : c.msLeft < LAST_CALL_MS),
-    idleCompactSoon: counting && c.idleCompacts && c.ttl === '1h' && c.msLeft > TTL_MS['1h'] - IDLE_COMPACT_MS,
+    lastCall: counting && (c.ttl === '5m' ? mood === 'expiring' : c.leftMs < LAST_CALL_MS),
+    idleCompactSoon: counting && c.idleCompacts && c.ttl === '1h' && c.leftMs > TTL_MS['1h'] - IDLE_COMPACT_MS,
   }
 }

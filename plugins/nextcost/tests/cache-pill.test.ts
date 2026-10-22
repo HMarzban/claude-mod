@@ -4,6 +4,9 @@ import { test, expect } from 'claude-code/testing'
 import { resolveTtl } from '../hooks/cache'
 import { DARK } from '../hooks/palette'
 import {
+  BUILD_100K,
+  BUILD_80K,
+  DESKTOP_START,
   LONG,
   USAGE,
   FRESH,
@@ -88,7 +91,7 @@ test("while a turn runs, 'cache warm' replaces the calm countdown", LONG, async 
 test('the re-warm estimate appears only where it is actionable', LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
-  await respond($, resp(10_000, 0, 100_000, 2_000))
+  await respond($, BUILD_100K)
 
   const ui = await mountBand($, 'terminal', 110)
   expect(await ui.find({ type: 'Text', text: /~\$/ })).toBeUndefined()
@@ -102,7 +105,7 @@ test('the re-warm estimate appears only where it is actionable', LONG, async ($,
 test('a narrow band shortens the wording but keeps the money', LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
-  await respond($, resp(10_000, 0, 100_000, 2_000))
+  await respond($, BUILD_100K)
   await clock.advance(HOUR - 40_000)
 
   const ui = await mountBand($, 'terminal', 64)
@@ -115,7 +118,7 @@ test('a narrow band shortens the wording but keeps the money', LONG, async ($, o
 test('with nothing billed yet the cold pill names the tokens instead', LONG, async ($, on) => {
   const clock = setup(on, { usage: { ...USAGE, cost: { usd: 0 } } })
   await $.session.start(START)
-  await respond($, resp(10_000, 0, 100_000, 2_000))
+  await respond($, BUILD_100K)
   await clock.advance(61 * MIN)
 
   const ui = await mountBand($, 'terminal', 110)
@@ -127,7 +130,7 @@ test('with nothing billed yet the cold pill names the tokens instead', LONG, asy
 test('the cache pill is a battery that drains with the hour', LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
-  await respond($, resp(2_000, 0, 80_000, 500))
+  await respond($, BUILD_80K)
 
   const ui = await mountBand($, 'terminal', 110)
   let seg = segments(pillOf(await ui.drawn(), 'cache'))
@@ -151,7 +154,7 @@ test('the cache pill is a battery that drains with the hour', LONG, async ($, on
 test('in its last minute the battery turns amber', LONG, async ($, on) => {
   const clock = setup(on)
   await $.session.start(START)
-  await respond($, resp(2_000, 0, 80_000, 500))
+  await respond($, BUILD_80K)
   await clock.advance(60 * MIN - 30_000)
 
   const ui = await mountBand($, 'terminal', 110)
@@ -163,8 +166,8 @@ test('in its last minute the battery turns amber', LONG, async ($, on) => {
 
 test('on desktop the cache pill is a rounded pill with a draining battery icon', LONG, async ($, on) => {
   const clock = setup(on)
-  await $.session.start({ ...START, surface: 'desktop' })
-  await respond($, resp(2_000, 0, 80_000, 500))
+  await $.session.start(DESKTOP_START)
+  await respond($, BUILD_80K)
 
   const ui = await mountBand($, 'desktop', 110)
   let tree = await ui.drawn()
@@ -200,7 +203,7 @@ test('the cache lifetime runs from when the request was sent, not when its reply
   engine.gate = new Promise<void>(resolve => {
     open = resolve
   })
-  const step = respond($, resp(2_000, 0, 80_000, 500))
+  const step = respond($, BUILD_80K)
   await clock.settle() // let the request go out
   await clock.advance(2 * MIN) // a two-minute reply
   open()

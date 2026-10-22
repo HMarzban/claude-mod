@@ -4,6 +4,10 @@ import { test, expect } from 'claude-code/testing'
 import { DARK } from '../hooks/palette'
 import { resetsOf, snapshotOf } from '../hooks/snapshot'
 import {
+  BUILD_80K,
+  DESKTOP_START,
+  SPEND_LIMIT,
+  BUILD_155K,
   LONG,
   USAGE,
   START,
@@ -13,7 +17,6 @@ import {
   MODERN,
   usageAt,
   CLEAR,
-  resp,
   respond,
   usage,
   toasts,
@@ -31,8 +34,8 @@ import { SNAP_PARTS, snapOf } from './matrix'
 
 test('the 5h and 7d chips show usage on a fill with no thumb, and the reset countdown', async ($, on) => {
   setup(on) // 5h 4%, resets in 3h; 7d 30%, resets in 67h
-  await $.session.start({ ...START, surface: 'desktop' })
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await $.session.start(DESKTOP_START)
+  await respond($, BUILD_155K)
 
   const ui = await mountBand($, 'desktop', 160)
   const tree = await ui.drawn()
@@ -114,7 +117,7 @@ test('the 5h pill shows your pace once there is enough evidence, and drops it wh
 test('reset countdowns keep moving while the cache is cold', LONG, async ($, on) => {
   const clock = setup(on) // 5h resets at 3h
   await $.session.start(START)
-  await respond($, resp(2_000, 0, 80_000, 500))
+  await respond($, BUILD_80K)
   await clock.advance(70 * MIN) // cold
 
   const ui = await mountBand($, 'terminal', 160)
@@ -175,7 +178,7 @@ test('a failing breakdown read keeps the 5h toast', async ($, on) => {
 test('no rate limits: the band draws without the 5h pill or limit facts', async ($, on) => {
   setup(on, { usage: { ...USAGE, rateLimits: [] } })
   await $.session.start(START)
-  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await respond($, BUILD_155K)
 
   const ui = await mountBand($, 'terminal', 110)
   expect(await ui.find({ type: 'Text', text: /^5h/ })).toBeUndefined()
@@ -187,7 +190,7 @@ test('no rate limits: the band draws without the 5h pill or limit facts', async 
 })
 
 test('a gateway spend limit is listed in the expanded line', async ($, on) => {
-  setup(on, { usage: usageAt(MODERN, { ...USAGE, rateLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }] }), now: MODERN })
+  setup(on, { usage: usageAt(MODERN, { ...USAGE, rateLimits: [SPEND_LIMIT] }), now: MODERN })
   await $.session.start(START)
   const ui = await mountBand($, 'terminal', 110)
   await ui.press({ key: 'more' })
@@ -200,11 +203,10 @@ test('a gateway spend limit is listed in the expanded line', async ($, on) => {
 })
 
 test("a snapshot reads the 5h and 7d by name and every other window apart, each reset parsed once, and draws each one's", () => {
-  const spend = { kind: 'spend_limit', percentUsed: 92, resetsAt: new Date(5 * HOUR).toISOString() }
   const snap = snapOf()
   const built = snapshotOf({
     ...SNAP_PARTS,
-    usage: { ...USAGE, rateLimits: [spend, ...USAGE.rateLimits] },
+    usage: { ...USAGE, rateLimits: [SPEND_LIMIT, ...USAGE.rateLimits] },
     etaMs: 40 * MIN,
   })
   expect([built.fiveHour, built.sevenDay]).toEqual([{ percentUsed: 4, resetsAt: 3 * HOUR, etaMs: 40 * MIN }, snap.sevenDay])

@@ -1,8 +1,12 @@
-// A filled pill needs its foreground and background from one source: a theme
-// key resolves against the user's theme, a hex does not, and mixing them makes
-// a pill that is legible on one theme and blank on the other. Nothing in the
-// API reports whether the theme is light or dark, so the palette is declared
-// rather than guessed: NEXTCOST_APPEARANCE = dark | light | plain.
+// The band's palettes, dark, light and plain, and the colours for what sits
+// on its bare ground.
+
+/** A filled pill needs its foreground and background from one source: a
+ *  theme key resolves against the user's theme, a hex does not, and mixing
+ *  them makes a pill that is legible on one theme and blank on the other.
+ *  Nothing in the API reports whether the theme is light or dark, so the
+ *  palette is declared rather than guessed: NEXTCOST_APPEARANCE = dark |
+ *  light | plain. */
 export type Palette = {
   filled: boolean
   surface: string

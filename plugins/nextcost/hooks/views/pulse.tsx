@@ -94,7 +94,7 @@ const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderEleme
     const noted = hist.costsNote !== undefined && k.has('last')
     const trace = !k.has('beats') || !charts ? null
       : hist.empty ? (noted ? flatBeats(kit, { key: 'beats', alt: EMPTY.costsAlt, beats: n, color: palette.label, px: BEATS_PX[n], height: 20 }) : null)
-      : barChart(kit, { key: 'beats', alt: hist.costsAltOf(n), values: hist.costValues.slice(-n), marked: hist.reWarms.slice(-n), color: palette.value, markColor: palette.value, px: BEATS_PX[n], height: 20, max: hist.beatsTop })
+      : barChart(kit, { key: 'beats', alt: hist.costsAltOf(n), values: hist.costValues.slice(-n), marked: hist.reWarms.slice(-n), color: palette.value, px: BEATS_PX[n], height: 20, max: hist.beatsTop })
     const total = said(kit, 'w', k.has('last') && !hist.empty ? [read.spend.totalText, hist.numbersShort].join(' · ') : read.spend.totalText, 'calm')
     // Spend is never amber: it gives way whole at its step.
     const spendTile = !k.has('spend') ? null : tile(kit, k, 'spend', 'calm', palette.surface, [
@@ -123,7 +123,7 @@ const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderEleme
     ])
     // Filled tiles sit a column apart, as chips' do; plain's, with no ground
     // to part them, two, until the last step.
-    return line(kit, 'row', [cacheTile, spendTile, contextTile, fiveTile, sevenTile], toggle, palette.filled || !k.has('padding') ? 1 : 2)
+    return line(kit, [cacheTile, spendTile, contextTile, fiveTile, sevenTile], toggle, palette.filled || !k.has('padding') ? 1 : 2)
   })
 
 export const pulseView: View = {

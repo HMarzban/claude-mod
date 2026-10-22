@@ -21,7 +21,7 @@ import { bodyRowsFor, footer, rowRoom } from './frame'
 /** A line's text cut to `tiles` columns, `…` last where cut, a wide
  *  character never split: REMARKS, and a flap column's text where the room
  *  can't hold its widest. Exported for its tests. */
-export const remarksFit = (text: string, tiles: number): string => {
+export const clipToTiles = (text: string, tiles: number): string => {
   if (textCells(text) <= tiles) return text
   if (tiles <= 1) return ''
   let kept = ''
@@ -82,7 +82,7 @@ const boardLines = (read: Readings): readonly Line[] => {
 
 /** A flap column's text as the columns keep it: whole, or cut with `…`
  *  where the room can't hold the widest. */
-const kept = (cols: Pick<Columns, 'keep'>, key: FlapKey, text: string): string => remarksFit(text, cols.keep[key])
+const kept = (cols: Pick<Columns, 'keep'>, key: FlapKey, text: string): string => clipToTiles(text, cols.keep[key])
 
 /** The columns for `rows` in `room`: each flap column as wide as its widest
  *  text and its heading, then the air. Where the three outgrow the room the
@@ -94,7 +94,7 @@ const columnsOf = (kit: Kit, rows: readonly BoardRow[], room: number): Columns =
   const keep = { item: 0, status: 0, time: 0 }
   for (const k of FLAP_KEYS) keep[k] = Math.max(0, ...texts[k].map(textCells))
   const widthOf = (k: FlapKey): number =>
-    Math.max(Math.ceil(boardCells(BOARD_HEADINGS[k], kit.measure)), ...texts[k].map(t => flapCells(kit, remarksFit(t, keep[k])))) + COLUMN_GAP
+    Math.max(Math.ceil(boardCells(BOARD_HEADINGS[k], kit.measure)), ...texts[k].map(t => flapCells(kit, clipToTiles(t, keep[k])))) + COLUMN_GAP
   const total = () => FLAP_KEYS.reduce((n, k) => n + widthOf(k), 0)
   while (total() > room) {
     const widest = FLAP_KEYS.reduce((a, b) => (keep[b] > keep[a] ? b : a))
@@ -109,7 +109,7 @@ const columnsOf = (kit: Kit, rows: readonly BoardRow[], room: number): Columns =
 /** A line's remark as drawn: cut to its column, none where it has none or
  *  the plan leaves them out. A column holds a capital a cell. */
 const remarkOf = (row: BoardRow, cols: Columns, plan: Plan): string =>
-  !plan.remarks || cols.remarks === 0 ? '' : remarksFit(row.remarks, cols.remarks)
+  !plan.remarks || cols.remarks === 0 ? '' : clipToTiles(row.remarks, cols.remarks)
 
 /** The plan's height in the board's units, a rule under each line but the
  *  last on the desktop. */
@@ -232,6 +232,5 @@ const board = (kit: Kit, read: Readings, collapsedRows: number): RenderElement |
 
 /** Departures open: the board, then the footer every layout draws, the
  *  workspace strip in its row. */
-export const openBoard = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderElement[] => {
-  return [board(kit, read, collapsedRows), footer(kit, act, read.workspace)].filter(e => e !== null)
-}
+export const openBoard = (kit: Kit, read: Readings, act: BandActions, collapsedRows: number): RenderElement[] =>
+  [board(kit, read, collapsedRows), footer(kit, act, read.workspace)].filter(e => e !== null)
