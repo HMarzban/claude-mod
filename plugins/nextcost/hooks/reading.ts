@@ -8,7 +8,7 @@ import { cacheFactsOf } from './cache'
 import type { CacheFacts } from './cache'
 import { drawnWeekOf } from './calendar'
 import type { DrawnWeek, WindowNow } from './calendar'
-import type { ContextFacts, ContextFill, Frame, LimitBase, LimitFacts, LimitKey, SpendFacts } from './facts'
+import type { ContextFacts, ContextFill, Frame, LimitBase, LimitFacts, LimitKey, LiveLimit, SpendFacts } from './facts'
 import {
   FIVE_HOUR_MS,
   SEVEN_DAY_MS,
@@ -37,6 +37,41 @@ import type { CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords, We
 /** The share of a window gone, from its length and its reset at `at`; undefined when unknown. */
 const windowGone = (at: number | undefined, windowMs: number | undefined, now: number): number | undefined =>
   windowMs === undefined || at === undefined || at <= now ? undefined : clamp01(1 - (at - now) / windowMs)
+
+/** The share of a window gone before the average's landing is said: before
+ *  it, the pace is too young to read. */
+const PACE_MIN_GONE = 0.05
+
+/** A window still to reset, from its `base`: where the average lands it,
+ *  when it fills, its tone and the time to its reset. `etaMs` is a measured
+ *  fill, set only for one that comes before the reset. */
+const paceOf = (base: LimitBase, windowMs: number | undefined, etaMs: number | null, now: number): LiveLimit => {
+  const { percentUsed, gone, resetsAt: at } = base
+  // A measured fill lands it at 100, so the words and the amber agree; else
+  // the average's landing, once enough of the window has gone and any of it
+  // is used: with none, the window may not have begun.
+  const projectedPct =
+    etaMs !== null ? 100 : gone === undefined || gone < PACE_MIN_GONE || percentUsed <= 0 ? undefined : percentUsed / gone
+  // At the average's pace, what is left takes the time gone so far, scaled by what is left over what is used.
+  const averageFill =
+    projectedPct === undefined || projectedPct < 100 || gone === undefined || windowMs === undefined
+      ? undefined
+      : (Math.max(0, 100 - percentUsed) / percentUsed) * gone * windowMs
+  const fillInMs = etaMs ?? averageFill
+  return {
+    ...base,
+    passed: false,
+    etaMs,
+    tone: base.frac >= WARN_AT || etaMs !== null ? 'amber' : 'calm',
+    projectedPct,
+    resetInMs: base.reset?.kind === 'in' && at !== undefined ? at - now : undefined,
+    fillInMs,
+    // A full window has nothing left to fill: it says its percent, and its reset.
+    fullInMs: percentUsed >= 100 ? undefined : fillInMs,
+  }
+}
+
+// ---- the readings -----------------------------------------------------------
 
 // What the views read: each section's facts, and its words beside them.
 type CacheReading = CacheFacts & CacheWords
@@ -128,30 +163,7 @@ const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
     // Passed, the window that reset has no pace, reset or fill to say.
     if (reset?.kind === 'passed')
       return { ...base, passed: true, tone: 'calm', etaMs: null, projectedPct: undefined, resetInMs: undefined, fillInMs: undefined, fullInMs: undefined }
-    // A measured fill lands it at 100, so the words and the amber agree; else
-    // the average's landing, once 5% of the window has gone and any of it is
-    // used: with none, the window may not have begun.
-    const projectedPct =
-      etaMs !== null ? 100 : gone === undefined || gone < 0.05 || reading.percentUsed <= 0 ? undefined : reading.percentUsed / gone
-    // At the average's pace, what is left takes the time gone so far, scaled by what is left over what is used.
-    const averageFill =
-      projectedPct === undefined || projectedPct < 100 || gone === undefined || windowMs === undefined
-        ? undefined
-        : (Math.max(0, 100 - reading.percentUsed) / reading.percentUsed) * gone * windowMs
-    const fillInMs = etaMs ?? averageFill
-    // A full window has nothing left to fill: it says its percent, and its reset.
-    const fullInMs = reading.percentUsed >= 100 ? undefined : fillInMs
-    return {
-      ...base,
-      passed: false,
-      etaMs,
-      // etaMs is set only for a measured fill that comes before the reset.
-      tone: frac >= WARN_AT || etaMs !== null ? 'amber' : 'calm',
-      projectedPct,
-      resetInMs: reset?.kind === 'in' && at !== undefined ? at - snap.now : undefined,
-      fillInMs,
-      fullInMs,
-    }
+    return paceOf(base, windowMs, etaMs, snap.now)
   }
   return [
     ...(snap.fiveHour ? [one('5h', '5h', snap.fiveHour, FIVE_HOUR_MS, snap.fiveHour.etaMs)] : []),

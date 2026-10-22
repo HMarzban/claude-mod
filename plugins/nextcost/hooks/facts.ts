@@ -64,7 +64,7 @@ export type LimitBase = Readonly<{
 }>
 
 /** A window still to reset: its tone, its pace and when it fills. */
-type LiveLimit = LimitBase &
+export type LiveLimit = LimitBase &
   Readonly<{
     passed: false
     tone: Tone
