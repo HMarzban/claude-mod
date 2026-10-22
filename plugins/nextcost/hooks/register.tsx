@@ -7,7 +7,7 @@ import { drawBand } from './band'
 import { idleCompactFrom, newCache, resolveTtl } from './cache'
 import type { CacheModel, RecalledReply, Remembered, ResumedCache, Spend, TranscriptFacts } from './cache'
 import { commandPlan, parseCommand } from './command'
-import { contextUsed, hostZone, readableZone } from './format'
+import { contextUsed, hostZone, paintKey, readableZone } from './format'
 import { resolveGlyphs } from './glyphs'
 import {
   fiveHourEtaMs,
@@ -28,8 +28,6 @@ import {
   RATES_KEY,
   SESSIONS_KEY,
   addSample,
-  asLayoutName,
-  removedLayoutOf,
   asLimitSamples,
   asSessions,
   fromStore,
@@ -43,12 +41,11 @@ import {
   samplesUpTo,
 } from './memory'
 import type { Sample } from './memory'
-import { DEFAULT_LAYOUT, FIVE_HOUR, limitOf, resetsOf, snapshotOf } from './snapshot'
+import { DEFAULT_LAYOUT, FIVE_HOUR, asLayoutName, limitOf, removedLayoutOf, resetsOf, snapshotOf } from './snapshot'
 import type { Glyphs, LayoutName } from './snapshot'
 import { NO_WARNINGS, contextToasts, forgetConversation, limitToasts } from './toast'
-import { READ_LIMIT, lastWriteTtl, sessionCostRecord, transcriptPath, transcriptSpend } from './transcript'
 import type { Warned } from './toast'
-import { paintKey } from './words'
+import { READ_LIMIT, lastWriteTtl, sessionCostRecord, transcriptPath, transcriptSpend } from './transcript'
 import { homeRelative, parseGitState, splitPath } from './workspace'
 import type { Workspace } from './workspace'
 
@@ -369,12 +366,12 @@ const runCommand = async ($: EngineInterface, args: string): Promise<{ text: str
 }
 
 export const register: Register = on => {
-
   on('session.start', async ($, e, next) => {
     // One timer, repainting only when the drawing would differ: every minute
-    // (the clocks, the battery, the pace tick), and as each countdown turns,
-    // every second where it shows seconds. It and the commands come first, so
-    // a read below that waits or fails never leaves the band without them.
+    // (the clocks, the battery, the average's pace), and as each countdown
+    // turns, every second where it shows seconds. It and the commands come
+    // first, so a read below that waits or fails never leaves the band
+    // without them.
     band.tick?.cancel()
     band.tick = $.clock.every(1000, () => {
       void (async () => {

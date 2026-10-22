@@ -2,11 +2,10 @@
 // key the 1-second tick compares has changed too.
 
 import { test, expect } from 'claude-code/testing'
-import { fixedZone, grainOf } from '../hooks/format'
+import { fixedZone, grainOf, paintKey } from '../hooks/format'
 import type { Zone } from '../hooks/format'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { paintKey } from '../hooks/words'
 import { MIN } from './helpers'
 import { snapOf } from './matrix'
 

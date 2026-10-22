@@ -3,11 +3,10 @@
 // departures draw their own look. Like every layout it draws only words from
 // the readings: its hover cards and the context's amount are chips' own
 // table in words.ts. The pill a chip sits in is drawn here alone, led on the
-// cache's by the battery from battery.tsx.
+// cache's by the battery from charts.tsx.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
-import { batteryIcon, textBattery } from '../battery'
-import { meter } from '../charts'
+import { batteryIcon, meter, textBattery } from '../charts'
 import { GLYPH } from '../icons'
 import type { Icon } from '../icons'
 import type { Kit } from '../kit'
@@ -49,7 +48,7 @@ type PillSpec = Readonly<{
 /** A pill carries its own foreground and background, never one of each. It
  *  reveals its card, drawn after every pill, through the hover scope they
  *  share; one line, since a collapsed band is one row. Plain has no cards;
- *  the expanded line says it all. A pill never shrinks: the squeeze drops
+ *  the open view says it all. A pill never shrinks: the squeeze drops
  *  pieces instead, so its text never wraps. */
 const pill = (kit: Kit, { key, tone, body, hover, paintsOwnBg, bg }: PillSpec): RenderElement => {
   const { Box, Text, palette, onTone, hoverable } = kit
@@ -74,11 +73,11 @@ const pill = (kit: Kit, { key, tone, body, hover, paintsOwnBg, bg }: PillSpec): 
 /** A reset after its reading: the separator in label ink, then `↻` and
  *  when, in `ink`. `↻` is a glyph on every surface, as the boards draw it,
  *  never the clock icon; elsewhere it is the reset icon's own glyph. */
-const resetClause = (kit: Kit, ink: string, when: string, separator = ' │ '): RenderElement[] => {
+const resetClause = (kit: Kit, ink: string, when: string): RenderElement[] => {
   const { Text, palette } = kit
   return [
     <Text key="d" color={palette.label}>
-      {separator}
+      {' │ '}
     </Text>,
     <Text key="i-reset" color={ink}>{`${GLYPH.reset} `}</Text>,
     <Text key="r" color={ink}>

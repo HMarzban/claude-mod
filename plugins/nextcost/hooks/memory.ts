@@ -9,8 +9,8 @@
 import { modelName } from './cache'
 import type { RecalledReply } from './cache'
 import { MINUTE_MS, SEVEN_DAY_MS } from './format'
-import { LAYOUT_NAMES, splitLimits } from './snapshot'
-import type { LayoutName } from './snapshot'
+import { splitLimits } from './snapshot'
+import type { ReportedLimit } from './snapshot'
 import { isRecord, lastReplyAt, lastReplyModel, rateFromTranscript } from './transcript'
 
 /** Store keys. */
@@ -47,24 +47,6 @@ export const asRates = (v: unknown): Rates =>
       )
     : {}
 
-/** A layout's name from the store or the command: trimmed, any case; anything
- *  else, a name from a newer version included, is undefined. */
-export const asLayoutName = (v: unknown): LayoutName | undefined => {
-  if (typeof v !== 'string') return undefined
-  const word = v.trim().toLowerCase()
-  return (LAYOUT_NAMES as readonly string[]).includes(word) ? (word as LayoutName) : undefined
-}
-
-/** Layouts this version removed: a stored one draws chips, and the command names it. */
-const REMOVED_LAYOUTS = ['gauges', 'ledger', 'rings', 'tiles', 'week', 'forecast'] as const
-export const REMOVED_IN = '0.14.0'
-/** A removed layout's name, from the store or the command, trimmed and lowercased; else undefined. */
-export const removedLayoutOf = (v: unknown): string | undefined => {
-  if (typeof v !== 'string') return undefined
-  const word = v.trim().toLowerCase()
-  return (REMOVED_LAYOUTS as readonly string[]).includes(word) ? word : undefined
-}
-
 /** The one key a rate is kept and found under: the model as /model names
  *  it, perhaps an alias, its window aside. A reload knows it before any
  *  reply, as the billed name it doesn't. */
@@ -80,9 +62,6 @@ export const rememberReply = (sessions: Sessions, id: string, lastAt: number): S
       .sort(([, a], [, b]) => b.lastAt - a.lastAt)
       .slice(0, MAX_SESSIONS),
   )
-
-// toast.ts reads the 5-hour limit's name here.
-export { FIVE_HOUR } from './snapshot'
 
 /** Both limits at one moment, with the resets that name their windows (epoch ms). */
 export type Sample = Readonly<{ at: number; fivePct: number; sevenPct: number; fiveResetAt: number; sevenResetAt: number }>
@@ -123,7 +102,7 @@ const isSample = (v: unknown): v is Sample => isRecord(v) && SAMPLE_FIELDS.every
 export const asLimitSamples = (v: unknown): Sample[] => (Array.isArray(v) ? mergeSamples([], v.filter(isSample)) : [])
 
 /** Both limits now, as one sample; undefined unless each is reported with a reset. */
-export const sampleOf = (now: number, limits: ReadonlyArray<Readonly<{ kind: string; percentUsed: number; resetsAt: number | undefined }>>): Sample | undefined => {
+export const sampleOf = (now: number, limits: readonly ReportedLimit[]): Sample | undefined => {
   const { five, seven } = splitLimits(limits)
   const fiveResetAt = five?.resetsAt
   const sevenResetAt = seven?.resetsAt
@@ -134,7 +113,7 @@ export const sampleOf = (now: number, limits: ReadonlyArray<Readonly<{ kind: str
 /** What the band's own store recalls of a session's last reply: when it
  *  was, and the rate on the model /model names, under the name that keys
  *  it; with every rate stored, for the model a transcript names. */
-export type StoreRecall = Readonly<{ rates: Rates; model: string; lastAt: number | undefined; rate: number | null }>
+type StoreRecall = Readonly<{ rates: Rates; model: string; lastAt: number | undefined; rate: number | null }>
 
 /** What the store recalls of `sessionId`'s last reply, on `model` as /model names it. */
 export const fromStore = (stored: Readonly<{ sessions: unknown; rates: unknown }>, sessionId: string, model: string): StoreRecall => {

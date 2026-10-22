@@ -14,7 +14,8 @@ import { bodyRowsFor, footer, topStrip } from './frame'
 import { CARD_NAMES, alertLine, cardGrid, cardLine, cardShell, cardsPresent, factRow, headline, linesOf } from './shell'
 import type { CardName } from './shell'
 
-/** A limit's accent: its window's, or the meter's for any other. */
+/** A limit's accent: its window's, or the meter's for any other. Exported
+ *  for its tests. */
 export const accentOf = (kit: Kit, limit: Readonly<{ key: LimitKey }>): string =>
   limit.key === '5h' ? kit.palette.fiveAccent : limit.key === '7d' ? kit.palette.weekAccent : kit.palette.meterFill
 
@@ -105,14 +106,12 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRo
   )
 
   const tokenParts = tokenPartsOf(kit, read)
-  const split = (size: BarSize) =>
-    splitBar(kit, { alt: SPLIT_ALT, parts: tokenParts, size })
   const lastRow = spend.lastText === undefined ? null : factRow(kit, 'last message', spend.lastText)
   const splitShown = cache.measured
   const tokenRows = splitShown
     ? spend.split.map((part, i) => factRow(kit, part.label, part.text, tokenParts[i]))
     : [note('Breakdown counts from your next message.')]
-  const spendView = card('spend', { say: [[spend.totalText, 'value']] }, splitShown ? split(cardBar) : null, [lastRow, ...tokenRows])
+  const spendView = card('spend', { say: [[spend.totalText, 'value']] }, splitShown ? splitBar(kit, { alt: SPLIT_ALT, parts: tokenParts, size: cardBar }) : null, [lastRow, ...tokenRows])
 
   const contextView = context.known
     ? card(

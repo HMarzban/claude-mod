@@ -23,10 +23,11 @@ const DOT = ' · '
 /** What gives way short of rows, a card or the other limits' row in Limits. */
 type Unit = 'other' | 'context' | 'limits' | 'cache' | 'spend'
 const UNITS: readonly Unit[] = ['cache', 'spend', 'context', 'limits', 'other']
-/** The order they give way, first to last (spec §4.2's): the other limits,
- *  Context, Limits, the cache, then Spend. A calm one gives way at its turn;
- *  an amber one only where the body can't hold every amber one, then in
- *  AMBER_SHED's order, so the view is empty only when nothing fits. */
+/** The order they give way, first to last (three-layouts spec §4.2): the
+ *  other limits, Context, Limits, the cache, then Spend. A calm one gives
+ *  way at its turn; an amber one only where the body can't hold every amber
+ *  one, then in AMBER_SHED's order, so the view is empty only when nothing
+ *  fits. */
 const SHED: readonly Unit[] = ['other', 'context', 'limits', 'cache', 'spend']
 const AMBER_SHED: readonly Unit[] = ['other', 'context', 'limits', 'cache']
 
@@ -57,12 +58,16 @@ const fitWords = (kit: Kit, phrases: readonly string[], room: number): string =>
   return words
 }
 
+/** Whether pulse's charts draw: the desktop's, and the unicode tier's
+ *  braille; the ascii tier draws the words alone. */
+export const chartsDraw = (kit: Kit): boolean => kit.glyphs === 'unicode'
+
 /** Whether a fact's label and value fit `room` side by side, two columns apart. */
 const factFits = (kit: Kit, label: string, value: string, room: number): boolean => cellsOf(label, kit.measure) + 2 + cellsOf(value, kit.measure) <= room
 
 /** Everything the plan and the cards read, worked out once a draw. */
 type Facts = Readonly<{
-  /** Whether charts draw here: the desktop's, and the unicode tier's braille. */
+  /** Whether charts draw here, as chartsDraw says. */
   charts: boolean
   windows: readonly LimitView[]
   others: readonly LimitView[]
@@ -76,10 +81,9 @@ const factsOf = (kit: Kit, read: Readings): Facts => {
   const { Svg } = kit
   const { cache, context } = read
   const week = read.week()
-  const charts = kit.glyphs === 'unicode'
+  const charts = chartsDraw(kit)
   const windows = [read.fiveHour, read.sevenDay].filter((l): l is LimitView => l !== undefined)
   const others = read.limits.filter(l => l.key === 'other')
-  const unknownCache = cache.mood === 'unmeasured' || cache.mood === 'warming'
   const amber = new Set<Unit>([
     ...(cache.tone === 'amber' ? (['cache'] as const) : []),
     ...(context.tone === 'amber' && context.known ? (['context'] as const) : []),
@@ -93,7 +97,7 @@ const factsOf = (kit: Kit, read: Readings): Facts => {
     amber,
     has: cardsPresent(read),
     charted: {
-      cache: charts && !unknownCache,
+      cache: charts && !cache.untimed,
       spend: charts,
       context: charts && context.known,
       limits: charts && ((read.fiveHour !== undefined && week.fiveHourWindow.values.length > 1) || (Svg !== undefined && read.sevenDay !== undefined && week.daysDrawn.measured)),
@@ -187,10 +191,9 @@ const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement =
       // Inked by its mood: amber in its last minute, warm green while warm, a
       // label's ink cold or compacted, the whole hour gone. Unmeasured or
       // warming, its hour isn't known: no track, and its note says when it will be.
-      const ink = cache.tone === 'amber' ? palette.amberFg : cache.mood === 'warm' ? palette.warm : palette.label
+      const ink = onTone(cache.tone, cache.mood === 'warm' ? palette.warm : palette.label)
       const chart = size === undefined || !f.charted.cache ? null : track(kit, { key: 'chart', alt: cache.alt, frac: 1 - cache.charge, color: ink, px, ...size, cells: inner })
-      const unknown = cache.mood === 'unmeasured' || cache.mood === 'warming'
-      const said = unknown && cache.cardNote !== undefined ? note('fact', cache.cardNote) : fact(cache.estimateLabel, [cache.estimate])
+      const said = cache.untimed && cache.cardNote !== undefined ? note('fact', cache.cardNote) : fact(cache.estimateLabel, [cache.estimate])
       return card('cache', markedHead(cache.cardHead, cache.tone), cache.tone, [plot(chart), fill(), said])
     }
 
@@ -220,7 +223,7 @@ const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement =
     /** A window's half of Limits: its chart, `halfPx` wide, then its fact;
      *  side by side the halves share the line, else each takes all of it. */
     const half = (l: LimitView, halfPx: number, across: boolean): RenderElement => {
-      const ink = l.tone === 'amber' ? palette.amberFg : l.key === '5h' ? palette.fiveAccent : palette.weekAccent
+      const ink = onTone(l.tone, l.key === '5h' ? palette.fiveAccent : palette.weekAccent)
       let chart: RenderChildren = null
       if (size !== undefined && daySize !== undefined && f.charts) {
         if (l.key === '5h' && week.fiveHourWindow.values.length > 1)

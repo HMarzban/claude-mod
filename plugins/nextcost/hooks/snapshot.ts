@@ -1,6 +1,7 @@
 // The snapshot register.tsx reads for the band, and what the band can do
 // back: the one contract between the engine side and the drawing, and the
-// one way to build it, which the tests build theirs by too.
+// one way to build it, which the tests build theirs by too. With it, the
+// layouts' names, and those a stored layout or the command may still name.
 
 import type { RenderSurface, SessionRateLimit, SessionUsage } from 'claude-code'
 import type { CacheView } from './cache'
@@ -20,13 +21,32 @@ export const LAYOUT_NAMES = ['chips', 'pulse', 'departures'] as const
 export type LayoutName = (typeof LAYOUT_NAMES)[number]
 /** The layout drawn until /nextcost layout chooses another. */
 export const DEFAULT_LAYOUT: LayoutName = 'chips'
+/** Layouts this version removed: a stored one draws chips, and the command names it. */
+const REMOVED_LAYOUTS = ['gauges', 'ledger', 'rings', 'tiles', 'week', 'forecast'] as const
+export const REMOVED_IN = '0.14.0'
+
+/** A name from the store or the command, trimmed, in any case. */
+const nameOf = (v: unknown): string | undefined => (typeof v === 'string' ? v.trim().toLowerCase() : undefined)
+/** A layout's name from the store or the command; anything else, a name
+ *  from a newer version included, is undefined. */
+export const asLayoutName = (v: unknown): LayoutName | undefined => {
+  const name = nameOf(v)
+  return LAYOUT_NAMES.find(n => n === name)
+}
+/** A removed layout's name from the store or the command; else undefined. */
+export const removedLayoutOf = (v: unknown): string | undefined => {
+  const name = nameOf(v)
+  return REMOVED_LAYOUTS.find(n => n === name)
+}
 
 /** A limit window's use, and when it resets, epoch ms; undefined without a readable time. */
 export type LimitReading = Readonly<{ percentUsed: number; resetsAt: number | undefined }>
+/** A window the engine reports, by its kind: `five_hour`, `spend_limit`. */
+export type ReportedLimit = LimitReading & Readonly<{ kind: string }>
 
 /** A window the engine reports, its reset parsed once, here: past this
  *  point every reset is epoch ms. */
-export const limitOf = (l: SessionRateLimit): LimitReading & Readonly<{ kind: string }> => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: parseReset(l.resetsAt) })
+export const limitOf = (l: SessionRateLimit): ReportedLimit => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: parseReset(l.resetsAt) })
 
 /** The engine's names for the two limits the band reads by name. */
 export const FIVE_HOUR = 'five_hour'
@@ -69,7 +89,7 @@ export type BandSnapshot = Readonly<{
    *  session's, oldest first. Sparse use may stretch them back past a week. */
   samples: readonly Sample[]
   /** Any other window the engine reports, such as a gateway's spend_limit. */
-  otherLimits: ReadonlyArray<LimitReading & { kind: string }>
+  otherLimits: readonly ReportedLimit[]
   /** The project, home-relative, and git there; undefined until first read. */
   workspace: Workspace | undefined
   /** The layout chosen with /nextcost layout. */

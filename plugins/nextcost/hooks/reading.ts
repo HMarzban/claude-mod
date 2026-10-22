@@ -1,12 +1,13 @@
 // What the band reads off its snapshot before it draws anything: the cache's
 // meaning as cache.ts reads it, the context's fill, each limit's tone and
-// pace, with their words from words.ts beside them. Pure, so readingsOf can be checked without
-// mounting the band.
+// pace, with their words from words.ts beside them, and the board's from
+// board-words.ts. Pure, so readingsOf can be checked without mounting the
+// band.
 
 import { cacheFactsOf } from './cache'
 import type { CacheFacts } from './cache'
 import { drawnWeekOf } from './calendar'
-import type { DrawnWeek, SliceMark, WindowNow } from './calendar'
+import type { DrawnWeek, WindowNow } from './calendar'
 import {
   FIVE_HOUR_MS,
   SEVEN_DAY_MS,
@@ -16,6 +17,7 @@ import {
   contextUsed,
   fixedZone,
   fmtPct,
+  fmtPercent,
   resetIn,
   toCompaction,
 } from './format'
@@ -50,9 +52,6 @@ export type Frame = Readonly<{
   glyphs: Glyphs
   zone: Zone | undefined
 }>
-
-/** The cache as the views read it, from cache.ts: the words' own name for it. */
-export type { CacheFacts }
 
 /** The context's fill, read alike whether or not it compacts. */
 type ContextFill = Readonly<{
@@ -159,9 +158,6 @@ type HistoryReading = Trails &
     beatsTop: number
   }>
 
-/** A slice as drawn, from calendar.ts: the words' own name for it. */
-export type { SliceMark }
-
 /** The week's cells, and as drawn, with their words. */
 type WeekReading = DrawnWeek & WeekWords
 
@@ -222,7 +218,7 @@ const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
     const reset = resetIn(at, snap.now)
     const frac = clamp01(reading.percentUsed / 100)
     const gone = windowGone(at, windowMs, snap.now)
-    const base: LimitBase = { name, key, reset, resetsAt: at, gone, percentUsed: reading.percentUsed, frac, value: `${Math.round(reading.percentUsed)}%` }
+    const base: LimitBase = { name, key, reset, resetsAt: at, gone, percentUsed: reading.percentUsed, frac, value: fmtPercent(reading.percentUsed) }
     // Passed, the window that reset has no pace, reset or fill to say.
     if (reset?.kind === 'passed')
       return { ...base, passed: true, tone: 'calm', etaMs: null, projectedPct: undefined, resetInMs: undefined, fillInMs: undefined, fullInMs: undefined }
@@ -259,7 +255,7 @@ const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
 }
 
 /** The conversation's trails with their words and the series a chart draws. */
-const historyFacts = (trails: Trails, context: ContextFacts, spend: Readonly<{ totalText: string; totalUsd: number }>): HistoryReading => {
+const historyReading = (trails: Trails, context: ContextFacts, spend: Readonly<{ totalUsd: number }>): HistoryReading => {
   // Worked out once: the words, the scale and the chart's rule read it.
   const warmAvgUsd = warmAverageOf(trails.costs)
   return {
@@ -297,9 +293,9 @@ const windowOf = (l: LimitView | undefined, now: number): WindowNow | undefined 
 
 /** The week's cells from the limit samples, as drawn, with their words.
  *  With the zone unknown, the cells are named in UTC. */
-const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour: LimitView | undefined): WeekReading => {
+const weekReading = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour: LimitView | undefined): WeekReading => {
   const week = drawnWeekOf({ samples: snap.samples, seven: windowOf(sevenDay, snap.now), five: windowOf(fiveHour, snap.now), now: snap.now, zone: snap.zone ?? fixedZone(0) })
-  return { ...week, ...weekWords(week, week.dayMarks, fiveHour) }
+  return { ...week, ...weekWords(week, fiveHour) }
 }
 
 /** Everything a view reads, built once per draw: the frame, each section's
@@ -341,8 +337,8 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     worstLimit,
     workspace: snap.workspace,
     // Plain functions, not getters: reading a property never runs code.
-    history: () => (history ??= historyFacts(snap.history, context, spendRead)),
-    week: () => (week ??= weekFacts(snap, sevenDay, fiveHour)),
+    history: () => (history ??= historyReading(snap.history, context, spendRead)),
+    week: () => (week ??= weekReading(snap, sevenDay, fiveHour)),
     board: () => (board ??= boardWords({ frame, cache: cacheRead, spend: spendRead, context: contextRead, limits })),
     chips: chipsWords({ frame, cache, spend: spendSaid, context, limits }),
   }

@@ -11,14 +11,19 @@ import { BOARD_RULE_ALT } from './board-words'
 type Run = readonly [text: string, ink: string]
 const TILE_PX = 10
 const TILE_GAP = 1
+/** A tile and the gap after it: where the next tile starts. */
+const TILE_PITCH = TILE_PX + TILE_GAP
 const FLAP_PX = 20
 const escape = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 /** The runs as tiles: each run's characters, a blank tile between runs. */
 const tilesOf = (runs: readonly Run[]): Array<readonly [string, string]> =>
   runs.flatMap(([text, ink], i) => [...(i === 0 ? [] : [[' ', ink] as const]), ...[...text].map(ch => [ch, ink] as const)])
 
+/** The px `count` tiles take in a row, the gaps between them included. */
+const tilesPx = (count: number): number => count * TILE_PITCH - TILE_GAP
+
 /** The px the runs' tiles take: a flaps Svg's width. */
-export const flapsWidth = (runs: readonly Run[]): number => tilesOf(runs).length * (TILE_PX + TILE_GAP) - TILE_GAP
+export const flapsWidth = (runs: readonly Run[]): number => tilesPx(tilesOf(runs).length)
 
 /** `packed`: plain brackets the runs once, `[CACHE ! 30S]`, where it would
  *  bracket each, `[CACHE][! 30S]`: a row's last step, as filled drops its
@@ -43,7 +48,7 @@ export const flaps = (kit: Kit, o: Readonly<{ key: string; alt: string; runs: re
       </Box>
     )
   }
-  const marks = tilesOf(runs).map(([ch, ink], i) => tileAt(i * (TILE_PX + TILE_GAP), ch, ink, bg, seam))
+  const marks = tilesOf(runs).map(([ch, ink], i) => tileAt(i * TILE_PITCH, ch, ink, bg, seam))
   return kit.svg({ key, alt, width: flapsWidth(runs), height: FLAP_PX }, marks.join(''))
 }
 
@@ -71,7 +76,7 @@ const RULE_PX = 1
  *  a cell a character. */
 export const flapCells = (kit: Kit, text: string): number => {
   if (text === '') return 0
-  if (kit.Svg) return Math.ceil(([...text].length * (TILE_PX + TILE_GAP) - TILE_GAP) / kit.measure.pxPerCell)
+  if (kit.Svg) return Math.ceil(tilesPx([...text].length) / kit.measure.pxPerCell)
   return Math.ceil(boardCells(kit.palette.filled ? text : `[${text}]`, kit.measure))
 }
 
@@ -101,7 +106,7 @@ export const flapColumns = (kit: Kit, o: Readonly<{ key: string; alt: string; co
     // A blank, the space in a word or the air after the column, keeps its
     // glyph, so the line still reads in words, and has no tile.
     ;[...(c.text === '' ? '' : `${c.text} `)].forEach((ch, i) => {
-      const x = at + i * (TILE_PX + TILE_GAP)
+      const x = at + i * TILE_PITCH
       marks.push(ch === ' ' ? blankAt(x) : tileAt(x, ch, c.ink, bg, seam))
     })
     at += c.cells * measure.pxPerCell
@@ -109,14 +114,14 @@ export const flapColumns = (kit: Kit, o: Readonly<{ key: string; alt: string; co
   return kit.svg({ key, alt, width: at, height: FLAP_PX }, marks.join(''))
 }
 
-/** A thin rule across the board, on the desktop alone: a terminal's would
- *  take a row. Like a stretched meter it has no width of its own: drawn
- *  twice as wide as the board's estimate, `cells`, and capped by its slot,
- *  it spans the board's inner width to the header's right edge, however
- *  wide the desktop draws a column. */
-export const boardRule = (kit: Kit, key: string, cells: number, color: string): RenderChildren => {
+/** A thin rule across the board in its tiles' face colour, on the desktop
+ *  alone: a terminal's would take a row. Like a stretched meter it has no
+ *  width of its own: drawn twice as wide as the board's estimate, `cells`,
+ *  and capped by its slot, it spans the board's inner width to the header's
+ *  right edge, however wide the desktop draws a column. */
+export const boardRule = (kit: Kit, cells: number): RenderChildren => {
   const width = 2 * Math.max(1, cells) * kit.measure.pxPerCell
-  return kit.svg({ key, alt: BOARD_RULE_ALT, width, height: RULE_PX, stretch: true }, `<rect class="rule" x="0" y="0" width="${width}" height="${RULE_PX}" fill="${color}"/>`)
+  return kit.svg({ key: 'rule', alt: BOARD_RULE_ALT, width, height: RULE_PX, stretch: true }, `<rect class="rule" x="0" y="0" width="${width}" height="${RULE_PX}" fill="${kit.palette.flapBg}"/>`)
 }
 
 /** A board line's height, in the units the board is fitted in: on the

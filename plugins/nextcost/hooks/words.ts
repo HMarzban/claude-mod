@@ -3,8 +3,7 @@
 // amber, pace, resets, empty states and alt text read the same everywhere.
 // The departures board's words are board-words.ts's, built from these.
 
-import type { Week } from './calendar'
-import type { Zone } from './format'
+import type { DrawnWeek, SliceMark } from './calendar'
 import {
   clamp01,
   fmtAgo,
@@ -19,21 +18,17 @@ import {
   fmtLeftShort,
   fmtLeftSpoken,
   fmtPct,
-  fmtResetSpan,
+  fmtPercent,
   fmtSmallCost,
   fmtTokens,
-  grainOf,
-  HOUR_MS,
-  MINUTE_MS,
-  minutesLeft,
-  secondsLeft,
   severityMark,
 } from './format'
 import { IDLE_COMPACT_MS } from './cache'
-import { warmAverageOf } from './insights'
+import type { CacheFacts } from './cache'
+import { lastCostOf, warmAverageOf } from './insights'
 import type { CostEntry, Trails } from './insights'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
-import type { CacheFacts, ContextFacts, Frame, LimitFacts, SliceMark, SpendFacts, Tone } from './reading'
+import type { ContextFacts, Frame, LimitFacts, SpendFacts, Tone } from './reading'
 
 /** The colour a piece of a phrase is drawn in. */
 export type Role = 'label' | 'value' | 'amber' | 'accent5' | 'accent7'
@@ -64,21 +59,21 @@ export const compactsIn = (toCompact: number): string => `compacts in ${roomOf(t
 const IDLE_COMPACT_AT = `at ~${fmtAgo(IDLE_COMPACT_MS)} idle, before it goes cold`
 
 const amberOf = (say: Say, sayShort: Say): Amber => ({ long: joined(say), short: joined(sayShort) })
+/** The context's amber lead and fill, long and short: `! context 93%`, `! ctx 93%`. */
+const contextFill = (frac: number): Say => [[`${AMBER_LEAD}context `, 'amber'], [fmtPct(frac), 'value']]
+const contextFillShort = (frac: number): Say => [[`${AMBER_LEAD}ctx `, 'amber'], [fmtPct(frac), 'value']]
 
-/** What an amber reading says, long and short, always led by one `AMBER_LEAD`. */
+/** What an amber reading says, long and short, always led by one
+ *  `AMBER_LEAD`. Exported for its tests. */
 export const AMBER = {
   cache: (leftShort: string, estimate: string): Amber =>
     amberOf([[AMBER_LEAD, 'amber'], [leftShort, 'value'], [` left · re-warm ${estimate}`, 'amber']], [[AMBER_LEAD, 'amber'], [leftShort, 'value']]),
   context: (frac: number, toCompact: number): Amber =>
-    amberOf(
-      [[`${AMBER_LEAD}context `, 'amber'], [fmtPct(frac), 'value'], [` · ${compactsIn(toCompact)}`, 'amber']],
-      [[`${AMBER_LEAD}ctx `, 'amber'], [fmtPct(frac), 'value']],
-    ),
-  contextNoCompaction: (frac: number): Amber =>
-    amberOf([[`${AMBER_LEAD}context `, 'amber'], [fmtPct(frac), 'value']], [[`${AMBER_LEAD}ctx `, 'amber'], [fmtPct(frac), 'value']]),
+    amberOf([...contextFill(frac), [` · ${compactsIn(toCompact)}`, 'amber']], contextFillShort(frac)),
+  contextNoCompaction: (frac: number): Amber => amberOf(contextFill(frac), contextFillShort(frac)),
   limit: (name: string, percentUsed: number): Amber => {
-    const said: Say = [[`${AMBER_LEAD}${name} `, 'amber'], [`${Math.round(percentUsed)}%`, 'value']]
-    return amberOf(said, said)
+    const both: Say = [[`${AMBER_LEAD}${name} `, 'amber'], [fmtPercent(percentUsed), 'value']]
+    return amberOf(both, both)
   },
   limitPace: (name: string, eta: string): Amber =>
     amberOf([[`${AMBER_LEAD}${name} full in `, 'amber'], [eta, 'value']], [[`${AMBER_LEAD}${name} `, 'amber'], [eta, 'value']]),
@@ -96,7 +91,8 @@ export const EMPTY = {
 /** A landing at or over 100% is none: the window fills before it resets. */
 const fillsBeforeReset = (projectedPct: number): boolean => projectedPct >= 100
 
-/** A window's pace in words: a measured fill first, then the average's landing. */
+/** A window's pace in words: a measured fill first, then the average's
+ *  landing. Exported for its tests. */
 export const paceText = (p: Readonly<{ etaMs: number | null; projectedPct: number | undefined }>): string =>
   p.etaMs !== null
     ? `full in ${fmtEta(p.etaMs)}`
@@ -104,10 +100,11 @@ export const paceText = (p: Readonly<{ etaMs: number | null; projectedPct: numbe
       ? ''
       : fillsBeforeReset(p.projectedPct)
         ? 'full before reset'
-        : `on pace for ~${Math.round(p.projectedPct)}%`
+        : `on pace for ~${fmtPercent(p.projectedPct)}`
 
 /** What a screen reader hears for a drawn reading: `<name> <value>, <state>,
- *  <more>`, in words. A caller passes "about" and "resets in", never ~ or ↻. */
+ *  <more>`, in words. A caller passes "about" and "resets in", never ~ or ↻.
+ *  Exported for its tests. */
 export const altOf = (name: string, value: string, state?: string, more?: string): string =>
   saidJoined([`${name} ${value}`, state, more], ', ')
 
@@ -356,6 +353,8 @@ const cacheCopy = (f: CacheFacts, frame: Frame): CacheCopy => {
   // What a warm read costs against input on the model in force.
   const readPct = `${+(f.readShare * 100).toFixed(1)}%`
   const left = fmtCountdown(f.msLeft)
+  // The rebuild's price after its tokens, where a rate is known.
+  const priced = f.reWarmUsd === null ? '' : ` (${f.estimate})`
   const battery = f.charge <= 0 ? 'cache battery empty' : `cache battery ${Math.round(clamp01(f.charge) * 100)}% left`
   const warmHover = f.idleCompactSoon
     ? `${left} left; may be compacted ${IDLE_COMPACT_AT}`
@@ -383,14 +382,14 @@ const cacheCopy = (f: CacheFacts, frame: Frame): CacheCopy => {
       return {
         // A summary to write, not a cache lost: as calm as cold.
         pill: short => (short ? goneShort('compacted', f.estimate) : `cache compacted · next ${f.estimate}`),
-        hover: `Compacted while idle: next message writes the ${fmtTokens(f.window)} summary${f.reWarmUsd === null ? '' : ` (${f.estimate})`}`,
+        hover: `Compacted while idle: next message writes the ${fmtTokens(f.window)} summary${priced}`,
         alt: MOOD_ALT.compacted,
       }
     case 'cold':
       return {
         // Cold is a price, not an error: neutral, no hue, no alarm.
         pill: short => (short ? goneShort('cold', f.estimate) : `cache cold · next message ${f.estimate}`),
-        hover: `Cold: next message rebuilds ${fmtTokens(f.window)} tokens${f.reWarmUsd === null ? '' : ` (${f.estimate})`}`,
+        hover: `Cold: next message rebuilds ${fmtTokens(f.window)} tokens${priced}`,
         alt: battery,
       }
     case 'warm':
@@ -589,14 +588,14 @@ const contextTrendOf = (tokens: readonly number[]): 'rising' | 'falling' | 'stea
 
 /** What the history says, from its trails and `avg`, their warm average. */
 export const historyWords = (record: Trails, context: ContextFacts, spend: Readonly<{ totalUsd: number }>, avg: number | undefined): HistoryWords => {
-  const last = record.costs[record.costs.length - 1]
-  const lastText = last === undefined ? undefined : fmtSmallCost(last.usd)
+  const last = lastCostOf(record)
+  const lastText = last === null ? undefined : fmtSmallCost(last)
   const trend =
-    last === undefined || avg === undefined
+    last === null || avg === undefined
       ? 'steady'
-      : last.usd > avg * TREND_FACTOR
+      : last > avg * TREND_FACTOR
         ? 'rising'
-        : last.usd < avg / TREND_FACTOR
+        : last < avg / TREND_FACTOR
           ? 'falling'
           : 'steady'
   const costsAltOf = (count: number): string => {
@@ -609,7 +608,7 @@ export const historyWords = (record: Trails, context: ContextFacts, spend: Reado
         trend,
         drawnAvg === undefined ? undefined : `average ${fmtSmallCost(drawnAvg)}`,
         max === undefined ? undefined : `max ${fmtSmallCost(max.usd)}${max.reWarm ? ' re-warm' : ''}`,
-        last?.reWarm ? 'the newest a re-warm' : undefined,
+        drawn.at(-1)?.reWarm ? 'the newest a re-warm' : undefined,
       ],
       ', ',
     )
@@ -649,54 +648,25 @@ export type WeekWords = Readonly<{
 /** The slices known or guessed, each named, a guess said as about, the one
  *  that fills the limit so, and the run after it as none left. */
 const slicesSpoken = (title: string, names: readonly string[], marks: readonly SliceMark[]): string => {
-  const said = marks.flatMap((m, i) => {
+  const spoken = marks.flatMap((m, i) => {
     const name = names[i] ?? ''
-    const pct = `${Math.round(m.pct)}%`
+    const pct = fmtPercent(m.pct)
     return m.kind === 'measured' ? [`${name} ${pct}`] : m.kind === 'guess' ? [`${name} about ${pct}`] : m.kind === 'fills' ? [`${name} about ${pct} and fills it`] : []
   })
   const spent = names.filter((_, i) => marks[i]?.kind === 'spent')
   const none = spent.length === 0 ? [] : [`${spent.length === 1 ? spent[0] : `${spent[0]} to ${spent.at(-1)}`} none left`]
-  const all = [...said, ...none]
+  const all = [...spoken, ...none]
   return `${title}: ${all.length === 0 ? 'not known yet' : all.join(', ')}`
 }
 
 /** The week in words: its days as drawn, and the 5h window whole. */
 export const weekWords = (
-  w: Week,
-  days: readonly SliceMark[],
+  w: Pick<DrawnWeek, 'days' | 'dayMarks'>,
   five?: Pick<LimitWords, 'valueText'> & Readonly<{ projectedPct: number | undefined; passed: boolean }>,
 ): WeekWords => ({
-  daysAlt: slicesSpoken('weekly limit by day', w.days.map(d => d.name), days),
+  daysAlt: slicesSpoken('weekly limit by day', w.days.map(d => d.name), w.dayMarks),
   windowAlt:
     five === undefined || five.passed
       ? ''
-      : `5h window from start to reset, ${five.valueText} used${five.projectedPct === undefined ? '' : `, on pace for about ${Math.round(five.projectedPct)}%`}`,
+      : `5h window from start to reset, ${five.valueText} used${five.projectedPct === undefined ? '' : `, on pace for about ${fmtPercent(five.projectedPct)}`}`,
 })
-
-// ---- the clock ---------------------------------------------------------------
-
-/** A measured span on the board: `47S`, `38 MIN`, `1H 04M`. Never `38M`.
- *  Here, not with the board's words, since the paint key reads it too. */
-export const boardSpan = (ms: number): string =>
-  grainOf(ms) === 'seconds' ? `${secondsLeft(ms)}S` : ms < HOUR_MS ? `${minutesLeft(ms)} MIN` : fmtCountdown(ms)
-
-/** A reset's countdown as every layout says it: the span a card and, with
- *  no zone known, a limit's words say, and the board's, which with no zone
- *  counts its last minute's seconds; with a zone the board says a clock. */
-const resetSpans = (left: number, zone: Zone | undefined): string =>
-  left <= 0 ? 'passed' : zone === undefined ? `${fmtResetSpan(left)} ${boardSpan(left)}` : fmtResetSpan(left)
-
-/** Every phrase the clock alone moves, as one key, so the 1-second tick
- *  repaints only when one would read differently: the minute (the clocks
- *  and the battery), the cache's countdown, the 5-hour fill's projection,
- *  and each reset's countdown, which turns on the reset's own minute. The
- *  minute turns just past the boundary, as the countdowns to a time on the
- *  minute do: on it, they still read the minute before. */
-export const paintKey = (now: number, t: Readonly<{ cacheLeft: number; etaMs: number | null; resets: readonly number[]; zone: Zone | undefined }>): string =>
-  [
-    Math.ceil(now / MINUTE_MS),
-    fmtCountdown(t.cacheLeft),
-    t.cacheLeft > 0,
-    t.etaMs === null ? '-' : fmtEta(t.etaMs),
-    ...t.resets.map(at => resetSpans(at - now, t.zone)),
-  ].join('|')

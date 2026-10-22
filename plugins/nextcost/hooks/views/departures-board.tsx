@@ -18,14 +18,15 @@ import type { Palette } from '../palette'
 import { BOARD_HEADINGS, BOARD_NOW, BOARD_NO_TIME, BOARD_TITLE, type BoardKey, type BoardRow } from '../board-words'
 import { bodyRowsFor, footer, rowRoom } from './frame'
 
-/** REMARKS cut to `tiles` columns, `…` last where cut, a wide character
- *  never split. */
-export const remarksFit = (remarks: string, tiles: number): string => {
-  if (textCells(remarks) <= tiles) return remarks
+/** A line's text cut to `tiles` columns, `…` last where cut, a wide
+ *  character never split: REMARKS, and a flap column's text where the room
+ *  can't hold its widest. Exported for its tests. */
+export const remarksFit = (text: string, tiles: number): string => {
+  if (textCells(text) <= tiles) return text
   if (tiles <= 1) return ''
   let kept = ''
   let cells = 0
-  for (const ch of remarks) {
+  for (const ch of text) {
     const width = charCells(ch)
     if (cells + width > tiles - 1) break
     kept += ch
@@ -100,7 +101,7 @@ const columnsOf = (kit: Kit, rows: readonly BoardRow[], room: number): Columns =
     if (keep[widest] <= 1) break
     keep[widest]--
   }
-  const [item, status, time] = FLAP_KEYS.map(widthOf) as [number, number, number]
+  const [item, status, time] = [widthOf('item'), widthOf('status'), widthOf('time')]
   const left = room - item - status - time
   return { item, status, time, remarks: left >= REMARKS_LEAST ? left : 0, keep }
 }
@@ -154,7 +155,7 @@ const headerLine = (kit: Kit, read: Readings, inner: number, rule: boolean): Ren
           </Box>
         )}
       </Box>
-      {rule ? boardRule(kit, 'rule', inner, palette.flapBg) : null}
+      {rule ? boardRule(kit, inner) : null}
     </Box>
   )
 }
@@ -174,19 +175,19 @@ const headingsLine = (kit: Kit, cols: Columns, remarks: boolean): RenderElement 
   )
 }
 
-/** A reading's line: ITEM in its own ink, STATUS amber where the reading
- *  is, TIME, each flaps in its column, or a dim dash for no TIME; then its
- *  remark in plain dim text; a rule under it on the desktop. */
-const readingLine = (kit: Kit, l: Line, row: BoardRow, cols: Columns, remark: string, inner: number, rule: boolean): RenderElement => {
-  const { Box, Text, palette, oneLine } = kit
+/** A reading's line, keyed `key`: ITEM in its own ink, STATUS amber where
+ *  the reading is, TIME, each flaps in its column, or a dim dash for no
+ *  TIME; then its remark in plain dim text; a rule under it on the desktop. */
+const readingLine = (kit: Kit, key: string, row: BoardRow, cols: Columns, remark: string, inner: number, rule: boolean): RenderElement => {
+  const { Box, Text, palette, onTone, oneLine } = kit
   const time = row.time
   const flapsOf: FlapColumn[] = [
     { text: kept(cols, 'item', row.item), ink: palette[ITEM_INK[row.key]], cells: cols.item },
-    { text: kept(cols, 'status', row.status), ink: row.tone === 'amber' ? palette.flapAmber : palette.flapText, cells: cols.status },
+    { text: kept(cols, 'status', row.status), ink: onTone(row.tone, palette.flapText, palette.flapAmber), cells: cols.status },
     ...(time === undefined ? [] : [{ text: kept(cols, 'time', time), ink: palette.flapText, cells: cols.time }]),
   ]
   return (
-    <Box key={l.key} flexDirection="column" flexShrink={0}>
+    <Box key={key} flexDirection="column" flexShrink={0}>
       <Box key="line" flexDirection="row">
         {flapColumns(kit, { key: 'flaps', alt: row.alt, columns: flapsOf, bg: palette.flapBg, seam: palette.flapSeam })}
         {time !== undefined ? null : (
@@ -196,7 +197,7 @@ const readingLine = (kit: Kit, l: Line, row: BoardRow, cols: Columns, remark: st
         )}
         {remark === '' ? null : oneLine({ key: 'remarks', color: palette.flapDim }, remark)}
       </Box>
-      {rule ? boardRule(kit, 'rule', inner, palette.flapBg) : null}
+      {rule ? boardRule(kit, inner) : null}
     </Box>
   )
 }
@@ -221,7 +222,7 @@ const board = (kit: Kit, read: Readings, collapsedRows: number): RenderElement |
     >
       {plan.lines.map((l, i) => {
         const rule = i < plan.lines.length - 1
-        return l.row !== undefined ? readingLine(kit, l, l.row, cols, remarkOf(l.row, cols, plan), inner, rule)
+        return l.row !== undefined ? readingLine(kit, l.key, l.row, cols, remarkOf(l.row, cols, plan), inner, rule)
           : l.name === 'header' ? headerLine(kit, read, inner, rule)
           : headingsLine(kit, cols, remarks)
       })}

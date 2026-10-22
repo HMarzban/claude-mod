@@ -133,16 +133,16 @@ export const makeKit = (el: ElementTable, snap: BandSnapshot) => {
     )
   }
 
-  /** A column of air. The desktop drops a string child that is only spaces,
-   *  plain or not, so there the gap is an empty Box; a text surface keeps
-   *  its space. */
-  const gap = (key: string): RenderChildren => (snap.surface === 'desktop' ? <Box key={key} width={1} flexShrink={0} /> : ' ')
-
   /** `columns` of air that is always an element, for a Box whose children
    *  are all elements: the desktop's an empty Box, a text surface's a Text of
    *  spaces, since a text surface draws no bare string in a Box. */
   const air = (key: string, columns = 1): RenderElement =>
     snap.surface === 'desktop' ? <Box key={key} width={columns} flexShrink={0} /> : <Text key={key}>{' '.repeat(columns)}</Text>
+
+  /** A column of air among text: a text surface keeps a bare space, but the
+   *  desktop drops a string child that is only spaces, plain or not, so
+   *  there it is `air`. */
+  const gap = (key: string): RenderChildren => (snap.surface === 'desktop' ? air(key) : ' ')
 
   /** Marks in an Svg `width` by `height` px, one unit to a pixel: the one
    *  place an Svg is built. `air` sets the marks that many px down, under the

@@ -2,7 +2,7 @@
 // one order. Collapsed, each reading its own module: its ITEM and cell's
 // tiles on a panel of the board's ground, the band's own background between
 // modules. Open, the board itself (departures-board.tsx). The words are the
-// board's (words.ts boardWords); this file only lays tiles.
+// board's (board-words.ts); this file only lays tiles.
 
 import type { RenderElement } from 'claude-code'
 import { flaps } from '../flaps'
@@ -16,8 +16,8 @@ import type { View } from './view'
 /** What gives way as the row narrows, first to last (three-layouts spec
  *  §5.2), calm only: readings outrank calm remarks. 5h's RESET, 7d's RESET,
  *  5h's remark, 7d's remark, SPEND, CONTEXT, then 5H itself, so the
- *  narrowest row is CACHE and 7D alone, then the short forms. An amber reading keeps its whole cell,
- *  RESET too, until the amber step. Past it, last of all, the modules drop
+ *  narrowest row is CACHE and 7D alone, then the short forms. An amber
+ *  reading keeps its whole cell, RESET too, until the amber step. Past it, last of all, the modules drop
  *  their padding, keeping their ground; plain, which has none, brackets each
  *  reading once and sets them a column apart: four amber readings at 60
  *  columns in every palette. CACHE and 7D never go. */
@@ -33,8 +33,8 @@ type Piece = PieceOf<typeof ORDER>
  *  its cell's, white or amber, the flaps' own gap between them. Plain draws
  *  no ground: the row sets its modules apart instead. */
 const moduleOf = (kit: Kit, k: Keeps<Piece>, row: BoardRow, cell: string): RenderElement => {
-  const { Box, palette } = kit
-  const ink = row.tone === 'amber' ? palette.flapAmber : palette.flapText
+  const { Box, palette, onTone } = kit
+  const ink = onTone(row.tone, palette.flapText, palette.flapAmber)
   const ground = palette.filled ? { backgroundColor: palette.boardBg, ...(k.has('padding') ? { paddingX: 1 } : {}) } : {}
   return (
     <Box key={row.key} flexShrink={0} {...ground}>
@@ -42,7 +42,6 @@ const moduleOf = (kit: Kit, k: Keeps<Piece>, row: BoardRow, cell: string): Rende
     </Box>
   )
 }
-
 
 /** A row's cell as the squeeze keeps it, chosen among its forms, never cut.
  *  Amber: whole until the amber step, then short. A calm limit: its reset
@@ -68,7 +67,8 @@ const keeps = (row: BoardRow, k: Keeps<Piece>): boolean =>
  *  every column between modules is one the row draws and measures. */
 const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderElement =>
   fitLine(kit, ORDER, k => {
-    const modules = read.board().rows.filter(r => keeps(r, k)).flatMap((r, i) => [moduleOf(kit, k, r, cellOf(r, k)), 
+    const modules = read.board().rows.filter(r => keeps(r, k)).flatMap((r, i) => [
+      moduleOf(kit, k, r, cellOf(r, k)),
       // The band's own background between modules, and after the last, before
       // ▵: a column where modules have their ground; in plain, which has none,
       // two until its last step.

@@ -10,14 +10,16 @@ import { readingsOf } from './reading'
 import { DEFAULT_LAYOUT } from './snapshot'
 import type { BandActions, BandSnapshot, LayoutName } from './snapshot'
 import { VIEWS } from './views/index'
-import type { View } from './views/index'
+import type { View } from './views/view'
 import { drawView } from './views/frame'
 
-/** Below this, every layout draws chips (spec §1); a layout may need more. */
+/** Below this, every layout draws chips (three-layouts spec §1); a layout
+ *  may need more. */
 const CHIPS_BELOW = 40
 
 /** The layout the band draws at `columns`: the one chosen, or chips below
- *  CHIPS_BELOW or the chosen view's own fewest columns. */
+ *  CHIPS_BELOW or the chosen view's own fewest columns. Exported for its
+ *  tests. */
 export const layoutAt = (layout: LayoutName, columns: number, views: Readonly<Record<LayoutName, View>> = VIEWS): LayoutName =>
   columns < Math.max(CHIPS_BELOW, views[layout].minColumns ?? 0) ? DEFAULT_LAYOUT : layout
 
