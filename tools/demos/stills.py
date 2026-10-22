@@ -10,6 +10,7 @@ import os
 import re
 import sys
 
+from common import plugin_version, trees, words
 from render_desk import BAND_CSS, node
 
 # The social card, 1280x640 shot at 2x: the page's dark counter and receipt
@@ -46,22 +47,6 @@ h1{position:absolute;left:72px;right:72px;top:118px;font-size:76px;line-height:1
 <div class="line mono">RE-WARM IF MISSED<i></i><b>{rewarm}</b></div>
 <div class="foot">Free Claude Code plugin · no tokens · terminal + desktop</div>
 </body></html>'''
-
-
-def words(n):
-    """The text a drawn tree shows."""
-    if isinstance(n, str):
-        return n
-    if isinstance(n, list):
-        return ''.join(words(c) for c in n)
-    if isinstance(n, dict):
-        return ''.join(words(c) for c in n.get('children') or [])
-    return ''
-
-
-def plugin_version():
-    here = os.path.dirname(os.path.abspath(__file__))
-    return json.load(open(os.path.join(here, '../../plugins/nextcost/.claude-plugin/plugin.json')))['version']
 
 
 def social(tree):
@@ -178,14 +163,11 @@ def gallery(out, name, rows, trees):
 if __name__ == '__main__':
     src, out = sys.argv[1], sys.argv[2]
     demo_src = sys.argv[3] if len(sys.argv) > 3 else os.path.join(os.path.dirname(src), 'demo.txt')
-    trees = {}
-    for line in open(src):
-        _, name, js = line.split(' ', 2)
-        trees[name] = json.loads(js)
+    drawn = trees(src)
     amber = next(json.loads(line.split(' ', 4)[4]) for line in open(demo_src) if line.startswith('DEMO chips amber shut '))
     open(f'{out}/social.html', 'w').write(social(amber))
-    open(f'{out}/anatomy.html', 'w').write(ANATOMY.replace('{band}', node(trees['calm'])))
-    open(f'{out}/expanded.html', 'w').write(EXPANDED.replace('{band}', node(trees['amberOpen'])))
-    gallery(out, 'states', STATES, trees)
-    gallery(out, 'layouts', LAYOUTS, trees)
+    open(f'{out}/anatomy.html', 'w').write(ANATOMY.replace('{band}', node(drawn['calm'])))
+    open(f'{out}/expanded.html', 'w').write(EXPANDED.replace('{band}', node(drawn['amberOpen'])))
+    gallery(out, 'states', STATES, drawn)
+    gallery(out, 'layouts', LAYOUTS, drawn)
     print('stills')

@@ -5,7 +5,19 @@ maps straight onto CSS flexbox with 1 cell = 1ch and 1 row = 1 line.
 """
 import html
 
+from common import flex_css
+
 LH = 1.45  # line height in em; one terminal row
+
+
+def cells(n):
+    """A count of terminal columns as a CSS length."""
+    return f'{n}ch'
+
+
+def lines(n):
+    """A count of terminal rows as a CSS length."""
+    return f'{n * LH}em'
 
 
 def esc(s):
@@ -39,17 +51,7 @@ def node(n):
         return f"<span>[ {mark}{label} ]</span>"
     # Box
     st = ['display:flex', f"flex-direction:{p.get('flexDirection', 'row')}"]
-    if p.get('flexWrap'): st.append(f"flex-wrap:{p['flexWrap']}")
-    if 'columnGap' in p: st.append(f"column-gap:{p['columnGap']}ch")
-    if 'rowGap' in p: st.append(f"row-gap:{p['rowGap'] * LH}em")
-    if 'paddingX' in p: st.append(f"padding:0 {p['paddingX']}ch")
-    if 'marginTop' in p: st.append(f"margin-top:{p['marginTop'] * LH}em")
-    if isinstance(p.get('width'), (int, float)): st.append(f"width:{p['width']}ch")
-    if isinstance(p.get('minWidth'), (int, float)): st.append(f"min-width:{p['minWidth']}ch")
-    if isinstance(p.get('height'), (int, float)): st.append(f"height:{p['height'] * LH}em")
-    if 'flexGrow' in p: st.append(f"flex-grow:{p['flexGrow']}")
-    if 'flexShrink' in p: st.append(f"flex-shrink:{p['flexShrink']}")
-    if p.get('justifyContent'): st.append(f"justify-content:{p['justifyContent']}")
+    st += flex_css(p, cells, lines, lines, pad=True)
     if p.get('alignItems'): st.append(f"align-items:{p['alignItems']}")
     if p.get('overflow') == 'hidden': st.append('overflow:hidden')
     if p.get('backgroundColor'): st.append(f"background:{p['backgroundColor']}")

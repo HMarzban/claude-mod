@@ -12,17 +12,8 @@ import json
 import os
 import sys
 
+from common import plugin_version, trees, words
 from render_desk import node
-
-
-def text(n):
-    if isinstance(n, str):
-        return n
-    if isinstance(n, dict):
-        return ''.join(text(c) for c in n.get('children') or [])
-    if isinstance(n, list):
-        return ''.join(text(c) for c in n)
-    return ''
 
 
 def lift_hovers(tree):
@@ -43,7 +34,7 @@ def lift_hovers(tree):
             if p.get('position') == 'absolute' and p.get('display') == 'none':
                 scope = (c.get('hover') or {}).get('scope')
                 if scope is not None:
-                    tips[scope] = ' '.join(text(c).split())
+                    tips[scope] = ' '.join(words(c).split())
             else:
                 keep.append(c)
                 drop(c)
@@ -99,17 +90,14 @@ def script_json(data):
 src, template, out = sys.argv[1], sys.argv[2], sys.argv[3]
 demo_src = sys.argv[4] if len(sys.argv) > 4 else os.path.join(os.path.dirname(src), 'demo.txt')
 states = {}
-for line in open(src):
-    _, name, js = line.split(' ', 2)
-    tree = json.loads(js)
+for name, tree in trees(src).items():
     lift_hovers(tree)
     states[name] = node(tree).replace('0:47', '<span class=cd>0:47</span>')
 
 page = open(template).read()
 # The release the page describes is the manifest's, and it is dated the day
 # it was built (UTC), as the sitemap is: neither is typed into the template.
-manifest = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../plugins/nextcost/.claude-plugin/plugin.json')
-page = page.replace('{{version}}', json.load(open(manifest))['version'])
+page = page.replace('{{version}}', plugin_version())
 page = page.replace('{{built}}', datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))
 for name, body in states.items():
     page = page.replace('{{' + name + '}}', body)

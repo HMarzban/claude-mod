@@ -99,6 +99,7 @@ Run `/reload-plugins` in your session afterwards.
 | `tests/cases.ts`, `tests/matrix.ts` | The states every layout is drawn in and `drawCases`, which draws them; `snapOf` for pure tests, the invariant checks, and `viewSuite`, which every layout's test file runs. |
 | `tests/golden/` | Chips' frozen trees and the tests that hold chips to them; see the rule below. |
 | `tools/test-only.sh` | Runs only the tests whose names match the globs given, against a scratch copy of the plugin. |
+| `tools/scratch.sh` | `scratch_plugin`, which `test-only.sh` and the demo build source: a scratch copy of the plugin without its tests. |
 | `tools/views-gate.sh` | The views gate, run in CI: fails when a layout's view formats or reads a raw fact, or a hook other than `kit.tsx` writes an `<svg>` root. |
 | `tools/demos/build.sh` | Rebuilds every demo and the site from the band's own output; see `tools/demos/README.md`. |
 

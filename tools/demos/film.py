@@ -12,6 +12,7 @@ import json
 import math
 import sys
 
+from common import trees
 from render_desk import BAND_CSS, MARK, SITE, node
 
 FPS = 30
@@ -225,12 +226,9 @@ if (P.cursor >= 0 && moreR) {{
 
 if __name__ == '__main__':
     src, out, theme = sys.argv[1:4]
-    trees = {}
-    for line in open(src):
-        _, name, js = line.split(' ', 2)
-        trees[name] = json.loads(js)
-    minutes = sorted(int(k[1:]) for k in trees if k.startswith('s'))
+    drawn = trees(src)
+    minutes = sorted(int(k[1:]) for k in drawn if k.startswith('s'))
     n = int(DURATION * FPS)
     for i in range(n):
-        open(f"{out}/f{i:04d}.html", 'w').write(frame(i, theme, trees, minutes))
+        open(f"{out}/f{i:04d}.html", 'w').write(frame(i, theme, drawn, minutes))
     print(theme, n)

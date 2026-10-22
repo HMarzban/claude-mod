@@ -11,7 +11,14 @@ import base64
 import html
 import re
 
+from common import flex_css
+
 COL, ROW, GAP = 10, 24, 12
+
+
+def px(unit):
+    """A count of `unit`-pixel steps as a CSS length."""
+    return lambda n: f'{n * unit}px'
 
 
 # A countdown in the cache's last minute, as the chips (`0:40 left`) and the
@@ -63,16 +70,7 @@ def node(n, parent_row=False, site=False):
     st = ['display:flex', f"flex-direction:{p.get('flexDirection', 'row')}"]
     row = p.get('flexDirection', 'row') == 'row'
     if row: st.append(f"align-items:{p.get('alignItems', 'center')}")
-    if p.get('flexWrap'): st.append(f"flex-wrap:{p['flexWrap']}")
-    if 'columnGap' in p: st.append(f"column-gap:{p['columnGap'] * COL}px")
-    if 'rowGap' in p: st.append(f"row-gap:{p['rowGap'] * GAP}px")
-    if 'marginTop' in p: st.append(f"margin-top:{p['marginTop'] * GAP}px")
-    if isinstance(p.get('width'), (int, float)): st.append(f"width:{p['width'] * COL}px")
-    if isinstance(p.get('minWidth'), (int, float)): st.append(f"min-width:{p['minWidth'] * COL}px")
-    if isinstance(p.get('height'), (int, float)): st.append(f"height:{p['height'] * ROW}px")
-    if 'flexGrow' in p: st.append(f"flex-grow:{p['flexGrow']}")
-    if 'flexShrink' in p: st.append(f"flex-shrink:{p['flexShrink']}")
-    if p.get('justifyContent'): st.append(f"justify-content:{p['justifyContent']}")
+    st += flex_css(p, px(COL), px(GAP), px(ROW))
     if p.get('overflow') == 'hidden': st.append('overflow:hidden')
     padx = p.get('paddingX', 0) * COL
     if p.get('borderStyle'):
