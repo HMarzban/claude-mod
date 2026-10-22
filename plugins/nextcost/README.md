@@ -454,7 +454,7 @@ none edits a message, a setting, a tool call or a result.
 ## Developing
 
 See [CONTRIBUTING.md](https://github.com/HMarzban/nextcost/blob/main/CONTRIBUTING.md)
-for the development loop, the gates (about 1,000 tests), the module map and
+for the development loop, the gates (over 1,100 tests), the module map and
 the rules the code follows.
 
 ## Help make it better
