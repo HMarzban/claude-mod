@@ -1,5 +1,6 @@
 import { test, expect } from 'claude-code/testing'
-import { msLeft, noteLoad, noteRecall, noteResume, recordResponse, resetCache, takeRebuilt } from '../hooks/cache'
+import { newCache } from '../hooks/cache'
+import type { CacheModel } from '../hooks/cache'
 import { COST_TRAIL, CONTEXT_TRAIL, pushContext, pushCost, resetConversationInsights, resetInsights, trails } from '../hooks/insights'
 import { asLimitSamples } from '../hooks/memory'
 import { HOUR, HOUR_1, LONG, MIN, START, USAGE, engine, resp, setup, turn, usage } from './helpers'
@@ -22,38 +23,43 @@ test('/clear empties the conversation trails; a new session empties them too', (
   resetConversationInsights()
   expect([trails.costs.length, trails.context.length]).toEqual([0, 0])
 })
+/** Whether the turn's end finds the cache rebuilt. */
+const rebuilt = (c: CacheModel): boolean => c.turnEnded(undefined).rebuilt
+const OPUS_BUILD = { ...resp(41_000, 0, 155_000, 12_000), model: 'claude-opus-5-5' }
 test('a request after the TTL ran out rebuilt the cache, and the turn takes the mark once', () => {
-  resetCache()
-  recordResponse({ ...resp(41_000, 0, 155_000, 12_000), model: 'claude-opus-5-5' }, 0, true)
-  expect(takeRebuilt()).toBe(false) // the first build is warming, not a re-warm
-  recordResponse({ ...resp(41_000, 0, 155_000, 12_000), model: 'claude-opus-5-5' }, 61 * MIN, true)
-  expect(takeRebuilt()).toBe(true)
-  expect(takeRebuilt()).toBe(false)
+  const c = newCache()
+  c.responded(OPUS_BUILD, 0, true)
+  expect(rebuilt(c)).toBe(false) // the first build is warming, not a re-warm
+  c.responded(OPUS_BUILD, 61 * MIN, true)
+  expect(rebuilt(c)).toBe(true)
+  expect(rebuilt(c)).toBe(false)
 })
 test('the first reply after a resume or a reload rebuilds a cache already cold', () => {
-  resetCache()
-  noteResume({ lastAt: 0, expired: true, reWarmUsd: 1 })
-  expect(msLeft(48 * HOUR)).toBe(0)
-  recordResponse({ ...resp(41_000, 0, 155_000, 12_000), model: 'claude-opus-5-5' }, 48 * HOUR, true)
-  expect(takeRebuilt()).toBe(true)
-  resetCache()
-  noteLoad(5)
-  noteRecall(0, null)
-  recordResponse({ ...resp(41_000, 0, 155_000, 12_000), model: 'claude-opus-5-5' }, 3 * HOUR, true)
-  expect(takeRebuilt()).toBe(true)
+  const resumed = newCache()
+  resumed.resumed({ cache: { lastAt: 0, expired: true, reWarmUsd: 1 }, transcript: undefined })
+  expect(resumed.msLeft(48 * HOUR)).toBe(0)
+  resumed.responded(OPUS_BUILD, 48 * HOUR, true)
+  expect(rebuilt(resumed)).toBe(true)
+  const reloaded = (): CacheModel => {
+    const c = newCache()
+    c.loaded({ priceModel: undefined, ledger: 5 })
+    c.recalled({ lastAt: 0, rate: null, billed: undefined })
+    return c
+  }
+  const cold = reloaded()
+  cold.responded(OPUS_BUILD, 3 * HOUR, true)
+  expect(rebuilt(cold)).toBe(true)
   // Recalled warm, the first reply reads the cache it found.
-  resetCache()
-  noteLoad(5)
-  noteRecall(0, null)
-  recordResponse({ ...resp(2_000, 196_000, 4_000, 3_000), model: 'claude-opus-5-5' }, 10 * MIN, true)
-  expect(takeRebuilt()).toBe(false)
+  const warm = reloaded()
+  warm.responded({ ...resp(2_000, 196_000, 4_000, 3_000), model: 'claude-opus-5-5' }, 10 * MIN, true)
+  expect(rebuilt(warm)).toBe(false)
 })
 test('a warm read is no re-warm', () => {
-  resetCache()
-  recordResponse({ ...resp(41_000, 0, 155_000, 12_000), model: 'claude-opus-5-5' }, 0, true)
-  takeRebuilt()
-  recordResponse({ ...resp(2_000, 196_000, 4_000, 3_000), model: 'claude-opus-5-5' }, MIN, true)
-  expect(takeRebuilt()).toBe(false)
+  const c = newCache()
+  c.responded(OPUS_BUILD, 0, true)
+  rebuilt(c)
+  c.responded({ ...resp(2_000, 196_000, 4_000, 3_000), model: 'claude-opus-5-5' }, MIN, true)
+  expect(rebuilt(c)).toBe(false)
 })
 
 const rising = (i: number) => {

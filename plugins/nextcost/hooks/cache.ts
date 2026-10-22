@@ -1,4 +1,6 @@
 // The prompt cache, as the band models it from each response's token counts.
+// One model per session, made at session.start and fed each hook's facts in
+// that hook's own shape; the order they must be applied in is kept here.
 
 import type { ModelUsage } from 'claude-code'
 import type { BandSnapshot } from './snapshot'
@@ -34,6 +36,15 @@ export type Spend = Readonly<{ usd: number; tokens: TokenCounts }>
  *  costs. */
 export type ResumedCache = Readonly<{ lastAt: number; expired: boolean | undefined; reWarmUsd: number | undefined }>
 
+/** What a resumed conversation's transcript shows: its spend before this
+ *  process, and the TTL of its last cache write. */
+export type TranscriptFacts = Readonly<{ spend: Spend | undefined; ttl: Ttl | undefined }>
+
+/** What the band recalls of a conversation's last reply, before its own:
+ *  when it was, the base rate per token on its model, and the model it was
+ *  billed under, where its transcript names one. */
+export type RecalledReply = Readonly<{ lastAt: number | undefined; rate: number | null; billed: string | undefined }>
+
 type CacheState = {
   ttl: Ttl
   /** Set by the environment, so never inferred. */
@@ -42,6 +53,11 @@ type CacheState = {
    *  band's first reply: it speaks for the recalled cache, never for the next
    *  request, and the environment's pin still wins. */
   ttlSeen: Ttl | undefined
+  /** The context, in tokens, from which Claude Code compacts this session
+   *  when it sits idle; undefined when it never does (idleCompactFrom). */
+  idleCompactFrom: number | undefined
+  /** A main-loop turn is under way: a compaction then is no idle one. */
+  turnOpen: boolean
   /** Main-loop requests this conversation. */
   requests: number
   /** Every token since the conversation began, subagents included. */
@@ -68,7 +84,7 @@ type CacheState = {
   compactedAt: number | undefined
   /** The model the last main-loop request ran on; a switch rebuilds the cache. */
   model: string | undefined
-  /** Since takeRebuilt last read it, a main-loop request rebuilt a cache
+  /** Since the turn's end last read it, a main-loop request rebuilt a cache
    *  that existed. */
   lastRebuilt: boolean
   /** The ledger when this conversation's first turn began, so spend from
@@ -102,6 +118,8 @@ const INITIAL: Readonly<CacheState> = {
   ttl: '1h',
   ttlPinned: false,
   ttlSeen: undefined,
+  idleCompactFrom: undefined,
+  turnOpen: false,
   requests: 0,
   tokens: NO_TOKENS,
   premium: 0,
@@ -125,119 +143,54 @@ const INITIAL: Readonly<CacheState> = {
   billedModel: undefined,
 }
 
-const state: CacheState = { ...INITIAL }
+// ---- the prices -------------------------------------------------------------
 
-/** The model, read-only: only this module's functions change it. */
-export const cache: Readonly<CacheState> = state
+// The price of each kind of token against base input. Writes and output hold
+// one ratio across Anthropic's models; reads do not. Claude Code's own ledger
+// prices every cache write at 1.25×, whatever its lifetime, so the band does
+// too, to agree with the cost it shows.
+const WRITE_MULT = 1.25
+const OUTPUT_MULT = 5
+/** A cache read against base input, by model; 0.1× elsewhere. Per Anthropic's
+ *  list prices as of 2026-10: Opus 5.5 reads at $0.20 on $4.00 input, Sonnet
+ *  5.5 at $0.10 on $2.00, Fable and Mythos 5.1 at $0.25 on $10.00. */
+const READ_MULT_BY_MODEL: Readonly<Record<string, number>> = {
+  'claude-opus-5-5': 0.05,
+  'claude-sonnet-5-5': 0.05,
+  'claude-fable-5-1': 0.025,
+  'claude-mythos-5-1': 0.025,
+}
+const DEFAULT_READ_MULT = 0.1
 
-export const resetCache = (): void => {
-  Object.assign(state, INITIAL)
+/** The model a name bills as. `/model` names a 1M context window with a
+ *  suffix, `claude-opus-5-5[1m]`, and the cost record names the model alone. */
+export const modelName = (model: string): string => model.replace(/\[[^\]]*\]$/, '')
+
+/** Prices that rise with a request's prompt, by model: past `over` input
+ *  tokens, every price is `factor` times the lower tier's. Per Anthropic's
+ *  list prices as of 2026-10: Haiku 5.5 is $0.10 input up to 100,000 prompt
+ *  tokens and $0.50 over, the cache and output prices alike. */
+const TIERS_BY_MODEL: Readonly<Record<string, Readonly<{ over: number; factor: number }>>> = {
+  'claude-haiku-5-5': { over: 100_000, factor: 5 },
 }
 
-/** Another conversation in the same process: the billing mode and its TTL
- *  carry over, everything measured starts again. The baseline is provisional
- *  until the next turn starts and takes the ledger then. */
-const switchConversation = (costNow: number, knownFresh: boolean): void => {
-  const { ttl, ttlPinned, priceModel, billedModel } = state
-  Object.assign(state, INITIAL, { ttl, ttlPinned, priceModel, billedModel, costBase: costNow, knownFresh })
+/** How many times the lower tier's prices a request with `prompt` input
+ *  tokens pays on `model`: 1 on a model with one tier. */
+export const tierFactor = (model: string | undefined, prompt: number): number => {
+  const tier = model === undefined ? undefined : TIERS_BY_MODEL[modelName(model)]
+  return tier !== undefined && prompt > tier.over ? tier.factor : 1
 }
 
-/** A /clear: a new conversation starts here. */
-export const resetConversation = (costNow: number): void => switchConversation(costNow, true)
+/** What a cache read costs against base input on `model`. */
+const readMultiplier = (model: string | undefined): number =>
+  (model === undefined ? undefined : READ_MULT_BY_MODEL[modelName(model)]) ?? DEFAULT_READ_MULT
 
-/** A /resume: the process moves to a conversation already under way. */
-export const resetForResume = (costNow: number): void => switchConversation(costNow, false)
+/** Tokens weighted by their price against base input on `model`: the one
+ *  unknown left is the base rate itself. */
+export const weightedTokens = (t: TokenCounts, model: string | undefined): number =>
+  t.uncached + WRITE_MULT * t.written + readMultiplier(model) * t.read + OUTPUT_MULT * t.output
 
-/** What the band recalls of the conversation's last reply, before its own. */
-export const noteRecall = (lastAt: number, rate: number | null): void => {
-  state.recall = { lastAt, rate }
-}
-
-/** What the band recalls of a conversation's last reply, before its own:
- *  when it was, the base rate per token on its model, and the model it was
- *  billed under, where its transcript names one. */
-export type RecalledReply = Readonly<{ lastAt: number | undefined; rate: number | null; billed: string | undefined }>
-
-/** Whether to recall the last reply: the engine said neither that the
- *  conversation starts here nor when its last reply was. */
-export const wantsRecall = (): boolean => !state.knownFresh && state.resumedCache === undefined
-
-/** What the band recalls of the last reply, noted until this band's first
- *  reply, which speaks for itself. */
-export const noteRecalled = (recalled: RecalledReply | undefined): void => {
-  if (state.requests > 0) return
-  if (recalled?.billed !== undefined) noteBilledModel(recalled.billed)
-  if (recalled?.lastAt !== undefined) noteRecall(recalled.lastAt, recalled.rate)
-}
-
-/** When the conversation's last reply was, before this band's own: as the
- *  engine said on a resume, else as recalled. */
-const recalledAt = (): number | undefined => state.resumedCache?.lastAt ?? state.recall?.lastAt
-
-/** Whether the cache stands as recalled: no reply seen yet, a conversation
- *  that didn't start here, and something to recall. */
-const isRecalled = (): boolean => state.requests === 0 && !state.knownFresh && recalledAt() !== undefined
-
-/** At load: a ledger that has spent nothing is a new conversation, unless
- *  the engine has already said it resumed one. A ledger that can't be read
- *  says neither, so the band recalls the last reply. */
-export const noteLoad = (costNow: number | undefined): void => {
-  if (!state.resumed) state.knownFresh = costNow === 0
-}
-
-/** A resumed conversation didn't start here, whatever the ledger says; what
- *  the engine knows of its cache, when it says, stands over anything
- *  recalled. A resume's facts replace any noted before them. */
-export const noteResume = (said: ResumedCache | undefined): void => {
-  state.knownFresh = false
-  state.resumed = true
-  state.resumedCache = said
-  state.prior = undefined
-  state.ttlSeen = undefined
-}
-
-/** What a resumed conversation spent before this process. */
-const notePrior = (spend: Spend): void => {
-  state.prior = spend
-}
-
-/** The TTL the transcript's last cache write was made at: it speaks for
- *  the cache until this band's first reply. */
-const noteTtlSeen = (ttl: Ttl): void => {
-  if (state.requests === 0) state.ttlSeen = ttl
-}
-
-/** What a resumed conversation's transcript shows: its spend before this
- *  process, and the TTL of its last cache write. */
-export type TranscriptFacts = Readonly<{ spend: Spend | undefined; ttl: Ttl | undefined }>
-
-/** What a resumed conversation's transcript shows, noted. */
-export const noteTranscript = (facts: TranscriptFacts): void => {
-  if (facts.spend !== undefined) notePrior(facts.spend)
-  if (facts.ttl !== undefined) noteTtlSeen(facts.ttl)
-}
-
-/** The TTL the cache stands at: the pin, else one seen on the transcript,
- *  else the one assumed or inferred. */
-const effectiveTtl = (): Ttl => (state.ttlPinned ? state.ttl : (state.ttlSeen ?? state.ttl))
-
-/** What the session has cost, to show: the ledger, or for a resumed
- *  conversation the larger of the ledger and its transcript's total, with
- *  the ledger's growth since the conversation's first turn on top. Never
- *  both summed: a host may restore the ledger on a resume, or may not, and
- *  may restore it only after the transcript is read, so the growth counts
- *  from the baseline that turn takes, never from the ledger at the read. */
-export const spentUsd = (ledgerNow: number | undefined): number => {
-  const ledger = ledgerNow ?? 0
-  const prior = state.prior
-  if (prior === undefined) return ledger
-  const growth = state.baselined ? ledger - state.costBase : 0
-  return Math.max(ledger, prior.usd + growth)
-}
-
-/** Every token since the conversation began: a resumed one's earlier tokens
- *  with this process's. */
-const allTokens = (): TokenCounts => (state.prior === undefined ? state.tokens : addTokens(state.tokens, state.prior.tokens))
+// ---- what the session's settings say ----------------------------------------
 
 /** Claude Code compacts a conversation left idle on the hour's cache about
  *  this long after its last request, before the cache runs out. */
@@ -285,185 +238,41 @@ export const resolveTtl = (env: {
   return undefined
 }
 
-export const pinTtl = (ttl: Ttl): void => {
-  state.ttl = ttl
-  state.ttlPinned = true
-}
+// ---- what the state says ----------------------------------------------------
 
-/** A compaction replaces the conversation with a summary: the next request
- *  rebuilds the cache on purpose, at the summary's size. */
-export const noteCompaction = (sizeAfter: number | undefined): void => {
-  state.rebuilding = true
-  if (sizeAfter !== undefined) {
-    state.window = sizeAfter
-    state.cached = 0
-  }
-}
+/** When the conversation's last reply was, before this band's own: as the
+ *  engine said on a resume, else as recalled. */
+const recalledAt = (s: CacheState): number | undefined => s.resumedCache?.lastAt ?? s.recall?.lastAt
 
-/** A compaction while the conversation sat idle, at `at`: its cache counts
- *  as gone from then, at the summary's size. */
-const noteIdleCompaction = (at: number, sizeAfter: number): void => {
-  noteCompaction(sizeAfter)
-  state.compactedAt = at
-}
+/** Whether the cache stands as recalled: no reply seen yet, a conversation
+ *  that didn't start here, and something to recall. */
+const isRecalled = (s: CacheState): boolean => s.requests === 0 && !s.knownFresh && recalledAt(s) !== undefined
 
-/** The main conversation compacted at `now`, to `sizeAfter` tokens. With no
- *  turn under way, not /compact, and long after the last request, it is
- *  Claude Code compacting the conversation before its cache ran out (the
- *  trigger it names isn't matched, so a new one still counts); else the
- *  cache is rebuilt on purpose. */
-export const noteCompact = (o: Readonly<{ now: number; turnOpen: boolean; trigger: string; sizeAfter: number | undefined }>): void => {
-  const idle = !o.turnOpen && o.trigger !== 'manual' && state.requests > 0 && o.now - state.lastAt >= IDLE_GAP_MS
-  if (idle && o.sizeAfter !== undefined) noteIdleCompaction(o.now, o.sizeAfter)
-  else noteCompaction(o.sizeAfter)
-}
-
-/** The engine may reset the ledger on /clear: once it reads below the
- *  baseline, it counts this conversation alone, so the baseline is 0. */
-export const noteLedger = (costNow: number): void => {
-  if (costNow < state.costBase) state.costBase = 0
-}
-
-/** The ledger as this conversation's first turn starts: its baseline. */
-export const noteConversationStart = (costNow: number): void => {
-  if (state.baselined) return
-  state.costBase = costNow
-  state.baselined = true
-}
-
-/** A response's tokens, sent at `sentAt`: every response's count toward the
- *  bill, and a main-loop one's measure the cache and name the model its
- *  reply was billed under. */
-export const recordResponse = (
-  usage: Pick<ModelUsage, 'input_tokens' | 'output_tokens' | 'cache_read_input_tokens' | 'cache_creation_input_tokens'> & Readonly<{ model?: string }>,
-  sentAt: number,
-  isMain: boolean,
-): void => {
-  const model = usage.model
-  const hit = usage.cache_read_input_tokens
-  const written = usage.cache_creation_input_tokens
-  const fresh = usage.input_tokens
-
-  // The session's bill includes every subagent, so their tokens count toward
-  // the totals the rate is solved from. Their prefixes are their own, though:
-  // they say nothing about the main conversation's cache or its countdown.
-  const request = { uncached: fresh, written, read: hit, output: usage.output_tokens }
-  state.tokens = addTokens(state.tokens, request)
-  // A request is priced by its whole prompt, cache reads and writes included.
-  const factor = tierFactor(model, fresh + hit + written)
-  state.premium += (factor - 1) * weightedTokens(request, model)
-  state.tieredReads += factor * hit
-  if (!isMain) return
-  if (model) noteBilledModel(model)
-
-  // Read as cold already: a resume the engine called expired, or a recalled
-  // reply past its TTL.
-  const coldBefore = isRecalled() && msLeft(sentAt) === 0
-  let missed = false
-  const prefix = state.cached
-  const gap = state.requests > 0 ? sentAt - state.lastAt : 0
-  // Another model has its own cache: reading nothing after a switch is no miss.
-  const switched = state.model !== undefined && model !== undefined && model !== state.model
-
-  if (prefix > 0 && !state.rebuilding && !switched && gap <= TTL_MS[state.ttl]) {
-    const shortfall = prefix - hit
-    if (shortfall >= MISS_MIN_TOKENS && shortfall > prefix * MISS_MIN_SHARE) {
-      // An assumed hour that read nothing after five idle minutes was five.
-      if (!state.ttlPinned && state.ttl === '1h' && hit === 0 && gap > TTL_MS['5m']) {
-        state.ttl = '5m'
-      } else {
-        state.misses += 1
-        missed = true
-      }
-    }
-  }
-
-  // A rebuild of a cache that existed: its time ran out, it missed, a
-  // compaction rebuilt it, or the model changed. The first build is warming,
-  // unless the cache it rebuilt was already read as cold.
-  if (coldBefore || (state.requests > 0 && (gap > TTL_MS[state.ttl] || missed || state.rebuilding || switched))) state.lastRebuilt = true
-
-  state.requests += 1
-  // The next request's TTL follows the config in force, not the transcript's.
-  state.ttlSeen = undefined
-  state.window = fresh + hit + written + usage.output_tokens
-  state.cached = hit + written
-  state.lastAt = sentAt
-  state.rebuilding = false
-  state.compactedAt = undefined
-  state.model = model ?? state.model
-}
-
-/** Whether a main request rebuilt the cache since the last call (TTL run
- *  out, a miss, a compaction, a model switch); clears it. A turn may make
- *  several requests and the rebuild is usually its first, so each request
- *  sets the mark and the turn takes it once. */
-export const takeRebuilt = (): boolean => {
-  const rebuilt = state.lastRebuilt
-  state.lastRebuilt = false
-  return rebuilt
-}
-
-// The price of each kind of token against base input. Writes and output hold
-// one ratio across Anthropic's models; reads do not. Claude Code's own ledger
-// prices every cache write at 1.25×, whatever its lifetime, so the band does
-// too, to agree with the cost it shows.
-const WRITE_MULT = 1.25
-const OUTPUT_MULT = 5
-/** A cache read against base input, by model; 0.1× elsewhere. Per Anthropic's
- *  list prices as of 2026-10: Opus 5.5 reads at $0.20 on $4.00 input, Sonnet
- *  5.5 at $0.10 on $2.00, Fable and Mythos 5.1 at $0.25 on $10.00. */
-const READ_MULT_BY_MODEL: Readonly<Record<string, number>> = {
-  'claude-opus-5-5': 0.05,
-  'claude-sonnet-5-5': 0.05,
-  'claude-fable-5-1': 0.025,
-  'claude-mythos-5-1': 0.025,
-}
-const DEFAULT_READ_MULT = 0.1
-
-/** The model a name bills as. `/model` names a 1M context window with a
- *  suffix, `claude-opus-5-5[1m]`, and the cost record names the model alone. */
-export const modelName = (model: string): string => model.replace(/\[[^\]]*\]$/, '')
-
-/** Prices that rise with a request's prompt, by model: past `over` input
- *  tokens, every price is `factor` times the lower tier's. Per Anthropic's
- *  list prices as of 2026-10: Haiku 5.5 is $0.10 input up to 100,000 prompt
- *  tokens and $0.50 over, the cache and output prices alike. */
-const TIERS_BY_MODEL: Readonly<Record<string, Readonly<{ over: number; factor: number }>>> = {
-  'claude-haiku-5-5': { over: 100_000, factor: 5 },
-}
-
-/** How many times the lower tier's prices a request with `prompt` input
- *  tokens pays on `model`: 1 on a model with one tier. */
-export const tierFactor = (model: string | undefined, prompt: number): number => {
-  const tier = model === undefined ? undefined : TIERS_BY_MODEL[modelName(model)]
-  return tier !== undefined && prompt > tier.over ? tier.factor : 1
-}
-
-/** What a cache read costs against base input on `model`. */
-const readMultiplier = (model: string | undefined): number =>
-  (model === undefined ? undefined : READ_MULT_BY_MODEL[modelName(model)]) ?? DEFAULT_READ_MULT
-
-export const notePriceModel = (model: string | undefined): void => {
-  state.priceModel = model
-}
-
-const noteBilledModel = (model: string): void => {
-  state.billedModel = model
-}
+/** The TTL the cache stands at: the pin, else one seen on the transcript,
+ *  else the one assumed or inferred. */
+const effectiveTtl = (s: CacheState): Ttl => (s.ttlPinned ? s.ttl : (s.ttlSeen ?? s.ttl))
 
 /** The model the tokens are priced at: the one replies are billed under, else
  *  what /model names, which may be an alias such as `opus[1m]`. */
-const pricedModel = (): string | undefined =>
-  state.billedModel ?? (state.priceModel === undefined ? undefined : modelName(state.priceModel))
+const pricedModel = (s: CacheState): string | undefined => s.billedModel ?? (s.priceModel === undefined ? undefined : modelName(s.priceModel))
 
-/** A cache read's price against input, on the model in force. */
-const readShare = (): number => readMultiplier(pricedModel())
+/** What the session has cost, to show: the ledger, or for a resumed
+ *  conversation the larger of the ledger and its transcript's total, with
+ *  the ledger's growth since the conversation's first turn on top. Never
+ *  both summed: a host may restore the ledger on a resume, or may not, and
+ *  may restore it only after the transcript is read, so the growth counts
+ *  from the baseline that turn takes, never from the ledger at the read. */
+const spentUsd = (s: CacheState, ledgerNow: number | undefined): number => {
+  const ledger = ledgerNow ?? 0
+  const prior = s.prior
+  if (prior === undefined) return ledger
+  const growth = s.baselined ? ledger - s.costBase : 0
+  return Math.max(ledger, prior.usd + growth)
+}
 
-/** Tokens weighted by their price against base input on `model`: the one
- *  unknown left is the base rate itself. */
-export const weightedTokens = (t: TokenCounts, model: string | undefined): number =>
-  t.uncached + WRITE_MULT * t.written + readMultiplier(model) * t.read + OUTPUT_MULT * t.output
+/** Every token since the conversation began: a resumed one's earlier tokens
+ *  with this process's. */
+const allTokens = (s: CacheState): TokenCounts => (s.prior === undefined ? s.tokens : addTokens(s.tokens, s.prior.tokens))
 
 /** The base rate per token, in dollars.
  *
@@ -477,81 +286,298 @@ export const weightedTokens = (t: TokenCounts, model: string | undefined): numbe
  *
  *  It self-calibrates to whatever model and plan are in force, and it is an
  *  estimate on top of an estimate (the session cost is itself computed at list
- *  price), so what it prices is always shown with a "~". Call noteLedger first. */
-export const ratePerToken = (sessionCost: number | undefined): number | null => {
+ *  price), so what it prices is always shown with a "~". */
+const ratePerToken = (s: CacheState, sessionCost: number | undefined): number | null => {
   if (sessionCost === undefined) return null
-  const weighted = weightedTokens(state.tokens, pricedModel()) + state.premium
-  const billed = sessionCost - state.costBase
+  const weighted = weightedTokens(s.tokens, pricedModel(s)) + s.premium
+  const billed = sessionCost - s.costBase
   return weighted > 0 && billed > 0 ? billed / weighted : null
 }
 
 /** What writing `tokens` to the cache costs at a base `rate` per token: the
  *  re-warm's prompt is the whole window, which sets its tier. */
-const reWarmAt = (rate: number, tokens: number): number => rate * WRITE_MULT * tokens * tierFactor(pricedModel(), tokens)
+const reWarmAt = (s: CacheState, rate: number, tokens: number): number => rate * WRITE_MULT * tokens * tierFactor(pricedModel(s), tokens)
 
 /** When a measured cache goes or went cold: a lifetime after the last reply
  *  this band saw; none before one. */
-const measuredColdAt = (): number | null => (state.requests > 0 ? state.lastAt + TTL_MS[effectiveTtl()] : null)
+const measuredColdAt = (s: CacheState): number | null => (s.requests > 0 ? s.lastAt + TTL_MS[effectiveTtl(s)] : null)
 
 /** When the cache goes or went cold: measured from the last reply, else
  *  recalled; null with nothing to go by, or a resume the engine called expired. */
-const coldAtOf = (): number | null => {
-  if (state.compactedAt !== undefined) return state.compactedAt
-  const measured = measuredColdAt()
+const coldAtOf = (s: CacheState): number | null => {
+  if (s.compactedAt !== undefined) return s.compactedAt
+  const measured = measuredColdAt(s)
   if (measured !== null) return measured
-  if (state.resumedCache?.expired === true) return null
-  const recalled = isRecalled() ? recalledAt() : undefined
-  return recalled === undefined ? null : recalled + TTL_MS[effectiveTtl()]
+  if (s.resumedCache?.expired === true) return null
+  const recalled = isRecalled(s) ? recalledAt(s) : undefined
+  return recalled === undefined ? null : recalled + TTL_MS[effectiveTtl(s)]
 }
 
 /** The cache's time left: from the last reply this band saw, else the one
  *  it recalls, none if the engine called it expired; a full lifetime before
  *  either. */
-export const msLeft = (now: number): number => {
-  if (state.compactedAt !== undefined) return 0
-  if (state.requests === 0 && state.resumedCache?.expired === true) return 0
-  const at = coldAtOf()
-  return at === null ? TTL_MS[effectiveTtl()] : Math.max(0, at - now)
+const msLeftOf = (s: CacheState, now: number): number => {
+  if (s.compactedAt !== undefined) return 0
+  if (s.requests === 0 && s.resumedCache?.expired === true) return 0
+  const at = coldAtOf(s)
+  return at === null ? TTL_MS[effectiveTtl(s)] : Math.max(0, at - now)
 }
-
-/** Where idle compaction stands: the context it runs from, undefined where
- *  it never does (idleCompactFrom), and whether auto-compaction is off. */
-type IdleCompaction = Readonly<{ from: number | undefined; autoCompactOff: boolean }>
 
 /** The cache as the band shows it, at `now`: measured once a reply has been
  *  seen, recalled before that. `contextTokens` is the context as it stands,
  *  which a recalled cold cache would rebuild. */
-export const cacheView = (now: number, sessionCost: number | undefined, contextTokens: number, idle: IdleCompaction): CacheView => {
-  const recalled = isRecalled()
-  const lastAt = recalledAt()
-  const recallRate = state.recall?.rate ?? null
+const viewOf = (s: CacheState, now: number, sessionCost: number | undefined, contextTokens: number, autoCompactOff: boolean): CacheView => {
+  const recalled = isRecalled(s)
+  const lastAt = recalledAt(s)
+  const recallRate = s.recall?.rate ?? null
   // A resume's price is the engine's own; else it is solved from the rate recalled.
-  const recalledPrice = state.resumedCache?.reWarmUsd ?? (recallRate === null ? null : reWarmAt(recallRate, contextTokens))
-  const rate = ratePerToken(sessionCost)
-  const tokens = allTokens()
+  const recalledPrice = s.resumedCache?.reWarmUsd ?? (recallRate === null ? null : reWarmAt(s, recallRate, contextTokens))
+  const rate = ratePerToken(s, sessionCost)
+  const tokens = allTokens(s)
   const input = tokens.read + tokens.written + tokens.uncached
-  const share = readShare()
+  const share = readMultiplier(pricedModel(s))
   return {
-    requests: state.requests,
-    msLeft: msLeft(now),
-    coldAt: coldAtOf(),
-    ttl: effectiveTtl(),
+    requests: s.requests,
+    msLeft: msLeftOf(s, now),
+    coldAt: coldAtOf(s),
+    ttl: effectiveTtl(s),
     // Known, not assumed: pinned, or seen on the transcript's last cache write.
-    ttlPinned: state.ttlPinned || state.ttlSeen !== undefined,
-    window: recalled ? contextTokens : state.window,
+    ttlPinned: s.ttlPinned || s.ttlSeen !== undefined,
+    window: recalled ? contextTokens : s.window,
     hitRatio: input > 0 ? tokens.read / input : null,
-    misses: state.misses,
+    misses: s.misses,
     // A measured cold cache rebuilds with a cache write of the whole window.
-    reWarmUsd: recalled ? recalledPrice : rate === null ? null : reWarmAt(rate, state.window),
+    reWarmUsd: recalled ? recalledPrice : rate === null ? null : reWarmAt(s, rate, s.window),
     recalled,
     idleMs: recalled && lastAt !== undefined ? now - lastAt : null,
     // Every cache read saved the rest of the base rate against full input price.
-    savedUsd: rate === null || tokens.read <= 0 ? null : rate * (1 - share) * (state.tieredReads + (state.prior?.tokens.read ?? 0)),
+    savedUsd: rate === null || tokens.read <= 0 ? null : rate * (1 - share) * (s.tieredReads + (s.prior?.tokens.read ?? 0)),
     readShare: share,
-    fresh: state.knownFresh,
-    compacted: state.compactedAt !== undefined,
-    idleCompacts: idle.from !== undefined && !idle.autoCompactOff && contextTokens >= idle.from,
-    recovered: state.prior !== undefined,
+    fresh: s.knownFresh,
+    compacted: s.compactedAt !== undefined,
+    idleCompacts: s.idleCompactFrom !== undefined && !autoCompactOff && contextTokens >= s.idleCompactFrom,
+    recovered: s.prior !== undefined,
     tokens: { sent: tokens.uncached + tokens.written, back: tokens.output, cached: tokens.read },
+  }
+}
+
+// ---- what changes it --------------------------------------------------------
+
+/** A resumed conversation didn't start here, whatever the ledger says; what
+ *  the engine knows of its cache, when it says, stands over anything
+ *  recalled. A resume's facts replace any noted before them. */
+const noteResume = (s: CacheState, said: ResumedCache | undefined): void => {
+  s.knownFresh = false
+  s.resumed = true
+  s.resumedCache = said
+  s.prior = undefined
+  s.ttlSeen = undefined
+}
+
+/** What a resumed conversation's transcript shows: its spend before this
+ *  process, and the TTL of its last cache write, which speaks for the cache
+ *  until this band's first reply. */
+const noteTranscript = (s: CacheState, facts: TranscriptFacts): void => {
+  if (facts.spend !== undefined) s.prior = facts.spend
+  if (facts.ttl !== undefined && s.requests === 0) s.ttlSeen = facts.ttl
+}
+
+/** The engine may reset the ledger on /clear: once it reads below the
+ *  baseline, it counts this conversation alone, so the baseline is 0. */
+const noteLedger = (s: CacheState, costNow: number | undefined): void => {
+  if (costNow !== undefined && costNow < s.costBase) s.costBase = 0
+}
+
+/** A compaction replaces the conversation with a summary: the next request
+ *  rebuilds the cache on purpose, at the summary's size. */
+const noteCompaction = (s: CacheState, sizeAfter: number | undefined): void => {
+  s.rebuilding = true
+  if (sizeAfter !== undefined) {
+    s.window = sizeAfter
+    s.cached = 0
+  }
+}
+
+/** A response's tokens, sent at `sentAt`: every response's count toward the
+ *  bill, and a main-loop one's measure the cache and name the model its
+ *  reply was billed under. */
+const recordResponse = (s: CacheState, usage: Response, sentAt: number, isMain: boolean): void => {
+  const model = usage.model
+  const hit = usage.cache_read_input_tokens
+  const written = usage.cache_creation_input_tokens
+  const fresh = usage.input_tokens
+
+  // The session's bill includes every subagent, so their tokens count toward
+  // the totals the rate is solved from. Their prefixes are their own, though:
+  // they say nothing about the main conversation's cache or its countdown.
+  const request = { uncached: fresh, written, read: hit, output: usage.output_tokens }
+  s.tokens = addTokens(s.tokens, request)
+  // A request is priced by its whole prompt, cache reads and writes included.
+  const factor = tierFactor(model, fresh + hit + written)
+  s.premium += (factor - 1) * weightedTokens(request, model)
+  s.tieredReads += factor * hit
+  if (!isMain) return
+  if (model) s.billedModel = model
+
+  // Read as cold already: a resume the engine called expired, or a recalled
+  // reply past its TTL.
+  const coldBefore = isRecalled(s) && msLeftOf(s, sentAt) === 0
+  let missed = false
+  const prefix = s.cached
+  const gap = s.requests > 0 ? sentAt - s.lastAt : 0
+  // Another model has its own cache: reading nothing after a switch is no miss.
+  const switched = s.model !== undefined && model !== undefined && model !== s.model
+
+  if (prefix > 0 && !s.rebuilding && !switched && gap <= TTL_MS[s.ttl]) {
+    const shortfall = prefix - hit
+    if (shortfall >= MISS_MIN_TOKENS && shortfall > prefix * MISS_MIN_SHARE) {
+      // An assumed hour that read nothing after five idle minutes was five.
+      if (!s.ttlPinned && s.ttl === '1h' && hit === 0 && gap > TTL_MS['5m']) {
+        s.ttl = '5m'
+      } else {
+        s.misses += 1
+        missed = true
+      }
+    }
+  }
+
+  // A rebuild of a cache that existed: its time ran out, it missed, a
+  // compaction rebuilt it, or the model changed. The first build is warming,
+  // unless the cache it rebuilt was already read as cold.
+  if (coldBefore || (s.requests > 0 && (gap > TTL_MS[s.ttl] || missed || s.rebuilding || switched))) s.lastRebuilt = true
+
+  s.requests += 1
+  // The next request's TTL follows the config in force, not the transcript's.
+  s.ttlSeen = undefined
+  s.window = fresh + hit + written + usage.output_tokens
+  s.cached = hit + written
+  s.lastAt = sentAt
+  s.rebuilding = false
+  s.compactedAt = undefined
+  s.model = model ?? s.model
+}
+
+// ---- the model --------------------------------------------------------------
+
+/** A main-loop response, as turn.step has it. */
+export type Response = Pick<ModelUsage, 'input_tokens' | 'output_tokens' | 'cache_read_input_tokens' | 'cache_creation_input_tokens'> &
+  Readonly<{ model?: string }>
+
+/** What a session remembers of a turn, for when it is reopened or the band
+ *  reloads: when its last reply was sent, the rate its bill solves to, and
+ *  the model /model names. */
+export type Remembered = Readonly<{ lastAt: number; rate: number | null; priceModel: string | undefined }>
+
+/** One session's cache model. Each entry is a hook's facts, in its shape,
+ *  and each that is handed the ledger notes it before it reads it. */
+export type CacheModel = Readonly<{
+  /** session.start, after a resume of this session is noted: the model
+   *  /model names, and the ledger. A ledger that has spent nothing is a new
+   *  conversation, unless the engine said it resumed one; one that can't be
+   *  read says neither, so the band recalls the last reply. */
+  loaded: (o: Readonly<{ priceModel: string | undefined; ledger: number | undefined }>) => void
+  /** Whether to recall the last reply: the engine said neither that the
+   *  conversation starts here nor when its last reply was. */
+  wantsRecall: () => boolean
+  /** What the band recalls of the last reply, noted until this band's first
+   *  reply, which speaks for itself; and what a resumed conversation's
+   *  transcript shows, once read. */
+  recalled: (reply: RecalledReply | undefined, transcript?: TranscriptFacts) => void
+  /** session.start, once its settings are read: the TTL they pin, and where
+   *  idle compaction runs from. */
+  configured: (o: Readonly<{ ttl: Ttl | undefined; idleCompactFrom: number | undefined }>) => void
+  /** classic.SessionStart, a resume or fork: the engine's word on its cache,
+   *  and its transcript's once read. */
+  resumed: (o: Readonly<{ cache: ResumedCache | undefined; transcript: TranscriptFacts | undefined }>) => void
+  /** turn.start of a main-loop turn: the model /model names now, and the
+   *  ledger, which the conversation's first turn takes as its baseline. */
+  turnStarted: (o: Readonly<{ priceModel: string | undefined; ledger: number | undefined }>) => void
+  /** turn.step: a response's tokens, sent at `sentAt`. */
+  responded: (usage: Response, sentAt: number, isMain: boolean) => void
+  /** The ledger, as a hook read it after a response. */
+  ledgerRead: (ledger: number | undefined) => void
+  /** A compaction of the main conversation at `now`, to `sizeAfter` tokens.
+   *  With no turn under way, not /compact, and long after the last request,
+   *  it is Claude Code compacting the conversation before its cache ran out
+   *  (the trigger it names isn't matched, so a new one still counts); else
+   *  the cache is rebuilt on purpose. */
+  compacted: (o: Readonly<{ now: number; sizeAfter?: number; manual?: boolean }>) => void
+  /** turn.complete of a main-loop turn: whether a request in it rebuilt the
+   *  cache (TTL run out, a miss, a compaction, a model switch), taken once
+   *  per turn, though the rebuild is usually its first request; and, once a
+   *  reply has been seen, what to remember at `ledger`. */
+  turnEnded: (ledger: number | undefined) => Readonly<{ rebuilt: boolean; remember: Remembered | undefined }>
+  /** session.end: another conversation in the same process, at `ledger`. A
+   *  /clear starts one here; a /resume moves to one already under way. */
+  conversationEnded: (ledger: number, resumed: boolean) => void
+  /** ui.render, with the ledger as it reads now: the cache's view, and what
+   *  the session has cost, to show. */
+  view: (o: Readonly<{ now: number; ledger: number | undefined; contextTokens: number; autoCompactOff: boolean }>) => Readonly<{ cache: CacheView; costUsd: number }>
+  /** The cache's time left at `now`, for the timer's repaint. */
+  msLeft: (now: number) => number
+}>
+
+/** A session's cache model, before anything is known of it. */
+export const newCache = (): CacheModel => {
+  const s: CacheState = { ...INITIAL }
+  return {
+    loaded: ({ priceModel, ledger }) => {
+      s.priceModel = priceModel
+      if (!s.resumed) s.knownFresh = ledger === 0
+    },
+    wantsRecall: () => !s.knownFresh && s.resumedCache === undefined,
+    recalled: (reply, transcript) => {
+      if (s.requests === 0) {
+        if (reply?.billed !== undefined) s.billedModel = reply.billed
+        if (reply?.lastAt !== undefined) s.recall = { lastAt: reply.lastAt, rate: reply.rate }
+      }
+      if (transcript !== undefined) noteTranscript(s, transcript)
+    },
+    configured: ({ ttl, idleCompactFrom }) => {
+      if (ttl !== undefined) {
+        s.ttl = ttl
+        s.ttlPinned = true
+      }
+      s.idleCompactFrom = idleCompactFrom
+    },
+    resumed: ({ cache, transcript }) => {
+      noteResume(s, cache)
+      if (transcript !== undefined) noteTranscript(s, transcript)
+    },
+    turnStarted: ({ priceModel, ledger }) => {
+      s.turnOpen = true
+      s.priceModel = priceModel
+      // The ledger as this conversation's first turn starts: its baseline.
+      if (ledger !== undefined && !s.baselined) {
+        s.costBase = ledger
+        s.baselined = true
+      }
+    },
+    responded: (usage, sentAt, isMain) => recordResponse(s, usage, sentAt, isMain),
+    ledgerRead: ledger => noteLedger(s, ledger),
+    compacted: ({ now, sizeAfter, manual = false }) => {
+      const idle = !s.turnOpen && !manual && s.requests > 0 && now - s.lastAt >= IDLE_GAP_MS
+      noteCompaction(s, sizeAfter)
+      // An idle one's cache counts as gone from then, at the summary's size.
+      if (idle && sizeAfter !== undefined) s.compactedAt = now
+    },
+    turnEnded: ledger => {
+      s.turnOpen = false
+      const rebuilt = s.lastRebuilt
+      s.lastRebuilt = false
+      return { rebuilt, remember: s.requests === 0 ? undefined : { lastAt: s.lastAt, rate: ratePerToken(s, ledger), priceModel: s.priceModel } }
+    },
+    conversationEnded: (ledger, resumed) => {
+      // The billing mode, its TTL and the session's settings carry over;
+      // everything measured starts again. The baseline is provisional until
+      // the next turn starts and takes the ledger then.
+      const { ttl, ttlPinned, priceModel, billedModel, idleCompactFrom, turnOpen } = s
+      Object.assign(s, INITIAL, { ttl, ttlPinned, priceModel, billedModel, idleCompactFrom, turnOpen, costBase: ledger, knownFresh: !resumed })
+    },
+    view: ({ now, ledger, contextTokens, autoCompactOff }) => {
+      noteLedger(s, ledger)
+      return { cache: viewOf(s, now, ledger, contextTokens, autoCompactOff), costUsd: spentUsd(s, ledger) }
+    },
+    msLeft: now => msLeftOf(s, now),
   }
 }
