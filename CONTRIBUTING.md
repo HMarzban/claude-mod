@@ -110,7 +110,7 @@ quit the app with Cmd+Q and open it again; in the terminal, exit and start
 | `hooks/charts.tsx` | The charts: `meter`, `splitBar`, `sparkline`, `barChart`, `dayCells` (`dayCellsFit` says whether they fit), `heartbeat`, `flatBeats`, `track`, and chips' cache battery (`batteryIcon`, `textBattery`), each an Svg on the desktop, built by `kit.svg`, and text elsewhere; and `braille`, the terminal's chart as a string. |
 | `hooks/glyphs.ts` | The terminal's glyph tier (`resolveGlyphs`, from `NEXTCOST_GLYPHS` or a CJK locale; `drawnTier`) and the ASCII mapping (`asciiText`, `asciiTree`). The ascii tier keeps a wide character, such as a Japanese name's, and every tier measures it two columns. |
 | `hooks/calendar.ts` | The day and hour cells pulse draws, read off the limit samples (`weekOf`), and the week's cells as drawn, each guess stopped at the cap (`drawnWeekOf`). |
-| `hooks/layout.ts` | How the band measures a line: the one width rule (`charCells`, `textCells`: a wide character takes two columns), the clips that cut a line to its columns (`clipMiddle`, `clipWords`, `clipToTiles`), how many columns a drawn tree takes on each surface (`cellsOf`, `TERMINAL`, `DESKTOP`), the sizes it lays out by (`ROW_SLACK`, `CARD_TEXT`), and `squeezeToFit`, which `fitLine` and the strip run. Each view names its own give-way order. |
+| `hooks/layout.ts` | How the band measures a line: the one width rule (`textCells`: a wide character takes two columns), the clips that cut a line to its columns (`clipMiddle`, `clipWords`, `clipToTiles`), how many columns a drawn tree takes on each surface (`cellsOf`, `TERMINAL`, `DESKTOP`), the sizes it lays out by (`ROW_SLACK`, `CARD_TEXT`), and `squeezeToFit`, which `fitLine` and the strip run. Each view names its own give-way order. |
 | `hooks/icons.ts` | The icons' SVG bodies (`ICON_PATHS`), glyphs (`GLYPH`) and names (`ALT`). |
 | `hooks/cache.ts` | The prompt-cache model, one per session (`newCache`), fed each hook's facts in that hook's own shape: TTL, misses, recall, a resume, re-warm and savings estimates, and the cache's view for the band. `cacheFactsOf` says what the view means: its mood, its charge, its last call, whether idle compaction is near, whether it is `untimed`. |
 | `hooks/prices.ts` | What each kind of token costs against base input, as Anthropic lists it: `WRITE_MULT`, `readMultiplier` by model, `tierFactor` for the price tiers a long prompt pays, `weightedTokens`, and `modelName`, the model a name bills as; with `TokenCounts`. |
@@ -210,6 +210,7 @@ quit the app with Cmd+Q and open it again; in the terminal, exit and start
 
   Every layout draws only words from `read`. `tools/views-gate.sh` holds
   every file in `views/`, `.ts` and `.tsx`, chips' included, to these rules:
+  - `views/` is flat: a `.ts` or `.tsx` in a folder under it fails.
   - None contains `.raw`, `.reading.`, `Date.parse`, `.replace(`,
     `Math.round`, `.toFixed(`, `.toLocaleString(` or `Intl.`, or names the
     `format` module by any relative path, in any quoting, with or without
