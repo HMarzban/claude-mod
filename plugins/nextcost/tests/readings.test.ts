@@ -77,8 +77,18 @@ test('the cache facts carry its mood, tone, charge and price', () => {
   expect(r.cache.tone).toBe('calm')
   expect(Math.abs(r.cache.charge - 52 / 60)).toBeLessThan(1e-5)
   expect(r.cache.estimate).toBe('~$1.66')
-  expect(r.chips.reading.copy.pill(false)).toBe('cache 52m')
+  expect(r.chips.cache.pill(false)).toBe('cache 52m')
   expect(r.spend.total).toBe(225_000)
+})
+
+test("chips' words say its hover cards and the context's amount", () => {
+  const c = readingsOf(snapOf()).chips
+  expect([c.costHover, c.tokensHover]).toEqual(['$0.21 spent during your last message, subagents included', 'input 18k · output 9.0k · cache reads 198k'])
+  expect([c.contextPill(true), c.contextPill(false), c.contextHover]).toEqual(['40% full', '40%', '76k of 190k (40%); auto-compacts in ~114k'])
+  expect(c.limitHover).toEqual({ '5h': 'Resets in 3h 00m; 5-hour limit, all your Claude use', '7d': 'Resets in 2d 19h; weekly limit, all your Claude use' })
+  const off = readingsOf(snapOf({ context: { ...snapOf().context, compactAt: undefined }, fiveHour: { percentUsed: 30, resetsAt: -1, etaMs: null }, sevenDay: undefined })).chips
+  expect([off.contextPill(true), off.contextPill(false), off.contextHover]).toEqual(['76k / 200k', '38%', '76k of 200k (38%); older turns get summarized near full'])
+  expect(off.limitHover).toEqual({ '5h': '5-hour limit has reset; it updates after your next message', '7d': undefined })
 })
 
 test('a cache compacted while idle is its own mood: empty, calm, its estimate the next message\'s', () => {

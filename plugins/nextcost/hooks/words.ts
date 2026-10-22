@@ -231,14 +231,29 @@ export type LimitWords = Readonly<{
 }>
 
 /** What one mood of the cache says: its value, its figure after `cache `
- *  long and short, its card's headline and note, the heartbeat's and a
- *  reader's words, and its amber. */
-type MoodWords = Pick<CacheWords, 'value' | 'figureShort' | 'heartAlt' | 'amber' | 'cardHead' | 'cardNote' | 'estimateLabel' | 'alt'> &
+ *  long and short, its card's headline and note, a reader's words, and its
+ *  amber. */
+type MoodWords = Pick<CacheWords, 'value' | 'figureShort' | 'amber' | 'cardHead' | 'cardNote' | 'estimateLabel' | 'alt'> &
   Readonly<{ figure: Say }>
 
-/** The cache's words for its mood. One table, as `cacheCopy` is chips', so
- *  a mood's wording changes in one place. `left` and `leftShort` are the
- *  countdown, empty while not counting; `price` is the re-warm, spoken. */
+/** Each mood's name for a reader, unchanged as the cache counts down: the
+ *  heartbeat's alt, and where a mood says no more, a card's and chips'. */
+const MOOD_ALT: Readonly<Record<CacheFacts['mood'], string>> = {
+  unmeasured: 'cache not measured yet',
+  warming: 'cache warming',
+  warm: 'cache warm',
+  expiring: 'cache in its last minute',
+  cold: 'cache cold',
+  compacted: 'cache compacted',
+}
+
+/** A cache gone, short: its mood and the next message's price, `cold ~$1.66`. */
+const goneShort = (mood: 'cold' | 'compacted', estimate: string): string => `${mood} ${estimate}`
+
+/** The cache's words for its mood, as the cards, pulse and the board say
+ *  them. Chips' row says its own, in `cacheCopy`, since its trees are
+ *  frozen; what the two say alike they share. `left` and `leftShort` are
+ *  the countdown, empty while not counting; `price` is the re-warm, spoken. */
 const moodWords = (f: CacheFacts, left: string, leftShort: string, price: string): MoodWords => {
   switch (f.mood) {
     case 'unmeasured':
@@ -246,31 +261,28 @@ const moodWords = (f: CacheFacts, left: string, leftShort: string, price: string
         value: UNKNOWN,
         figure: [[UNKNOWN, 'value']],
         figureShort: UNKNOWN,
-        heartAlt: 'cache not measured yet',
         amber: undefined,
         cardHead: [['not measured yet', 'value']],
         cardNote: "Countdown starts with Claude's next reply.",
         estimateLabel: 're-warm if cold',
-        alt: 'cache not measured yet',
+        alt: MOOD_ALT.unmeasured,
       }
     case 'warming':
       return {
         value: 'warming',
         figure: [['warming', 'value']],
         figureShort: 'warming',
-        heartAlt: 'cache warming',
         amber: undefined,
         cardHead: [['warming', 'value']],
         cardNote: 'First message builds the cache.',
         estimateLabel: 're-warm if cold',
-        alt: 'cache warming',
+        alt: MOOD_ALT.warming,
       }
     case 'compacted':
       return {
         value: 'compacted',
         figure: [['compacted', 'value'], [' · next ', 'label'], [f.estimate, 'value']],
-        figureShort: `compacted ${f.estimate}`,
-        heartAlt: 'cache compacted',
+        figureShort: goneShort('compacted', f.estimate),
         amber: undefined,
         cardHead: [['compacted', 'value']],
         cardNote: 'Compacted while idle: next message writes the summary.',
@@ -281,8 +293,7 @@ const moodWords = (f: CacheFacts, left: string, leftShort: string, price: string
       return {
         value: 'cold',
         figure: [['cold', 'value'], [' · re-warm ', 'label'], [f.estimate, 'value']],
-        figureShort: `cold ${f.estimate}`,
-        heartAlt: 'cache cold',
+        figureShort: goneShort('cold', f.estimate),
         amber: undefined,
         cardHead: [['cold', 'value']],
         cardNote: undefined,
@@ -298,7 +309,6 @@ const moodWords = (f: CacheFacts, left: string, leftShort: string, price: string
         value,
         figure: [[value, 'value']],
         figureShort: f.coldInMs !== undefined ? leftShort : value,
-        heartAlt: expiring ? 'cache in its last minute' : 'cache warm',
         amber: expiring ? AMBER.cache(leftShort, f.estimate) : undefined,
         // The card counts down as chips' row always has: `1h 05m`, `0:47`.
         cardHead: f.coldInMs !== undefined ? [[fmtCountdown(f.msLeft), 'value'], [' left', 'label']] : [[value, 'value']],
@@ -329,7 +339,7 @@ export const cacheWords = (f: CacheFacts): CacheWords => {
     value: m.value,
     left,
     say,
-    heartAlt: m.heartAlt,
+    heartAlt: MOOD_ALT[f.mood],
     text: joined(say),
     bandName: 'cache',
     amber: m.amber,
@@ -350,17 +360,15 @@ export const cacheWords = (f: CacheFacts): CacheWords => {
 }
 
 /** Every word chips' row says about the cache, for one mood: the pill, its
- *  hover and the battery's name. One table, so a mood's wording changes in
- *  one place; the cards read theirs from `cacheWords`. */
-export type CacheCopy = Readonly<{
+ *  hover and the battery's name. Chips' own table beside `moodWords`, its
+ *  wording frozen with chips' trees. */
+type CacheCopy = Readonly<{
   pill: (short: boolean) => string
-  /** The countdown a calm pill ends on, `52m`: its figure, for a layout that bolds it. */
-  figure: string | undefined
   hover: string
   alt: string
 }>
 
-export const cacheCopy = (f: CacheFacts, frame: Frame): CacheCopy => {
+const cacheCopy = (f: CacheFacts, frame: Frame): CacheCopy => {
   // What a warm read costs against input on the model in force.
   const readPct = `${+(f.readShare * 100).toFixed(1)}%`
   const left = fmtCountdown(f.msLeft)
@@ -371,45 +379,39 @@ export const cacheCopy = (f: CacheFacts, frame: Frame): CacheCopy => {
   switch (f.mood) {
     case 'unmeasured':
       return {
-        pill: () => 'cache –',
-        figure: undefined,
+        pill: () => `cache ${UNKNOWN}`,
         hover: "Not measured since the band loaded; the countdown starts with Claude's next reply",
-        alt: 'cache not measured yet',
+        alt: MOOD_ALT.unmeasured,
       }
     case 'warming':
       return {
         pill: () => 'cache warming',
-        figure: undefined,
         hover: `Your first message builds the cache; after that it bills input at ${readPct}`,
-        alt: 'cache warming',
+        alt: MOOD_ALT.warming,
       }
     case 'expiring':
       return {
         pill: short => (short ? `${left} ${f.estimate}` : `${left} left · re-warm ${f.estimate}`),
-        figure: undefined,
         hover: warmHover,
         alt: battery,
       }
     case 'compacted':
       return {
         // A summary to write, not a cache lost: as calm as cold.
-        pill: short => (short ? `compacted ${f.estimate}` : `cache compacted · next ${f.estimate}`),
-        figure: undefined,
+        pill: short => (short ? goneShort('compacted', f.estimate) : `cache compacted · next ${f.estimate}`),
         hover: `Compacted while idle: next message writes the ${fmtTokens(f.window)} summary${f.reWarmUsd === null ? '' : ` (${f.estimate})`}`,
-        alt: 'cache compacted',
+        alt: MOOD_ALT.compacted,
       }
     case 'cold':
       return {
         // Cold is a price, not an error: neutral, no hue, no alarm.
-        pill: short => (short ? `cold ${f.estimate}` : `cache cold · next message ${f.estimate}`),
-        figure: undefined,
+        pill: short => (short ? goneShort('cold', f.estimate) : `cache cold · next message ${f.estimate}`),
         hover: `Cold: next message rebuilds ${fmtTokens(f.window)} tokens${f.reWarmUsd === null ? '' : ` (${f.estimate})`}`,
         alt: battery,
       }
     case 'warm':
       return {
         pill: () => (frame.isWorking ? 'cache warm' : `cache ${left}`),
-        figure: frame.isWorking ? undefined : left,
         hover: warmHover,
         alt: battery,
       }
@@ -465,9 +467,6 @@ export const spendWords = (f: SpendFacts): SpendWords => {
   }
 }
 
-/** The tokens by kind as chips' hover says them: `input 41k · output 12k · cache reads 155k`. */
-export const tokenBreakdownOf = (split: readonly SpendSplit[]): string => split.map(s => `${s.label} ${s.text}`).join(' · ')
-
 /** A limit window in words; once it has passed, only that it reset: its
  *  facts carry no pace, reset or fill to say. */
 export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
@@ -519,6 +518,59 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
           ? 'full before its reset'
           : landing,
     ),
+  }
+}
+
+// ---- chips' row ---------------------------------------------------------------
+
+/** The chips a limit window has, and the title its hover card names it by. */
+const CHIP_TITLES = { '5h': '5-hour limit', '7d': 'Weekly limit' } as const
+
+/** Every word chips' row says beyond the readings' own: the cache pill's
+ *  table, the hover cards, and the context's amount. */
+export type ChipsWords = Readonly<{
+  cache: CacheCopy
+  /** The last message's cost, subagents included, else the session's so far. */
+  costHover: string
+  /** The tokens by kind: `input 41k · output 12k · cache reads 155k`. */
+  tokensHover: string
+  /** The context's amount, its mark, and near compaction the room before it:
+   *  `87% full · compacts in ~14k`, or without compaction `76k / 200k`.
+   *  `long` while the row keeps its long wording. */
+  contextPill: (long: boolean) => string
+  /** How much of the window is used, and where it compacts. */
+  contextHover: string
+  /** A limit chip's hover card: once passed, that it has reset; else its
+   *  reset first, the fact the chip had, so a short row's cut only takes the
+   *  description. Undefined while the engine reports no such window. */
+  limitHover: Readonly<Record<keyof typeof CHIP_TITLES, string | undefined>>
+}>
+
+/** Chips' words, from the facts and the words the other layouts share. */
+export const chipsWords = (r: Readonly<{ frame: Frame; cache: CacheFacts; spend: SpendWords; context: ContextFacts; limits: readonly LimitFacts[] }>): ChipsWords => {
+  const { spend, context: x } = r
+  const limitHover = (key: keyof typeof CHIP_TITLES): string | undefined => {
+    const l = r.limits.find(w => w.key === key)
+    if (l === undefined) return undefined
+    const title = CHIP_TITLES[key]
+    if (l.passed) return `${title} has reset; it updates after your next message`
+    return l.reset?.kind === 'in' ? `Resets in ${l.reset.text}; ${title.toLowerCase()}, all your Claude use` : `Your ${title.toLowerCase()}, across all your Claude use`
+  }
+  return {
+    cache: cacheCopy(r.cache, r.frame),
+    costHover: spend.lastText === undefined ? `${spend.totalText} so far this session` : `${spend.lastText} spent during your last message, subagents included`,
+    tokensHover: spend.split.map(s => `${s.label} ${s.text}`).join(' · '),
+    contextPill: long => {
+      const amount =
+        x.compactAt !== undefined ? (long ? `${x.pct} full` : x.pct) : !long || x.tokens === undefined ? x.pct : `${fmtTokens(x.tokens)} / ${fmtTokens(x.window)}`
+      const mark = x.compactAt === undefined ? severityMark(x.frac) : ''
+      return `${amount}${mark}${x.nearCompact ? ` · ${compactsIn(x.toCompact)}` : ''}`
+    },
+    contextHover:
+      x.compactAt === undefined
+        ? `${fmtTokens(x.used)} of ${fmtTokens(x.window)} (${x.pct}); older turns get summarized near full`
+        : `${fmtTokens(x.used)} of ${fmtTokens(x.compactAt)} (${x.pct}); auto-${compactsIn(x.toCompact)}`,
+    limitHover: { '5h': limitHover('5h'), '7d': limitHover('7d') },
   }
 }
 

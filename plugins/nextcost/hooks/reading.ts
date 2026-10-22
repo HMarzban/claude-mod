@@ -27,8 +27,8 @@ import { drawnTier } from './glyphs'
 import { warmAverageOf } from './insights'
 import type { CostEntry, Trails } from './insights'
 import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
-import { boardWords, cacheCopy, cacheWords, contextWords, historyWords, limitWords, spendWords, tokenBreakdownOf, weekWords } from './words'
-import type { Board, CacheCopy, CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
+import { boardWords, cacheWords, chipsWords, contextWords, historyWords, limitWords, spendWords, weekWords } from './words'
+import type { Board, CacheWords, ChipsWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
 
 export type Tone = 'calm' | 'amber'
 
@@ -192,10 +192,6 @@ type SpendReading = SpendFacts & SpendWords
  *  is the snapshot's raw window. */
 export type LimitView = LimitFacts & LimitWords
 
-type ChipsReadings = Readonly<{
-  reading: Readonly<{ copy: CacheCopy; tokenBreakdown: string }>
-}>
-
 /** The conversation's trails, their words, and the series a chart draws. */
 type HistoryReading = Trails &
   HistoryWords &
@@ -259,7 +255,7 @@ export type Readings = Readonly<{
   week: () => WeekReading
   /** The departures board's rows, in its capitals; built, like history, the first time a view calls it. */
   board: () => Board
-  chips: ChipsReadings
+  chips: ChipsWords
 }>
 
 /** The cache's mood, tone, charge and re-warm price, and whether its timing is known. */
@@ -529,11 +525,6 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     history: () => (history ??= historyFacts(snap.history, context, spendRead)),
     week: () => (week ??= weekFacts(snap, sevenDay, fiveHour)),
     board: () => (board ??= boardWords({ frame, cache: cacheRead, spend: spendRead, context: contextRead, limits })),
-    chips: {
-      reading: {
-        copy: cacheCopy(cache, frame),
-        tokenBreakdown: tokenBreakdownOf(spendSaid.split),
-      },
-    },
+    chips: chipsWords({ frame, cache, spend: spendSaid, context, limits }),
   }
 }

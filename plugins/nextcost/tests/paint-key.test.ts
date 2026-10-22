@@ -22,8 +22,8 @@ const drawnTimes = (snap: BandSnapshot): string => {
     r.cache.figureShort,
     r.cache.cardHead,
     r.cache.alt,
-    r.chips.reading.copy.pill(false),
-    r.chips.reading.copy.hover,
+    r.chips.cache.pill(false),
+    r.chips.cache.hover,
     r.limits.map(l => [l.text, l.resetWhen, l.cardResetLess, l.fillText, l.alt]),
     r.board().rows.map(row => [row.status, row.time, row.cell, row.cellShort, row.remarks]),
   ])
