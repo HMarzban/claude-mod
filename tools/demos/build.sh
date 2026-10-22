@@ -8,6 +8,7 @@
 # Needs: Claude Code (claude plugin test), Google Chrome, Node 22+, Python 3
 # with Pillow, and ffmpeg. Output lands in docs/; scratch in tools/demos/out/.
 # PYTHON=/path/to/python3 picks the Python; else the first on PATH with Pillow.
+# CHROME=/path/to/chrome picks the browser; else macOS's Google Chrome.app.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"

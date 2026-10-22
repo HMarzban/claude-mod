@@ -11,7 +11,8 @@ tools/demos/build.sh capture    # only re-capture the band's frames
 
 It needs Claude Code, Google Chrome, Node 22+, Python 3 with Pillow, and ffmpeg.
 It uses the first `python3` it finds that can import Pillow; set
-`PYTHON=/path/to/python3` to choose one.
+`PYTHON=/path/to/python3` to choose one. It looks for Chrome where macOS
+installs it; elsewhere, set `CHROME=/path/to/chrome`.
 
 ## How it works
 
