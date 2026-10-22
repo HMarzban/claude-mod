@@ -10,7 +10,7 @@
 import { NO_TOKENS, addTokens, modelName, tierFactor, weightedTokens } from './cache'
 import type { RecalledReply, Spend, TokenCounts, Ttl } from './cache'
 import { MINUTE_MS, SEVEN_DAY_MS } from './format'
-import { LAYOUT_NAMES } from './snapshot'
+import { LAYOUT_NAMES, splitLimits } from './snapshot'
 import type { LayoutName } from './snapshot'
 import { stripTrailingSlashes } from './workspace'
 
@@ -84,9 +84,8 @@ export const rememberReply = (sessions: Sessions, id: string, lastAt: number): S
       .slice(0, MAX_SESSIONS),
   )
 
-/** The engine's names for the two limits a sample holds. */
-export const FIVE_HOUR = 'five_hour'
-const SEVEN_DAY = 'seven_day'
+// toast.ts reads the 5-hour limit's name here.
+export { FIVE_HOUR } from './snapshot'
 
 /** Both limits at one moment, with the resets that name their windows (epoch ms). */
 export type Sample = Readonly<{ at: number; fivePct: number; sevenPct: number; fiveResetAt: number; sevenResetAt: number }>
@@ -125,13 +124,6 @@ const isSample = (v: unknown): v is Sample => isRecord(v) && SAMPLE_FIELDS.every
 
 /** The store's samples, keeping only well-formed ones, one per bucket, sorted. */
 export const asLimitSamples = (v: unknown): Sample[] => (Array.isArray(v) ? mergeSamples([], v.filter(isSample)) : [])
-
-/** The 5-hour and 7-day windows the engine reports, and every other one. */
-export const splitLimits = <L extends Readonly<{ kind: string }>>(limits: readonly L[]): Readonly<{ five: L | undefined; seven: L | undefined; others: L[] }> => ({
-  five: limits.find(l => l.kind === FIVE_HOUR),
-  seven: limits.find(l => l.kind === SEVEN_DAY),
-  others: limits.filter(l => l.kind !== FIVE_HOUR && l.kind !== SEVEN_DAY),
-})
 
 /** Both limits now, as one sample; undefined unless each is reported with a reset. */
 export const sampleOf = (now: number, limits: ReadonlyArray<Readonly<{ kind: string; percentUsed: number; resetsAt: number | undefined }>>): Sample | undefined => {

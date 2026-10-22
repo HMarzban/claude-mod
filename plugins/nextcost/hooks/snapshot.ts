@@ -1,8 +1,10 @@
 // The snapshot register.tsx reads for the band, and what the band can do
-// back: the one contract between the engine side and the drawing.
+// back: the one contract between the engine side and the drawing, and the
+// one way to build it, which the tests build theirs by too.
 
-import type { RenderSurface } from 'claude-code'
+import type { RenderSurface, SessionRateLimit, SessionUsage } from 'claude-code'
 import type { CacheView } from './cache'
+import { parseReset } from './format'
 import type { Zone } from './format'
 import type { Trails } from './insights'
 import type { Sample } from './memory'
@@ -21,6 +23,21 @@ export const DEFAULT_LAYOUT: LayoutName = 'chips'
 
 /** A limit window's use, and when it resets, epoch ms; undefined without a readable time. */
 export type LimitReading = Readonly<{ percentUsed: number; resetsAt: number | undefined }>
+
+/** A window the engine reports, its reset parsed once, here: past this
+ *  point every reset is epoch ms. */
+export const limitOf = (l: SessionRateLimit): LimitReading & Readonly<{ kind: string }> => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: parseReset(l.resetsAt) })
+
+/** The engine's names for the two limits the band reads by name. */
+export const FIVE_HOUR = 'five_hour'
+const SEVEN_DAY = 'seven_day'
+
+/** The 5-hour and 7-day windows the engine reports, and every other one. */
+export const splitLimits = <L extends Readonly<{ kind: string }>>(limits: readonly L[]): Readonly<{ five: L | undefined; seven: L | undefined; others: L[] }> => ({
+  five: limits.find(l => l.kind === FIVE_HOUR),
+  seven: limits.find(l => l.kind === SEVEN_DAY),
+  others: limits.filter(l => l.kind !== FIVE_HOUR && l.kind !== SEVEN_DAY),
+})
 
 /** Everything the band shows, read by register.tsx. */
 export type BandSnapshot = Readonly<{
@@ -68,3 +85,57 @@ export type BandActions = Readonly<{
   toggleExpanded: () => Promise<void>
   hide: () => Promise<void>
 }>
+
+/** What a snapshot is built from: the engine's usage at `now` and the
+ *  render's mount; what the band keeps between hooks; and the cache's view
+ *  and the insights as they stand then, the ledger already noted. */
+export type SnapshotParts = Readonly<{
+  usage: Pick<SessionUsage, 'rateLimits' | 'context'>
+  now: number
+  mount: Pick<BandSnapshot, 'surface' | 'columns' | 'maxRows' | 'isWorking'>
+  expanded: boolean
+  band: Pick<BandSnapshot, 'palette' | 'layout' | 'glyphs' | 'samples' | 'workspace'> & Pick<BandSnapshot['context'], 'compactAt' | 'autoCompactOff'>
+  cache: CacheView
+  costUsd: number
+  lastTurnUsd: number | null
+  history: Trails
+  /** Time until your pace fills the 5-hour window, as insights.ts measures it. */
+  etaMs: number | null
+  zone: Zone | undefined
+}>
+
+/** The snapshot of `p`: each window the engine reports read once, the 5h
+ *  and 7d by name, and the context with where it compacts. */
+export const snapshotOf = (p: SnapshotParts): BandSnapshot => {
+  const { five, seven, others } = splitLimits(p.usage.rateLimits.map(limitOf))
+  const { band, usage } = p
+  return {
+    ...p.mount,
+    expanded: p.expanded,
+    palette: band.palette,
+    layout: band.layout,
+    glyphs: band.glyphs,
+    now: p.now,
+    cache: p.cache,
+    costUsd: p.costUsd,
+    lastTurnUsd: p.lastTurnUsd,
+    history: p.history,
+    context: {
+      tokens: usage.context.tokens,
+      window: usage.context.window,
+      percent: usage.context.percent,
+      compactAt: band.compactAt,
+      autoCompactOff: band.autoCompactOff,
+    },
+    fiveHour: five ? { percentUsed: five.percentUsed, resetsAt: five.resetsAt, etaMs: p.etaMs } : undefined,
+    sevenDay: seven ? { percentUsed: seven.percentUsed, resetsAt: seven.resetsAt } : undefined,
+    samples: band.samples,
+    workspace: band.workspace,
+    zone: p.zone,
+    otherLimits: others,
+  }
+}
+
+/** The resets a snapshot draws, epoch ms: the timer repaints as their countdowns turn. */
+export const resetsOf = (s: BandSnapshot): number[] =>
+  [s.fiveHour, s.sevenDay, ...s.otherLimits].flatMap(l => (l?.resetsAt === undefined ? [] : [l.resetsAt]))

@@ -9,7 +9,8 @@ import { layoutAt } from '../hooks/band'
 import type { Ttl } from '../hooks/cache'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
-import type { BandActions, BandSnapshot, Glyphs, LayoutName } from '../hooks/snapshot'
+import { snapshotOf } from '../hooks/snapshot'
+import type { BandActions, BandSnapshot, Glyphs, LayoutName, SnapshotParts } from '../hooks/snapshot'
 import { VIEWS } from '../hooks/views/index'
 import { SPLIT_LABELS } from '../hooks/words'
 import { rowsOf } from '../hooks/views/view'
@@ -21,21 +22,29 @@ export * from './cases'
  *  last minute stands for it. */
 const ALL_AMBER = 'lastMinute' satisfies ScenarioName
 
-/** A snapshot for pure tests: a calm session at 120 columns, 52 minutes of
- *  cache left, 38% context with compaction at 190k, 5h at 4% and 7d at 30%. */
-export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({
-  surface: 'terminal', columns: 120, maxRows: 13, isWorking: false, expanded: false, palette: DARK, now: 0,
+/** What a pure test's snapshot is built from: a calm session at 120
+ *  columns, 52 minutes of cache left, 38% context with compaction at 190k,
+ *  5h at 4% and 7d at 30%. */
+export const SNAP_PARTS: SnapshotParts = {
+  usage: USAGE,
+  now: 0,
+  mount: { surface: 'terminal', columns: 120, maxRows: 13, isWorking: false },
+  expanded: false,
+  band: { palette: DARK, layout: 'chips', glyphs: 'unicode', samples: [], workspace: undefined, compactAt: 190_000, autoCompactOff: false },
   cache: {
     requests: 1, msLeft: 52 * MIN, coldAt: null, ttl: '1h', ttlPinned: true, window: 155_000, hitRatio: 0.96, misses: 0, reWarmUsd: 1.66,
     savedUsd: 11.4, readShare: 0.05, fresh: true, compacted: false, idleCompacts: false, recalled: false, idleMs: null, recovered: false, tokens: { sent: 18_000, back: 9_000, cached: 198_000 },
   },
-  costUsd: 3.19, lastTurnUsd: 0.21, history: { costs: [], context: [] },
-  context: { tokens: 76_000, window: 200_000, percent: 38, compactAt: 190_000, autoCompactOff: false },
-  fiveHour: { percentUsed: 4, resetsAt: 3 * HOUR, etaMs: null },
-  sevenDay: { percentUsed: 30, resetsAt: 67 * HOUR },
-  samples: [], otherLimits: [], workspace: undefined, layout: 'chips', glyphs: 'unicode', zone: undefined,
-  ...over,
-})
+  costUsd: 3.19,
+  lastTurnUsd: 0.21,
+  history: { costs: [], context: [] },
+  etaMs: null,
+  zone: undefined,
+}
+
+/** A snapshot for pure tests, built from SNAP_PARTS as register.tsx builds
+ *  one; `over` replaces whole fields. */
+export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({ ...snapshotOf(SNAP_PARTS), ...over })
 
 /** Actions for a draw outside a mount: one function each, so props compare equal. */
 export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide: async () => undefined }

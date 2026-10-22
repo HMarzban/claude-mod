@@ -2,12 +2,12 @@
 // into the pure modules, and ui.render hands drawBand a snapshot of them.
 
 import { atom, read, update } from 'claude-code'
-import type { ClassicEventOf, EngineInterface, ProcessRunResult, Register, SessionRateLimit, Timer } from 'claude-code'
+import type { ClassicEventOf, EngineInterface, ProcessRunResult, Register, Timer } from 'claude-code'
 import { drawBand } from './band'
 import { idleCompactFrom, newCache, resolveTtl } from './cache'
 import type { CacheModel, RecalledReply, Remembered, ResumedCache, Spend, TranscriptFacts } from './cache'
 import { commandPlan, parseCommand } from './command'
-import { contextUsed, hostZone, parseReset, readableZone } from './format'
+import { contextUsed, hostZone, readableZone } from './format'
 import { resolveGlyphs } from './glyphs'
 import {
   fiveHourEtaMs,
@@ -24,7 +24,6 @@ import {
 import { DARK, resolvePalette } from './palette'
 import type { Palette } from './palette'
 import {
-  FIVE_HOUR,
   LAYOUT_KEY,
   LIMIT_SAMPLES_KEY,
   RATES_KEY,
@@ -46,13 +45,12 @@ import {
   sampleOf,
   samplesUpTo,
   sessionCostRecord,
-  splitLimits,
   transcriptPath,
   transcriptSpend,
 } from './memory'
 import type { Sample } from './memory'
-import { DEFAULT_LAYOUT } from './snapshot'
-import type { Glyphs, LayoutName, LimitReading } from './snapshot'
+import { DEFAULT_LAYOUT, FIVE_HOUR, limitOf, resetsOf, snapshotOf } from './snapshot'
+import type { Glyphs, LayoutName } from './snapshot'
 import { NO_WARNINGS, contextToasts, forgetConversation, limitToasts } from './toast'
 import type { Warned } from './toast'
 import { paintKey } from './words'
@@ -137,10 +135,6 @@ const band: {
   warned: NO_WARNINGS,
   tick: undefined,
 }
-
-/** A window the engine reports, its reset parsed once, here: past this
- *  point every reset is epoch ms. */
-const limitOf = (l: SessionRateLimit): LimitReading & Readonly<{ kind: string }> => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: parseReset(l.resetsAt) })
 
 /** Where `sessionId`'s transcript is: where the engine says, else where
  *  Claude Code keeps it for this project; undefined without either. */
@@ -595,44 +589,28 @@ export const register: Register = on => {
     const usage = await $.session.usage().catch(() => undefined)
     if (usage === undefined) return next(e)
     const now = await $.clock.now()
-    const limits = usage.rateLimits.map(limitOf)
-    const { five, seven, others } = splitLimits(limits)
-    const contextTokens = contextUsed(usage.context) ?? 0
-    const cache = band.cache.view({ now, ledger: usage.cost?.usd, contextTokens, autoCompactOff: band.autoCompactOff })
-    band.resets = limits.flatMap(l => (l.resetsAt === undefined ? [] : [l.resetsAt]))
+    // The ledger is noted here, before the snapshot is built from the cache's view.
+    const { cache, costUsd } = band.cache.view({ now, ledger: usage.cost?.usd, contextTokens: contextUsed(usage.context) ?? 0, autoCompactOff: band.autoCompactOff })
+    const snap = snapshotOf({
+      usage,
+      now,
+      mount: { surface: e.surface, columns: e.props.bodyColumns, maxRows: e.props.maxRows, isWorking: e.props.isWorking },
+      expanded: await read($, isExpanded),
+      band,
+      cache,
+      costUsd,
+      lastTurnUsd: insights.lastTurnUsd,
+      history: trails,
+      etaMs: fiveHourEtaMs(now),
+      // Read at each instant drawn, so a daylight-saving change shows by
+      // the next minute's repaint, with no reply needed.
+      zone: readableZone(hostZone, now),
+    })
+    band.resets = resetsOf(snap)
 
     return drawBand(
       $.ui.resolve(e),
-      {
-        surface: e.surface,
-        columns: e.props.bodyColumns,
-        maxRows: e.props.maxRows,
-        isWorking: e.props.isWorking,
-        expanded: await read($, isExpanded),
-        palette: band.palette,
-        layout: band.layout,
-        glyphs: band.glyphs,
-        now,
-        cache: cache.cache,
-        costUsd: cache.costUsd,
-        lastTurnUsd: insights.lastTurnUsd,
-        history: trails,
-        context: {
-          tokens: usage.context.tokens,
-          window: usage.context.window,
-          percent: usage.context.percent,
-          compactAt: band.compactAt,
-          autoCompactOff: band.autoCompactOff,
-        },
-        fiveHour: five ? { percentUsed: five.percentUsed, resetsAt: five.resetsAt, etaMs: fiveHourEtaMs(now) } : undefined,
-        sevenDay: seven ? { percentUsed: seven.percentUsed, resetsAt: seven.resetsAt } : undefined,
-        samples: band.samples,
-        workspace: band.workspace,
-        // Read at each instant drawn, so a daylight-saving change shows by
-        // the next minute's repaint, with no reply needed.
-        zone: readableZone(hostZone, now),
-        otherLimits: others,
-      },
+      snap,
       {
         toggleExpanded: async () => {
           // Opening reads git, so the cards never show a stale branch.
