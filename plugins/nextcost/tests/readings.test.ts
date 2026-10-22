@@ -17,7 +17,7 @@ test('readings name every limit with its tone, value, reset and projection', () 
   expect(r.limits.map(l => l.name)).toEqual(['5h', '7d'])
 })
 test("a card says each limit's reset with its pace", () => {
-  expect(readingsOf(snapOf()).limits.map(l => l.cardResetLess)).toEqual(['resets 3h 00m · on pace for ~10%', 'resets 2d 19h · on pace for ~50%'])
+  expect(readingsOf(snapOf()).limits.map(l => l.resetAndPace)).toEqual(['resets 3h 00m · on pace for ~10%', 'resets 2d 19h · on pace for ~50%'])
 })
 test('a card says when a limit resets: its clock once the offset is known, else how long until; nothing once passed', () => {
   expect(readingsOf(snapOf({ zone: fixedZone(0) })).limits.map(l => l.resetWhen)).toEqual(['03:00', 'Sat 19:00'])
@@ -38,7 +38,7 @@ test('a window that fills before its reset says when: a measured fill, else the 
   expect(readingsOf(snapOf({ zone: fixedZone(0) })).fiveHour?.fillInMs).toBeUndefined()
 })
 test('a card says nothing of a window that has passed', () => {
-  expect(readingsOf(snapOf({ now: 4 * HOUR })).fiveHour?.cardResetLess).toBeUndefined()
+  expect(readingsOf(snapOf({ now: 4 * HOUR })).fiveHour?.resetAndPace).toBeUndefined()
 })
 test('a card heads its section with one figure, the rest in words, in lowercase', () => {
   const r = readingsOf(snapOf())
@@ -63,7 +63,7 @@ test('a measured 5h fill sets its projection to 100', () => {
   const r = readingsOf(snapOf({ fiveHour: { percentUsed: 84, resetsAt: 70 * MIN, etaMs: 40 * MIN } }))
   expect(r.fiveHour?.projectedPct).toBe(100)
   expect(r.fiveHour?.tone).toBe('amber')
-  expect(r.fiveHour?.cardResetLess).toBe('resets 1h 10m · full in ~40m')
+  expect(r.fiveHour?.resetAndPace).toBe('resets 1h 10m · full in ~40m')
 })
 test('a gateway spend limit is a limit named spend', () => {
   const r = readingsOf(snapOf({ otherLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: undefined }] }))
@@ -385,7 +385,7 @@ test("at the 5h window's very end, now is its last slice", () => {
 })
 test("pulse's tiles are named, and another window's line says its name among its words", () => {
   const calm = readingsOf(snapOf({ zone: fixedZone(0) }))
-  expect([calm.cache.bandName, calm.history().spendBandName, calm.context.bandName, calm.fiveHour?.bandName, calm.sevenDay?.bandName]).toEqual(['cache', 'spend', 'context', '5h', '7d'])
+  expect([calm.cache.bandName, calm.spend.bandName, calm.context.bandName, calm.fiveHour?.bandName, calm.sevenDay?.bandName]).toEqual(['cache', 'spend', 'context', '5h', '7d'])
   const other = (percentUsed: number) => readingsOf(snapOf({ otherLimits: [{ kind: 'spend_limit', percentUsed, resetsAt: undefined }] })).limits.find(l => l.key === 'other')?.line
   expect([other(40), other(85)]).toEqual(['spend 40%', '! spend 85%'])
 })

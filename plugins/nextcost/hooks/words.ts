@@ -177,6 +177,8 @@ export const SPLIT_LABELS = ['input', 'output', 'cache reads'] as const
 type SpendSplit = Readonly<{ label: (typeof SPLIT_LABELS)[number]; tokens: number; text: string; frac: number }>
 
 export type SpendWords = Readonly<{
+  /** Pulse's spend tile's name: `spend`. */
+  bandName: string
   /** `$3.19`, the last message's `$0.21`, and the tokens, `225k`. */
   totalText: string
   lastText: string | undefined
@@ -192,7 +194,7 @@ export type LimitWords = Readonly<{
   valueMarked: string
   /** A card's reset and pace, `resets 3h 00m · on pace for ~10%`; undefined
    *  without a reset to come. */
-  cardResetLess: string | undefined
+  resetAndPace: string | undefined
   /** When it resets, after `resets`: `16:40` or `Sat 13:30` once the offset
    *  is known, else `resetIn`; undefined without a reset to come. */
   resetWhen: string | undefined
@@ -375,6 +377,7 @@ export const spendWords = (f: SpendFacts): SpendWords => {
   const tokensByLabel: Readonly<Record<SpendSplit['label'], number>> = { input: f.sent, output: f.back, 'cache reads': f.cached }
   const totalText = fmtCost(f.totalUsd)
   return {
+    bandName: 'spend',
     totalText,
     lastText: f.lastTurnUsd === null ? undefined : fmtSmallCost(f.lastTurnUsd),
     tokensText: fmtTokens(f.total),
@@ -415,7 +418,7 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
   return {
     valueText,
     valueMarked: `${f.value}${severityMark(f.frac)}`,
-    cardResetLess: span === undefined ? undefined : saidJoined([`resets ${span}`, pace], ' · '),
+    resetAndPace: span === undefined ? undefined : saidJoined([`resets ${span}`, pace], ' · '),
     resetWhen,
     text: joined(say),
     say,
@@ -451,8 +454,6 @@ export type HistoryWords = Readonly<{
   costsAltOf: (count: number) => string
   /** 'context over the conversation, rising, compacts at 190k'; with compaction off, no compaction point. */
   contextTrailAlt: string
-  /** Pulse's spend tile's name: `spend`. */
-  spendBandName: string
   /** `no costs yet`, beside the flat trace, only while there is no cost at
    *  all: none recorded and a total of $0. A resumed conversation's total
    *  says there were costs. */
@@ -505,7 +506,6 @@ export const historyWords = (record: Trails, context: ContextFacts, spend: Reado
     numbersShort,
     costsAltOf,
     contextTrailAlt: `context over the conversation, ${contextTrendOf(record.context)}${compactsAt}`,
-    spendBandName: 'spend',
     costsNote: record.costs.length === 0 && !(spend.totalUsd > 0) ? EMPTY.costsShort : undefined,
     costFact:
       lastText === undefined ? undefined

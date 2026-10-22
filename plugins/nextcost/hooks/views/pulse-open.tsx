@@ -12,7 +12,7 @@ import { barChart, dayCells, dayCellsFit, flatBeats, sparkline, track } from '..
 import type { Tone } from '../facts'
 import type { Kit } from '../kit'
 import { cellsOf } from '../layout'
-import type { LimitView, Readings } from '../reading'
+import type { LimitReading, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, limitsHead, markedHead, type Say } from '../words'
 import { bodyRowsFor, footer } from './frame'
@@ -70,8 +70,8 @@ const factFits = (kit: Kit, label: string, value: string, room: number): boolean
 type Facts = Readonly<{
   /** Whether charts draw here, as chartsDraw says. */
   charts: boolean
-  windows: readonly LimitView[]
-  others: readonly LimitView[]
+  windows: readonly LimitReading[]
+  others: readonly LimitReading[]
   amber: ReadonlySet<Unit>
   has: Readonly<Record<CardName, boolean>>
   /** Whether each card has a chart to draw, given rows for one. */
@@ -83,7 +83,7 @@ const factsOf = (kit: Kit, read: Readings): Facts => {
   const { cache, context } = read
   const week = read.week()
   const charts = chartsDraw(kit)
-  const windows = [read.fiveHour, read.sevenDay].filter((l): l is LimitView => l !== undefined)
+  const windows = [read.fiveHour, read.sevenDay].filter((l): l is LimitReading => l !== undefined)
   const others = read.limits.filter(l => l.key === 'other')
   const amber = new Set<Unit>([
     ...(cache.tone === 'amber' ? (['cache'] as const) : []),
@@ -251,7 +251,7 @@ const contextCard = (kit: Kit, read: Readings, at: CardAt): RenderElement => {
 
 /** A window's half of Limits: its chart, `halfPx` wide, then its fact;
  *  side by side the halves share the line, else each takes all of it. */
-const half = (kit: Kit, read: Readings, at: CardAt, l: LimitView, halfPx: number, across: boolean): RenderElement => {
+const half = (kit: Kit, read: Readings, at: CardAt, l: LimitReading, halfPx: number, across: boolean): RenderElement => {
   const { Box, Svg, palette, onTone } = kit
   const week = read.week()
   const ink = onTone(l.tone, l.key === '5h' ? palette.fiveAccent : palette.weekAccent)

@@ -24,7 +24,7 @@ import {
 } from './format'
 import { lastCostOf, warmAverageOf } from './insights'
 import type { CostEntry, Trails } from './insights'
-import type { BandSnapshot, LimitReading } from './snapshot'
+import type { BandSnapshot, LimitUse } from './snapshot'
 import { boardWords } from './board-words'
 import type { Board } from './board-words'
 import { chipsWords } from './chips-words'
@@ -77,9 +77,8 @@ const paceOf = (base: LimitBase, windowMs: number | undefined, etaMs: number | n
 type CacheReading = CacheFacts & CacheWords
 type ContextReading = ContextFacts & ContextWords
 type SpendReading = SpendFacts & SpendWords
-/** A limit window as the views read it. A view, not a reading: `LimitReading`
- *  is the snapshot's raw window. */
-export type LimitView = LimitFacts & LimitWords
+/** A limit window as the views read it. */
+export type LimitReading = LimitFacts & LimitWords
 
 /** The conversation's trails, their words, and the series a chart draws. */
 type HistoryReading = Trails &
@@ -107,11 +106,11 @@ export type Readings = Readonly<{
   cache: CacheReading
   spend: SpendReading
   context: ContextReading
-  fiveHour: LimitView | undefined
-  sevenDay: LimitView | undefined
+  fiveHour: LimitReading | undefined
+  sevenDay: LimitReading | undefined
   /** 5h, 7d, then every other window the engine reports. */
-  limits: readonly LimitView[]
-  worstLimit: LimitView | undefined
+  limits: readonly LimitReading[]
+  worstLimit: LimitReading | undefined
   workspace: BandSnapshot['workspace']
   /** Built the first time a view calls it, then kept, so chips never pays for it. */
   history: () => HistoryReading
@@ -154,12 +153,12 @@ const spendFacts = (snap: BandSnapshot): SpendFacts => {
 
 /** The facts of each window the engine reports: 5h, 7d, then the rest. */
 const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
-  const one = (name: string, key: LimitKey, reading: LimitReading, windowMs: number | undefined, etaMs: number | null): LimitFacts => {
-    const at = reading.resetsAt
+  const one = (name: string, key: LimitKey, use: LimitUse, windowMs: number | undefined, etaMs: number | null): LimitFacts => {
+    const at = use.resetsAt
     const reset = resetIn(at, snap.now)
-    const frac = clamp01(reading.percentUsed / 100)
+    const frac = clamp01(use.percentUsed / 100)
     const gone = windowGone(at, windowMs, snap.now)
-    const base: LimitBase = { name, key, reset, resetsAt: at, gone, percentUsed: reading.percentUsed, frac, value: fmtPercent(reading.percentUsed) }
+    const base: LimitBase = { name, key, reset, resetsAt: at, gone, percentUsed: use.percentUsed, frac, value: fmtPercent(use.percentUsed) }
     // Passed, the window that reset has no pace, reset or fill to say.
     if (reset?.kind === 'passed')
       return { ...base, passed: true, tone: 'calm', etaMs: null, projectedPct: undefined, resetInMs: undefined, fillInMs: undefined, fullInMs: undefined }
@@ -197,7 +196,7 @@ const beatsTopOf = (costs: readonly CostEntry[], avg: number | undefined): numbe
 
 /** A window as the calendar reads it: its reset and its fill as times. A
  *  reset passed is one the calendar draws nothing for. */
-const windowOf = (l: LimitView | undefined, now: number): WindowNow | undefined =>
+const windowOf = (l: LimitReading | undefined, now: number): WindowNow | undefined =>
   l === undefined
     ? undefined
     : {
@@ -211,7 +210,7 @@ const windowOf = (l: LimitView | undefined, now: number): WindowNow | undefined 
 
 /** The week's cells from the limit samples, as drawn, with their words.
  *  With the zone unknown, the cells are named in UTC. */
-const weekReading = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour: LimitView | undefined): WeekReading => {
+const weekReading = (snap: BandSnapshot, sevenDay: LimitReading | undefined, fiveHour: LimitReading | undefined): WeekReading => {
   const week = drawnWeekOf({ samples: snap.samples, seven: windowOf(sevenDay, snap.now), five: windowOf(fiveHour, snap.now), now: snap.now, zone: snap.zone ?? fixedZone(0) })
   return { ...week, ...weekWords(week, fiveHour) }
 }
@@ -232,11 +231,11 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
   const cache: CacheReading = withWords(cacheFactsOf(snap.cache, snap.isWorking), cacheWords)
   const spend: SpendReading = withWords(spendFacts(snap), spendWords)
   const context: ContextReading = withWords(contextFacts(snap), contextWords)
-  const limits = limitFacts(snap).map((f): LimitView => withWords(f, l => limitWords(l, frame)))
+  const limits = limitFacts(snap).map((f): LimitReading => withWords(f, l => limitWords(l, frame)))
   // The headline is the window closest to its limit.
   const worstLimit = limits
     .filter(l => !l.passed)
-    .reduce<LimitView | undefined>((top, l) => (top === undefined || l.percentUsed > top.percentUsed ? l : top), undefined)
+    .reduce<LimitReading | undefined>((top, l) => (top === undefined || l.percentUsed > top.percentUsed ? l : top), undefined)
   const fiveHour = limits.find(l => l.key === '5h')
   const sevenDay = limits.find(l => l.key === '7d')
   let history: HistoryReading | undefined
