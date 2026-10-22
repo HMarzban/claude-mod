@@ -1,11 +1,12 @@
-// The prompt cache, as the band models it from each response's token counts.
-// One model per session, made at session.start and fed each hook's facts in
-// that hook's own shape; the order they must be applied in is kept here.
+// The prompt cache, as the band models it from each response's token counts,
+// and what it means for the band: its mood, its charge, its last call. One
+// model per session, made at session.start and fed each hook's facts in that
+// hook's own shape; the order they must be applied in is kept here.
 
 import type { ModelUsage } from 'claude-code'
-import type { BandSnapshot } from './snapshot'
-
-type CacheView = BandSnapshot['cache']
+import { LAST_CALL_MS, SOON_MS, fmtEstimate, fmtTokens } from './format'
+// Types alone, erased at runtime, so reading.ts may import this file's values.
+import type { Tone } from './reading'
 
 export type Ttl = '5m' | '1h'
 export const TTL_MS: Readonly<Record<Ttl, number>> = { '5m': 5 * 60_000, '1h': 60 * 60_000 }
@@ -44,6 +45,46 @@ export type TranscriptFacts = Readonly<{ spend: Spend | undefined; ttl: Ttl | un
  *  when it was, the base rate per token on its model, and the model it was
  *  billed under, where its transcript names one. */
 export type RecalledReply = Readonly<{ lastAt: number | undefined; rate: number | null; billed: string | undefined }>
+
+/** The cache as the model measured it, the snapshot's to carry to the band. */
+export type CacheView = Readonly<{
+  requests: number
+  msLeft: number
+  /** When the cache goes or went cold, epoch ms; null when not known. */
+  coldAt: number | null
+  ttl: Ttl
+  /** The TTL is known, not assumed: pinned by the environment, or seen on
+   *  the transcript's last cache write before this band's first reply. */
+  ttlPinned: boolean
+  window: number
+  hitRatio: number | null
+  misses: number
+  reWarmUsd: number | null
+  /** What reading from the cache saved against full input price. */
+  savedUsd: number | null
+  /** A cache read's price against input, on the model in force. */
+  readShare: number
+  /** The conversation is known to start here; else, before its first
+   *  reply, the band has not measured the cache yet. */
+  fresh: boolean
+  /** Claude Code compacted the conversation while it sat idle: the cache
+   *  is gone, and the next message writes the summary. */
+  compacted: boolean
+  /** Claude Code may compact this conversation when it sits idle on the
+   *  hour's cache: a terminal session, idle compaction on, and the context
+   *  past its threshold. */
+  idleCompacts: boolean
+  /** Before the first reply the band saw, the cache is as recalled: from
+   *  the session's last reply, remembered or read off its transcript. */
+  recalled: boolean
+  /** How long since that recalled reply. */
+  idleMs: number | null
+  /** A resumed conversation's spend and tokens from before this process
+   *  are counted, as its transcript records them. */
+  recovered: boolean
+  /** Every token since the conversation began, subagents included. */
+  tokens: Readonly<{ sent: number; back: number; cached: number }>
+}>
 
 type CacheState = {
   ttl: Ttl
@@ -194,7 +235,7 @@ export const weightedTokens = (t: TokenCounts, model: string | undefined): numbe
 
 /** Claude Code compacts a conversation left idle on the hour's cache about
  *  this long after its last request, before the cache runs out. */
-export const IDLE_COMPACT_MS = 54 * 60_000
+const IDLE_COMPACT_MS = 54 * 60_000
 /** A compaction this long after the last request, with no turn under way, is
  *  an idle one: an auto-compaction comes as a turn starts, not half an hour on. */
 const IDLE_GAP_MS = 30 * 60_000
@@ -579,5 +620,77 @@ export const newCache = (): CacheModel => {
       return { cache: viewOf(s, now, ledger, contextTokens, autoCompactOff), costUsd: spentUsd(s, ledger) }
     },
     msLeft: now => msLeftOf(s, now),
+  }
+}
+
+// ---- what it means ----------------------------------------------------------
+
+/** Unmeasured: loaded mid-conversation, before its next reply. Compacted:
+ *  cold because Claude Code compacted the conversation while it sat idle, so
+ *  the next message writes the summary. */
+type CacheMood = 'unmeasured' | 'warming' | 'warm' | 'expiring' | 'cold' | 'compacted'
+
+/** The cache as the band reads it: its view, and what that means. */
+export type CacheFacts = CacheView &
+  Readonly<{
+    mood: CacheMood
+    tone: Tone
+    /** The battery's charge: the share of the lifetime left, full while
+     *  Claude works, empty when there is nothing to count. */
+    charge: number
+    /** What the next message costs to rebuild the cache: dollars when a rate
+     *  is known, else the tokens it writes. */
+    estimate: string
+    /** A reply seen, or a resumed conversation's tokens read off its transcript. */
+    measured: boolean
+    /** Measured, or recalled from the session's last reply: time and price known. */
+    known: boolean
+    /** The hit ratio, once measured. */
+    hitFrac: number | undefined
+    /** Time to cold while it counts down: expiring, or warm while Claude isn't working. */
+    coldInMs: number | undefined
+    /** Departures' calm last call, LAST CALL at its clock: under LAST_CALL_MS
+     *  to cold, or for the 5-minute cache its last minute. The board draws the
+     *  last minute by its amber tone first, as every layout does. */
+    lastCall: boolean
+    /** Counting down on the hour's cache before the ~54-minute mark, where
+     *  Claude Code may compact the conversation instead of letting it go cold. */
+    idleCompactSoon: boolean
+  }>
+
+const moodOf = (c: CacheView): CacheMood =>
+  c.requests === 0 && !c.recalled
+    ? c.fresh
+      ? 'warming'
+      : 'unmeasured'
+    : c.msLeft <= 0
+      ? c.compacted
+        ? 'compacted'
+        : 'cold'
+      : c.msLeft <= SOON_MS
+        ? 'expiring'
+        : 'warm'
+
+/** What the cache's view means while Claude is working, or isn't. */
+export const cacheFactsOf = (c: CacheView, isWorking: boolean): CacheFacts => {
+  const mood = moodOf(c)
+  const measured = c.requests > 0 || c.recovered
+  // Mid-turn every step restarts the TTL, so a countdown would only bounce.
+  const counting = mood === 'expiring' || (mood === 'warm' && !isWorking)
+  const timeless = mood === 'unmeasured' || mood === 'warming' || mood === 'cold' || mood === 'compacted'
+  return {
+    ...c,
+    mood,
+    tone: mood === 'expiring' ? 'amber' : 'calm',
+    charge: timeless ? 0 : mood === 'warm' && isWorking ? 1 : c.msLeft / TTL_MS[c.ttl],
+    estimate: c.reWarmUsd !== null ? fmtEstimate(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`,
+    measured,
+    known: measured || c.recalled,
+    hitFrac: measured && c.hitRatio !== null ? c.hitRatio : undefined,
+    coldInMs: counting ? c.msLeft : undefined,
+    // A 5-minute cache is always under ten minutes from cold, so its last
+    // call is its last minute, when chips turns amber too.
+    lastCall: counting && (c.ttl === '5m' ? mood === 'expiring' : c.msLeft < LAST_CALL_MS),
+    idleCompactSoon: counting && c.idleCompacts && c.ttl === '1h' && c.msLeft > TTL_MS['1h'] - IDLE_COMPACT_MS,
   }
 }

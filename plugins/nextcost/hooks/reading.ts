@@ -1,24 +1,21 @@
 // What the band reads off its snapshot before it draws anything: the cache's
-// mood, the context's fill, each limit's tone and pace, with their words
-// from words.ts beside them. Pure, so readingsOf can be checked without
+// meaning as cache.ts reads it, the context's fill, each limit's tone and
+// pace, with their words from words.ts beside them. Pure, so readingsOf can be checked without
 // mounting the band.
 
-import { IDLE_COMPACT_MS, TTL_MS } from './cache'
+import { cacheFactsOf } from './cache'
+import type { CacheFacts } from './cache'
 import { weekOf } from './calendar'
 import type { DayCell, HourCell, Week, WindowNow } from './calendar'
 import {
   FIVE_HOUR_MS,
-  LAST_CALL_MS,
   SEVEN_DAY_MS,
-  SOON_MS,
   WARN_AT,
   clamp01,
   contextPressure,
   contextUsed,
   fixedZone,
-  fmtEstimate,
   fmtPct,
-  fmtTokens,
   resetIn,
   toCompaction,
 } from './format'
@@ -31,37 +28,6 @@ import { boardWords, cacheCopy, cacheWords, contextWords, historyWords, limitWor
 import type { Board, CacheCopy, CacheWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
 
 export type Tone = 'calm' | 'amber'
-
-// ---- the cache --------------------------------------------------------------
-
-type Cache = BandSnapshot['cache']
-
-/** Unmeasured: loaded mid-conversation, before its next reply. Compacted:
- *  cold because Claude Code compacted the conversation while it sat idle, so
- *  the next message writes the summary. */
-type CacheMood = 'unmeasured' | 'warming' | 'warm' | 'expiring' | 'cold' | 'compacted'
-
-const cacheMood = (c: Cache): CacheMood =>
-  c.requests === 0 && !c.recalled
-    ? c.fresh
-      ? 'warming'
-      : 'unmeasured'
-    : c.msLeft <= 0
-      ? c.compacted
-        ? 'compacted'
-        : 'cold'
-      : c.msLeft <= SOON_MS
-        ? 'expiring'
-        : 'warm'
-
-/** The battery's charge: the share of the lifetime left, full while Claude
- *  works, empty when there is nothing to count. */
-const cacheCharge = (c: Cache, mood: CacheMood, isWorking: boolean): number =>
-  mood === 'unmeasured' || mood === 'warming' || mood === 'cold' || mood === 'compacted' ? 0 : mood === 'warm' && isWorking ? 1 : c.msLeft / TTL_MS[c.ttl]
-
-/** What the next message costs to rebuild the cache: dollars when a rate is
- *  known, else the tokens it writes. */
-const reWarmEstimate = (c: Cache): string => (c.reWarmUsd !== null ? fmtEstimate(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`)
 
 // ---- the limits -------------------------------------------------------------
 
@@ -83,27 +49,8 @@ export type Frame = Readonly<{
   zone: Zone | undefined
 }>
 
-export type CacheFacts = Readonly<{
-  mood: CacheMood
-  tone: Tone
-  charge: number
-  estimate: string
-  measured: boolean
-  known: boolean
-  /** The hit ratio, once measured. */
-  hitFrac: number | undefined
-  /** Time to cold while it counts down: expiring, or warm while Claude isn't working. */
-  coldInMs: number | undefined
-  /** Departures' calm last call, LAST CALL at its clock: under LAST_CALL_MS
-   *  to cold, or for the 5-minute cache its last minute. The board draws the
-   *  last minute by its amber tone first, as every layout does. */
-  lastCall: boolean
-  /** Counting down on the hour's cache before the ~54-minute mark, where
-   *  Claude Code may compact the conversation instead of letting it go cold. */
-  idleCompactSoon: boolean
-}> &
-  /** The snapshot's own facts its words say, as it measured them. */
-  Pick<Cache, 'recalled' | 'msLeft' | 'coldAt' | 'ttl' | 'ttlPinned' | 'window' | 'reWarmUsd' | 'savedUsd' | 'misses' | 'idleMs' | 'readShare'>
+/** The cache as the views read it, from cache.ts: the words' own name for it. */
+export type { CacheFacts }
 
 /** The context's fill, read alike whether or not it compacts. */
 type ContextFill = Readonly<{
@@ -261,42 +208,6 @@ export type Readings = Readonly<{
   board: () => Board
   chips: ChipsReadings
 }>
-
-/** The cache's mood, tone, charge and re-warm price, and whether its timing is known. */
-const cacheFacts = (snap: BandSnapshot): CacheFacts => {
-  const c = snap.cache
-  const mood = cacheMood(c)
-  // Measured: a reply seen, or a resumed conversation's tokens read off its transcript.
-  const measured = c.requests > 0 || c.recovered
-  // Mid-turn every step restarts the TTL, so a countdown would only bounce.
-  const counting = mood === 'expiring' || (mood === 'warm' && !snap.isWorking)
-  return {
-    mood,
-    tone: mood === 'expiring' ? 'amber' : 'calm',
-    charge: cacheCharge(c, mood, snap.isWorking),
-    estimate: reWarmEstimate(c),
-    measured,
-    // Measured, or recalled from the session's last reply: time and price known.
-    known: measured || c.recalled,
-    hitFrac: measured && c.hitRatio !== null ? c.hitRatio : undefined,
-    coldInMs: counting ? c.msLeft : undefined,
-    // A 5-minute cache is always under ten minutes from cold, so its last
-    // call is its last minute, when chips turns amber too.
-    lastCall: counting && (c.ttl === '5m' ? mood === 'expiring' : c.msLeft < LAST_CALL_MS),
-    idleCompactSoon: counting && c.idleCompacts && c.ttl === '1h' && c.msLeft > TTL_MS['1h'] - IDLE_COMPACT_MS,
-    recalled: c.recalled,
-    msLeft: c.msLeft,
-    coldAt: c.coldAt,
-    ttl: c.ttl,
-    ttlPinned: c.ttlPinned,
-    window: c.window,
-    reWarmUsd: c.reWarmUsd,
-    savedUsd: c.savedUsd,
-    misses: c.misses,
-    idleMs: c.idleMs,
-    readShare: c.readShare,
-  }
-}
 
 /** The context's fill, measured toward auto-compaction when it is known:
  *  full means compacting, and no tick is needed to show where. Else it is
@@ -498,7 +409,7 @@ export const readingsOf = (snap: BandSnapshot): Readings => {
     glyphs: drawnTier(snap),
     zone: snap.zone,
   }
-  const cache = cacheFacts(snap)
+  const cache = cacheFactsOf(snap.cache, snap.isWorking)
   const spend = spendFacts(snap)
   const spendSaid = spendWords(spend)
   const context = contextFacts(snap)

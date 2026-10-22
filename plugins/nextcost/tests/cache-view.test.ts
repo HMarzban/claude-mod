@@ -2,9 +2,9 @@
 // reply has been seen, recalled before that, and one rule between the two.
 
 import { test, expect } from 'claude-code/testing'
-import { newCache } from '../hooks/cache'
+import { cacheFactsOf, newCache } from '../hooks/cache'
 import type { CacheModel } from '../hooks/cache'
-import { MIN } from './helpers'
+import { MIN, resp } from './helpers'
 
 const RATE = 0.00001
 
@@ -82,4 +82,26 @@ test("a ledger that has spent nothing is a new conversation; one that can't be r
   unread.loaded({ priceModel: undefined, ledger: undefined })
   expect(viewAt(unread, 0, undefined, 0).fresh).toBe(false)
   expect(unread.wantsRecall()).toBe(true)
+})
+
+test('what the view means: warm, then its last call and last minute, then cold, from one reply', () => {
+  const c = newCache()
+  c.configured({ ttl: '1h', idleCompactFrom: undefined })
+  c.responded(resp(41_000, 0, 155_000, 12_000), 0, true)
+  const at = (now: number, isWorking = false) => cacheFactsOf(viewAt(c, now, undefined, 0), isWorking)
+  expect([at(10 * MIN).mood, at(10 * MIN).coldInMs, at(10 * MIN).lastCall]).toEqual(['warm', 50 * MIN, false])
+  // While Claude works the battery is full and nothing counts down.
+  expect([at(10 * MIN, true).charge, at(10 * MIN, true).coldInMs]).toEqual([1, undefined])
+  expect([at(55 * MIN).lastCall, at(55 * MIN).tone]).toEqual([true, 'calm'])
+  expect([at(59.5 * MIN).mood, at(59.5 * MIN).tone]).toEqual(['expiring', 'amber'])
+  expect([at(61 * MIN).mood, at(61 * MIN).charge]).toEqual(['cold', 0])
+})
+
+test('idle compaction soon: on the hour, a context past its threshold, before the ~54-minute mark', () => {
+  const c = newCache()
+  c.configured({ ttl: '1h', idleCompactFrom: 200_000 })
+  c.responded(resp(41_000, 0, 155_000, 12_000), 0, true)
+  const soon = (now: number, contextTokens: number, autoCompactOff = false) =>
+    cacheFactsOf(c.view({ now, ledger: undefined, contextTokens, autoCompactOff }).cache, false).idleCompactSoon
+  expect([soon(10 * MIN, 250_000), soon(10 * MIN, 150_000), soon(10 * MIN, 250_000, true), soon(56 * MIN, 250_000)]).toEqual([true, false, false, false])
 })
