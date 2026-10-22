@@ -3,7 +3,7 @@
 // texts and keeps the levels reached.
 
 import { SEVERE_AT, WARN_AT, contextPressure, toCompaction } from './format'
-import { FIVE_HOUR } from './memory'
+import { FIVE_HOUR } from './snapshot'
 import { roomOf } from './words'
 
 /** Each toast's level reached, by its key, so it speaks once per crossing. */

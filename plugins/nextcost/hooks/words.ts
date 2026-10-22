@@ -3,7 +3,7 @@
 // amber, pace, resets, empty states and alt text read the same everywhere.
 // The departures board's words are board-words.ts's, built from these.
 
-import type { Week } from './calendar'
+import type { SliceMark, Week } from './calendar'
 import type { Zone } from './format'
 import {
   clamp01,
@@ -30,10 +30,11 @@ import {
   severityMark,
 } from './format'
 import { IDLE_COMPACT_MS } from './cache'
+import type { CacheFacts } from './cache'
 import { warmAverageOf } from './insights'
 import type { CostEntry, Trails } from './insights'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
-import type { CacheFacts, ContextFacts, Frame, LimitFacts, SliceMark, SpendFacts, Tone } from './reading'
+import type { ContextFacts, Frame, LimitFacts, SpendFacts, Tone } from './reading'
 
 /** The colour a piece of a phrase is drawn in. */
 export type Role = 'label' | 'value' | 'amber' | 'accent5' | 'accent7'

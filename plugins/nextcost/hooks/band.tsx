@@ -10,7 +10,7 @@ import { readingsOf } from './reading'
 import { DEFAULT_LAYOUT } from './snapshot'
 import type { BandActions, BandSnapshot, LayoutName } from './snapshot'
 import { VIEWS } from './views/index'
-import type { View } from './views/index'
+import type { View } from './views/view'
 import { drawView } from './views/frame'
 
 /** Below this, every layout draws chips (spec §1); a layout may need more. */

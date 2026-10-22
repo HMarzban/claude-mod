@@ -6,7 +6,7 @@
 import { cacheFactsOf } from './cache'
 import type { CacheFacts } from './cache'
 import { drawnWeekOf } from './calendar'
-import type { DrawnWeek, SliceMark, WindowNow } from './calendar'
+import type { DrawnWeek, WindowNow } from './calendar'
 import {
   FIVE_HOUR_MS,
   SEVEN_DAY_MS,
@@ -50,9 +50,6 @@ export type Frame = Readonly<{
   glyphs: Glyphs
   zone: Zone | undefined
 }>
-
-/** The cache as the views read it, from cache.ts: the words' own name for it. */
-export type { CacheFacts }
 
 /** The context's fill, read alike whether or not it compacts. */
 type ContextFill = Readonly<{
@@ -158,9 +155,6 @@ type HistoryReading = Trails &
      *  is none to scale by. Never 0. */
     beatsTop: number
   }>
-
-/** A slice as drawn, from calendar.ts: the words' own name for it. */
-export type { SliceMark }
 
 /** The week's cells, and as drawn, with their words. */
 type WeekReading = DrawnWeek & WeekWords

@@ -81,9 +81,6 @@ export const rememberReply = (sessions: Sessions, id: string, lastAt: number): S
       .slice(0, MAX_SESSIONS),
   )
 
-// toast.ts reads the 5-hour limit's name here.
-export { FIVE_HOUR } from './snapshot'
-
 /** Both limits at one moment, with the resets that name their windows (epoch ms). */
 export type Sample = Readonly<{ at: number; fivePct: number; sevenPct: number; fiveResetAt: number; sevenResetAt: number }>
 
