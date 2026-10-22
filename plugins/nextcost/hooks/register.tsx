@@ -17,7 +17,6 @@ import {
   noteRecalled,
   noteResume,
   noteTranscript,
-  noteBilledModel,
   notePriceModel,
   pinTtl,
   ratePerToken,
@@ -575,8 +574,7 @@ export const register: Register = on => {
     const result = yield* next(e)
     const isMain = e.agentId === undefined
     if (result?.usage) {
-      if (isMain && result.usage.model) noteBilledModel(result.usage.model)
-      recordResponse(result.usage, sentAt, isMain, result.usage.model)
+      recordResponse(result.usage, sentAt, isMain)
       const cost = await ledgerUsd($)
       if (cost !== undefined) noteLedger(cost)
       $.ui.invalidate('ui.render')

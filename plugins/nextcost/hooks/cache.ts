@@ -331,12 +331,15 @@ export const noteConversationStart = (costNow: number): void => {
   state.baselined = true
 }
 
+/** A response's tokens, sent at `sentAt`: every response's count toward the
+ *  bill, and a main-loop one's measure the cache and name the model its
+ *  reply was billed under. */
 export const recordResponse = (
-  usage: Pick<ModelUsage, 'input_tokens' | 'output_tokens' | 'cache_read_input_tokens' | 'cache_creation_input_tokens'>,
+  usage: Pick<ModelUsage, 'input_tokens' | 'output_tokens' | 'cache_read_input_tokens' | 'cache_creation_input_tokens'> & Readonly<{ model?: string }>,
   sentAt: number,
   isMain: boolean,
-  model: string | undefined,
 ): void => {
+  const model = usage.model
   const hit = usage.cache_read_input_tokens
   const written = usage.cache_creation_input_tokens
   const fresh = usage.input_tokens
@@ -351,6 +354,7 @@ export const recordResponse = (
   state.premium += (factor - 1) * weightedTokens(request, model)
   state.tieredReads += factor * hit
   if (!isMain) return
+  if (model) noteBilledModel(model)
 
   // Read as cold already: a resume the engine called expired, or a recalled
   // reply past its TTL.
@@ -444,7 +448,7 @@ export const notePriceModel = (model: string | undefined): void => {
   state.priceModel = model
 }
 
-export const noteBilledModel = (model: string): void => {
+const noteBilledModel = (model: string): void => {
   state.billedModel = model
 }
 
