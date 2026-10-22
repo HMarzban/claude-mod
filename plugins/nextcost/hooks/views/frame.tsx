@@ -69,9 +69,14 @@ const buttonsOf = (kit: Kit, act: BandActions): RenderElement[] => {
 /** The columns a row may take: the band's, less its slack. */
 export const rowRoom = (kit: Kit): number => kit.columns - ROW_SLACK
 
-/** The columns the buttons take with their hotkey marks: what the footer's
- *  row gives them before the strip or the hint. */
-const buttonsRoom = (kit: Kit, buttons: readonly RenderElement[]): number => cellsOf(buttons, kit.measure) + 2 * HOTKEY_MARK
+/** The columns the footer's row leaves beside `buttons`: the row's, less
+ *  the buttons with their hotkey marks. */
+const roomBeside = (kit: Kit, buttons: readonly RenderElement[]): number => rowRoom(kit) - cellsOf(buttons, kit.measure) - 2 * HOTKEY_MARK
+
+/** The columns the footer's strip takes beside `buttons`: the room they
+ *  leave, less a column of gap before each of the two. Exported for the
+ *  whole-pieces check. */
+export const footerStripRoom = (kit: Kit, buttons: readonly RenderElement[]): number => roomBeside(kit, buttons) - 2
 
 /** The workspace strip heading an open view, its text lined up with cards
  *  whose edge is `edge` columns. */
@@ -83,9 +88,7 @@ export const topStrip = (kit: Kit, ws: Workspace, edge: number): RenderElement =
 export const footer = (kit: Kit, act: BandActions, ws?: Workspace): RenderElement => {
   const { Box, Text, measure, icon } = kit
   const buttons = buttonsOf(kit, act)
-  const room = rowRoom(kit) - buttonsRoom(kit, buttons)
-  // The strip and the two buttons: two gaps.
-  const strip = ws === undefined ? undefined : drawStrip(kit, ws, 'footer', 0, room - 2)
+  const strip = ws === undefined ? undefined : drawStrip(kit, ws, 'footer', 0, footerStripRoom(kit, buttons))
   const hint = (
     <Box key="hint" flexDirection="row">
       {icon('info', BARE.icon)}
@@ -93,7 +96,7 @@ export const footer = (kit: Kit, act: BandActions, ws?: Workspace): RenderElemen
     </Box>
   )
   // The hint, its air and the two buttons: three gaps.
-  const hinted = cellsOf(hint, measure) + 3 <= room
+  const hinted = cellsOf(hint, measure) + 3 <= roomBeside(kit, buttons)
   return (
     <Box key="actions" flexDirection="row" columnGap={1} marginTop={1}>
       {strip ?? (hinted ? hint : null)}

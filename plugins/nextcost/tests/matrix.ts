@@ -8,6 +8,7 @@ import { expect, test, type Engine } from 'claude-code/testing'
 import { DEFAULT_MAX_ROWS, HOUR, LONG, MIN, USAGE, fakeEl, firstRow, runCommand, shown, walk, wordsOf, type Node } from './helpers'
 import { drawBand, layoutAt } from '../hooks/band'
 import type { CacheView, Ttl } from '../hooks/cache'
+import { makeKit, type Kit } from '../hooks/kit'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
 import { snapshotOf } from '../hooks/snapshot'
@@ -49,6 +50,9 @@ export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({ ...
 
 /** Actions for a draw outside a mount: one function each, so props compare equal. */
 export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide: async () => undefined }
+
+/** The drawing kit outside a mount, from snapOf's snapshot with `over`. */
+export const kitOf = (over: Partial<BandSnapshot> = {}): Kit => makeKit(fakeEl, snapOf(over))
 
 /** The band drawn outside a mount, from snapOf's snapshot with `over`. */
 export const bandOf = (over: Partial<BandSnapshot> = {}): Node => drawBand(fakeEl, snapOf(over), NO_ACT) as unknown as Node
