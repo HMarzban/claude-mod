@@ -25,10 +25,9 @@ import {
 } from './format'
 import { IDLE_COMPACT_MS } from './cache'
 import type { CacheFacts } from './cache'
+import type { ContextFacts, Frame, LimitFacts, SpendFacts, Tone } from './facts'
 import { lastCostOf, warmAverageOf } from './insights'
 import type { CostEntry, Trails } from './insights'
-// Types alone, erased at runtime, so reading.ts may import this file's values.
-import type { ContextFacts, Frame, LimitFacts, SpendFacts, Tone } from './reading'
 
 /** The colour a piece of a phrase is drawn in. */
 export type Role = 'label' | 'value' | 'amber' | 'accent5' | 'accent7'

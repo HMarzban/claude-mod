@@ -6,9 +6,10 @@
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { barChart, dayCells, flatBeats, heartbeat, sparkline } from '../charts'
+import type { Tone } from '../facts'
 import type { Kit } from '../kit'
 import { isDrawn } from '../layout'
-import type { Readings, Tone } from '../reading'
+import type { Readings } from '../reading'
 import { EMPTY, type Amber } from '../words'
 import { fitLine, type Keeps, line, type PieceOf } from './frame'
 import { chartsDraw, openStack } from './pulse-open'

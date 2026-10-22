@@ -4,9 +4,8 @@
 // hook's own shape; the order they must be applied in is kept here.
 
 import type { ModelUsage } from 'claude-code'
+import type { Tone } from './facts'
 import { LAST_CALL_MS, MINUTE_MS, SOON_MS, fmtEstimate, fmtTokens } from './format'
-// Types alone, erased at runtime, so reading.ts may import this file's values.
-import type { Tone } from './reading'
 
 export type Ttl = '5m' | '1h'
 export const TTL_MS: Readonly<Record<Ttl, number>> = { '5m': 5 * MINUTE_MS, '1h': 60 * MINUTE_MS }

@@ -4,10 +4,11 @@
 // layout squeezes its row with, and the line pulse and departures lay.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
+import type { Tone } from '../facts'
 import type { Kit } from '../kit'
 import { HOTKEY_MARK, ROW_SLACK, cellsOf, isDrawn, squeezeToFit } from '../layout'
 import { BARE } from '../palette'
-import type { Readings, Tone } from '../reading'
+import type { Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { drawStrip } from '../strip'
 import { rowsOf } from './view'

@@ -5,9 +5,8 @@
 // layout says, in its own voice.
 
 import type { CacheFacts } from './cache'
+import type { ContextFacts, Frame, LimitFacts, LimitKey, SpendFacts, Tone } from './facts'
 import { boardSpan, etaMinutes, fmtClock, fmtDayClock, fmtEta } from './format'
-// Types alone, erased at runtime, so reading.ts may import this file's values.
-import type { ContextFacts, Frame, LimitFacts, LimitKey, SpendFacts, Tone } from './reading'
 import { AMBER_LEAD, EMPTY, compactsIn, saidJoined } from './words'
 import type { CacheWords, ContextWords, LimitWords, SpendWords } from './words'
 

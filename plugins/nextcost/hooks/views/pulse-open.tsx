@@ -9,9 +9,10 @@
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 import { barChart, dayCells, dayCellsFit, flatBeats, sparkline, track } from '../charts'
+import type { Tone } from '../facts'
 import type { Kit } from '../kit'
 import { cellsOf } from '../layout'
-import type { LimitView, Readings, Tone } from '../reading'
+import type { LimitView, Readings } from '../reading'
 import type { BandActions } from '../snapshot'
 import { EMPTY, limitsHead, markedHead, type Say } from '../words'
 import { bodyRowsFor, footer } from './frame'

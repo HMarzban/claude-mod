@@ -3,11 +3,11 @@
 // the kit first.
 
 import type { RenderChildren } from 'claude-code'
+import type { Tone } from './facts'
 import { clamp01 } from './format'
 import { asciiText } from './glyphs'
 import type { Kit } from './kit'
 import type { BarSize } from './layout'
-import type { Tone } from './reading'
 
 /** One decimal: enough for an Svg coordinate, short enough to read. */
 const tenth = (n: number): number => Math.round(n * 10) / 10

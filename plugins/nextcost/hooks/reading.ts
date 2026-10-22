@@ -6,6 +6,7 @@
 
 import { cacheFactsOf } from './cache'
 import type { CacheFacts } from './cache'
+import type { ContextFacts, ContextFill, Frame, LimitBase, LimitFacts, LimitKey, SpendFacts } from './facts'
 import { drawnWeekOf } from './calendar'
 import type { DrawnWeek, WindowNow } from './calendar'
 import {
@@ -21,7 +22,6 @@ import {
   resetIn,
   toCompaction,
 } from './format'
-import type { ResetIn, Zone } from './format'
 import { lastCostOf, warmAverageOf } from './insights'
 import type { CostEntry, Trails } from './insights'
 import type { BandSnapshot, LimitReading } from './snapshot'
@@ -30,103 +30,11 @@ import type { Board } from './board-words'
 import { cacheWords, chipsWords, contextWords, historyWords, limitWords, spendWords, weekWords } from './words'
 import type { CacheWords, ChipsWords, ContextWords, HistoryWords, LimitWords, SpendWords, WeekWords } from './words'
 
-export type Tone = 'calm' | 'amber'
-
 // ---- the limits -------------------------------------------------------------
 
 /** The share of a window gone, from its length and its reset at `at`; undefined when unknown. */
 const windowGone = (at: number | undefined, windowMs: number | undefined, now: number): number | undefined =>
   windowMs === undefined || at === undefined || at <= now ? undefined : clamp01(1 - (at - now) / windowMs)
-
-// ---- the facts every layout draws from ------------------------------------
-
-/** How the band is mounted and when: what every view lays itself out by. */
-export type Frame = Readonly<{
-  expanded: boolean
-  maxRows: number
-  now: number
-  isWorking: boolean
-  zone: Zone | undefined
-}>
-
-/** The context's fill, read alike whether or not it compacts. */
-type ContextFill = Readonly<{
-  known: boolean
-  used: number
-  frac: number
-  pct: string
-  tone: Tone
-  /** The tokens in context, as the engine reported them; undefined when it didn't. */
-  tokens: number | undefined
-  autoCompactOff: boolean
-  window: number
-}>
-
-/** The context toward auto-compaction, with the room left before it and
- *  whether it is near; or, with compaction off or not reported yet, against
- *  the window alone. */
-export type ContextFacts = ContextFill &
-  (
-    | Readonly<{ compactAt: number; toCompact: number; nearCompact: boolean }>
-    | Readonly<{ compactAt: undefined; toCompact: undefined; nearCompact: false }>
-  )
-
-export type SpendFacts = Readonly<{
-  totalUsd: number
-  lastTurnUsd: number | null
-  sent: number
-  back: number
-  cached: number
-  total: number
-}>
-
-export type LimitKey = '5h' | '7d' | 'other'
-
-/** What a window says whether or not it has passed. */
-type LimitBase = Readonly<{
-  name: string
-  key: LimitKey
-  percentUsed: number
-  frac: number
-  /** `82%`, with no severity mark: chips adds its own. */
-  value: string
-  reset: ResetIn | undefined
-  /** When it resets, epoch ms, as the snapshot carries it. */
-  resetsAt: number | undefined
-  gone: number | undefined
-}>
-
-/** A window still to reset: its tone, its pace and when it fills. */
-type LiveLimit = LimitBase &
-  Readonly<{
-    passed: false
-    tone: Tone
-    etaMs: number | null
-    /** 100 when a 5h fill is measured; else the average's landing, once 5% of
-     *  the window has gone and any of it is used. */
-    projectedPct: number | undefined
-    /** Time to the reset. */
-    resetInMs: number | undefined
-    /** Time to full before the reset: a measured fill, else the average's,
-     *  once it lands at 100% or more; undefined while it lands short. */
-    fillInMs: number | undefined
-    /** `fillInMs` while there is something left to fill: undefined once full. */
-    fullInMs: number | undefined
-  }>
-
-/** A window whose reset has passed: calm, with no pace, reset or fill to say. */
-type PassedLimit = LimitBase &
-  Readonly<{
-    passed: true
-    tone: 'calm'
-    etaMs: null
-    projectedPct: undefined
-    resetInMs: undefined
-    fillInMs: undefined
-    fullInMs: undefined
-  }>
-
-export type LimitFacts = LiveLimit | PassedLimit
 
 // What the views read: each section's facts, and its words beside them.
 type CacheReading = CacheFacts & CacheWords
