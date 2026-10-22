@@ -11,7 +11,7 @@ import { isDrawn } from '../layout'
 import type { Readings, Tone } from '../reading'
 import { EMPTY, type Amber } from '../words'
 import { fitLine, type Keeps, line, type PieceOf } from './frame'
-import { openStack } from './pulse-open'
+import { chartsDraw, openStack } from './pulse-open'
 import type { View } from './view'
 
 /** What gives way as the row narrows, first to last (three-layouts spec
@@ -36,13 +36,13 @@ const BEATS_PX = { 14: 84, 8: 48 } as const
 /** The heartbeat's state for the cache's mood. */
 const heartState = (read: Readings): 'beat' | 'flat' | 'hollow' =>
   read.cache.mood === 'cold' || read.cache.mood === 'compacted' ? 'flat'
-  : read.cache.mood === 'unmeasured' || read.cache.mood === 'warming' ? 'hollow'
+  : read.cache.untimed ? 'hollow'
   : 'beat'
 
 /** A reading's words in its tone's ink. */
-const said = (kit: Kit, key: string, text: string, amber: boolean): RenderElement => {
+const said = (kit: Kit, key: string, text: string, tone: Tone): RenderElement => {
   const { Text, palette, onTone } = kit
-  return <Text key={key} color={onTone(amber ? 'amber' : 'calm', palette.value)}>{text}</Text>
+  return <Text key={key} color={onTone(tone, palette.value)}>{text}</Text>
 }
 
 /** A reading's name, in a label's ink, before its figure. */
@@ -74,19 +74,19 @@ const calmWords = (k: Keeps<Piece>, long: string, short: string): string => (k.h
 /** A reading's words on its tile: calm, its name then its figure; amber, its
  *  amber words alone, long until the amber step. */
 const wordsOf = (kit: Kit, k: Keeps<Piece>, name: string, figure: string, amber: Amber | undefined): RenderChildren[] =>
-  amber === undefined ? [named(kit, name), said(kit, 'w', figure, false)] : [said(kit, 'w', k.amber(amber), true)]
+  amber === undefined ? [named(kit, name), said(kit, 'w', figure, 'calm')] : [said(kit, 'w', k.amber(amber), 'amber')]
 
 const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderElement =>
   fitLine(kit, ORDER, k => {
-    const { Svg, Text, palette } = kit
+    const { Svg, Text, palette, onTone } = kit
     const { cache, context, fiveHour, sevenDay } = read
     const hist = read.history()
     const week = read.week()
-    const charts = kit.glyphs === 'unicode'
+    const charts = chartsDraw(kit)
     const n = k.has('beats14') ? 14 : 8
     const cacheTile = tile(kit, k, 'cache', cache.tone, palette.surface, [
       ...wordsOf(kit, k, cache.bandName, calmWords(k, cache.figure, cache.figureShort), cache.amber),
-      heartbeat(kit, { key: 'beat', alt: cache.heartAlt, state: heartState(read), color: cache.tone === 'amber' ? palette.amberFg : palette.warm }),
+      heartbeat(kit, { key: 'beat', alt: cache.heartAlt, state: heartState(read), color: onTone(cache.tone, palette.warm) }),
     ])
     // No message's cost: the trace flat, in a label's ink, only beside `no
     // costs yet`, while the total is $0, and the two give way together;
@@ -95,7 +95,7 @@ const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderEleme
     const trace = !k.has('beats') || !charts ? null
       : hist.empty ? (noted ? flatBeats(kit, { key: 'beats', alt: EMPTY.costsAlt, beats: n, color: palette.label, px: BEATS_PX[n], height: 20 }) : null)
       : barChart(kit, { key: 'beats', alt: hist.costsAltOf(n), values: hist.costValues.slice(-n), marked: hist.reWarms.slice(-n), color: palette.value, markColor: palette.value, px: BEATS_PX[n], height: 20, max: hist.beatsTop })
-    const total = said(kit, 'w', k.has('last') && !hist.empty ? [read.spend.totalText, hist.numbersShort].join(' · ') : read.spend.totalText, false)
+    const total = said(kit, 'w', k.has('last') && !hist.empty ? [read.spend.totalText, hist.numbersShort].join(' · ') : read.spend.totalText, 'calm')
     // Spend is never amber: it gives way whole at its step.
     const spendTile = !k.has('spend') ? null : tile(kit, k, 'spend', 'calm', palette.surface, [
       named(kit, hist.spendBandName),
@@ -111,14 +111,14 @@ const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderEleme
     const fiveTile = fiveHour === undefined || !k.calm('five', fiveHour.tone) ? null : tile(kit, k, '5h', fiveHour.tone, palette.fiveBg, [
       ...wordsOf(kit, k, fiveHour.bandName, fiveHour.valueText, fiveHour.amber),
       charts && k.part('fiveTrail', fiveHour.tone) && week.fiveHourWindow.values.length > 1
-        ? sparkline(kit, { key: 'trail', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, from: week.fiveHourWindow.from, color: fiveHour.tone === 'amber' ? palette.amberFg : palette.fiveAccent, px: 48, height: 16, max: 100 })
+        ? sparkline(kit, { key: 'trail', alt: week.windowAlt, values: week.fiveHourWindow.values, nowAt: week.fiveHourWindow.nowAt, from: week.fiveHourWindow.from, color: onTone(fiveHour.tone, palette.fiveAccent), px: 48, height: 16, max: 100 })
         : null,
     ])
     // The 7d's cells are the desktop's: in text it is words (three-layouts spec §4.1).
     const sevenTile = sevenDay === undefined ? null : tile(kit, k, '7d', sevenDay.tone, palette.weekBg, [
       ...wordsOf(kit, k, sevenDay.bandName, sevenDay.valueText, sevenDay.amber),
       Svg && k.part('sevenDays', sevenDay.tone) && week.daysDrawn.measured
-        ? dayCells(kit, { key: 'days', alt: week.daysAlt, values: week.daysDrawn.values, guess: week.daysDrawn.guess, today: week.daysDrawn.today, color: sevenDay.tone === 'amber' ? palette.amberFg : palette.weekAccent, cellPx: 4, height: 14, max: 100 })
+        ? dayCells(kit, { key: 'days', alt: week.daysAlt, values: week.daysDrawn.values, guess: week.daysDrawn.guess, today: week.daysDrawn.today, color: onTone(sevenDay.tone, palette.weekAccent), cellPx: 4, height: 14, max: 100 })
         : null,
     ])
     // Filled tiles sit a column apart, as chips' do; plain's, with no ground

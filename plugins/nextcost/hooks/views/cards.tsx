@@ -105,14 +105,12 @@ export const openBody = (kit: Kit, read: Readings, act: BandActions, collapsedRo
   )
 
   const tokenParts = tokenPartsOf(kit, read)
-  const split = (size: BarSize) =>
-    splitBar(kit, { alt: SPLIT_ALT, parts: tokenParts, size })
   const lastRow = spend.lastText === undefined ? null : factRow(kit, 'last message', spend.lastText)
   const splitShown = cache.measured
   const tokenRows = splitShown
     ? spend.split.map((part, i) => factRow(kit, part.label, part.text, tokenParts[i]))
     : [note('Breakdown counts from your next message.')]
-  const spendView = card('spend', { say: [[spend.totalText, 'value']] }, splitShown ? split(cardBar) : null, [lastRow, ...tokenRows])
+  const spendView = card('spend', { say: [[spend.totalText, 'value']] }, splitShown ? splitBar(kit, { alt: SPLIT_ALT, parts: tokenParts, size: cardBar }) : null, [lastRow, ...tokenRows])
 
   const contextView = context.known
     ? card(

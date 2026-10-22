@@ -4,13 +4,12 @@
 // hook's own shape; the order they must be applied in is kept here.
 
 import type { ModelUsage } from 'claude-code'
-import { LAST_CALL_MS, SOON_MS, fmtEstimate, fmtTokens } from './format'
+import { LAST_CALL_MS, MINUTE_MS, SOON_MS, fmtEstimate, fmtTokens } from './format'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
 import type { Tone } from './reading'
 
 export type Ttl = '5m' | '1h'
-export const TTL_MS: Readonly<Record<Ttl, number>> = { '5m': 5 * 60_000, '1h': 60 * 60_000 }
-
+export const TTL_MS: Readonly<Record<Ttl, number>> = { '5m': 5 * MINUTE_MS, '1h': 60 * MINUTE_MS }
 
 // A response that read this much less than the cache held, both in tokens and
 // as a share of it, missed the cache.
@@ -235,10 +234,10 @@ export const weightedTokens = (t: TokenCounts, model: string | undefined): numbe
 
 /** Claude Code compacts a conversation left idle on the hour's cache about
  *  this long after its last request, before the cache runs out. */
-export const IDLE_COMPACT_MS = 54 * 60_000
+export const IDLE_COMPACT_MS = 54 * MINUTE_MS
 /** A compaction this long after the last request, with no turn under way, is
  *  an idle one: an auto-compaction comes as a turn starts, not half an hour on. */
-const IDLE_GAP_MS = 30 * 60_000
+const IDLE_GAP_MS = 30 * MINUTE_MS
 const IDLE_COMPACT_TOKENS = 200_000
 const IDLE_COMPACT_FLOOR = 100_000
 
@@ -645,6 +644,8 @@ export type CacheFacts = CacheView &
     measured: boolean
     /** Measured, or recalled from the session's last reply: time and price known. */
     known: boolean
+    /** No time to count yet, neither seen nor recalled: unmeasured, or warming. */
+    untimed: boolean
     /** The hit ratio, once measured. */
     hitFrac: number | undefined
     /** Time to cold while it counts down: expiring, or warm while Claude isn't working. */
@@ -677,7 +678,8 @@ export const cacheFactsOf = (c: CacheView, isWorking: boolean): CacheFacts => {
   const measured = c.requests > 0 || c.recovered
   // Mid-turn every step restarts the TTL, so a countdown would only bounce.
   const counting = mood === 'expiring' || (mood === 'warm' && !isWorking)
-  const timeless = mood === 'unmeasured' || mood === 'warming' || mood === 'cold' || mood === 'compacted'
+  const untimed = mood === 'unmeasured' || mood === 'warming'
+  const timeless = untimed || mood === 'cold' || mood === 'compacted'
   return {
     ...c,
     mood,
@@ -686,6 +688,7 @@ export const cacheFactsOf = (c: CacheView, isWorking: boolean): CacheFacts => {
     estimate: c.reWarmUsd !== null ? fmtEstimate(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`,
     measured,
     known: measured || c.recalled,
+    untimed,
     hitFrac: measured && c.hitRatio !== null ? c.hitRatio : undefined,
     coldInMs: counting ? c.msLeft : undefined,
     // A 5-minute cache is always under ten minutes from cold, so its last

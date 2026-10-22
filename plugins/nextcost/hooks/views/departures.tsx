@@ -33,8 +33,8 @@ type Piece = PieceOf<typeof ORDER>
  *  its cell's, white or amber, the flaps' own gap between them. Plain draws
  *  no ground: the row sets its modules apart instead. */
 const moduleOf = (kit: Kit, k: Keeps<Piece>, row: BoardRow, cell: string): RenderElement => {
-  const { Box, palette } = kit
-  const ink = row.tone === 'amber' ? palette.flapAmber : palette.flapText
+  const { Box, palette, onTone } = kit
+  const ink = onTone(row.tone, palette.flapText, palette.flapAmber)
   const ground = palette.filled ? { backgroundColor: palette.boardBg, ...(k.has('padding') ? { paddingX: 1 } : {}) } : {}
   return (
     <Box key={row.key} flexShrink={0} {...ground}>

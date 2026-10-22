@@ -48,16 +48,17 @@ const cacheBoard = (r: BoardFacts): BoardRow => {
   const c = r.cache
   const zone = r.frame.zone
   const at = (cell: Omit<BoardRow, 'key' | 'item' | 'alt'>): BoardRow => ({ key: 'cache', item: 'CACHE', alt: c.alt, ...cell })
+  /** A row with no time to show: its status alone, in every column. */
+  const timeless = (status: string): BoardRow => at({ status, time: undefined, remarks: '', cell: status, cellShort: status, tone: 'calm' })
   const reWarm = `RE-WARM ${c.estimate}`
-  if (c.mood === 'unmeasured' || c.mood === 'warming') return at({ status: 'CHECK-IN', time: undefined, remarks: '', cell: 'CHECK-IN', cellShort: 'CHECK-IN', tone: 'calm' })
-  if (r.frame.isWorking) return at({ status: 'BOARDING', time: undefined, remarks: '', cell: 'BOARDING', cellShort: 'BOARDING', tone: 'calm' })
+  if (c.untimed) return timeless('CHECK-IN')
+  if (r.frame.isWorking) return timeless('BOARDING')
   const clock = c.coldAt === null || zone === undefined ? undefined : `${c.measured ? '' : '~'}${fmtClock(c.coldAt, zone)}`
-  if (c.mood === 'compacted') {
-    const next = `NEXT ${c.estimate}`
-    return at({ status: 'COMPACTED', time: clock, remarks: next, cell: clock === undefined ? `COMPACTED · ${next}` : `COMPACTED ${clock} · ${next}`, cellShort: next, tone: 'calm' })
-  }
-  if (c.mood === 'cold')
-    return at({ status: 'DEPARTED', time: clock, remarks: reWarm, cell: clock === undefined ? `DEPARTED · ${reWarm}` : `DEPARTED ${clock} · ${reWarm}`, cellShort: reWarm, tone: 'calm' })
+  /** A cache gone: when it went, where the clock is known, and what the next message costs. */
+  const gone = (status: string, remarks: string): BoardRow =>
+    at({ status, time: clock, remarks, cell: clock === undefined ? `${status} · ${remarks}` : `${status} ${clock} · ${remarks}`, cellShort: remarks, tone: 'calm' })
+  if (c.mood === 'compacted') return gone('COMPACTED', `NEXT ${c.estimate}`)
+  if (c.mood === 'cold') return gone('DEPARTED', reWarm)
   const left = c.coldInMs ?? 0
   if (c.tone === 'amber') {
     const secs = boardSpan(left)

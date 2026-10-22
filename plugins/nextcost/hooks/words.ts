@@ -3,7 +3,7 @@
 // amber, pace, resets, empty states and alt text read the same everywhere.
 // The departures board's words are board-words.ts's, built from these.
 
-import type { SliceMark, Week } from './calendar'
+import type { DrawnWeek, SliceMark } from './calendar'
 import {
   clamp01,
   fmtAgo,
@@ -18,6 +18,7 @@ import {
   fmtLeftShort,
   fmtLeftSpoken,
   fmtPct,
+  fmtPercent,
   fmtSmallCost,
   fmtTokens,
   severityMark,
@@ -58,21 +59,20 @@ export const compactsIn = (toCompact: number): string => `compacts in ${roomOf(t
 const IDLE_COMPACT_AT = `at ~${fmtAgo(IDLE_COMPACT_MS)} idle, before it goes cold`
 
 const amberOf = (say: Say, sayShort: Say): Amber => ({ long: joined(say), short: joined(sayShort) })
+/** The context's amber lead and fill, long and short: `! context 93%`, `! ctx 93%`. */
+const contextFill = (frac: number): Say => [[`${AMBER_LEAD}context `, 'amber'], [fmtPct(frac), 'value']]
+const contextFillShort = (frac: number): Say => [[`${AMBER_LEAD}ctx `, 'amber'], [fmtPct(frac), 'value']]
 
 /** What an amber reading says, long and short, always led by one `AMBER_LEAD`. */
 export const AMBER = {
   cache: (leftShort: string, estimate: string): Amber =>
     amberOf([[AMBER_LEAD, 'amber'], [leftShort, 'value'], [` left · re-warm ${estimate}`, 'amber']], [[AMBER_LEAD, 'amber'], [leftShort, 'value']]),
   context: (frac: number, toCompact: number): Amber =>
-    amberOf(
-      [[`${AMBER_LEAD}context `, 'amber'], [fmtPct(frac), 'value'], [` · ${compactsIn(toCompact)}`, 'amber']],
-      [[`${AMBER_LEAD}ctx `, 'amber'], [fmtPct(frac), 'value']],
-    ),
-  contextNoCompaction: (frac: number): Amber =>
-    amberOf([[`${AMBER_LEAD}context `, 'amber'], [fmtPct(frac), 'value']], [[`${AMBER_LEAD}ctx `, 'amber'], [fmtPct(frac), 'value']]),
+    amberOf([...contextFill(frac), [` · ${compactsIn(toCompact)}`, 'amber']], contextFillShort(frac)),
+  contextNoCompaction: (frac: number): Amber => amberOf(contextFill(frac), contextFillShort(frac)),
   limit: (name: string, percentUsed: number): Amber => {
-    const said: Say = [[`${AMBER_LEAD}${name} `, 'amber'], [`${Math.round(percentUsed)}%`, 'value']]
-    return amberOf(said, said)
+    const both: Say = [[`${AMBER_LEAD}${name} `, 'amber'], [fmtPercent(percentUsed), 'value']]
+    return amberOf(both, both)
   },
   limitPace: (name: string, eta: string): Amber =>
     amberOf([[`${AMBER_LEAD}${name} full in `, 'amber'], [eta, 'value']], [[`${AMBER_LEAD}${name} `, 'amber'], [eta, 'value']]),
@@ -98,7 +98,7 @@ export const paceText = (p: Readonly<{ etaMs: number | null; projectedPct: numbe
       ? ''
       : fillsBeforeReset(p.projectedPct)
         ? 'full before reset'
-        : `on pace for ~${Math.round(p.projectedPct)}%`
+        : `on pace for ~${fmtPercent(p.projectedPct)}`
 
 /** What a screen reader hears for a drawn reading: `<name> <value>, <state>,
  *  <more>`, in words. A caller passes "about" and "resets in", never ~ or ↻. */
@@ -350,6 +350,8 @@ const cacheCopy = (f: CacheFacts, frame: Frame): CacheCopy => {
   // What a warm read costs against input on the model in force.
   const readPct = `${+(f.readShare * 100).toFixed(1)}%`
   const left = fmtCountdown(f.msLeft)
+  // The rebuild's price after its tokens, where a rate is known.
+  const priced = f.reWarmUsd === null ? '' : ` (${f.estimate})`
   const battery = f.charge <= 0 ? 'cache battery empty' : `cache battery ${Math.round(clamp01(f.charge) * 100)}% left`
   const warmHover = f.idleCompactSoon
     ? `${left} left; may be compacted ${IDLE_COMPACT_AT}`
@@ -377,14 +379,14 @@ const cacheCopy = (f: CacheFacts, frame: Frame): CacheCopy => {
       return {
         // A summary to write, not a cache lost: as calm as cold.
         pill: short => (short ? goneShort('compacted', f.estimate) : `cache compacted · next ${f.estimate}`),
-        hover: `Compacted while idle: next message writes the ${fmtTokens(f.window)} summary${f.reWarmUsd === null ? '' : ` (${f.estimate})`}`,
+        hover: `Compacted while idle: next message writes the ${fmtTokens(f.window)} summary${priced}`,
         alt: MOOD_ALT.compacted,
       }
     case 'cold':
       return {
         // Cold is a price, not an error: neutral, no hue, no alarm.
         pill: short => (short ? goneShort('cold', f.estimate) : `cache cold · next message ${f.estimate}`),
-        hover: `Cold: next message rebuilds ${fmtTokens(f.window)} tokens${f.reWarmUsd === null ? '' : ` (${f.estimate})`}`,
+        hover: `Cold: next message rebuilds ${fmtTokens(f.window)} tokens${priced}`,
         alt: battery,
       }
     case 'warm':
@@ -643,26 +645,25 @@ export type WeekWords = Readonly<{
 /** The slices known or guessed, each named, a guess said as about, the one
  *  that fills the limit so, and the run after it as none left. */
 const slicesSpoken = (title: string, names: readonly string[], marks: readonly SliceMark[]): string => {
-  const said = marks.flatMap((m, i) => {
+  const spoken = marks.flatMap((m, i) => {
     const name = names[i] ?? ''
-    const pct = `${Math.round(m.pct)}%`
+    const pct = fmtPercent(m.pct)
     return m.kind === 'measured' ? [`${name} ${pct}`] : m.kind === 'guess' ? [`${name} about ${pct}`] : m.kind === 'fills' ? [`${name} about ${pct} and fills it`] : []
   })
   const spent = names.filter((_, i) => marks[i]?.kind === 'spent')
   const none = spent.length === 0 ? [] : [`${spent.length === 1 ? spent[0] : `${spent[0]} to ${spent.at(-1)}`} none left`]
-  const all = [...said, ...none]
+  const all = [...spoken, ...none]
   return `${title}: ${all.length === 0 ? 'not known yet' : all.join(', ')}`
 }
 
 /** The week in words: its days as drawn, and the 5h window whole. */
 export const weekWords = (
-  w: Week,
-  days: readonly SliceMark[],
+  w: Pick<DrawnWeek, 'days' | 'dayMarks'>,
   five?: Pick<LimitWords, 'valueText'> & Readonly<{ projectedPct: number | undefined; passed: boolean }>,
 ): WeekWords => ({
-  daysAlt: slicesSpoken('weekly limit by day', w.days.map(d => d.name), days),
+  daysAlt: slicesSpoken('weekly limit by day', w.days.map(d => d.name), w.dayMarks),
   windowAlt:
     five === undefined || five.passed
       ? ''
-      : `5h window from start to reset, ${five.valueText} used${five.projectedPct === undefined ? '' : `, on pace for about ${Math.round(five.projectedPct)}%`}`,
+      : `5h window from start to reset, ${five.valueText} used${five.projectedPct === undefined ? '' : `, on pace for about ${fmtPercent(five.projectedPct)}`}`,
 })

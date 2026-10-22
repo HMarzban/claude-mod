@@ -41,10 +41,12 @@ export const removedLayoutOf = (v: unknown): string | undefined => {
 
 /** A limit window's use, and when it resets, epoch ms; undefined without a readable time. */
 export type LimitReading = Readonly<{ percentUsed: number; resetsAt: number | undefined }>
+/** A window the engine reports, by its kind: `five_hour`, `spend_limit`. */
+export type ReportedLimit = LimitReading & Readonly<{ kind: string }>
 
 /** A window the engine reports, its reset parsed once, here: past this
  *  point every reset is epoch ms. */
-export const limitOf = (l: SessionRateLimit): LimitReading & Readonly<{ kind: string }> => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: parseReset(l.resetsAt) })
+export const limitOf = (l: SessionRateLimit): ReportedLimit => ({ kind: l.kind, percentUsed: l.percentUsed, resetsAt: parseReset(l.resetsAt) })
 
 /** The engine's names for the two limits the band reads by name. */
 export const FIVE_HOUR = 'five_hour'
@@ -87,7 +89,7 @@ export type BandSnapshot = Readonly<{
    *  session's, oldest first. Sparse use may stretch them back past a week. */
   samples: readonly Sample[]
   /** Any other window the engine reports, such as a gateway's spend_limit. */
-  otherLimits: ReadonlyArray<LimitReading & { kind: string }>
+  otherLimits: readonly ReportedLimit[]
   /** The project, home-relative, and git there; undefined until first read. */
   workspace: Workspace | undefined
   /** The layout chosen with /nextcost layout. */

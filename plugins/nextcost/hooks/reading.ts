@@ -16,6 +16,7 @@ import {
   contextUsed,
   fixedZone,
   fmtPct,
+  fmtPercent,
   resetIn,
   toCompaction,
 } from './format'
@@ -216,7 +217,7 @@ const limitFacts = (snap: BandSnapshot): LimitFacts[] => {
     const reset = resetIn(at, snap.now)
     const frac = clamp01(reading.percentUsed / 100)
     const gone = windowGone(at, windowMs, snap.now)
-    const base: LimitBase = { name, key, reset, resetsAt: at, gone, percentUsed: reading.percentUsed, frac, value: `${Math.round(reading.percentUsed)}%` }
+    const base: LimitBase = { name, key, reset, resetsAt: at, gone, percentUsed: reading.percentUsed, frac, value: fmtPercent(reading.percentUsed) }
     // Passed, the window that reset has no pace, reset or fill to say.
     if (reset?.kind === 'passed')
       return { ...base, passed: true, tone: 'calm', etaMs: null, projectedPct: undefined, resetInMs: undefined, fillInMs: undefined, fullInMs: undefined }
@@ -293,7 +294,7 @@ const windowOf = (l: LimitView | undefined, now: number): WindowNow | undefined 
  *  With the zone unknown, the cells are named in UTC. */
 const weekFacts = (snap: BandSnapshot, sevenDay: LimitView | undefined, fiveHour: LimitView | undefined): WeekReading => {
   const week = drawnWeekOf({ samples: snap.samples, seven: windowOf(sevenDay, snap.now), five: windowOf(fiveHour, snap.now), now: snap.now, zone: snap.zone ?? fixedZone(0) })
-  return { ...week, ...weekWords(week, week.dayMarks, fiveHour) }
+  return { ...week, ...weekWords(week, fiveHour) }
 }
 
 /** Everything a view reads, built once per draw: the frame, each section's

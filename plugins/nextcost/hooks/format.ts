@@ -44,8 +44,10 @@ export const toCompaction = (used: number, compactAt: number): number => Math.ma
 /** `n` held to 0–1; NaN, a share of nothing, is 0. */
 export const clamp01 = (n: number): number => (Number.isNaN(n) || n < 0 ? 0 : n > 1 ? 1 : n)
 
+/** A percent as a whole one: 82.4 is `82%`. */
+export const fmtPercent = (percent: number): string => `${Math.round(percent)}%`
 /** A share as a whole percent: 0.38 is `38%`. */
-export const fmtPct = (frac: number): string => `${Math.round(frac * 100)}%`
+export const fmtPct = (frac: number): string => fmtPercent(frac * 100)
 
 export const fmtTokens = (n: number): string => {
   const v = Math.max(0, Math.round(n))

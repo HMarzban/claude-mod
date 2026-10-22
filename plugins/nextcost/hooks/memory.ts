@@ -10,6 +10,7 @@ import { modelName } from './cache'
 import type { RecalledReply } from './cache'
 import { MINUTE_MS, SEVEN_DAY_MS } from './format'
 import { splitLimits } from './snapshot'
+import type { ReportedLimit } from './snapshot'
 import { isRecord, lastReplyAt, lastReplyModel, rateFromTranscript } from './transcript'
 
 /** Store keys. */
@@ -101,7 +102,7 @@ const isSample = (v: unknown): v is Sample => isRecord(v) && SAMPLE_FIELDS.every
 export const asLimitSamples = (v: unknown): Sample[] => (Array.isArray(v) ? mergeSamples([], v.filter(isSample)) : [])
 
 /** Both limits now, as one sample; undefined unless each is reported with a reset. */
-export const sampleOf = (now: number, limits: ReadonlyArray<Readonly<{ kind: string; percentUsed: number; resetsAt: number | undefined }>>): Sample | undefined => {
+export const sampleOf = (now: number, limits: readonly ReportedLimit[]): Sample | undefined => {
   const { five, seven } = splitLimits(limits)
   const fiveResetAt = five?.resetsAt
   const sevenResetAt = seven?.resetsAt

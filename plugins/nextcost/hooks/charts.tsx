@@ -160,7 +160,6 @@ export const textBattery = (kit: Kit, charge: number, tone: Tone, text: string):
 export type SplitPart = Readonly<{ n: number; color: string; mark: string }>
 
 type SplitBarOptions = Readonly<{
-  key?: string
   alt: string
   parts: readonly SplitPart[]
   size: BarSize
@@ -193,7 +192,8 @@ const shareCells = (ns: readonly number[], cells: number): number[] => {
  *  and, in text, its own fill; nothing while the whole is none. */
 export const splitBar = (kit: Kit, o: SplitBarOptions): RenderChildren => {
   const { Svg, svg, Text } = kit
-  const { key = 'split', alt, parts, size } = o
+  const { alt, parts, size } = o
+  const key = 'split'
   const total = parts.reduce((sum, { n }) => sum + n, 0)
   if (total <= 0) return null
   const shown = parts.filter(({ n }) => n > 0)
@@ -274,13 +274,16 @@ export const sparkline = (kit: Kit, o: SparklineOptions): RenderChildren => {
   const x = (i: number) => (values.length <= 1 ? end : tenth(SPARK_AIR + (i * (end - SPARK_AIR)) / (values.length - 1)))
   const y = (frac: number) => tenth(height - SPARK_AIR - clamp01(frac) * (height - 2 * SPARK_AIR - headroom))
   const points = values.map((v, i) => [x(i), y(top > 0 ? v / top : 0)] as const)
+  /** A run of points as a polyline's, and the stroke both runs draw in. */
+  const pointsOf = (run: typeof points) => run.map(p => p.join(',')).join(' ')
+  const stroke = `fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"`
   let marks = ''
   // Solid up to now; from now on, dashed.
   const solid = nowAt === undefined ? points.slice(from) : points.slice(from, nowAt + 1)
-  if (solid.length > 1) marks += `<polyline points="${solid.map(p => p.join(',')).join(' ')}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`
+  if (solid.length > 1) marks += `<polyline points="${pointsOf(solid)}" ${stroke}/>`
   if (nowAt !== undefined) {
     const ahead = points.slice(Math.max(from, nowAt))
-    if (ahead.length > 1) marks += `<polyline class="ahead" points="${ahead.map(p => p.join(',')).join(' ')}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" ${PROJECTION_DASH}/>`
+    if (ahead.length > 1) marks += `<polyline class="ahead" points="${pointsOf(ahead)}" ${stroke} ${PROJECTION_DASH}/>`
     marks += `<line class="now" x1="${x(nowAt)}" y1="0" x2="${x(nowAt)}" y2="${height}" stroke="${palette.label}" stroke-width="1"/>`
   }
   if (levelFrac !== undefined) marks += `<line class="level" x1="0" y1="${y(levelFrac)}" x2="${px}" y2="${y(levelFrac)}" stroke="${palette.label}" stroke-width="1" ${PROJECTION_DASH}/>`
@@ -481,15 +484,16 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
   const tall = height + 2 * DAY_EDGE
   const marks = values.map((v, i) => {
     const x = DAY_EDGE + i * step
-    const measured = v !== undefined && !isGuess(i)
-    const fillPx = !measured || top <= 0 ? 0 : tenth(clamp01(v / top) * (height - 2))
+    // A value's height in the cell, measured or a guess.
+    const valuePx = v === undefined || top <= 0 ? 0 : tenth(clamp01(v / top) * (height - 2))
+    const fillPx = isGuess(i) ? 0 : valuePx
     const ground = isToday(i)
       ? `<rect class="ground" x="${x}" y="${DAY_EDGE}" width="${cellPx}" height="${height}" rx="3" fill="${palette.trackStroke}" opacity="0.45"/>`
       : isGuess(i)
         ? `<rect class="ground" x="${x}" y="${DAY_EDGE}" width="${cellPx}" height="${height}" rx="3" fill="${palette.meterTrack}"/>`
         : ''
     // A guess fills toward its value, dimmed, so the cells say what is to come.
-    const guessPx = !isGuess(i) || v === undefined || top <= 0 ? 0 : tenth(clamp01(v / top) * (height - 2))
+    const guessPx = isGuess(i) ? valuePx : 0
     const filled =
       fillPx > 0 ? `<rect class="fill" x="${x + 1}" y="${tenth(DAY_EDGE + height - 1 - fillPx)}" width="${cellPx - 2}" height="${fillPx}" rx="2" fill="${color}"/>`
       : guessPx > 0 ? `<rect class="guess" x="${x + 1}" y="${tenth(DAY_EDGE + height - 1 - guessPx)}" width="${cellPx - 2}" height="${guessPx}" rx="2" fill="${color}" opacity="0.45"/>`
