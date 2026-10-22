@@ -17,10 +17,11 @@ import type { View } from './view'
  *  §5.2), calm only: readings outrank calm remarks. 5h's RESET, 7d's RESET,
  *  5h's remark, 7d's remark, SPEND, CONTEXT, then 5H itself, so the
  *  narrowest row is CACHE and 7D alone, then the short forms. An amber
- *  reading keeps its whole cell, RESET too, until the amber step. Past it, last of all, the modules drop
- *  their padding, keeping their ground; plain, which has none, brackets each
- *  reading once and sets them a column apart: four amber readings at 60
- *  columns in every palette. CACHE and 7D never go. */
+ *  reading keeps its whole cell, RESET too, until the amber step. Past it,
+ *  last of all, the modules drop their padding, keeping their ground; plain,
+ *  which has none, brackets each reading once and sets them a column apart:
+ *  four amber readings at 60 columns in every palette. CACHE and 7D never
+ *  go. */
 const ORDER = {
   calm: ['reset5h', 'reset7d', 'remark5h', 'remark7d', 'spend', 'context', 'five', 'long'],
   amber: ['amberShort'],

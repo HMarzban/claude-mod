@@ -19,13 +19,13 @@ import type { View } from './view'
 /** What gives way as the row narrows, first to last (three-layouts spec
  *  §4.1, §2.1), calm only: the last cost, the context trail, the trace from
  *  14 beats to 8, the 5h trail, the 7d cells, the trace; then whole
- *  readings, spend, context and 5h; then their short forms. Each step is taken only while
- *  the row doesn't fit: at 40 columns a calm row of tiles is the cache and
- *  the 7d, and a few columns wider the 5h is back. An amber reading keeps
- *  its tile, its chart and its long words until the amber step; past it,
- *  last of all, the tiles drop their padding (plain, its second column
- *  between readings, each amber one led by its `!`). The cache and the 7d
- *  never go. */
+ *  readings, spend, context and 5h; then their short forms. Each step is
+ *  taken only while the row doesn't fit: at 40 columns a calm row of tiles
+ *  is the cache and the 7d, and a few columns wider the 5h is back. An amber
+ *  reading keeps its tile, its chart and its long words until the amber
+ *  step; past it, last of all, the tiles drop their padding (plain, its
+ *  second column between readings, each amber one led by its `!`). The
+ *  cache and the 7d never go. */
 const ORDER = {
   calm: ['last', 'contextTrail', 'beats14', 'fiveTrail', 'sevenDays', 'beats', 'spend', 'context', 'five', 'short'],
   amber: ['amberShort'],
@@ -111,7 +111,8 @@ const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderEleme
       ...tileWords(kit, k, fiveHour.bandName, fiveHour.valueText, fiveHour.amber),
       charts && k.part('fiveTrail', fiveHour.tone) ? windowTrail(kit, read, fiveHour.tone, { key: 'trail', px: 48, height: 16 }) : null,
     ])
-    // The 7d's cells are the desktop's: in text it is words (three-layouts spec §4.1).
+    // The 7d's cells are the desktop's: in text it is words
+    // (three-layouts spec §4.1).
     const sevenTile = sevenDay === undefined ? null : tile(kit, k, '7d', sevenDay.tone, palette.weekBg, [
       ...tileWords(kit, k, sevenDay.bandName, sevenDay.valueText, sevenDay.amber),
       k.part('sevenDays', sevenDay.tone) ? weekCells(kit, read, sevenDay.tone, { key: 'days', cellPx: 4, height: 14 }) : null,
