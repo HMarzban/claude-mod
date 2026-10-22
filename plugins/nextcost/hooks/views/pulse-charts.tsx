@@ -8,6 +8,7 @@ import { barChart, dayCells, flatBeats, sparkline } from '../charts'
 import type { Kit } from '../kit'
 import type { Readings, Tone } from '../reading'
 import { EMPTY } from '../words'
+import { limitAccent } from './shell'
 
 /** Whether pulse's charts draw: the desktop's, and the unicode tier's
  *  braille; the ascii tier draws the words alone. */
@@ -36,7 +37,7 @@ export const windowTrail = (kit: Kit, read: Readings, tone: Tone, o: ChartAt): R
   const { fiveHourWindow, windowAlt } = read.week()
   const { key, px, height, air } = o
   return fiveHourWindow.values.length > 1
-    ? sparkline(kit, { key, alt: windowAlt, values: fiveHourWindow.values, nowAt: fiveHourWindow.nowAt, from: fiveHourWindow.from, color: onTone(tone, palette.fiveAccent), px, height, air, max: 100 })
+    ? sparkline(kit, { key, alt: windowAlt, values: fiveHourWindow.values, nowAt: fiveHourWindow.nowAt, from: fiveHourWindow.from, color: onTone(tone, limitAccent(palette, '5h')), px, height, air, max: 100 })
     : null
 }
 
@@ -47,6 +48,6 @@ export const weekCells = (kit: Kit, read: Readings, tone: Tone, o: Readonly<{ ke
   const { daysDrawn, daysAlt } = read.week()
   const { key, cellPx, height, air } = o
   return Svg && daysDrawn.measured
-    ? dayCells(kit, { key, alt: daysAlt, values: daysDrawn.values, guess: daysDrawn.guess, today: daysDrawn.today, color: onTone(tone, palette.weekAccent), cellPx, height, air, max: 100 })
+    ? dayCells(kit, { key, alt: daysAlt, values: daysDrawn.values, guess: daysDrawn.guess, today: daysDrawn.today, color: onTone(tone, limitAccent(palette, '7d')), cellPx, height, air, max: 100 })
     : null
 }

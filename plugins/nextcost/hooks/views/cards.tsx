@@ -7,17 +7,12 @@ import type { SplitPart } from '../charts'
 import type { Kit } from '../kit'
 import { textCells } from '../layout'
 import type { BarSize } from '../layout'
-import type { LimitKey, LimitView, Readings, Tone } from '../reading'
+import type { LimitView, Readings, Tone } from '../reading'
 import type { BandActions } from '../snapshot'
 import { SPLIT_LABELS, type Say } from '../words'
 import { bodyRowsFor, footer, topStrip } from './frame'
-import { CARD_NAMES, alertLine, cardGrid, cardLine, cardShell, cardsPresent, factRow, headline, linesOf } from './shell'
+import { CARD_NAMES, alertLine, cardGrid, cardLine, cardShell, cardsPresent, factRow, headline, limitAccent, linesOf } from './shell'
 import type { CardName } from './shell'
-
-/** A limit's accent: its window's, or the meter's for any other. Exported
- *  for its tests. */
-export const accentOf = (kit: Kit, limit: Readonly<{ key: LimitKey }>): string =>
-  limit.key === '5h' ? kit.palette.fiveAccent : limit.key === '7d' ? kit.palette.weekAccent : kit.palette.meterFill
 
 const SPLIT_ALT = `token split: ${SPLIT_LABELS.join(', ')}`
 
@@ -188,7 +183,7 @@ const limitRows = (kit: Kit, fit: Fit, worst: LimitView | undefined, w: LimitVie
     <Box key={`fact:${name}`} flexDirection="row" columnGap={1}>
       <Text color={palette.label}>{name}</Text>
       <Box key="bar" flexGrow={1} width={0} minWidth={0}>
-        {meter(kit, { label: name, frac, tone, accent: accentOf(kit, w), size, stretch: true })}
+        {meter(kit, { label: name, frac, tone, accent: limitAccent(palette, w.key), size, stretch: true })}
       </Box>
       <Text color={onTone(tone, palette.cardValue)}>{value}</Text>
     </Box>,

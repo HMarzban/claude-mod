@@ -1,9 +1,7 @@
-// The collapsed rows' give-way, the line pulse and departures lay, and a limit's accent.
+// The collapsed rows' give-way, and the line pulse and departures lay.
 
 import { test, expect } from 'claude-code/testing'
 import { ROW_SLACK } from '../hooks/layout'
-import { DARK } from '../hooks/palette'
-import { accentOf } from '../hooks/views/cards'
 import { fitLine, line, type Keeps } from '../hooks/views/frame'
 import type { Amber } from '../hooks/words'
 import { byKey, shown, type Node } from './helpers'
@@ -70,9 +68,4 @@ test('each piece of a line keeps its width; words truncate, never wrap', () => {
   expect((tree.children?.[0] as Node).props?.flexShrink).toBe(0)
   expect(byKey(tree, 'a', 'Text')?.props?.wrap).toBe('truncate-end')
   expect(shown(tree)).toBe('cache 52m')
-})
-test("a limit's accent is its window's", () => {
-  expect(accentOf(kit(), { key: '5h' })).toBe(DARK.fiveAccent)
-  expect(accentOf(kit(), { key: '7d' })).toBe(DARK.weekAccent)
-  expect(accentOf(kit(), { key: 'other' })).toBe(DARK.meterFill)
 })

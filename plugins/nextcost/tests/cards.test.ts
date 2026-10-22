@@ -9,7 +9,7 @@ import { DESKTOP, HOTKEY_MARK, TERMINAL, cellsOf } from '../hooks/layout'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { openBody } from '../hooks/views/cards'
-import { cardLine } from '../hooks/views/shell'
+import { cardLine, limitAccent } from '../hooks/views/shell'
 import { cachePill, chipsPills, chipsView, limitPill, pillRow } from '../hooks/views/chips'
 import { drawView, toggleButton, type Keeps } from '../hooks/views/frame'
 import type { View } from '../hooks/views/view'
@@ -155,4 +155,9 @@ test("the shell answers a line of cards' geometry: how many to a line, their ins
   expect(line({ columns: 200, surface: 'desktop' })).toMatchObject({ perLine: 4, inner: 45, innerPx: 470, edge: 2, edgeRows: 1, pxEdge: true })
   // Short of room for every card, half of them; else one.
   expect([line({ columns: 95 }).perLine, line({ columns: 60 }).perLine, line({ columns: 40 }).perLine]).toEqual([2, 1, 1])
+})
+test("a limit's accent is its window's, or the meter's for any other", () => {
+  expect(limitAccent(DARK, '5h')).toBe(DARK.fiveAccent)
+  expect(limitAccent(DARK, '7d')).toBe(DARK.weekAccent)
+  expect(limitAccent(DARK, 'other')).toBe(DARK.meterFill)
 })
