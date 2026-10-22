@@ -4,43 +4,37 @@ import { test, expect } from 'claude-code/testing'
 import { fmtEta } from '../hooks/format'
 import {
   fiveHourEtaMs,
-  insights,
   noteFiveHour,
   noteTurnEnd,
   noteTurnStart,
   resetInsights,
 } from '../hooks/insights'
-import { MIN, endTurn, fact, mountBand, resp, respond, setup, START, startTurn } from './helpers'
+import { MIN, endTurn, fact, mountBand, resp, respond, setup, START, startTurn, turn } from './helpers'
 
 const cents = (n: number | null): number | null => (n === null ? null : Math.round(n * 100))
 const RESET_IN_3H = 3 * 60 * MIN
 
 test("last turn's cost is the ledger's rise across one turn", () => {
   resetInsights()
-  expect(insights.lastTurnUsd).toBe(null)
   noteTurnStart('t1', 2.0)
-  noteTurnEnd('t1', 2.41)
-  expect(cents(insights.lastTurnUsd)).toBe(41)
+  expect(cents(noteTurnEnd('t1', 2.41))).toBe(41)
 })
 
 test('a turn that never started leaves nothing to show', () => {
   resetInsights()
-  noteTurnEnd('never-started', 5)
-  expect(insights.lastTurnUsd).toBe(null)
+  expect(noteTurnEnd('never-started', 5)).toBe(null)
 })
 
 test('a turn without a ledger leaves nothing to show', () => {
   resetInsights()
   noteTurnStart('t1', undefined)
-  noteTurnEnd('t1', 3)
-  expect(insights.lastTurnUsd).toBe(null)
+  expect(noteTurnEnd('t1', 3)).toBe(null)
 })
 
 test('a turn that spent nothing leaves nothing to show', () => {
   resetInsights()
   noteTurnStart('t2', 3)
-  noteTurnEnd('t2', 3)
-  expect(insights.lastTurnUsd).toBe(null)
+  expect(noteTurnEnd('t2', 3)).toBe(null)
 })
 
 test('the ETA needs ten minutes of evidence', () => {
@@ -121,6 +115,18 @@ test("a subagent's turn inside an open turn doesn't change what the last message
   await startTurn($, 'main-1', 2.41)
   await endTurn($, 'sub-1', 2.5, { agentId: 'agent-1' })
   await endTurn($, 'main-1', 2.62)
+  const ui = await mountBand($, 'terminal', 110)
+  await ui.press({ key: 'more' })
+  expect(fact(await ui.drawn(), 'last message')).toBe('$0.21')
+  await ui.unmount()
+})
+
+test('a turn that spent nothing keeps the last cost: every layout reads the one pulse charts', async ($, on) => {
+  setup(on)
+  await $.session.start(START)
+  await respond($, resp(41_000, 0, 155_000, 12_000))
+  await turn($, 't1', 2.41, 2.62)
+  await turn($, 't2', 2.62, 2.62)
   const ui = await mountBand($, 'terminal', 110)
   await ui.press({ key: 'more' })
   expect(fact(await ui.drawn(), 'last message')).toBe('$0.21')

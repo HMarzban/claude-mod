@@ -36,7 +36,6 @@ export const SNAP_PARTS: SnapshotParts = {
     savedUsd: 11.4, readShare: 0.05, fresh: true, compacted: false, idleCompacts: false, recalled: false, idleMs: null, recovered: false, tokens: { sent: 18_000, back: 9_000, cached: 198_000 },
   },
   costUsd: 3.19,
-  lastTurnUsd: 0.21,
   history: { costs: [], context: [] },
   etaMs: null,
   zone: undefined,

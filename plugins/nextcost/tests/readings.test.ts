@@ -193,7 +193,7 @@ test('the ascii tier is drawn on a terminal alone', () => {
   for (const surface of ['desktop', 'mobile', 'vscode'] as const) expect(readingsOf(snapOf({ surface, glyphs: 'ascii' })).frame.glyphs).toBe('unicode')
 })
 test('spend splits its tokens, each with its share', () => {
-  const s = readingsOf(snapOf()).spend
+  const s = readingsOf(snapOf({ history: { costs: [{ usd: 0.21, reWarm: false }], context: [] } })).spend
   expect([s.totalText, s.lastText, s.tokensText]).toEqual(['$3.19', '$0.21', '225k'])
   expect(s.split.map(p => p.label)).toEqual(['input', 'output', 'cache reads'])
   expect(Math.abs((s.split[2]?.frac ?? 0) - 198 / 225)).toBeLessThan(1e-5)
@@ -432,4 +432,10 @@ test('a context window of 0 reads 0%, never NaN%', () => {
   const r = readingsOf(snapOf({ context: { tokens: 0, window: 0, percent: undefined, compactAt: undefined, autoCompactOff: false } }))
   expect(r.context.pct).toBe('0%')
   expect(r.context.alt).not.toMatch(/NaN|Infinity/)
+})
+
+test("the last message's cost is one fact: the spend's words and the history's read the trail's newest", () => {
+  const r = readingsOf(snapOf({ history: { costs: [{ usd: 0.5, reWarm: false }, { usd: 0.08, reWarm: false }], context: [] } }))
+  expect([r.spend.lastText, r.history().lastText]).toEqual(['$0.08', '$0.08'])
+  expect(readingsOf(snapOf({ history: { costs: [], context: [] } })).spend.lastText).toBeUndefined()
 })

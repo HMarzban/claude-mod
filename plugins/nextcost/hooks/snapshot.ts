@@ -51,8 +51,8 @@ export type BandSnapshot = Readonly<{
   now: number
   cache: CacheView
   costUsd: number
-  lastTurnUsd: number | null
-  /** This conversation's message costs and context. */
+  /** This conversation's message costs and context: the newest cost is
+   *  what the last message cost. */
   history: Trails
   context: Readonly<{
     tokens: number | undefined
@@ -97,7 +97,6 @@ export type SnapshotParts = Readonly<{
   band: Pick<BandSnapshot, 'palette' | 'layout' | 'glyphs' | 'samples' | 'workspace'> & Pick<BandSnapshot['context'], 'compactAt' | 'autoCompactOff'>
   cache: CacheView
   costUsd: number
-  lastTurnUsd: number | null
   history: Trails
   /** Time until your pace fills the 5-hour window, as insights.ts measures it. */
   etaMs: number | null
@@ -118,7 +117,6 @@ export const snapshotOf = (p: SnapshotParts): BandSnapshot => {
     now: p.now,
     cache: p.cache,
     costUsd: p.costUsd,
-    lastTurnUsd: p.lastTurnUsd,
     history: p.history,
     context: {
       tokens: usage.context.tokens,

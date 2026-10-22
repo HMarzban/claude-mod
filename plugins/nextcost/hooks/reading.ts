@@ -21,7 +21,7 @@ import {
 } from './format'
 import type { ResetIn, Zone } from './format'
 import { drawnTier } from './glyphs'
-import { warmAverageOf } from './insights'
+import { lastCostOf, warmAverageOf } from './insights'
 import type { CostEntry, Trails } from './insights'
 import type { BandSnapshot, Glyphs, LimitReading } from './snapshot'
 import { boardWords, cacheCopy, cacheWords, contextWords, historyWords, limitWords, spendWords, tokenBreakdownOf, weekWords } from './words'
@@ -236,7 +236,7 @@ const contextFacts = (snap: BandSnapshot): ContextFacts => {
 /** The session's cost and its tokens: sent, back, read from cache, and their total. */
 const spendFacts = (snap: BandSnapshot): SpendFacts => {
   const t = snap.cache.tokens
-  return { totalUsd: snap.costUsd, lastTurnUsd: snap.lastTurnUsd, sent: t.sent, back: t.back, cached: t.cached, total: t.sent + t.back + t.cached }
+  return { totalUsd: snap.costUsd, lastTurnUsd: lastCostOf(snap.history), sent: t.sent, back: t.back, cached: t.cached, total: t.sent + t.back + t.cached }
 }
 
 /** The facts of each window the engine reports: 5h, 7d, then the rest. */

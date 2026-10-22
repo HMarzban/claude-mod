@@ -22,11 +22,6 @@ const state: InsightState = {
   resetsAt: undefined,
 }
 
-const turns: { lastTurnUsd: number | null } = { lastTurnUsd: null }
-
-/** What the last main-loop turn cost, read-only: set by noteTurnEnd. */
-export const insights: Readonly<typeof turns> = turns
-
 export const COST_TRAIL = 24
 export const CONTEXT_TRAIL = 40
 
@@ -48,6 +43,11 @@ const kept = { costs: [] as CostEntry[], context: [] as number[] }
 /** The trails, read-only: the arrays the push functions keep, passed by reference. */
 export const trails: Trails = kept
 
+/** What the last message cost: the trail's newest cost, the one fact every
+ *  layout reads; null before the conversation's first. A turn that cost
+ *  nothing is never on the trail, so the last that did still stands. */
+export const lastCostOf = (t: Trails): number | null => t.costs.at(-1)?.usd ?? null
+
 /** Keeps the newest `cap` of `list`, in place. */
 const capped = <T>(list: T[], cap: number): void => {
   if (list.length > cap) list.splice(0, list.length - cap)
@@ -68,7 +68,6 @@ export const pushContext = (tokens: number): void => {
  *  over, but the 5-hour window is account-wide, so its pace carries on. */
 export const resetConversationInsights = (): void => {
   state.turnStartCost.clear()
-  turns.lastTurnUsd = null
   kept.costs.length = 0
   kept.context.length = 0
 }
@@ -91,8 +90,7 @@ export const noteTurnEnd = (turnId: string, costUsd: number | undefined): number
   state.turnStartCost.delete(turnId)
   if (start === undefined || costUsd === undefined) return null
   const spent = costUsd - start
-  turns.lastTurnUsd = spent > 0 ? spent : null
-  return turns.lastTurnUsd
+  return spent > 0 ? spent : null
 }
 
 export const noteFiveHour = (now: number, percentUsed: number, resetsAt: number | undefined): void => {

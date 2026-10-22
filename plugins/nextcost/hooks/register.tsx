@@ -11,7 +11,6 @@ import { contextUsed, hostZone, readableZone } from './format'
 import { resolveGlyphs } from './glyphs'
 import {
   fiveHourEtaMs,
-  insights,
   noteFiveHour,
   noteTurnEnd,
   noteTurnStart,
@@ -599,7 +598,6 @@ export const register: Register = on => {
       band,
       cache,
       costUsd,
-      lastTurnUsd: insights.lastTurnUsd,
       history: trails,
       etaMs: fiveHourEtaMs(now),
       // Read at each instant drawn, so a daylight-saving change shows by
