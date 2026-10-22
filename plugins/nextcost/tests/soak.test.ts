@@ -98,6 +98,8 @@ test('a calm ten-minute walk repaints once a minute, not once a second', LONG, a
   await clock.settle()
   const before = engine.invalidates
   await clock.advance(10 * MIN)
+  // Ten minute turns: about ten repaints, never one a second, and never none.
+  expect(engine.invalidates - before).toBeGreaterThanOrEqual(9)
   expect(engine.invalidates - before).toBeLessThanOrEqual(11)
   await ui.unmount()
 })

@@ -209,7 +209,8 @@ const STATES: ReadonlyArray<readonly [string, Partial<BandSnapshot>]> = [
   ['all amber, other limits', { ...EXPIRING, ...NEAR, fiveHour: { ...limitAt(88, 3), etaMs: null }, sevenDay: limitAt(85, 67), otherLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: undefined }] }],
 ]
 
-test('no overflow from 200 columns to 60: every state, both surfaces, every palette, unicode and ascii; ▵ at the end', LONG, () => {
+// About 7 s here, so CI's slower runners need more than LONG.
+test('no overflow from 200 columns to 60: every state, both surfaces, every palette, unicode and ascii; ▵ at the end', { timeoutMs: 120_000 }, () => {
   for (const [name, over] of STATES)
     for (const surface of ['desktop', 'terminal'] as const)
       for (const palette of [DARK, LIGHT, PLAIN])

@@ -10,6 +10,10 @@
 // tree is the old one but in the strip: its hover cards span the shorter name,
 // and at 40 columns the room it leaves keeps the parent folder whole, or the
 // state.
+// Re-frozen in 0.19.0 for two fixes, each alone: a text split bar fills its
+// width exactly (the open cards on text surfaces, and the empty Text a zero part
+// drew is gone), and the terminal's empty tracks take trackInk, which meets 3:1
+// (dark terminal trees only).
 
 export const GOLDEN: Readonly<Record<string, string>> = {
  "calm|dark|desktop|200|40|open": "b4333a34-22327",

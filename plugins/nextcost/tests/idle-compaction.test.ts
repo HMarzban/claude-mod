@@ -3,6 +3,7 @@
 import { test, expect, type Engine, type MockClock } from 'claude-code/testing'
 import { idleCompactFrom } from '../hooks/cache'
 import {
+  LONG,
   MIN,
   SUMMARY,
   START,
@@ -56,7 +57,7 @@ test('the threshold takes a positive whole number, raised to 100k', () => {
   for (const ignored of ['0', '-5', '1.5e5', 'lots', '']) expect(idleCompactFrom({ ...on, minTokens: ignored })).toBe(200_000)
 })
 
-test('idle on the hour with a long conversation, the card says it may be compacted, until the 54-minute mark', async ($, on) => {
+test('idle on the hour with a long conversation, the card says it may be compacted, until the 54-minute mark', LONG, async ($, on) => {
   const clock = setup(on, { usage: LONG_TALK })
   await $.session.start(START)
   await respond($, resp(2_000, 0, 240_000, 5_000))
@@ -75,7 +76,7 @@ for (const [name, usage, surface, settings] of [
   ['with idleCompaction off', LONG_TALK, 'terminal', { idleCompaction: false }],
   ['below the threshold', USAGE, 'terminal', {}],
 ] as const)
-  test(`no idle compaction is expected ${name}`, async ($, on) => {
+  test(`no idle compaction is expected ${name}`, LONG, async ($, on) => {
     const clock = setup(on, { usage })
     engine.settings = settings
     await $.session.start({ ...START, surface })
@@ -84,7 +85,7 @@ for (const [name, usage, surface, settings] of [
     expect(await cacheCard($, surface)).toMatch(WARM_CARD)
   })
 
-test('compacted while idle, the cache reads compacted at the summary, calm, until the next reply', async ($, on) => {
+test('compacted while idle, the cache reads compacted at the summary, calm, until the next reply', LONG, async ($, on) => {
   const clock = setup(on, { usage: LONG_TALK })
   await $.session.start(START)
   await respond($, resp(2_000, 0, 240_000, 5_000))
@@ -120,17 +121,17 @@ const COMPACTED = /cache compacted|compacted while idle|COMPACTED/
 const autoCompact = ($: Engine) => $.session.compact({ trigger: 'auto', messages: SUMMARY })
 
 for (const layout of ['chips', 'pulse', 'departures'])
-  test(`${layout} says the cache was compacted`, async ($, on) => {
+  test(`${layout} says the cache was compacted`, LONG, async ($, on) => {
     const clock = setup(on, { usage: LONG_TALK, store: { layout } })
     expect(await afterIdle($, clock, autoCompact)).toMatch(COMPACTED)
   })
 
-test('/compact is no idle compaction', async ($, on) => {
+test('/compact is no idle compaction', LONG, async ($, on) => {
   const clock = setup(on, { usage: LONG_TALK })
   expect(await afterIdle($, clock, $ => $.session.compact({ trigger: 'manual', messages: SUMMARY }))).not.toMatch(COMPACTED)
 })
 
-test('a compaction in a turn under way is no idle one', async ($, on) => {
+test('a compaction in a turn under way is no idle one', LONG, async ($, on) => {
   const clock = setup(on, { usage: LONG_TALK })
   const inTurn = async ($: Engine) => {
     await startTurn($, 'main-1', 2.41)
@@ -139,7 +140,7 @@ test('a compaction in a turn under way is no idle one', async ($, on) => {
   expect(await afterIdle($, clock, inTurn)).not.toMatch(COMPACTED)
 })
 
-test('a compaction five minutes after a request is no idle one', async ($, on) => {
+test('a compaction five minutes after a request is no idle one', LONG, async ($, on) => {
   const clock = setup(on, { usage: LONG_TALK })
   expect(await afterIdle($, clock, autoCompact, 5 * MIN)).not.toMatch(COMPACTED)
 })
