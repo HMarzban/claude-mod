@@ -2,7 +2,7 @@
 // the layout it saves, the atoms it sets and whether it reads the workspace.
 
 import { test, expect } from 'claude-code/testing'
-import { REPLY, commandPlan, parseCommand } from '../hooks/command'
+import { ARGUMENT_HINT, REPLY, commandPlan, parseCommand } from '../hooks/command'
 import type { CommandState } from '../hooks/command'
 
 const SHOWN: CommandState = { layout: 'chips', removed: undefined, hidden: false }
@@ -16,6 +16,12 @@ test('a bare word in any case and spacing, nothing for a toggle, and anything el
   expect(['less', 'show', 'hide'].map(parseCommand)).toEqual(['less', 'show', 'hide'])
   expect(parseCommand('sideways')).toBeUndefined()
   expect(parseCommand('more less')).toBeUndefined()
+})
+
+test('the menu hints the words the command takes, as its usage reply names them', () => {
+  expect(ARGUMENT_HINT).toBe('[more | less | show | hide | layout <name>]')
+  expect(REPLY.usage).toBe('Usage: /nextcost [more | less | show | hide] · /nextcost layout <name>')
+  expect(parseCommand('toggle')).toBeUndefined()
 })
 
 test('layout takes what follows it, or nothing', () => {

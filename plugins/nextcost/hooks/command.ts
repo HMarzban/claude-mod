@@ -6,6 +6,14 @@ import { clipMiddle } from './format'
 import { DEFAULT_LAYOUT, LAYOUT_NAMES, REMOVED_IN, asLayoutName, removedLayoutOf } from './snapshot'
 import type { LayoutName } from './snapshot'
 
+/** The words /nextcost takes on their own. */
+const WORDS = ['more', 'less', 'show', 'hide'] as const
+type Word = (typeof WORDS)[number]
+const WORD_CHOICES = WORDS.join(' | ')
+
+/** What /nextcost takes, as the menu hints it after the command's name. */
+export const ARGUMENT_HINT = `[${WORD_CHOICES} | layout <name>]`
+
 /** What /nextcost answers. */
 export const REPLY = {
   shown: 'nextcost shown.',
@@ -13,11 +21,13 @@ export const REPLY = {
   hidden: 'nextcost hidden. /nextcost shows it again.',
   expanded: 'nextcost expanded.',
   collapsed: 'nextcost collapsed.',
-  usage: 'Usage: /nextcost [more | less | show | hide] · /nextcost layout <name>',
+  usage: `Usage: /nextcost [${WORD_CHOICES}] · /nextcost layout <name>`,
 } as const
 
 /** What /nextcost was asked: a bare word, or `layout` and what follows it. */
-type BandCommand = 'toggle' | 'more' | 'less' | 'show' | 'hide' | Readonly<{ layout: string }>
+type BandCommand = 'toggle' | Word | Readonly<{ layout: string }>
+
+const isWord = (word: string): word is Word => (WORDS as readonly string[]).includes(word)
 
 /** `layout`, then what follows it, if anything. */
 const LAYOUT_ARG = /^\s*layout(?:\s+(.*))?$/i
@@ -28,7 +38,7 @@ export const parseCommand = (args: string): BandCommand | undefined => {
   if (chosen) return { layout: chosen[1] ?? '' }
   const word = args.trim().toLowerCase()
   if (word === '') return 'toggle'
-  return word === 'more' || word === 'less' || word === 'show' || word === 'hide' ? word : undefined
+  return isWord(word) ? word : undefined
 }
 
 /** The layouts /nextcost layout offers. */

@@ -7,7 +7,7 @@ import { drawBand } from './band'
 import { newCache } from './cache'
 import type { CacheModel, RecalledReply, Remembered, ResumedCache, Spend, TranscriptFacts } from './cache'
 import { idleCompactFrom, resolveTtl } from './cache-settings'
-import { commandPlan, parseCommand } from './command'
+import { ARGUMENT_HINT, commandPlan, parseCommand } from './command'
 import { contextUsed, hostZone, paintKey, readableZone } from './format'
 import { resolveGlyphs } from './glyphs'
 import { newInsights } from './insights'
@@ -402,12 +402,12 @@ const registerCommands = ($: EngineInterface): void => {
   $.command.register({
     name: 'nextcost',
     description: 'Show, hide, expand, collapse or restyle nextcost, what your next message costs',
-    argumentHint: '[more | less | show | hide | layout <name>]',
+    argumentHint: ARGUMENT_HINT,
   })
   $.command.register({
     name: 'usage-band',
     description: "nextcost's old name: the same as /nextcost",
-    argumentHint: '[more | less | show | hide | layout <name>]',
+    argumentHint: ARGUMENT_HINT,
   })
 }
 
