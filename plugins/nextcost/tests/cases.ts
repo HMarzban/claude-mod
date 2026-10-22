@@ -1,7 +1,6 @@
 // The states every layout is drawn in, and the one way to draw them: one
-// setup and one drive per test, then each mount drawn shut and open. It
-// imports no view and no hook the band before the layouts work lacks, so
-// golden's capture (tools/golden/capture.sh) can run it on that band.
+// setup and one drive per test, then each mount drawn shut and open. Chips'
+// frozen trees were drawn from these, so a case golden holds keeps its drive.
 
 import type { On, SessionUsage } from 'claude-code'
 import type { Engine, MockClock } from 'claude-code/testing'
