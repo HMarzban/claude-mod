@@ -48,7 +48,8 @@ export type RecalledReply = Readonly<{ lastAt: number | undefined; rate: number 
 /** The cache as the model measured it, the snapshot's to carry to the band. */
 export type CacheView = Readonly<{
   requests: number
-  msLeft: number
+  /** The cache's time left: 0 once cold. */
+  leftMs: number
   /** When the cache goes or went cold, epoch ms; null when not known. */
   coldAt: number | null
   ttl: Ttl
@@ -356,7 +357,7 @@ const coldAtOf = (s: CacheState): number | null => {
 /** The cache's time left: from the last reply this band saw, else the one
  *  it recalls, none if the engine called it expired; a full lifetime before
  *  either. */
-const msLeftOf = (s: CacheState, now: number): number => {
+const leftMsOf = (s: CacheState, now: number): number => {
   if (s.compactedAt !== undefined) return 0
   if (s.requests === 0 && s.resumedCache?.expired === true) return 0
   const at = coldAtOf(s)
@@ -378,7 +379,7 @@ const viewOf = (s: CacheState, now: number, sessionCost: number | undefined, con
   const share = readMultiplier(pricedModel(s))
   return {
     requests: s.requests,
-    msLeft: msLeftOf(s, now),
+    leftMs: leftMsOf(s, now),
     coldAt: coldAtOf(s),
     ttl: effectiveTtl(s),
     // Known, not assumed: pinned, or seen on the transcript's last cache write.
@@ -461,7 +462,7 @@ const recordResponse = (s: CacheState, usage: Response, sentAt: number, isMain: 
 
   // Read as cold already: a resume the engine called expired, or a recalled
   // reply past its TTL.
-  const coldBefore = isRecalled(s) && msLeftOf(s, sentAt) === 0
+  const coldBefore = isRecalled(s) && leftMsOf(s, sentAt) === 0
   let missed = false
   const prefix = s.cached
   const gap = s.requests > 0 ? sentAt - s.lastAt : 0
@@ -554,7 +555,7 @@ export type CacheModel = Readonly<{
    *  the session has cost, to show. */
   view: (o: Readonly<{ now: number; ledger: number | undefined; contextTokens: number; autoCompactOff: boolean }>) => Readonly<{ cache: CacheView; costUsd: number }>
   /** The cache's time left at `now`, for the timer's repaint. */
-  msLeft: (now: number) => number
+  leftMs: (now: number) => number
 }>
 
 /** A session's cache model, before anything is known of it. */
@@ -618,7 +619,7 @@ export const newCache = (): CacheModel => {
       noteLedger(s, ledger)
       return { cache: viewOf(s, now, ledger, contextTokens, autoCompactOff), costUsd: spentUsd(s, ledger) }
     },
-    msLeft: now => msLeftOf(s, now),
+    leftMs: now => leftMsOf(s, now),
   }
 }
 
@@ -664,11 +665,11 @@ const moodOf = (c: CacheView): CacheMood =>
     ? c.fresh
       ? 'warming'
       : 'unmeasured'
-    : c.msLeft <= 0
+    : c.leftMs <= 0
       ? c.compacted
         ? 'compacted'
         : 'cold'
-      : c.msLeft <= SOON_MS
+      : c.leftMs <= SOON_MS
         ? 'expiring'
         : 'warm'
 
@@ -684,16 +685,16 @@ export const cacheFactsOf = (c: CacheView, isWorking: boolean): CacheFacts => {
     ...c,
     mood,
     tone: mood === 'expiring' ? 'amber' : 'calm',
-    charge: timeless ? 0 : mood === 'warm' && isWorking ? 1 : c.msLeft / TTL_MS[c.ttl],
+    charge: timeless ? 0 : mood === 'warm' && isWorking ? 1 : c.leftMs / TTL_MS[c.ttl],
     estimate: c.reWarmUsd !== null ? fmtEstimate(c.reWarmUsd) : `${fmtTokens(c.window)} tokens`,
     measured,
     known: measured || c.recalled,
     untimed,
     hitFrac: measured && c.hitRatio !== null ? c.hitRatio : undefined,
-    coldInMs: counting ? c.msLeft : undefined,
+    coldInMs: counting ? c.leftMs : undefined,
     // A 5-minute cache is always under ten minutes from cold, so its last
     // call is its last minute, when chips turns amber too.
-    lastCall: counting && (c.ttl === '5m' ? mood === 'expiring' : c.msLeft < LAST_CALL_MS),
-    idleCompactSoon: counting && c.idleCompacts && c.ttl === '1h' && c.msLeft > TTL_MS['1h'] - IDLE_COMPACT_MS,
+    lastCall: counting && (c.ttl === '5m' ? mood === 'expiring' : c.leftMs < LAST_CALL_MS),
+    idleCompactSoon: counting && c.idleCompacts && c.ttl === '1h' && c.leftMs > TTL_MS['1h'] - IDLE_COMPACT_MS,
   }
 }

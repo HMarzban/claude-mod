@@ -24,7 +24,7 @@ test('recalled, the cache counts down from the last reply and prices the whole c
   // Spend on the ledger: the conversation started before the band.
   const view = viewAt(recalledAt0(2.41, RATE), 10 * MIN, 2.41, 76_000)
   expect(view.recalled).toBe(true)
-  expect(view.msLeft).toBe(50 * MIN) // the assumed hour, from the last reply
+  expect(view.leftMs).toBe(50 * MIN) // the assumed hour, from the last reply
   expect(view.window).toBe(76_000)
   expect(Math.abs((view.reWarmUsd ?? 0) - 1.25 * RATE * 76_000)).toBeLessThan(1e-9)
   expect(view.idleMs).toBe(10 * MIN)
@@ -48,7 +48,7 @@ test("once a reply is seen, the measured cache stands and the recall doesn't", (
   c.responded({ input_tokens: 1_000, output_tokens: 500, cache_read_input_tokens: 0, cache_creation_input_tokens: 80_000 }, 5 * MIN, true)
   const view = viewAt(c, 10 * MIN, 2.41, 76_000)
   expect(view.recalled).toBe(false)
-  expect(view.msLeft).toBe(55 * MIN) // from the reply this band saw
+  expect(view.leftMs).toBe(55 * MIN) // from the reply this band saw
   expect(view.window).toBe(81_500)
 })
 
@@ -66,11 +66,11 @@ test('coldAt: null before a reply, the reply plus the lifetime after, null once 
   expect(viewAt(c, 0, undefined, 0).coldAt).toBeNull()
   c.responded({ input_tokens: 10, output_tokens: 10, cache_read_input_tokens: 0, cache_creation_input_tokens: 1000 }, 5 * MIN, true)
   const v = viewAt(c, 10 * MIN, undefined, 0)
-  expect(v.coldAt).toBe(10 * MIN + v.msLeft)
+  expect(v.coldAt).toBe(10 * MIN + v.leftMs)
   const resumed = newCache()
   resumed.resumed({ cache: { lastAt: 0, expired: true, reWarmUsd: 0.5 }, transcript: undefined })
   expect(viewAt(resumed, MIN, undefined, 0).coldAt).toBeNull()
-  expect(viewAt(resumed, MIN, undefined, 0).msLeft).toBe(0)
+  expect(viewAt(resumed, MIN, undefined, 0).leftMs).toBe(0)
 })
 
 test("a ledger that has spent nothing is a new conversation; one that can't be read is not known to be", () => {

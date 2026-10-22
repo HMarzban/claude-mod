@@ -22,7 +22,7 @@ const desk = makeKit(fakeEl, snapOf({ surface: 'desktop' }))
 const svg = (el: unknown) => el as Node & { props: { alt: string; width: number; source: string } }
 for (const [name, el] of [
   ['sparkline', sparkline(desk, { key: 's', alt: '5h usage over the last hour', values: [1, 2, 3], color: '#7fcf8a', px: 90, height: 36 })],
-  ['barChart', barChart(desk, { key: 'b', alt: 'cost of the last 3 messages', values: [1, 2, 9], marked: [false, false, true], color: '#888888', markColor: '#eeeeee', px: 18, height: 36 })],
+  ['barChart', barChart(desk, { key: 'b', alt: 'cost of the last 3 messages', values: [1, 2, 9], marked: [false, false, true], color: '#888888', px: 18, height: 36 })],
   ['dayCells', dayCells(desk, { key: 'd', alt: 'weekly limit by day', values: [6, 9, 11, 4, 7, 7, 7], guess: [false, false, false, false, true, true, true], today: 3, color: '#a99cf0', cellPx: 16, height: 16 })],
   ['meter', meter(desk, { key: 'm', label: '5h', frac: 0.04, tone: 'calm', accent: '#7fcf8a', size: CHIP_BAR })],
 ] as const) {
@@ -87,7 +87,7 @@ test('no chart pulse or departures draws stretches: every Svg has its own width 
 test('air: a chart drawn below its air, the Svg as tall as both, its marks as they were', () => {
   const charts = [
     (air?: number) => sparkline(desk, { key: 's', alt: 'a', values: [1, 2, 3], color: '#7fcf8a', px: 90, height: 40, nowAt: 1, air }),
-    (air?: number) => barChart(desk, { key: 'b', alt: 'b', values: [1, 2, 9], marked: [false, false, true], color: '#888888', markColor: '#eeeeee', px: 18, height: 40, air }),
+    (air?: number) => barChart(desk, { key: 'b', alt: 'b', values: [1, 2, 9], marked: [false, false, true], color: '#888888', px: 18, height: 40, air }),
     (air?: number) => dayCells(desk, { key: 'd', alt: 'd', values: [6, 9], today: 1, color: '#a99cf0', cellPx: 18, height: 38, air }),
   ]
   for (const chart of charts) {
@@ -147,7 +147,7 @@ test('a stretched meter has no width of its own, its marks scaled to the slot', 
 })
 test('in text, a line or bar chart is braille on its floor', () => {
   expect(textOf(sparkline(term, { key: 's', alt: '5h', values: [0, 4, 2, 4], color: '#7fcf8a', px: 90, height: 36 }))).toBe(braille([1, 4, 2, 4], 4))
-  expect(textOf(barChart(term, { key: 'b', alt: 'cost', values: [1, 2], marked: [false, true], color: '#888888', markColor: '#eeeeee', px: 12, height: 36 }))).toBe(braille([1, 2], 2))
+  expect(textOf(barChart(term, { key: 'b', alt: 'cost', values: [1, 2], marked: [false, true], color: '#888888', px: 12, height: 36 }))).toBe(braille([1, 2], 2))
 })
 test("a sparkline's max sets the top of its scale, and it ends bare", () => {
   const source = svg(sparkline(desk, { key: 's', alt: '5h', values: [20, 50], color: '#7fcf8a', px: 90, height: 36, max: 100 })).props.source
@@ -167,14 +167,14 @@ test('in text, day cells keep one width wherever today falls', () => {
 const deskKit = () => makeKit(fakeEl, snapOf({ surface: 'desktop' }))
 test('beats: one path; no NaN with one value, all re-warms, or all zero', () => {
   for (const [values, marked] of [[[0.2], [false]], [[0.8, 0.9], [true, true]], [[0, 0], [false, false]]] as const) {
-    const src = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values, marked, color: '#fff', markColor: '#fff', px: 84, height: 20 }))[0]?.props?.source)
+    const src = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values, marked, color: '#fff', px: 84, height: 20 }))[0]?.props?.source)
     expect(src).toMatch(/<path class="beats"/)
     expect(src).not.toMatch(/NaN|Infinity/)
   }
 })
 test('beats: a re-warm is capped flat, a warm beat peaks to a point', () => {
   const tops = (marked: boolean) => {
-    const d = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values: [0.5], marked: [marked], color: '#fff', markColor: '#fff', px: 20, height: 20, max: 1 }))[0]?.props?.source).match(/ d="([^"]+)"/)?.[1] ?? ''
+    const d = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values: [0.5], marked: [marked], color: '#fff', px: 20, height: 20, max: 1 }))[0]?.props?.source).match(/ d="([^"]+)"/)?.[1] ?? ''
     const ys = [...d.matchAll(/L([\d.]+),([\d.]+)/g)].map(m => Number(m[2]))
     return ys.filter(y => y === Math.min(...ys)).length
   }
@@ -210,12 +210,12 @@ test('heartbeat per state; the beat ships still: no animation, never interactive
   expect(heartbeat(makeKit(fakeEl, snapOf({ surface: 'terminal' })), { key: 'h', alt: 'a', state: 'beat', color: '#fff' })).toBeNull()
 })
 test('beats: the average rule is dotted', () => {
-  const src = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values: [0.5, 0.7], marked: [false, false], color: '#fff', markColor: '#fff', px: 40, height: 20, max: 1, levelValue: 0.6 }))[0]?.props?.source)
+  const src = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values: [0.5, 0.7], marked: [false, false], color: '#fff', px: 40, height: 20, max: 1, levelValue: 0.6 }))[0]?.props?.source)
   expect(src).toMatch(/class="level"[^>]*stroke-dasharray/)
 })
 test('beats: a zero or tiny value is a flat tick, never a notch below the baseline', () => {
   for (const v of [0, 0.001]) {
-    const src = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values: [v], marked: [false], color: '#fff', markColor: '#fff', px: 20, height: 20, max: 1 }))[0]?.props?.source)
+    const src = String(svgsOf(barChart(deskKit(), { key: 'b', alt: 'a', values: [v], marked: [false], color: '#fff', px: 20, height: 20, max: 1 }))[0]?.props?.source)
     const d = src.match(/ d="([^"]+)"/)?.[1] ?? ''
     const ys = [...d.matchAll(/[ML]([\d.]+),([\d.]+)/g)].map(m => Number(m[2]))
     expect(ys[1]).toBeLessThanOrEqual(16)

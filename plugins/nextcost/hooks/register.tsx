@@ -376,7 +376,7 @@ export const register: Register = on => {
     band.tick = $.clock.every(1000, () => {
       void (async () => {
         const now = await $.clock.now()
-        const key = paintKey(now, { cacheLeft: band.cache.msLeft(now), etaMs: fiveHourEtaMs(now), resets: band.resets, zone: readableZone(hostZone, now) })
+        const key = paintKey(now, { cacheLeft: band.cache.leftMs(now), etaMs: fiveHourEtaMs(now), resets: band.resets, zone: readableZone(hostZone, now) })
         if (key !== band.lastPaintKey) {
           band.lastPaintKey = key
           $.ui.invalidate('ui.render')

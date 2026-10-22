@@ -46,7 +46,7 @@ for (const [scenario, mark] of [['calm', /<circle[^>]*fill="#/], ['cold', /<line
   })
 }
 test('the heartbeat: its source unchanged as the last minute counts down', () => {
-  const tick = (msLeft: number) => beatOf(band({ surface: 'desktop', ...CALM_LIMITS, cache: cacheWith({ requests: 1, msLeft, coldAt: msLeft }) }))
+  const tick = (leftMs: number) => beatOf(band({ surface: 'desktop', ...CALM_LIMITS, cache: cacheWith({ requests: 1, leftMs, coldAt: leftMs }) }))
   expect([tick(40_000)?.props?.source, tick(40_000)?.props?.alt]).toEqual([tick(39_000)?.props?.source, tick(39_000)?.props?.alt])
 })
 test('recalled carries ~ on its time', async ($, on) => {

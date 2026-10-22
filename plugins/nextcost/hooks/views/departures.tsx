@@ -74,7 +74,7 @@ const collapsed = (kit: Kit, read: Readings, toggle: RenderElement): RenderEleme
       // two until its last step.
       kit.air(`air${i}`, kit.palette.filled || !k.has('padding') ? 1 : 2),
     ])
-    return line(kit, 'row', modules, toggle, 0)
+    return line(kit, modules, toggle, 0)
   })
 
 /** The board's tiles need room: below 60 columns the band draws chips. */

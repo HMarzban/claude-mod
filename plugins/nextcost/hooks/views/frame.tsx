@@ -128,19 +128,20 @@ export type Keeps<P extends string> = Readonly<{
   amber: (a: Amber) => string
 }>
 
-/** One collapsed line: its pieces, each kept whole, then air, then the toggle
- *  or nothing. Never wraps; past its room it clips, as chips' row does. */
-export const line = (kit: Kit, key: string, pieces: readonly RenderChildren[], end?: RenderChildren, gap = 2): RenderElement => {
+/** One collapsed line, the view's `row`: its pieces, each kept whole and
+ *  `gap` columns apart, then air, then `end`, the toggle. Never wraps; past
+ *  its room it clips, as chips' row does. */
+export const line = (kit: Kit, pieces: readonly RenderChildren[], end: RenderChildren, gap: number): RenderElement => {
   const { Box } = kit
   return (
-    <Box key={key} flexDirection="row" flexWrap="nowrap" overflow="hidden" columnGap={gap}>
+    <Box key="row" flexDirection="row" flexWrap="nowrap" overflow="hidden" columnGap={gap}>
       {pieces.filter(isDrawn).map((piece, i) => (
         <Box key={`p${i}`} flexShrink={0}>
           {piece}
         </Box>
       ))}
       <Box key="air" flexGrow={1} />
-      {end ?? null}
+      {end}
     </Box>
   )
 }

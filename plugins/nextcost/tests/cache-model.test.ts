@@ -37,7 +37,7 @@ test('a request after the TTL ran out rebuilt the cache, and the turn takes the 
 test('the first reply after a resume or a reload rebuilds a cache already cold', () => {
   const resumed = newCache()
   resumed.resumed({ cache: { lastAt: 0, expired: true, reWarmUsd: 1 }, transcript: undefined })
-  expect(resumed.msLeft(48 * HOUR)).toBe(0)
+  expect(resumed.leftMs(48 * HOUR)).toBe(0)
   resumed.responded(OPUS_BUILD, 48 * HOUR, true)
   expect(rebuilt(resumed)).toBe(true)
   const reloaded = (): CacheModel => {

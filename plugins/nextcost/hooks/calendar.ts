@@ -3,31 +3,24 @@
 // ahead, and the cells as drawn, each guess stopped at the cap. Pure, so the
 // cells can be checked without the store.
 
-import { DAY_MS, HOUR_MS, WEEKDAYS, dayOf, fmtClock, midnightOf, sameReset } from './format'
+import { DAY_MS, HOUR_MS, WEEKDAYS, dayOf, midnightOf, sameReset } from './format'
 import type { Zone } from './format'
 import type { Sample } from './memory'
 
 type DayCell = Readonly<{
   /** 'Tuesday' */
   name: string
-  /** The day of the month: '6' */
-  date: string
   /** The day's rise in points, or its guess; undefined when unknown. */
   pct: number | undefined
   guess: boolean
   today: boolean
-  future: boolean
   /** The day the guess fills the limit. */
   fullMark: boolean
 }>
 
 export type HourCell = Readonly<{
-  /** The local time it starts at, as the 5h reset sets it: '08:40' */
-  startClock: string
   pct: number | undefined
   guess: boolean
-  now: boolean
-  future: boolean
   /** The hour the limit fills: a measured fill, else the guess. */
   fullMark: boolean
 }>
@@ -78,7 +71,7 @@ const BY_DAY: Cut = { pct: s => s.sevenPct, reset: s => s.sevenResetAt, bounds: 
 const BY_HOUR: Cut = { pct: s => s.fivePct, reset: s => s.fiveResetAt, bounds: resetAt => Array.from({ length: 6 }, (_, i) => resetAt - (5 - i) * HOUR_MS) }
 
 /** A slice of a window, before it is named as a day or an hour. */
-type Slice = Readonly<{ start: number; end: number; pct: number | undefined; guess: boolean; current: boolean; future: boolean; fullMark: boolean }>
+type Slice = Readonly<{ start: number; end: number; pct: number | undefined; guess: boolean; current: boolean; fullMark: boolean }>
 
 /** Each slice's rise, from the window's own samples; undefined where unknown or ahead. */
 const risesOf = (samples: readonly Sample[], cut: Cut, resetAt: number, bounds: readonly number[], now: number): Array<number | undefined> => {
@@ -114,17 +107,14 @@ const slicesOf = (samples: readonly Sample[], w: WindowNow | undefined, cut: Cut
   const step = w.projectedPct === undefined || ahead <= 0 ? undefined : Math.max(0, w.projectedPct - w.percentUsed) / ahead
   const fullIndex = fullIndexOf(w.fullAt, bounds)
   return risesOf(samples, cut, w.resetsAt, bounds, now).map((rise, i) => {
-    const future = i > current
-    const guess = future && step !== undefined
-    const pct = guess ? step : rise
+    const guess = i > current && step !== undefined
     const start = bounds[i] ?? 0
     return {
       start,
       end: bounds[i + 1] ?? start,
-      pct,
+      pct: guess ? step : rise,
       guess,
       current: i === current,
-      future,
       fullMark: i === fullIndex,
     }
   })
@@ -144,18 +134,17 @@ const wholeDayOf = (start: number, end: number, zone: Zone): number => {
   return best
 }
 
-/** The week's day and hour cells, each named in the offset in force at it.
+/** The week's day and hour cells, each day named in the offset in force at it.
  *  `samples` are sorted by time, as mergeSamples keeps them. Exported for
  *  its tests. */
 export const weekOf = (o: Readonly<{ samples: readonly Sample[]; seven: WindowNow | undefined; five: WindowNow | undefined; now: number; zone: Zone }>): Week => {
   const days = slicesOf(o.samples, o.seven, BY_DAY, o.now, o.zone).map(({ start, end, current, ...slice }): DayCell => {
     // A local day read through the UTC getters.
     const at = new Date(wholeDayOf(start, end, o.zone) * DAY_MS)
-    const name = WEEKDAYS[at.getUTCDay()] ?? ''
-    return { ...slice, name, date: String(at.getUTCDate()), today: current }
+    return { ...slice, name: WEEKDAYS[at.getUTCDay()] ?? '', today: current }
   })
-  // An hour each in absolute time, so a fall back names its hour twice and a spring forward skips one.
-  const hours = slicesOf(o.samples, o.five, BY_HOUR, o.now, o.zone).map(({ start, end: _end, current, ...slice }): HourCell => ({ ...slice, startClock: fmtClock(start, o.zone), now: current }))
+  // An hour each in absolute time, whatever the clocks do.
+  const hours = slicesOf(o.samples, o.five, BY_HOUR, o.now, o.zone).map(({ pct, guess, fullMark }): HourCell => ({ pct, guess, fullMark }))
   return { days, hours }
 }
 

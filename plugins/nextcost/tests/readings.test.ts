@@ -5,7 +5,7 @@ import { readingsOf } from '../hooks/reading'
 import { HOUR, MIN, SAMPLES } from './helpers'
 import { snapOf } from './matrix'
 
-const cacheAt = (msLeft: number) => ({ ...snapOf().cache, msLeft })
+const cacheAt = (leftMs: number) => ({ ...snapOf().cache, leftMs })
 
 test('readings name every limit with its tone, value, reset and projection', () => {
   const r = readingsOf(snapOf())
@@ -309,10 +309,10 @@ test('a limit fills in its measured time, else on its average once it lands at 1
 test('the cache counts down to cold; under 10 minutes it is its last call, a 5-minute cache in its last minute', () => {
   const cache = (over: Partial<ReturnType<typeof snapOf>['cache']>) => readingsOf(snapOf({ cache: { ...snapOf().cache, ...over } })).cache
   expect(cache({}).lastCall).toBe(false)
-  const soon = cache({ msLeft: 6 * MIN })
+  const soon = cache({ leftMs: 6 * MIN })
   expect([soon.lastCall, soon.tone]).toEqual([true, 'calm'])
-  expect(cache({ msLeft: 10 * MIN }).lastCall).toBe(false)
-  expect([cache({ ttl: '5m', msLeft: 4 * MIN }).lastCall, cache({ ttl: '5m', msLeft: 59_000 }).lastCall]).toEqual([false, true])
+  expect(cache({ leftMs: 10 * MIN }).lastCall).toBe(false)
+  expect([cache({ ttl: '5m', leftMs: 4 * MIN }).lastCall, cache({ ttl: '5m', leftMs: 59_000 }).lastCall]).toEqual([false, true])
 })
 const costs = (list: Array<[number, boolean]>) => readingsOf(snapOf({ history: { costs: list.map(([usd, reWarm]) => ({ usd, reWarm })), context: [] } })).history()
 const FIVE = { percentUsed: 4, resetsAt: 3 * HOUR, etaMs: null }

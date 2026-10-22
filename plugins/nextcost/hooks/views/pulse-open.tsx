@@ -204,7 +204,7 @@ const drawCards = (kit: Kit, read: Readings, f: Facts, p: Plan): RenderElement =
       const beats = Svg ? hist.costValues.length : Math.min(hist.costValues.length, 2 * inner)
       const chart = size === undefined || !f.charted.spend ? null
         : hist.empty ? flatBeats(kit, { key: 'chart', alt: EMPTY.costsAlt, beats: 2 * inner, color: palette.label, px, ...size })
-        : barChart(kit, { key: 'chart', alt: hist.costsAltOf(beats), values: hist.costValues.slice(-beats), marked: hist.reWarms.slice(-beats), levelValue: hist.warmAvgUsd, color: palette.value, markColor: palette.value, px, ...size, max: hist.beatsTop })
+        : barChart(kit, { key: 'chart', alt: hist.costsAltOf(beats), values: hist.costValues.slice(-beats), marked: hist.reWarms.slice(-beats), levelValue: hist.warmAvgUsd, color: palette.value, px, ...size, max: hist.beatsTop })
       const cost = hist.costFact
       const said = cost === undefined ? note('fact', EMPTY.costs) : factRow(kit, cost.label, cost.value)
       return card('spend', [[read.spend.totalText, 'value']], 'calm', [plot(chart), fill(), said])
