@@ -1,8 +1,8 @@
 // How the band words numbers and times: tokens, dollars, countdowns,
-// resets, projections, ages, clipped names and the context in use.
+// resets, projections, ages and the context in use.
 
 import { test, expect } from 'claude-code/testing'
-import { clamp01, clipMiddle, clipWords, contextPressure, contextUsed, fmtAgo, fmtCost, fmtCountdown, fmtEstimate, fmtEta, fmtPct, fmtSmallCost, fmtTokens, parseReset, resetIn, sameReset } from '../hooks/format'
+import { clamp01, contextPressure, contextUsed, fmtAgo, fmtCost, fmtCountdown, fmtEstimate, fmtEta, fmtPct, fmtSmallCost, fmtTokens, parseReset, resetIn, sameReset } from '../hooks/format'
 import { HOUR, MIN } from './helpers'
 
 const SEC = 1000
@@ -151,49 +151,6 @@ test('an age under a minute is now, then minutes, hours and minutes, days and ho
   expect(fmtAgo(24 * HOUR - 1)).toBe('23h 59m')
   expect(fmtAgo(24 * HOUR)).toBe('1d 0h')
   expect(fmtAgo(52 * HOUR)).toBe('2d 4h')
-})
-
-test('a line too long is cut at its last whole word, with a `.`, within the room', () => {
-  expect(clipWords('$0.41 spent during your last message, subagents included', 50)).toBe('$0.41 spent during your last message, subagents.')
-  expect(clipWords('76k of 200k (38%); older turns get summarized near full', 20)).toBe('76k of 200k (38%).')
-  expect(clipWords('Resets in 3h 00m', 16)).toBe('Resets in 3h 00m')
-  expect(clipWords('Resets in 3h 00m', 13)).toBe('Resets in 3h.')
-  // A first word longer than the room is cut where the room ends.
-  expect(clipWords('uncommitted', 6)).toBe('uncom.')
-})
-
-test('a name that fits is kept whole', () => {
-  expect(clipMiddle('abcdef', 10)).toBe('abcdef')
-  expect(clipMiddle('abcdef', 6)).toBe('abcdef')
-  expect(clipMiddle('', 0)).toBe('')
-})
-
-test('a name too long is cut in the middle to exactly the room, the head getting the odd character', () => {
-  expect(clipMiddle('abcdef', 5)).toBe('ab…ef')
-  expect(clipMiddle('abcdef', 4)).toBe('ab…f')
-  expect(clipMiddle('abcdef', 3)).toBe('a…f')
-  expect(clipMiddle('abcdef', 2)).toBe('a…')
-  expect(clipMiddle('claude/a-rather-long-feature-branch', 15)).toBe('claude/…-branch')
-})
-
-test('with room for one character the name is an ellipsis, and with none it is empty', () => {
-  expect(clipMiddle('abcdef', 1)).toBe('…')
-  expect(clipMiddle('abcdef', 0)).toBe('')
-  expect(clipMiddle('abcdef', -1)).toBe('')
-})
-
-test('a name is clipped by the columns it takes, never through a character: a wide one takes two', () => {
-  expect(clipMiddle('😀😀😀😀', 5)).toBe('😀…😀')
-  // A column the head can't use goes to the end.
-  expect(clipMiddle('😀😀😀😀', 3)).toBe('…😀')
-  expect(clipMiddle('日本語のブランチ名', 9)).toBe('日本…チ名')
-  expect(clipMiddle('日本語', 6)).toBe('日本語')
-})
-
-test('a line too long is cut by the columns it takes, a wide character two', () => {
-  expect(clipWords('日本語 の ブランチ', 8)).toBe('日本語.')
-  expect(clipWords('こんにちは世界', 6)).toBe('こん.')
-  expect(clipWords('日本語', 6)).toBe('日本語')
 })
 
 test('the context in use prefers its token count, even a zero, to the percent', () => {

@@ -1,6 +1,7 @@
-// How the band measures a line: how many columns a drawn tree takes on each
-// surface, the sizes it lays out by, and the squeeze that fits a line to its
-// room by a give-way order its layout names.
+// How the band measures a line: the columns a character and a drawn tree
+// take on each surface, the clips that cut a line to its columns, the sizes
+// it lays out by, and the squeeze that fits a line to its room by a give-way
+// order its layout names.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
 
@@ -56,6 +57,58 @@ export const charCells = (ch: string): number => (isWide(ch) ? 2 : 1)
 
 /** The columns `text` takes in a monospace cell grid. */
 export const textCells = (text: string): number => [...text].reduce((n, ch) => n + charCells(ch), 0)
+
+/** The most of `chars` from their start that fits `room` columns. */
+const headIn = (chars: readonly string[], room: number): string[] => {
+  let used = 0
+  const kept: string[] = []
+  for (const ch of chars) {
+    used += charCells(ch)
+    if (used > room) break
+    kept.push(ch)
+  }
+  return kept
+}
+
+/** `text` at most `max` columns, cut in the middle: a branch keeps both its
+ *  prefix and its end, where names differ. A wide character takes two
+ *  columns, and is never cut through; a column the head can't use goes to
+ *  the end. */
+export const clipMiddle = (text: string, max: number): string => {
+  if (textCells(text) <= max) return text
+  if (max <= 1) return '…'.slice(0, max)
+  const chars = [...text]
+  const head = headIn(chars, Math.ceil((max - 1) / 2))
+  const tail = headIn([...chars].reverse(), max - 1 - textCells(head.join(''))).reverse()
+  return `${head.join('')}…${tail.join('')}`
+}
+
+/** `text` at most `room` columns, cut at its last whole word with a `.` in
+ *  place of the punctuation it ended on; a first word longer than the room
+ *  is cut where the room ends. A wide character takes two columns. */
+export const clipWords = (text: string, room: number): string => {
+  if (textCells(text) <= room) return text
+  const chars = [...text]
+  // The last space within the room but the `.`'s column, by its index.
+  let space = -1
+  let at = 0
+  for (const [i, ch] of chars.entries()) {
+    if (at > room - 1) break
+    if (ch === ' ' && i > 0) space = i
+    at += charCells(ch)
+  }
+  const kept = space > 0 ? chars.slice(0, space).join('').replace(/[\s,;:]+$/, '') : headIn(chars, room - 1).join('')
+  return `${kept}.`
+}
+
+/** `text` at most `tiles` columns, `…` last where cut, a wide character
+ *  never split; nothing at a column or less. The board's flap columns and
+ *  its remarks are cut so. */
+export const clipToTiles = (text: string, tiles: number): string => {
+  if (textCells(text) <= tiles) return text
+  if (tiles <= 1) return ''
+  return `${headIn([...text], tiles - 1).join('')}…`
+}
 
 export const isList = (n: RenderChildren): n is readonly RenderChildren[] => Array.isArray(n)
 

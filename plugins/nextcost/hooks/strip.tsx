@@ -7,10 +7,10 @@
 // between ` · `. One row always: nothing in it wraps.
 
 import type { RenderChildren, RenderElement } from 'claude-code'
-import { clipMiddle, plural } from './format'
+import { plural } from './format'
 import { ALT } from './icons'
 import type { CardPlace, Kit } from './kit'
-import { isList, spansOf, squeezeToFit } from './layout'
+import { clipMiddle, isList, spansOf, squeezeToFit } from './layout'
 import type { Span } from './layout'
 import { BARE } from './palette'
 import { gitSummary, splitPath } from './workspace'
