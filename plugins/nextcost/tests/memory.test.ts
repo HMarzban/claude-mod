@@ -11,10 +11,14 @@ import {
   asLimitSamples,
   asRates,
   asSessions,
+  fromStore,
   lastReplyAt,
   lastReplyModel,
   mergeSamples,
+  needsTranscript,
   rateFromTranscript,
+  recallOf,
+  rememberRate,
   rememberReply,
   sampleOf,
   transcriptPath,
@@ -260,4 +264,36 @@ test('a later line that merely names cost-state, such as a prompt quoting it, ne
 test('an unreadable last cost line falls back to the record before it', () => {
   const transcript = jsonl(costState('claude-opus-5-5'), '{"type":"cost-state", broken')
   expect(near(rateFromTranscript(transcript, 'claude-opus-5-5'), 20 / 3_000_000)).toBe(true)
+})
+
+// ── the recall ─────────────────────────────────────────────────────────
+
+const OPUS_RATE = 0.00001
+
+test('the store recalls a session\'s last reply and the rate under the model /model names, its window aside', () => {
+  const stored = fromStore({ sessions: { s1: { lastAt: 5_000 } }, rates: { 'claude-opus-5-5': OPUS_RATE } }, 's1', 'claude-opus-5-5[1m]')
+  expect(needsTranscript(stored)).toBe(false)
+  expect(recallOf(stored, undefined)).toEqual({ lastAt: 5_000, rate: OPUS_RATE, billed: undefined })
+})
+
+test('what the store leaves unknown, the transcript gives: its last reply, and the rate stored for the model it was billed under', () => {
+  const stored = fromStore({ sessions: {}, rates: { 'claude-opus-5-5': OPUS_RATE } }, 's1', 'opus')
+  expect(needsTranscript(stored)).toBe(true)
+  expect(recallOf(stored, jsonl(reply(7_000)))).toEqual({ lastAt: 7_000, rate: OPUS_RATE, billed: 'claude-opus-5-5' })
+})
+
+test("with no rate stored for either, the rate is solved from the transcript's cost record", () => {
+  const stored = fromStore({ sessions: { s1: { lastAt: 5_000 } }, rates: 'not rates' }, 's1', 'claude-opus-5-5')
+  const recalled = recallOf(stored, jsonl(reply(7_000), costState('claude-opus-5-5')))
+  // The store's time stands over the transcript's.
+  expect(recalled.lastAt).toBe(5_000)
+  expect(near(recalled.rate, 20 / 3_000_000)).toBe(true)
+})
+
+test('no transcript to read leaves unknown what the store does', () => {
+  expect(recallOf(fromStore({ sessions: undefined, rates: undefined }, 's1', 'opus'), undefined)).toEqual({ lastAt: undefined, rate: null, billed: undefined })
+})
+
+test('a rate is kept beside the others stored, and over its own', () => {
+  expect(rememberRate({ 'claude-sonnet-5-5': 2, 'claude-opus-5-5': 1, bad: -1 }, 'claude-opus-5-5', 3)).toEqual({ 'claude-sonnet-5-5': 2, 'claude-opus-5-5': 3 })
 })

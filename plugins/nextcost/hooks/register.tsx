@@ -61,13 +61,13 @@ import {
   asLayoutName,
   removedLayoutOf,
   asLimitSamples,
-  asRates,
   asSessions,
-  lastReplyAt,
-  lastReplyModel,
+  fromStore,
   lastWriteTtl,
   mergeSamples,
-  rateFromTranscript,
+  needsTranscript,
+  recallOf,
+  rememberRate,
   rememberReply,
   sameBucket,
   sampleOf,
@@ -222,31 +222,21 @@ const spendBefore = async ($: EngineInterface, path: string, sessionId: string, 
 }
 
 /** Recalls when `sessionId` last had a reply, and what a token costs on
- *  its model: the band's own memory first; for a session from before the
- *  band, its transcript's last reply and cost record, from the end
- *  `readEnd` reads. Recalled once per load or resume, and only those facts
- *  kept; the caller notes them. Never throws: unknown stays unknown. */
+ *  its model, as memory.ts's recallOf weighs them: the band's own store,
+ *  then for what it leaves unknown, the end of the transcript `readEnd`
+ *  reads. Recalled once per load or resume, and only those facts kept; the
+ *  caller notes them. Never throws: unknown stays unknown. */
 const recallLastReply = async (
   $: EngineInterface,
   sessionId: string,
   readEnd: () => Promise<string | undefined>,
 ): Promise<RecalledReply | undefined> => {
   try {
-    const model = modelName(await $.session.model())
-    const rates = asRates(await $.store.get(RATES_KEY))
-    let lastAt = asSessions(await $.store.get(SESSIONS_KEY))[sessionId]?.lastAt
-    let rate = rates[model] ?? null
-    let billed: string | undefined
-    if (lastAt === undefined || rate === null) {
-      const transcript = await readEnd()
-      if (transcript !== undefined) {
-        lastAt ??= lastReplyAt(transcript)
-        // /model may name an alias; the last reply names the model it was billed under.
-        billed = lastReplyModel(transcript)
-        rate ??= billed === undefined ? rateFromTranscript(transcript, model) : (rates[billed] ?? rateFromTranscript(transcript, billed))
-      }
-    }
-    return { lastAt, rate, billed }
+    const model = await $.session.model()
+    const rates = await $.store.get(RATES_KEY)
+    const sessions = await $.store.get(SESSIONS_KEY)
+    const stored = fromStore({ sessions, rates }, sessionId, model)
+    return recallOf(stored, needsTranscript(stored) ? await readEnd() : undefined)
   } catch {
     return undefined // nothing to recall
   }
@@ -317,7 +307,7 @@ const rememberTurn = async ($: EngineInterface, costNow: number | undefined): Pr
     const id = await $.session.id()
     await $.store.set(SESSIONS_KEY, rememberReply(asSessions(await $.store.get(SESSIONS_KEY)), id, cache.lastAt))
     const rate = ratePerToken(costNow)
-    if (rate !== null) await $.store.set(RATES_KEY, { ...asRates(await $.store.get(RATES_KEY)), [pricedModel() ?? modelName(await $.session.model())]: rate })
+    if (rate !== null) await $.store.set(RATES_KEY, rememberRate(await $.store.get(RATES_KEY), pricedModel() ?? modelName(await $.session.model()), rate))
   } catch {
     // memory is a convenience; the band works without it
   }

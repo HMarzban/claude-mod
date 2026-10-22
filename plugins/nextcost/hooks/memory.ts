@@ -8,7 +8,7 @@
 // Claude Code keeps.
 
 import { NO_TOKENS, addTokens, modelName, tierFactor, weightedTokens } from './cache'
-import type { Spend, TokenCounts, Ttl } from './cache'
+import type { RecalledReply, Spend, TokenCounts, Ttl } from './cache'
 import { MINUTE_MS, SEVEN_DAY_MS } from './format'
 import { LAYOUT_NAMES } from './snapshot'
 import type { LayoutName } from './snapshot'
@@ -67,6 +67,9 @@ export const removedLayoutOf = (v: unknown): string | undefined => {
   const word = v.trim().toLowerCase()
   return (REMOVED_LAYOUTS as readonly string[]).includes(word) ? word : undefined
 }
+
+/** The store's rates with `rate` kept under `key`. */
+export const rememberRate = (stored: unknown, key: string, rate: number): Rates => ({ ...asRates(stored), [key]: rate })
 
 /** `sessions` with `id`'s reply at `lastAt`, the oldest dropped past MAX_SESSIONS. */
 export const rememberReply = (sessions: Sessions, id: string, lastAt: number): Sessions =>
@@ -190,6 +193,36 @@ export const lastReplyModel = (transcript: string): string | undefined => {
     if (typeof model === 'string' && model !== '') return model
   }
   return undefined
+}
+
+/** What the band's own store recalls of a session's last reply: when it
+ *  was, and the rate on the model /model names, under the name that keys
+ *  it; with every rate stored, for the model a transcript names. */
+export type StoreRecall = Readonly<{ rates: Rates; model: string; lastAt: number | undefined; rate: number | null }>
+
+/** What the store recalls of `sessionId`'s last reply, on `model` as /model names it. */
+export const fromStore = (stored: Readonly<{ sessions: unknown; rates: unknown }>, sessionId: string, model: string): StoreRecall => {
+  const rates = asRates(stored.rates)
+  const key = modelName(model)
+  return { rates, model: key, lastAt: asSessions(stored.sessions)[sessionId]?.lastAt, rate: rates[key] ?? null }
+}
+
+/** Whether the store leaves a fact unknown that the transcript may give. */
+export const needsTranscript = (r: StoreRecall): boolean => r.lastAt === undefined || r.rate === null
+
+/** The last reply as recalled: the store's facts first; what they leave
+ *  unknown off the transcript's end, when one was read: its last reply's
+ *  time, and the rate on the model that reply was billed under, as stored
+ *  or else solved from the transcript's cost record. */
+export const recallOf = (r: StoreRecall, transcript: string | undefined): RecalledReply => {
+  if (transcript === undefined) return { lastAt: r.lastAt, rate: r.rate, billed: undefined }
+  // /model may name an alias; the last reply names the model it was billed under.
+  const billed = lastReplyModel(transcript)
+  return {
+    lastAt: r.lastAt ?? lastReplyAt(transcript),
+    rate: r.rate ?? (billed === undefined ? rateFromTranscript(transcript, r.model) : (r.rates[billed] ?? rateFromTranscript(transcript, billed))),
+    billed,
+  }
 }
 
 /** A count the transcript gives, or 0 for anything that isn't one. */
