@@ -69,7 +69,7 @@ export const COMPACTED_TO = 20_000
 export const SUMMARY = [{ role: 'user' as const, text: 'summary', toolUses: [] }]
 
 /** The project the tests run in, and git's answers for it. */
-export const PROJECT = '/Users/me/workspace/claude-mod'
+export const PROJECT = '/Users/me/workspace/nextcost'
 export const GIT_CLEAN = '# branch.oid 1a2b3c4d5e6f\n# branch.head main\n# branch.upstream origin/main\n# branch.ab +0 -0\n'
 export const GIT_MAIN_TREE = `${PROJECT}/.git\n${PROJECT}/.git\n${PROJECT}\n`
 

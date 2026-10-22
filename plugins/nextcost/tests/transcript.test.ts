@@ -28,7 +28,7 @@ const haikuReply = (prompt: number) => ({
 // ── where a transcript lives ───────────────────────────────────────────
 
 test("a transcript lives under home's projects, in a folder named for the root with every other character a dash", () => {
-  expect(transcriptPath('/Users/me', '/Users/me/workspace/claude-mod', 's1')).toBe('/Users/me/.claude/projects/-Users-me-workspace-claude-mod/s1.jsonl')
+  expect(transcriptPath('/Users/me', '/Users/me/workspace/nextcost', 's1')).toBe('/Users/me/.claude/projects/-Users-me-workspace-nextcost/s1.jsonl')
   expect(transcriptPath('/Users/me', '/Users/me/my.proj_x 2', 's1')).toBe('/Users/me/.claude/projects/-Users-me-my-proj-x-2/s1.jsonl')
 })
 

@@ -87,7 +87,7 @@ export const HISTORY: BandSnapshot['history'] = {
 
 /** A project on main with nothing changed and no upstream. */
 export const WORKSPACE: Workspace = {
-  path: '/u/claude-mod',
+  path: '/u/nextcost',
   repoName: undefined,
   git: { branch: 'main', commit: undefined, worktree: undefined, changed: 0, ahead: undefined, behind: undefined },
 }

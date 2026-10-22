@@ -159,10 +159,10 @@ test('the footer is the one every layout draws: the workspace strip, Collapse an
     const actions = byKey(open, 'actions', 'Box')
     const kids = (actions?.children ?? []) as Node[]
     expect(kids.filter(k => Number(k.props?.flexGrow) > 0).map(k => k.props?.key)).toEqual(['strip'])
-    expect(shown(actions)).toMatch(/claude-mod[\s\S]*main[\s\S]*clean/)
+    expect(shown(actions)).toMatch(/nextcost[\s\S]*main[\s\S]*clean/)
     expect(['collapse', 'hide'].map(k => byKey(actions, k, 'Button') !== undefined)).toEqual([true, true])
     expect(shown(open)).not.toMatch(/Bring it back/)
-    expect(wordsOf(boardOf(open))).not.toMatch(/claude-mod|CLAUDE-MOD|CLEAN/)
+    expect(wordsOf(boardOf(open))).not.toMatch(/nextcost|NEXTCOST|CLEAN/)
   }
 })
 

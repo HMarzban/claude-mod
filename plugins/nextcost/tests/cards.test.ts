@@ -48,7 +48,7 @@ test('the cards take only the rows the collapsed lines leave', () => {
       // desktop card's edge takes a row above and below, which visualRows
       // leaves out, so each line of them adds two.
       for (const maxRows of [13, 14, 20, 40]) {
-        const snap = snapOf({ surface, expanded: true, maxRows, workspace: { path: '/Users/me/workspace/claude-mod', git: undefined, repoName: undefined } })
+        const snap = snapOf({ surface, expanded: true, maxRows, workspace: { path: '/Users/me/workspace/nextcost', git: undefined, repoName: undefined } })
         const tree = drawn(view, snap)
         const edges = surface === 'desktop' ? 2 * (byKey(tree, 'cards')?.children ?? []).length : 0
         // The desktop's two lines at 13 rows, the gauges board's case, leave
