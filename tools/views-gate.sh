@@ -17,6 +17,9 @@ for f in "$VIEWS"/*.ts "$VIEWS"/*.tsx; do
   if [ -e "$f" ]; then VIEW_FILES+=("$f"); fi
 done
 [ "${#VIEW_FILES[@]}" -gt 0 ] || fail "no views found in $VIEWS"
+# views/ is flat: a view in a folder of its own would go unread.
+NESTED=$(find "$VIEWS" -mindepth 2 -type f \( -name '*.ts' -o -name '*.tsx' \))
+[ -z "$NESTED" ] || fail "views/ holds no folders; move each view up into it: $NESTED"
 
 # A module named in any quoting, by any relative path, with or without its
 # suffix, in a static import, an export's from or a dynamic import():

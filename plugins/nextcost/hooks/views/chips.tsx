@@ -2,7 +2,7 @@
 // builders, its row and its bar's size are exported for its tests; pulse and
 // departures draw their own look. Like every layout it draws only words from
 // the readings: its hover cards and the context's amount are chips' own
-// table in words.ts. The pill a chip sits in is drawn here alone, led on the
+// words, in chips-words.ts. The pill a chip sits in is drawn here alone, led on the
 // cache's by the battery from charts.tsx.
 
 import type { RenderChildren, RenderElement } from 'claude-code'

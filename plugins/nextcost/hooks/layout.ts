@@ -53,7 +53,7 @@ export const isWide = (ch: string): boolean => WIDE.test(ch)
 
 /** The columns a character takes in a monospace cell grid: a wide one two,
  *  any other one. */
-export const charCells = (ch: string): number => (isWide(ch) ? 2 : 1)
+const charCells = (ch: string): number => (isWide(ch) ? 2 : 1)
 
 /** The columns `text` takes in a monospace cell grid. */
 export const textCells = (text: string): number => [...text].reduce((n, ch) => n + charCells(ch), 0)
