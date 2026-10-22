@@ -3,16 +3,16 @@ output (from the test kit) rendered in as the hero's live band.
 
     python3 gen_site.py out/site.txt site/template.html ../../docs/index.html [out/demo.txt]
 
-site.txt fills the legacy {{<state>}} placeholders; demo.txt (beside site.txt
-unless given) fills {{demo-chips-amber}}, the hero's first drawing, and
-{{demo-json}}, every drawing as {layout: {state: {shut, open}}} for
-<script type="application/json" id="demo-data">."""
+demo.txt (beside site.txt unless given) fills {{demo-chips-amber}}, the
+hero's first drawing, and {{demo-json}}, every drawing as
+{layout: {state: {shut, open}}} for <script type="application/json"
+id="demo-data">. site.txt itself feeds the stills, not the page."""
 import datetime
 import json
 import os
 import sys
 
-from common import plugin_version, read, trees, words, write
+from common import plugin_version, read, words, write
 from render_desk import node
 
 
@@ -90,22 +90,16 @@ def script_json(data):
 
 src, template, out = sys.argv[1], sys.argv[2], sys.argv[3]
 demo_src = sys.argv[4] if len(sys.argv) > 4 else os.path.join(os.path.dirname(src), 'demo.txt')
-states = {}
-for name, tree in trees(src).items():
-    lift_hovers(tree)
-    states[name] = node(tree).replace('0:47', '<span class=cd>0:47</span>')
 
 page = read(template)
 # The release the page describes is the manifest's, and it is dated the day
 # it was built (UTC), as the sitemap is: neither is typed into the template.
 page = page.replace('{{version}}', plugin_version())
 page = page.replace('{{built}}', datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d'))
-for name, body in states.items():
-    page = page.replace('{{' + name + '}}', body)
 if '{{demo-' in page:
     demo = demo_drawings(demo_src)
     page = page.replace('{{demo-chips-amber}}', demo['chips']['amber']['shut'])
     page = page.replace('{{demo-json}}', script_json(demo))
 assert '{{' not in page, 'unfilled placeholder'
 write(out, page)
-print({k: len(v) for k, v in states.items()}, len(page))
+print(len(page))
