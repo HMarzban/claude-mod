@@ -60,10 +60,10 @@ test("day cells: a measured day filled, an empty one a solid edge on the track",
   const { palette: p } = desk
   const cells = svg(dayCells(desk, { key: 'd', alt: 'week', values: [undefined, 10, undefined], color: p.trackStroke, cellPx: 20, height: 14 }))
   expect(dayMarks(cells.props.source)).toEqual([
-    `edge height=13 fill=none stroke=${p.meterTrack}`,
+    `edge height=13 fill=none stroke=${p.trackInk}`,
     `fill height=12 fill=${p.trackStroke}`,
     `edge height=13 fill=none stroke=${p.trackStroke}`,
-    `edge height=13 fill=none stroke=${p.meterTrack}`,
+    `edge height=13 fill=none stroke=${p.trackInk}`,
   ])
   // 3px apart, each 3px round.
   const xs = [...cells.props.source.matchAll(/class="edge" x="([\d.]+)"/g)].map(([, x]) => Number(x))

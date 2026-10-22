@@ -58,13 +58,17 @@ for (const [name, p, hosts] of [
   test(`${name}: card edges and bar tracks meet WCAG non-text contrast`, () => {
     for (const host of hosts) expect(contrast(p.cardBorder, host)).toBeGreaterThanOrEqual(3)
     for (const bg of pillGrounds) expect(contrast(p.trackStroke, bg)).toBeGreaterThanOrEqual(3)
+    // A text meter's empty cells (░), the cache's track (⣀) and an unmeasured
+    // day's edge are the track itself, on every ground they sit on.
+    const low = pillGrounds.filter(bg => contrast(p.trackInk, bg) < 3)
+    expect(low.map(bg => `${p.trackInk} on ${bg} ${contrast(p.trackInk, bg).toFixed(2)}`)).toEqual([])
   })
 
   test(`${name}: a hover card is inverted, its ink legible and its ground apart from every chip's and the band's`, () => {
     expect(contrast(p.tooltipFg, p.tooltipBg)).toBeGreaterThanOrEqual(4.5)
     // Cards are drawn over chips' row and the workspace strip alone, so the
     // grounds they cover are the chips' and the host's.
-    const covered = [...pillGrounds, p.meterTrack, p.batteryFill, p.batteryAmber, ...hosts]
+    const covered = [...pillGrounds, p.meterTrack, p.trackInk, p.batteryFill, p.batteryAmber, ...hosts]
     const low = covered.filter(bg => contrast(p.tooltipBg, bg) < 3)
     expect(low.map(bg => `${bg} ${contrast(p.tooltipBg, bg).toFixed(2)}`)).toEqual([])
   })

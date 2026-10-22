@@ -107,7 +107,7 @@ export const meter = (kit: Kit, o: MeterOptions): RenderChildren => {
   return (
     <Text key={key} color={fill}>
       {'█'.repeat(filled)}
-      {filled < size.cells ? <Text key="track" color={palette.meterTrack}>{'░'.repeat(size.cells - filled)}</Text> : null}
+      {filled < size.cells ? <Text key="track" color={palette.trackInk}>{'░'.repeat(size.cells - filled)}</Text> : null}
     </Text>
   )
 }
@@ -360,7 +360,7 @@ export const track = (kit: Kit, o: TrackOptions): RenderChildren => {
   const gone = clamp01(frac)
   if (!Svg) {
     const raised = Math.round(gone * cells)
-    const glyphs: Array<readonly [string, string]> = Array.from({ length: cells }, (_, i) => (i < raised ? ['⣤', color] : ['⣀', palette.meterTrack]))
+    const glyphs: Array<readonly [string, string]> = Array.from({ length: cells }, (_, i) => (i < raised ? ['⣤', color] : ['⣀', palette.trackInk]))
     return textRuns(kit, key, glyphs)
   }
   const y = tenth((height - TRACK_PX) / 2)
@@ -456,7 +456,7 @@ export const dayCells = (kit: Kit, o: DayCellsOptions): RenderChildren => {
       ? [palette.value, ` ${TODAY_DASH}`]
       : isGuess(i)
         ? [palette.trackStroke, ` ${GUESS_DASH} opacity="0.75"`]
-        : [v === undefined ? palette.meterTrack : color, '']
+        : [v === undefined ? palette.trackInk : color, '']
     const edge = `<rect class="edge" x="${x + 0.5}" y="${DAY_EDGE + 0.5}" width="${cellPx - 1}" height="${height - 1}" rx="3" fill="none" stroke="${stroke}"${dash}/>`
     return ground + filled + edge
   })

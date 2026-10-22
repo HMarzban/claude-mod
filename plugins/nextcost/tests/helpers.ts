@@ -553,7 +553,7 @@ export const rebuilds = (tree: unknown): number => Number(fact(tree, 'unexpected
 const METER = new RegExp(`^[█░]{${CHIP_BAR.cells}}$`)
 export const textMeters = async (ui: {
   findAll: (q: { type: string; text: RegExp }) => Promise<Array<{ props?: Record<string, unknown> }>>
-}): Promise<number> => (await ui.findAll({ type: 'Text', text: METER })).filter(t => t.props?.color !== DARK.meterTrack).length
+}): Promise<number> => (await ui.findAll({ type: 'Text', text: METER })).filter(t => t.props?.color !== DARK.trackInk).length
 
 // ── driving the engine ─────────────────────────────────────────────────
 
