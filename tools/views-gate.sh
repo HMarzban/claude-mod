@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
-# The views gate: outside chips, no view formats, parses a time, or reads a
-# raw fact. Prints each offending line and fails if there is one.
+# The views gate: no view formats, parses a time, or reads a raw fact.
+# Prints each offending line and fails if there is one.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VIEWS="$ROOT/plugins/nextcost/hooks/views"
-# Every view but chips. A missing views directory, or one with no views,
-# fails: a gate that reads nothing would pass.
-OTHERS=()
+# Every view. A missing views directory, or one with no views, fails: a
+# gate that reads nothing would pass.
+VIEW_FILES=()
 for f in "$VIEWS"/*.tsx; do
-  if [ -e "$f" ] && [ "$(basename "$f")" != chips.tsx ]; then OTHERS+=("$f"); fi
+  if [ -e "$f" ]; then VIEW_FILES+=("$f"); fi
 done
-if [ "${#OTHERS[@]}" -eq 0 ]; then
+if [ "${#VIEW_FILES[@]}" -eq 0 ]; then
   echo "views-gate: no views found in $VIEWS" >&2
   exit 1
 fi
 # A raw fact, a parse, a format of its own (numbers and dates included), or
 # an import of the formatters in any quoting, with or without its suffix.
 RAW='\.raw\b|\.reading\.|Date\.parse|\.replace\(|Math\.round|\.toFixed\(|\.toLocaleString\(|\bIntl\.|["'\''`]\.\./format(\.tsx?)?["'\''`]'
-if grep -nE "$RAW" "${OTHERS[@]}"; then
+if grep -nE "$RAW" "${VIEW_FILES[@]}"; then
   echo "views-gate: a view formats or reads a raw fact (see above)" >&2
   exit 1
 fi

@@ -17,13 +17,12 @@ const SEC = 1000
 const drawnTimes = (snap: BandSnapshot): string => {
   const r = readingsOf(snap)
   return JSON.stringify([
-    r.cache.left,
     r.cache.figure,
     r.cache.figureShort,
     r.cache.cardHead,
     r.cache.alt,
-    r.chips.reading.copy.pill(false),
-    r.chips.reading.copy.hover,
+    r.chips.cache.pill(false),
+    r.chips.cache.hover,
     r.limits.map(l => [l.text, l.resetWhen, l.cardResetLess, l.fillText, l.alt]),
     r.board().rows.map(row => [row.status, row.time, row.cell, row.cellShort, row.remarks]),
   ])

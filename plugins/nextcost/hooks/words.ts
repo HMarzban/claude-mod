@@ -1,14 +1,13 @@
 // The phrasebook: every phrase a layout draws, built from the facts the
 // readings hold. Pure, and the one place a layout's words are written, so
 // amber, pace, resets, empty states and alt text read the same everywhere.
+// The departures board's words are board-words.ts's, built from these.
 
 import type { Week } from './calendar'
 import type { Zone } from './format'
 import {
   clamp01,
-  etaMinutes,
   fmtAgo,
-  fmtClock,
   fmtCost,
   fmtCountdown,
   fmtDay,
@@ -30,10 +29,11 @@ import {
   secondsLeft,
   severityMark,
 } from './format'
+import { IDLE_COMPACT_MS } from './cache'
 import { warmAverageOf } from './insights'
 import type { CostEntry, Trails } from './insights'
 // Types alone, erased at runtime, so reading.ts may import this file's values.
-import type { CacheFacts, ContextFacts, Frame, LimitFacts, LimitKey, SliceMark, SpendFacts, Tone } from './reading'
+import type { CacheFacts, ContextFacts, Frame, LimitFacts, SliceMark, SpendFacts, Tone } from './reading'
 
 /** The colour a piece of a phrase is drawn in. */
 export type Role = 'label' | 'value' | 'amber' | 'accent5' | 'accent7'
@@ -45,19 +45,23 @@ export type Amber = Readonly<{ long: string; short: string }>
 const UNKNOWN = '–'
 
 /** What leads an amber reading: its mark, then its words. */
-const AMBER_LEAD = '! '
+export const AMBER_LEAD = '! '
 
 /** A phrase's segments as one plain string. */
 const joined = (say: Say): string => say.map(([text]) => text).join('')
 /** The phrases said, the missing and the empty left out. */
 const said = (parts: ReadonlyArray<string | undefined>): string[] => parts.filter((p): p is string => p !== undefined && p !== '')
 /** The phrases said, joined by `sep`. */
-const saidJoined = (parts: ReadonlyArray<string | undefined>, sep: string): string => said(parts).join(sep)
+export const saidJoined = (parts: ReadonlyArray<string | undefined>, sep: string): string => said(parts).join(sep)
 
 /** The room before auto-compaction, an estimate: `~14k`. */
 export const roomOf = (toCompact: number): string => `~${fmtTokens(toCompact)}`
-/** Near compaction, the room before it: `compacts in ~14k`. */
-const compactsIn = (toCompact: number): string => `compacts in ${roomOf(toCompact)}`
+/** Near compaction, the room before it: `compacts in ~14k`. Every layout's
+ *  words say it so, chips' hover as `auto-compacts in ~14k`. */
+export const compactsIn = (toCompact: number): string => `compacts in ${roomOf(toCompact)}`
+
+/** When Claude Code may compact a conversation idle on the hour's cache. */
+const IDLE_COMPACT_AT = `at ~${fmtAgo(IDLE_COMPACT_MS)} idle, before it goes cold`
 
 const amberOf = (say: Say, sayShort: Say): Amber => ({ long: joined(say), short: joined(sayShort) })
 
@@ -120,15 +124,8 @@ type Fact = Readonly<{ label: string; value: string }>
 // ---- the words of each section, from its facts ------------------------------
 
 export type CacheWords = Readonly<{
-  /** The value after `cache `: `52m left`, `warm` while Claude works, `–`, `warming`, `cold` or `compacted`. */
-  value: string
-  /** The countdown, `52m left` or `47s left`; empty while not counting. */
-  left: string
-  say: Say
   /** The cache's mood for a reader, unchanged as it counts down: the heartbeat's alt. */
   heartAlt: string
-  /** `say` as plain text: `cache 52m left`. */
-  text: string
   /** Pulse's row tile's name: `cache`. */
   bandName: string
   /** The last minute: `! 47s left · re-warm ~$1.66`, then `! 47s`. */
@@ -158,10 +155,8 @@ export type CacheWords = Readonly<{
 }>
 
 export type ContextWords = Readonly<{
-  /** `38%` and `context 38%`; while not reported, `–`. */
+  /** `38%`; while not reported, `–`. */
   valueText: string
-  text: string
-  say: Say
   /** `! context 93% · compacts in ~14k` / `! ctx 93%`; compaction off, `! context 85%`. */
   amber: Amber | undefined
   /** Tokens in context, where it compacts, the room before then, and the window:
@@ -230,47 +225,55 @@ export type LimitWords = Readonly<{
   alt: string
 }>
 
-/** What one mood of the cache says: its value, its figure after `cache `
- *  long and short, its card's headline and note, the heartbeat's and a
- *  reader's words, and its amber. */
-type MoodWords = Pick<CacheWords, 'value' | 'figureShort' | 'heartAlt' | 'amber' | 'cardHead' | 'cardNote' | 'estimateLabel' | 'alt'> &
+/** What one mood of the cache says: its figure after `cache ` long and
+ *  short, its card's headline and note, a reader's words, and its amber. */
+type MoodWords = Pick<CacheWords, 'figureShort' | 'amber' | 'cardHead' | 'cardNote' | 'estimateLabel' | 'alt'> &
   Readonly<{ figure: Say }>
 
-/** The cache's words for its mood. One table, as `cacheCopy` is chips', so
- *  a mood's wording changes in one place. `left` and `leftShort` are the
- *  countdown, empty while not counting; `price` is the re-warm, spoken. */
+/** Each mood's name for a reader, unchanged as the cache counts down: the
+ *  heartbeat's alt, and where a mood says no more, a card's and chips'. */
+const MOOD_ALT: Readonly<Record<CacheFacts['mood'], string>> = {
+  unmeasured: 'cache not measured yet',
+  warming: 'cache warming',
+  warm: 'cache warm',
+  expiring: 'cache in its last minute',
+  cold: 'cache cold',
+  compacted: 'cache compacted',
+}
+
+/** A cache gone, short: its mood and the next message's price, `cold ~$1.66`. */
+const goneShort = (mood: 'cold' | 'compacted', estimate: string): string => `${mood} ${estimate}`
+
+/** The cache's words for its mood, as the cards, pulse and the board say
+ *  them. Chips' row says its own, in `cacheCopy`, since its trees are
+ *  frozen; what the two say alike they share. `left` and `leftShort` are
+ *  the countdown, empty while not counting; `price` is the re-warm, spoken. */
 const moodWords = (f: CacheFacts, left: string, leftShort: string, price: string): MoodWords => {
   switch (f.mood) {
     case 'unmeasured':
       return {
-        value: UNKNOWN,
         figure: [[UNKNOWN, 'value']],
         figureShort: UNKNOWN,
-        heartAlt: 'cache not measured yet',
         amber: undefined,
         cardHead: [['not measured yet', 'value']],
         cardNote: "Countdown starts with Claude's next reply.",
         estimateLabel: 're-warm if cold',
-        alt: 'cache not measured yet',
+        alt: MOOD_ALT.unmeasured,
       }
     case 'warming':
       return {
-        value: 'warming',
         figure: [['warming', 'value']],
         figureShort: 'warming',
-        heartAlt: 'cache warming',
         amber: undefined,
         cardHead: [['warming', 'value']],
         cardNote: 'First message builds the cache.',
         estimateLabel: 're-warm if cold',
-        alt: 'cache warming',
+        alt: MOOD_ALT.warming,
       }
     case 'compacted':
       return {
-        value: 'compacted',
         figure: [['compacted', 'value'], [' · next ', 'label'], [f.estimate, 'value']],
-        figureShort: `compacted ${f.estimate}`,
-        heartAlt: 'cache compacted',
+        figureShort: goneShort('compacted', f.estimate),
         amber: undefined,
         cardHead: [['compacted', 'value']],
         cardNote: 'Compacted while idle: next message writes the summary.',
@@ -279,10 +282,8 @@ const moodWords = (f: CacheFacts, left: string, leftShort: string, price: string
       }
     case 'cold':
       return {
-        value: 'cold',
         figure: [['cold', 'value'], [' · re-warm ', 'label'], [f.estimate, 'value']],
-        figureShort: `cold ${f.estimate}`,
-        heartAlt: 'cache cold',
+        figureShort: goneShort('cold', f.estimate),
         amber: undefined,
         cardHead: [['cold', 'value']],
         cardNote: undefined,
@@ -295,14 +296,12 @@ const moodWords = (f: CacheFacts, left: string, leftShort: string, price: string
       const expiring = f.mood === 'expiring'
       const value = f.coldInMs !== undefined ? left : f.mood
       return {
-        value,
         figure: [[value, 'value']],
         figureShort: f.coldInMs !== undefined ? leftShort : value,
-        heartAlt: expiring ? 'cache in its last minute' : 'cache warm',
         amber: expiring ? AMBER.cache(leftShort, f.estimate) : undefined,
         // The card counts down as chips' row always has: `1h 05m`, `0:47`.
         cardHead: f.coldInMs !== undefined ? [[fmtCountdown(f.msLeft), 'value'], [' left', 'label']] : [[value, 'value']],
-        cardNote: f.idleCompactSoon ? 'Claude Code may compact it at ~54m idle, before it goes cold.' : undefined,
+        cardNote: f.idleCompactSoon ? `Claude Code may compact it ${IDLE_COMPACT_AT}.` : undefined,
         estimateLabel: 're-warm if cold',
         alt:
           f.coldInMs !== undefined
@@ -324,13 +323,8 @@ export const cacheWords = (f: CacheFacts): CacheWords => {
   // Spoken, a price is never marked ~: the alt says "about".
   const price = f.reWarmUsd !== null ? fmtSmallCost(f.reWarmUsd) : `${fmtTokens(f.window)} tokens`
   const m = moodWords(f, left, leftShort, price)
-  const say: Say = [['cache ', 'label'], ...m.figure]
   return {
-    value: m.value,
-    left,
-    say,
-    heartAlt: m.heartAlt,
-    text: joined(say),
+    heartAlt: MOOD_ALT[f.mood],
     bandName: 'cache',
     amber: m.amber,
     savedText: f.measured && f.savedUsd !== null ? fmtEstimate(f.savedUsd) : undefined,
@@ -343,73 +337,65 @@ export const cacheWords = (f: CacheFacts): CacheWords => {
     cardNote: m.cardNote,
     estimateLabel: m.estimateLabel,
     alt: m.alt,
-    // The time marked ~ while it is recalled; `say` keeps it plain.
+    // The time marked ~ while it is recalled.
     figure: recalledTime ? `~${left}` : joined(m.figure),
     figureShort: recalledTime ? `~${leftShort}` : m.figureShort,
   }
 }
 
 /** Every word chips' row says about the cache, for one mood: the pill, its
- *  hover and the battery's name. One table, so a mood's wording changes in
- *  one place; the cards read theirs from `cacheWords`. */
-export type CacheCopy = Readonly<{
+ *  hover and the battery's name. Chips' own table beside `moodWords`, its
+ *  wording frozen with chips' trees. */
+type CacheCopy = Readonly<{
   pill: (short: boolean) => string
-  /** The countdown a calm pill ends on, `52m`: its figure, for a layout that bolds it. */
-  figure: string | undefined
   hover: string
   alt: string
 }>
 
-export const cacheCopy = (f: CacheFacts, frame: Frame): CacheCopy => {
+const cacheCopy = (f: CacheFacts, frame: Frame): CacheCopy => {
   // What a warm read costs against input on the model in force.
   const readPct = `${+(f.readShare * 100).toFixed(1)}%`
   const left = fmtCountdown(f.msLeft)
   const battery = f.charge <= 0 ? 'cache battery empty' : `cache battery ${Math.round(clamp01(f.charge) * 100)}% left`
   const warmHover = f.idleCompactSoon
-    ? `${left} left; may be compacted at ~54m idle, before it goes cold`
+    ? `${left} left; may be compacted ${IDLE_COMPACT_AT}`
     : `${left} left; warm cache bills input at ${readPct}, expires ${f.ttl} after a request`
   switch (f.mood) {
     case 'unmeasured':
       return {
-        pill: () => 'cache –',
-        figure: undefined,
+        pill: () => `cache ${UNKNOWN}`,
         hover: "Not measured since the band loaded; the countdown starts with Claude's next reply",
-        alt: 'cache not measured yet',
+        alt: MOOD_ALT.unmeasured,
       }
     case 'warming':
       return {
         pill: () => 'cache warming',
-        figure: undefined,
         hover: `Your first message builds the cache; after that it bills input at ${readPct}`,
-        alt: 'cache warming',
+        alt: MOOD_ALT.warming,
       }
     case 'expiring':
       return {
         pill: short => (short ? `${left} ${f.estimate}` : `${left} left · re-warm ${f.estimate}`),
-        figure: undefined,
         hover: warmHover,
         alt: battery,
       }
     case 'compacted':
       return {
         // A summary to write, not a cache lost: as calm as cold.
-        pill: short => (short ? `compacted ${f.estimate}` : `cache compacted · next ${f.estimate}`),
-        figure: undefined,
+        pill: short => (short ? goneShort('compacted', f.estimate) : `cache compacted · next ${f.estimate}`),
         hover: `Compacted while idle: next message writes the ${fmtTokens(f.window)} summary${f.reWarmUsd === null ? '' : ` (${f.estimate})`}`,
-        alt: 'cache compacted',
+        alt: MOOD_ALT.compacted,
       }
     case 'cold':
       return {
         // Cold is a price, not an error: neutral, no hue, no alarm.
-        pill: short => (short ? `cold ${f.estimate}` : `cache cold · next message ${f.estimate}`),
-        figure: undefined,
+        pill: short => (short ? goneShort('cold', f.estimate) : `cache cold · next message ${f.estimate}`),
         hover: `Cold: next message rebuilds ${fmtTokens(f.window)} tokens${f.reWarmUsd === null ? '' : ` (${f.estimate})`}`,
         alt: battery,
       }
     case 'warm':
       return {
         pill: () => (frame.isWorking ? 'cache warm' : `cache ${left}`),
-        figure: frame.isWorking ? undefined : left,
         hover: warmHover,
         alt: battery,
       }
@@ -422,7 +408,6 @@ export const contextWords = (f: ContextFacts): ContextWords => {
   const value = f.known ? f.pct : UNKNOWN
   const towardText = f.compactAt !== undefined ? 'toward compaction' : 'of the window'
   const roomText = !f.known || f.compactAt === undefined ? undefined : roomOf(f.toCompact)
-  const say: Say = [['context ', 'label'], [value, 'value']]
   const amber = f.tone !== 'amber' ? undefined : f.compactAt !== undefined ? AMBER.context(f.frac, f.toCompact) : AMBER.contextNoCompaction(f.frac)
   const cardHead: Say = [[`${f.pct}${f.compactAt === undefined ? severityMark(f.frac) : ''}`, 'value'], [' full', 'label']]
   const compactsAtText = f.compactAt === undefined ? undefined : fmtTokens(f.compactAt)
@@ -431,10 +416,8 @@ export const contextWords = (f: ContextFacts): ContextWords => {
   const inContext = f.known ? fmtTokens(f.used) : UNKNOWN
   return {
     valueText: value,
-    text: joined(say),
-    say,
     amber,
-    inContextText: f.known ? fmtTokens(f.used) : UNKNOWN,
+    inContextText: inContext,
     compactsAtText,
     roomText,
     bandName: 'context',
@@ -464,9 +447,6 @@ export const spendWords = (f: SpendFacts): SpendWords => {
     }),
   }
 }
-
-/** The tokens by kind as chips' hover says them: `input 41k · output 12k · cache reads 155k`. */
-export const tokenBreakdownOf = (split: readonly SpendSplit[]): string => split.map(s => `${s.label} ${s.text}`).join(' · ')
 
 /** A limit window in words; once it has passed, only that it reset: its
  *  facts carry no pace, reset or fill to say. */
@@ -519,6 +499,59 @@ export const limitWords = (f: LimitFacts, frame: Frame): LimitWords => {
           ? 'full before its reset'
           : landing,
     ),
+  }
+}
+
+// ---- chips' row ---------------------------------------------------------------
+
+/** The chips a limit window has, and the title its hover card names it by. */
+const CHIP_TITLES = { '5h': '5-hour limit', '7d': 'Weekly limit' } as const
+
+/** Every word chips' row says beyond the readings' own: the cache pill's
+ *  table, the hover cards, and the context's amount. */
+export type ChipsWords = Readonly<{
+  cache: CacheCopy
+  /** The last message's cost, subagents included, else the session's so far. */
+  costHover: string
+  /** The tokens by kind: `input 41k · output 12k · cache reads 155k`. */
+  tokensHover: string
+  /** The context's amount, its mark, and near compaction the room before it:
+   *  `87% full · compacts in ~14k`, or without compaction `76k / 200k`.
+   *  `long` while the row keeps its long wording. */
+  contextPill: (long: boolean) => string
+  /** How much of the window is used, and where it compacts. */
+  contextHover: string
+  /** A limit chip's hover card: once passed, that it has reset; else its
+   *  reset first, the fact the chip had, so a short row's cut only takes the
+   *  description. Undefined while the engine reports no such window. */
+  limitHover: Readonly<Record<keyof typeof CHIP_TITLES, string | undefined>>
+}>
+
+/** Chips' words, from the facts and the words the other layouts share. */
+export const chipsWords = (r: Readonly<{ frame: Frame; cache: CacheFacts; spend: SpendWords; context: ContextFacts; limits: readonly LimitFacts[] }>): ChipsWords => {
+  const { spend, context: x } = r
+  const limitHover = (key: keyof typeof CHIP_TITLES): string | undefined => {
+    const l = r.limits.find(w => w.key === key)
+    if (l === undefined) return undefined
+    const title = CHIP_TITLES[key]
+    if (l.passed) return `${title} has reset; it updates after your next message`
+    return l.reset?.kind === 'in' ? `Resets in ${l.reset.text}; ${title.toLowerCase()}, all your Claude use` : `Your ${title.toLowerCase()}, across all your Claude use`
+  }
+  return {
+    cache: cacheCopy(r.cache, r.frame),
+    costHover: spend.lastText === undefined ? `${spend.totalText} so far this session` : `${spend.lastText} spent during your last message, subagents included`,
+    tokensHover: spend.split.map(s => `${s.label} ${s.text}`).join(' · '),
+    contextPill: long => {
+      const amount =
+        x.compactAt !== undefined ? (long ? `${x.pct} full` : x.pct) : !long || x.tokens === undefined ? x.pct : `${fmtTokens(x.tokens)} / ${fmtTokens(x.window)}`
+      const mark = x.compactAt === undefined ? severityMark(x.frac) : ''
+      return `${amount}${mark}${x.nearCompact ? ` · ${compactsIn(x.toCompact)}` : ''}`
+    },
+    contextHover:
+      x.compactAt === undefined
+        ? `${fmtTokens(x.used)} of ${fmtTokens(x.window)} (${x.pct}); older turns get summarized near full`
+        : `${fmtTokens(x.used)} of ${fmtTokens(x.compactAt)} (${x.pct}); auto-${compactsIn(x.toCompact)}`,
+    limitHover: { '5h': limitHover('5h'), '7d': limitHover('7d') },
   }
 }
 
@@ -640,127 +673,12 @@ export const weekWords = (
       : `5h window from start to reset, ${five.valueText} used${five.projectedPct === undefined ? '' : `, on pace for about ${Math.round(five.projectedPct)}%`}`,
 })
 
-// ---- the departures board ----------------------------------------------------
-
-export type BoardKey = 'cache' | 'spend' | 'context' | '5h' | '7d' | 'other'
-export type BoardRow = Readonly<{
-  key: BoardKey
-  item: string        // CACHE | SPEND | CONTEXT | 5H | 7D | an other limit's name, upper-case
-  status: string      // DEPARTS | LAST CALL | DEPARTED | BOARDING | CHECK-IN | $0.24 | 8% USED | 26% | ! NEAR LIMIT
-  time: string | undefined // 17:24 | SAT 13:30 | IN 38 MIN | IN 1H 04M | PASSED; none where it has no time
-  remarks: string
-  cell: string        // collapsed, long: DEPARTS 17:24 | 26% RESET 17:50 | 85% RESET SAT 13:30 ! NEAR LIMIT
-  cellShort: string   // collapsed, short: 17:24 | ! 47S | 26%
-  /** Limits only: the cell without its reset. */
-  cellNoReset?: string
-  tone: Tone
-  alt: string         // in words, never capitals or ↻: the reading's existing alt
-}>
-/** What the board says for a reset: the flap face has no ↻. */
-const BOARD_RESET = 'RESET'
-export type Board = Readonly<{
-  rows: readonly BoardRow[]
-  /** The time now on the viewer's clock, `20:36`, for the open board's
-   *  header; none where the zone isn't known. */
-  now: string | undefined
-}>
-type BoardFacts = Readonly<{
-  frame: Frame
-  cache: CacheFacts & CacheWords
-  spend: SpendFacts & SpendWords
-  context: ContextFacts & ContextWords
-  limits: readonly (LimitFacts & LimitWords)[]
-}>
-
-/** A measured span on the board: `47S`, `38 MIN`, `1H 04M`. Never `38M`. */
-const boardSpan = (ms: number): string =>
-  grainOf(ms) === 'seconds' ? `${secondsLeft(ms)}S` : ms < HOUR_MS ? `${minutesLeft(ms)} MIN` : fmtCountdown(ms)
-/** A projection on the board: `~40 MIN`, `~1H 15M`. */
-const boardEta = (ms: number): string => (etaMinutes(ms) < 60 ? `~${etaMinutes(ms)} MIN` : fmtEta(ms))
-
-const cacheBoard = (r: BoardFacts): BoardRow => {
-  const c = r.cache
-  const zone = r.frame.zone
-  const at = (cell: Omit<BoardRow, 'key' | 'item' | 'alt'>): BoardRow => ({ key: 'cache', item: 'CACHE', alt: c.alt, ...cell })
-  const reWarm = `RE-WARM ${c.estimate}`
-  if (c.mood === 'unmeasured' || c.mood === 'warming') return at({ status: 'CHECK-IN', time: undefined, remarks: '', cell: 'CHECK-IN', cellShort: 'CHECK-IN', tone: 'calm' })
-  if (r.frame.isWorking) return at({ status: 'BOARDING', time: undefined, remarks: '', cell: 'BOARDING', cellShort: 'BOARDING', tone: 'calm' })
-  const clock = c.coldAt === null || zone === undefined ? undefined : `${c.measured ? '' : '~'}${fmtClock(c.coldAt, zone)}`
-  if (c.mood === 'compacted') {
-    const next = `NEXT ${c.estimate}`
-    return at({ status: 'COMPACTED', time: clock, remarks: next, cell: clock === undefined ? `COMPACTED · ${next}` : `COMPACTED ${clock} · ${next}`, cellShort: next, tone: 'calm' })
-  }
-  if (c.mood === 'cold')
-    return at({ status: 'DEPARTED', time: clock, remarks: reWarm, cell: clock === undefined ? `DEPARTED · ${reWarm}` : `DEPARTED ${clock} · ${reWarm}`, cellShort: reWarm, tone: 'calm' })
-  const left = c.coldInMs ?? 0
-  if (c.tone === 'amber') {
-    const secs = boardSpan(left)
-    return at({ status: 'LAST CALL', time: secs, remarks: reWarm, cell: `LAST CALL ${secs}`, cellShort: `${AMBER_LEAD}${secs}`, tone: 'amber' })
-  }
-  const status = c.lastCall ? 'LAST CALL' : 'DEPARTS'
-  const countdown = `IN ${boardSpan(left)}`
-  const time = clock ?? countdown
-  return at({ status, time, remarks: `${clock === undefined ? '' : `${countdown} · `}${reWarm} IF MISSED`, cell: `${status} ${time}`, cellShort: time, tone: 'calm' })
-}
-
-const spendBoard = (r: BoardFacts): BoardRow => ({
-  key: 'spend', item: 'SPEND', status: r.spend.totalText, time: undefined,
-  remarks: r.spend.lastText === undefined ? '' : `LAST ${r.spend.lastText}`,
-  cell: r.spend.totalText, cellShort: r.spend.totalText, tone: 'calm', alt: `spent ${r.spend.totalText} this session`,
-})
-
-const contextBoard = (r: BoardFacts): BoardRow => {
-  const x = r.context
-  const base = { key: 'context', item: 'CONTEXT', time: undefined, alt: x.alt } as const
-  if (!x.known) return { ...base, status: 'NOT REPORTED', remarks: '', cell: 'NOT REPORTED', cellShort: 'NOT REPORTED', tone: 'calm' }
-  const remarks = saidJoined([x.roomText === undefined ? undefined : `${x.roomText} LEFT`, x.compactsAtText === undefined ? undefined : `COMPACTS AT ${x.compactsAtText}`], ' · ')
-  if (x.tone === 'calm') return { ...base, status: `${x.valueText} USED`, remarks, cell: x.valueText, cellShort: x.valueText, tone: 'calm' }
-  // Near compaction the board names the event; with compaction off, the
-  // fill. The group's ITEM already says CONTEXT, so its cell never does.
-  const short = `${AMBER_LEAD}${x.valueText}`
-  const long = x.toCompact === undefined ? short : `${AMBER_LEAD}${compactsIn(x.toCompact)}`
-  return { ...base, status: long, remarks, cell: long, cellShort: short, tone: 'amber' }
-}
-
-const limitBoard = (r: BoardFacts, l: LimitFacts & LimitWords): BoardRow => {
-  const { zone, now } = r.frame
-  // An other limit names itself a limit: `spend` alone would read as the session's SPEND.
-  const item = l.key !== 'other' ? l.key : /\blimit$/.test(l.name) ? l.name : `${l.name} limit`
-  // Passed, its value is that it reset: RESET PASSED says it once, and the short forms the value.
-  if (l.passed) return { key: l.key, item, status: l.valueText, time: 'PASSED', remarks: '', cell: `${BOARD_RESET} PASSED`, cellShort: l.valueText, cellNoReset: l.valueText, tone: l.tone, alt: l.alt }
-  const time = l.resetInMs === undefined ? undefined : zone === undefined ? `IN ${boardSpan(l.resetInMs)}` : fmtDayClock(now + l.resetInMs, zone, now)
-  // A measured fill says when it fills, past the warning line too, as every
-  // layout's amber words do; amber without one, that it is near.
-  const byPace = l.key === '5h' && l.tone === 'amber' && l.etaMs !== null
-  const amber = l.tone !== 'amber' ? undefined : byPace && l.etaMs !== null ? `${AMBER_LEAD}${zone === undefined ? `FULL IN ${boardEta(l.etaMs)}` : `FULL ~${fmtClock(now + l.etaMs, zone)}`}` : `${AMBER_LEAD}NEAR LIMIT`
-  const calm = l.fillText ?? l.pace
-  const tail = (amber ?? calm) === '' ? '' : ` ${amber ?? calm}`
-  return {
-    key: l.key, item, status: amber ?? l.valueText, time,
-    // Amber from the pace, STATUS says the fill, so REMARKS doesn't again.
-    remarks: amber === undefined ? calm : saidJoined([l.valueText, byPace ? undefined : calm], ' · '),
-    cell: `${l.valueText}${time === undefined ? '' : ` ${BOARD_RESET} ${time}`}${tail}`, cellShort: amber === undefined ? l.valueText : `${AMBER_LEAD}${l.valueText}`, cellNoReset: `${l.valueText}${tail}`,
-    tone: l.tone, alt: l.alt,
-  }
-}
-
-const upRow = (row: BoardRow): BoardRow => ({
-  ...row, item: row.item.toUpperCase(), status: row.status.toUpperCase(), time: row.time?.toUpperCase(),
-  remarks: row.remarks.toUpperCase(), cell: row.cell.toUpperCase(), cellShort: row.cellShort.toUpperCase(),
-  ...(row.cellNoReset === undefined ? {} : { cellNoReset: row.cellNoReset.toUpperCase() }),
-})
-
-/** The departures board: a row per reading in the one order, in the
- *  board's capitals; alts stay in words. */
-export const boardWords = (r: BoardFacts): Board => {
-  const of = (key: LimitKey) => r.limits.filter(l => l.key === key).map(l => limitBoard(r, l))
-  return {
-    rows: [cacheBoard(r), spendBoard(r), contextBoard(r), ...of('5h'), ...of('7d'), ...of('other')].map(upRow),
-    now: r.frame.zone === undefined ? undefined : fmtClock(r.frame.now, r.frame.zone),
-  }
-}
-
 // ---- the clock ---------------------------------------------------------------
+
+/** A measured span on the board: `47S`, `38 MIN`, `1H 04M`. Never `38M`.
+ *  Here, not with the board's words, since the paint key reads it too. */
+export const boardSpan = (ms: number): string =>
+  grainOf(ms) === 'seconds' ? `${secondsLeft(ms)}S` : ms < HOUR_MS ? `${minutesLeft(ms)} MIN` : fmtCountdown(ms)
 
 /** A reset's countdown as every layout says it: the span a card and, with
  *  no zone known, a limit's words say, and the board's, which with no zone
@@ -782,17 +700,3 @@ export const paintKey = (now: number, t: Readonly<{ cacheLeft: number; etaMs: nu
     t.etaMs === null ? '-' : fmtEta(t.etaMs),
     ...t.resets.map(at => resetSpans(at - now, t.zone)),
   ].join('|')
-
-/** What a board line says in its four columns. */
-type BoardText = Readonly<Record<'item' | 'status' | 'time' | 'remarks', string>>
-
-/** The board's column headings, a line of their own. */
-export const BOARD_HEADINGS: BoardText = { item: 'ITEM', status: 'STATUS', time: 'TIME', remarks: 'REMARKS' }
-/** The open board's title, at its header's left. */
-export const BOARD_TITLE = 'DEPARTURES'
-/** What leads the time now, at the header's right: `NOW 20:36`. */
-export const BOARD_NOW = 'NOW'
-/** What TIME says, in plain text, on a line that has none. */
-export const BOARD_NO_TIME = '–'
-/** The alt of a rule between the board's lines. */
-export const BOARD_RULE_ALT = 'a rule between the board\'s lines'

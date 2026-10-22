@@ -77,22 +77,31 @@ test('the cache facts carry its mood, tone, charge and price', () => {
   expect(r.cache.tone).toBe('calm')
   expect(Math.abs(r.cache.charge - 52 / 60)).toBeLessThan(1e-5)
   expect(r.cache.estimate).toBe('~$1.66')
-  expect(r.chips.reading.copy.pill(false)).toBe('cache 52m')
+  expect(r.chips.cache.pill(false)).toBe('cache 52m')
   expect(r.spend.total).toBe(225_000)
+})
+
+test("chips' words say its hover cards and the context's amount", () => {
+  const c = readingsOf(snapOf()).chips
+  expect([c.costHover, c.tokensHover]).toEqual(['$0.21 spent during your last message, subagents included', 'input 18k · output 9.0k · cache reads 198k'])
+  expect([c.contextPill(true), c.contextPill(false), c.contextHover]).toEqual(['40% full', '40%', '76k of 190k (40%); auto-compacts in ~114k'])
+  expect(c.limitHover).toEqual({ '5h': 'Resets in 3h 00m; 5-hour limit, all your Claude use', '7d': 'Resets in 2d 19h; weekly limit, all your Claude use' })
+  const off = readingsOf(snapOf({ context: { ...snapOf().context, compactAt: undefined }, fiveHour: { percentUsed: 30, resetsAt: -1, etaMs: null }, sevenDay: undefined })).chips
+  expect([off.contextPill(true), off.contextPill(false), off.contextHover]).toEqual(['76k / 200k', '38%', '76k of 200k (38%); older turns get summarized near full'])
+  expect(off.limitHover).toEqual({ '5h': '5-hour limit has reset; it updates after your next message', '7d': undefined })
 })
 
 test('a cache compacted while idle is its own mood: empty, calm, its estimate the next message\'s', () => {
   const c = readingsOf(snapOf({ cache: { ...cacheAt(0), compacted: true } })).cache
   expect([c.mood, c.charge, c.tone, c.estimateLabel]).toEqual(['compacted', 0, 'calm', 'next message'])
-  expect([c.value, c.figure, c.figureShort, c.heartAlt]).toEqual(['compacted', 'compacted · next ~$1.66', 'compacted ~$1.66', 'cache compacted'])
+  expect([c.figure, c.figureShort, c.heartAlt]).toEqual(['compacted · next ~$1.66', 'compacted ~$1.66', 'cache compacted'])
   expect(readingsOf(snapOf({ cache: cacheAt(0) })).cache.mood).toBe('cold')
 })
 
 test('the cache speaks in words', () => {
   const c = readingsOf(snapOf()).cache
-  expect(c.text).toBe('cache 52m left')
-  expect(c.say).toEqual([['cache ', 'label'], ['52m left', 'value']])
-  expect(c.figureShort).toBe('52m')
+  expect([c.figure, c.figureShort]).toEqual(['52m left', '52m'])
+  expect(c.cardHead).toEqual([['52m', 'value'], [' left', 'label']])
   expect(c.alt).toBe('cache 52 minutes left, warm')
   expect([c.hitFrac, c.hitText, c.savedText, c.lastsText]).toEqual([0.96, '96%', '~$11.40', '1h idle'])
   expect(c.coldInMs).toBe(52 * MIN)
@@ -102,9 +111,14 @@ test('in its last minute the cache is amber, long and short', () => {
   expect(c.alt).toBe('cache 47 seconds left, cooling, re-warm about $1.66')
   expect([c.amber?.long, c.amber?.short]).toEqual(['! 47s left · re-warm ~$1.66', '! 47s'])
 })
+test("idle on the hour's cache, the card and chips say when Claude Code may compact it", () => {
+  const r = readingsOf(snapOf({ cache: { ...cacheAt(50 * MIN), idleCompacts: true } }))
+  expect(r.cache.cardNote).toBe('Claude Code may compact it at ~54m idle, before it goes cold.')
+  expect(r.chips.cache.hover).toBe('50m left; may be compacted at ~54m idle, before it goes cold')
+})
 test('working, the cache shows no countdown', () => {
   const c = readingsOf(snapOf({ isWorking: true })).cache
-  expect([c.text, c.left]).toEqual(['cache warm', ''])
+  expect([c.figure, c.figureShort]).toEqual(['warm', 'warm'])
   expect(c.coldInMs).toBeUndefined()
 })
 test('working, an expiring cache still counts down', () => {
@@ -115,7 +129,7 @@ test('working, an expiring cache still counts down', () => {
 })
 test('cold is a price', () => {
   const c = readingsOf(snapOf({ cache: cacheAt(0), zone: fixedZone(0) })).cache
-  expect([c.text, c.figureShort]).toEqual(['cache cold · re-warm ~$1.66', 'cold ~$1.66'])
+  expect([c.figure, c.figureShort]).toEqual(['cold · re-warm ~$1.66', 'cold ~$1.66'])
   expect(c.alt).toBe('cache cold, re-warm about $1.66')
 })
 test('an hour left is said in full to a reader', () => {
@@ -124,9 +138,9 @@ test('an hour left is said in full to a reader', () => {
 })
 test('the countdown never looks like a clock', () => {
   for (const ms of [52 * MIN, 9.5 * MIN, 47_000]) {
-    const { left } = readingsOf(snapOf({ cache: cacheAt(ms) })).cache
-    expect(left).toMatch(/^\d+[hms].* left$/)
-    expect(left).not.toMatch(/\d:\d\d/)
+    const { figure } = readingsOf(snapOf({ cache: cacheAt(ms) })).cache
+    expect(figure).toMatch(/^\d+[hms].* left$/)
+    expect(figure).not.toMatch(/\d:\d\d/)
   }
 })
 test('clock times appear only when the offset is known', () => {
@@ -184,8 +198,7 @@ test('context speaks toward compaction, or of the window when it is off', () => 
 test('context not reported reads as unknown, never 0%', () => {
   const x = readingsOf(snapOf({ context: { tokens: undefined, window: 200_000, percent: undefined, compactAt: 190_000, autoCompactOff: false } })).context
   expect(x.known).toBe(false)
-  expect([x.valueText, x.text, x.inContextText, x.roomText]).toEqual(['–', 'context –', '–', undefined])
-  expect(x.say).toEqual([['context ', 'label'], ['–', 'value']])
+  expect([x.valueText, x.inContextText, x.roomText]).toEqual(['–', '–', undefined])
   expect(x.alt).toBe('context not reported')
 })
 test('the ascii tier is drawn on a terminal alone', () => {
