@@ -21,6 +21,7 @@ tools/test-only.sh view-pulse 'golden-*'
 
 # Type-check (after the engine has laid the types, see below)
 npx -y -p typescript@5 tsc -p plugins/nextcost
+npx -y -p typescript@5 tsc -p tools/demos
 
 # The views gate: no layout but chips formats or reads a raw fact
 tools/views-gate.sh
@@ -38,10 +39,12 @@ they're git-ignored. Neither `claude plugin test` nor `validate` writes
 them, and loading needs a signed-in session, so CI can't type-check: run it
 locally before you open a pull request.
 
-The type check covers the demo captures in `tools/demos/capture/` too. They
-run from a scratch copy's `tests/`, so the tsconfig's `rootDirs` reads
-`tools/demos/` as the plugin's folder and `capture/` as its `tests/`, and
-their `./helpers` and `../hooks/…` imports resolve as they do there.
+The second check covers the demo captures in `tools/demos/capture/`, with
+`tools/demos/tsconfig.json`, which extends the plugin's. They run from a
+scratch copy's `tests/`, so its `rootDirs` reads `tools/demos/` as the
+plugin's folder and `capture/` as its `tests/`, and their `./helpers` and
+`../hooks/…` imports resolve as they do there. The plugin's own config names
+nothing outside its folder, which ships as it is.
 
 CI runs the plugin's checks twice: on the latest Claude Code, and on a pinned
 version last known good (`matrix.claude-code` in `.github/workflows/ci.yml`),
