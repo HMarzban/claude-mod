@@ -235,7 +235,7 @@ export const weightedTokens = (t: TokenCounts, model: string | undefined): numbe
 
 /** Claude Code compacts a conversation left idle on the hour's cache about
  *  this long after its last request, before the cache runs out. */
-const IDLE_COMPACT_MS = 54 * 60_000
+export const IDLE_COMPACT_MS = 54 * 60_000
 /** A compaction this long after the last request, with no turn under way, is
  *  an idle one: an auto-compaction comes as a turn starts, not half an hour on. */
 const IDLE_GAP_MS = 30 * 60_000
