@@ -131,8 +131,22 @@ export type CaseOptions = Readonly<{
 /** Where a drawn case was mounted, and whether it was open. */
 export const caseKey = (m: Mount, state: State): string => `${m.surface}|${m.cols}|${m.maxRows ?? DEFAULT_MAX_ROWS}|${state}`
 
-/** One setup and one drive, then for each mount, always in this order: draw
- *  it shut, press ▵, draw it open, press ▿, let it go. */
+/** Each mount drawn, always in this order: shut, then ▵ pressed and open,
+ *  then ▿ pressed and the mount let go. */
+export const drawMounts = async ($: Engine, mounts: readonly Mount[], isWorking?: boolean): Promise<Readonly<Record<string, Node>>> => {
+  const trees: Record<string, Node> = {}
+  for (const m of mounts) {
+    const ui = await mountBand($, m.surface, m.cols, { maxRows: m.maxRows, isWorking })
+    trees[caseKey(m, 'shut')] = (await ui.drawn()) as Node
+    await ui.press({ key: 'more' })
+    trees[caseKey(m, 'open')] = (await ui.drawn()) as Node
+    await ui.press({ key: 'more' })
+    await ui.unmount()
+  }
+  return trees
+}
+
+/** One setup and one drive, then each mount drawn shut and open. */
 export const drawCases = async ($: Engine, on: On, o: CaseOptions, mounts: readonly Mount[]): Promise<Readonly<Record<string, Node>>> => {
   const s: Scenario = SCENARIOS[o.scenario]
   const ttl = o.ttl ?? '1h'
@@ -151,16 +165,7 @@ export const drawCases = async ($: Engine, on: On, o: CaseOptions, mounts: reado
   s.prepare?.()
   await s.drive($, clock, TTL_MS[ttl])
   await clock.settle()
-  const trees: Record<string, Node> = {}
-  for (const m of mounts) {
-    const ui = await mountBand($, m.surface, m.cols, { maxRows: m.maxRows, isWorking: s.isWorking })
-    trees[caseKey(m, 'shut')] = (await ui.drawn()) as Node
-    await ui.press({ key: 'more' })
-    trees[caseKey(m, 'open')] = (await ui.drawn()) as Node
-    await ui.press({ key: 'more' })
-    await ui.unmount()
-  }
-  return trees
+  return drawMounts($, mounts, s.isWorking)
 }
 
 /** Golden's grid: the 20 scenarios its capture froze (the one added since has

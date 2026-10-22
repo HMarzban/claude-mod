@@ -1,20 +1,21 @@
 // The checks every layout is held to, over the cases in cases.ts: the
-// snapshot builder for pure tests, the invariant checks and the suite every
-// layout runs.
+// snapshot builder for pure tests and the parts they share, the invariant
+// checks and the suite every layout runs.
 
 import type { RenderChildren } from 'claude-code'
 import { expect, test, type Engine } from 'claude-code/testing'
-import { DEFAULT_MAX_ROWS, LONG, MIN, USAGE, firstRow, flapWords, mountBand, shown, walk, type Node } from './helpers'
-import { layoutAt } from '../hooks/band'
-import type { Ttl } from '../hooks/cache'
+import { DEFAULT_MAX_ROWS, HOUR, LONG, MIN, USAGE, fakeEl, firstRow, runCommand, shown, walk, wordsOf, type Node } from './helpers'
+import { drawBand, layoutAt } from '../hooks/band'
+import type { CacheView, Ttl } from '../hooks/cache'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
 import { snapshotOf } from '../hooks/snapshot'
-import type { BandActions, BandSnapshot, Glyphs, LayoutName, SnapshotParts } from '../hooks/snapshot'
+import type { BandActions, BandSnapshot, Glyphs, LayoutName, LimitReading, SnapshotParts } from '../hooks/snapshot'
 import { VIEWS } from '../hooks/views/index'
 import { SPLIT_LABELS } from '../hooks/words'
 import { rowsOf } from '../hooks/views/view'
-import { SCENARIOS, SCENARIO_NAMES, caseKey, drawCases, type AmberReason, type Appearance, type CaseOptions, type Mount, type Scenario, type ScenarioName, type Surface } from './cases'
+import type { Workspace } from '../hooks/workspace'
+import { SCENARIOS, SCENARIO_NAMES, caseKey, drawCases, drawMounts, type AmberReason, type Appearance, type CaseOptions, type Mount, type Scenario, type ScenarioName, type Surface } from './cases'
 
 export * from './cases'
 
@@ -47,6 +48,48 @@ export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({ ...
 
 /** Actions for a draw outside a mount: one function each, so props compare equal. */
 export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide: async () => undefined }
+
+/** The band drawn outside a mount, from snapOf's snapshot with `over`. */
+export const bandOf = (over: Partial<BandSnapshot> = {}): Node => drawBand(fakeEl, snapOf(over), NO_ACT) as unknown as Node
+
+// ── the pure tests' shared parts of a snapshot ─────────────────────────
+
+/** SNAP_PARTS' cache with `over`. */
+export const cacheWith = (over: Partial<CacheView>): CacheView => ({ ...SNAP_PARTS.cache, ...over })
+/** A cache gone cold. */
+export const COLD_CACHE = cacheWith({ msLeft: 0 })
+/** The 5-minute cache in its last minute, 30 s left: amber. */
+export const LAST_MINUTE_CACHE = cacheWith({ msLeft: 30_000, ttl: '5m' })
+
+/** 180k of a 200k window with compaction at 190k: 95% of the way, ~10k left, amber. */
+export const NEAR_COMPACTION: BandSnapshot['context'] = { tokens: 180_000, window: 200_000, percent: 90, compactAt: 190_000, autoCompactOff: false }
+
+/** A window `pct` used, resetting `h` hours after `now`. */
+export const limitAt = (pct: number, h: number, now = 0): LimitReading => ({ percentUsed: pct, resetsAt: now + h * HOUR })
+/** Calm windows: the 5h at 26%, its reset in 3h and no fill in sight; the 7d at 41%, its reset in 67h. */
+export const CALM_LIMITS = { fiveHour: { ...limitAt(26, 3), etaMs: null }, sevenDay: limitAt(41, 67) } as const satisfies Partial<BandSnapshot>
+/** The same, but the 7d amber at 85%, as the three-layouts spec §3's scenario has it. */
+export const AMBER_WEEK_LIMITS = { ...CALM_LIMITS, sevenDay: limitAt(85, 67) } as const satisfies Partial<BandSnapshot>
+/** Two other windows, a gateway's spend at 40% and its credit at 20%, resetting
+ *  5h and 9h after `now`: the three-layouts spec §5.3's count at 13 rows has two. */
+export const otherLimits = (now = 0): BandSnapshot['otherLimits'] => [
+  { kind: 'spend_limit', ...limitAt(40, 5, now) },
+  { kind: 'credit_limit', ...limitAt(20, 9, now) },
+]
+
+/** Twenty-four messages, $0.20 each but a $0.84 re-warm seven from the end
+ *  and a last of $0.21; the context at three turns. */
+export const HISTORY: BandSnapshot['history'] = {
+  costs: Array.from({ length: 24 }, (_, i) => ({ usd: i === 23 ? 0.21 : i === 17 ? 0.84 : 0.2, reWarm: i === 17 })),
+  context: [40_000, 60_000, 76_000],
+}
+
+/** A project on main with nothing changed and no upstream. */
+export const WORKSPACE: Workspace = {
+  path: '/u/claude-mod',
+  repoName: undefined,
+  git: { branch: 'main', commit: undefined, worktree: undefined, changed: 0, ahead: undefined, behind: undefined },
+}
 
 /** Every live layout's words for each amber trigger, and no others. An other
  *  limit, open only, is chips' LIMITS card's headline, marked as chips marks
@@ -298,7 +341,7 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   }
 
   // A desktop board's words are its flaps' tiles, which no Text holds.
-  const text = `${shown(tree)} ${flapWords(tree)}`
+  const text = wordsOf(tree)
   if (/send|keep (it )?warm/i.test(text)) fail('wording', 'suggests sending a message')
   for (const reason of amber)
     if ((ctx.expanded || !OPEN_ONLY.has(reason)) && !AMBER_WORDS[reason].test(text)) fail('amber', `no words for ${reason}`)
@@ -410,18 +453,9 @@ const edgeOf = (layout: LayoutName): number[] => {
 /** The mounts drawn again as chips, after `/nextcost layout chips`, each
  *  shut and open as drawCases draws them; then the layout chosen again. */
 const drawnAsChips = async ($: Engine, layout: LayoutName, mounts: readonly Mount[], isWorking?: boolean): Promise<Readonly<Record<string, Node>>> => {
-  const run = (args: string) => $.command.run({ command: 'nextcost', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 110 } })
-  await run('layout chips')
-  const trees: Record<string, Node> = {}
-  for (const m of mounts) {
-    const ui = await mountBand($, m.surface, m.cols, { maxRows: m.maxRows, isWorking })
-    trees[caseKey(m, 'shut')] = (await ui.drawn()) as Node
-    await ui.press({ key: 'more' })
-    trees[caseKey(m, 'open')] = (await ui.drawn()) as Node
-    await ui.press({ key: 'more' })
-    await ui.unmount()
-  }
-  await run(`layout ${layout}`)
+  await runCommand($, 'layout chips')
+  const trees = await drawMounts($, mounts, isWorking)
+  await runCommand($, `layout ${layout}`)
   return trees
 }
 

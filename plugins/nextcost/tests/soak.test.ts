@@ -5,15 +5,13 @@ import type { Engine } from 'claude-code/testing'
 import { MAX_SAMPLES } from '../hooks/memory'
 import type { Sample } from '../hooks/memory'
 import { LAYOUT_NAMES } from '../hooks/snapshot'
-import { CLEAR, HOUR, LONG, MIN, START, engine, mountBand, nodeCount, resp, respond, setup, shown, svgAlts, turn, usage, usageAt, walk } from './helpers'
+import { CLEAR, HOUR, LONG, MIN, START, engine, mountBand, nodeCount, resp, respond, runCommand, setup, shown, svgAlts, turn, usage, usageAt, walk } from './helpers'
 
-const run = ($: Engine, args: string) =>
-  $.command.run({ command: 'nextcost', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 110 } })
+/** How pulse's 5h window chart's alt begins. */
+const WINDOW_ALT = '5h window from start to reset'
 /** What pulse draws on both surfaces: its shut trees' nodes and, open, its
  *  text and its charts' sources, which the cost or context trail past its cap
  *  would grow, and the charts' alts. */
-/** How pulse's 5h window chart's alt begins. */
-const WINDOW_ALT = '5h window from start to reset'
 const pulseSize = async ($: Engine) => {
   const size = { shutNodes: 0, text: 0, source: 0, alts: [] as string[] }
   for (const surface of ['terminal', 'desktop'] as const) {
@@ -64,10 +62,10 @@ test('six hours, a thousand turns, three clears: writes, size and trees stay bou
     await turnAt(i)
     // The clears fall early in each third, so every trail is at its cap well before the end.
     if (i % 333 === 100) await $.session.end(CLEAR)
-    if (i % 167 === 0) { await run($, `layout ${LAYOUT_NAMES[(i / 167) % LAYOUT_NAMES.length]}`); commands++ }
+    if (i % 167 === 0) { await runCommand($, `layout ${LAYOUT_NAMES[(i / 167) % LAYOUT_NAMES.length]}`); commands++ }
   }
   const sampleWrites = engine.storeSets.filter(k => k === 'limitSamples').length
-  await run($, 'layout pulse'); commands++
+  await runCommand($, 'layout pulse'); commands++
   const before = await pulseSize($)
   for (let i = 1000; i < 1050; i++) await turnAt(i)
   const after = await pulseSize($)

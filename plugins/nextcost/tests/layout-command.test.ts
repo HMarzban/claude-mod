@@ -4,12 +4,10 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import { asLayoutName, removedLayoutOf } from '../hooks/memory'
-import { START, engine, mountBand, resp, respond, setup, shown, turn } from './helpers'
+import { START, engine, mountBand, resp, respond, runCommand, setup, shown, turn } from './helpers'
 
-const run = async ($: Engine, args: string): Promise<string> => {
-  const r = await $.command.run({ command: 'nextcost', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 110 } })
-  return String((r as { text?: string }).text ?? '')
-}
+/** What `/nextcost args` says. */
+const run = async ($: Engine, args: string): Promise<string> => (await runCommand($, args)).text ?? ''
 const drawnText = async ($: Engine): Promise<string> => {
   const ui = await mountBand($, 'terminal', 110)
   const t = shown(await ui.drawn())

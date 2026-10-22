@@ -430,6 +430,10 @@ export const setup = (
   return clock
 }
 
+/** `/nextcost args`, or another command named, as typed at the prompt. */
+export const runCommand = ($: Engine, args: string, command = 'nextcost') =>
+  $.command.run({ command, args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 110 } })
+
 /** The band drawn above the prompt on `surface`, `cols` wide. */
 export const mountBand = <S extends 'terminal' | 'desktop'>(
   $: Engine,
@@ -474,6 +478,9 @@ export const flapWords = (n: unknown): string =>
     .filter(w => w !== '')
     .join(' ')
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+
+/** A tree's words: its visible text, then a desktop board's flaps'. */
+export const wordsOf = (n: unknown): string => `${shown(n)} ${flapWords(n)}`
 
 export const svgAlts = (tree: unknown): string[] => svgsOf(tree).map(n => String(n.props?.alt))
 

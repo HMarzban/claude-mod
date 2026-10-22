@@ -4,43 +4,38 @@
 
 import type { RenderChildren } from 'claude-code'
 import { test, expect } from 'claude-code/testing'
-import { drawBand } from '../hooks/band'
 import { ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { EMPTY } from '../hooks/words'
-import { HOUR, MIN, SAMPLES, USAGE, byKey, fakeEl, firstRow, shown, svgAlts, svgsOf, type Node } from './helpers'
-import { NO_ACT, caseKey, drawCases, snapOf, viewSuite, visualRows, withLimits } from './matrix'
+import { HOUR, MIN, SAMPLES, USAGE, byKey, firstRow, shown, svgAlts, svgsOf, type Node } from './helpers'
+import {
+  AMBER_WEEK_LIMITS, CALM_LIMITS, COLD_CACHE, HISTORY, LAST_MINUTE_CACHE, bandOf, cacheWith, caseKey, drawCases, snapOf, viewSuite, visualRows, withLimits,
+} from './matrix'
 
 viewSuite('pulse')
 
-/** Twenty-four messages, $0.20 each but a $0.84 re-warm seven from the end
- *  and a last of $0.21. */
-const COSTS = Array.from({ length: 24 }, (_, i) => ({ usd: i === 23 ? 0.21 : i === 17 ? 0.84 : 0.2, reWarm: i === 17 }))
-const HISTORY = { costs: COSTS, context: [40_000, 60_000, 76_000] }
-
 /** The band as pulse draws it at 160 columns, with history. */
 const band = (over: Partial<BandSnapshot> = {}): Node =>
-  drawBand(fakeEl, snapOf({ layout: 'pulse', columns: 160, maxRows: 40, history: HISTORY, samples: SAMPLES, ...over }), NO_ACT) as unknown as Node
+  bandOf({ layout: 'pulse', columns: 160, maxRows: 40, history: HISTORY, samples: SAMPLES, ...over })
 const rowOf = (over: Partial<BandSnapshot> = {}): Node => firstRow(band(over)) as Node
 
 const CLASS = (alt: string) => (/^cache/.test(alt) ? 'cache' : /^cost of/.test(alt) ? 'cost' : /^context/.test(alt) ? 'context' : /^5h/.test(alt) ? '5h' : /^weekly/.test(alt) ? '7d' : alt)
-const LIMITS = { fiveHour: { percentUsed: 26, resetsAt: 3 * HOUR, etaMs: null }, sevenDay: { percentUsed: 41, resetsAt: 67 * HOUR } }
 const beatOf = (tree: unknown) => svgsOf(firstRow(tree)).find(s => /^cache/.test(String(s.props?.alt)))
 
 test('collapsed desktop: one row; its charts in the one order', () => {
-  const row = rowOf({ surface: 'desktop', ...LIMITS })
+  const row = rowOf({ surface: 'desktop', ...CALM_LIMITS })
   expect(svgAlts(row).map(CLASS)).toEqual(['cache', 'cost', 'context', '5h', '7d'])
   expect(visualRows(row, 'desktop')).toBe(1)
 })
 test('collapsed terminal: every reading in words, in order, then ▵', () => {
-  const row = rowOf({ surface: 'terminal', ...LIMITS })
+  const row = rowOf({ surface: 'terminal', ...CALM_LIMITS })
   expect(shown(row)).toMatch(/cache[\s\S]*\$3\.19[\s\S]*context[\s\S]*5h[\s\S]*7d/)
   expect(byKey(row.children?.at(-1), 'more', 'Button')?.props?.label).toBe('▵')
 })
 test('the beats: 14 wide, a path', () => {
-  const beats = svgsOf(rowOf({ surface: 'desktop', ...LIMITS })).find(s => /^cost of the last 14/.test(String(s.props?.alt)))
+  const beats = svgsOf(rowOf({ surface: 'desktop', ...CALM_LIMITS })).find(s => /^cost of the last 14/.test(String(s.props?.alt)))
   expect(String(beats?.props?.source)).toMatch(/<path class="beats"/)
 })
 // One drawCases a test: the engine's hooks are registered before its first call.
@@ -51,7 +46,7 @@ for (const [scenario, mark] of [['calm', /<circle[^>]*fill="#/], ['cold', /<line
   })
 }
 test('the heartbeat: its source unchanged as the last minute counts down', () => {
-  const tick = (msLeft: number) => beatOf(band({ surface: 'desktop', ...LIMITS, cache: { ...snapOf().cache, requests: 1, msLeft, coldAt: msLeft } }))
+  const tick = (msLeft: number) => beatOf(band({ surface: 'desktop', ...CALM_LIMITS, cache: cacheWith({ requests: 1, msLeft, coldAt: msLeft }) }))
   expect([tick(40_000)?.props?.source, tick(40_000)?.props?.alt]).toEqual([tick(39_000)?.props?.source, tick(39_000)?.props?.alt])
 })
 test('recalled carries ~ on its time', async ($, on) => {
@@ -86,7 +81,7 @@ test("no costs yet: the flat trace only beside `no costs yet`, while the total i
 })
 test('no limits: no 5h or 7d; no samples: 5h and 7d in words only', () => {
   expect(shown(rowOf({ fiveHour: undefined, sevenDay: undefined }))).not.toMatch(/5h|7d/)
-  const bare = rowOf({ surface: 'desktop', ...LIMITS, samples: [] })
+  const bare = rowOf({ surface: 'desktop', ...CALM_LIMITS, samples: [] })
   expect(svgAlts(bare).map(CLASS)).not.toContain('5h')
   expect(shown(bare)).toMatch(/5h ?26%[\s\S]*7d ?41%/)
 })
@@ -103,7 +98,7 @@ test('at 40 and 45 columns, full amber: the cache and the 7d stay, in order, ▵
 })
 test('narrow and calm, spend gives way, then context, then 5h; the cache and 7d stay, and the row fits', () => {
   // A cold cache says its re-warm, so at 40 columns even 5h has gone.
-  const cold = { ...LIMITS, cache: { ...snapOf().cache, msLeft: 0 } }
+  const cold = { ...CALM_LIMITS, cache: COLD_CACHE }
   const keys = (columns: number) => ['cache', 'spend', 'context', '5h', '7d'].filter(k => byKey(rowOf({ columns, ...cold }), k, 'Box') !== undefined)
   expect(shown(byKey(rowOf(cold), 'cache', 'Box'))).toMatch(/^cache cold/)
   expect(keys(40)).toEqual(['cache', '7d'])
@@ -118,15 +113,15 @@ test('narrow and calm, spend gives way, then context, then 5h; the cache and 7d 
 })
 test('one cost, or every cost a re-warm: no NaN', () => {
   for (const costs of [[{ usd: 0.2, reWarm: false }], [{ usd: 0.8, reWarm: true }, { usd: 0.9, reWarm: true }]]) {
-    const src = svgsOf(rowOf({ surface: 'desktop', ...LIMITS, history: { ...HISTORY, costs } })).map(s => String(s.props?.source)).join('')
+    const src = svgsOf(rowOf({ surface: 'desktop', ...CALM_LIMITS, history: { ...HISTORY, costs } })).map(s => String(s.props?.source)).join('')
     expect(src).not.toMatch(/NaN|Infinity/)
   }
 })
 test('terminal: braille after the numbers, in their tile', () => {
-  expect(shown(rowOf({ surface: 'terminal', ...LIMITS }))).toMatch(/spend \$3\.19 · last \$0\.21 [⠀-⣿]+/)
+  expect(shown(rowOf({ surface: 'terminal', ...CALM_LIMITS }))).toMatch(/spend \$3\.19 · last \$0\.21 [⠀-⣿]+/)
 })
 test("terminal: the cache and the 7d in words alone, as spec §4.1's table draws them", () => {
-  const row = rowOf({ surface: 'terminal', ...LIMITS })
+  const row = rowOf({ surface: 'terminal', ...CALM_LIMITS })
   expect(shown(byKey(row, 'cache', 'Box'))).toMatch(/^cache 52m left$/)
   expect(shown(byKey(row, '7d', 'Box'))).toMatch(/^7d 41%$/)
 })
@@ -146,8 +141,6 @@ test("no costs yet: the name, the total in a value's ink, its words then the fla
 })
 // ---- review round 1 -------------------------------------------------------
 
-const EXPIRING = { ...snapOf().cache, msLeft: 30_000, ttl: '5m' as const }
-
 test("a 5h window first seen mid-window: its chart, shut and open, starts at the first hour it knows, its level now the window's", () => {
   // Samples from hour 3 on, as when the window opened on another device.
   const sample = (at: number, fivePct: number) => ({ at, fivePct, sevenPct: 30, fiveResetAt: 5 * HOUR, sevenResetAt: 67 * HOUR })
@@ -160,16 +153,16 @@ test("a 5h window first seen mid-window: its chart, shut and open, starts at the
   }
 })
 test("pulse's amber cache is led by '! ', on the row and open", () => {
-  const row = rowOf({ surface: 'terminal', cache: EXPIRING })
+  const row = rowOf({ surface: 'terminal', cache: LAST_MINUTE_CACHE })
   expect(shown(byKey(row, 'cache', 'Box'))).toMatch(/^! 30s left/)
-  const open = band({ surface: 'desktop', expanded: true, cache: EXPIRING })
+  const open = band({ surface: 'desktop', expanded: true, cache: LAST_MINUTE_CACHE })
   expect(shown(byKey(byKey(open, 'pulse:cache', 'Box'), 'head', 'Box'))).toMatch(/^CACHE! 0:30 left$/)
 })
 test("an expiring cache's heartbeat is drawn in amber", () => {
-  expect(String(beatOf(band({ surface: 'desktop', cache: EXPIRING }))?.props?.source)).toMatch(new RegExp(`fill="${DARK.amberFg}"`))
+  expect(String(beatOf(band({ surface: 'desktop', cache: LAST_MINUTE_CACHE }))?.props?.source)).toMatch(new RegExp(`fill="${DARK.amberFg}"`))
 })
 test("7d at 85% on a fast pace: the guessed days, drawn, never pass what is left of the week", () => {
-  const snap = { surface: 'desktop' as const, fiveHour: LIMITS.fiveHour, sevenDay: { percentUsed: 85, resetsAt: 67 * HOUR } }
+  const snap = { surface: 'desktop' as const, ...AMBER_WEEK_LIMITS }
   // The raw guesses would pass the 15 points left.
   const days = readingsOf(snapOf({ layout: 'pulse', samples: SAMPLES, ...snap })).week().days
   expect(days.filter(d => d.guess).reduce((n, d) => n + (d.pct ?? 0), 0)).toBeGreaterThan(15)
@@ -191,7 +184,7 @@ test("today's fill, with no reading inside today yet, draws as the alt says it: 
   const at = (m: number, sevenPct: number) => ({ at: m * MIN, fivePct: 0, sevenPct, fiveResetAt: 3 * HOUR, sevenResetAt: 67 * HOUR })
   const late = [at(-120, 70), at(-90, 74), at(-60, 78), at(-30, 82), at(-5, 85)]
   const unzoned = (samples: ReturnType<typeof at>[], expanded: boolean) =>
-    band({ surface: 'desktop', zone: undefined, expanded, fiveHour: LIMITS.fiveHour, sevenDay: { percentUsed: 85, resetsAt: 67 * HOUR }, samples })
+    band({ surface: 'desktop', zone: undefined, expanded, ...AMBER_WEEK_LIMITS, samples })
   const cellsOf7d = (tree: Node) => svgsOf(tree).filter(s => /^weekly limit by day/.test(String(s.props?.alt)))
   // No day measured: no cells, shut or open, and the 7d's words stay.
   for (const expanded of [false, true]) {

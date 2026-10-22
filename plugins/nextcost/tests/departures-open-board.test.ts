@@ -4,26 +4,23 @@
 
 import type { RenderChildren } from 'claude-code'
 import { test, expect } from 'claude-code/testing'
-import { drawBand } from '../hooks/band'
 import { fixedZone } from '../hooks/format'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK, PLAIN } from '../hooks/palette'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { HOUR, LONG, MIN, byKey, fakeEl, flapWords, shown, svgsOf, walk, type Node } from './helpers'
-import { NO_ACT, snapOf, visualRows } from './matrix'
+import { HOUR, LONG, MIN, byKey, flapWords, shown, svgsOf, walk, wordsOf, type Node } from './helpers'
+import { LAST_MINUTE_CACHE, NEAR_COMPACTION, WORKSPACE, bandOf, cacheWith, limitAt, otherLimits, visualRows } from './matrix'
 
 /** 20:06 UTC, the viewer at +00:30: their clock reads 20:36. */
 const NOW = 20 * HOUR + 6 * MIN
 const ZONE = fixedZone(30)
-const at = (pct: number, h: number) => ({ percentUsed: pct, resetsAt: NOW + h * HOUR })
-const WS = { path: '/u/claude-mod', git: { branch: 'main', changed: 0 } } as BandSnapshot['workspace']
-const OTHER = [{ kind: 'spend_limit', ...at(40, 5) }, { kind: 'credit_limit', ...at(20, 9) }] as BandSnapshot['otherLimits']
-/** 7D amber at 85%, as spec §3's scenario has it. */
+const OTHER = otherLimits(NOW)
+/** 7D amber at 85%, as the three-layouts spec §3's scenario has it. */
 const band = (over: Partial<BandSnapshot> = {}): Node =>
-  drawBand(fakeEl, snapOf({
+  bandOf({
     layout: 'departures', columns: 120, maxRows: 13, expanded: true, now: NOW, zone: ZONE,
-    fiveHour: { ...at(26, 3), etaMs: null }, sevenDay: at(85, 67), cache: { ...snapOf().cache, coldAt: NOW + 59 * MIN }, ...over,
-  }), NO_ACT) as unknown as Node
+    fiveHour: { ...limitAt(26, 3, NOW), etaMs: null }, sevenDay: limitAt(85, 67, NOW), cache: cacheWith({ coldAt: NOW + 59 * MIN }), ...over,
+  })
 const boardOf = (n: Node): Node | undefined => byKey(n, 'board', 'Box')
 const linesOf = (n: Node): Node[] => ((boardOf(n)?.children ?? []) as Node[]).filter(l => l !== null && typeof l === 'object')
 const readingLines = (n: Node): Node[] => linesOf(n).filter(l => !['row:header', 'row:headings'].includes(String(l.props?.key)))
@@ -158,14 +155,14 @@ test('each rule spans the board to its right edge, as the header does, at every 
 
 test('the footer is the one every layout draws: the workspace strip, Collapse and Hide band; no hint, no workspace on the board', () => {
   for (const surface of SURFACES) {
-    const open = band({ surface, workspace: WS })
+    const open = band({ surface, workspace: WORKSPACE })
     const actions = byKey(open, 'actions', 'Box')
     const kids = (actions?.children ?? []) as Node[]
     expect(kids.filter(k => Number(k.props?.flexGrow) > 0).map(k => k.props?.key)).toEqual(['strip'])
     expect(shown(actions)).toMatch(/claude-mod[\s\S]*main[\s\S]*clean/)
     expect(['collapse', 'hide'].map(k => byKey(actions, k, 'Button') !== undefined)).toEqual([true, true])
     expect(shown(open)).not.toMatch(/Bring it back/)
-    expect(`${shown(boardOf(open))} ${flapWords(boardOf(open))}`).not.toMatch(/claude-mod|CLAUDE-MOD|CLEAN/)
+    expect(wordsOf(boardOf(open))).not.toMatch(/claude-mod|CLAUDE-MOD|CLEAN/)
   }
 })
 
@@ -175,7 +172,7 @@ test('short of rows, the remarks go first on the desktop, then the lines in the 
     let gone = 0
     let remarked = true
     for (let rows = 16; rows >= 4; rows--) {
-      const open = band({ surface, maxRows: rows, workspace: WS, otherLimits: OTHER })
+      const open = band({ surface, maxRows: rows, workspace: WORKSPACE, otherLimits: OTHER })
       const at = `${surface} ${rows}`
       expect(`${at} ${visualRows(open, surface) <= rows}`).toBe(`${at} true`)
       expect(byKey(open, 'collapse', 'Button')).toBeDefined()
@@ -200,7 +197,7 @@ test('short of rows, the remarks go first on the desktop, then the lines in the 
 
 test('plain has no grounds; the ascii tier draws ASCII alone', () => {
   for (const surface of SURFACES) {
-    const plain = boardOf(band({ surface, palette: PLAIN, workspace: WS }))
+    const plain = boardOf(band({ surface, palette: PLAIN, workspace: WORKSPACE }))
     expect(plain?.props?.backgroundColor).toBeUndefined()
     walk(plain, n => expect(n.props?.backgroundColor).toBeUndefined())
     expect(svgsOf(plain)).toHaveLength(0)
@@ -212,13 +209,12 @@ test('plain has no grounds; the ascii tier draws ASCII alone', () => {
 })
 
 test('every board line fits its room at every width from 60 to 200, dark and plain, calm and amber', LONG, () => {
-  const NEAR = { tokens: 176_000, window: 200_000, percent: 88, compactAt: 190_000, autoCompactOff: false }
-  const amber = { context: NEAR, cache: { ...snapOf().cache, msLeft: 40_000, ttl: '5m' as const } }
+  const amber = { context: NEAR_COMPACTION, cache: LAST_MINUTE_CACHE }
   for (const surface of SURFACES)
     for (let columns = 60; columns <= 200; columns++)
       for (const palette of [DARK, PLAIN])
         for (const over of [{}, amber]) {
-          const open = band({ surface, columns, palette, workspace: WS, otherLimits: OTHER, maxRows: 40, ...over })
+          const open = band({ surface, columns, palette, workspace: WORKSPACE, otherLimits: OTHER, maxRows: 40, ...over })
           const lines = linesOf(open)
           expect(lines.length).toBeGreaterThan(5)
           for (const l of lines) {

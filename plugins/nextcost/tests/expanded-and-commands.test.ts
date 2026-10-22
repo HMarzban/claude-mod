@@ -9,6 +9,7 @@ import {
   props,
   resp,
   respond,
+  runCommand,
   rowCount,
   cardOf,
   fact,
@@ -53,16 +54,14 @@ test('/nextcost more, less, hide and show drive the band', async ($, on) => {
   await respond($, resp(41_000, 0, 155_000, 12_000))
 
   const ui = await mountBand($, 'terminal', 110)
-  const run = (args: string): Promise<unknown> =>
-    $.command.run({ command: 'nextcost', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 110 } })
 
-  await run('more')
+  await runCommand($, 'more')
   expect(cardOf(await ui.drawn(), 'cache')).toBeDefined()
-  await run('less')
+  await runCommand($, 'less')
   expect(cardOf(await ui.drawn(), 'cache')).toBeUndefined()
-  await run('hide')
+  await runCommand($, 'hide')
   expect(await ui.find({ type: 'Text', text: /\$2\.41/ })).toBeUndefined()
-  await run('show')
+  await runCommand($, 'show')
   expect(await ui.find({ type: 'Text', text: /\$2\.41/ })).toBeDefined()
   await ui.unmount()
 })

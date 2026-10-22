@@ -6,24 +6,18 @@
 
 import type { RenderChildren } from 'claude-code'
 import { test, expect } from 'claude-code/testing'
-import { drawBand } from '../hooks/band'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK, LIGHT, PLAIN, type Palette } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
-import { HOUR, LONG, MIN, SAMPLES, byKey, fakeEl, firstRow, shown, svgAlts, svgsOf, walk, type Node } from './helpers'
-import { NO_ACT, snapOf } from './matrix'
+import { HOUR, LONG, MIN, SAMPLES, byKey, firstRow, shown, svgAlts, svgsOf, walk, type Node } from './helpers'
+import { CALM_LIMITS, COLD_CACHE, HISTORY, LAST_MINUTE_CACHE, NEAR_COMPACTION, bandOf, limitAt, snapOf } from './matrix'
 
-const COSTS = Array.from({ length: 24 }, (_, i) => ({ usd: i === 23 ? 0.21 : i === 17 ? 0.84 : 0.2, reWarm: i === 17 }))
-const HISTORY = { costs: COSTS, context: [40_000, 60_000, 76_000] }
-const LIMITS = { fiveHour: { percentUsed: 26, resetsAt: 3 * HOUR, etaMs: null }, sevenDay: { percentUsed: 41, resetsAt: 67 * HOUR } }
-const EXPIRING = { ...snapOf().cache, msLeft: 30_000, ttl: '5m' as const }
-const NEAR = { tokens: 180_000, window: 200_000, percent: 90, compactAt: 190_000, autoCompactOff: false }
 const KEYS = ['cache', 'spend', 'context', '5h', '7d'] as const
 
 /** Pulse's collapsed row at `columns`, with history and samples. */
 const rowOf = (over: Partial<BandSnapshot> = {}): Node =>
-  firstRow(drawBand(fakeEl, snapOf({ layout: 'pulse', columns: 160, maxRows: 40, history: HISTORY, samples: SAMPLES, ...LIMITS, ...over }), NO_ACT)) as Node
+  firstRow(bandOf({ layout: 'pulse', columns: 160, maxRows: 40, history: HISTORY, samples: SAMPLES, ...CALM_LIMITS, ...over })) as Node
 
 /** The ink a colour is in a palette, by its role's name. */
 const inkOf = (p: Readonly<Palette>, colour: unknown): string =>
@@ -67,7 +61,7 @@ test('a calm tile on the terminal: name, figure, then its braille, a space apart
   expect(shown(byKey(row, '7d', 'Box'))).toBe('7d 41%')
 })
 test('an amber tile is led by its amber words, which name it, in amber; its chart after them', () => {
-  const row = rowOf({ surface: 'desktop', cache: EXPIRING, context: NEAR, sevenDay: { percentUsed: 85, resetsAt: 67 * HOUR } })
+  const row = rowOf({ surface: 'desktop', cache: LAST_MINUTE_CACHE, context: NEAR_COMPACTION, sevenDay: limitAt(85, 67) })
   expect(piecesOf(byKey(row, 'cache', 'Box'))).toEqual(['! 30s left · re-warm ~$1.66|amber', 'svg'])
   expect(piecesOf(byKey(row, 'context', 'Box'))).toEqual(['! context 95% · compacts in ~10k|amber', 'svg'])
   expect(piecesOf(byKey(row, '7d', 'Box'))).toEqual(['! 7d 85%|amber', 'svg'])
@@ -81,7 +75,7 @@ for (const [name, p] of [['dark', DARK], ['light', LIGHT]] as const)
       expect(KEYS.map(k => byKey(row, k, 'Box')?.props?.backgroundColor)).toEqual([p.surface, p.surface, p.surface, p.fiveBg, p.weekBg])
       expect(KEYS.map(k => byKey(row, k, 'Box')?.props?.paddingX)).toEqual([1, 1, 1, 1, 1])
       // An amber tile takes amber's ground, as chips' amber pill does.
-      expect(byKey(rowOf({ surface, palette: p, cache: EXPIRING }), 'cache', 'Box')?.props?.backgroundColor).toBe(p.amberBg)
+      expect(byKey(rowOf({ surface, palette: p, cache: LAST_MINUTE_CACHE }), 'cache', 'Box')?.props?.backgroundColor).toBe(p.amberBg)
       // Tiles sit a column apart, as chips' pills do.
       expect(row.props?.columnGap).toBe(1)
       // The cache's tile is its heartbeat, never chips' battery.
@@ -145,7 +139,7 @@ const chartsOf = (row: Node): string[] =>
     return tile !== undefined && (svgsOf(tile).length > 0 || /[⠀-⣿]/.test(shown(tile)))
   })
 
-const COLD = { cache: { ...snapOf().cache, msLeft: 0 } }
+const COLD = { cache: COLD_CACHE }
 
 for (const surface of ['desktop', 'terminal'] as const) {
   test(`${surface}: as the row narrows, the charts go before any word shortens`, () => {
@@ -191,8 +185,8 @@ test('at 40 columns a calm row of tiles is the cache and the 7d, a cold one too;
 // ---- no overflow -----------------------------------------------------------
 
 const AMBER = {
-  cache: { cache: EXPIRING },
-  context: { context: NEAR },
+  cache: { cache: LAST_MINUTE_CACHE },
+  context: { context: NEAR_COMPACTION },
   five: { fiveHour: { percentUsed: 85, resetsAt: 3 * HOUR, etaMs: 20 * MIN } },
   seven: { sevenDay: { percentUsed: 90, resetsAt: 67 * HOUR } },
 } as const
