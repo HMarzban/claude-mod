@@ -2,6 +2,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
+import { newCache, type CacheModel } from '../hooks/cache'
 import {
   LONG,
   USAGE,
@@ -9,6 +10,7 @@ import {
   COMPACTED_TO,
   START,
   MIN,
+  HOUR,
   resp,
   respond,
   pillOf,
@@ -20,6 +22,45 @@ import {
   setup,
   mountBand,
 } from './helpers'
+
+/** Whether the turn's end finds the cache rebuilt. */
+const rebuilt = (c: CacheModel): boolean => c.turnEnded(undefined).rebuilt
+const OPUS_BUILD = { ...resp(41_000, 0, 155_000, 12_000), model: 'claude-opus-5-5' }
+test('a request after the TTL ran out rebuilt the cache, and the turn takes the mark once', () => {
+  const c = newCache()
+  c.responded(OPUS_BUILD, 0, true)
+  expect(rebuilt(c)).toBe(false) // the first build is warming, not a re-warm
+  c.responded(OPUS_BUILD, 61 * MIN, true)
+  expect(rebuilt(c)).toBe(true)
+  expect(rebuilt(c)).toBe(false)
+})
+test('the first reply after a resume or a reload rebuilds a cache already cold', () => {
+  const resumed = newCache()
+  resumed.resumed({ cache: { lastAt: 0, expired: true, reWarmUsd: 1 }, transcript: undefined })
+  expect(resumed.msLeft(48 * HOUR)).toBe(0)
+  resumed.responded(OPUS_BUILD, 48 * HOUR, true)
+  expect(rebuilt(resumed)).toBe(true)
+  const reloaded = (): CacheModel => {
+    const c = newCache()
+    c.loaded({ priceModel: undefined, ledger: 5 })
+    c.recalled({ lastAt: 0, rate: null, billed: undefined })
+    return c
+  }
+  const cold = reloaded()
+  cold.responded(OPUS_BUILD, 3 * HOUR, true)
+  expect(rebuilt(cold)).toBe(true)
+  // Recalled warm, the first reply reads the cache it found.
+  const warm = reloaded()
+  warm.responded({ ...resp(2_000, 196_000, 4_000, 3_000), model: 'claude-opus-5-5' }, 10 * MIN, true)
+  expect(rebuilt(warm)).toBe(false)
+})
+test('a warm read is no re-warm', () => {
+  const c = newCache()
+  c.responded(OPUS_BUILD, 0, true)
+  rebuilt(c)
+  c.responded({ ...resp(2_000, 196_000, 4_000, 3_000), model: 'claude-opus-5-5' }, MIN, true)
+  expect(rebuilt(c)).toBe(false)
+})
 
 test('an assumed hour is corrected to 5m when a gap past 5m rebuilt the cache', LONG, async ($, on) => {
   const clock = setup(on, { env: {} })

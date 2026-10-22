@@ -1,24 +1,26 @@
 // The checks every layout is held to, over the cases in cases.ts: the
-// snapshot builder for pure tests, the invariant checks and the suite every
-// layout runs.
+// snapshot builder for pure tests and the parts they share, the invariant
+// checks and the suite every layout runs. It passes cases.ts on, so a test
+// imports both from here.
 
 import type { RenderChildren } from 'claude-code'
 import { expect, test, type Engine } from 'claude-code/testing'
-import { DEFAULT_MAX_ROWS, LONG, MIN, USAGE, firstRow, flapWords, mountBand, shown, walk, type Node } from './helpers'
-import { layoutAt } from '../hooks/band'
-import type { Ttl } from '../hooks/cache'
+import { DEFAULT_MAX_ROWS, HOUR, LONG, MIN, USAGE, fakeEl, firstRow, runCommand, shown, walk, wordsOf, type Node } from './helpers'
+import { drawBand, layoutAt } from '../hooks/band'
+import type { CacheView, Ttl } from '../hooks/cache'
 import { DESKTOP, ROW_SLACK, TERMINAL, cellsOf, isDrawn } from '../hooks/layout'
 import { DARK } from '../hooks/palette'
 import { snapshotOf } from '../hooks/snapshot'
-import type { BandActions, BandSnapshot, Glyphs, LayoutName, SnapshotParts } from '../hooks/snapshot'
+import type { BandActions, BandSnapshot, Glyphs, LayoutName, LimitReading, SnapshotParts } from '../hooks/snapshot'
 import { VIEWS } from '../hooks/views/index'
 import { SPLIT_LABELS } from '../hooks/words'
 import { rowsOf } from '../hooks/views/view'
-import { SCENARIOS, SCENARIO_NAMES, caseKey, drawCases, type AmberReason, type Appearance, type CaseOptions, type Mount, type Scenario, type ScenarioName, type Surface } from './cases'
+import type { Workspace } from '../hooks/workspace'
+import { SCENARIOS, SCENARIO_NAMES, caseKey, drawCases, drawMounts, type AmberReason, type Appearance, type CaseOptions, type Mount, type Scenario, type ScenarioName, type Surface } from './cases'
 
 export * from './cases'
 
-/** Spec §7's all-amber: no scenario raises every reason at once, so the
+/** The band-layouts spec §7's all-amber: no scenario raises every reason at once, so the
  *  last minute stands for it. */
 const ALL_AMBER = 'lastMinute' satisfies ScenarioName
 
@@ -48,6 +50,48 @@ export const snapOf = (over: Partial<BandSnapshot> = {}): BandSnapshot => ({ ...
 /** Actions for a draw outside a mount: one function each, so props compare equal. */
 export const NO_ACT: BandActions = { toggleExpanded: async () => undefined, hide: async () => undefined }
 
+/** The band drawn outside a mount, from snapOf's snapshot with `over`. */
+export const bandOf = (over: Partial<BandSnapshot> = {}): Node => drawBand(fakeEl, snapOf(over), NO_ACT) as unknown as Node
+
+// ── the pure tests' shared parts of a snapshot ─────────────────────────
+
+/** SNAP_PARTS' cache with `over`. */
+export const cacheWith = (over: Partial<CacheView>): CacheView => ({ ...SNAP_PARTS.cache, ...over })
+/** A cache gone cold. */
+export const COLD_CACHE = cacheWith({ msLeft: 0 })
+/** The 5-minute cache in its last minute, 30 s left: amber. */
+export const LAST_MINUTE_CACHE = cacheWith({ msLeft: 30_000, ttl: '5m' })
+
+/** 180k of a 200k window with compaction at 190k: 95% of the way, ~10k left, amber. */
+export const NEAR_COMPACTION: BandSnapshot['context'] = { tokens: 180_000, window: 200_000, percent: 90, compactAt: 190_000, autoCompactOff: false }
+
+/** A window `pct` used, resetting `h` hours after `now`. */
+export const limitAt = (pct: number, h: number, now = 0): LimitReading => ({ percentUsed: pct, resetsAt: now + h * HOUR })
+/** Calm windows: the 5h at 26%, its reset in 3h and no fill in sight; the 7d at 41%, its reset in 67h. */
+export const CALM_LIMITS = { fiveHour: { ...limitAt(26, 3), etaMs: null }, sevenDay: limitAt(41, 67) } as const satisfies Partial<BandSnapshot>
+/** The same, but the 7d amber at 85%, as the three-layouts spec §3's scenario has it. */
+export const AMBER_WEEK_LIMITS = { ...CALM_LIMITS, sevenDay: limitAt(85, 67) } as const satisfies Partial<BandSnapshot>
+/** Two other windows, a gateway's spend at 40% and its credit at 20%, resetting
+ *  5h and 9h after `now`: the three-layouts spec §5.3's count at 13 rows has two. */
+export const otherLimits = (now = 0): BandSnapshot['otherLimits'] => [
+  { kind: 'spend_limit', ...limitAt(40, 5, now) },
+  { kind: 'credit_limit', ...limitAt(20, 9, now) },
+]
+
+/** Twenty-four messages, $0.20 each but a $0.84 re-warm seven from the end
+ *  and a last of $0.21; the context at three turns. */
+export const HISTORY: BandSnapshot['history'] = {
+  costs: Array.from({ length: 24 }, (_, i) => ({ usd: i === 23 ? 0.21 : i === 17 ? 0.84 : 0.2, reWarm: i === 17 })),
+  context: [40_000, 60_000, 76_000],
+}
+
+/** A project on main with nothing changed and no upstream. */
+export const WORKSPACE: Workspace = {
+  path: '/u/nextcost',
+  repoName: undefined,
+  git: { branch: 'main', commit: undefined, worktree: undefined, changed: 0, ahead: undefined, behind: undefined },
+}
+
 /** Every live layout's words for each amber trigger, and no others. An other
  *  limit, open only, is chips' LIMITS card's headline, marked as chips marks
  *  it: `spend 92%!`.
@@ -66,7 +110,7 @@ const AMBER_WORDS: Readonly<Record<AmberReason, RegExp>> = {
   // The board's row for it, open only: its name, then its status.
   otherLimit80: /! spend \d+%|spend \d+%!|SPEND LIMIT\W*! (NEAR LIMIT|\d+%)/,
 }
-/** Amber the collapsed part never shows: other limits are drawn only open (spec §2.7). */
+/** Amber the collapsed part never shows: other limits are drawn only open (the band-layouts spec §2.7). */
 const OPEN_ONLY: ReadonlySet<AmberReason> = new Set(['otherLimit80'])
 
 /** A row's height on the desktop. */
@@ -96,7 +140,7 @@ const heightOf = (n: unknown, px: boolean): number => {
 export const visualRows = (tree: unknown, surface: Surface): number =>
   surface === 'desktop' ? Math.round(heightOf(tree, true) / ROW_PX) : heightOf(tree, false)
 
-/** The most nodes a band may draw, shut and open (spec §9). */
+/** The most nodes a band may draw, shut and open (the band-layouts spec §9). */
 export const NODE_BUDGET = { shut: 400, open: 1500 } as const
 
 export type InvariantContext = Readonly<{
@@ -157,21 +201,21 @@ const coloursOf = (n: Node): string[] => {
   return [...colourProps(n.props ?? {}), ...[...source.matchAll(SVG_PAINT)].map(m => m[1] ?? '')]
 }
 
-/** What each glyph tier may draw (spec §3.2): the unicode tier's glyphs, rings' quarters and braille, or ASCII alone. */
+/** What each glyph tier may draw (the band-layouts spec §3.2): the unicode tier's glyphs, rings' quarters and braille, or ASCII alone. */
 const UNICODE_TIER = /^[\x20-\x7e▁▂▃▄▅▆▇█▓░▒│╌╸▏·›↻Σ◷○◔◑◕▿▵…±●■–↑↓\u2800-\u28ff]*$/
 const ASCII_TIER = /^[\x20-\x7e]*$/
-/** What a value missing from a phrase leaves drawn (spec §2.8), in any case. */
+/** What a value missing from a phrase leaves drawn (the band-layouts spec §2.8), in any case. */
 const NOTHING = /\b(NaN|undefined|null)\b/i
-/** What spec §2.9 bars from any Svg's markup: an id, a gradient, a pattern, a clipPath. */
+/** What the band-layouts spec §2.9 bars from any Svg's markup: an id, a gradient, a pattern, a clipPath. */
 const SVG_BARRED = /<(linearGradient|radialGradient|pattern|clipPath)\b|\bid=/
-/** An alt that misstates its reading (spec §2.13): a share said as used or
+/** An alt that misstates its reading (the band-layouts spec §2.13): a share said as used or
  *  left, or a landing without its figure. */
 const MISSTATED = new RegExp(`\\b(hit rate|${SPLIT_LABELS.join('|')}) \\d+% (used|left)|(?<!\\d percent) at its reset`)
-/** A price or a fill time drawn without its `~` (spec §2.4). */
+/** A price or a fill time drawn without its `~` (the band-layouts spec §2.4). */
 const UNMARKED = /re-warm \$|next message \$|full (in |at )?\d|on pace for \d/i
 
 /** Whether a Text leaves its cut to the surface, which ends it with `…`:
- *  East-Asian-Ambiguous, so the ascii tier never may (spec §3.2). */
+ *  East-Asian-Ambiguous, so the ascii tier never may (the band-layouts spec §3.2). */
 export const cutBySurface = (n: Node): boolean => n.type === 'Text' && typeof n.props?.wrap === 'string' && n.props.wrap !== 'wrap'
 
 /** The rows chips' open view of its cards takes at its floor, which a
@@ -195,7 +239,7 @@ const cardsFloor = (tree: Node, declared: number, surface: Surface): number | un
   return cards === 0 ? undefined : declared + visualRows(opened, surface)
 }
 
-/** The readings' one order on the collapsed row (spec §2.1). */
+/** The readings' one order on the collapsed row (the three-layouts spec §2.1). */
 const ONE_ORDER = ['cache', 'spend', 'context', '5h', '7d'] as const
 
 /** The one order's errors on a collapsed row: its readings' Box keys, in
@@ -227,8 +271,9 @@ const hasSevenDay = (scenario: ScenarioName): boolean => {
   return !DRIVEN_WITHOUT_SEVEN_DAY.has(scenario) && (s.usage ?? USAGE).rateLimits.some(l => l.kind === 'seven_day')
 }
 
-/** Each failed check as `<check>: <why>`; none when the tree keeps the spec
- *  §2 contract: the checks spec §7 lists, §9's node budget and §2.6's open height. */
+/** Each failed check as `<check>: <why>`; none when the tree keeps the
+ *  band-layouts spec's §2 contract: the checks its §7 lists, §9's node budget
+ *  and §2.6's open height. */
 export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => {
   const errors: string[] = []
   const fail = (check: string, why: string): void => {
@@ -260,7 +305,7 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
 
   // Below 60 columns chips' all-amber row, which lastMinute stands for, may
   // not fit: calm pieces go first, then amber turns short, and past that the
-  // row clips, ▵ pinned at its end (the old spec's §2.6). Pulse and
+  // row clips, ▵ pinned at its end (the band-layouts spec's §2.6). Pulse and
   // departures never clip: once their calm pieces have gone and amber is
   // short, the row fits, ▵ in view (departures draws chips below its 60
   // columns). On the terminal it fits the row less its slack, as each line
@@ -298,12 +343,12 @@ export const invariantErrors = (tree: Node, ctx: InvariantContext): string[] => 
   }
 
   // A desktop board's words are its flaps' tiles, which no Text holds.
-  const text = `${shown(tree)} ${flapWords(tree)}`
+  const text = wordsOf(tree)
   if (/send|keep (it )?warm/i.test(text)) fail('wording', 'suggests sending a message')
   for (const reason of amber)
     if ((ctx.expanded || !OPEN_ONLY.has(reason)) && !AMBER_WORDS[reason].test(text)) fail('amber', `no words for ${reason}`)
   if (UNMARKED.test(text)) fail('estimate', 'an estimate without ~')
-  // A landing of 100% or more says `full before reset` (spec §2.1).
+  // A landing of 100% or more says `full before reset` (the band-layouts spec §2.1).
   if (/~\d{3,}%/.test(text)) fail('projection', 'a landing of 100% or more')
   // No scenario holds an empty context, so 0% is only ever an unreported one.
   if (/\b(context|ctx) 0%/i.test(text)) fail('unknown', 'context 0% where it is unknown')
@@ -410,18 +455,9 @@ const edgeOf = (layout: LayoutName): number[] => {
 /** The mounts drawn again as chips, after `/nextcost layout chips`, each
  *  shut and open as drawCases draws them; then the layout chosen again. */
 const drawnAsChips = async ($: Engine, layout: LayoutName, mounts: readonly Mount[], isWorking?: boolean): Promise<Readonly<Record<string, Node>>> => {
-  const run = (args: string) => $.command.run({ command: 'nextcost', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 110 } })
-  await run('layout chips')
-  const trees: Record<string, Node> = {}
-  for (const m of mounts) {
-    const ui = await mountBand($, m.surface, m.cols, { maxRows: m.maxRows, isWorking })
-    trees[caseKey(m, 'shut')] = (await ui.drawn()) as Node
-    await ui.press({ key: 'more' })
-    trees[caseKey(m, 'open')] = (await ui.drawn()) as Node
-    await ui.press({ key: 'more' })
-    await ui.unmount()
-  }
-  await run(`layout ${layout}`)
+  await runCommand($, 'layout chips')
+  const trees = await drawMounts($, mounts, isWorking)
+  await runCommand($, `layout ${layout}`)
   return trees
 }
 

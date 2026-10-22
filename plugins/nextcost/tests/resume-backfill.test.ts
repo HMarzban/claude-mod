@@ -6,10 +6,10 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import type { SessionUsage } from 'claude-code'
-import { CLEAR, HOUR, LONG, MIN, START, USAGE, cardOf, engine, fact, pillOf, resp, respond, setup, shown, startTurn, endTurn, svgAlts, turn, mountBand, usage } from './helpers'
+import { CLEAR, HOUR, LONG, MIN, START, USAGE, cardOf, engine, fact, jsonl, pillOf, resp, respond, setup, shown, startTurn, endTurn, svgAlts, turn, mountBand, usage } from './helpers'
 
 const ENV = { ENABLE_PROMPT_CACHING_1H: '1', HOME: '/Users/me' }
-const BUILT_PATH = '/Users/me/.claude/projects/-Users-me-workspace-claude-mod/s1.jsonl'
+const BUILT_PATH = '/Users/me/.claude/projects/-Users-me-workspace-nextcost/s1.jsonl'
 const PATH = '/Users/me/.claude/projects/-Users-me-elsewhere/s1.jsonl'
 /** A resumed session whose ledger starts again at $0. */
 const RESUMED: SessionUsage = { ...USAGE, cost: { usd: 0 } }
@@ -21,9 +21,6 @@ const mounted = async ($: Engine, open = false) => {
   await ui.unmount()
   return tree
 }
-
-/** A transcript's lines, as Claude Code writes them. */
-const jsonl = (...lines: unknown[]): string => lines.map(line => JSON.stringify(line)).join('\n') + '\n'
 
 /** One reply, logged once per content block, each line with the same usage. */
 const reply = (id: string, blocks: number, usage: Record<string, unknown>, model = 'claude-opus-5-5') =>

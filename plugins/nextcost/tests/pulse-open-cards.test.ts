@@ -4,30 +4,25 @@
 
 import type { RenderChildren } from 'claude-code'
 import { test, expect } from 'claude-code/testing'
-import { drawBand } from '../hooks/band'
 import { DESKTOP, TERMINAL, cellsOf } from '../hooks/layout'
 import { DARK, LIGHT, PLAIN } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { EMPTY, limitsHead, markedHead } from '../hooks/words'
 import { fixedZone } from '../hooks/format'
-import { HOUR, MIN, SAMPLES, byKey, fakeEl, shown, svgsOf, walk, type Node } from './helpers'
-import { NO_ACT, snapOf, visualRows } from './matrix'
+import { HOUR, MIN, SAMPLES, byKey, shown, svgsOf, walk, type Node } from './helpers'
+import {
+  AMBER_WEEK_LIMITS, CALM_LIMITS, COLD_CACHE, HISTORY, LAST_MINUTE_CACHE, NEAR_COMPACTION, WORKSPACE, bandOf, cacheWith, otherLimits, snapOf, visualRows,
+} from './matrix'
 
-const COSTS = Array.from({ length: 24 }, (_, i) => ({ usd: i === 23 ? 0.21 : i === 17 ? 0.84 : 0.2, reWarm: i === 17 }))
-const HISTORY = { costs: COSTS, context: [40_000, 60_000, 76_000] }
-const LIMITS = { fiveHour: { percentUsed: 26, resetsAt: 3 * HOUR, etaMs: null }, sevenDay: { percentUsed: 41, resetsAt: 67 * HOUR } }
-const OTHER = [{ kind: 'spend_limit', percentUsed: 40, resetsAt: 5 * HOUR }] as BandSnapshot['otherLimits']
-const AMBER_OTHER = [{ kind: 'spend_limit', percentUsed: 92, resetsAt: 5 * HOUR }] as BandSnapshot['otherLimits']
-const NEAR = { tokens: 180_000, window: 200_000, percent: 90, compactAt: 190_000, autoCompactOff: false }
-const EXPIRING = { ...snapOf().cache, msLeft: 30_000, ttl: '5m' as const }
-const AMBER_7D = { ...LIMITS, sevenDay: { ...LIMITS.sevenDay, percentUsed: 85 } }
-const WS = { path: '/u/claude-mod', git: { branch: 'main', changed: 0 } } as BandSnapshot['workspace']
+/** The gateway's spend limit alone, of the two other windows. */
+const OTHER = otherLimits().slice(0, 1)
+const AMBER_OTHER: BandSnapshot['otherLimits'] = [{ kind: 'spend_limit', percentUsed: 92, resetsAt: 5 * HOUR }]
 const CARDS = ['pulse:cache', 'pulse:spend', 'pulse:context', 'pulse:limits'] as const
 
 /** Pulse drawn open, at 94 columns and 13 rows unless told otherwise. */
 const open = (over: Partial<BandSnapshot> = {}): Node =>
-  drawBand(fakeEl, snapOf({ layout: 'pulse', columns: 94, maxRows: 13, history: HISTORY, samples: SAMPLES, expanded: true, ...LIMITS, ...over }), NO_ACT) as unknown as Node
+  bandOf({ layout: 'pulse', columns: 94, maxRows: 13, history: HISTORY, samples: SAMPLES, expanded: true, ...CALM_LIMITS, ...over })
 const cardOf = (tree: Node, name: string) => byKey(tree, `pulse:${name}`, 'Box')
 const present = (tree: Node) => CARDS.filter(k => byKey(tree, k, 'Box') !== undefined)
 /** A card's chart: its Svg keyed `chart`, or in text its line. */
@@ -103,10 +98,10 @@ test('a chart spans its card, to where its fact row ends: on the desktop its px,
 test("the cache's track is inked by its mood: warm green while warm, amber in its last minute, grey cold, none while unknown", () => {
   const moods: ReadonlyArray<readonly [string, BandSnapshot['cache'], string]> = [
     ['warm', snapOf().cache, DARK.warm],
-    ['expiring', EXPIRING, DARK.amberFg],
-    ['cold', { ...snapOf().cache, msLeft: 0 }, DARK.label],
-    ['unmeasured', { ...snapOf().cache, requests: 0, recalled: false, fresh: false }, 'none'],
-    ['warming', { ...snapOf().cache, requests: 0, recalled: false, fresh: true }, 'none'],
+    ['expiring', LAST_MINUTE_CACHE, DARK.amberFg],
+    ['cold', COLD_CACHE, DARK.label],
+    ['unmeasured', cacheWith({ requests: 0, recalled: false, fresh: false }), 'none'],
+    ['warming', cacheWith({ requests: 0, recalled: false, fresh: true }), 'none'],
   ]
   for (const [mood, cache, ink] of moods) {
     expect(readingsOf(snapOf({ cache })).cache.mood).toBe(mood)
@@ -175,7 +170,7 @@ test('the other limits: a row of Limits, given way first; amber, it outlasts eve
 })
 
 test('an amber card never gives way: near compaction Context stays, an expiring cache and an amber 7d too, where calm they go', () => {
-  const cases = [['pulse:context', { context: NEAR }], ['pulse:cache', { cache: EXPIRING }], ['pulse:limits', AMBER_7D]] as const
+  const cases = [['pulse:context', { context: NEAR_COMPACTION }], ['pulse:cache', { cache: LAST_MINUTE_CACHE }], ['pulse:limits', AMBER_WEEK_LIMITS]] as const
   for (const surface of ['terminal', 'desktop'] as const)
     for (const [key, amber] of cases)
       for (const maxRows of [7, 8, 9]) {
@@ -187,12 +182,12 @@ test('an amber card never gives way: near compaction Context stays, an expiring 
       }
   // The calm Context does go short of rows, so the case above means something.
   expect(byKey(open({ surface: 'desktop', columns: 50, maxRows: 8 }), 'pulse:context', 'Box')).toBeUndefined()
-  expect(byKey(open({ surface: 'desktop', columns: 50, maxRows: 8, context: NEAR }), 'pulse:context', 'Box')).toBeDefined()
+  expect(byKey(open({ surface: 'desktop', columns: 50, maxRows: 8, context: NEAR_COMPACTION }), 'pulse:context', 'Box')).toBeDefined()
 })
 
 test('more amber than the body holds: the amber cards give way in pulse\'s order, the cache last, never the whole view', () => {
   // A desktop card's edge takes a row, so its least is a body of three.
-  for (const [surface, over, rows] of [['desktop', { cache: EXPIRING, context: NEAR }, [7, 8]], ['terminal', { ...AMBER_7D, cache: EXPIRING, context: NEAR }, [6, 7]]] as const)
+  for (const [surface, over, rows] of [['desktop', { cache: LAST_MINUTE_CACHE, context: NEAR_COMPACTION }, [7, 8]], ['terminal', { ...AMBER_WEEK_LIMITS, cache: LAST_MINUTE_CACHE, context: NEAR_COMPACTION }, [6, 7]]] as const)
     for (const maxRows of rows) {
       const tree = open({ surface, columns: 50, maxRows, ...over })
       expect(`${surface} ${maxRows} ${byKey(tree, 'pulse:cache', 'Box') !== undefined}`).toBe(`${surface} ${maxRows} true`)
@@ -201,7 +196,7 @@ test('more amber than the body holds: the amber cards give way in pulse\'s order
 })
 
 test("an amber card says so in words: its headline led by '! '", () => {
-  const tree = open({ surface: 'terminal', cache: EXPIRING, context: NEAR, ...AMBER_7D })
+  const tree = open({ surface: 'terminal', cache: LAST_MINUTE_CACHE, context: NEAR_COMPACTION, ...AMBER_WEEK_LIMITS })
   expect(shown(byKey(cardOf(tree, 'cache'), 'head', 'Box'))).toMatch(/^CACHE! 0:30 left$/)
   expect(shown(byKey(cardOf(tree, 'context'), 'head', 'Box'))).toMatch(/^CONTEXT! 95% full$/)
   expect(shown(byKey(cardOf(tree, 'limits'), 'head', 'Box'))).toMatch(/^LIMITS! 5h 26% · 7d 85%$/)
@@ -251,11 +246,11 @@ test("the context's compaction line sits inside its own chart, with air above it
 })
 
 test('every card keeps to its share of the line: no fact or chart wider than the card, at any width, amber or calm', () => {
-  const amber = { cache: EXPIRING, context: NEAR, fiveHour: { percentUsed: 50, resetsAt: 3 * HOUR, etaMs: 40 * MIN } }
+  const amber = { cache: LAST_MINUTE_CACHE, context: NEAR_COMPACTION, fiveHour: { percentUsed: 50, resetsAt: 3 * HOUR, etaMs: 40 * MIN } }
   for (const surface of ['desktop', 'terminal'] as const)
     for (const columns of [40, 50, 60, 80, 94, 120, 160])
       for (const over of [{}, amber]) {
-        const tree = open({ surface, columns, maxRows: 40, otherLimits: OTHER, workspace: WS, zone: fixedZone(0), ...over })
+        const tree = open({ surface, columns, maxRows: 40, otherLimits: OTHER, workspace: WORKSPACE, zone: fixedZone(0), ...over })
         const lines = (byKey(tree, 'cards', 'Box')?.children ?? []) as Node[]
         for (const line of lines) {
           const cards = (line.children ?? []) as Node[]
@@ -306,9 +301,9 @@ test('the terminal: cards are fills, not borders; plain draws no fill and border
 
 test("the cards' words: each figure from the readings, phrase by phrase", () => {
   const r = readingsOf(snapOf({ zone: fixedZone(0), history: { costs: [{ usd: 0.2, reWarm: false }, { usd: 0.21, reWarm: false }], context: [] } }))
-  expect([r.cache.estimateLabel, readingsOf(snapOf({ cache: { ...snapOf().cache, msLeft: 0 } })).cache.estimateLabel]).toEqual(['re-warm if cold', 'next message'])
+  expect([r.cache.estimateLabel, readingsOf(snapOf({ cache: COLD_CACHE })).cache.estimateLabel]).toEqual(['re-warm if cold', 'next message'])
   expect(r.context.fact).toEqual({ label: 'in context', values: ['76k of 200k', 'compacts at 190k'] })
-  expect(readingsOf(snapOf({ context: NEAR })).context.fact.values).toEqual(['180k of 200k', 'compacts in ~10k'])
+  expect(readingsOf(snapOf({ context: NEAR_COMPACTION })).context.fact.values).toEqual(['180k of 200k', 'compacts in ~10k'])
   expect(r.history().costFact).toEqual({ label: 'last message · avg', value: '$0.21 · ~$0.21' })
   expect(readingsOf(snapOf()).history().costFact).toBeUndefined()
   expect(r.fiveHour?.fact).toEqual({ label: '5h resets', value: '03:00' })

@@ -4,9 +4,9 @@
 // and in every frame a hover card shows in, each piece covered whole or not at all.
 import { test, expect } from 'claude-code/testing'
 import { GOLDEN, GOLDEN_TREES } from './chips'
-import { partCovered } from './cover'
+import { partCovered } from '../cover'
 import { canon, treeHash } from './hash'
-import { GOLDEN_APPEARANCES, GOLDEN_MOUNTS, caseKey, drawCases, goldenKey, type Appearance, type ScenarioName } from '../matrix'
+import { GOLDEN_APPEARANCES, GOLDEN_MOUNTS, GOLDEN_SCENARIOS, caseKey, drawCases, goldenKey, type Appearance, type ScenarioName } from '../matrix'
 import { LONG } from '../helpers'
 
 /** Every case the capture froze for one setup, read from the frozen hashes, so
@@ -16,8 +16,15 @@ const frozenCases = (scenario: ScenarioName, appearance: Appearance): string[] =
   return Object.keys(GOLDEN).filter(key => key.startsWith(prefix)).map(key => key.slice(prefix.length)).sort()
 }
 
-export const goldenSuite = (scenarios: readonly ScenarioName[]): void => {
-  for (const scenario of scenarios) for (const appearance of GOLDEN_APPEARANCES) {
+/** Golden's scenarios in two halves, a file each, so the two run side by side. */
+const halfOf = (half: 0 | 1): readonly ScenarioName[] => {
+  const middle = Math.ceil(GOLDEN_SCENARIOS.length / 2)
+  return half === 0 ? GOLDEN_SCENARIOS.slice(0, middle) : GOLDEN_SCENARIOS.slice(middle)
+}
+
+/** Registers golden's tests for one half of its scenarios. */
+export const goldenSuite = (half: 0 | 1): void => {
+  for (const scenario of halfOf(half)) for (const appearance of GOLDEN_APPEARANCES) {
     test(`chips draws as before: ${scenario}, ${appearance}`, LONG, async ($, on) => {
       const trees = await drawCases($, on, { scenario, appearance }, GOLDEN_MOUNTS)
       expect(Object.keys(trees).sort()).toEqual(frozenCases(scenario, appearance))

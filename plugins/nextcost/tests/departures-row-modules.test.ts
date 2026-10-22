@@ -16,17 +16,15 @@ import { DARK, LIGHT, PLAIN } from '../hooks/palette'
 import { readingsOf } from '../hooks/reading'
 import type { BandSnapshot } from '../hooks/snapshot'
 import { ITEM_INK } from '../hooks/views/departures-board'
-import { HOUR, LONG, byKey, fakeEl, firstRow, flapWords, shown, svgsOf, walk, type Node } from './helpers'
-import { NO_ACT, snapOf } from './matrix'
+import { LONG, byKey, fakeEl, firstRow, flapWords, shown, svgsOf, walk, wordsOf, type Node } from './helpers'
+import { CALM_LIMITS, COLD_CACHE, LAST_MINUTE_CACHE, NEAR_COMPACTION, NO_ACT, limitAt, snapOf } from './matrix'
 
-const at = (pct: number, h: number) => ({ percentUsed: pct, resetsAt: h * HOUR })
-const CALM = { fiveHour: { ...at(26, 3), etaMs: null }, sevenDay: at(41, 67) }
-const EXPIRING = { cache: { ...snapOf().cache, msLeft: 40_000, ttl: '5m' as const } }
-const NEAR = { context: { tokens: 176_000, window: 200_000, percent: 88, compactAt: 190_000, autoCompactOff: false } }
+const EXPIRING = { cache: LAST_MINUTE_CACHE }
+const NEAR = { context: NEAR_COMPACTION }
 const KEYS = ['cache', 'spend', 'context', '5h', '7d'] as const
 
 const snap = (over: Partial<BandSnapshot> = {}): BandSnapshot =>
-  snapOf({ layout: 'departures', columns: 160, maxRows: 13, zone: fixedZone(0), ...CALM, ...over })
+  snapOf({ layout: 'departures', columns: 160, maxRows: 13, zone: fixedZone(0), ...CALM_LIMITS, ...over })
 /** Departures' collapsed row. */
 const rowOf = (over: Partial<BandSnapshot> = {}): Node => firstRow(drawBand(fakeEl, snap(over), NO_ACT)) as Node
 const moduleOf = (row: unknown, key: string): Node | undefined => byKey(row, key, 'Box')
@@ -152,7 +150,6 @@ test('the ascii tier: modules in ascii alone, a real space between them', () => 
 // ---- give-way --------------------------------------------------------------
 
 const WIDTHS = Array.from({ length: 141 }, (_, i) => 200 - i)
-const words = (n: unknown) => `${shown(n)} ${flapWords(n)}`
 
 for (const surface of ['desktop', 'terminal'] as const)
   test(`${surface}: as the row narrows, remarks then SPEND, CONTEXT and 5H give way, in that order; CACHE and 7D never`, LONG, () => {
@@ -165,7 +162,7 @@ for (const surface of ['desktop', 'terminal'] as const)
       // Once gone, a reading stays gone at every narrower width.
       for (const k of gone) expect(`${columns} ${k} ${moduleOf(row, k) === undefined}`).toBe(`${columns} ${k} true`)
       // A reading goes only once the remarks have.
-      if (gone.length > 0) expect(`${columns} ${words(row)}`).not.toMatch(/ON PACE|FULL|RESET/)
+      if (gone.length > 0) expect(`${columns} ${wordsOf(row)}`).not.toMatch(/ON PACE|FULL|RESET/)
     }
     // SPEND and CONTEXT go by 60; 5H, if at all, after them.
     expect(gone.length).toBeGreaterThanOrEqual(2)
@@ -175,7 +172,7 @@ for (const surface of ['desktop', 'terminal'] as const)
 const AMBERS: ReadonlyArray<Partial<BandSnapshot>> = [
   NEAR,
   { ...EXPIRING, ...NEAR },
-  { ...EXPIRING, ...NEAR, fiveHour: { ...at(88, 3), etaMs: null }, sevenDay: at(85, 67) },
+  { ...EXPIRING, ...NEAR, fiveHour: { ...limitAt(88, 3), etaMs: null }, sevenDay: limitAt(85, 67) },
 ]
 for (const surface of ['desktop', 'terminal'] as const)
   test(`${surface}: an amber reading keeps its module and its whole cell until every calm reading has gone`, LONG, () => {
@@ -200,17 +197,17 @@ for (const surface of ['desktop', 'terminal'] as const)
 
 const STATES: ReadonlyArray<readonly [string, Partial<BandSnapshot>]> = [
   ['calm', {}],
-  ['cold', { cache: { ...snapOf().cache, msLeft: 0 } }],
+  ['cold', { cache: COLD_CACHE }],
   ['last call', EXPIRING],
   ['context near', NEAR],
   ['two amber', { ...EXPIRING, ...NEAR }],
-  ['limits amber', { fiveHour: { ...at(88, 3), etaMs: null }, sevenDay: at(85, 67) }],
-  ['all amber', { ...EXPIRING, ...NEAR, fiveHour: { ...at(88, 3), etaMs: null }, sevenDay: at(85, 67) }],
-  ['all amber, filling', { ...EXPIRING, ...NEAR, fiveHour: { ...at(88, 3), etaMs: 20 * 60_000 }, sevenDay: at(85, 67) }],
-  ['all amber, no zone', { ...EXPIRING, ...NEAR, fiveHour: { ...at(88, 3), etaMs: null }, sevenDay: at(85, 67), zone: undefined }],
-  ['all amber, compaction off', { ...EXPIRING, context: { tokens: 180_000, window: 200_000, percent: 90, compactAt: undefined, autoCompactOff: true }, fiveHour: { ...at(88, 3), etaMs: null }, sevenDay: at(85, 67) }],
+  ['limits amber', { fiveHour: { ...limitAt(88, 3), etaMs: null }, sevenDay: limitAt(85, 67) }],
+  ['all amber', { ...EXPIRING, ...NEAR, fiveHour: { ...limitAt(88, 3), etaMs: null }, sevenDay: limitAt(85, 67) }],
+  ['all amber, filling', { ...EXPIRING, ...NEAR, fiveHour: { ...limitAt(88, 3), etaMs: 20 * 60_000 }, sevenDay: limitAt(85, 67) }],
+  ['all amber, no zone', { ...EXPIRING, ...NEAR, fiveHour: { ...limitAt(88, 3), etaMs: null }, sevenDay: limitAt(85, 67), zone: undefined }],
+  ['all amber, compaction off', { ...EXPIRING, context: { tokens: 180_000, window: 200_000, percent: 90, compactAt: undefined, autoCompactOff: true }, fiveHour: { ...limitAt(88, 3), etaMs: null }, sevenDay: limitAt(85, 67) }],
   ['calm, a large spend', { costUsd: 1234.56 }],
-  ['all amber, other limits', { ...EXPIRING, ...NEAR, fiveHour: { ...at(88, 3), etaMs: null }, sevenDay: at(85, 67), otherLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: undefined }] }],
+  ['all amber, other limits', { ...EXPIRING, ...NEAR, fiveHour: { ...limitAt(88, 3), etaMs: null }, sevenDay: limitAt(85, 67), otherLimits: [{ kind: 'spend_limit', percentUsed: 92, resetsAt: undefined }] }],
 ]
 
 test('no overflow from 200 columns to 60: every state, both surfaces, every palette, unicode and ascii; ▵ at the end', LONG, () => {
@@ -233,7 +230,7 @@ test("plain's last step: four amber readings at 60 each bracketed once, a column
   for (const surface of ['terminal', 'desktop'] as const) {
     const m = surface === 'desktop' ? DESKTOP : TERMINAL
     const narrow = rowOf({ surface, palette: PLAIN, columns: 60, ...all })
-    expect(KEYS.map(k => moduleOf(narrow, k) === undefined ? '-' : drawnText(moduleOf(narrow, k)))).toEqual(['[CACHE ! 40S]', '-', '[CONTEXT ! 93%]', '[5H ! 88%]', '[7D ! 85%]'])
+    expect(KEYS.map(k => moduleOf(narrow, k) === undefined ? '-' : drawnText(moduleOf(narrow, k)))).toEqual(['[CACHE ! 30S]', '-', '[CONTEXT ! 95%]', '[5H ! 88%]', '[7D ! 85%]'])
     for (const air of piecesOf(narrow).filter(p => !isModule(p))) expect(cellsOf(air as unknown as RenderChildren, m)).toBe(1)
     const wide = rowOf({ surface, palette: PLAIN, columns: 200, ...all })
     expect(drawnText(moduleOf(wide, 'cache'))).toMatch(/^\[CACHE\]\[/)

@@ -4,12 +4,13 @@
 import { test, expect } from 'claude-code/testing'
 import type { Engine } from 'claude-code/testing'
 import { asLayoutName, removedLayoutOf } from '../hooks/snapshot'
-import { START, engine, mountBand, resp, respond, setup, shown, turn } from './helpers'
+import { GOLDEN } from './golden/chips'
+import { treeHash } from './golden/hash'
+import { LONG, START, engine, mountBand, resp, respond, runCommand, setup, shown, turn } from './helpers'
+import { caseKey, drawCases, goldenKey, type Mount } from './matrix'
 
-const run = async ($: Engine, args: string): Promise<string> => {
-  const r = await $.command.run({ command: 'nextcost', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 110 } })
-  return String((r as { text?: string }).text ?? '')
-}
+/** What `/nextcost args` says. */
+const run = async ($: Engine, args: string): Promise<string> => (await runCommand($, args)).text ?? ''
 const drawnText = async ($: Engine): Promise<string> => {
   const ui = await mountBand($, 'terminal', 110)
   const t = shown(await ui.drawn())
@@ -142,4 +143,9 @@ test('a store read that fails as a new session starts draws chips, not the last 
   engine.storeReadFails = true
   await $.session.start(START)
   expect(await run($, 'layout')).toMatch(/^nextcost layout: chips\./)
+})
+test('chips stored explicitly draws the same as nothing stored', LONG, async ($, on) => {
+  const m: Mount = { surface: 'desktop', cols: 95 }
+  const trees = await drawCases($, on, { scenario: 'calm', appearance: 'dark', layout: 'chips' }, [m])
+  for (const state of ['shut', 'open'] as const) expect(treeHash(trees[caseKey(m, state)])).toBe(GOLDEN[goldenKey('calm', 'dark', caseKey(m, state))])
 })

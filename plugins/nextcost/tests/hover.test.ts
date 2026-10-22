@@ -24,7 +24,7 @@ import {
   setup,
   mountBand,
 } from './helpers'
-import { partCovered } from './golden/cover'
+import { partCovered } from './cover'
 import { snapOf } from './matrix'
 
 /** A card drawn inverted against `palette`, so it can't pass for a chip:

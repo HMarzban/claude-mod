@@ -6,7 +6,7 @@
 import { test, expect } from 'claude-code/testing'
 import { drawBand, layoutAt } from '../hooks/band'
 import { weekOf } from '../hooks/calendar'
-import { dayOf, fixedZone, hostZone, midnightOf, type Zone } from '../hooks/format'
+import { dayOf, fixedZone, hostZone, midnightOf, readableZone, zoneOf, type Zone } from '../hooks/format'
 import type { Sample } from '../hooks/memory'
 import { readingsOf } from '../hooks/reading'
 import { LAYOUT_NAMES, type BandSnapshot } from '../hooks/snapshot'
@@ -254,4 +254,20 @@ test('idle, with no reply, the band reads each clock in the zone in force as the
   await clock.advance(20 * MIN)
   expect(fact(await ui.drawn(), 'resets')).toBe(hostClock(resetAt, start + 20 * MIN))
   await ui.unmount()
+})
+
+const OCT_9 = Date.UTC(2026, 9, 9, 12)
+test('the host zone is east-positive minutes, as the clock reports each instant', () => {
+  expect(hostZone(OCT_9)).toBe(0 - new Date(OCT_9).getTimezoneOffset())
+})
+test('a clock at UTC reads +0, never -0', () => {
+  expect(Object.is(zoneOf(() => 0)(OCT_9), 0)).toBe(true)
+  expect(zoneOf(() => 300)(OCT_9)).toBe(-300)
+})
+test("a zone whose offset can't be read is none, so the band counts down", () => {
+  expect(readableZone(zoneOf(() => NaN), OCT_9)).toBeUndefined()
+  expect(readableZone(hostZone, OCT_9)).toBe(hostZone)
+})
+test('the zone reaches the readings', () => {
+  expect(readingsOf(snapOf({ zone: fixedZone(210) })).frame.zone?.(OCT_9)).toBe(210)
 })

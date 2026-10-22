@@ -183,7 +183,7 @@ test('amber: a reason is said only in the words a live layout draws for it, nami
   // Pulse's, chips' and the board's words for each.
   for (const said of ['! 30s left', 'CACHE LAST CALL 30S']) expect(amber(said, 'lastMinute')).not.toContain('amber')
   for (const said of ['! context 94%', '! ctx 94%', 'CONTEXT ! COMPACTS IN ~10K']) expect(amber(said, 'nearCompaction')).not.toContain('amber')
-  // Forms only the removed layouts drew no longer count, nor another reading's words.
+  // Words no live layout draws don't count, nor another reading's words.
   for (const said of ['30s! cache', '! cache 30s', '! cooling · 30s left', '! last call']) expect(amber(said, 'lastMinute')).toContain('amber')
   for (const said of ['98%! context', '98%! cache']) expect(amber(said, 'nearCompaction')).toContain('amber')
 })

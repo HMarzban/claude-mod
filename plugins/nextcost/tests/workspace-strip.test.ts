@@ -7,7 +7,7 @@ import { drawBand } from '../hooks/band'
 import { ROW_SLACK } from '../hooks/layout'
 import { LAYOUT_NAMES } from '../hooks/snapshot'
 import { BARE, LIGHT } from '../hooks/palette'
-import { partCovered } from './golden/cover'
+import { partCovered } from './cover'
 import { NO_ACT, snapOf } from './matrix'
 import {
   GIT_CLEAN,
@@ -38,7 +38,7 @@ import {
 const HOME = { ...HOUR_1, HOME: '/Users/me' }
 const DIRTY = `# branch.oid 1a2b3c4d5e6f\n# branch.head main\n# branch.upstream origin/main\n# branch.ab +2 -1\n1 .M N... 100644 100644 100644 a b src/a.ts\n1 M. N... 100644 100644 100644 a b src/b.ts\n? notes.md\n`
 const DETACHED = `# branch.oid 1a2b3c4d5e6f\n# branch.head (detached)\n`
-const WORKTREE = '/Users/me/workspace/claude-mod/.claude/worktrees/band-strip'
+const WORKTREE = '/Users/me/workspace/nextcost/.claude/worktrees/band-strip'
 const WORKTREE_DIRS = `${PROJECT}/.git/worktrees/band-strip\n${PROJECT}/.git\n${WORKTREE}\n`
 
 const stripOf = (tree: unknown): Node | undefined => byKey(tree, 'strip', 'Box')
@@ -63,12 +63,12 @@ test('the strip opens the expanded view: the project, home as ~, its name bold, 
   const kids = ((tree as Node).children ?? []).filter(Boolean) as Node[]
   expect(kids.map(k => k.props?.key)).toEqual(['row', 'strip', 'cards', 'actions'])
   const strip = stripOf(tree)
-  expect(shown(strip)).toMatch(/^~\/workspace\/claude-mod.*main.*clean$/)
+  expect(shown(strip)).toMatch(/^~\/workspace\/nextcost.*main.*clean$/)
   let bold: unknown
   walk(strip, n => {
     if (n.type === 'Text' && n.props?.bold) bold = shown(n)
   })
-  expect(bold).toBe('claude-mod')
+  expect(bold).toBe('nextcost')
   expect(svgsOf(strip).map(n => n.props?.alt)).toEqual(['folder', 'branch'])
 })
 
@@ -112,7 +112,7 @@ test('a linked worktree names the repository it belongs to', async ($, on) => {
   engine.git = { status: GIT_CLEAN, dirs: WORKTREE_DIRS }
   await $.session.start({ ...START, surface: 'desktop' })
   const strip = stripOf(await expanded($, clock, 'desktop', 160))
-  expect(shown(strip)).toMatch(/band-strip.*main.*worktree of claude-mod/)
+  expect(shown(strip)).toMatch(/band-strip.*main.*worktree of nextcost/)
   expect(svgsOf(strip).map(n => n.props?.alt)).toContain('linked')
 })
 
@@ -122,7 +122,7 @@ test('outside a repository, or with git unable to run, the strip is the path alo
     engine.git = git
     await $.session.start({ ...START, surface: 'desktop' })
     const strip = stripOf(await expanded($, clock, 'desktop'))
-    expect(shown(strip)).toBe('~/workspace/claude-mod')
+    expect(shown(strip)).toBe('~/workspace/nextcost')
     expect(svgsOf(strip).map(n => n.props?.alt)).toEqual(['folder'])
   }
 })
@@ -132,7 +132,7 @@ test('the terminal strip is words, with no icons and no bare spaces', async ($, 
   engine.git = { status: DIRTY, dirs: GIT_MAIN_TREE }
   await $.session.start(START)
   const strip = stripOf(await expanded($, clock, 'terminal'))
-  expect(shown(strip)).toMatch(/^~\/workspace\/claude-mod · on main.*3 changed · ↑2 ↓1$/)
+  expect(shown(strip)).toMatch(/^~\/workspace\/nextcost · on main.*3 changed · ↑2 ↓1$/)
   expect(svgsOf(strip)).toHaveLength(0)
 })
 
@@ -168,7 +168,7 @@ test('a band too short for a strip row puts it in the footer, in place of the hi
   const short = await expanded($, clock, 'desktop', 95, 13)
   const footer = footerOf(short)
   expect(stripOf(footer)).toBeDefined()
-  expect(shown(stripOf(footer))).toMatch(/claude-mod.*main/)
+  expect(shown(stripOf(footer))).toMatch(/nextcost.*main/)
   expect(shown(footer)).not.toMatch(/Bring it back/)
   // the footer strip leaves the buttons their room
   expect(widthOf(stripOf(footer))).toBeLessThanOrEqual(95 - 30)
@@ -235,7 +235,7 @@ test('a clipped branch or path keeps its whole name for a reader', async ($, on)
   await $.session.start({ ...START, surface: 'desktop' })
   const alts = svgsOf(stripOf(await expanded($, clock, 'desktop', 60))).map(n => String(n.props?.alt))
   expect(alts).toContain(`branch ${long}`)
-  expect(alts).toContain('folder ~/workspace/claude-mod/.claude/worktrees/band-strip')
+  expect(alts).toContain('folder ~/workspace/nextcost/.claude/worktrees/band-strip')
 })
 
 test("the path's hover card says the whole state, so nothing a narrow line drops is lost", async ($, on) => {
@@ -243,7 +243,7 @@ test("the path's hover card says the whole state, so nothing a narrow line drops
   engine.git = { status: DIRTY, dirs: GIT_MAIN_TREE }
   await $.session.start({ ...START, surface: 'desktop' })
   const card = hoverCardOf(stripOf(await expanded($, clock, 'desktop')), 'ws:path')
-  expect(cardText(card)).toBe('~/workspace/claude-mod: branch main, 3 changed, 2 ahead, 1 behind')
+  expect(cardText(card)).toBe('~/workspace/nextcost: branch main, 3 changed, 2 ahead, 1 behind')
 })
 
 test("the strip's hover cards are drawn after all of it, each sharing its own piece's scope", async ($, on) => {
@@ -350,7 +350,7 @@ for (const [surface, glyphs] of [['terminal', 'unicode'], ['terminal', 'ascii'],
 }
 
 test('in the footer, in every layout, the strip takes all the room the buttons leave, so its cards have the room they are given', () => {
-  const workspace = { path: '~/workspace/claude-mod', repoName: 'claude-mod', git: { branch: 'main', commit: '1a2b3c4', worktree: undefined, changed: 3, ahead: 2, behind: 1 } }
+  const workspace = { path: '~/workspace/nextcost', repoName: 'nextcost', git: { branch: 'main', commit: '1a2b3c4', worktree: undefined, changed: 3, ahead: 2, behind: 1 } }
   for (const layout of LAYOUT_NAMES) {
     let footers = 0
     for (let maxRows = 4; maxRows <= 16; maxRows++) {

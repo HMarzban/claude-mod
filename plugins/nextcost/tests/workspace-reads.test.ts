@@ -3,7 +3,7 @@
 
 import { test, expect } from 'claude-code/testing'
 import type { Engine, MockClock } from 'claude-code/testing'
-import { CLEAR, GIT_CLEAN, GIT_MAIN_TREE, START, byKey, engine, shown, turn, setup, mountBand } from './helpers'
+import { CLEAR, GIT_CLEAN, GIT_MAIN_TREE, START, byKey, engine, runCommand, shown, turn, setup, mountBand } from './helpers'
 
 const gitRuns = () => engine.ran.filter(argv => argv[0] === 'git').length
 
@@ -117,7 +117,7 @@ test('/nextcost more reads git, like the toggle', async ($, on) => {
   await $.session.start(START)
   await clock.settle()
   const before = gitRuns()
-  await $.command.run({ command: 'nextcost', args: 'more', origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 110 } })
+  await runCommand($, 'more')
   await clock.settle()
   expect(gitRuns()).toBe(before + 2)
 })

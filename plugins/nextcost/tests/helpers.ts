@@ -69,7 +69,7 @@ export const COMPACTED_TO = 20_000
 export const SUMMARY = [{ role: 'user' as const, text: 'summary', toolUses: [] }]
 
 /** The project the tests run in, and git's answers for it. */
-export const PROJECT = '/Users/me/workspace/claude-mod'
+export const PROJECT = '/Users/me/workspace/nextcost'
 export const GIT_CLEAN = '# branch.oid 1a2b3c4d5e6f\n# branch.head main\n# branch.upstream origin/main\n# branch.ab +0 -0\n'
 export const GIT_MAIN_TREE = `${PROJECT}/.git\n${PROJECT}/.git\n${PROJECT}\n`
 
@@ -430,6 +430,10 @@ export const setup = (
   return clock
 }
 
+/** `/nextcost args`, or another command named, as typed at the prompt. */
+export const runCommand = ($: Engine, args: string, command = 'nextcost') =>
+  $.command.run({ command, args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 110 } })
+
 /** The band drawn above the prompt on `surface`, `cols` wide. */
 export const mountBand = <S extends 'terminal' | 'desktop'>(
   $: Engine,
@@ -474,6 +478,9 @@ export const flapWords = (n: unknown): string =>
     .filter(w => w !== '')
     .join(' ')
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+
+/** A tree's words: its visible text, then a desktop board's flaps'. */
+export const wordsOf = (n: unknown): string => `${shown(n)} ${flapWords(n)}`
 
 export const svgAlts = (tree: unknown): string[] => svgsOf(tree).map(n => String(n.props?.alt))
 
@@ -614,17 +621,29 @@ export const pacing = async ($: Engine, clock: MockClock): Promise<void> => {
 export const breakdown = (fields: Pick<SessionContextBreakdown, 'isAutoCompactEnabled'> & { autoCompactThreshold?: number }): SessionContextBreakdown =>
   fields as SessionContextBreakdown
 
+/** A transcript of `lines`, one to a line: an object as its JSON, a string
+ *  as it is, so a test can write a line cut short. */
+export const jsonl = (...lines: unknown[]): string => lines.map(line => (typeof line === 'string' ? line : JSON.stringify(line))).join('\n') + '\n'
+/** A main-loop reply's line, logged at `ms`, billed under Opus 5.5. */
+export const replyLine = (ms: number) => ({ type: 'assistant', timestamp: new Date(ms).toISOString(), message: { role: 'assistant', model: 'claude-opus-5-5', content: [] } })
+/** A prompt's line, logged at `ms`. */
+export const promptLine = (ms: number) => ({ type: 'user', timestamp: new Date(ms).toISOString(), message: { role: 'user', content: 'hi' } })
+/** A cost record as Claude Code writes one: $20 over 1M input, 400k written,
+ *  20M read and 100k output, per model named. */
+export const costRecord = (...models: string[]) => ({
+  type: 'cost-state',
+  totalCostUSD: 20,
+  modelUsage: Object.fromEntries(
+    models.map(model => [model, { inputTokens: 1_000_000, cacheCreationInputTokens: 400_000, cacheReadInputTokens: 20_000_000, outputTokens: 100_000, costUSD: 20 }]),
+  ),
+})
+/** Whether a rate solved from a transcript is `b`, to within float error. */
+export const rateNear = (a: number | null, b: number): boolean => a !== null && Math.abs(a - b) < 1e-15
+
 /** A transcript as Claude Code writes one: a user line, an assistant reply at
  *  `replyAt`, and the cost-state line it adds when a session is opened. */
 export const transcriptOf = (replyAt: number, modelUsage: Record<string, Record<string, number>> = {}): string =>
-  [
-    { type: 'user', timestamp: new Date(replyAt - 5000).toISOString(), message: { role: 'user', content: 'hi' } },
-    { type: 'assistant', timestamp: new Date(replyAt).toISOString(), message: { role: 'assistant', model: 'claude-opus-5-5', content: [] } },
-    { type: 'last-prompt', lastPrompt: 'hi' },
-    { type: 'cost-state', totalCostUSD: 1, modelUsage },
-  ]
-    .map(line => JSON.stringify(line))
-    .join('\n') + '\n'
+  jsonl(promptLine(replyAt - 5000), replyLine(replyAt), { type: 'last-prompt', lastPrompt: 'hi' }, { type: 'cost-state', totalCostUSD: 1, modelUsage })
 
 /** WCAG 2.x contrast ratio of two hex colours. */
 export const contrast = (a: string, b: string): number => {

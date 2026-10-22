@@ -47,7 +47,7 @@ test('a session from before the band reads its last reply off its transcript, ne
   setup(on, { env: ENV, now: 3 * HOUR })
   engine.transcript = transcriptOf(0)
   await $.session.start(START)
-  expect(engine.ran.find(argv => argv[0] === 'tail')?.at(-1)).toBe('/Users/me/.claude/projects/-Users-me-workspace-claude-mod/s1.jsonl')
+  expect(engine.ran.find(argv => argv[0] === 'tail')?.at(-1)).toBe('/Users/me/.claude/projects/-Users-me-workspace-nextcost/s1.jsonl')
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold/)
 })
 
@@ -78,7 +78,7 @@ test('a transcript of any size is read from its end, the last megabyte alone', a
   engine.transcript = transcriptOf(0)
   engine.transcriptBytes = 40 * 1024 * 1024
   await $.session.start(START)
-  expect(engine.ran).toContainEqual(['tail', '-c', String(1024 * 1024), '/Users/me/.claude/projects/-Users-me-workspace-claude-mod/s1.jsonl'])
+  expect(engine.ran).toContainEqual(['tail', '-c', String(1024 * 1024), '/Users/me/.claude/projects/-Users-me-workspace-nextcost/s1.jsonl'])
   expect(shown(pillOf(await mounted($), 'cache'))).toMatch(/cache cold/)
 })
 
