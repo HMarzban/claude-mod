@@ -24,6 +24,10 @@ npx -y -p typescript@5 tsc -p plugins/nextcost
 
 # The views gate: no layout but chips formats or reads a raw fact
 tools/views-gate.sh
+
+# Lint the tools' shell scripts and Python, as CI does
+git ls-files -z 'tools/*.sh' | xargs -0 shellcheck -x
+pipx run ruff==0.17.1 check tools
 ```
 
 The type check reads the engine's API types from
@@ -39,8 +43,9 @@ run from a scratch copy's `tests/`, so the tsconfig's `rootDirs` reads
 `tools/demos/` as the plugin's folder and `capture/` as its `tests/`, and
 their `./helpers` and `../hooks/…` imports resolve as they do there.
 
-CI runs every check twice: on the latest Claude Code, and on a pinned
-version last known good (`matrix.claude-code` in `.github/workflows/ci.yml`).
+CI runs the plugin's checks twice: on the latest Claude Code, and on a pinned
+version last known good (`matrix.claude-code` in `.github/workflows/ci.yml`),
+and lints the tools once.
 It also runs nightly, so a new release that breaks the band shows within a
 day. Red on latest alone means a Claude Code release changed something:
 fix the band or its tests for it, then bump the pin to that release, in
@@ -207,7 +212,8 @@ subject says what changed. The body, when there is one, says why.
 3. Update the plugin's README if the band reads differently, and its *What
    it runs, reads and sends* and `SECURITY.md` if it runs, reads or hooks
    anything new.
-4. Make sure validate, test, the type check and the views gate all pass.
+4. Make sure validate, test, the type check, the views gate and, if you
+   touched `tools/`, the lint all pass.
 
 After merge, the maintainer tags the release with
 `claude plugin tag plugins/nextcost`.
